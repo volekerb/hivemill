@@ -30,7 +30,7 @@ Hivemill's CLI is `factory`.
 
 ---
 
-<!-- demo-video: the owner pastes the user-attachments URL of demo.mp4 on its own line here (T-0523 OWNER STEPS); GitHub renders it as a 1080p player. The hero loop below stays as the fallback. -->
+https://github.com/user-attachments/assets/7615b7c0-48b0-4b44-ad01-aacd7f692583
 
 <p align="center">
   <a href="https://github.com/volekerb/hivemill/releases/download/v0.1.0/demo.mp4"><img src="docs/demo/hero.webp" alt="An animated org chart: the owner talks to one boss agent, which hands goals down to directors, team leads and workers that ship pull requests" width="900"></a>
