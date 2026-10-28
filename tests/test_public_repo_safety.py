@@ -13,6 +13,8 @@ from harness import FactoryTestCase, REPO, gates_summary, git
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 PUB_URL = "https://github.com/acme/pub/pull/1"
 OLD_URL = "https://github.com/acme/old/pull/1"
+NOREPLY = "1+dev@users.noreply.github.com"
+MERGE_SHA = "a" * 40
 CLEAN = {"GIT_AUTHOR_NAME": "dev", "GIT_AUTHOR_EMAIL": "dev@users.noreply.github.com",
          "GIT_COMMITTER_NAME": "dev", "GIT_COMMITTER_EMAIL": "dev@users.noreply.github.com"}
 
@@ -136,9 +138,11 @@ class JudgeTextTests(Base):
         e.seed_agent("zz-test-director", "director")
         self.ok("config", "judge_ci_wait_s", "0")
         self.ok("config", "public_text_repos", "acme/pub")
+        self.ok("config", "noreply_email", NOREPLY)
         self.pr(self.terms_env)
 
-    def pr(self, extra, author_email="dev@users.noreply.github.com", title="fix T-0529", comments=(), body="clean body"):
+    def pr(self, extra, author_email="dev@users.noreply.github.com", title="fix T-0529", comments=(), body="clean body",
+           merge_emails=(NOREPLY, "noreply@github.com")):
         """A PR head one commit past main on a temp bare remote (refs/pull/1/head), the gh stub's PR text in `texts`."""
         e = self.env
         remote, wt = e.home / "pr-origin.git", e.home / "pr-wt"
@@ -160,7 +164,10 @@ class JudgeTextTests(Base):
         e.seed_pr(checks=GREEN)
         st = json.loads(e.gh_state.read_text())
         st["prs"]["https://github.com/zz-test/repo/pull/1"].update(
-            {"title": title, "body": body, "comments": [{"body": c} for c in comments], "reviews": [], "commits": []})
+            {"title": title, "body": body, "comments": [{"body": c} for c in comments], "reviews": [], "commits": [],
+             "mergeCommit": {"oid": MERGE_SHA}})
+        st["api"] = [{"match": ["/commits/" + MERGE_SHA], "out": {"commit": {
+            "author": {"email": merge_emails[0]}, "committer": {"email": merge_emails[1]}}}}]
         e.gh_state.write_text(json.dumps(st))
         self.ok("verdict", "T-0001", "--pass", "--summary", "ok", agent="zz-test-reviewer")
         self.ok("verdict", "T-0001", "--pass", "--summary", gates_summary(), agent="zz-test-qa")
@@ -182,6 +189,63 @@ class JudgeTextTests(Base):
         self.assertEqual(self.merges(), [])
         ev = self.env.sql("SELECT detail FROM events WHERE action='judge-blocked'")
         self.assertTrue(ev and "judge: refused (public text:" in ev[-1]["detail"])
+
+    def merge_args(self):
+        return self.merges()[0]["argv"]
+
+    def test_public_merge_passes_noreply_author_email(self):
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        argv = self.merge_args()
+        self.assertEqual(argv[argv.index("--author-email") + 1], NOREPLY)
+
+    def test_private_repo_merge_has_no_author_email(self):
+        self.ok("config", "public_text_repos", "")
+        self.pr({})
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("--author-email", self.merge_args())
+
+    def test_no_noreply_address_refuses_to_merge(self):
+        self.ok("config", "noreply_email", "")  # falls back to the repo-local user.email: example.invalid
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("no noreply author email", p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertNotEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+
+    def test_git_identity_noreply_user_email_is_used(self):
+        self.ok("config", "noreply_email", "")
+        ident = {**self.terms_env, "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "user.email",
+                 "GIT_CONFIG_VALUE_0": "7+me@users.noreply.github.com"}
+        p = self.judge(ident)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        argv = self.merge_args()
+        self.assertEqual(argv[argv.index("--author-email") + 1], "7+me@users.noreply.github.com")
+
+    def test_post_merge_real_author_email_fails_loudly(self):
+        self.pr(self.terms_env, merge_emails=("real.person@example.com", "noreply@github.com"))
+        p = self.judge()
+        self.assertEqual(p.returncode, 6, p.stdout + p.stderr)
+        self.assertIn("public-main email check failed", p.stderr)
+        self.assertNotIn("real.person", p.stdout + p.stderr)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='merge-email-leak'"))
+        m = self.env.sql("SELECT recipient, kind, body FROM messages WHERE subject LIKE '%email check FAILED%'")
+        self.assertEqual(len(m), 1)
+        self.assertNotIn("real.person", m[0]["body"])
+
+    def test_post_merge_real_committer_email_fails_loudly(self):
+        self.pr(self.terms_env, merge_emails=(NOREPLY, "real.person@example.com"))
+        self.assertEqual(self.judge().returncode, 6)
+
+    def test_post_merge_unreadable_commit_fails_loudly(self):
+        st = json.loads(self.env.gh_state.read_text())
+        st["api"] = []
+        self.env.gh_state.write_text(json.dumps(st))
+        p = self.judge()
+        self.assertEqual(p.returncode, 6, p.stdout + p.stderr)
+        self.assertIn("email not verified", p.stderr)
 
     def test_default_off_private_text_merges(self):
         self.ok("config", "public_text_repos", "")
