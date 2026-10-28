@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: close</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.fade { position:absolute; inset:0; background:var(--bg); pointer-events:none; opacity:0; z-index:9; }
+@keyframes fade-in { from { opacity:1; } to { opacity:0; } }
+@keyframes fade-out { from { opacity:0; } to { opacity:1; } }
+@keyframes rise { from { opacity:0; transform:translateY(48px); } to { opacity:1; transform:none; } }
+@keyframes reveal { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+@keyframes show { from { opacity:0; } to { opacity:1; } }
+@keyframes blink { 0%, 49% { opacity:1; } 50%, 100% { opacity:0; } }
+.fade { animation: fade-in .6s linear 0s 1 both; }
+.close { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.big { font-size:150px; font-weight:bold; line-height:1.1; animation: rise .8s cubic-bezier(.2,.8,.2,1) .4s 1 both; }
+.tag { font-size:56px; color:var(--muted); margin-top:24px; animation: rise .8s cubic-bezier(.2,.8,.2,1) 1s 1 both; }
+.code { margin:80px auto 0; width:1560px; background:#05080f; border:3px solid var(--line); border-radius:18px; padding:36px 48px;
+  font-size:44px; white-space:nowrap; text-align:left; color:var(--ok); animation: rise .8s cubic-bezier(.2,.8,.2,1) 1.6s 1 both; }
+.gh { margin-top:60px; font-size:60px; color:var(--lead); animation: rise .8s cubic-bezier(.2,.8,.2,1) 2.2s 1 both; }
+
+</style></head>
+<body data-scene="close">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="close"><div class="big" data-brand="name"></div><div class="tag" data-brand="tagline"></div>
+<div class="code mono card">$ <span data-brand="install"></span></div>
+<div class="gh mono" data-brand="github_url"></div></div>
+<div class="fade"></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "close", "duration": 8, "captions": [], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>demo.seek(0);</script>
+</body></html>

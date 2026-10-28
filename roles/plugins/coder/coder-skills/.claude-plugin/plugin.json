@@ -1,0 +1,8 @@
+{
+  "name": "coder-skills",
+  "description": "Text-only factory skills for the coder: guard changes, self-review",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}

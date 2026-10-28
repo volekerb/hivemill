@@ -1,0 +1,100 @@
+{
+  "permissions": {
+    "deny": [
+      "Advisor",
+      "Bash(gh pr merge:*)",
+      "Bash(sqlite3:*)",
+      "Bash(herdr server stop:*)",
+      "Bash(herdr workspace close:*)",
+      "Bash(herdr tab close:*)",
+      "Bash(herdr pane close:*)",
+      "Bash(herdr agent start:*)",
+      "Bash(herdr workspace create:*)",
+      "Bash(herdr tab create:*)",
+      "Bash(herdr pane split:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(rm -rf ~/factory:*)",
+      "Bash(rm -rf @FACTORY_LIVE_HOME@:*)",
+      "Edit(/@FACTORY_LIVE_HOME@/factory.db*)",
+      "Write(/@FACTORY_LIVE_HOME@/factory.db*)",
+      "Edit(/@FACTORY_LIVE_HOME@/db/**)",
+      "Write(/@FACTORY_LIVE_HOME@/db/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/exports/**)",
+      "Write(/@FACTORY_LIVE_HOME@/exports/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/state/**)",
+      "Write(/@FACTORY_LIVE_HOME@/state/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/bin/**)",
+      "Write(/@FACTORY_LIVE_HOME@/bin/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/roles/**)",
+      "Write(/@FACTORY_LIVE_HOME@/roles/**)",
+      "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)",
+      "Write(/@FACTORY_LIVE_HOME@/run/settings/**)",
+      "Edit(/@FACTORY_USER_CONFIG@/factory)",
+      "Write(/@FACTORY_USER_CONFIG@/factory)",
+      "Edit(/@FACTORY_USER_CONFIG@/factory/**)",
+      "Write(/@FACTORY_USER_CONFIG@/factory/**)",
+      "Edit(/@FACTORY_USER_CONFIG@/factory/live_home)",
+      "Write(/@FACTORY_USER_CONFIG@/factory/live_home)",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(sudo:*)",
+      "Bash(su:*)",
+      "Bash(doas:*)",
+      "Bash(pkexec:*)",
+      "Bash(docker:*)"
+    ],
+    "allow": [
+      "Bash(factory:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(gh pr list:*)"
+    ]
+  },
+  "env": {
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+    "HERDR_SOCKET_PATH": "/proc/nonexistent/worker-no-herdr.sock",
+    "FACTORY_ROLE": "pm",
+    "CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1",
+    "CAVEMAN_DEFAULT_MODE": "off"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role pm"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role pm"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "HERDR_SOCKET_PATH=@FACTORY_HOME_DIR@/.config/herdr/herdr.sock @FACTORY_HOME_DIR@/.claude/statusline-usage.sh"
+  }
+}

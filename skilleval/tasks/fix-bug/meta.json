@@ -1,0 +1,1 @@
+{"id": "fix-bug", "role": "coder", "title": "Fix unknown-dependency and cycle handling in a task dependency resolver", "timeout_s": 600}

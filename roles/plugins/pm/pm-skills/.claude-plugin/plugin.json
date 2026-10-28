@@ -1,0 +1,8 @@
+{
+  "name": "pm-skills",
+  "description": "Text-only factory skills for the pm: goal audit scope, acceptance-template",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}

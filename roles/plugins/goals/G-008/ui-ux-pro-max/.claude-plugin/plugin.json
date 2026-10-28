@@ -1,0 +1,5 @@
+{
+  "name": "ui-ux-pro-max",
+  "description": "UI/UX design intelligence (styles, palettes, type pairings, UX rules, charts) as local text and CSV data, vendored for the G-008 coders. Text only: no scripts, hooks or MCP.",
+  "version": "0.1.0"
+}

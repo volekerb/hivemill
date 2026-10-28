@@ -1,0 +1,33 @@
+{
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "scenes": [
+    {"id": "hook", "beat": 1, "source": "scenes/hook.html", "duration": 6, "captions": [
+      {"at": 1.0, "until": 6.0, "text": "Talk to one agent. A whole team ships your PRs."}
+    ]},
+    {"id": "request", "beat": 2, "source": "scenes/request.html", "duration": 8, "captions": [
+      {"at": 0.5, "until": 7.5, "text": "You talk to one agent: the boss. Plain English."}
+    ]},
+    {"id": "orgchart", "beat": 3, "source": "scenes/orgchart.html", "duration": 14, "captions": [
+      {"at": 0.0, "until": 7.0, "text": "The boss briefs a director. The director staffs a team."},
+      {"at": 7.0, "until": 14.0, "text": "Every agent has one job, its own prompt and its own permissions."}
+    ]},
+    {"id": "panes", "beat": 4, "source": "scenes/panes.html", "duration": 12, "captions": [
+      {"at": 0.5, "until": 11.5, "text": "Each agent works in its own pane and its own git worktree."}
+    ]},
+    {"id": "mergegate", "beat": 5, "source": "scenes/mergegate.html", "duration": 12, "captions": [
+      {"at": 0.0, "until": 6.0, "text": "Nothing merges on an agent's word."},
+      {"at": 6.0, "until": 12.0, "text": "Reviewer and QA check the evidence. The judge holds the gate."}
+    ]},
+    {"id": "tour", "beat": 6, "source": "ui:/", "duration": 16,
+     "pages": ["/", "/goals", "/agents", "/quality"],
+     "labels": ["Overview", "Goals", "Agents", "Quality"],
+     "page_duration": 4,
+     "captions": [
+      {"at": 0.0, "until": 16.0, "text": "One dashboard for every goal, agent and verdict."}
+    ]},
+    {"id": "close", "beat": 7, "source": "scenes/close.html", "duration": 8, "captions": []}
+  ],
+  "hero": {"scene": "orgchart", "start": 0.0, "end": 13.0, "width": 1600, "fps": 18, "quality": 85}
+}

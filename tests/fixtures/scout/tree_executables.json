@@ -1,0 +1,15 @@
+{"tree": [
+  {"path": "SKILL.md", "mode": "100644", "type": "blob", "sha": "e1"},
+  {"path": "run.sh", "mode": "100644", "type": "blob", "sha": "e2"},
+  {"path": "tool.py", "mode": "100644", "type": "blob", "sha": "e3"},
+  {"path": "a.js", "mode": "100644", "type": "blob", "sha": "e4"},
+  {"path": "b.cjs", "mode": "100644", "type": "blob", "sha": "e5"},
+  {"path": "c.mjs", "mode": "100644", "type": "blob", "sha": "e6"},
+  {"path": "d.ts", "mode": "100644", "type": "blob", "sha": "e7"},
+  {"path": "blob.bin", "mode": "100644", "type": "blob", "sha": "e8"},
+  {"path": "exec.md", "mode": "100755", "type": "blob", "sha": "e9"},
+  {"path": "link.md", "mode": "120000", "type": "blob", "sha": "e10"},
+  {"path": "sub", "mode": "160000", "type": "commit", "sha": "e11"},
+  {"path": "hooks/hooks.json", "mode": "100644", "type": "blob", "sha": "e12"},
+  {"path": ".mcp.json", "mode": "100644", "type": "blob", "sha": "e13"}
+]}

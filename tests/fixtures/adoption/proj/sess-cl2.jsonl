@@ -1,0 +1,1 @@
+{"type": "assistant", "uuid": "u-sess-cl2-20", "requestId": "r-sess-cl2-20", "sessionId": "sess-cl2", "timestamp": "2026-09-02T10:00:00Z", "message": {"id": "m-sess-cl2-20", "model": "claude-haiku-5-5", "content": [{"type": "text", "text": "ok"}], "usage": {"input_tokens": 0, "output_tokens": 7, "cache_read_input_tokens": 10, "cache_creation_input_tokens": 0}}}

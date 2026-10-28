@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene 3: org chart</title>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body data-scene="orgchart">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<svg viewBox="0 0 1920 1080" width="1920" height="1080" style="position:absolute;left:0;top:0" font-family="Inter, sans-serif">
+<path id="e0" class="edge" d="M960 240 C960 265 960 265 960 290" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<path id="e1" class="edge" d="M960 390 C960 415 960 415 960 440" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<path id="e2" class="edge" d="M960 540 C960 580 260 580 260 620" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<path id="e3" class="edge" d="M960 540 C960 580 610 580 610 620" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<path id="e4" class="edge" d="M960 540 C960 580 960 580 960 620" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<path id="e5" class="edge" d="M960 540 C960 580 1310 580 1310 620" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<path id="e6" class="edge" d="M960 540 C960 580 1660 580 1660 620" stroke="#4cc9f0" stroke-width="4" fill="none" opacity="0"/>
+<g class="node role-boss" id="n-boss" transform="translate(730,140)" opacity="0"><rect width="460" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">boss</text><text class="chip-t" x="436" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">owner's agent</text></g>
+<g class="node role-director" id="n-director" transform="translate(730,290)" opacity="0"><rect width="460" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">director</text><text class="chip-t" x="436" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">staffs the team</text></g>
+<g class="node role-lead" id="n-lead" transform="translate(730,440)" opacity="0"><rect width="460" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">lead</text><text class="chip-t" x="436" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">g-004-a · runs the goal</text></g>
+<g class="node role-pm" id="n-pm" transform="translate(95,620)" opacity="0"><rect width="330" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">pm</text><text class="chip-t" x="306" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">writes the spec</text></g>
+<g class="node role-coder" id="n-coder" transform="translate(445,620)" opacity="0"><rect width="330" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">coder</text><text class="chip-t" x="306" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">PR #42</text></g>
+<g class="node role-qa" id="n-qa" transform="translate(795,620)" opacity="0"><rect width="330" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">qa</text><text class="chip-t" x="306" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">verifies</text></g>
+<g class="node role-reviewer" id="n-reviewer" transform="translate(1145,620)" opacity="0"><rect width="330" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">reviewer</text><text class="chip-t" x="306" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">reads the diff</text></g>
+<g class="node role-judge" id="n-judge" transform="translate(1495,620)" opacity="0"><rect width="330" height="100" rx="16" fill="#172140" stroke="var(--accent)" stroke-width="4"/><circle class="sd" cx="34" cy="38" r="10" fill="#9aa7cf"/><text x="62" y="48" fill="#eef2ff" font-size="32" font-weight="bold">judge</text><text class="chip-t" x="306" y="46" text-anchor="end" fill="var(--accent)" font-size="24" font-weight="bold">idle</text><text x="34" y="82" fill="#9aa7cf" font-size="26">holds the gate</text></g>
+<circle id="p0" r="11" fill="#eef2ff" opacity="0"/>
+<circle id="p1" r="11" fill="#eef2ff" opacity="0"/>
+<circle id="p2" r="11" fill="#eef2ff" opacity="0"/>
+<circle id="p3" r="11" fill="#eef2ff" opacity="0"/>
+<circle id="p4" r="11" fill="#eef2ff" opacity="0"/>
+<circle id="p5" r="11" fill="#eef2ff" opacity="0"/>
+<circle id="p6" r="11" fill="#eef2ff" opacity="0"/>
+<text x="960" y="800" text-anchor="middle" fill="#9aa7cf" font-size="30">example-org / acme-web · goal G-004</text>
+</svg>
+<div class="caption-bar"><span></span></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "orgchart", "duration": 14, "captions": [{"at": 0.0, "until": 7.0, "text": "The boss briefs a director. The director staffs a team."}, {"at": 7.0, "until": 14.0, "text": "Every agent has one job, its own prompt and its own permissions."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>
+/* Loopable: every visual is a pure function of t. Nothing is lit at t=0, everything fades out over 12.0-13.0 s, so
+ * t=13.0 is the same picture as t=0.0 (hero cut 0.0-13.0 with demo.captions(false)). Glow period 2.6 s = 13 s / 5. */
+(function () {
+  var SPAWN = {"boss": 0.8, "director": 2.0, "lead": 3.2, "pm": 4.4, "coder": 5.4, "qa": 6.4, "reviewer": 7.4, "judge": 8.4};
+  var EDGES = [["boss", "director"], ["director", "lead"], ["lead", "pm"], ["lead", "coder"], ["lead", "qa"], ["lead", "reviewer"], ["lead", "judge"]];
+  var PULSES = [[9.0, 0], [9.4, 1], [9.8, 2], [10.2, 3], [10.6, 4], [11.0, 5], [11.4, 6]];  /* [start, edge], 0.9 s each */
+  var LOOP = 13;
+  function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function env(t) { return t >= LOOP ? 0 : t > 12 ? LOOP - t : 1; }
+  function q(x) { return Math.round(x * 1000) / 1000; }
+  var nodes = {}, paths = [], dots = [];
+  Object.keys(SPAWN).forEach(function (r) { var g = document.getElementById("n-" + r); nodes[r] = {g: g, rect: g.querySelector("rect"), sd: g.querySelector(".sd"), chip: g.querySelector(".chip-t")}; });
+  EDGES.forEach(function (e, i) { paths.push(document.getElementById("e" + i)); dots.push(document.getElementById("p" + i)); });
+  demo.on(function (t) {
+    var e = env(t);
+    var glow = 0.5 + 0.5 * Math.sin(2 * Math.PI * t / 2.6);
+    Object.keys(SPAWN).forEach(function (r) {
+      var n = nodes[r], lit = clamp((t - SPAWN[r]) / 0.5) * e;
+      n.g.setAttribute("opacity", q(0.3 + 0.7 * lit));
+      n.sd.setAttribute("fill", lit > 0.5 ? "#5fd68a" : "#9aa7cf");
+      n.chip.textContent = lit > 0.5 ? "live" : "idle";
+      n.rect.style.filter = "drop-shadow(0 0 " + q(lit * (6 + 18 * glow)) + "px var(--accent)) drop-shadow(0 10px 16px rgba(2,4,12,0.55))";
+    });
+    EDGES.forEach(function (ed, i) {
+      paths[i].setAttribute("opacity", q(0.2 + 0.6 * clamp((t - SPAWN[ed[1]] + 0.2) / 0.5) * e));
+      var d = dots[i], vis = 0, pt = null;
+      /* spawn pulse: parent -> child just before the child lights up */
+      var s = (t - (SPAWN[ed[1]] - 0.8)) / 0.8;
+      if (s >= 0 && s <= 1) { vis = 1; pt = s; }
+      PULSES.forEach(function (p) { if (p[1] === i) { var u = (t - p[0]) / 0.9; if (u >= 0 && u <= 1) { vis = 1; pt = u; } } });
+      if (vis) { var L = paths[i].getTotalLength(), xy = paths[i].getPointAtLength(L * pt); d.setAttribute("cx", q(xy.x)); d.setAttribute("cy", q(xy.y)); }
+      d.setAttribute("opacity", vis * e);
+    });
+  });
+  demo.seek(0);
+})();
+</script>
+</body></html>

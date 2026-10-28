@@ -1,0 +1,60 @@
+[
+  {"role": "lead", "title": "lead-g-004-a", "lines": [
+    {"at": 0.4, "text": "$ factory inbox"},
+    {"at": 1.0, "text": "goal G-004: CSV export"},
+    {"at": 1.8, "text": "task T-0042 -> pm, coder"},
+    {"at": 4.0, "text": "pm: plan v1 written"},
+    {"at": 5.4, "text": "T-0042 -> in_review"},
+    {"at": 6.2, "text": "routing to qa + reviewer"},
+    {"at": 8.6, "text": "verdicts: reviewer pass, qa pass"},
+    {"at": 9.4, "text": "T-0042 -> judge"},
+    {"at": 10.6, "text": "goal G-004: 3/4 done"}
+  ]},
+  {"role": "pm", "title": "pm-t-0041", "lines": [
+    {"at": 0.3, "text": "$ factory task show T-0041"},
+    {"at": 1.2, "text": "reading ~/work/acme-web"},
+    {"at": 2.0, "text": "spec: CSV export, reports"},
+    {"at": 2.8, "text": "acceptance: 5 items"},
+    {"at": 3.6, "text": "plan v1 written, 3 tasks filed"},
+    {"at": 4.6, "text": "$ factory done"},
+    {"at": 5.4, "text": "done: spec handed to lead"}
+  ]},
+  {"role": "coder", "title": "coder-t-0042", "lines": [
+    {"at": 0.3, "text": "$ git switch factory/T-0042"},
+    {"at": 1.0, "text": "edit reports/export.py"},
+    {"at": 1.7, "text": "edit tests/test_export.py"},
+    {"at": 2.4, "text": "$ pytest -q"},
+    {"at": 3.2, "text": "tests: 42 passed"},
+    {"at": 3.9, "text": "$ git push -u origin HEAD"},
+    {"at": 4.6, "text": "$ gh pr create"},
+    {"at": 5.2, "text": "PR #42 opened"},
+    {"at": 5.8, "text": "$ factory done"},
+    {"at": 6.3, "text": "done: PR #42 in review"}
+  ]},
+  {"role": "qa", "title": "qa-t-0042", "lines": [
+    {"at": 0.6, "text": "waiting for PR #42"},
+    {"at": 6.0, "text": "$ gh pr checkout 42"},
+    {"at": 6.8, "text": "$ run acceptance 1..5"},
+    {"at": 7.6, "text": "1 PASS  2 PASS  3 PASS"},
+    {"at": 8.2, "text": "4 PASS  5 PASS"},
+    {"at": 8.7, "text": "acceptance 1-5: PASS"},
+    {"at": 9.3, "text": "verdict: PASS"}
+  ]},
+  {"role": "reviewer", "title": "reviewer-t-0042", "lines": [
+    {"at": 0.8, "text": "waiting for PR #42"},
+    {"at": 6.0, "text": "$ gh pr diff 42"},
+    {"at": 6.8, "text": "+ export_csv(rows)"},
+    {"at": 7.5, "text": "+ test_export_csv_header"},
+    {"at": 8.2, "text": "checked: scope, tests"},
+    {"at": 8.9, "text": "no findings"},
+    {"at": 9.4, "text": "verdict: pass"}
+  ]},
+  {"role": "judge", "title": "judge-t-0042", "lines": [
+    {"at": 1.0, "text": "waiting for verdicts"},
+    {"at": 9.2, "text": "reviewer: pass"},
+    {"at": 9.6, "text": "qa: pass"},
+    {"at": 10.0, "text": "merge gate: open"},
+    {"at": 10.5, "text": "$ factory judge T-0042"},
+    {"at": 11.0, "text": "merged #42"}
+  ]}
+]

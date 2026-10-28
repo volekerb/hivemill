@@ -1,0 +1,1 @@
+{"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":3672,"foreground_processes":[{"argv":["/usr/bin/zsh"],"cmdline":"/usr/bin/zsh","cwd":"/home/user/factory","name":"zsh","pid":3672}],"pane_id":"w3:p1","shell_pid":3672},"type":"pane_process_info"}}

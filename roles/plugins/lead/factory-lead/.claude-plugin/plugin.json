@@ -1,0 +1,8 @@
+{
+  "name": "factory-lead",
+  "description": "Text-only factory skills for team leads: changing a running worker's spec, briefing workers, triaging stuck PRs",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}

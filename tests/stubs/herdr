@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Fake `herdr` for the bin/factory tests.
+
+State lives in the JSON file named by $FAKE_HERDR_STATE, every call is appended to the
+JSONL file named by $FAKE_CALLS. Setting "slow_list": true makes `agent start` succeed without listing the agent. Setting "pane_close_fail": true makes `pane close` fail; "start_fail": true makes `agent start` exit 1; "wait_sleep": N makes `agent wait` sleep N s. Setting "fail": true in the state makes every call exit 1
+(herdr unreachable)."""
+import json
+import os
+import sys
+
+argv = sys.argv[1:]
+STATE = os.environ["FAKE_HERDR_STATE"]
+with open(os.environ["FAKE_CALLS"], "a") as f:
+    f.write(json.dumps({"tool": "herdr", "argv": argv, "sock": os.environ.get("HERDR_SOCKET_PATH")}) + "\n")
+
+# test hook: FAKE_HERDR_HOOK is a shell command run once, on the first call, before it is handled
+_hook, _once = os.environ.get("FAKE_HERDR_HOOK"), STATE + ".hook-ran"
+_at = os.environ.get("FAKE_HERDR_HOOK_AT")  # optional: wait for a call starting with these words, e.g. "agent start"
+if _hook and not os.path.exists(_once) and (not _at or " ".join(argv[:len(_at.split())]) == _at):
+    open(_once, "w").close()
+    import subprocess
+    subprocess.run(_hook, shell=True, check=False)
+
+try:
+    with open(STATE) as f:
+        st = json.load(f)
+except FileNotFoundError:
+    st = {}
+for k, v in (("fail", False), ("seq", 0), ("agents", []), ("workspaces", []), ("tabs", []), ("panes", [])):
+    st.setdefault(k, v)
+
+if st["fail"]:
+    print("herdr: server not running", file=sys.stderr)
+    sys.exit(1)
+
+
+def new_id(prefix):
+    st["seq"] += 1
+    return f"{prefix}{st['seq']}"
+
+
+def opt(name):
+    return argv[argv.index(name) + 1] if name in argv else None
+
+
+def out(result):
+    print(json.dumps({"id": "fake", "result": result}))
+
+
+def new_tab(ws, label):
+    tab = {"tab_id": new_id("t"), "workspace_id": ws, "label": label, "pane_count": 1}
+    pane = {"pane_id": new_id("p"), "tab_id": tab["tab_id"], "workspace_id": ws}
+    st["tabs"].append(tab)
+    st["panes"].append(pane)
+    return tab, pane
+
+
+cmd = tuple(argv[:2])
+if cmd == ("agent", "list"):
+    out({"agents": st["agents"]})
+elif cmd == ("agent", "start") and st.get("start_fail"):
+    print("herdr: agent_not_ready", file=sys.stderr)
+    sys.exit(1)
+elif cmd == ("agent", "start"):
+    name = argv[2]
+    agent = {"name": name, "agent": "claude", "pane_id": opt("--pane"), "agent_status": "idle",
+             "agent_session": {"value": opt("--session-id") or "sess-" + name}}
+    if not st.get("slow_list"):  # slow_list: herdr hasn't registered the new agent yet
+        st["agents"] = [a for a in st["agents"] if a.get("name") != name] + [agent]
+    out({"agent": agent})
+elif cmd == ("workspace", "list"):
+    out({"workspaces": st["workspaces"]})
+elif cmd == ("workspace", "create"):
+    ws = {"workspace_id": new_id("w"), "label": opt("--label")}
+    st["workspaces"].append(ws)
+    tab, pane = new_tab(ws["workspace_id"], "1")
+    out({"workspace": ws, "tab": tab, "root_pane": pane})
+elif cmd == ("tab", "list"):
+    out({"tabs": [t for t in st["tabs"] if t["workspace_id"] == opt("--workspace")]})
+elif cmd == ("tab", "create"):
+    tab, pane = new_tab(opt("--workspace"), opt("--label"))
+    out({"tab": tab, "root_pane": pane})
+elif cmd == ("tab", "rename"):
+    for t in st["tabs"]:
+        if t["tab_id"] == argv[2]:
+            t["label"] = argv[3]
+    out({})
+elif cmd == ("pane", "list"):
+    ws = opt("--workspace")
+    out({"panes": [p for p in st["panes"] if ws is None or p["workspace_id"] == ws]})
+elif cmd == ("pane", "split"):
+    anchor = next(p for p in st["panes"] if p["pane_id"] == argv[2])
+    pane = {"pane_id": new_id("p"), "tab_id": anchor["tab_id"], "workspace_id": anchor["workspace_id"]}
+    st["panes"].append(pane)
+    for t in st["tabs"]:
+        if t["tab_id"] == anchor["tab_id"]:
+            t["pane_count"] += 1
+    out({"pane": pane})
+elif cmd == ("pane", "process-info"):
+    pane = next((p for p in st["panes"] if p["pane_id"] == opt("--pane")), {})
+    if pane.get("fixture"):  # a pane may set "fixture": a file whose raw stdout is printed verbatim
+        print(open(pane["fixture"]).read().strip())
+    elif pane.get("raw_result") is not None:  # an arbitrary result object (unknown shapes)
+        out(pane["raw_result"])
+    else:  # real shape: result.process_info.foreground_processes; a pane may set "fg" (default zsh)
+        fg = pane.get("fg", "zsh")
+        out({"process_info": {"foreground_processes": [{"argv": [fg], "cmdline": fg, "name": fg, "pid": 1}],
+                              "pane_id": pane.get("pane_id"), "shell_pid": 1}, "type": "pane_process_info"})
+elif cmd == ("pane", "close") and st.get("pane_close_fail"):  # test hook: close exits 1, the pane stays
+    print("herdr: pane close failed", file=sys.stderr)
+    sys.exit(1)
+elif cmd == ("agent", "wait"):  # test hook: "wait_sleep" seconds, to hold a `factory stop` in its wait
+    import time
+    time.sleep(float(st.get("wait_sleep", 0)))
+    out({})
+elif cmd == ("agent", "send-keys"):  # logged in $FAKE_CALLS like every call
+    out({})
+elif cmd == ("pane", "close"):
+    st["panes"] = [p for p in st["panes"] if p["pane_id"] != argv[2]]
+    st["agents"] = [a for a in st["agents"] if a.get("pane_id") != argv[2]]
+    out({})
+elif cmd == ("agent", "read"):  # state "read_text": {agent name: pane text}
+    out({"text": st.get("read_text", {}).get(argv[2], "")})
+else:  # agent prompt, pane run/close/report-metadata, workspace report-metadata, ...
+    out({"text": ""})
+
+with open(STATE, "w") as f:
+    json.dump(st, f)

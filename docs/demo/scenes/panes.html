@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: agent panes</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+/* Terminal-multiplexer mock: 2x3 panes, status line below. Everything is a function of t (see the script). */
+.grid { position: absolute; left: 72px; right: 72px; top: 124px; height: 630px; display: grid;
+  grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 20px; }
+.pane { display: flex; flex-direction: column; background: #0e1530; border: 3px solid var(--accent);
+  border-radius: 14px; overflow: hidden; min-height: 0; }
+.ph { display: flex; align-items: center; gap: 12px; background: var(--panel); color: var(--accent);
+  font-size: var(--fs-small); font-weight: bold; padding: 10px 18px; flex: none; }
+.ph .idx { margin-left: auto; color: var(--muted); font-family: var(--mono); font-weight: 400; font-size: 22px; }
+.pb { flex: 1; min-height: 0; overflow: hidden; padding: 12px 18px; font-family: var(--mono); font-size: 24px;
+  line-height: 36px; color: var(--text); white-space: pre; }
+.pb .ln { height: 36px; overflow: hidden; }
+.pb .cmd { color: var(--accent); }
+.pb .ok { color: var(--ok); }
+.cur { display: inline-block; width: 13px; height: 26px; margin-left: 2px; vertical-align: -4px; background: var(--accent); }
+.status { position: absolute; left: 72px; right: 72px; top: 770px; height: 52px; display: flex; align-items: center;
+  gap: 8px; padding: 0 18px; background: #1b2a52; border-radius: 10px; font-family: var(--mono); font-size: 22px;
+  color: var(--muted); }
+.status .seg { padding: 4px 12px; border-radius: 6px; }
+.status .seg.on { background: var(--accent); color: #0b1020; font-weight: bold; }
+.status .sess { color: var(--text); font-weight: bold; margin-right: 12px; }
+.status .right { margin-left: auto; }
+.wipe { position: absolute; top: 0; bottom: 0; right: 0; width: 0; background: var(--bg); z-index: 5;
+  border-left: 6px solid var(--lead); }
+</style></head>
+<body data-scene="panes">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="grid" id="grid"></div>
+<div class="status mono" id="status"></div>
+<div class="caption-bar"><span></span></div>
+<div class="wipe" id="wipe"></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "panes", "duration": 12, "captions": [{"at": 0.5, "until": 11.5, "text": "Each agent works in its own pane and its own git worktree."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script type="application/json" id="panes-script">[{"role": "lead", "title": "lead-g-004-a", "lines": [{"at": 0.4, "text": "$ factory inbox"}, {"at": 1.0, "text": "goal G-004: CSV export"}, {"at": 1.8, "text": "task T-0042 -> pm, coder"}, {"at": 4.0, "text": "pm: plan v1 written"}, {"at": 5.4, "text": "T-0042 -> in_review"}, {"at": 6.2, "text": "routing to qa + reviewer"}, {"at": 8.6, "text": "verdicts: reviewer pass, qa pass"}, {"at": 9.4, "text": "T-0042 -> judge"}, {"at": 10.6, "text": "goal G-004: 3/4 done"}]}, {"role": "pm", "title": "pm-t-0041", "lines": [{"at": 0.3, "text": "$ factory task show T-0041"}, {"at": 1.2, "text": "reading ~/work/acme-web"}, {"at": 2.0, "text": "spec: CSV export, reports"}, {"at": 2.8, "text": "acceptance: 5 items"}, {"at": 3.6, "text": "plan v1 written, 3 tasks filed"}, {"at": 4.6, "text": "$ factory done"}, {"at": 5.4, "text": "done: spec handed to lead"}]}, {"role": "coder", "title": "coder-t-0042", "lines": [{"at": 0.3, "text": "$ git switch factory/T-0042"}, {"at": 1.0, "text": "edit reports/export.py"}, {"at": 1.7, "text": "edit tests/test_export.py"}, {"at": 2.4, "text": "$ pytest -q"}, {"at": 3.2, "text": "tests: 42 passed"}, {"at": 3.9, "text": "$ git push -u origin HEAD"}, {"at": 4.6, "text": "$ gh pr create"}, {"at": 5.2, "text": "PR #42 opened"}, {"at": 5.8, "text": "$ factory done"}, {"at": 6.3, "text": "done: PR #42 in review"}]}, {"role": "qa", "title": "qa-t-0042", "lines": [{"at": 0.6, "text": "waiting for PR #42"}, {"at": 6.0, "text": "$ gh pr checkout 42"}, {"at": 6.8, "text": "$ run acceptance 1..5"}, {"at": 7.6, "text": "1 PASS  2 PASS  3 PASS"}, {"at": 8.2, "text": "4 PASS  5 PASS"}, {"at": 8.7, "text": "acceptance 1-5: PASS"}, {"at": 9.3, "text": "verdict: PASS"}]}, {"role": "reviewer", "title": "reviewer-t-0042", "lines": [{"at": 0.8, "text": "waiting for PR #42"}, {"at": 6.0, "text": "$ gh pr diff 42"}, {"at": 6.8, "text": "+ export_csv(rows)"}, {"at": 7.5, "text": "+ test_export_csv_header"}, {"at": 8.2, "text": "checked: scope, tests"}, {"at": 8.9, "text": "no findings"}, {"at": 9.4, "text": "verdict: pass"}]}, {"role": "judge", "title": "judge-t-0042", "lines": [{"at": 1.0, "text": "waiting for verdicts"}, {"at": 9.2, "text": "reviewer: pass"}, {"at": 9.6, "text": "qa: pass"}, {"at": 10.0, "text": "merge gate: open"}, {"at": 10.5, "text": "$ factory judge T-0042"}, {"at": 11.0, "text": "merged #42"}]}]</script>
+<script src="demo.js"></script>
+<script>
+(function () {
+  "use strict";
+  var panes = JSON.parse(document.getElementById("panes-script").textContent);
+  var LINE_H = 36;         // px, same as .pb line-height; full panes show their last lines (scroll)
+  var TYPE_CPS = 40;       // typing speed, characters per second
+  var ACTIVE_S = 1.2;      // a pane glows for this long after a line starts
+  var WIPE_AT = 11.5, WIPE_END = 12.0, STAGE_W = 1920;
+  var grid = document.getElementById("grid");
+  var status = document.getElementById("status");
+  var wipe = document.getElementById("wipe");
+  var els = [];
+  var segs = [];
+
+  panes.forEach(function (p, i) {
+    var pane = document.createElement("div");
+    pane.className = "pane card role-" + p.role;
+    var head = document.createElement("div");
+    head.className = "ph";
+    var dot = document.createElement("span");
+    dot.className = "dot";
+    var title = document.createElement("span");
+    title.textContent = p.title;
+    var idx = document.createElement("span");
+    idx.className = "idx";
+    idx.textContent = "[" + i + "]";
+    head.appendChild(dot); head.appendChild(title); head.appendChild(idx);
+    var body = document.createElement("div");
+    body.className = "pb";
+    pane.appendChild(head); pane.appendChild(body);
+    grid.appendChild(pane);
+    els.push({pane: pane, body: body});
+  });
+
+  var sess = document.createElement("span");
+  sess.className = "sess";
+  sess.textContent = "[acme-web]";
+  status.appendChild(sess);
+  panes.forEach(function (p, i) {
+    var seg = document.createElement("span");
+    seg.className = "seg role-" + p.role;
+    seg.textContent = i + ":" + p.role;
+    status.appendChild(seg);
+    segs.push(seg);
+  });
+  var right = document.createElement("span");
+  right.className = "right";
+  right.textContent = "G-004 | PR #42 | 6 panes";
+  status.appendChild(right);
+
+  function lineClass(text) {
+    if (text.charAt(0) === "$") return "cmd";
+    return /pass|merged|opened|done/i.test(text) ? "ok" : "";
+  }
+
+  function render(t) {
+    var cursorOn = Math.floor(t * 2) % 2 === 0;
+    panes.forEach(function (p, i) {
+      var body = els[i].body;
+      var last = -1, lastAt = -1;
+      var html = [];
+      p.lines.forEach(function (l, k) {
+        if (t < l.at) return;
+        var n = Math.min(l.text.length, Math.floor((t - l.at) * TYPE_CPS));
+        var div = document.createElement("div");
+        div.className = ("ln " + lineClass(l.text)).trim();
+        div.textContent = l.text.slice(0, n);
+        html.push(div);
+        last = html.length - 1; lastAt = l.at;
+      });
+      body.textContent = "";
+      var cap = Math.max(1, Math.floor((body.clientHeight - 24) / LINE_H));
+      var scrolled = html.length > cap ? html.length - cap : 0;
+      html.slice(scrolled).forEach(function (d) { body.appendChild(d); });
+      if (last >= 0 && cursorOn) {
+        var cur = document.createElement("span");
+        cur.className = "cur";
+        html[last].appendChild(cur);
+      }
+      var active = last >= 0 && t - lastAt < ACTIVE_S;
+      var g = active ? 10 + 24 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t / 2.4)) : 0;
+      els[i].pane.style.boxShadow = active
+        ? "0 0 " + g.toFixed(1) + "px " + (g / 5).toFixed(1) + "px var(--accent), var(--shadow)"
+        : "var(--shadow)";
+      segs[i].className = "seg role-" + p.role + (active ? " on" : "");
+    });
+    var w = t <= WIPE_AT ? 0 : Math.min(1, (t - WIPE_AT) / (WIPE_END - WIPE_AT)) * STAGE_W;
+    wipe.style.width = w.toFixed(1) + "px";
+    wipe.style.display = w > 0 ? "block" : "none";
+  }
+
+  demo.on(render);
+  demo.seek(0);
+})();
+</script>
+</body></html>

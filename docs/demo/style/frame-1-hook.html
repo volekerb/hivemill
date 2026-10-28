@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Style frame 1: hook</title>
+<link rel="stylesheet" href="../scenes/theme.css">
+<style>
+
+.hero { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:44px; text-align:center; }
+.hero .caption-bar { position:static; display:block; background:none; max-width:1700px; font-size:116px; text-wrap:balance; font-weight:bold; line-height:1.12; padding:0; max-height:none; }
+.hero .caption-bar span { display:block; -webkit-line-clamp:unset; }
+.hero .chip { font-size:36px; padding:8px 28px; }
+.sub { font-size:48px; color:var(--muted); }
+.cursor { display:inline-block; width:18px; height:56px; background:var(--boss); vertical-align:-8px; margin-left:10px; }
+
+</style></head>
+<body data-scene="hook">
+<div class="stage hero-caption">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="hero"><span class="chip role-boss card active" style="color:var(--accent)">boss</span>
+<div class="caption-bar"><span></span></div>
+<div class="sub mono">&gt; one agent to talk to<span class="cursor"></span></div></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "hook", "duration": 6, "captions": [{"at": 1.0, "until": 6.0, "text": "Talk to one agent. A whole team ships your PRs."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="../scenes/demo.js"></script>
+<script>demo.seek(5.0);</script>
+</body></html>

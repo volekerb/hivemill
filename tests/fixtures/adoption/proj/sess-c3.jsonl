@@ -1,0 +1,1 @@
+{"type": "assistant", "uuid": "u-sess-c3-16", "requestId": "r-sess-c3-16", "sessionId": "sess-c3", "timestamp": "2026-10-10T10:00:00Z", "message": {"id": "m-sess-c3-16", "model": "claude-sonnet-5-5", "content": [{"type": "tool_use", "id": "c3t1", "name": "Bash", "input": {"command": "gh pr checks u"}}]}}

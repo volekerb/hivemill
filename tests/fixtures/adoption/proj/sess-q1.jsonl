@@ -1,0 +1,1 @@
+{"type": "assistant", "uuid": "u-sess-q1-12", "requestId": "r-sess-q1-12", "sessionId": "sess-q1", "timestamp": "2026-10-10T10:00:00Z", "message": {"id": "m-sess-q1-12", "model": "claude-sonnet-5-5", "content": [{"type": "text", "text": "ok"}], "usage": {"input_tokens": 0, "output_tokens": 7, "cache_read_input_tokens": 300, "cache_creation_input_tokens": 0}}}

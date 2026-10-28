@@ -1,0 +1,5 @@
+{"name": "claude-plugins-official", "plugins": [
+  {"name": "p1", "source": {"source": "github", "repo": "zz-owner/p1"}, "description": "first"},
+  {"name": "p2", "source": "./plugins/p2"},
+  {"name": "p3", "source": {"source": "url", "url": "https://gitlab.example.invalid/zz/p3.git"}}
+]}

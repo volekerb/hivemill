@@ -1,0 +1,107 @@
+/* Shared look for every demo scene and style frame. Fonts: Inter (UI) and JetBrains Mono (code), both SIL OFL 1.1,
+ * vendored under docs/demo/fonts/ (the same woff2 files the web UI reuses; the path is a contract). No CDN, no external
+ * assets. Depth: soft gradient on .stage (no grid: it bloats the PNGs), card shadows, and a glow + pulse for .active agents.
+ * Animations are pure CSS, so demo.seek(t) drives them deterministically (no wall clock, no timers). */
+@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: block;
+  src: url("../fonts/Inter-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-style: normal; font-display: block;
+  src: url("../fonts/Inter-Bold.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; font-style: normal; font-display: block;
+  src: url("../fonts/JetBrainsMono-Regular.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; font-style: normal; font-display: block;
+  src: url("../fonts/JetBrainsMono-Bold.woff2") format("woff2"); }
+:root {
+  --bg: #0b1020;
+  --bg-2: #121a30;
+  --panel: #172140;
+  --line: #2a3760;
+  --text: #eef2ff;
+  --muted: #9aa7cf;
+  --ok: #5fd68a;
+  /* one accent per role */
+  --boss: #f5b942;
+  --director: #b58cff;
+  --lead: #4cc9f0;
+  --pm: #7bd88f;
+  --coder: #ff8a5c;
+  --qa: #ff6fa5;
+  --reviewer: #5ea1ff;
+  --judge: #ffd166;
+  /* type scale (px at 1080p) */
+  --fs-hero: 96px;
+  --fs-title: 64px;
+  --fs-body: 36px;
+  --fs-small: 26px;
+  --fs-caption: 46px;
+  --sans: "Inter", sans-serif;
+  --mono: "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+body { font-family: var(--sans); color: var(--text); font-size: var(--fs-body); }
+.mono { font-family: var(--mono); }
+
+.stage {
+  position: relative; width: 1920px; height: 1080px; overflow: hidden;
+  background:
+    radial-gradient(ellipse 900px 520px at 50% 40%, rgba(76, 201, 240, 0.08), transparent 100%),
+    var(--bg);
+}
+
+/* Depth. .card: soft shadow for HTML cards; .node: the same for SVG org-chart nodes (put it on the <g>). */
+:root { --shadow: 0 14px 34px rgba(2, 4, 12, 0.55), 0 2px 6px rgba(2, 4, 12, 0.5); }
+.card { box-shadow: var(--shadow); }
+.node rect { filter: drop-shadow(0 10px 16px rgba(2, 4, 12, 0.55)); }
+
+/* Active agent: gentle glow in its role accent that breathes (2.4 s loop). Works on HTML cards and SVG nodes. */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 10px 0 var(--accent), var(--shadow); }
+  50% { box-shadow: 0 0 34px 6px var(--accent), var(--shadow); }
+}
+@keyframes glow-pulse-svg {
+  0%, 100% { filter: drop-shadow(0 0 6px var(--accent)) drop-shadow(0 10px 16px rgba(2, 4, 12, 0.55)); }
+  50% { filter: drop-shadow(0 0 22px var(--accent)) drop-shadow(0 10px 16px rgba(2, 4, 12, 0.55)); }
+}
+.active { animation: glow-pulse 2.4s ease-in-out infinite; }
+.node.active { animation: none; }
+.node.active rect { animation: glow-pulse-svg 2.4s ease-in-out infinite; }
+
+.wordmark { position: absolute; left: 72px; top: 44px; font-size: var(--fs-small); font-weight: bold;
+  color: var(--muted); letter-spacing: 1px; display: flex; gap: 16px; align-items: center; }
+.wordmark [data-brand="name"] { color: var(--text); }
+/* brand.json wordmark_svg is a path (relative to docs/demo/); demo.js writes that text into the element, so the
+ * text is hidden and the file shown as a background. The wordmark art already spells the name, so name is hidden here. */
+.wordmark [data-brand="wordmark_svg"] { display: block; width: 270px; height: 60px; font-size: 0; color: transparent;
+  background: url("../../images/wordmark-dark.svg") left center / contain no-repeat; }
+.wordmark [data-brand="name"] { display: none; }
+
+.chip { display: inline-block; font-size: var(--fs-small); padding: 4px 16px; border-radius: 999px;
+  border: 2px solid currentColor; }
+.dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: var(--ok); }
+
+.role-boss { --accent: var(--boss); }
+.role-director { --accent: var(--director); }
+.role-lead { --accent: var(--lead); }
+.role-pm { --accent: var(--pm); }
+.role-coder { --accent: var(--coder); }
+.role-qa { --accent: var(--qa); }
+.role-reviewer { --accent: var(--reviewer); }
+.role-judge { --accent: var(--judge); }
+
+/* Caption bar: bottom third, light text on a ~70 % dark bar, max 2 lines, >= 44 px at 1080p. */
+.caption-bar {
+  position: absolute; left: 120px; right: 120px; bottom: 96px;
+  background: rgba(5, 8, 16, 0.7); border-radius: 18px; padding: 22px 40px;
+  font-size: var(--fs-caption); line-height: 1.25; color: #fff; text-align: center;
+  max-height: calc(2 * 1.25 * var(--fs-caption) + 44px); overflow: hidden;
+  display: none;
+}
+.caption-bar.on { display: block; }
+.caption-bar span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Hook scene: the caption is the headline, centred on the stage. */
+.hero-caption .caption-bar {
+  bottom: auto; top: 330px; background: none; font-size: var(--fs-hero); font-weight: bold; line-height: 1.2;
+  max-height: none;
+}
+.hero-caption .caption-bar span { -webkit-line-clamp: unset; display: block; }

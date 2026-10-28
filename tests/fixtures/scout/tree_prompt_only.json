@@ -1,0 +1,11 @@
+{"tree": [
+  {"path": "README.md", "mode": "100644", "type": "blob", "sha": "r1"},
+  {"path": "LICENSE", "mode": "100644", "type": "blob", "sha": "r2"},
+  {"path": ".claude-plugin", "mode": "040000", "type": "tree", "sha": "t1"},
+  {"path": ".claude-plugin/plugin.json", "mode": "100644", "type": "blob", "sha": "r3"},
+  {"path": "skills/review", "mode": "040000", "type": "tree", "sha": "t2"},
+  {"path": "skills/review/SKILL.md", "mode": "100644", "type": "blob", "sha": "r4"},
+  {"path": "skills/review/checklist.json", "mode": "100644", "type": "blob", "sha": "r5"},
+  {"path": "skills/review/examples.csv", "mode": "100644", "type": "blob", "sha": "r6"},
+  {"path": "commands/audit.md", "mode": "100644", "type": "blob", "sha": "r7"}
+]}

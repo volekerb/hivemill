@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: request</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.fade { position:absolute; inset:0; background:var(--bg); pointer-events:none; opacity:0; z-index:9; }
+@keyframes fade-in { from { opacity:1; } to { opacity:0; } }
+@keyframes fade-out { from { opacity:0; } to { opacity:1; } }
+@keyframes rise { from { opacity:0; transform:translateY(48px); } to { opacity:1; transform:none; } }
+@keyframes reveal { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+@keyframes show { from { opacity:0; } to { opacity:1; } }
+@keyframes blink { 0%, 49% { opacity:1; } 50%, 100% { opacity:0; } }
+.fade { animation: fade-in .5s linear 0s 1 both, fade-out .5s linear 7.5s 1 forwards; }
+.win { position:absolute; left:180px; top:200px; width:1560px; height:480px; background:#05080f; border:3px solid var(--line);
+  border-radius:22px; overflow:hidden; transform-origin:780px 320px; animation: zoom 1s cubic-bezier(.4,0,.2,1) 6.5s 1 both; }
+@keyframes zoom { from { transform:none; } to { transform:scale(1.1); } }
+.bar { height:78px; background:var(--panel); display:flex; align-items:center; gap:14px; padding:0 32px; border-bottom:3px solid var(--line); }
+.bar i { width:20px; height:20px; border-radius:50%; background:var(--line); display:block; }
+.bar b { margin-left:20px; font-size:var(--fs-small); color:var(--boss); letter-spacing:1px; }
+.log { padding:44px 48px; font-family:var(--mono); font-size:40px; line-height:1.3; }
+.who { font-size:26px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+.msg { margin-bottom:44px; white-space:nowrap; }
+.owner .who { color:var(--muted); } .owner .txt { color:var(--text); }
+.boss .who { color:var(--boss); } .boss .txt { color:var(--ok); }
+.owner { animation: show .01s linear .8s 1 both; }
+.owner .txt span { display:inline-block; animation: reveal 2.2s steps(43, end) 1s 1 both; }
+.boss { animation: show .01s linear 4.2s 1 both; }
+.boss .txt span { display:inline-block; animation: reveal 1.6s steps(52, end) 4.2s 1 both; }
+.cur { display:inline-block; width:20px; height:40px; background:var(--boss); vertical-align:-6px; margin-left:6px; animation: blink 1s linear 0s infinite; }
+.owner .cur { animation: blink 1s linear 0s infinite, gone .01s linear 3.4s 1 both; }
+@keyframes gone { to { opacity:0; visibility:hidden; } }
+
+</style></head>
+<body data-scene="request">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="win card"><div class="bar"><i></i><i></i><i></i><b>boss</b></div>
+<div class="log">
+<div class="msg owner"><div class="who">you</div><div class="txt"><span>Add CSV export to the acme-web reports page</span><i class="cur"></i></div></div>
+<div class="msg boss"><div class="who">boss</div><div class="txt"><span>Goal G-004 created. The director is staffing a team.</span></div></div>
+</div></div>
+<div class="fade"></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "request", "duration": 8, "captions": [{"at": 0.5, "until": 7.5, "text": "You talk to one agent: the boss. Plain English."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>demo.seek(0);</script>
+</body></html>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Style frame 3: agent panes</title>
+<link rel="stylesheet" href="../scenes/theme.css">
+<style>
+
+.grid { position:absolute; left:72px; right:72px; top:130px; height:700px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 1fr; gap:20px; }
+.pane { background:#0e1530; border:3px solid var(--accent); border-radius:14px; overflow:hidden; }
+.ph { background:var(--panel); color:var(--accent); font-size:var(--fs-small); font-weight:bold; padding:10px 18px; }
+.pb { padding:14px 18px; font-size:24px; line-height:1.5; color:var(--text); }
+
+</style></head>
+<body data-scene="panes">
+<div class="stage ">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="grid"><div class="pane card role-pm"><div class="ph"><span class="dot"></span> pm-t-0042</div><div class="pb mono"><div>$ factory plan G-004</div><div>spec written: CSV export</div><div>acceptance: 4 items</div><div>$ factory done</div></div></div><div class="pane card role-coder"><div class="ph"><span class="dot"></span> coder-t-0042</div><div class="pb mono"><div>$ git switch factory/T-0042</div><div>edit reports/export.py</div><div>tests: 42 passed</div><div>PR #42 opened</div></div></div><div class="pane card role-qa"><div class="ph"><span class="dot"></span> qa-t-0042</div><div class="pb mono"><div>$ run acceptance 1..4</div><div>1 PASS  2 PASS</div><div>3 PASS  4 PASS</div><div>verdict: PASS</div></div></div><div class="pane card role-reviewer"><div class="ph"><span class="dot"></span> reviewer-t-0042</div><div class="pb mono"><div>$ gh pr diff 42</div><div>+ export_csv(rows)</div><div>no findings</div><div>verdict: PASS</div></div></div><div class="pane card role-judge"><div class="ph"><span class="dot"></span> judge-t-0042</div><div class="pb mono"><div>waiting for verdicts</div><div>reviewer: PASS</div><div>qa: PASS</div><div>merge gate: open</div></div></div><div class="pane card role-lead"><div class="ph"><span class="dot"></span> lead-g-004-a</div><div class="pb mono"><div>task T-0042 -> in_review</div><div>next task -> todo</div><div>routing verdicts</div><div>goal G-004: 3/4 done</div></div></div></div><div class="caption-bar"><span></span></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "panes", "duration": 12, "captions": [{"at": 0.5, "until": 11.5, "text": "Each agent works in its own pane and its own git worktree."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="../scenes/demo.js"></script>
+<script>demo.seek(6.0);</script>
+</body></html>

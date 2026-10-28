@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: hook</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.fade { position:absolute; inset:0; background:var(--bg); pointer-events:none; opacity:0; z-index:9; }
+@keyframes fade-in { from { opacity:1; } to { opacity:0; } }
+@keyframes fade-out { from { opacity:0; } to { opacity:1; } }
+@keyframes rise { from { opacity:0; transform:translateY(48px); } to { opacity:1; transform:none; } }
+@keyframes show { from { opacity:0; } to { opacity:1; } }
+@keyframes blink { 0%, 49% { opacity:1; } 50%, 100% { opacity:0; } }
+.fade { animation: fade-in .5s linear 0s 1 both, fade-out .5s linear 5.5s 1 forwards; }
+.caption-bar { display:none !important; }
+.hero { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:36px; text-align:center; padding:0 80px; }
+.l1, .l2 { font-size:96px; font-weight:bold; line-height:1.12; white-space:nowrap; }
+.l1 .ch { white-space:pre; opacity:0; animation: show .01s linear 1 both; }  /* one glyph per step: no frame shows a cut glyph */
+.l2 { color:var(--lead); animation: rise .8s cubic-bezier(.2,.8,.2,1) 2.4s 1 both; }
+.chip { margin-bottom:24px; animation: rise .6s ease-out .2s 1 both; }
+
+</style></head>
+<body data-scene="hook">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="hero">
+<span class="chip role-boss card active" style="color:var(--accent)">boss</span>
+<div class="l1" aria-label="Talk to one agent."><span class="ch" style="animation-delay:0.6833s">T</span><span class="ch" style="animation-delay:0.7667s">a</span><span class="ch" style="animation-delay:0.8500s">l</span><span class="ch" style="animation-delay:0.9333s">k</span><span class="ch" style="animation-delay:1.0167s"> </span><span class="ch" style="animation-delay:1.1000s">t</span><span class="ch" style="animation-delay:1.1833s">o</span><span class="ch" style="animation-delay:1.2667s"> </span><span class="ch" style="animation-delay:1.3500s">o</span><span class="ch" style="animation-delay:1.4333s">n</span><span class="ch" style="animation-delay:1.5167s">e</span><span class="ch" style="animation-delay:1.6000s"> </span><span class="ch" style="animation-delay:1.6833s">a</span><span class="ch" style="animation-delay:1.7667s">g</span><span class="ch" style="animation-delay:1.8500s">e</span><span class="ch" style="animation-delay:1.9333s">n</span><span class="ch" style="animation-delay:2.0167s">t</span><span class="ch" style="animation-delay:2.1000s">.</span></div>
+<div class="l2">A whole team ships your PRs.</div>
+</div>
+<div class="fade"></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "hook", "duration": 6, "captions": [{"at": 1.0, "until": 6.0, "text": "Talk to one agent. A whole team ships your PRs."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>demo.seek(0);</script>
+</body></html>

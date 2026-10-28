@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Style frame 4: merge gate</title>
+<link rel="stylesheet" href="../scenes/theme.css">
+<style>
+
+.pr { position:absolute; left:100px; top:210px; width:700px; background:var(--panel); border:3px solid var(--line); border-radius:18px; padding:36px; }
+.pr h2 { font-size:var(--fs-title); line-height:1.15; } .pr p { color:var(--muted); margin-top:16px; font-size:var(--fs-small); }
+.badge { position:absolute; left:870px; width:700px; background:var(--panel); border:3px solid var(--accent); border-radius:16px; padding:20px 32px; font-size:var(--fs-body); }
+.ev { color:var(--muted); font-size:26px; margin-top:8px; }
+.gate { z-index:2; position:absolute; left:1420px; top:560px; width:300px; height:280px; border:6px solid var(--judge); border-radius:20px; background:var(--panel); color:var(--judge); text-align:center; padding-top:78px; font-size:var(--fs-title); font-weight:bold; }
+.gate small { display:block; font-size:var(--fs-small); margin-top:12px; font-weight:400; }
+.branch { position:absolute; left:100px; top:696px; width:1720px; height:8px; background:var(--line); border-radius:4px; }
+.branch i { position:absolute; left:0; top:0; height:8px; width:1320px; background:var(--ok); border-radius:4px; }
+.branch i + i { left:1620px; width:100px; }
+.stamp { position:absolute; left:1000px; top:590px; color:var(--ok); border:5px solid var(--ok); border-radius:12px; padding:2px 28px; font-size:var(--fs-title); font-weight:bold; transform:rotate(-6deg); background:var(--bg); }
+.lbl { position:absolute; left:100px; top:730px; color:var(--muted); font-size:var(--fs-small); }
+
+</style></head>
+<body data-scene="mergegate">
+<div class="stage ">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="pr card"><h2>#42 Add CSV export</h2><p>acme-web · factory/T-0042 · example-org</p></div>
+<div class="role-reviewer badge card" style="top:210px"><span class="chip" style="color:var(--accent)">reviewer</span> <b>PASS</b><div class="ev mono">diff read, 0 findings</div></div><div class="role-qa badge card" style="top:380px"><span class="chip" style="color:var(--accent)">qa</span> <b>PASS</b><div class="ev mono">4/4 acceptance items PASS</div></div>
+<div class="gate role-judge card active">judge<small>gate open</small></div>
+<div class="branch"><i></i><i></i></div><div class="stamp">merged</div><div class="lbl mono">main</div>
+<div class="caption-bar"><span></span></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "mergegate", "duration": 12, "captions": [{"at": 0.0, "until": 6.0, "text": "Nothing merges on an agent's word."}, {"at": 6.0, "until": 12.0, "text": "Reviewer and QA check the evidence. The judge holds the gate."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="../scenes/demo.js"></script>
+<script>demo.seek(9.0);</script>
+</body></html>

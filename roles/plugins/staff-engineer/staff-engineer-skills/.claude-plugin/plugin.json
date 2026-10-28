@@ -1,0 +1,7 @@
+{
+  "name": "staff-engineer-skills",
+  "description": "Text-only engineering skills for the factory staff-engineer: codebase design, domain modeling, architecture review, differential review, systematic debugging",
+  "author": {
+    "name": "factory"
+  }
+}

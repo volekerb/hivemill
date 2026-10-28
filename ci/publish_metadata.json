@@ -1,0 +1,34 @@
+{
+  "description": "A self-hosted software factory of Claude Code agents with review, QA and a judge merge gate.",
+  "homepage": "https://github.com/volekerb/hivemill#readme",
+  "topics": [
+    "claude-code",
+    "ai-agents",
+    "multi-agent",
+    "agent-orchestration",
+    "developer-tools",
+    "llm",
+    "automation",
+    "python",
+    "claude",
+    "self-hosted",
+    "sqlite",
+    "code-review",
+    "cli",
+    "agentic-workflow"
+  ],
+  "required_checks": [
+    "unittest-shard (1)",
+    "unittest-shard (2)",
+    "unittest-shard (3)",
+    "unittest-shard (4)",
+    "unittest-shard (5)",
+    "unittest-shard (6)",
+    "unittest-shard (7)",
+    "unittest-shard (8)",
+    "unittest-shard (9)",
+    "unittest-shard (10)",
+    "go",
+    "unittest"
+  ]
+}

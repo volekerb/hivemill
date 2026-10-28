@@ -1,0 +1,1484 @@
+{
+ "_doc": "Seed corpus for ci/guard_diff.py; see docs/guard-diff.md. A string entry is checked in worker mode (--role coder); an object {\"cmd\", \"modes\"} is checked in each listed mode (worker, hq). must_allow strings are checked in both modes. An entry with \"role\" (e.g. \"evaluator\") runs in worker mode only, under that role; for evaluator the tool and the sanity test set FACTORY_HOME to a temp dir in the hook's environment. The token @SHARED@ is a temp stand-in for the shared checkout (the hook gets WORKER_GUARD_LIVE_HOME for commands naming it).",
+ "must_block": [
+  "echo /tmp/x > ~/.config/factory/live_home",
+  "cp /tmp/f ~/.config/factory/live_home",
+  "rm ~/.config/factory/live_home",
+  "sed -i s/a/b/ ~/.config/factory/live_home",
+  "touch ~/.config/factory/live_home",
+  "mkdir -p ~/.config/factory",
+  "cd ~/.config/factory && echo x > live_home",
+  "rm -r ~/.config/factory",
+  "mv ~/.config/factory /tmp/y",
+  "ln -sfn /tmp/x ~/.config/factory",
+  "factory init --live-home /tmp/x",
+  "echo x | tee ~/.config/factory/live_home",
+  "echo x &> ~/.config/factory/live_home",
+  "echo x >& ~/.config/factory/live_home",
+  "echo x &>> ~/.config/factory/live_home",
+  "perl -e 'unlink q(/srv/u/.config/factory/live_home)'",
+  "perl -e 'open(F, \">\", \"/srv/u/.config/factory/live_home\")'",
+  "python3 -c \"open('/srv/h/.config/factory/live_home','w')\"",
+  "python3 -c \"open('/srv/h/.config/factory/live_'+'home','w').write('/tmp/x')\"",
+  "python3 -c \"open('/srv/h/.con'+'fig/factory/'+'live_home','w')\"",
+  "echo '{}' > @LIVE_HOME@/run/settings/coder.json",
+  "cp /tmp/f @LIVE_HOME@/run/settings/coder.json",
+  "rm @LIVE_HOME@/run/settings/coder.json",
+  "rm -r @LIVE_HOME@/run",
+  "sed -i s/a/b/ @LIVE_HOME@/run/settings/coder.json",
+  "echo x | tee @LIVE_HOME@/run/settings/qa.json",
+  "cd @LIVE_HOME@/run/settings && echo '{}' > qa.json",
+  "python3 -c \"open('@LIVE_HOME@/run/'+'settings/coder.json','w')\"",
+  "herdr server stop",
+  "HOME=x herdr server stop",
+  "FOO=1 BAR=2 herdr agent list",
+  "env HOME=x herdr pane list",
+  "env -i herdr pane list",
+  {
+   "cmd": "sudo herdr server stop",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "command herdr server stop",
+  "exec herdr server stop",
+  "nohup herdr server stop",
+  "timeout 5 herdr server stop",
+  "ls | xargs herdr",
+  "bash -c \"herdr server stop\"",
+  "sh -c 'cd /tmp && herdr server stop'",
+  "zsh -c \"bash -c 'herdr server stop'\"",
+  "echo hi; herdr server stop",
+  "true && /usr/bin/herdr x",
+  "false || herdr x",
+  "echo a | herdr x",
+  "(herdr x)",
+  "{ herdr x; }",
+  "$(herdr pane list)",
+  "echo $(herdr pane list)",
+  "echo \"$(herdr pane list)\"",
+  "`herdr pane list`",
+  "~/.local/bin/herdr pane list",
+  "./herdr x",
+  "cd /tmp\nherdr server stop",
+  "echo hi # c\nherdr x",
+  {
+   "cmd": "systemctl --user stop herdr.service",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "X=1 systemctl --user daemon-reload",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user enable factory-up.service",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user restart factory-tick.timer",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user start herdr-server",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user disable --now factory-tick.timer",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sudo systemctl stop herdr",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user kill 'factory-*'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user stop '*'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash -c 'systemctl --user daemon-reload'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "echo \"unbalanced",
+  "echo 'x",
+  "factory up",
+  "env X=1 factory tick",
+  "bin/factory relaunch x",
+  "python3 ~/factory/bin/factory spawn coder",
+  "sh -c \"factory up\"",
+  "factory clean --dry-run",
+  "FACTORY_HOME=@LIVE_HOME@ factory up",
+  "FACTORY_HOME=$H factory up",
+  "env FACTORY_HOME=@LIVE_HOME@/../factory ./bin/factory tick",
+  "echo hi; factory tick",
+  "eval herdr server stop",
+  "eval 'HOME=x herdr server stop'",
+  "h\\erdr server stop",
+  "\"herdr\" server stop",
+  "'herdr' server stop",
+  "h''erdr server stop",
+  "$'herdr' server stop",
+  "exec -a x herdr server stop",
+  "busybox sh -c 'herdr server stop'",
+  "H=herdr; $H server stop",
+  "H=herdr; ${H} server stop",
+  "/usr/bin/her* server stop",
+  "/usr/bin/herd? server stop",
+  "{herdr,x} server stop",
+  {
+   "cmd": "sudo -u root env A=1 herdr server stop",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash -c \"sudo env A=1 herdr server stop\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "echo ok && (X=1 /opt/u/.local/bin/herdr pane list)",
+  "find /usr -exec herdr x {} +",
+  "echo 'herdr server stop' | bash",
+  "echo 'herdr server stop' | sh -",
+  "bash <<EOF\nherdr server stop\nEOF",
+  "cat <<EOF | sh\nherdr server stop\nEOF",
+  "echo '<<EOF'\nherdr x\nEOF",
+  "alias h=herdr; h server stop",
+  "ln -s /usr/bin/herdr /tmp/h; /tmp/h server stop",
+  "cp ~/.local/bin/herdr /tmp/h",
+  "ssh localhost herdr server stop",
+  "ssh localhost 'herdr server stop'",
+  "watch -n1 herdr agent list",
+  "tmux new-session 'herdr server stop'",
+  "pkill -f herdr",
+  "killall herdr",
+  "kill $(pgrep herdr)",
+  "python3 -c 'import os; os.system(\"herdr server stop\")'",
+  "python3 <<EOF\nimport os; os.system('herdr server stop')\nEOF",
+  "x=$(herdr agent list)",
+  "for i in 1; do herdr server stop; done",
+  "if true; then herdr server stop; fi",
+  "h() { herdr \"$@\"; }; h server stop",
+  "echo a > /dev/null; HERDR_ENV=1 herdr x",
+  "2>/dev/null herdr x",
+  "cat <(herdr x)",
+  "bash nonexistent-script-guard-test.sh",
+  "$(which herdr) server stop",
+  "$(command -v herdr) server stop",
+  "X=1 $(which herdr) server stop",
+  "echo ok; $(which herdr) server stop",
+  "sh -c \"$(echo herdr) server stop\"",
+  "\"$(which herdr)\" server stop",
+  "`which herdr` server stop",
+  "$(printf 'herd%s' r) server stop",
+  "sh <<< \"herdr server stop\"",
+  "bash <<< 'herdr server stop'",
+  "bash <(echo herdr server stop)",
+  "source <(echo herdr x)",
+  "echo herdr | xargs -I{} {} server stop",
+  "echo herdr | xargs -I {} {} server stop",
+  "echo herdr | xargs -i {} server stop",
+  "printf 'herdr server stop' | xargs -0 sh -c",
+  "awk 'BEGIN{system(\"herdr server stop\")}'",
+  "gawk 'BEGIN{system(\"herdr x\")}'",
+  "sed -n '1e herdr server stop' /etc/hostname",
+  "sed 's/a/herdr server stop/e' f",
+  "vim -c '!herdr server stop' -c q",
+  "git -c core.pager='herdr server stop' log",
+  "git -c alias.x='!herdr server stop' x",
+  "git config alias.x '!herdr server stop'",
+  {
+   "cmd": "systemctl --user isolate rescue.target",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "eval \"$CMD\"",
+  "bash -c",
+  "find / -name herdr -exec {} server stop \\;",
+  "echo herdr | xargs -I{} {} pane close p1",
+  "env -S 'herdr agent start a'",
+  {
+   "cmd": "sudo herdr tab create",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "x=1 nohup herdr  workspace   close w1",
+  "bash -c 'herdr agent send a x'",
+  "echo herdr | xargs -I{} {} agent \\\n  start x",
+  "herdr\nserver stop",
+  "herdr is a server",
+  "setsid -f factory team new G-001 -",
+  "nohup setsid factory up",
+  "echo hi; setsid sleep 1",
+  "factory up & disown",
+  "env -u FACTORY_ROLE factory up",
+  "env -uHERDR_PANE_ID factory up",
+  "env --unset=FACTORY_ROLE factory up",
+  "unset HERDR_PANE_ID; factory spawn pm",
+  "unset FACTORY_ROLE",
+  "env -i factory up",
+  "env -i PATH=/usr/bin ./bin/factory tick",
+  "FACTORY_AGENT=director factory team new G-001 x",
+  "FACTORY_AGENT=owner factory msg x y",
+  "env FACTORY_AGENT=director factory team new",
+  "export FACTORY_AGENT=director",
+  "FACTORY_AGENT=director",
+  "sh -c 'FACTORY_AGENT=director factory team new'",
+  "FACTORY_ROLE=lead factory spawn pm",
+  "FACTORY_AGENT=coder-t-0036 factory done x",
+  "env FACTORY_AGENT=coder-t-0036 factory done x",
+  "claude -p hi",
+  "FOO=1 claude -p x",
+  "env A=1 claude",
+  "/usr/bin/claude --print x",
+  "~/.local/bin/claude",
+  "./claude",
+  "bash -c 'claude -p x'",
+  "timeout 5 claude -p x",
+  "nohup claude -p x &",
+  "echo x | xargs claude -p",
+  "$(which claude) -p x",
+  "echo $(claude -p x)",
+  "eval 'claude -p x'",
+  {
+   "cmd": "sudo -u x env A=1 claude",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "npx @anthropic-ai/claude-code -p x",
+  "pnpm dlx @anthropic-ai/claude-code -p x",
+  "node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js -p x",
+  "cd /tmp && claude",
+  "bash <<'EOF'\nclaude -p x\nEOF",
+  "alias c=claude",
+  "alias c=/usr/bin/claude",
+  "$X -p x",
+  "$(which tool) -p x",
+  "alias c=\"claude -p\"\nc x\n",
+  "alias c='claude -p x'\nc\n",
+  "alias c=\\\\claude\nc\n",
+  "alias h=\"herdr pane list\"\nh\n",
+  "alias c=\"ls;claude\"\nc\n",
+  "alias c='\"claude\"'\nc -p\n",
+  "alias h=\"ls;herdr\"\nh\n",
+  {
+   "cmd": "sudo -n true",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sudo",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "/usr/bin/doas ls",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "doas",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "env A=1 pkexec x",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "pkexec",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash -c 'su -'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "su",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "timeout 5 docker ps",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "docker",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "x=1 sh -c \"sh -c 'sudo id'\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "herdr pane list",
+  "factory spawn coder --task T-1",
+  "factory res",
+  "$X y",
+  {
+   "cmd": "python3 -W ignore -c 'import os; os.system(\"sudo id\")'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "python3 -X dev -c 'import os; os.system(\"sudo id\")'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "python3 -Z bin/factory tick",
+  "python3 --weird bin/factory tick",
+  "python3 -Zq bin/factory up",
+  "deno run bin/factory tick",
+  "node --foo bin/factory tick",
+  {
+   "cmd": "perl -e \"system('sudo id')\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "perl -I lib -e \"system('sudo id')\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "ruby -r json -e \"system('sudo id')\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "node -r x -e \"require('child_process').execSync('sudo id')\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "node -p \"require('child_process').execSync('docker ps')\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo \"a $(sudo id) b\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo \"a `sudo id` b\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo $(sudo id)",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo `sudo id`",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo 'x'; echo \"$(sudo id)\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo 'x' \"$(docker ps)\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo \"it's $(sudo id)\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "/usr/bin/s?do -n true",
+  "/usr/bin/sud[o] -n true",
+  "s*o id",
+  "/usr/bin/d?cker ps",
+  "/usr/bin/su* x",
+  "env /usr/bin/s?do id",
+  "nohup /usr/bin/sud? id",
+  "(/usr/bin/s?do id)",
+  {
+   "cmd": "git -c alias.x='!sudo id' x",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "git -c core.pager='sudo less' log",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "git -c core.sshCommand='docker x' fetch",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "git config alias.x '!sudo id'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "git config core.editor 'sudo vi'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "git -C . -c alias.y='!docker ps' y",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sed -n '1e sudo id' f",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sed -e 'e docker ps' f",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sed 's/x/sudo id/e' f",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sed '$e su -' f",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "awk 'BEGIN{system(\"sudo id\")}'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "awk 'BEGIN{\"docker ps\" | getline x}'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "awk 'BEGIN{print 1 | \"sudo tee f\"}'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "gawk 'BEGIN{system(\"pkexec ls\")}'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "time -p sudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "time sudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "function f { sudo id; }",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "function f { docker ps; }; f",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "trap 'sudo id' EXIT",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "trap -- 'docker ps' INT",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "f() { sudo id; }",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  "pkill -f 'unittest discover'",
+  "killall python3",
+  "killall -9 python3",
+  "nohup pkill -f x",
+  "kill 1234",
+  "kill -9 1234",
+  "kill -s KILL 1234",
+  "kill 0",
+  "kill -9 -1",
+  "kill -s KILL -1",
+  "kill -- -123",
+  "kill -TERM -123",
+  "kill -1",
+  "kill",
+  "kill $pid",
+  "kill $(pgrep unittest)",
+  "timeout 5 kill 1",
+  "env kill 5",
+  "ls | xargs kill",
+  "find . -name x -exec kill {} \\;",
+  "bash -c 'kill 5'",
+  "/bin/kill 5",
+  "sh -c 'pkill x'",
+  "echo a; kill 7",
+  "factory task --goal G-005 list",
+  "factory task --all list",
+  "factory goal --all list",
+  "factory goal --note x show G-006",
+  "factory goal --goal G-005 show G-005",
+  "factory task --goal=G-005 list",
+  "factory goal --goal=G-005 show G-005",
+  "factory task -- list",
+  "factory goal -- show G-005",
+  "factory -- task list",
+  "factory --x team list",
+  "factory project -x list",
+  "factory task --goal G-005 ready",
+  "factory goal show --title G-005 G-006",
+  "factory goal show -- G-005",
+  "python3 ~/factory/bin/factory task --goal G-005 list",
+  "python3 @LIVE_HOME@/bin/factory agents",
+  "env factory res",
+  "bash -c 'factory task list'",
+  "echo $(factory res)",
+  "`factory res`",
+  {
+   "cmd": "env A=1 systemctl --user restart factory-tick.timer",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "xargs systemctl restart",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo `systemctl --user start factory-serve`",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo hi; systemctl --user start factory-serve",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "systemctl --user start factory-serve | cat",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "env systemd-run --user true",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "VAR=`systemctl --user start factory-serve`",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "git commit -m \"$(systemctl --user start factory-serve)\"",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "env systemd-run x",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash -c 'systemd-run x'",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo `systemd-run --user x`",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "export FACTORY_HOME=@LIVE_HOME@; factory done x",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "declare -x FACTORY_HOME=@LIVE_HOME@; factory msg director hi",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "typeset -x FACTORY_HOME=@LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=@LIVE_HOME@; export FACTORY_HOME; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=@LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "unset FACTORY_HOME; factory msg director hi",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -u FACTORY_HOME factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env FACTORY_HOME=@LIVE_HOME@ factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "readonly FACTORY_HOME=@LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=@LIVE_HOME@ factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=@LIVE_HOME@/worktrees/x factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "eval 'export FACTORY_HOME=@LIVE_HOME@'; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "bash -c 'export FACTORY_HOME=@LIVE_HOME@; factory inbox'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "read FACTORY_HOME <<< @LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "printf -v FACTORY_HOME %s @LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "for FACTORY_HOME in @LIVE_HOME@; do factory done x; done",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "mapfile -t FACTORY_HOME <<< @LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "readarray -t FACTORY_HOME <<< @LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "getopts a FACTORY_HOME -a; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "export {FACTORY_HOME,Y}=@LIVE_HOME@; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox; export FACTORY_HOME=@LIVE_HOME@",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox && FACTORY_HOME=@LIVE_HOME@ factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "echo FACTORY_HOME; factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=$FACTORY_HOME factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory scout pending",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory goal show G-001",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory task update T-0001 --status done",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "cat <<$(a b)\nx\n$(a b)\nHERDR_SESSION=x touch MARK\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "cat <<$(a b)\nx\n$(a b)\nsudo -n true\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<${a:-b c}\nx\n${a:-b c}\nHERDR_SESSION=x touch MARK\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "cat <<${a:-b c}\nx\n${a:-b c}\nsudo -n true\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<`a b`\nx\n`a b`\nHERDR_SESSION=x touch MARK\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "cat <<`a b`\nx\n`a b`\nsudo -n true\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\nx\nEO\\\nF\nHERDR_SESSION=x touch MARK\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\nx\nEO\\\nF\nsudo -n true\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash -s <<EOF\n:\\\n\nHERDR_SESSION=x touch MARK\nEOF\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "bash -s <<EOF\n:\\\n\nsudo -n true\nEOF\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash <<EOF\n\\\nHERDR_SESSION=x touch MARK\nEOF\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "bash <<EOF\n\\\nsudo -n true\nEOF\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "bash <<EOF\ntrue \\\n; sudo -n true\nEOF\n",
+   "modes": [
+    "hq"
+   ]
+  },
+  {
+   "cmd": "sh <<EOF\n\\\nHERDR_SESSION=x touch MARK\nEOF\n",
+   "modes": [
+    "worker"
+   ]
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive -o @SHARED@/x.tar origin/main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: -o into the shared checkout"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive --output=x.tar origin/main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: relative -o resolves into the shared checkout"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive -o /tmp/../$HOME/factory/x.tar origin/main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: unresolvable output fails closed"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive --remote=origin origin/main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: --remote"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive --remote origin origin/main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: --remote <x>"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive --exec=/bin/true origin/main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: --exec"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init -q -b main",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: git init of the shared checkout itself"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init @SHARED@/sub",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303: git init inside the shared checkout"
+  },
+  {
+   "cmd": "cd @SHARED@ && git -c tar.foo.command='tee roles/pwn' archive --format=foo HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 self-review: -c tar.<fmt>.command runs a command"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive -o '~' HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 self-review: quoted ~ is a literal name inside the cwd"
+  },
+  {
+   "cmd": "cd @SHARED@ && export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tar.foo.command GIT_CONFIG_VALUE_0='tee roles/pwn'; git archive --format=foo HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B1: exported GIT_CONFIG_* runs a tar filter"
+  },
+  {
+   "cmd": "cd @SHARED@ && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tar.foo.command GIT_CONFIG_VALUE_0='tee roles/pwn' git archive --format=foo HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B1: env GIT_CONFIG_*"
+  },
+  {
+   "cmd": "cd @SHARED@ && export GIT_CONFIG_PARAMETERS=\"'tar.foo.command'='tee roles/pwn'\"; git archive --format=foo HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B1: exported GIT_CONFIG_PARAMETERS"
+  },
+  {
+   "cmd": "cd @SHARED@ && export GIT_CONFIG_GLOBAL=@SCRATCH@/gitconfig; git archive --format=foo HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B1: exported GIT_CONFIG_GLOBAL"
+  },
+  {
+   "cmd": "cd @SHARED@ && export GIT_CONFIG_GLOBAL=@SCRATCH@/gitconfig; git init @SCRATCH@/r",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B1: GIT_* config also refuses the git init loosening"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init /",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B2: git init /"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init ~",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B2: git init ~"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init @SHARED@/..",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B2: git init the parent of the shared checkout"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init @SHARED@/worktrees/W",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B2: git init a linked worktree path under the shared checkout"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init /etc/x",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B2: git init outside the scratchpad"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init @SCRATCH@/../x",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 B2: .. out of the scratchpad"
+  },
+  {
+   "cmd": "cd @SHARED@ && git archive -o @SHARED@ HEAD",
+   "modes": [
+    "worker"
+   ],
+   "note": "T-0303 nit: -o naming the shared checkout directory itself"
+  },
+  "git config --global user.name x",
+  "git config --global --add core.fsmonitor /tmp/x",
+  "git config --global --unset user.name",
+  "git config --global --replace-all a.b c",
+  "git config --global --edit",
+  "git config --global -e",
+  "git config --global --rename-section a b",
+  "git config --global --remove-section a",
+  "git config --system core.fsmonitor x",
+  "git -c core.pager=cat config --global a.b c",
+  "git config -f ~/.gitconfig core.fsmonitor x",
+  "git config --file=$HOME/.config/git/config a.b c",
+  "git config -f ~/x/../.gitconfig a b",
+  "echo x > ~/.bashrc",
+  "echo x >> $HOME/.zshrc",
+  "echo x > ${HOME}/.zshenv",
+  "echo x >> ~/.profile",
+  "echo x > ~/.bash_profile",
+  "echo x >> ~/.zprofile",
+  "echo x > ~/.gitconfig",
+  "echo x | tee ~/.config/git/config",
+  "echo x > ~/.config/git/attributes",
+  "echo x > ~/.config/git/ignore",
+  "cp /tmp/a ~/.bashrc",
+  "mv /tmp/a ~/.zshrc",
+  "ln -sf /tmp/a ~/.profile",
+  "install -m644 /tmp/a ~/.gitconfig",
+  "sed -i s/a/b/ ~/.zshenv",
+  "dd if=/tmp/a of=~/.bashrc",
+  "echo x > /etc/gitconfig",
+  "cp /tmp/a /etc/gitconfig",
+  "echo x > ~/work/../.bashrc",
+  "cd ~ && echo x >> .zshrc",
+  "GIT_CONFIG=~/.gitconfig git config core.fsmonitor x",
+  "export GIT_CONFIG=~/.gitconfig; git config core.fsmonitor x",
+  "GIT_CONFIG=$HOME/.config/git/config git config a.b c",
+  "env GIT_CONFIG_GLOBAL=~/.gitconfig git config a.b c",
+  "declare -x GIT_CONFIG=~/.gitconfig; git config a.b c",
+  "HOME=/tmp git config --file .gitconfig a.b c",
+  "export XDG_CONFIG_HOME=/tmp/x && git config -f x/git/config a.b c",
+  "bash -c 'echo x > ~/.bashrc'",
+  "python3 -c \"open('/h/.bashrc','a')\"",
+  "git -c alias.c=config c --global a.b c",
+  {
+   "cmd": "git config --global core.fsmonitor /tmp/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "echo x >> ~/.bashrc",
+   "role": "qa"
+  },
+  {
+   "cmd": "echo x > ~/.config/git/config",
+   "role": "qa"
+  },
+  {
+   "cmd": "git config --global core.fsmonitor /tmp/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "echo x >> ~/.bashrc",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "echo x > ~/.config/git/config",
+   "role": "reviewer"
+  },
+  "git config filter.x.smudge cmd",
+  "git config filter.x.clean cmd",
+  "git config diff.x.textconv cmd",
+  "git config core.hooksPath x",
+  "git config core.fsmonitor cmd",
+  "git config core.sshCommand cmd",
+  "git config a.b c",
+  "git -C . config a.b c",
+  "git config --local a.b c",
+  "git config --worktree a.b c",
+  "git config --add a.b c",
+  "git config --unset a.b",
+  "git config --edit",
+  "git config set a.b c",
+  "git config unset a.b",
+  "git -C /tmp config core.hooksPath x",
+  "git --git-dir ~/factory/.git config core.hooksPath x",
+  "cd /tmp ; git config core.hooksPath x",
+  "cd /tmp && git remote add up ~/factory",
+  "git config --file ~/factory/.git/config a b",
+  "git config --file /tmp/elsewhere a b",
+  "git -c alias.c='config core.hooksPath x' c",
+  "git remote add up ~/factory",
+  "git remote set-url origin x",
+  "git remote rename origin o",
+  "git remote remove origin",
+  "git remote rm origin",
+  "git remote set-head origin main",
+  "git remote set-branches origin main",
+  "echo x >> ~/factory/.git/config",
+  "echo x > ~/factory/.git/config.worktree",
+  "tee -a ~/factory/.git/info/attributes",
+  "cp /tmp/f ~/factory/.git/config",
+  "sed -i s/a/b/ ~/factory/.git/config",
+  "dd if=/tmp/f of=~/factory/.git/config",
+  "echo x >> .git/config",
+  "echo x >> .git/config.worktree",
+  "echo x >> .git/info/attributes",
+  "echo x >> ../../.git/config",
+  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x"
+ ],
+ "must_allow": [
+  "awk 1 ~/.zshrc",
+  "awk '{print $1}' ~/.gitconfig",
+  "cat ~/.config/factory/live_home",
+  "cat @LIVE_HOME@/run/settings/coder.json",
+  "grep . ~/.config/factory/live_home",
+  "cd ~/.config/factory && cat live_home",
+  "echo hi > /tmp/x",
+  "factory done \"x\"",
+  "git status",
+  "python3 -m unittest discover -s tests -v",
+  "cat tests/stubs/herdr",
+  "systemctl --user status factory-tick.service",
+  "systemctl --user cat herdr-server.service",
+  "systemctl --user list-units 'factory-*'",
+  "systemctl --user is-active herdr-server",
+  "systemd-analyze --user verify systemd/*.service",
+  "FACTORY_HOME=/tmp/x ./bin/factory up",
+  "env FACTORY_HOME=/tmp/x factory tick",
+  "factory msg lead hi body",
+  "factory task note T-0001 hi",
+  "grep \"factory up\" README.md",
+  "factory inbox",
+  "factory whoami",
+  "git commit -m \"$(cat <<'EOF'\nfix: don't call herdr directly\n\nmore herdr text\nEOF\n)\"",
+  "factory plan G-001 - <<'EOF'\nthe herdr binary is stubbed in tests\nEOF",
+  "gh pr create --title t --body 'herdr is stubbed in tests'",
+  "git commit -m 'T-0016: block herdr'",
+  "PATH=$PWD/tests/stubs:$PATH python3 -m unittest discover -s tests -v",
+  "tests/stubs/herdr agent list",
+  "./tests/stubs/herdr server stop",
+  "command -v herdr",
+  "which herdr",
+  "pgrep herdr",
+  "find . -name herdr",
+  "echo 'a;b' && ls 2>&1 | tail -n 3",
+  "for f in roles/settings/*.json; do python3 -c \"import json,sys;json.load(open(sys.argv[1]))\" $f; done",
+  "[ -f README.md ] && echo yes",
+  "[[ -f README.md ]] && echo yes",
+  "x=$(git rev-parse HEAD) && echo $x",
+  "cd \"$(git rev-parse --show-toplevel)\" && git status",
+  "timeout 60 python3 -m unittest discover -s tests",
+  "env FOO=1 python3 -m py_compile bin/factory",
+  "echo hi # herdr is not called here",
+  "sh <<< 'echo hi'",
+  "cat <(echo hi)",
+  "xargs -I{} grep {} f",
+  "xargs -I {} grep {} f",
+  "echo $(git rev-parse HEAD)",
+  "sed -n '/herdr/p' README.md",
+  "git commit -m 'block herdr'",
+  "git -c user.name=x log",
+  "systemctl --user status herdr-server",
+  "systemctl --user show factory-tick.timer",
+  "python3 -m unittest tests.test_herdr_thing",
+  "factory msg lead 'herdr is down' 'body; with; semicolons'",
+  "git diff origin/main...HEAD --stat",
+  "sed -n '1,5p' README.md",
+  "grep -rn 'herdr server stop' tests/",
+  "rg herdr bin/",
+  "cat README.md",
+  "less README.md",
+  "git commit -m 'guard: block herdr server stop'",
+  "gh pr comment 11 --body 'herdr server stop is blocked'",
+  "factory msg lead-g-001-a x 'herdr server stop blocked'",
+  "sed -i 's/old/new/' tests/test_worker_guard.py",
+  "echo 'HERDR_SOCKET_PATH is pinned' >> README.md",
+  "factory task update T-0016 --status in_review --pr https://x/pull/1",
+  "factory msg lead:g-001-a \"s\" \"b\"",
+  "factory verdict T-1 pass \"ok\"",
+  "git push -u origin HEAD",
+  "gh pr create --fill",
+  "gh pr view 1 --json state",
+  "python3 -m py_compile bin/factory",
+  "env -i PATH=tests/stubs:/usr/bin python3 -m unittest discover -s tests",
+  "tests/stubs/herdr pane list",
+  "head -5 tests/stubs/herdr",
+  "cp tests/stubs/herdr /tmp/stub",
+  "factory verdict T-1 pass ok",
+  "grep setsid README.md",
+  "echo setsid",
+  "factory msg lead:g-001-a s b",
+  "factory task show T-0036",
+  "factory report G-001 h -",
+  "factory done 'unset FACTORY_ROLE setsid'",
+  "echo alias c=claude",
+  "git commit -m \"alias c=claude\"",
+  "grep \"alias c=claude\" README.md",
+  "MODEL=claude-opus ls",
+  "X=/usr/bin/claude ls",
+  "cat ~/.claude/x",
+  "alias ll=\"ls -la\"",
+  "alias gc=\"grep claude README.md\"",
+  "alias x=\"echo claude\"",
+  "function ok { ls; }",
+  "grep -rn claude README.md",
+  "cat ~/.claude/settings.json",
+  "ls ~/.claude",
+  "git commit -m \"mention claude -p\"",
+  "gh pr comment --body 'claude'",
+  "echo claude",
+  "python3 -W ignore -m unittest tests.test_x",
+  "python3 -X dev bin/other.py",
+  "python3 -W ignore -c 'print(1)'",
+  "-W ignore -I",
+  "-u -E",
+  "spawn coder",
+  "task list",
+  "python3 -I -c 'print(1)'",
+  "python3 -E bin/other.py",
+  "python3 -Wignore -m unittest tests.test_x",
+  "python3 -x script.py",
+  "python3 -d -c 'print(2)'",
+  "python3 -E -s -c 'print(3)'",
+  "perl -e 'print 1'",
+  "node -e 'console.log(1)'",
+  "git commit -m 'block `docker`'",
+  "factory msg lead 'x' 'never run `sudo -n true`'",
+  "echo 'a $(sudo id) b'",
+  "echo '`sudo id`'",
+  "gh pr create --body 'use `docker ps` and $(su -)'",
+  "echo 'x' 'y $(docker ps)'",
+  "factory msg lead s 'a `sudo` b' --kind report",
+  "ls /usr/bin/s?do",
+  "grep -n 's*o' f",
+  "[ -f x ]",
+  "[[ -f x ]]",
+  "ls *.py",
+  "echo /usr/bin/s?do",
+  "git -c user.name=x commit -m 'sudo'",
+  "git -c alias.x='status' x",
+  "sed -n '1p' f",
+  "sed 's/sudo/x/' f",
+  "sed -n '/sudo/p' f",
+  "awk '/sudo|su/ {print}' f",
+  "awk '{print $1}' f",
+  "awk 'BEGIN{print \"sudo\"}'",
+  "sed -i 's/docker/podman/g' f",
+  "git log --grep=sudo",
+  "git push",
+  "git branch",
+  "git branch -a",
+  "git branch --list 'factory/*'",
+  "git branch --show-current",
+  "git branch -vv",
+  "git log --oneline",
+  "git branch --sort=-committerdate",
+  "kill %1",
+  "kill %%",
+  "kill -TERM $!",
+  "kill -s TERM %1",
+  "kill -9 $!",
+  "kill $!",
+  "kill -l",
+  "sleep 60 & kill $!",
+  "grep pkill README.md",
+  "ps aux | grep unittest",
+  "git commit -m \"no pkill\"",
+  "echo 'killall and kill 1234 are blocked'",
+  "gh pr comment 5 --body 'pkill is refused'",
+  "systemctl --user",
+  "systemctl --user list-timers",
+  "systemctl --user status factory-tick.timer",
+  "systemctl --user list-timers --all | grep factory",
+  "grep \"systemctl --user start\" docs/x.md",
+  "echo 'systemd-run is blocked'",
+  "git commit -m \"no systemctl restart\"",
+  "cat docs/systemd-run.md",
+  "factory report - <<'EOF'\nthe owner ran `systemctl --user restart factory-serve` (ok)\nEOF",
+  "gh pr create --body-file - <<'EOF'\nsystemd-run (never) and systemctl start\nEOF",
+  "git commit -m 'T-0148: document herdr and claude guard rules; sudo is blocked'",
+  "git commit -F msg.txt",
+  "git commit -m \"$(cat <<'EOF'\nT-1: mention herdr, claude and sudo in prose\n\nBody says: never run herdr or claude, no sudo.\nEOF\n)\"",
+  "gh pr create --title 'T-1 guard' --body-file body.txt",
+  "gh pr create --fill --body \"$(cat <<'EOF'\nUses herdr stubs; claude is spawned by factory only; sudo denied.\nEOF\n)\"",
+  "gh pr checks https://github.com/o/r/pull/12 --watch",
+  "gh pr view 12 --json state",
+  "grep -rn herdr roles/",
+  "rg -n 'claude' roles/hooks",
+  "rg -n sudo docs/",
+  "grep -n 'systemctl' docs/worker-guard.md",
+  "PAGER=cat git log --oneline -5",
+  "git --no-pager log -3",
+  "git log --oneline origin/main..HEAD",
+  "git diff origin/main --stat",
+  "git status --short",
+  "factory msg lead:g-013-a 'T-0148 question' 'does herdr text in a subject matter'",
+  "factory verdict T-0148 pass 'checked claude and herdr mentions in docs'",
+  "factory done 'PR opened; guard text mentions herdr and sudo'",
+  "factory task show T-0148",
+  "python3 -m unittest discover -s tests -p test_guard_diff.py",
+  "python3 ci/guard_diff.py --base origin/main --mode both",
+  "ls -la roles/plugins",
+  "cat docs/guard-diff.md",
+  "echo 'claude is only started by factory spawn'",
+  "printf '%s\\n' herdr",
+  "sed -n 1,20p roles/hooks/worker-guard.py",
+  "git fetch origin && git merge origin/main",
+  {
+   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory done 'did it'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory done x",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory task show T-0001",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory whoami",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "factory msg lead hi there",
+   "role": "evaluator"
+  },
+  "FACTORY_HOME=/tmp/x FACTORY_DB=/tmp/x/db/factory.db factory res",
+  "git commit -m 'FACTORY_DB override docs'",
+  {
+   "cmd": "cat <<A; bash <<B\na\\\nA\nb\\\necho RAN\nB",
+   "note": "M3500: the backslash join in the cat <<A body swallows the A terminator, so bash runs nothing (intended false-positive fix vs main)"
+  },
+  {
+   "cmd": "cat <<A; bash <<B\na\\\nA\nb\\\necho RAN",
+   "note": "M3500/M4330: the M3500 shape with heredoc B left unterminated; bash reads the rest as B data (warning: delimited by end-of-file) and runs nothing (second intended false-positive fix vs main)"
+  },
+  {
+   "cmd": "cd @SHARED@ && git init -q -b main @SCRATCH@/repo",
+   "note": "M5368 (intended loosening): git init of a scratch dir from the shared checkout"
+  },
+  "git config --global --get user.name",
+  "git config --global user.name",
+  "git config --global --list",
+  "git config --global -l",
+  "git config -f ~/.gitconfig --get user.name",
+  "git config --get user.name",
+  "cat ~/.bashrc",
+  "cat ~/.gitconfig",
+  "cp ~/.bashrc /tmp/bashrc.copy",
+  "echo x > .bashrc.sample",
+  "echo x > notes.profile",
+  "echo x > ~/.config/gitx",
+  "git config --get a.b",
+  "git config --list",
+  "git config get a.b",
+  "git config list",
+  "git config --get-regexp user",
+  "git -C . config --list",
+  "git remote -v",
+  "git remote show origin",
+  "git remote get-url origin",
+  "cat ~/factory/.git/config",
+  "git config --file @SCRATCH@/x.cfg a b",
+  "echo x > config.json",
+  "echo x > docs/config.md"
+ ]
+}

@@ -1,0 +1,130 @@
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  # Keep equal to the length of the unittest-shard matrix (tests/test_shard.py checks it).
+  SHARDS: 10
+
+jobs:
+  # Single-job equivalent for local runs: python -m unittest discover -s tests -v
+  unittest-shard:
+    name: unittest-shard (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m py_compile bin/factory
+      - run: python bin/factory --help >/dev/null
+      - name: Run shard
+        run: python ci/shard.py run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+
+  go:
+    name: go
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt: unformatted files (run gofmt -w):" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+      - run: go build ./...
+
+  # Required check: the name must stay exactly "unittest".
+  unittest:
+    name: unittest
+    needs: [unittest-shard, go]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard and the go job succeeded
+        env:
+          SHARD_RESULT: ${{ needs.unittest-shard.result }}
+          GO_RESULT: ${{ needs.go.result }}
+        run: |
+          fail=0
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "unittest-shard result: $SHARD_RESULT (all shards must succeed)" >&2
+            fail=1
+          fi
+          if [ "$GO_RESULT" != "success" ]; then
+            echo "go result: $GO_RESULT (the go job must succeed)" >&2
+            fail=1
+          fi
+          exit $fail
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: ${{ runner.temp }}/reports
+          merge-multiple: true
+      - name: Every module ran exactly once
+        run: |
+          python ci/shard.py verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" | tee "$RUNNER_TEMP/summary.txt"
+          { echo '### unittest shards'; cat "$RUNNER_TEMP/summary.txt"; } >> "$GITHUB_STEP_SUMMARY"
+
+      # Test-count gate (ci/test_count_gate.py): discovery counts, PR merge ref vs base sha.
+      - name: Checkout base commit
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - name: Test-count gate
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PAYLOAD_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Live body first (a re-run reuses the old payload); payload body as fallback.
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$RUNNER_TEMP/body.txt" \
+            || printf '%s' "$PAYLOAD_BODY" > "$RUNNER_TEMP/body.txt"
+          pr=$(python ci/test_count_gate.py count .)
+          base=$(python ci/test_count_gate.py count base)
+          python ci/test_count_gate.py check --base "$base" --pr "$pr" --body-file "$RUNNER_TEMP/body.txt"

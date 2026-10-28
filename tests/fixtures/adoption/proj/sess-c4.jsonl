@@ -1,0 +1,1 @@
+{"type": "assistant", "uuid": "u-sess-c4-17", "requestId": "r-sess-c4-17", "sessionId": "sess-c4", "timestamp": "2026-09-01T10:00:00Z", "message": {"id": "m-sess-c4-17", "model": "claude-sonnet-5-5", "content": [{"type": "text", "text": "ok"}], "usage": {"input_tokens": 0, "output_tokens": 7, "cache_read_input_tokens": 5000, "cache_creation_input_tokens": 0}}}

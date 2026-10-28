@@ -1,0 +1,17 @@
+factory.db
+factory.db-*
+/db/
+worktrees/
+run/
+__pycache__/
+exports/
+state/
+audit.log
+
+# compat: legacy --settings path (G-012 T-B2); rendered from roles/settings/*.json.in by the tick
+/roles/settings/*.json
+
+# Go build outputs (no binaries in git)
+go/bin/
+*.test
+go/**/coverage.out

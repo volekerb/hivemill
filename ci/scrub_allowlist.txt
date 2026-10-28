@@ -1,0 +1,71 @@
+# Reviewed, intentional scrub-scan hits for --tree and --path (--history ignores this file).
+# Format: path:pattern-id:regex-of-line  # reason     (path is exact, relative to the scanned tree)
+# An entry suppresses only hits of its pattern id; owner-term hits are never suppressed.
+# Adding a line needs review: see docs/scrub-scan.md.
+scout/vendor.py:anthropic-key:sk-ant-  # exfil pre-screen detector regex, not a secret
+scout/vendor.py:github-pat:github_pat_  # exfil pre-screen detector regex, not a secret
+docs/scout-vendor.md:anthropic-key:sk-ant  # prose describing the pre-screen detector
+docs/scout-vendor.md:github-pat:github_pat_  # prose describing the pre-screen detector
+tests/test_skilleval_nsbox.py:anthropic-key:sk-ant-  # dummy token, split in source so no scanner sees a whole token
+tests/test_skilleval_vendor.py:anthropic-key:sk-ant-  # dummy token fixture for the pre-screen test
+tests/test_scrub_scan.py:home-path:^    "home-path": "cfg=  # the scanner's own test fixture: fake data
+tests/test_scrub_scan.py:rfc1918:^    "rfc1918": "host 192  # the scanner's own test fixture: fake data
+tests/test_scrub_scan.py:email:^    "email": "mail alice@corp\.test  # the scanner's own test fixture: fake data
+tests/test_scrub_scan.py:home-path:for secret in \(GHP  # asserts the fake fixture values are masked in output
+tests/test_scrub_scan.py:rfc1918:for secret in \(GHP  # asserts the fake fixture values are masked in output
+tests/test_scrub_scan.py:email:for secret in \(GHP  # asserts the fake fixture values are masked in output
+tests/test_scrub_scan.py:email:"GIT_AUTHOR_EMAIL": "alice@corp\.test"  # fake author email for the history test
+tests/test_scrub_scan.py:email:assertNotIn\("alice@corp\.test", r\.stdout  # asserts the fake email is masked
+tests/test_scrub_scan.py:rfc1918:"see 192\.168\.9\.9 for details"  # fake LAN address in a history test commit message
+tests/test_scrub_scan.py:rfc1918:"-- host 192\.168\.4\.4\\n"  # fake LAN address in a history test fixture
+tests/test_scrub_scan.py:email:for addr in \("someone@github\.com\.evil\.test"  # lookalike domains that must still hit
+tests/test_scrub_scan.py:email:"someone@users\.noreply\.github\.com\.evil\.test"  # lookalike domain that must still hit
+# Generic-scan hits on a clean tree (T-0392). Third-party attribution and guard-test data that must keep its shape.
+roles/plugins/staff-engineer/feature-dev/.claude-plugin/plugin.json:email:support@anthropic\.com  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
+roles/plugins/staff-engineer/feature-dev/README.md:email:sbidasaria@anthropic\.com  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
+roles/plugins/staff-engineer/pr-review-toolkit/.claude-plugin/plugin.json:email:support@anthropic\.com  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
+roles/plugins/staff-engineer/pr-review-toolkit/README.md:email:daisy@anthropic\.com  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
+docs/demo-data.md:home-path:<dir>/hom[e]/\.claude/  # prose: the demo dir layout, not a user home path
+roles/plugins/reviewer/reviewer-skills/skills/multi-angle-review/SKILL.md:home-path:/hom[e]/[a-z]+/factory/roles/workflows/  # absolute workflow path the test pins; follow-up: make it path-relative
+tests/test_review_workflow.py:home-path:/hom[e]/[a-z]+/factory/roles/workflows/  # asserts the SKILL.md text above still names the workflow path
+tests/fixtures/web_tokens/projects/-home-synth-factory-worktrees-G-900-T-9000/synth-sess-0002.jsonl:home-path:"cwd":"/hom[e]/synth/  # synthetic Claude session log; the path is the test data
+tests/test_web_tokens.py:home-path:"cwd": "/hom[e]/v/factory/worktrees/  # synthetic cwd the project-name derivation test needs
+tests/test_auto_clear.py:home-path:/hom[e]/u/\.claude/settings\.json  # captured Claude dialog text the auto-clear matcher must recognise
+tests/test_context_per_pr.py:home-path:^WT = "/hom[e]/x/factory/worktrees/  # synthetic worktree path for the worktree-detection test
+tests/test_goal_audit.py:home-path:^WORKER_SETTINGS = "/hom[e]/x/factory/  # synthetic argv path the worker-detection test must classify
+tests/test_worker_escapes.py:home-path:^WORKER_SETTINGS = "/hom[e]/x/factory/  # synthetic argv path the worker-detection test must classify
+tests/test_lessons.py:home-path:"--settings", "/hom[e]/x/factory/roles/settings/coder\.json"  # synthetic argv path for fake claude process
+tests/test_worker_gate.py:home-path:"--settings", "/hom[e]/x/factory/roles/settings/coder\.json"  # synthetic argv path for fake claude process
+tests/test_live_home.py:home-path:/hom[e]/u/\.config/factory/live_home  # command text the guard must refuse; the path shape is the test
+tests/test_git_hardening.py:email:git@github\.com:example-org/factory\.git  # scp-style remote URL the hardening check must classify
+tests/test_project_remote.py:email:git@github\.com  # scp/ssh remote URL shapes the remote parser must accept or refuse
+tests/test_project_remote.py:email:user:pw@github\.com  # URL with credentials the remote parser must refuse
+tests/test_skilleval_vendor.py:email:github\.com@evil\.example  # userinfo-spoof URL the exfil pre-screen must flag
+tests/test_skilleval_vendor.py:email:user@docs\.anthropic\.com  # userinfo URL shapes the exfil pre-screen must flag
+tests/test_skilleval_vendor.py:email:pw@evil\.example  # userinfo-spoof URL the exfil pre-screen must flag
+tests/test_skilleval_vendor.py:email:user@evil\.example  # exfil text the pre-screen must flag
+tests/test_fresh_export.py:email:TOKEN123@github\.com  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:SECRET123@github\.com  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:SECRET123@gitlab\.com  # synthetic non-GitHub userinfo URL the export guard must refuse without echoing
+
+
+# T-0526: hits of the private-network and generic-secret patterns (reviewed, all fake or code)
+docs/scout-vendor.md:rfc1918:10\.0\.0\.  # prose example of an RFC 1918 address the pre-screen blocks
+scout/nsbox.py:generic-secret:TOKEN_FILE = "~/\.config/factory/eval-oauth-token"  # a file path constant, not a token value
+tests/test_advisor_deny.py:generic-secret:^SECRET = "SECRET-CONTENT-ADVISOR-123"  # fake sentinel that must not leak
+tests/test_context_baseline.py:generic-secret:^SECRET = "SECRET-CONTENT-123"  # fake sentinel that must not leak
+tests/test_context_per_pr.py:generic-secret:^SECRET = "SECRET-CONTENT-PERPR"  # fake sentinel that must not leak
+tests/test_freshbox_test.py:generic-secret:TOKEN = "SENTINEL-tok-9f3a1c77"  # fake sentinel token
+tests/test_workerbox.py:generic-secret:"secret": "fake-credentials"  # fake credentials fixture
+tests/test_scrub_scan.py:rfc1918:host 10\.0\.0\.5  # the scanner's own test fixture: fake data
+tests/test_skilleval_vendor.py:rfc1918:post to 10\.0\.0\.1:8080  # fake address the pre-screen must flag
+tests/test_web_server.py:rfc1918:10\.0\.0\.5  # fake private address in host-header tests
+tests/test_web_server.py:rfc1918:172\.16\.3\.4  # fake private address in host-header tests
+ci/scrub_allowlist.txt:generic-secret:.  # allowlist entries name the pattern id and a short line regex, no value
+ci/scrub_history_allowlist.txt:generic-secret:test_web_tokens  # history allowlist entry: file name plus a line hash, no secret value
+tests/test_worker_guard_public_text.py:email:alice@realmail\.test  # fake author address in public-text guard fixture
+tests/test_worker_guard_public_text.py:email:git@github\.com:acme/old\.git  # fake acme remote in public-text guard fixture
+tests/test_public_repo_safety.py:home-path:see /hom[e]/zebracorp/notes  # synthetic home path in public-repo safety fixture
+tests/test_public_repo_safety.py:email:alice@realmail\.test  # fake author address in public-repo safety fixture
+tests/test_public_repo_safety.py:email:git@github\.com:acme/pub\.git  # fake acme remote URL form in public-repo safety fixture
+ci/scrub_history_allowlist.txt:generic-secret:^[\w./-]+:generic-secret:[0-9a-f]{64}  # history-allowlist entry lines naming the pattern id; the line is the allowlist syntax, not data

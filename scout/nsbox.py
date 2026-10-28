@@ -1,0 +1,610 @@
+"""Eval sandbox, design D: the per-trial claude shim, the namespace wrapper and the contained runner.
+
+Stage 1 is `unshare -r -n -m --pid ...` running `nsbox.py --setup` as root-in-namespace: it brings lo up, starts the
+loopback forwarder (caps dropped), hides secret dirs under tmpfs, then execs stage 2: `unshare --map-user=<outer uid>`
+that gives the real uid back and drops every capability before the real claude (or the checker) is exec'd. Every ~ path
+is resolved from the passwd entry, never from $HOME (inside the pane HOME is the trial dir). Stdlib + util-linux only.
+"""
+import collections
+import ctypes
+import fcntl
+import json
+import os
+import pwd
+import re
+import shutil
+import signal
+import socket
+import stat
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+try:
+    from scout import egress
+except ImportError:  # run as a script by path (stage 1 setup, python -I): egress.py sits next to this file
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import egress
+
+HIDE_DIRS = ("~/.claude", "~/.config", "~/.ssh", "~/.gnupg", "~/factory", "$XDG_RUNTIME_DIR")
+HIDE_FILES = ("~/.git-credentials", "~/.netrc")
+TOKEN_FILE = "~/.config/factory/eval-oauth-token"
+NO_TOKEN_MSG = "owner decision D3 pending: no eval token"
+SCRUB_ENV = ("SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS")
+NET_ENV = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+           "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy")
+ENV_PASS = ("PATH", "LANG", "TERM", "TMPDIR")  # plus LC_*; run_contained(env=None) starts from only these
+# what the evaluator's claude may inherit from the shim caller on top of ENV_PASS; anything else is dropped
+CLAUDE_ENV_PASS = ("CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "DISABLE_AUTOUPDATER")
+# the factory identity an evaluator's shim passes on from the pane; FACTORY_HOME, FACTORY_ROLE, CLAUDE_CONFIG_DIR and
+# HOME are not taken from the pane at all: the shim's baked "env_set" wins (see write_shim)
+EVAL_ENV_PASS = ("FACTORY_AGENT",)
+PROXY_URL = "http://127.0.0.1:3128"
+MS_BIND, MS_REMOUNT, MS_RDONLY = 4096, 32, 1
+TMPFS_SIZE = "8m"  # size= of every hide/mask tmpfs unless an allow-mode caller asks for more (memory-backed)
+_SIZE = re.compile(r"([0-9]+)([kKmMgG%]?)")
+_UNIT = {"": 1, "k": 1 << 10, "m": 1 << 20, "g": 1 << 30}
+TMPFS_MAX_BYTES = 16 << 30  # ceiling for one tmpfs size= (16g); see _size_ok
+DROP_CAPS = ["--no-new-privs", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all"]
+
+Contained = collections.namedtuple("Contained", "returncode output timed_out")
+
+
+def _size_ok(v):
+    """A tmpfs size= value: k/m/g bytes with 0 < bytes <= TMPFS_MAX_BYTES, or N% of RAM with 1 <= N <= 100.
+
+    The kernel's memparse wraps in 64 bits, so 17179869184g or 18446744073709551616 become 0, and size=0 is an
+    UNLIMITED tmpfs. Python ints do not wrap, so the explicit ceiling refuses those; other suffixes (t, p, e) are refused."""
+    m = _SIZE.fullmatch(str(v))
+    if not m:
+        return False
+    n, unit = int(m.group(1)), m.group(2)
+    if unit == "%":
+        return 1 <= n <= 100
+    return 0 < n * _UNIT[unit.lower()] <= TMPFS_MAX_BYTES
+
+
+def real_home():
+    return pwd.getpwuid(os.getuid()).pw_dir
+
+
+def userns_available(unshare="unshare"):
+    """(ok, reason): can this box run the stage-1 namespaces unprivileged?"""
+    try:
+        r = subprocess.run([unshare, "-r", "-n", "-m", "--pid", "--fork", "--mount-proc", "true"],
+                           capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f"cannot run {unshare}: {e}"
+    if r.returncode != 0:
+        return False, f"unshare -r -n -m failed (user namespaces restricted?): {r.stderr.strip()}"
+    return True, "ok"
+
+
+def _expand(entry, home, runtime):
+    return entry.replace("~", home, 1).replace("$XDG_RUNTIME_DIR", runtime) if entry.startswith(("~", "$")) else entry
+
+
+def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs=HIDE_DIRS, hide_files=HIDE_FILES,
+             vendor_dir=None, keep=(), net=False, forward=False, unshare="unshare", cwd=None, *,
+             mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None):
+    """Everything setup needs, as plain JSON-able data with absolute paths.
+
+    The keyword-only args are the allow-list mode (docs/scout-nsbox.md#allow-list-mode). At their defaults the dict
+    is exactly the deny-mode dict of old: the extra keys (mode, rw, ro, masks, pid, tmpfs_size, tmpfs_sizes) appear only
+    when non-default. `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
+    (or mask) to its own size; tmpfs is memory-backed, so keep them small."""
+    if not _size_ok(tmpfs_size) or any(not _size_ok(v) for v in (tmpfs_sizes or {}).values()):
+        raise ValueError(f"tmpfs size must be a positive number like 8m, 512k or 1g (0 means unlimited), at most 16g or 100%, "
+                         f"got {tmpfs_size!r} / {tmpfs_sizes!r}")
+    if mode not in ("deny", "allow"):
+        raise ValueError(f"mode must be 'deny' or 'allow', got {mode!r}")
+    home = str(home or real_home())
+    trial = os.path.abspath(trial_dir)
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    claude = os.path.abspath(real_claude) if real_claude else None
+    keeps = [trial, *keep] + ([claude, os.path.realpath(claude)] if claude else [])
+    cfg = {
+        "unshare": shutil.which(unshare) or unshare, "setpriv": shutil.which("setpriv") or "setpriv",
+        "python": sys.executable, "nsbox": os.path.abspath(__file__), "egress": os.path.abspath(egress.__file__),
+        "uid": os.getuid(), "gid": os.getgid(), "net": net, "trial": trial,
+        "trials_root": os.path.abspath(trials_root) if trials_root else os.path.dirname(trial),
+        "forward_sock": os.path.join(trial, "proxy.sock") if forward else None,
+        "hide_dirs": [_expand(d, home, runtime) for d in hide_dirs],
+        "hide_files": [_expand(f, home, runtime) for f in hide_files],
+        "keep": [os.path.abspath(k) for k in keeps], "keep_ro": [os.path.abspath(vendor_dir)] if vendor_dir else [],
+        "claude": claude, "cwd": os.path.abspath(cwd) if cwd else None,
+        "scrub": [k for k in list(SCRUB_ENV) + ([] if forward else list(NET_ENV)) if k not in keep_env],
+        "env_set": {"HTTPS_PROXY": PROXY_URL, "https_proxy": PROXY_URL, "NO_PROXY": "", "no_proxy": ""} if forward else {},
+    }
+    if not pid and forward:
+        # the forwarder only dies with the pid namespace (--kill-child); without one it would outlive the run
+        raise ValueError("pid=False cannot be combined with forward=True: the egress forwarder would outlive the "
+                         "run; use pid=True, or net=True without forward")
+    if mode == "allow":
+        if vendor_dir or keep:
+            raise ValueError("vendor_dir and keep are deny-mode args and would be silently dropped in allow mode; "
+                             "list the paths in ro/rw instead")
+        for p in [*rw, *ro]:
+            if os.path.islink(p):
+                raise ValueError(f"rw/ro path is a symlink: {p}; list its realpath {os.path.realpath(p)} instead")
+            bad = _symlink_parent(os.path.abspath(p))
+            if bad:
+                raise ValueError(f"rw/ro path {p} has a symlink parent {bad}; list its realpath "
+                                 f"{os.path.realpath(p)} instead")
+        # nothing is implicitly writable: trial/keep/cwd are not bound back, only what the caller lists in rw/ro
+        # (plus the claude link and its target, read-only, so stage 2 can exec it)
+        cfg["mode"] = "allow"
+        cfg["rw"] = [os.path.abspath(p) for p in rw]
+        cfg["ro"] = [os.path.abspath(p) for p in [*ro, *([claude, os.path.realpath(claude)] if claude else [])]]
+        for p in cfg["ro"][len(ro):]:  # the claude link may be a link itself, its parents may not
+            bad = _symlink_parent(p)
+            if bad:
+                raise ValueError(f"claude path {p} has a symlink parent {bad}")
+        cfg["keep"] = cfg["keep_ro"] = []
+    elif rw or ro or masks:
+        raise ValueError("rw, ro and masks need mode='allow'")
+    if mode != "allow" and (tmpfs_size != TMPFS_SIZE or tmpfs_sizes):
+        raise ValueError("tmpfs_size and tmpfs_sizes need mode='allow'; deny mode keeps size=" + TMPFS_SIZE)
+    if tmpfs_size != TMPFS_SIZE:
+        cfg["tmpfs_size"] = str(tmpfs_size)
+    if tmpfs_sizes:
+        cfg["tmpfs_sizes"] = {os.path.abspath(k): str(v) for k, v in tmpfs_sizes.items()}
+    if masks:
+        cfg["masks"] = [os.path.abspath(m) for m in masks]
+    if not pid:
+        cfg["pid"] = False
+    return cfg
+
+
+def compose_stage2(cfg, args):
+    """Final argv: real uid back, then every capability dropped. The target is claude, or the caller's argv."""
+    cmd = [cfg["claude"], *args] if cfg["claude"] else list(args)
+    return [cfg["unshare"], f"--map-user={cfg['uid']}", f"--map-group={cfg['gid']}", "--keep-caps",
+            cfg["setpriv"], *DROP_CAPS, *cmd]
+
+
+def compose_stage1(cfg, args):
+    net = [] if cfg["net"] else ["-n"]
+    pid = ["--pid", "--fork", "--kill-child", "--mount-proc"] if cfg.get("pid", True) else []
+    return [cfg["unshare"], "-r", *net, "-m", *pid, "--propagation", "private", cfg["python"], "-I", cfg["nsbox"], "--setup", json.dumps(cfg), "--", *args]
+
+
+# ---- stage 1 setup (root-in-namespace) -------------------------------------------------------------------------
+
+def _mount(src, target, fstype=None, flags=0, data=None):
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.mount(src.encode() if src else None, target.encode(), fstype.encode() if fstype else None,
+                  ctypes.c_ulong(flags), data.encode() if data else None) != 0:
+        e = ctypes.get_errno()
+        raise OSError(e, f"mount {src} -> {target}: {os.strerror(e)}")
+
+
+def _lo_up():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        fcntl.ioctl(s, 0x8914, struct.pack("16sH14x", b"lo", 0x41))  # SIOCSIFFLAGS: IFF_UP | IFF_RUNNING
+
+
+def _under(path, base):
+    return path == base or path.startswith(base.rstrip("/") + "/")
+
+
+def _start_forwarder(cfg):
+    """Loopback forwarder as a child with no capabilities, listening before any dir gets hidden."""
+    p = subprocess.Popen([cfg["setpriv"], *DROP_CAPS, cfg["python"], "-I", cfg["egress"], "forward", cfg["forward_sock"]],
+                         cwd="/", stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={})
+    for _ in range(100):
+        try:
+            socket.create_connection(("127.0.0.1", 3128), timeout=0.2).close()
+            return
+        except OSError:
+            if p.poll() is not None:
+                break
+            time.sleep(0.05)
+    sys.exit("nsbox: forwarder did not start")
+
+
+def _real(path):
+    """realpath of the parent + the last name, so a symlinked leaf (the claude link) stays a link."""
+    return os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))
+
+
+def _sibling_trials(cfg):
+    """realpath of every other trial dir under trials_root. Both sides are resolved: a symlinked trials_root (or a
+    trial given by another spelling) must not make the own trial look like a sibling, nor a sibling look like own."""
+    root, own = cfg["trials_root"], os.path.realpath(cfg["trial"])
+    if not os.path.isdir(root):
+        return []
+    found = (os.path.realpath(e.path) for e in os.scandir(root) if e.is_dir(follow_symlinks=False))
+    return [p for p in found if p != own]
+
+
+def _hide_and_keep(cfg):
+    """Hide the secret dirs; returns the (real) dirs hidden and the kept paths, for the cwd decision."""
+    dirs = [os.path.realpath(d) for d in cfg["hide_dirs"] if os.path.isdir(d)]
+    dirs = [d for d in dirs if d != "/"]
+    dirs += _sibling_trials(cfg)
+    dirs = [d for d in dict.fromkeys(dirs) if not any(o != d and _under(d, o) for o in dirs)]
+    # open what must stay visible BEFORE its parent is hidden; a bind from /proc/self/fd survives the tmpfs
+    saved = []
+    keeps = [_real(k) for k in cfg["keep"] + cfg["keep_ro"]]
+    ro = [_real(k) for k in cfg["keep_ro"]]
+    for k in keeps:
+        if any(_under(k, d) for d in dirs) and os.path.exists(k):
+            if os.path.islink(k):
+                saved.append((k, None, os.readlink(k)))
+            else:
+                saved.append((k, os.open(k, os.O_PATH), None))
+    for d in dirs:
+        _mount("tmpfs", d, "tmpfs", 0, f"mode=0755,size={TMPFS_SIZE}")
+    for k, fd, link in saved:
+        os.makedirs(os.path.dirname(k), exist_ok=True)
+        if link is not None:
+            os.symlink(link, k)
+            continue
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            os.makedirs(k, exist_ok=True)
+        else:
+            Path(k).touch()
+        _mount(f"/proc/self/fd/{fd}", k, None, MS_BIND)
+        os.close(fd)
+    for k in ro:  # read-only: re-bind keeping the locked nosuid/nodev/noexec flags
+        _mount(k, k, None, MS_BIND)
+        _mount(None, k, None, MS_BIND | MS_REMOUNT | MS_RDONLY | (os.statvfs(k).f_flag & 0x3E))
+    for f in cfg["hide_files"]:
+        if os.path.isfile(f) or os.path.islink(f):
+            _mount("/dev/null", f, None, MS_BIND)
+    return dirs, keeps
+
+
+def _symlink_parent(path):
+    """The first ancestor of an absolute path that is a symlink, else None (the leaf itself is not looked at)."""
+    cur = "/"
+    for name in [c for c in path.split("/") if c][:-1]:
+        cur = os.path.join(cur, name)
+        if os.path.islink(cur):
+            return cur
+    return None
+
+
+def _open_chain(path):
+    """Open a bind source component by component: openat(O_PATH|O_NOFOLLOW) from /. Returns (fd, None), or
+    (None, target) when the leaf is a symlink (the documented claude link). A symlink in any parent component, even one
+    swapped in after make_cfg checked, exits non-zero naming it; a missing source exits naming the path."""
+    names = [c for c in path.split("/") if c]
+    cur, walked = os.open("/", os.O_PATH | os.O_DIRECTORY), ""
+    try:
+        for i, name in enumerate(names):
+            walked += "/" + name
+            try:
+                nxt = os.open(name, os.O_PATH | os.O_NOFOLLOW, dir_fd=cur)
+            except FileNotFoundError:
+                sys.exit(f"nsbox: bind source missing: {path}")
+            except OSError as e:
+                sys.exit(f"nsbox: cannot open bind source component {walked}: {e}")
+            mode = os.fstat(nxt).st_mode
+            if i == len(names) - 1:
+                if stat.S_ISLNK(mode):
+                    try:
+                        return None, os.readlink(name, dir_fd=cur)
+                    finally:
+                        os.close(nxt)
+                return nxt, None
+            if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+                os.close(nxt)
+                sys.exit(f"nsbox: bind source {path} has a symlink or non-directory parent component: {walked}")
+            os.close(cur)
+            cur = nxt
+        return os.dup(cur), None  # path was "/"
+    finally:
+        os.close(cur)
+
+
+def _open_target(path, leaf=None):
+    """Open a mount target (or a symlink's parent) component by component with openat(O_PATH|O_NOFOLLOW) from /, creating
+    missing directories with mkdirat on the chain fd, never through a resolved path. `leaf` is "dir" or "file" to create
+    a missing leaf that way, "link-parent" to return the fd of the parent directory, or None to
+    require the leaf to exist. A symlink or non-directory in any parent component, a symlink leaf, or a failing create
+    exits non-zero naming the component; the caller mounts onto /proc/self/fd/<fd>, so a swap after this walk cannot
+    redirect the mount."""
+    names = [c for c in path.split("/") if c]
+    cur, walked = os.open("/", os.O_PATH | os.O_DIRECTORY), ""
+    try:
+        for i, name in enumerate(names):
+            walked += "/" + name
+            last = i == len(names) - 1
+            if last and leaf == "link-parent":
+                return os.dup(cur)
+            try:
+                try:
+                    nxt = os.open(name, os.O_PATH | os.O_NOFOLLOW, dir_fd=cur)
+                except FileNotFoundError:
+                    if last and leaf is None:
+                        sys.exit(f"nsbox: mount target missing: {path}")
+                    if not last or leaf == "dir":
+                        os.mkdir(name, 0o755, dir_fd=cur)
+                    else:
+                        os.close(os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=cur))
+                    nxt = os.open(name, os.O_PATH | os.O_NOFOLLOW, dir_fd=cur)
+            except OSError as e:
+                sys.exit(f"nsbox: cannot open or create mount target component {walked}: {e}")
+            mode = os.fstat(nxt).st_mode
+            if stat.S_ISLNK(mode) or (not last and not stat.S_ISDIR(mode)):
+                os.close(nxt)
+                sys.exit(f"nsbox: mount target {path} has a symlink or non-directory component: {walked}")
+            os.close(cur)
+            cur = nxt
+        return os.dup(cur)
+    finally:
+        os.close(cur)
+
+
+def _bind_onto(src_fd, path, kind, leaf):
+    """Bind /proc/self/fd/<src_fd> onto `path` through a no-follow chain; ro keeps the locked nosuid/nodev/noexec flags."""
+    tfd = _open_target(path, leaf)
+    try:
+        _mount(f"/proc/self/fd/{src_fd}", f"/proc/self/fd/{tfd}", None, MS_BIND)
+    finally:
+        os.close(tfd)
+    if kind == "ro":
+        mfd = _open_target(path)  # the mount itself: the new top of the target, again no-follow
+        try:
+            fdp = f"/proc/self/fd/{mfd}"
+            _mount(None, fdp, None, MS_BIND | MS_REMOUNT | MS_RDONLY | (os.statvfs(fdp).f_flag & 0x3E))
+        finally:
+            os.close(mfd)
+
+
+def _depth(path):
+    return len([c for c in path.split("/") if c])
+
+
+def _allow_view(cfg):
+    """Allow-list view: tmpfs over every hide tree, then bind back only what the caller listed, shorter paths first
+    (an ro parent before its rw child, a mask after its parent and before its re-bound children). Any source that is
+    missing or any failing mount exits non-zero before exec: never a partial view."""
+    rw = [os.path.abspath(k) for k in cfg["rw"]]  # not _real: a parent symlink is refused below, never followed
+    ro = [os.path.abspath(k) for k in cfg["ro"]]
+    both = set(rw) & set(ro)
+    if both:
+        sys.exit(f"nsbox: path listed both rw and ro: {sorted(both)[0]}")
+    masks = [os.path.abspath(m) for m in cfg.get("masks", [])]  # not realpath: a symlink in a mask path is refused
+    sizes = {os.path.realpath(k): v for k, v in cfg.get("tmpfs_sizes", {}).items()}
+
+    def tmpfs_opts(path):
+        return f"mode=0755,size={sizes.get(path, cfg.get('tmpfs_size', TMPFS_SIZE))}"
+    dirs = [os.path.realpath(d) for d in cfg["hide_dirs"] if os.path.isdir(d)]
+    dirs = [d for d in dirs if d != "/"]
+    dirs = [d for d in dict.fromkeys(dirs) if not any(o != d and _under(d, o) for o in dirs)]
+    for m in masks:
+        if not os.path.isdir(m):
+            sys.exit(f"nsbox: mask dir missing or not a directory: {m}")
+        os.close(_open_target(m))  # refuse a symlink in the path now; the mount below walks it again
+    entries = []  # (path, kind, fd, link); fds are opened BEFORE any tmpfs, a bind from /proc/self/fd survives it
+    try:
+        for k, kind in [*((k, "rw") for k in rw), *((k, "ro") for k in ro)]:
+            fd, link = _open_chain(k)
+            entries.append((k, kind, fd, link))
+        entries += [(m, "mask", None, None) for m in masks]
+        entries.sort(key=lambda e: _depth(e[0]))  # stable: equal depth keeps the caller's order
+        try:
+            for d in dirs:
+                _mount("tmpfs", d, "tmpfs", 0, tmpfs_opts(d))
+            for k, kind, fd, link in entries:
+                if kind == "mask":
+                    mfd = _open_target(k)
+                    try:
+                        _mount("tmpfs", f"/proc/self/fd/{mfd}", "tmpfs", 0, tmpfs_opts(k))
+                    finally:
+                        os.close(mfd)
+                    continue
+                if link is not None:  # a symlink leaf stays a link; only recreate it where a tmpfs ate it
+                    pfd, name = _open_target(k, "link-parent"), os.path.basename(k)
+                    try:
+                        try:
+                            os.stat(name, dir_fd=pfd, follow_symlinks=False)
+                        except FileNotFoundError:
+                            os.symlink(link, name, dir_fd=pfd)
+                    finally:
+                        os.close(pfd)
+                    continue
+                is_dir = stat.S_ISDIR(os.fstat(fd).st_mode)
+                _bind_onto(fd, k, kind, "dir" if is_dir else "file")
+        except OSError as e:
+            sys.exit(f"nsbox: allow view failed: {e}")
+    finally:
+        for _, _, fd, _ in entries:
+            if fd is not None:
+                os.close(fd)
+    for f in cfg["hide_files"]:
+        if os.path.isfile(f) or os.path.islink(f):
+            try:
+                _mount("/dev/null", f, None, MS_BIND)
+            except OSError as e:
+                sys.exit(f"nsbox: allow view failed: {e}")
+    return [*dirs, *masks], [*rw, *ro]
+
+
+def _settle_cwd(cfg, want, dirs, keeps):
+    """The inherited cwd pins the pre-mount dentry, so `..` and /proc/1/cwd would reach the real tree. Re-resolve it
+    through the new mounts when it is visible, else land in the trial dir."""
+    # allow mode has no implicit trial dir: the fallback is the first rw path
+    fallback = (cfg["rw"] or ["/"])[0] if cfg.get("mode") == "allow" else cfg["trial"]
+    hidden = any(_under(want, d) for d in dirs) and not any(_under(want, k) for k in keeps)
+    try:
+        os.chdir(fallback if hidden or not want else want)
+    except OSError:
+        os.chdir(fallback)
+
+
+def setup(cfg, args):
+    if not cfg["net"]:
+        _lo_up()
+    if cfg["forward_sock"]:
+        _start_forwarder(cfg)
+    try:
+        want = os.path.realpath(cfg.get("cwd") or os.getcwd())
+    except OSError:
+        want = None
+    dirs, keeps = _allow_view(cfg) if cfg.get("mode", "deny") == "allow" else _hide_and_keep(cfg)
+    _settle_cwd(cfg, want, dirs, keeps)
+    for k in cfg["scrub"]:
+        os.environ.pop(k, None)
+    os.environ.update(cfg["env_set"])
+    argv = compose_stage2(cfg, args)
+    os.execv(argv[0], argv)
+
+
+# ---- outside: shim, proxy, contained runner --------------------------------------------------------------------
+
+def read_token(path):
+    """The token, or exit 3. Must be a regular file, mode 0600, owned by us; never logged."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        _fail3(path)
+    with os.fdopen(fd) as f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_uid != os.getuid():
+            _fail3(path)
+        return f.read().strip()
+
+
+def _fail3(path):
+    print(f"{NO_TOKEN_MSG} ({path}: must exist, be a regular file, mode 0600, owned by uid {os.getuid()})", file=sys.stderr)
+    sys.exit(3)
+
+
+def start_proxy(trial_dir, cfg, allow=egress.ALLOW, max_life=egress.MAX_LIFE, upstream=None, watch_pid=None):
+    sock = os.path.join(trial_dir, "proxy.sock")
+    arg = {"sock": sock, "allow": allow, "watch_pid": watch_pid or os.getpid(), "max_life": max_life,
+           "upstream": upstream or {}}
+    p = subprocess.Popen([cfg["python"], "-I", cfg["egress"], "serve", json.dumps(arg)], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={})
+    Path(trial_dir, "proxy.pid").write_text(f"{p.pid}\n")
+    for _ in range(100):
+        if os.path.exists(sock):
+            return p.pid
+        time.sleep(0.05)
+    stop_proxy(trial_dir)
+    sys.exit("nsbox: proxy did not start")
+
+
+def stop_proxy(trial_dir):
+    """Kill the pid in proxy.pid if it is still our proxy. Idempotent."""
+    pidfile = Path(trial_dir, "proxy.pid")
+    try:
+        pid = int(pidfile.read_text())
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except (OSError, ValueError):
+        pid = cmdline = None
+    if pid and b"egress.py" in cmdline and egress.pid_alive(pid):
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(50):
+            if not egress.pid_alive(pid):
+                break
+            time.sleep(0.05)
+        else:
+            os.kill(pid, signal.SIGKILL)
+    pidfile.unlink(missing_ok=True)
+
+
+def shim_main(shim_cfg, args):
+    """What bin/claude does: token, proxy outside, then exec stage 1. Never returns."""
+    cfg = shim_cfg["ns"]
+    token = read_token(shim_cfg["token_file"])
+    start_proxy(cfg["trial"], cfg, shim_cfg["proxy_allow"], shim_cfg["proxy_max_life"], shim_cfg["upstream"])
+    passed = ENV_PASS + CLAUDE_ENV_PASS + (EVAL_ENV_PASS if shim_cfg.get("eval_env") else ())
+    env = {k: v for k, v in os.environ.items() if k in passed or k.startswith("LC_")}
+    env["HOME"] = cfg["trial"]
+    env.update(shim_cfg.get("env_set") or {})
+    env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    argv = compose_stage1(cfg, args)
+    os.execve(argv[0], argv, env)
+
+
+SHIM = """#!{python} -I
+import json, sys
+sys.path.insert(0, {repo!r})
+from scout import nsbox
+nsbox.shim_main(json.loads({cfg!r}), sys.argv[1:])
+"""
+
+
+def write_shim(trial_dir, real_claude, token_file=None, proxy_allow=egress.ALLOW, home=None, trials_root=None,
+               hide_dirs=HIDE_DIRS, vendor_dir=None, upstream=None, proxy_max_life=egress.MAX_LIFE,
+               factory_src=None, unshare="unshare", ns=None, shim_extra=None):
+    """Write <trial>/bin/claude (0755) and the read-only factory CLI snapshot <trial>/bin/factory (+ scout/).
+    `upstream` maps allow-listed host:port to a real address (test seam). `ns` is a ready nsbox cfg (e.g. an
+    allow-list one) used instead of building the deny-mode one; `shim_extra` is merged into the shim's baked cfg
+    (eval_env, env_set). Returns the shim path."""
+    home = str(home or real_home())
+    trial = Path(trial_dir).resolve()
+    real_claude = os.path.abspath(real_claude)
+    if os.path.basename(real_claude) != "claude":
+        raise ValueError(f"real_claude must be an absolute path whose basename is claude, got {real_claude}")
+    repo = Path(__file__).resolve().parent.parent
+    if ns is None:
+        ns = make_cfg(trial, real_claude, home, trials_root, hide_dirs, vendor_dir=vendor_dir, forward=True, unshare=unshare)
+    shim_cfg = {"ns": ns, "token_file": os.path.abspath(token_file or _expand(TOKEN_FILE, home, "")),
+                "proxy_allow": proxy_allow, "proxy_max_life": proxy_max_life, "upstream": upstream or {},
+                **(shim_extra or {})}
+    bin_dir = trial / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    shim = bin_dir / "claude"
+    shim.write_text(SHIM.format(python=sys.executable, repo=str(repo), cfg=json.dumps(shim_cfg)))
+    shim.chmod(0o755)
+    src = Path(factory_src) if factory_src else repo / "bin" / "factory"
+    shutil.copy2(src, bin_dir / "factory")  # bin/factory imports scout/ from <its dir>/..: snapshot that package and web/dbpath.py too
+    shutil.copytree(src.resolve().parent.parent / "scout", trial / "scout", dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    (trial / "web").mkdir(exist_ok=True)  # and the DB-path helper (web/dbpath.py, stdlib only), not the web UI
+    for name in ("__init__.py", "dbpath.py"):
+        shutil.copy2(src.resolve().parent.parent / "web" / name, trial / "web" / name)
+    return shim
+
+
+def _refuse_hidden_cwd(cwd, cfg):
+    """cwd is bound back in full, so one equal to, above or inside a hide dir (or a sibling trial) would expose it."""
+    want, trial = os.path.realpath(cwd), os.path.realpath(cfg["trial"])
+    if _under(want, trial):
+        return
+    hidden = [os.path.realpath(d) for d in cfg["hide_dirs"]]
+    hidden += _sibling_trials(cfg)
+    for d in hidden:
+        if _under(want, d) or _under(d, want):
+            raise ValueError(f"cwd {cwd} is equal to, above or inside the hidden dir {d}; use the trial dir "
+                             f"{trial} or a path under it")
+
+
+def run_contained(trial_dir, argv, cwd=None, env=None, timeout=60, net=False, home=None, trials_root=None,
+                  hide_dirs=HIDE_DIRS, vendor_dir=None, unshare="unshare", env_extra=None):
+    """Run argv inside the same hiding as the shim: no proxy, no forwarder, no token. net=True keeps the host
+    network (off by default). env=None means an allow-list (ENV_PASS, LC_*, HOME=trial dir, env_extra), never the
+    caller's whole environment. Returns Contained(returncode, output, timed_out); the tree dies on timeout."""
+    keep = [cwd] if cwd else []
+    cfg = make_cfg(trial_dir, None, home, trials_root, hide_dirs, vendor_dir=vendor_dir, keep=keep, net=net,
+                   unshare=unshare, cwd=cwd)
+    if cwd:
+        _refuse_hidden_cwd(cwd, cfg)
+    if env is None:
+        env = {k: v for k, v in os.environ.items() if k in ENV_PASS or k.startswith("LC_")}
+        env.update({"HOME": cfg["trial"], **(env_extra or {})})
+    p = subprocess.Popen(compose_stage1(cfg, argv), cwd=cwd, env=dict(env),
+                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         start_new_session=True)
+    try:
+        out, _ = p.communicate(timeout=timeout)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)  # --kill-child takes the pid namespace down with its init
+        out, _ = p.communicate()
+        timed_out = True
+    return Contained(p.returncode, out.decode(errors="replace"), timed_out)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 4 or sys.argv[1] != "--setup" or sys.argv[3] != "--":
+        sys.exit("usage: nsbox.py --setup <cfg json> -- ARGS...")
+    setup(json.loads(sys.argv[2]), sys.argv[4:])

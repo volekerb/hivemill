@@ -1,0 +1,30 @@
+[Unit]
+Description=factory read-only web UI (LAN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/factory/bin/factory serve
+Restart=on-failure
+RestartSec=10
+Nice=10
+MemoryMax=200M
+MemoryHigh=150M
+CPUQuota=50%
+# Hardening: the server only reads the DB (sqlite ro URI) and the session logs. ProtectSystem=strict makes
+# everything else read-only. %h/factory stays writable only because sqlite must be able to create the
+# db/factory.db-shm file when no other process has the DB open (on a read-only mount it fails with "unable to
+# open database file"). The server itself never writes there: ro URI + query_only. The code and work dirs inside
+# %h/factory are made read-only again (ReadOnlyPaths below); the rest of %h/factory, db/ included, stays
+# writable until ReadWritePaths is narrowed to %h/factory/db (follow-up for the sandbox task). serve resolves the DB path per request, so a tick migration of the legacy file is followed.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/factory
+ReadOnlyPaths=%h/.claude
+ReadOnlyPaths=-%h/factory/bin -%h/factory/roles -%h/factory/systemd -%h/factory/web -%h/factory/worktrees -%h/factory/.git -%h/factory/tests
+
+[Install]
+WantedBy=default.target

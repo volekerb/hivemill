@@ -1,0 +1,15 @@
+[Unit]
+Description=factory up (resume HQ and team leads after boot)
+Wants=herdr-server.service
+After=herdr-server.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do herdr workspace list >/dev/null 2>&1 && exit 0; sleep 2; done; echo "herdr not reachable after 120s" >&2; exit 1'
+ExecStart=%h/.local/bin/factory up
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

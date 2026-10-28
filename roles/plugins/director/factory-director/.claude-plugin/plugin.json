@@ -1,0 +1,8 @@
+{
+  "name": "factory-director",
+  "description": "Text-only factory skills for the director: routing owner decisions, checking automated writers before restrictions",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Style frame 5: close</title>
+<link rel="stylesheet" href="../scenes/theme.css">
+<style>
+
+.close { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding-bottom:20px; }
+.close .big { font-size:150px; font-weight:bold; line-height:1.1; }
+.close .tag { font-size:56px; color:var(--muted); margin-top:24px; }
+.code { margin:80px auto 0; width:1560px; background:#05080f; border:3px solid var(--line); border-radius:18px; padding:36px 48px; font-size:44px; white-space:nowrap; text-align:left; color:var(--ok); }
+.gh { margin-top:60px; font-size:60px; color:var(--lead); }
+
+</style></head>
+<body data-scene="close">
+<div class="stage ">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="close"><div class="big" data-brand="name"></div><div class="tag" data-brand="tagline"></div>
+<div class="code mono card">$ <span data-brand="install"></span></div>
+<div class="gh mono" data-brand="github_url"></div></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "close", "duration": 8, "captions": [], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="../scenes/demo.js"></script>
+<script>demo.seek(6.0);</script>
+</body></html>

@@ -1,0 +1,67 @@
+# Reviewed blob-content hits for `ci/scrub_scan.py --history DIR --history-allowlist ci/scrub_history_allowlist.txt` (the fresh_export gate).
+# Format: path:pattern-id:sha256-of-the-raw-line  # reason   (path exact; hash over the line bytes without +/- and LF)
+# Every entry maps to a line already allowed by ci/scrub_allowlist.txt, except binary-blob false positives (docs/demo/hero.webp). Never add a line of real data; owner-term hits cannot be listed.
+# Generate a hash with: python3 ci/scrub_scan.py --history DIR --show-line-hash. Adding a line needs a reviewer: see docs/scrub-scan.md.
+tests/test_scrub_scan.py:email:1208ae6e0e07c0e780323681d2dc12640d82cc27d945c87a1b3f0d56615f56cc  # asserts the fake fixture values are masked in output
+tests/test_scrub_scan.py:email:6dcc381dfdb33f2709dda874efb0a233fb2f70bd91df5e9e15714c8b043e2478  # lookalike domain that must still hit
+tests/test_scrub_scan.py:email:80d3e04524708ebe0af07bd17ce2cdb4032346dfe7970ba935a17607d0f4707e  # the scanner's own test fixture: fake data
+tests/test_scrub_scan.py:email:814b1348f60dc739a8882151a5f71439e9b859da5d75d87c121b3593cbd1042b  # fake author email for the history test
+tests/test_scrub_scan.py:email:aa1fbd834b2dad0d6693013f26a834c2c5bcc7c3012049358393404f30907780  # asserts the fake email is masked
+tests/test_scrub_scan.py:email:f16cd3ef3943db3988e9b73c0fcd4a8aa977e27c6f0fe3b27e79dd0d350369ad  # lookalike domains that must still hit
+tests/test_scrub_scan.py:home-path:1208ae6e0e07c0e780323681d2dc12640d82cc27d945c87a1b3f0d56615f56cc  # asserts the fake fixture values are masked in output
+tests/test_scrub_scan.py:home-path:429e21a677dc02396c3cd29586810c680225bf84e4b706b0804cf102fbbc5e0c  # the scanner's own test fixture: fake data
+tests/test_scrub_scan.py:rfc1918:1208ae6e0e07c0e780323681d2dc12640d82cc27d945c87a1b3f0d56615f56cc  # asserts the fake fixture values are masked in output
+tests/test_scrub_scan.py:rfc1918:1edfdad9ce4d5205eae9871d12e6b07de48854e2055f2c45ec8b782df4d9f892  # fake LAN address in a history test commit message
+tests/test_scrub_scan.py:rfc1918:62894f02ae06c8f5e5504c85ee9c9eb9b234c1387e3c7b722d555dfd4b97bd88  # the scanner's own test fixture: fake data
+tests/test_scrub_scan.py:rfc1918:bbdd1c831fb0c49da089dee006816bc83dd0c5771da966cf1419023156f12093  # fake LAN address in a history test fixture
+docs/demo-data.md:home-path:90dc6fac8eb5a260412b163f1a91db249588bc62ae84fd108eb4c9b58509dfee  # prose: the demo dir layout, not a user home path
+docs/demo/hero.webp:email:aa4ea2d02c0abdf7bef37b1eaaecdc3cfc51251c8c710906b5c6818611106ead  # random image bytes in the binary blob match the email regex (false positive)
+roles/plugins/staff-engineer/feature-dev/.claude-plugin/plugin.json:email:a55623d43d4cff62f281b1db0080a365cbdad9a9c94dadaa8d2cbd5446c1dd27  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
+roles/plugins/staff-engineer/feature-dev/README.md:email:38ca9a732fbb9e84e911aa8be369193779e059f6a4b5e4c1181b098433129333  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
+roles/plugins/staff-engineer/pr-review-toolkit/.claude-plugin/plugin.json:email:a55623d43d4cff62f281b1db0080a365cbdad9a9c94dadaa8d2cbd5446c1dd27  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
+roles/plugins/staff-engineer/pr-review-toolkit/README.md:email:2dc5d36b4647af690239957fe4d2bf2a3b29d0a0914b0d483cfe8f528a19db6f  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
+tests/fixtures/web_tokens/projects/-home-synth-factory-worktrees-G-900-T-9000/synth-sess-0002.jsonl:home-path:0d5fbcc44e9c19f8eb8d71ff14b32d8f1a69cf043e9ab747444d09d670bf7d1e  # synthetic Claude session log; the path is the test data
+tests/test_auto_clear.py:home-path:20a51ae84c53c59322bb1a66f59f7f648259a5c9e8d8b1f943c65098e4743c94  # captured Claude dialog text the auto-clear matcher must recognise
+tests/test_auto_clear.py:home-path:c6efd2d78f33baafe628a808c8ec8ea92e9219b23c027d141311ebea1b367f71  # captured Claude dialog text the auto-clear matcher must recognise
+tests/test_context_per_pr.py:home-path:60f532122d0dc42b86052948b4ab17a531e98531dfbc0f7010a21f36892e6667  # synthetic worktree path for the worktree-detection test
+tests/test_fresh_export.py:email:001ca0f5165e06a6990eb912ec45c4d41f0c4146cc1a0d2ed96817c0f3f44434  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:248ed3ef7afa8ab2e7b54dbbb6f0a3e6b995b9823ac1afa5312b428c97f46d04  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:39bd4fabc169d65bee4046a8fbcb6b42db1f097e192151ed3c5fc9ce860c1c5b  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:79301ba6eb0474accb28b88fb059aac153d391aa46adf605418d69e58329a9af  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:8dc67c7c0bbde75ca3fc187c06f51fcb8a7d7f900a5c154f09ebce9776c121ae  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_fresh_export.py:email:db60f0ce145e4f71ae0f6d2660f8c76dd90a810e01550412a46559610cf4d0dd  # synthetic userinfo origin URL the export guard must parse and never echo
+tests/test_git_hardening.py:email:ad40cd7eb1d8906c743c744059a1cc72469ad3524939639c048e65a7081cd01c  # scp-style remote URL the hardening check must classify
+tests/test_goal_audit.py:home-path:df0b2788e333d580b7e40174b253ba160a866f6fc6173a4b4da936705847bf0e  # synthetic argv path the worker-detection test must classify
+tests/test_lessons.py:home-path:6403483140f42c6fdbedede7c107646ff48bf83d2934f6deb4d8b3a50492d65d  # synthetic argv path for fake claude process
+tests/test_live_home.py:home-path:092e1c356d836cb1a0dae2a21ba35ce6a874fba6e0b29de34cabf75c29671e21  # command text the guard must refuse; the path shape is the test
+tests/test_live_home.py:home-path:cb988dfd4e1afeb44a4dac375e190be755f5c0e8aeab19edda17dcb08d5b93b8  # command text the guard must refuse; the path shape is the test
+tests/test_skilleval_vendor.py:email:13eb57c938b96455126c12934406e18afc2cef4cdb6fc12d3abe232241bada66  # userinfo-spoof URL fixture the exfil pre-screen must flag
+tests/test_skilleval_vendor.py:email:86281782c9984a92301f829cc50eab58ae8de27a834f5e1deeb69f40ad846deb  # userinfo-spoof URL fixture the exfil pre-screen must flag
+tests/test_skilleval_vendor.py:email:fc4cd35a69ffa6b0bfbaf06327b9799359431283a9c21b18904aa74099a7ad90  # userinfo-spoof URL fixture the exfil pre-screen must flag
+tests/test_web_tokens.py:home-path:e526dcfe2f666f96de0830f6a23d044ecb54521f090b92fb13822f217880870a  # synthetic cwd the project-name derivation test needs
+tests/test_worker_escapes.py:home-path:df0b2788e333d580b7e40174b253ba160a866f6fc6173a4b4da936705847bf0e  # synthetic argv path the worker-detection test must classify
+tests/test_worker_gate.py:home-path:c99b66da211b264cef797f211fbfeb404e058fbaf6a955c566bc30886ad95ea0  # synthetic argv path for fake claude process
+ci/scrub_allowlist.txt:generic-secret:9c70bfb53ebbacca370123f64871304710e0f2184dfc6de0fe5b42b6b6b19cf4  # tree-allowlist entry that quotes a fake fixture; the quoted value is already reviewed
+ci/scrub_allowlist.txt:generic-secret:3904b1db7010ae1575d83ffd7b9b650c6a4659c9d6854bdcab407eb48946b909  # tree-allowlist entry that quotes a fake fixture; the quoted value is already reviewed
+ci/scrub_allowlist.txt:generic-secret:e584d97a3aacce5e82039d5e1144321cc2b4258b6132542509e617dee7a7586a  # tree-allowlist entry that quotes a fake fixture; the quoted value is already reviewed
+ci/scrub_allowlist.txt:generic-secret:1b429d7bdcacd39bd2b4df2f551842c15200173b68a7f77fdaaddac110e01986  # tree-allowlist entry that quotes a fake fixture; the quoted value is already reviewed
+ci/scrub_allowlist.txt:generic-secret:52f50aca807eb6a15782a2ca9b92394e06d2628747c245d31c51e3c2b9b98874  # tree-allowlist entry that quotes a fake fixture; the quoted value is already reviewed
+ci/scrub_allowlist.txt:generic-secret:7ea0d56508a45d09a0fcba50a65cad2982b8154cfbb775f66190cdc6e69ca8f4  # tree-allowlist entry that quotes a fake fixture; the quoted value is already reviewed
+docs/scout-vendor.md:rfc1918:d4fd9cead5a4a89d04db82b3d2a7d89a736cb1aaddc38f96ac6ca6fff9f4b40a  # prose about the scanner with example addresses, no real host
+scout/nsbox.py:generic-secret:ba106635ee5f3e6e034cd9f00bef4e24ce73500277aa54af43865387df0d30c0  # a file path constant, not a token value
+tests/test_advisor_deny.py:generic-secret:81c69f3c9bf73a6537cf84ac4e06c5a6bd6b6501e97c33f825a04e6def474bbf  # fake sentinel secret fixture asserted not to leak
+tests/test_context_baseline.py:generic-secret:25d8e8f9f212cdc3fcdd1f4a8d9c396010e294b34d10e2fa1e72be7ba1eecbf6  # fake sentinel secret fixture asserted not to leak
+tests/test_context_per_pr.py:generic-secret:979355e18b80b314a0bf8e4dedb9f3d60693fa52c861342499b39caf6c455e83  # fake sentinel secret fixture asserted not to leak
+tests/test_freshbox_test.py:generic-secret:d92846bd8dcb94200d08b635f76824aed04284c904041a5d6f2c82c9359895d1  # fake sentinel secret fixture asserted not to leak
+tests/test_project_remote.py:email:0ec944a328215c6b864b674bbfdaff56330a7d6311ca9d6af3c6287de2666c92  # fake example-org remote URLs the guard must classify
+tests/test_project_remote.py:email:39e0e1d4fabacb7afdb51e4b67389e6d0d6f926aab7c46182f8217b47eaae240  # fake example-org remote URLs the guard must classify
+tests/test_public_repo_safety.py:home-path:3ee1450024631d6fd5d106195267eb18de8a2dec1550b8f9f4d4feb7aa8df6aa  # fake fixture values (example mail, home path, remote URLs) the guard must catch
+tests/test_public_repo_safety.py:email:91f221afc6b1bfae7beb92830dec077fbb778ad9cf6cfa8c3b948b373ed4ed0b  # fake fixture values (example mail, home path, remote URLs) the guard must catch
+tests/test_public_repo_safety.py:email:7103eb332b8237dfe5591a0a36b2e239583f6d55fb55e79433b6270f275b95f5  # fake fixture values (example mail, home path, remote URLs) the guard must catch
+tests/test_skilleval_vendor.py:rfc1918:13eb57c938b96455126c12934406e18afc2cef4cdb6fc12d3abe232241bada66  # fake documentation address the vendor filter must reject
+tests/test_web_server.py:rfc1918:b5018d51f49c03d48db9e0b5d8c0c6b8548ad94c380056f90a0368ee7556393f  # fake private-range addresses the host allowlist test must classify
+tests/test_web_server.py:rfc1918:12b6485ce678dd7ab2d662ae0bcb32ac4cdeb470d2fcf8fb069a6c48f3f19553  # fake private-range addresses the host allowlist test must classify
+tests/test_web_server.py:rfc1918:9c06457a3996ba5b10fc9b4458abc8d8804495c5fdb5dc4f927489f09e3cd7aa  # fake private-range addresses the host allowlist test must classify
+tests/test_worker_guard_public_text.py:email:b1338c50fc82f7b904ef81878848e0b4e65ec991bb1b0081c88a75808f312211  # fake author and remote the public-text guard must catch
+tests/test_worker_guard_public_text.py:email:37587aaa1a5699484e98d9a0ba5804bb35c45b5608a1e8b639f376a76f60450c  # fake author and remote the public-text guard must catch
+tests/test_workerbox.py:generic-secret:6813fa5e0ebf37122580d51deb4442689fd21c7bfb2fe02f584d7416f72fd410  # fake sentinel secret fixture asserted not to leak

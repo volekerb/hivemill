@@ -1,0 +1,7 @@
+{
+  "name": "Hivemill",
+  "wordmark_svg": "../images/wordmark-dark.svg",
+  "tagline": "Talk to one agent. A whole team ships your PRs.",
+  "install": "gh repo clone volekerb/hivemill ~/factory",
+  "github_url": "github.com/volekerb/hivemill"
+}

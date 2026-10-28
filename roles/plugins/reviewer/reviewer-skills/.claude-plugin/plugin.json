@@ -1,0 +1,8 @@
+{
+  "name": "reviewer-skills",
+  "description": "Text-only factory skills for the reviewer: multi-angle review workflow",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}
