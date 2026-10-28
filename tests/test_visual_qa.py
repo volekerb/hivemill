@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 import shutil
+import signal
 import struct
 import sys
 import tempfile
@@ -174,6 +175,29 @@ class FakeSession(unittest.TestCase):
         with mock.patch.object(vq, "run_checks", bad_png), contextlib.redirect_stderr(err):
             self.assertEqual(vq.main([]), 2)
         self.assertIn("not a PNG", err.getvalue())
+
+    def _handlers(self):
+        return signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+
+    def test_signal_handlers_restored_on_every_path(self):
+        row = {"route": "/", "theme": "light", "width": 1280, "overflow": [], "blank": None, "png": "x"}
+
+        def no_browser(o, t):
+            raise vq.SetupError("no usable browser")
+
+        def boom(o, t):
+            raise RuntimeError("browser exploded")
+        before = self._handlers()
+        with mock.patch.object(vq, "run_checks", lambda o, t: ([row], {"/": 1.0}, [], [])), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(vq.main([]), 0)
+        self.assertEqual(self._handlers(), before)
+        with mock.patch.object(vq, "run_checks", no_browser), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(vq.main([]), 2)
+        self.assertEqual(self._handlers(), before)
+        with mock.patch.object(vq, "run_checks", boom), self.assertRaises(RuntimeError):
+            vq.main([])
+        self.assertEqual(self._handlers(), before)
 
     def test_empty_routes_is_a_setup_error(self):
         with self.assertRaises(vq.SetupError):

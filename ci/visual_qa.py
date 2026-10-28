@@ -301,7 +301,8 @@ def main(argv=None):
     ap.add_argument("--json", help="write the machine-readable result to this file")
     opts = ap.parse_args(argv)
     tmp = None
-    old = {s: signal.signal(s, signal.default_int_handler) for s in (signal.SIGINT,)}
+    old = {s: signal.getsignal(s) for s in (signal.SIGINT, signal.SIGTERM)}
+    signal.signal(signal.SIGINT, signal.default_int_handler)
     try:
         try:
             made = Path(tempfile.mkdtemp(prefix="factory-visual-qa-"))
@@ -333,7 +334,8 @@ def main(argv=None):
             cleanup(tmp)
         finally:
             for s, h in old.items():
-                signal.signal(s, h)
+                if h is not None:  # getsignal gives None for a handler not installed from Python
+                    signal.signal(s, h)
 
 
 def cleanup(tmp):
