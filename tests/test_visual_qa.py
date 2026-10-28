@@ -187,6 +187,9 @@ class FakeSession(unittest.TestCase):
 
         def boom(o, t):
             raise RuntimeError("browser exploded")
+        # pin a known non-ignore handler so the test does not depend on test order
+        self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
         before = self._handlers()
         with mock.patch.object(vq, "run_checks", lambda o, t: ([row], {"/": 1.0}, [], [])), \
                 contextlib.redirect_stdout(io.StringIO()):
