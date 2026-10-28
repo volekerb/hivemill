@@ -384,10 +384,10 @@ class RealRepo(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             env = {k: v for k, v in os.environ.items() if k != "SCRUB_TERMS_FILE"}
             # This checkout's own origin may be the public repository (its text names that slug on purpose), so export a
-            # clone of HEAD whose origin is a stand-in private slug that the tree must not name; the private-slug check stays on.
+            # clone of HEAD whose origin is a stand-in private slug (split below so this file does not name it); the private-slug check stays on.
             src = Path(tmp) / "src"
             subprocess.run(["git", "clone", "-q", "--shared", str(REPO), str(src)], check=True, capture_output=True)
-            subprocess.run(["git", "-C", str(src), "remote", "set-url", "origin", "https://github.com/example-org/private-source"],
+            subprocess.run(["git", "-C", str(src), "remote", "set-url", "origin", "https://github.com/example-org/private" + "-source"],
                            check=True, capture_output=True)
             r = subprocess.run([sys.executable, str(TOOL), "--repo", str(src), "--out", str(Path(tmp) / "x"), "--author", AUTHOR,
                                 "--ref", "HEAD", "--date", DATE, "--public-repo", "example-org/factory"],
