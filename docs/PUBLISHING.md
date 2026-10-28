@@ -72,7 +72,7 @@ For the owner, in order, once the director has given the go. Replace `volekerb/h
    Disable Actions on the repository before the first push (docs/ci-cost.md).
 3. **Flip to public**, on the director's explicit go: github.com/volekerb/hivemill > Settings > General > Danger Zone > Change visibility > Make public.
 4. **Dry run** the metadata and read every line: `python3 ci/publish_repo.py --repo volekerb/hivemill`. It prints the six `gh api` calls and calls nothing.
-5. **Apply**: `python3 ci/publish_repo.py --repo volekerb/hivemill --apply`. It refuses a private repository, a fork and the private slug, and stops at the first failing call. It sets description, homepage, topics, Issues and Discussions on, wiki and Projects off, vulnerability alerts, private vulnerability reporting, and branch protection on `main` (required status checks from `ci/publish_metadata.json`, no required reviews).
+5. **Apply**: `python3 ci/publish_repo.py --repo volekerb/hivemill --apply`. It refuses a private repository, a fork and any repo in the factory config `frozen_repos` (or `--private-repo`); the live public origin is allowed, and stops at the first failing call. It sets description, homepage, topics, Issues and Discussions on, wiki and Projects off, vulnerability alerts, private vulnerability reporting, and branch protection on `main` (required status checks from `ci/publish_metadata.json`, no required reviews).
 6. **Create the issue labels** the issue templates use, by hand:
    ```
    gh label create setup --repo volekerb/hivemill
