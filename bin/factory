@@ -3751,6 +3751,7 @@ def build_digest(con, goal=None, date=None, hours=24):
     events = [e for e in con.execute("SELECT * FROM events ORDER BY id") if inwin(e["ts"])]
     score_rows = scorecard_rows(con)
     shown = 0
+    fresh_shown = False
     closed_earlier = []
     for g in goals:
         if g["status"] in ("done", "cancelled"):
@@ -3836,6 +3837,10 @@ def build_digest(con, goal=None, date=None, hours=24):
         out += ["### Up next", f"{len(ready)} ready todo task(s)", ""]
         drift = drift_items(con, g, end, drift_pr_states(con))  # D2 uses the PR states of the last tick: no gh call here
         out += ["Drift: " + ("; ".join(drift) if drift else "none"), ""]
+        if not fresh_shown:
+            fresh_shown = True
+            stale = stale_agents(con)
+            out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
 
         for t in con.execute("SELECT id, parked_at FROM teams WHERE status='active' AND parked_at IS NOT NULL AND goal_id=? ORDER BY id", (g["id"],)):
             wakes = sum(1 for e in events if e["action"] == "lead-wake" and e["entity_id"] == t["id"])
@@ -7313,6 +7318,95 @@ def queue_order_key(row, at=None):
     return (cls, 0 if refresh else 1, level, -steps, prio, row["queued_at"] or "", row["name"])
 
 
+FRESH_PERSISTENT = ("boss", "director", "lead")
+
+
+def role_prompt_text(role):
+    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md)."""
+    return (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+
+
+def _newest_mtime(*paths):
+    """Newest mtime of any file under the given files/dirs (0 when none exist). A vanished file is skipped."""
+    best = 0.0
+    for p in paths:
+        p = Path(p)
+        files = [p] if p.is_file() else [Path(d) / f for d, _dirs, fs in os.walk(p) for f in fs]
+        for f in files:
+            try:
+                best = max(best, f.stat().st_mtime)
+            except FileNotFoundError:
+                continue
+    return best
+
+
+def freshness_checkout_stale():
+    """True when the CLI launcher or the main checkout is not the current one: ~/.local/bin/factory does not resolve to
+    HOME/bin/factory (no PATH lookup: the tick's systemd unit lacks ~/.local/bin), or HEAD != the local origin/main ref
+    (the tick's own sync_pull just updated it; no fetch here). No origin/main ref: that half cannot decide, so it is skipped."""
+    launcher = Path.home() / ".local" / "bin" / "factory"
+    if os.path.realpath(launcher) != os.path.realpath(HOME / "bin" / "factory"):
+        return True
+    rc, head, _ = _git_rc(["rev-parse", "-q", "--verify", "HEAD^{commit}"])
+    rc2, origin, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+    return rc == 0 and rc2 == 0 and head != origin
+
+
+def tick_freshness(con):
+    """Every tick (docs/freshness.md): flag live agents that run older role files, settings, plugins or CLI than main.
+    Reasons: prompt, settings, plugins, checkout. Hooks are not a reason (they run from disk on every call). Writes
+    `stale-agent` when an agent's reason set changes, `fresh-agent` when it clears (dedupe: throttle key fresh:<name>),
+    and tells the director (boss, for the director) once per new reason set of a persistent agent that has no relaunch
+    queued. Workers get the event and the digest line only. Raises on an unreadable file: the caller wraps it."""
+    checkout = freshness_checkout_stale()
+    seen = set()
+    for r in con.execute("SELECT * FROM agents WHERE status='live' AND role!='evaluator' ORDER BY name").fetchall():
+        name, role = r["name"], r["role"]
+        seen.add(name)
+        reasons = []
+        started = _ts(r["started"])
+        t0 = started.timestamp() + 1 if started else None  # `started` is whole seconds: tolerate a same-second write
+        try:
+            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role):
+                reasons.append("prompt")
+        except FileNotFoundError:
+            pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare
+        if t0 is not None:
+            sdir = ROLES_DIR / "settings"
+            if _newest_mtime(sdir / f"{role}.json", sdir / f"{role}.json.in") > t0:
+                reasons.append("settings")
+            pdirs = [ROLES_DIR / "plugins" / role]
+            if role == "coder" and r["goal_id"] and re.fullmatch(r"G-\d+", r["goal_id"]):
+                pdirs.append(GOAL_PLUGINS / r["goal_id"])
+            if _newest_mtime(*[d for d in pdirs if d.is_dir()]) > t0:
+                reasons.append("plugins")
+        if checkout:
+            reasons.append("checkout")
+        key, val = f"fresh:{name}", ",".join(sorted(reasons))
+        old = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+        if (old["ts"] if old else "") == val:
+            continue
+        if not reasons:
+            con.execute("DELETE FROM throttle WHERE key=?", (key,))
+            event(con, "agent", name, "fresh-agent", {"name": name})
+            continue
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, val))
+        event(con, "agent", name, "stale-agent", {"name": name, "role": role, "reasons": sorted(reasons)})
+        if role in FRESH_PERSISTENT and not r["relaunch_requested_at"]:
+            send(con, "boss" if role == "director" else "director", f"stale agent: {name}",
+                 f"{name} ({role}) runs older files than main: {', '.join(sorted(reasons))}. "
+                 f"Restart it with the current ones: factory relaunch {name} --when-idle", "alert", sender="tick")
+    for row in con.execute("SELECT key FROM throttle WHERE key LIKE 'fresh:%'").fetchall():
+        if row["key"][len("fresh:"):] not in seen:  # gone (exited, lost, relaunched under a new row): forget it silently
+            con.execute("DELETE FROM throttle WHERE key=?", (row["key"],))
+
+
+def stale_agents(con):
+    """[(name, reasons)] from the last tick's `fresh:` throttle rows, for the digest."""
+    return [(r["key"][len("fresh:"):], r["ts"]) for r in
+            con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'fresh:%' ORDER BY key").fetchall()]
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
@@ -7516,6 +7610,11 @@ def cmd_tick(a, locked=False):
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
     export(con)  # the main checkout now holds the merged role files
+
+    try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
+        tick_freshness(con)
+    except Exception as e:  # noqa: BLE001 — the check must never stop the tick
+        event(con, "tick", "freshness", "freshness-failed", str(e)[:300])
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
