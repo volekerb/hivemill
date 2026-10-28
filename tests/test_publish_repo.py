@@ -111,6 +111,15 @@ class Base(unittest.TestCase):
             rc = self.mod.main(list(argv))
         return rc, out.getvalue(), err.getvalue()
 
+    def tokenized_meta(self):
+        """The metadata as the private source holds it: the public slug is the token the tool renders. The committed file in
+        the public repository already names its own slug, so the render tests use this copy, not the file."""
+        meta = json.loads(META.read_text())
+        meta["homepage"] = "https://github.com/__PUBLIC_" + "REPO__#readme"
+        f = self.root / "tokenized_metadata.json"
+        f.write_text(json.dumps(meta))
+        return str(f)
+
     def recorded(self):
         if not self.calls.exists():
             return []
@@ -125,7 +134,7 @@ EXPECTED = [("GET", "repos/acme/public"), ("PATCH", "repos/acme/public"), ("PUT"
 class TestDryRun(Base):
     def test_default_makes_no_call_and_prints_six_lines_in_order(self):
         self.make_stub(private=False)
-        rc, out, err = self.main("--repo", PUBLIC, "--gh", str(self.stub))
+        rc, out, err = self.main("--repo", PUBLIC, "--metadata", self.tokenized_meta(), "--gh", str(self.stub))
         self.assertEqual(rc, 0, err)
         self.assertFalse(self.calls.exists(), "the stub must never have run")
         lines = [ln.split() for ln in out.splitlines() if ln.startswith("gh api -X")]
@@ -143,7 +152,7 @@ class TestDryRun(Base):
 class TestApply(Base):
     def test_apply_records_exactly_six_calls_with_bodies(self):
         self.make_stub(private=False)
-        rc, out, err = self.main("--repo", PUBLIC, "--apply", "--gh", str(self.stub))
+        rc, out, err = self.main("--repo", PUBLIC, "--apply", "--metadata", self.tokenized_meta(), "--gh", str(self.stub))
         self.assertEqual(rc, 0, err)
         rec = self.recorded()
         self.assertEqual([(r["argv"][2], r["argv"][3]) for r in rec], EXPECTED)
@@ -268,7 +277,8 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(len(meta["topics"]), 14)
         self.assertLessEqual(len(meta["topics"]), 20)
         self.assertEqual(len(set(meta["topics"])), 14)
-        self.assertEqual(meta["homepage"], "https://github.com/__PUBLIC_" + "REPO__#readme")
+        # the private source holds the token; the public repository holds its own slug (the export substituted it)
+        self.assertIn(meta["homepage"], ("https://github.com/__PUBLIC_" + "REPO__#readme", "https://github.com/volekerb/hivemill#readme"))
         self.assertLessEqual(len(meta["description"]), 100)
 
 
