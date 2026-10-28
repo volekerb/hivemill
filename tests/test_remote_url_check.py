@@ -36,10 +36,20 @@ class RemoteUrlCheckTests(FactoryTestCase):
         self.run_hook()
         self.assertEqual(self.alerts(), [])
 
-    def test_match_ignores_dot_git_and_case(self):
-        self.set_cfg("HTTPS://github.com/Example-Org/OLD")
+    def test_dot_git_or_case_difference_alerts_like_the_guard(self):
+        """The git guard compares exactly, so a near match is a refused push and must alert."""
+        for want in ("https://github.com/example-org/old", "https://github.com/Example-Org/old.git"):
+            self.set_cfg(want)
+            self.run_hook()
+        self.assertEqual(len(self.alerts()), 2)
+
+    def test_credentials_are_not_copied_into_the_alert(self):
+        git("remote", "set-url", "origin", "https://user:s3cret" + chr(64) + "github.com/example-org/old.git", cwd=self.checkout)
+        self.set_cfg(NEW)
         self.run_hook()
-        self.assertEqual(self.alerts(), [])
+        body = self.alerts()[0]["body"]
+        self.assertNotIn("s3cret", body)
+        self.assertIn("https://github.com/example-org/old.git", body)
 
     def test_empty_config_is_not_checked(self):
         self.set_cfg("")

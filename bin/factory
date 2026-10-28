@@ -3939,17 +3939,18 @@ def tmp_alert(con):
 
 def remote_url_mismatch(con, home=None):
     """None when config `factory_remote_url` is empty (learned later) or equals the checkout's `origin` URL (git remote
-    get-url origin, compared case-insensitively and without a trailing .git); else a message saying what to run."""
+    get-url origin, compared exactly like the git guard does); else a message saying what to run. URLs are shown without
+    credentials."""
     want = cfg(con, "factory_remote_url").strip()
     if not want:
         return None
     p = git_run(Path(home or LIVE_HOME), "remote", "get-url", "origin", timeout=30)
     got = p.stdout.strip() if p.returncode == 0 else ""
-    norm = lambda u: re.sub(r"\.git$", "", u.rstrip("/"), flags=re.I).lower()  # noqa: E731
-    if got and norm(got) == norm(want):
+    if got and got == want:
         return None
-    return (f"config factory_remote_url is {want!r} but `git remote get-url origin` of the factory checkout is "
-            f"{got or '(none)'!r}: the git guard will refuse pushes. After a remote switch run "
+    show = lambda u: re.sub(r"(?<=://)[^/@\s]*@", "", u)  # noqa: E731 — never copy a token from a URL into the DB
+    return (f"config factory_remote_url is {show(want)!r} but `git remote get-url origin` of the factory checkout is "
+            f"{show(got) or '(none)'!r}: the git guard will refuse pushes. After a remote switch run "
             "`factory config factory_remote_url <new origin url>`; otherwise restore the origin.")
 
 

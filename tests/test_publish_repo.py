@@ -230,6 +230,11 @@ class TestRefusals(Base):
         rc, _out, err = self.main("--repo", PUBLIC)
         self.assertEqual(rc, 0, err)
 
+    def test_malformed_frozen_repos_entry_is_refused(self):
+        self.frozen("acme/private,notaslug")
+        err = self.assert_refused("--repo", PUBLIC)
+        self.assertIn("frozen_repos", err)
+
     def test_unreadable_database_is_refused(self):
         (self.acct / "factory" / "db").mkdir()
         (self.acct / "factory" / "db" / "factory.db").write_text("not a database")
