@@ -2116,6 +2116,30 @@ def cmd_task(a):
                 die(f"--team: no team {a.team}", 2)
             if tm["goal_id"] != t["goal_id"]:
                 die(f"--team: team {a.team} belongs to goal {tm['goal_id']}, but {a.id} is in goal {t['goal_id']}", 2)
+        if a.goal is not None:
+            if role not in ("owner", "director", "boss"):
+                die(f"only the director or the owner may move a task to another goal ({role} may not use --goal)", 3)
+            if a.goal == t["goal_id"]:
+                die(f"{a.id} is already in goal {a.goal}; nothing to move", 2)
+            if a.team is not None:
+                die("--goal clears the task's team; run the --team update as a second call once the task is in the new goal", 2)
+            if not con.execute("SELECT 1 FROM goals WHERE id=?", (a.goal,)).fetchone():
+                die(f"--goal: no goal {a.goal}", 2)
+            if t["status"] in ("in_progress", "in_review"):
+                die(f"{a.id} is {t['status']}; stop its worker and reopen it before moving it to another goal", 2)
+            live = con.execute("SELECT name FROM agents WHERE task_id=? AND status='live' LIMIT 1", (a.id,)).fetchone()
+            if live:
+                die(f"{a.id} has a live agent {live['name']}; factory stop {live['name']} --reason ... before moving the task", 2)
+            if json.loads(t["depends_on"] or "[]"):
+                die(f"{a.id} depends on {t['depends_on']} in {t['goal_id']}; clear it first: factory task update {a.id} --after ''", 2)
+            dependents = [r["id"] for r in con.execute("SELECT id, depends_on FROM tasks WHERE goal_id=?", (t["goal_id"],))
+                          if a.id in json.loads(r["depends_on"] or "[]")]
+            if dependents:
+                die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
+        elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
+                                             a.team, a.priority, a.after, a.waits, a.note, a.reason)):
+            die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
+                "--acceptance --team --priority --after --waits --note --goal", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
@@ -2140,7 +2164,7 @@ def cmd_task(a):
             sets.append("depends_on=?"); args.append(json.dumps(deps))
         for col, val in (("status", a.status), ("pr_url", a.pr), ("branch", a.branch), ("assignee", a.assignee),
                          ("title", a.title), ("spec", spec), ("acceptance", read_text(a.acceptance)),
-                         ("team_id", a.team), ("priority", a.priority)):
+                         ("team_id", a.team), ("priority", a.priority), ("goal_id", a.goal)):
             if val is not None:
                 if col == "status" and val not in TASK_STATUSES:
                     die(f"status must be one of {TASK_STATUSES}")
@@ -2153,6 +2177,8 @@ def cmd_task(a):
                 if col == "pr_url" and not val and t["pr_url"] and role not in ("owner", "judge"):
                     die("only the owner or judge may clear the PR of a task", 3)
                 sets.append(f"{col}=?"); args.append(val)
+        if a.goal is not None:
+            sets.append("team_id=NULL")
         if a.status == "in_progress" and t["status"] != "in_progress":
             sets.append("attempts=attempts+1")
         if a.status == "blocked":  # who it waits on; default internal, kept when already blocked (T-0370)
@@ -2165,6 +2191,8 @@ def cmd_task(a):
                 sets.append("waits=?"); args.append(a.waits)
         con.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id=?", (*args, a.id))
         parts = [f"{k}={v}" for k, v in (("status", a.status), ("pr", a.pr), ("team", a.team), ("priority", a.priority)) if v]
+        if a.goal is not None:
+            parts.append(f"goal={t['goal_id']} -> {a.goal}")
         if a.status == "blocked":
             parts.append(f"waits={a.waits or (t['waits'] if t['status'] == 'blocked' else 'internal')}")
         if deps is not None:
