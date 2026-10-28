@@ -29,6 +29,14 @@ On refusal there is no git action: the tick skips sync, state commit and push; t
 ## (c) Worktree creation and the retry switch
 `prepare_worktree` runs the guard on the project repo, then `git worktree add --no-checkout`, then the guard again on the **new worktree** (an `includeIf gitdir:.../worktrees/**` only applies once the worktree exists), and only then `git checkout`. If the second guard refuses, the half-made worktree is removed. The retry path (`git switch` in an existing worktree, which also checks out) is guarded first.
 
+## Per-task clones
+Config `task_clones` (`0` or `1`, default `0`; anything else is refused with exit 2). With `0`, `prepare_worktree` runs `git worktree add` exactly as before. With `1`, a coder task that has no worktree yet gets `worktrees/<goal>-<task>` as a standalone clone: `git clone --shared --no-checkout <repo>`, so objects are borrowed through `.git/objects/info/alternates` from `<repo>/.git/objects`; `origin` is set to the repo's own origin URL (not the local path); `refs/remotes/origin/*` are copied from the repo's own (no network); the guard runs on the clone; only then `git checkout -B factory/<task> origin/<base>`. If the guard refuses, the clone is removed and spawn exits 4 with a `git-config-refused` event. The clone's `.git` is a directory, not listed by `git worktree list`; its allowed `remote.origin.url` is that of the project whose repo it borrows objects from (read from `alternates`).
+
+Existing tasks keep whatever `tasks.worktree` points to, including a legacy worktree when the flag is on; QA and reviewers reuse it. The retry `git switch` runs through the hardened helper after the guard, for both layouts, as do the done guard and `clean`. `factory clean` skips a clone ("per-task clone (removal not supported yet)") and never deletes it.
+
+- gc caveat: clones borrow objects from `~/factory/.git`. Do not run `git gc --prune=now` (or `git prune`) there while clones exist; the default expiry is fine.
+- Never run plain git in a worker clone from HQ or a script: its config and hooks belong to the worker. Use `git_run` (hooks, fsmonitor and non-https transports off) after `git_config_guard`.
+
 ## Carry check
 `verdict_carries` additionally runs with `core.commitGraph=false`, `core.attributesFile=/dev/null`, `GIT_ATTR_NOSYSTEM=1` and `GIT_ATTR_SOURCE` set to the empty tree (git >= 2.40), so not even the worktree's own `.gitattributes` can pick a driver. A `gh api` timeout (`GH_API_TIMEOUT`, 60 s) is a refusal ("cannot verify, gh api for main timed out"), not a traceback.
 
@@ -39,7 +47,7 @@ This guard rule is accident prevention, not a security boundary: a text check ca
 
 Since T-0226 the hook also refuses a worker's repo-config writes (`git config <key> <value>`, `git remote add|set-url|...`, Edit/Write/redirects to `<gitdir>/config*` and `info/attributes`) except `--file` inside the scratchpad or a clone inside it; see "Repo git config writes" in `docs/worker-guard.md`. Known gaps (tracked in T-0337, not chased in T-0226): path globs and shell-built paths for redirects (`echo x > ~/factory/.git/conf*`), non-listed writers (`python -c`, `git init --template`, `git worktree add` with `-c` keys, `git update-index`, `curl -o`), an alias defined in config rather than `-c`, `GIT_CONFIG_COUNT` env injection beyond the `GIT_CONFIG*=` text check, and a `git clone` inside the scratchpad whose later `cd` is built at run time (refused, not allowed).
 
-Tests: `tests/test_git_hardening.py` (tick, spawn, protocol/proxy, worktree add, retry switch) and `tests/test_verdict_carry.py` (judge).
+Tests: `tests/test_task_clones.py` (clones), `tests/test_git_hardening.py` (tick, spawn, protocol/proxy, worktree add, retry switch) and `tests/test_verdict_carry.py` (judge).
 
 ## Public and frozen repos (G-021)
 
