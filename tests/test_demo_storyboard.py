@@ -47,7 +47,7 @@ class StoryboardTests(unittest.TestCase):
         self.assertEqual(hero["scene"], "orgchart")
         self.assertTrue(10 <= hero["end"] - hero["start"] <= 15)
         self.assertTrue(0 <= hero["start"] < hero["end"] <= scene["duration"])
-        self.assertEqual((hero["width"], hero["fps"]), (900, 20))
+        self.assertEqual((hero["width"], hero["fps"]), (1600, 18))
 
     def test_captions_inside_scene_and_long_enough(self):
         for s in board()["scenes"]:
