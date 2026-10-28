@@ -35,6 +35,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
+- [model-routing.md](model-routing.md): which model each role starts on, and the `model_cleaner` config rollback.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
 - [verdict-gates.md](verdict-gates.md): machine-checked commands that a verdict summary must show passing.
