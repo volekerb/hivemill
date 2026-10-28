@@ -34,7 +34,7 @@ Regenerate everything with `python3 docs/design/g-019/capture.py` (downloads the
 | overview-light-1280 | 6.9% of the viewport | 63.7% | 57.4% |
 | overview-dark-1280 | 6.9% of the viewport | 63.5% | 57.0% |
 
-The gate (lead decision M6791) is the largest axis-aligned rectangular block of blank 8x8 px cells, as a share of the 1280x860 viewport; it must be 35% or less. Both shots print `blank <= 35%` (the largest block is the unused bottom of the sidebar). The share of blank cells over the whole viewport and over the content column (excluding sidebar and header; the grid has 107 whole rows, so the denominator is 856 px, not 860) are INFO only, not gating: any calm layout has uniform cells between words, so those numbers stay high without the page being empty.
+The gate (a lead decision) is the largest axis-aligned rectangular block of blank 8x8 px cells, as a share of the 1280x860 viewport; it must be 35% or less. Both shots print `blank <= 35%` (the largest block is the unused bottom of the sidebar). The share of blank cells over the whole viewport and over the content column (excluding sidebar and header; the grid has 107 whole rows, so the denominator is 856 px, not 860) are INFO only, not gating: any calm layout has uniform cells between words, so those numbers stay high without the page being empty.
 
 **No sideways scroll at 390** (`python3 docs/design/g-019/capture.py --check-width`, exit 0): every `*-390.png` is 390 px wide and the page `scrollWidth` equals the 390 px window width.
 
