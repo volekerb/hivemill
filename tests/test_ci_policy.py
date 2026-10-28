@@ -9,7 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_DIRS = [ROOT / ".github" / "workflows", ROOT / "ci" / "public-overlay" / ".github" / "workflows"]
-DEPENDABOT = ROOT / "ci" / "public-overlay" / ".github" / "dependabot.yml"
+# the private source keeps the public repo's file in the overlay; the public repository holds it at the root
+DEPENDABOT = next((p for p in (ROOT / "ci" / "public-overlay" / ".github" / "dependabot.yml", ROOT / ".github" / "dependabot.yml") if p.is_file()),
+                  ROOT / ".github" / "dependabot.yml")
 
 ALLOWED_RUNNERS = {"ubuntu-latest", "ubuntu-24.04", "ubuntu-22.04"}
 BANNED_TRIGGERS = {"pull_request_target", "workflow_run", "schedule"}
