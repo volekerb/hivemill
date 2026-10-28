@@ -645,6 +645,15 @@ class TestFullRun(ScreenshotsBase):
         self.assertFalse(self.images.exists())
         self.assert_clean()
 
+    def test_social_preview_over_the_github_limit_aborts_with_exit_3_and_writes_nothing(self):
+        self.use_zip()
+        with unittest.mock.patch.object(screenshots, "SOCIAL_MAX_BYTES", 1000):
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 3, out + err)
+        self.assertIn("social-preview.png is", err)
+        self.assertFalse(self.images.exists())
+        self.assert_clean()
+
     def test_the_documented_caps_are_director_m6655(self):
         self.assertEqual((screenshots.WARN_PNG_BYTES, screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES),
                          (307200, 716800, 8388608))
@@ -987,6 +996,15 @@ class TestImageProcessing(unittest.TestCase):
         with self.assertRaises(screenshots.Refused) as cm:
             screenshots.check_blank("home-light.png", pct)
         self.assertIn("home-light.png: 40% blank rows (limit 35%)", str(cm.exception))
+
+    def test_the_limit_is_inclusive_at_35_and_refuses_36(self):
+        for pct, ok in ((35, True), (36, False)):
+            value = screenshots.blank_percent(self.blank_image(pct), [(0, 100, (255, 255, 255))])
+            if ok:
+                screenshots.check_blank("x.png", value)
+            else:
+                with self.assertRaises(screenshots.Refused):
+                    screenshots.check_blank("x.png", value)
 
     def test_thirty_percent_blank_is_kept(self):
         pct = screenshots.blank_percent(self.blank_image(30), [(0, 100, (255, 255, 255))])
