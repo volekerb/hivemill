@@ -33,7 +33,7 @@ class PublicMainEmailTests(FactoryTestCase):
         return run_git(self.wt, "rev-parse", "HEAD")
 
     def alerts(self):
-        return self.env.sql("SELECT recipient, kind, subject, body FROM messages WHERE subject LIKE 'public main%'")
+        return self.env.sql("SELECT recipient, kind, subject, body FROM messages WHERE subject LIKE 'public main%' ORDER BY id")
 
     def test_noreply_and_web_flow_commits_do_not_alert(self):
         self.push(CLEAN, "a")
