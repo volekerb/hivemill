@@ -349,7 +349,7 @@ def start_log_lines(r, tail=START_TAIL):
         for f in (fd, dfd):
             if f is not None:
                 os.close(f)
-    lines = [_CTRL.sub("", nsbox._TOKEN_SHAPE.sub("[redacted-token]", l))[:300] for l in raw.decode("utf-8", "replace").splitlines() if l.strip()]
+    lines = [nsbox._TOKEN_SHAPE.sub("[redacted-token]", _CTRL.sub("", l))[:300] for l in raw.decode("utf-8", "replace").splitlines() if l.strip()]
     if not lines:
         return []
     shown = lines[-tail:]

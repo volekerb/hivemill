@@ -182,6 +182,15 @@ class ControlCharTests(unittest.TestCase):
             self.assertNotIn(bad, out)
         self.assertIn("a[2Jbc\tde", out)
 
+    def test_token_shape_split_by_a_control_character_is_still_redacted(self):
+        with tempfile.TemporaryDirectory(prefix="zz-test-startlog-ctrl-") as d:
+            trial = Path(d)
+            nsbox.start_log_append(trial, "boom sk-ant-\x1bAAAAAAAAAAAAAAAAAAAAAAAA tail\nrc=2\n")
+            row = {"status": "error", "tokens_in": None, "tokens_out": None, "sandbox": str(trial)}
+            out = "\n".join(skilleval.start_log_lines(row))
+        self.assertNotIn("sk-ant-", out)
+        self.assertIn("[redacted-token]", out)
+
 
 if __name__ == "__main__":
     unittest.main()
