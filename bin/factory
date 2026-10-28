@@ -3199,7 +3199,7 @@ def noreply_email(con):
     email = cfg(con, "noreply_email").strip()
     if not email:
         try:  # a plain read of the identity git itself would use (includeIf and global config included); runs no repo code
-            r = subprocess.run(["git", "-C", str(HOME), "config", "--get", "user.email"], capture_output=True, text=True, timeout=30)
+            r = git_run(HOME, "config", "--get", "user.email", timeout=30)
             email = r.stdout.strip() if r.returncode == 0 else ""
         except (subprocess.TimeoutExpired, OSError):
             email = ""
