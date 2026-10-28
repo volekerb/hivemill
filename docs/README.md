@@ -67,7 +67,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 ## Internals
 
 - [worker-guard.md](worker-guard.md): the hook that blocks bypasses of prefix-matched deny rules.
-- [worker-sandbox.md](worker-sandbox.md): the sandbox around workers (status: stub).
+- [worker-sandbox.md](worker-sandbox.md): the sandbox around workers: design, owner steps, rollout per role, rollback, residual risk.
 - [git-hardening.md](git-hardening.md): how `bin/factory` defuses malicious settings in shared git config.
 - [settings-templates.md](settings-templates.md): per-role settings that need absolute paths.
 - [per-role-plugins.md](per-role-plugins.md): each role loads only its own skills.
