@@ -174,6 +174,13 @@ class CliTests(Tmp):
         self.assertEqual(code, 3)
         self.assertIn(self.REFUSAL, err)
 
+    def test_evaluator_refused_with_blank_home(self):
+        for blank in ("", " ", "  \t "):
+            with self.subTest(repr(blank)):
+                code, _, err = self.run_cli(["goal", "list"], {"FACTORY_ROLE": "evaluator", "FACTORY_HOME": blank})
+                self.assertEqual(code, 3)
+                self.assertIn(self.REFUSAL, err)
+
     def test_evaluator_passes_in_a_temp_home(self):
         home = self.other_home()
         _, _, err = self.run_cli(["goal", "list"], {"FACTORY_ROLE": "evaluator", "FACTORY_HOME": home})

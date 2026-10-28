@@ -9159,7 +9159,7 @@ def evaluator_home_guard():
     opened, an unset/empty FACTORY_HOME or one that resolves to the live home."""
     if os.environ.get("FACTORY_ROLE") != "evaluator":
         return
-    if not os.environ.get("FACTORY_HOME") or home_is_live():
+    if not os.environ.get("FACTORY_HOME", "").strip() or home_is_live():
         die("the evaluator may not use the live factory home: set FACTORY_HOME to its temp home "
             "(FACTORY_HOME=<temp dir> factory <cmd>)", 3)
 
