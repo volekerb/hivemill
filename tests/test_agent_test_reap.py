@@ -329,6 +329,18 @@ class Payload(Base):
         self.assertEqual(len(d["cmd_sha"]), 12)
 
 
+class Swallow(Base):
+    def test_callsite_reap_internal_failure_is_recorded_not_raised(self):
+        self.fake(101)
+        self.env.run("config", "orphan_reap_mode", "on")
+
+        def run(mod):
+            with mock.patch.object(mod, "_orphan_skip", side_effect=RuntimeError("boom")):
+                mod.reap_agent_tests(mod.db(), "coder-t-9", "done")
+        self.patched(run)
+        self.assertEqual(len(self.events("agent-tests-reap-failed")), 1)
+
+
 class Callsite(Base):
     def force_stop_fixture(self, stop_requested=True):
         self.env.sql("DELETE FROM agents WHERE name='coder-t-9'")
@@ -484,6 +496,46 @@ class Alert(Base):
         self.assertEqual((len(self.events("test-orphan-alert")), len(self.director_msgs())), (1, 1))
         self.patched(lambda mod: mod.alert_test_orphans(mod.db()))  # throttled
         self.assertEqual(len(self.director_msgs()), 1)
+
+    def test_alert_throttle_blocks_a_new_runner_for_ten_minutes(self):
+        self.fake(101, agent="qa-t-9", start=self.aged(31))
+        self.alert()
+        self.fake(102, agent="qa-t-9", start=self.aged(32))
+        self.patched(lambda mod: mod.alert_test_orphans(mod.db()))  # throttle row still fresh
+        self.assertEqual(len(self.events("test-orphan-alert")), 1)
+        self.env.sql("UPDATE throttle SET ts='0' WHERE key='testorphanalert'")
+        self.patched(lambda mod: mod.alert_test_orphans(mod.db()))  # aged past 10 min
+        self.assertEqual(len(self.events("test-orphan-alert")), 2)
+
+    def test_alert_two_runners_one_batched_message_and_new_start_time_alerts_again(self):
+        self.fake(101, agent="qa-t-9", start=self.aged(31))
+        self.fake(102, agent="qa-t-9", start=self.aged(40))
+        self.alert()
+        self.assertEqual(len(self.events("test-orphan-alert")), 2)
+        m = self.director_msgs()
+        self.assertEqual(len(m), 1)
+        self.assertTrue("pid 101" in m[0]["body"] and "pid 102" in m[0]["body"])
+        self.drop(101)
+        self.fake(101, agent="qa-t-9", start=self.aged(35))  # same pid, new start time
+        self.alert()
+        self.assertEqual(len(self.events("test-orphan-alert")), 3)
+
+    def test_alert_other_uid_is_skipped(self):
+        self.fake(101, agent="qa-t-9", start=self.aged(31))
+        self.alert(getuid=os.getuid() + 1)
+        self.assertEqual(self.events("test-orphan-alert"), [])
+
+    def test_alert_missing_btime_is_silent_and_never_breaks(self):
+        self.fake(101, agent="qa-t-9", start=self.aged(31))
+        (self.proc / "stat").unlink()
+        self.assertEqual(self.alert(), [])
+        self.assertEqual(self.events("test-orphan-alert"), [])
+
+    def test_alert_is_called_by_the_tick(self):
+        self.fake(101, agent="qa-t-9", start=self.aged(31))
+        p = self.env.run("tick", extra_env={"FACTORY_SERVE_PROC_DIR": str(self.proc), **GRACE})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(self.events("test-orphan-alert")), 1)
 
     def test_alert_default_config_is_1800(self):
         self.patched(lambda mod: self.assertEqual(mod.cfg(mod.db(), "test_orphan_alert_s"), "1800"))
