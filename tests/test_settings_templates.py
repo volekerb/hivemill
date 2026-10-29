@@ -73,6 +73,7 @@ class TemplateFileTests(unittest.TestCase):
                 self.assertIn(f"Edit(/{tmp}/live/run/settings/**)", data["permissions"]["deny"], r)
                 self.assertNotIn("@FACTORY_", json.dumps(data))
                 self.assertNotIn(PW_DIR + "/factory", json.dumps(data), r)
+                self.assertEqual(data.get("attribution", {}).get("pr"), "", r)  # no PR-body footer (M11175)
 
     def test_rendered_rules_equal_the_substituted_template_rule_for_rule(self):
         for r in ROLES:

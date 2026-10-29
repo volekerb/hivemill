@@ -638,7 +638,7 @@ class RiskTests(unittest.TestCase):
 
     def test_fixture_prompt_only(self):
         tree = json.loads((FIX / "tree_prompt_only.json").read_text())["tree"]
-        texts = {"r3": '{"name": "x"}', "r4": SKILL_MD, "r7": "Review $ARGUMENTS carefully.\n"}
+        texts = {"r1": "# readme\n", "r5": "{}", "r3": '{"name": "x"}', "r4": SKILL_MD, "r7": "Review $ARGUMENTS carefully.\n"}
         res = risk.classify(tree, "", lambda e: texts[e["sha"]])
         self.assertEqual((res.risk, res.detail), ("prompt-only", []))
 
@@ -684,10 +684,134 @@ class RiskTests(unittest.TestCase):
         self.assertNotIn("prompt-only", res.risk)
         self.assertEqual(self.cls(["SKILL.md", "README.md", "LICENSE", "NOTICE", "skills/a/SKILL.md", "skills/a/d.json",
                                    "data.csv", "t.txt", "plugin.json", "marketplace.json"],
-                                  {"SKILL.md": SKILL_MD, "skills/a/SKILL.md": SKILL_MD, "plugin.json": "{}"}).risk, "prompt-only")
+                                  {"SKILL.md": SKILL_MD, "skills/a/SKILL.md": SKILL_MD, "plugin.json": "{}", "README.md": "# r",
+                                   "skills/a/d.json": "{}"}).risk, "prompt-only")
 
-    def test_json_outside_a_skill_is_a_script(self):
-        self.assertEqual(self.cls(["config.json"], {}).risk, "scripts")
+    def test_json_outside_a_skill_is_inert_but_package_json_is_a_script(self):
+        self.assertNotIn("scripts", self.cls(["config.json", "x.yaml", "y.toml"], {"config.json": "{}", "x.yaml": "a: 1", "y.toml": "a = 1"}).risk)
+        self.assertEqual(self.cls(["package.json"], {}).risk, "scripts")
+        self.assertEqual(self.cls(["pyproject.toml"], {}).risk, "scripts")
+
+    def test_b_config_with_hooks_or_mcp_content_is_flagged(self):
+        for path, text, want in (("lefthook.d/x.yaml", "hooks:\n  pre-commit: {}", "hooks"),
+                                 ("conf/a.json", '{"hooks": {"Stop": []}}', "hooks"),
+                                 ("conf/b.toml", "[hooks]\nx = 1", "hooks"),
+                                 ("mcp.json", '{"mcpServers": {"a": {"command": "x"}}}', "mcp"),
+                                 (".cursor/servers.json", '{"url": "https://mcp.example.com/sse"}', "mcp")):
+            with self.subTest(path=path):
+                self.assertIn(want, self.cls([path, "SKILL.md"], {path: text, "SKILL.md": SKILL_MD}).risk.split(","))
+        res = risk.classify(T("conf/a.json", "SKILL.md"), "", self._skill_only)  # unreadable config is not inert
+        self.assertIn("unknown", res.risk)
+
+    @staticmethod
+    def _skill_only(entry):
+        if entry["path"] != "SKILL.md":
+            raise risk.ReadError("not served")
+        return SKILL_MD
+
+    def test_b_readme_under_commands_is_still_a_command(self):
+        res = self.cls(["commands/README.md"], {"commands/README.md": "x\n!`rm -rf ~`\n"})
+        self.assertIn("shell-in-markdown", res.risk)
+
+    # --- T-0377 part A: residual MCP gaps (one test per item) ---
+    def mcp_flags(self, path, text):
+        return self.cls([path], {path: text}).risk.split(",")
+
+    def test_a1_readme_is_scanned(self):
+        res = self.cls(["SKILL.md", "README.md"], {"SKILL.md": SKILL_MD, "README.md": "Run claude mcp add x https://mcp.foo.com/v1\n"})
+        self.assertEqual(res.risk, "mcp,network")
+        self.assertIn("mcp: README.md", res.detail)
+        self.assertEqual(self.cls(["SKILL.md", "README.md"], {"SKILL.md": SKILL_MD, "README.md": "curl is great. MCP is a protocol.\n"}).risk,
+                         "prompt-only")
+
+    def test_a2_line_continued_mcp_add(self):
+        self.assertIn("mcp", self.mcp_flags("SKILL.md", "---\nname: a\n---\nclaude mcp \\\n  add foo -- x\n"))
+
+    def test_a3_npx_mcp_launchers(self):
+        for text in ("npx -y mcp-remote https://x.example/sse", "uvx some-mcp-server", "npx @modelcontextprotocol/server-fs /tmp"):
+            with self.subTest(text=text):
+                flags = self.mcp_flags("SKILL.md", f"---\nname: a\n---\n{text}\n")
+                self.assertIn("mcp", flags)
+                self.assertIn("network", flags)
+        self.assertEqual(self.mcp_flags("SKILL.md", "---\nname: a\n---\nnpx prettier --write .\nmention mcp-remote later\n"), ["prompt-only"])
+
+    def test_a4_json_escaped_url(self):
+        res = self.cls([".claude-plugin/plugin.json"], {".claude-plugin/plugin.json": '{"url": "https:\\/\\/mcp.example\\/v1"}'})
+        self.assertEqual(res.risk, "mcp,network")
+
+    def test_a5_paren_in_url_path(self):
+        self.assertIn("mcp", self.mcp_flags("SKILL.md", "---\nname: a\n---\nhttps://example.com/a_(b)/mcp\n"))
+
+    def test_a6_allowed_tools_mcp(self):
+        for tools in ("allowed-tools: Read, mcp__asana__create_task", "allowed-tools:\n  - mcp__github"):
+            with self.subTest(tools=tools):
+                self.assertIn("mcp", self.mcp_flags("commands/a.md", f"---\n{tools}\n---\nbody\n"))
+        self.assertEqual(self.mcp_flags("commands/a.md", "---\nallowed-tools: Read\n---\nuse mcp__x in prose\n"), ["prompt-only"])
+
+    def test_a7_mcpservers_remote_url_without_mcp_in_it(self):
+        text = '{"mcpServers": {"a": {"type": "http", "url": "https://api.example.com/v1"}}}'
+        res = self.cls([".claude-plugin/plugin.json"], {".claude-plugin/plugin.json": text})
+        self.assertEqual(res.risk, "mcp,network")
+        local = self.cls([".claude-plugin/plugin.json"], {".claude-plugin/plugin.json": '{"mcpServers": {"a": {"command": "x"}}}'})
+        self.assertEqual(local.risk, "mcp")
+
+    # --- T-0377 part B: 'scripts' by real executability ---
+    def test_b_inert_files_do_not_flag_scripts(self):
+        for path in (".gitignore", ".gitattributes", "assets/logo.svg", "a.png", "LICENSE.txt", "LICENSE", "fonts/a.woff2",
+                     "config.yaml", "settings.toml", "data.json"):  # config ones carry inert text below
+            with self.subTest(path=path):
+                self.assertNotIn("scripts", self.cls([path, "SKILL.md"], {path: "x", "SKILL.md": SKILL_MD}).risk)
+                self.assertNotIn("unknown", self.cls([path, "SKILL.md"], {path: "x", "SKILL.md": SKILL_MD}).risk)
+
+    def test_b_mcp_example_json_is_mcp_not_scripts(self):
+        # decision: it is inert for the harness but declares servers a user would copy in, so rate it 'mcp'
+        res = self.cls([".mcp.example.json", "SKILL.md"], {"SKILL.md": SKILL_MD})
+        self.assertEqual(res.risk, "mcp")
+        self.assertIn("mcp: .mcp.example.json", res.detail)
+
+    def test_b_executables_still_flag_scripts(self):
+        for path in ("x.sh", "tool.py", "a.js", "bin.exe", "lib.so", "x.wasm"):
+            with self.subTest(path=path):
+                self.assertEqual(self.cls([path, "SKILL.md"], {"SKILL.md": SKILL_MD}).risk, "scripts")
+        res = risk.classify(T("SKILL.md", "bin/run", **{"bin/run": ("100755", "blob")}), "", lambda e: SKILL_MD)
+        self.assertEqual(res.risk, "scripts")
+        res = self.cls(["SKILL.md", "bin/run"], {"SKILL.md": SKILL_MD, "bin/run": "#!/usr/bin/env bash\necho hi\n"})
+        self.assertEqual(res.risk, "scripts")
+        self.assertIn("scripts: bin/run", res.detail)
+
+    def test_b_command_launching_configs_are_never_prompt_only(self):
+        lsp = '{"go": {"command": "gopls"}}'
+        cases = {
+            ".lsp.json": (".lsp.json", lsp, "scripts"),
+            "lspServers file": ("lsp/servers.json", lsp, "scripts"),
+            ".vscode/mcp.json": (".vscode/mcp.json", '{"servers": {"x": {\n"command": "npx"\n}}}', "scripts,mcp"),
+            "codex toml": (".codex/config.toml", '[mcp_servers.x]\ncommand = "npx"\n', "scripts,mcp"),
+        }
+        for name, (path, text, want) in cases.items():
+            with self.subTest(name=name):
+                res = self.cls([path, "SKILL.md"], {path: text, "SKILL.md": SKILL_MD})
+                self.assertEqual(res.risk, want)
+        res = self.cls([".claude-plugin/plugin.json", "SKILL.md"],
+                       {".claude-plugin/plugin.json": '{"name": "p", "lspServers": "./lsp/servers.json"}', "SKILL.md": SKILL_MD})
+        self.assertIn("scripts", res.risk)
+        inert = self.cls(["data.json", "SKILL.md"], {"data.json": '{"a": 1}', "SKILL.md": SKILL_MD})
+        self.assertEqual(inert.risk, "prompt-only")
+
+    def test_b_mcp_launcher_is_linear_on_hostile_input(self):
+        import time
+        for blob in ("npx " * 16384, "pipx " * 13107, "npx" + " " * 65000):
+            with self.subTest(blob=blob[:8]):
+                start = time.monotonic()
+                res = self.cls(["SKILL.md"], {"SKILL.md": blob})
+                self.assertLess(time.monotonic() - start, 1.0)
+                self.assertEqual(res.risk, "prompt-only")
+        self.assertIn("mcp", self.cls(["SKILL.md"], {"SKILL.md": "npx -y mcp-remote https://x/sse"}).risk)
+
+    def test_b_unrecognised_type_is_unknown(self):
+        res = self.cls(["SKILL.md", "thing.xyz", "bin/tool"], {"SKILL.md": SKILL_MD, "thing.xyz": "data", "bin/tool": "plain"})
+        self.assertEqual(res.risk, "unknown")
+        self.assertIn("unknown: unrecognised file type: thing.xyz", res.detail)
+        self.assertEqual(risk.classify(T("SKILL.md", "thing.xyz"), "", None).risk.count("unknown"), 1)
 
     def test_scope_prefix(self):
         paths = ["skills/a/SKILL.md", "skills/b/SKILL.md", "skills/b/x.sh", "tool.py"]
