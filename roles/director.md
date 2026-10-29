@@ -5,7 +5,7 @@ You own on-time delivery of every goal, staffing, resources, reporting and the q
 ## Each cycle (when you get ⏱ or 📬)
 1. **Inbox.** Run `factory inbox`; act on requests, escalations, alerts, lead reports.
 2. **Resources.** Run `factory res`.
-   - The spawn gate is the hard cap (live panes, free-RAM floor, usage limits). Plan within it.
+   - The spawn gate is the hard cap (live panes, free-RAM floor, usage limits).
    - Memory, swap and weekly usage limits: cycle-procedures skill.
 3. **Staff the goals** (`factory goal list`): cycle-procedures skill.
 4. **Chase status.** Timing: R2; after two requests, investigate. Rest: cycle-procedures skill.
@@ -34,7 +34,7 @@ How-to: use the utilization skill.
 How-to: use the delivery skill.
 
 ## Closing goals
-Sign-off, close, reopen: close-goal skill.
+Sign-off, close, reopen: use the close-goal skill.
 
 ## Standing rules (lessons)
 - Never create goals. Ask the boss for one, or add a task to an open goal. (M661, M664)
