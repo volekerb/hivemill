@@ -1,7 +1,9 @@
 """T-0674: `factory test <cmd>` under config test_sandbox (scout/testbox.py over gatebox).
 Real `factory test` as a subprocess in a temp FACTORY_HOME, run in a temp git clone. Real namespaces run only where user
 namespaces are available (skipped with the reason otherwise, and inside the boxed gate). Credentials here are fake."""
+import json
 import os
+import socket
 import subprocess
 import sys
 import unittest
@@ -163,6 +165,143 @@ class Sandboxed(Base):
         p = self.box(f"cat {cred}")
         self.assertNotEqual(p.returncode, 0)
         self.assertNotIn("FAKE-GH", p.stdout)
+
+
+SUBUID_OK, SUBUID_WHY = nsbox.subuid_available() if USERNS_OK else (False, SKIP_MSG)
+
+
+class SubuidFailClosed(Base):
+    """T-0682: test_sandbox_subuid=1 never runs the command as the owner uid when the mapping cannot be set up."""
+
+    def setUp(self):
+        super().setUp()
+        self.flag("1")
+        self.ok("config", "test_sandbox_subuid", "1", agent="zz-test-director")
+
+    @unittest.skipUnless(USERNS_OK, SKIP_MSG)  # without user namespaces the userns refusal comes first
+    @unittest.skipIf(NESTED, "needs a nested user namespace; skipped inside the boxed gate")
+    def test_missing_newuidmap_refuses_and_does_not_run(self):
+        bare = self.env.home / "bin"
+        bare.mkdir()
+        for tool in ("unshare", "setpriv", "sh", "touch", "git", "true"):  # everything but newuidmap/newgidmap
+            (bare / tool).symlink_to(subprocess.run(["which", tool], capture_output=True, text=True).stdout.strip())
+        p = self.ftest("touch", "ran", extra={"PATH": str(bare)})
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("newuidmap", p.stderr)
+        self.assertIn("test_sandbox_subuid 0", p.stderr)
+        self.assertFalse((self.clone / "ran").exists())
+        self.assertEqual(list(self.clone.glob(".factory-test-*")), [])
+
+    def test_invalid_subuid_flag_is_an_error_and_not_run(self):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('test_sandbox_subuid','yes')")
+        p = self.ftest("touch", "ran")
+        self.assertEqual(p.returncode, 3)
+        self.assertIn("factory config test_sandbox_subuid 1", p.stderr)
+        self.assertFalse((self.clone / "ran").exists())
+
+    def test_subid_range_parsing(self):
+        self.assertEqual(nsbox._subid_range("/nonexistent/subuid", "x", 1), (0, 0))
+        f = self.env.home / "subuid"
+        f.write_text("bob:100000:65536\n1000:200000:10\nbob:5:2\n")
+        self.assertEqual(nsbox._subid_range(str(f), "bob", 7), (100000, 65536))
+        self.assertEqual(nsbox._subid_range(str(f), "carol", 1000), (200000, 10))
+        self.assertEqual(nsbox._subid_range(str(f), "carol", 1001), (0, 0))
+
+
+@unittest.skipUnless(SUBUID_OK, f"subuid mapping unavailable: {SUBUID_WHY}")
+@unittest.skipIf(NESTED, "needs a nested user namespace; skipped inside the boxed gate")
+class SubuidBox(Base):
+    def setUp(self):
+        super().setUp()
+        self.flag("1")
+        self.ok("config", "test_sandbox_subuid", "1", agent="zz-test-director")
+        os.chmod(self.clone, 0o755)  # the box is another host uid: it reads the tree through other-read, never owns it
+        os.chmod(self.env.home, 0o711)  # traverse only: the box must reach the paths below it by other-x
+        self.outside = self.env.home / "outside"
+        self.outside.mkdir()
+        os.chmod(self.outside, 0o755)
+        self.secret = self.outside / "secret.txt"
+        self.secret.write_text("FAKE-OWNER-SECRET")
+        self.secret.chmod(0o600)
+
+    def box(self, script):
+        return self.ftest("--", "sh", "-c", script)
+
+    def test_runs_as_a_subordinate_uid_in_a_private_copy_of_the_tree(self):
+        p = self.box("id -u; id -g; echo hi > out.txt; echo changed > f.txt; cat f.txt out.txt; ls -n f.txt | cut -d' ' -f3,4")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.split(), ["1", "1", "changed", "hi", "1", "1"])  # writable copy owned by the box uid
+        self.assertFalse((self.clone / "out.txt").exists())  # nothing reaches the host tree
+        self.assertEqual((self.clone / "f.txt").read_text(), "x\n")
+
+    def test_exit_code_and_stdout_reach_factory_test(self):
+        p = self.box("echo report-line; exit 5")
+        self.assertEqual(p.returncode, 5)
+        self.assertEqual(p.stdout.strip(), "report-line")
+
+    def test_no_host_path_is_writable_from_the_box(self):
+        p = self.box(f"! echo x > {self.outside}/new && ! echo x > /etc/planted && echo ok")
+        self.assertEqual(p.stdout.strip(), "ok", p.stderr)
+        self.assertEqual(list(self.outside.glob("new")), [])
+
+    def test_copy_failure_fails_closed(self):
+        main = self.env.home / "main"
+        main.mkdir()
+        argv, env = testbox.build(["true"], str(self.clone), str(main), str(self.env.home), os.environ, subuid=True)
+        i = argv.index("--launch") + 1
+        cfg = json.loads(argv[i])
+        cfg["copy"]["size"] = "4k"  # far too small for the tree: the copy fails and the command must not run
+        marker = self.env.home / "ran"
+        p = subprocess.run([*argv[:i], json.dumps(cfg), "--", "sh", "-c", f"touch {marker}"], capture_output=True,
+                           text=True, timeout=60, env=env, cwd=self.clone, stdin=subprocess.DEVNULL)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertFalse(marker.exists())
+
+    def test_no_capabilities_and_no_supplementary_groups(self):
+        p = self.box("grep -E '^(CapEff|CapBnd):' /proc/self/status; id -G")
+        self.assertEqual(p.stdout.split()[1::2][:2], ["0000000000000000"] * 2, p.stdout)
+        self.assertEqual(p.stdout.split()[-1], "1")  # only the subordinate gid: no owner group, no engine group
+
+    def _contained(self, script, ro=()):
+        """nsbox directly with the /run mask OFF and no pid namespace: only the uid mapping stands between box and owner."""
+        cfg = nsbox.make_cfg(str(self.clone), None, str(self.env.user_home), mode="allow", net=False, pid=False,
+                             hide_dirs=(), hide_files=(), ro=[str(self.clone), *ro], cwd=str(self.clone), run_mask=False,
+                             subuid=True)
+        return subprocess.run(nsbox.compose_stage1(cfg, ["sh", "-c", script]), capture_output=True, text=True, timeout=60,
+                              cwd=self.clone, stdin=subprocess.DEVNULL)
+
+    def test_owner_0600_file_is_unreadable_even_though_visible(self):
+        r = self._contained(f"ls {self.outside} && cat {self.secret}", ro=[str(self.outside)])
+        self.assertIn("secret.txt", r.stdout, r.stderr)  # the path is bound in: only the uid mapping stops the read
+        self.assertNotIn("FAKE-OWNER-SECRET", r.stdout)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("denied", r.stderr.lower())
+
+    def test_socket_connect_fails_without_the_run_mask(self):
+        sock = self.outside / "owner.sock"
+        s = socket.socket(socket.AF_UNIX)
+        self.addCleanup(s.close)
+        s.bind(str(sock))
+        sock.chmod(0o660)  # engine-socket bits: group-only access; the box is neither the owner nor in the group
+        s.listen(1)
+        code = f"import socket; c = socket.socket(socket.AF_UNIX); c.connect({str(sock)!r})"
+        r = self._contained(f'{sys.executable} -c "{code}"', ro=[str(self.outside)])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("PermissionError", r.stderr)
+        engine = Path("/run/docker.sock")
+        if engine.exists():  # the real one, when this box has it: the owner is in its group, the subordinate uid is not
+            code = "import socket; c = socket.socket(socket.AF_UNIX); c.connect('/run/docker.sock')"
+            r = self._contained(f'{sys.executable} -c "{code}"')
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("PermissionError", r.stderr)
+
+    def test_kill_of_an_owner_pid_fails_even_in_the_same_pid_namespace(self):
+        victim = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(lambda: (victim.kill(), victim.wait()))
+        r = self._contained(f"kill -9 {victim.pid}")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not permitted", r.stderr.lower())
+        self.assertIsNone(victim.poll())  # still alive
 
 
 if __name__ == "__main__":

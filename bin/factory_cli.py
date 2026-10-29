@@ -174,6 +174,7 @@ DEFAULT_CONFIG = {
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
     "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
+    "test_sandbox_subuid": "0",  # 1 (with test_sandbox 1) = the test box runs as a subordinate host uid via newuidmap, not the owner uid; no newuidmap/subuid range = exit 3, never as the owner (T-0682)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -203,6 +204,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -5014,6 +5016,222 @@ def reap_stray_serves(con):
             pass
 
 
+ORPHAN_REAP_THROTTLE_S = 600   # same cadence as the serve reaper
+ORPHAN_ENDED = ("done", "exited", "lost", "cancelled")   # a 'stopped' agent can be resumed: not ended
+ORPHAN_BLOCKING = ("live", "queued", "starting", "stopped")
+ORPHAN_HQ_ROLES = ("boss", "director", "lead", "staff-engineer")
+ORPHAN_MODES = ("dry-run", "on", "off")
+
+
+def _orphan_stat(pid):
+    """(ppid, pgid, starttime) from /proc/<pid>/stat, or None when it is gone or unreadable."""
+    try:
+        s = (_serve_proc_root() / str(pid) / "stat").read_text(errors="replace")
+        f = s[s.rindex(")") + 2:].split()
+        return int(f[1]), int(f[2]), int(f[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _orphan_ident(pid):
+    """(argv, starttime) of a pid right now, or None: the pid-reuse guard compares this before every signal."""
+    st, argv = _orphan_stat(pid), _serve_argv(pid)
+    return (argv, st[2]) if st and argv else None
+
+
+def _orphan_env(pid):
+    try:
+        raw = (_serve_proc_root() / str(pid) / "environ").read_bytes()
+    except OSError:
+        return None
+    return dict(x.decode(errors="replace").split("=", 1) for x in raw.split(b"\0") if b"=" in x)
+
+
+def _orphan_task(cwd, argv):
+    """((goal, task), attributed_by) when cwd/scratchpad/argv all point at one task's worktree, else None (nothing
+    found, or two tasks: then the process is not ours). attributed_by is the first of cwd, scratchpad, argv that matched."""
+    wt = WORKTREES.resolve()
+
+    def in_worktree(path):
+        try:
+            rel = Path(path).relative_to(wt).parts
+        except ValueError:
+            return None
+        m = re.fullmatch(r"(G-\d+)-(T-\d+)", rel[0]) if rel else None
+        return (m.group(1), m.group(2)) if m else None
+
+    found = []
+    if (k := in_worktree(cwd)):
+        found.append(("cwd", k))
+    pad = _serve_pad(cwd)
+    if pad and pad[0].parent.name == f"claude-{os.getuid()}":  # the Claude scratchpad shape only
+        m = re.search(r"(G-\d+)-(T-\d+)$", pad[0].name)
+        if m:
+            found.append(("scratchpad", (m.group(1), m.group(2))))
+    for el in argv[1:]:
+        if el and (k := in_worktree(os.path.realpath(os.path.join(cwd, el)))):
+            found.append(("argv", k))
+    if not found or len({k for _by, k in found}) != 1:
+        return None
+    return found[0][1], found[0][0]
+
+
+def _orphan_judge(con, pid, skip):
+    """The facts about `pid` when it is an orphan of an ended worker (see reap_orphans), else None."""
+    if pid in skip:
+        return None
+    root = _serve_proc_root()
+    try:
+        if (root / str(pid)).stat().st_uid != os.getuid():
+            return None
+        cwd = os.path.realpath(os.readlink(root / str(pid) / "cwd"))
+    except OSError:
+        return None
+    env, ident = _orphan_env(pid), _orphan_ident(pid)
+    if env is None or ident is None:
+        return None
+    agent = env.get("FACTORY_AGENT", "")
+    if not agent or agent == "owner":
+        return None  # not started by a factory agent: never ours to reap
+    argv = ident[0]
+    att = _orphan_task(cwd, argv)
+    if not att:
+        return None
+    (goal, task), by = att
+    rows = con.execute("SELECT name,role,status FROM agents WHERE task_id=?", (task,)).fetchall()
+    mine = next((r for r in rows if r["name"] == agent), None)
+    if (not mine or mine["status"] not in ORPHAN_ENDED or mine["role"] in ORPHAN_HQ_ROLES
+            or agent in ("boss", "director", "staff-engineer") or agent.startswith("lead-")
+            or any(r["status"] in ORPHAN_BLOCKING for r in rows)):
+        return None
+    home = env.get("FACTORY_HOME", "")
+    if os.path.basename(argv[0]) in ("claude", "herdr"):
+        return None  # a pane's own process
+    if home and home_is_live(home) and any(os.path.basename(x) == "factory" for x in argv[:3]):
+        return None  # a factory process on the live home (the owner's serve, a tick, a CLI call)
+    cur = (_orphan_stat(pid) or (None,))[0]
+    for _ in range(64):  # a live pane's process tree is never ours
+        if cur is None or cur <= 1:
+            break
+        if cur in skip:
+            return None
+        a = _serve_argv(cur)
+        if a and os.path.basename(a[0]) == "claude":
+            return None
+        anc = (_orphan_env(cur) or {}).get("FACTORY_AGENT", "")
+        if anc and anc != "owner":
+            row = con.execute("SELECT status FROM agents WHERE name=?", (anc,)).fetchone()
+            if row and row["status"] not in ORPHAN_ENDED:
+                return None
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return {"pid": pid, "agent": agent, "task": task, "argv": argv, "ident": ident, "cwd": cwd, "home": home,
+            "worktree": str(WORKTREES / f"{goal}-{task}"), "by": by}
+
+
+def _orphan_skip(main_pid):
+    """The tick, its ancestors and the factory-serve unit's MainPID."""
+    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    for _ in range(64):
+        if cur is None or cur <= 1:
+            break
+        skip.add(cur)
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return skip
+
+
+def _orphan_signal(sig, targets, group):
+    """Send `sig` (to the group when `group`) only if every (pid, ident) in targets still has its scanned identity."""
+    if any(_orphan_ident(pid) != ident for pid, ident in targets):
+        return False
+    try:
+        _serve_kill(-group if group else targets[0][0], sig)
+    except OSError:  # gone (ProcessLookupError) or not ours to signal (PermissionError)
+        return False
+    return True
+
+
+def _orphan_payload(j, how):
+    """The event body of a would-reap / reap event: exactly these keys."""
+    return {"pid": j["pid"], "start_time": j["ident"][1], "argv0": j["argv"][0],
+            "cmd_sha": hashlib.sha256(b"\0".join(x.encode() for x in j["argv"])).hexdigest()[:12],
+            "cwd": j["cwd"], "worktree": j["worktree"], "task": j["task"], "agent": j["agent"],
+            "attributed_by": j["by"], "signal": how}
+
+
+def reap_orphans(con):
+    """Tick hook, at most every 10 min, per config orphan_reap_mode: 'dry-run' (default; an unknown value too) logs one
+    "orphan-would-reap" event per (pid, start time) and signals nothing; 'on' sends SIGTERM (SIGKILL after 10 s); 'off'
+    skips the scan. A candidate is a same-user process attributed to ONE task by its cwd in the task worktree, its cwd in
+    that task's Claude scratchpad, or an argv path in the worktree (two tasks = untouched), whose FACTORY_AGENT is an
+    ENDED (done/exited/lost/cancelled) non-HQ agent of that task while no agent of the task is live/queued/starting/
+    stopped. FACTORY_AGENT unset, empty or 'owner' is never touched; nor the tick and its ancestors, the unit's
+    MainPID, a factory process on the live home, or anything under a claude process or a non-ended agent. start time +
+    cmdline are re-read before each signal (pid reuse). The process group goes too only when its leader passes every
+    check itself. One event per pid, one batched alert to the director. A reaped factory serve's own demo FACTORY_HOME
+    directly under /tmp goes afterwards, unless some process still uses it."""
+    try:
+        mode = cfg(con, "orphan_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off":
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='orphanreap'").fetchone()
+        if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('orphanreap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        skip = _orphan_skip(_serve_mainpid())
+        grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
+        reaped, homes = [], {}
+        for d in sorted(_serve_proc_root().iterdir()):
+            if not d.name.isdigit():
+                continue
+            j = _orphan_judge(con, int(d.name), skip)
+            if not j:
+                continue
+            pid = j["pid"]
+            if mode == "dry-run":
+                body = _orphan_payload(j, "none")
+                key = json.dumps({"pid": pid, "start_time": j["ident"][1]})[:-1] + ","
+                if not con.execute("SELECT 1 FROM events WHERE action='orphan-would-reap' AND substr(detail,1,?)=?",
+                                   (len(key), key)).fetchone():
+                    event_as(con, "tick", "agent", j["agent"], "orphan-would-reap", body)
+                continue
+            targets, group = [(pid, j["ident"])], 0
+            st = _orphan_stat(pid)
+            if st and st[1] > 1 and st[1] != os.getpgrp():
+                lead = j if st[1] == pid else _orphan_judge(con, st[1], skip)
+                if lead:
+                    group = st[1]
+                    targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
+            if not _orphan_signal(signal.SIGTERM, targets, group):
+                continue
+            how, deadline = "TERM", time.time() + grace
+            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
+                time.sleep(0.2)
+            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
+                how = "KILL"
+            event_as(con, "tick", "agent", j["agent"], "orphan-reaped", _orphan_payload(j, how))
+            reaped.append(j)
+            if _is_factory_serve(j["argv"]) and j["home"]:
+                homes[j["home"]] = j["agent"]
+        for home, agent in homes.items():
+            h, tmp = Path(home), tmp_dir().resolve()
+            if home_is_live(home) or h.is_symlink() or not h.is_dir() or h.resolve().parent != tmp or _pad_in_use(h.resolve()):
+                continue
+            size = _tree_bytes(h)
+            shutil.rmtree(h)
+            event_as(con, "tick", "agent", agent, "tmp-cleaned", {"path": str(h), "mb": round(size / 1048576, 1)})
+        if reaped:
+            lines = [f"{j['agent']} ({j['task']}) pid {j['pid']} {j['argv'][0]} cwd {j['cwd']} by {j['by']}" for j in reaped]
+            send(con, "director", f"reaped {len(reaped)} orphan process(es) of ended workers",
+                 "The tick sent SIGTERM (SIGKILL after 10 s) to:\n" + "\n".join(lines), "alert", sender="tick")
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def scout_tick(con):
     """Tick hook: start the skill scout at its slot and keep its run within budget (scout/schedule.py). Never breaks the tick."""
     try:
@@ -7972,15 +8190,19 @@ def cmd_test(a):
             os.execvp(cmd[0], cmd)
         except OSError as e:
             die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+    sv = cfg(db(), "test_sandbox_subuid").strip()
+    if sv not in ("0", "1"):
+        die(f"config test_sandbox_subuid is {sv!r}, not 0 or 1; fix it with `factory config test_sandbox_subuid 1`, the command was not run", 3)
+    subuid = sv == "1"
     tree, scratch = os.getcwd(), None
     try:
         scratch = testbox.new_scratch(tree)
-        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ,
+        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
                                   runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     except testbox.TestboxError as e:
         if scratch:
             testbox.cleanup(scratch)
-        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
+        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0, or test_sandbox_subuid 0)", 3)
     p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
 
     def forward(sig, _frame):
@@ -8830,6 +9052,7 @@ def cmd_tick(a, locked=False):
     tmp_clean(con)
     red_main_check(con)
     reap_stray_serves(con)
+    reap_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
         print("herdr unreachable; exporting only")
