@@ -525,6 +525,12 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
+def unknown_end(rest):
+    """The rest of a body $( ) whose closing paren cannot be found: the whole text, plus each `;` `&` `|` newline
+    separated piece with trailing parens dropped, so a quote or paren the parser trips on hides none of them."""
+    return [rest] + [p.rstrip(") \t") for p in re.split(r"[;&|\n]", rest) if p.strip()]
+
+
 def heredoc_subs(body):
     """Texts bash runs when it expands an UNQUOTED heredoc body: $( ) and backtick contents (also nested in $(( ) and ${ }).
     A backslash protects the next char. Unbalanced -> Block (fail closed)."""
@@ -545,20 +551,35 @@ def heredoc_subs(body):
             i += 3  # arithmetic: its contents are scanned on, $( ) and backticks in it are live
         elif body.startswith("$(", i):
             j, depth, q = i + 2, 1, None
+            pclose, pdepth = -1, 0  # pclose: index of the `}` that ended a ${ } (so `${x}#` is no comment)
             while j < n and depth:
                 d = body[j]
-                if q:
+                if q == "'":
+                    q = None if d == q else q
+                elif q:
+                    # inside "..": a backslash, backtick or nested $( ) changes where the substitution ends
+                    if d == "\\" or d == "`" or body.startswith("$(", j):
+                        return subs + unknown_end(body[i + 2:])  # end unknown: scan the rest of the body as code
                     q = None if d == q else q
                 elif d == "\\":
                     j += 1
+                elif d == "`" or body.startswith("$'", j):
+                    return subs + unknown_end(body[i + 2:])
                 elif d in "'\"":
                     q = d
-                elif d == "#" and (body[j - 1] in " \t\n;&|(){}"):
+                elif d == "c" and body.startswith("case", j) and body[j - 1] in " \t\n;&|(){}" and body[j + 4:j + 5] in ("", " ", "\t", "\n"):
+                    return subs + unknown_end(body[i + 2:])
+                elif d == "#" and (body[j - 1] in " \t\n;&|(){}") and pclose != j - 1:
                     j = body.find("\n", j)  # a comment runs to end of line; a `)` in it closes nothing
                     if j < 0:
                         j = n
                     continue
                 else:
+                    if body.startswith("${", j):
+                        pdepth += 1
+                    elif d == "}" and pdepth:
+                        pdepth -= 1
+                        pclose = j
                     depth += (d == "(") - (d == ")")
                 j += 1
             if depth:

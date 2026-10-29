@@ -241,6 +241,20 @@ class SubstitutionGaps(unittest.TestCase):
             with self.subTest(cmd):
                 self.both(cmd, 2)
 
+    def test_review_b3_close_paren_scan_fails_closed(self):
+        # case patterns, $'..', a backslash or $( ) inside "..", and backticks hide or move the closing paren
+        shapes = ["$(case a in a) %s;; esac)", "$(echo $'\\')' ; %s)", '$(echo "\\")" ; %s)',
+                  '$(echo "$(echo ")")" ; %s)', "$(echo `echo )` ; %s)"]
+        for shape in shapes:
+            cmd = "cat <<EOF\n" + shape % SUDO + "\nEOF"
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_hash_after_param_expansion_is_not_a_comment(self):
+        # `${x}#` is a word, so this `)` still closes the substitution and the heredoc body is plain data
+        self.both("cat <<EOF\n$(echo ${x}#)\nEOF", 0)
+        self.both("cat <<EOF\n$(echo ${x:-a}#b)\nEOF", 0)
+
     def test_hash_inside_word_is_not_a_comment(self):
         self.both("cat <<EOF\n$(echo a#b)\nEOF", 0)
 

@@ -1287,6 +1287,41 @@
     "worker",
     "hq"
    ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(case a in a) sudo id;; esac)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo $'\\')' ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo \"\\\")\" ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo \"$(echo \")\")\" ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo `echo )` ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
   }
  ],
  "must_allow": [
@@ -1554,6 +1589,7 @@
   "a=1 b=$(date +%s) true",
   "echo $((1<<2))",
   "git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\"",
-  "cat <<'EOF'\n`sudo id` and $(sudo id)\nEOF"
+  "cat <<'EOF'\n`sudo id` and $(sudo id)\nEOF",
+  "cat <<EOF\n$(echo ${x}#)\nEOF"
  ]
 }
