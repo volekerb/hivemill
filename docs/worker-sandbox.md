@@ -201,7 +201,7 @@ A worker also cannot be assumed to be honest about its own state: the spawn refu
 
 ## factory test
 
-`factory test [--] <cmd...>` runs a test command in the current directory (a coder's or qa's clone or worktree) under the same profile as the gate sandbox (`scout/testbox.py` over `scout/gatebox.py`): own network namespace (only `lo`), own pid namespace, capabilities dropped, `$HOME`, the runtime dir, `/tmp`, `/dev/shm` and `/var/tmp` empty, and an env allow-list (no `GH_TOKEN`, `GITHUB_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `SSH_AUTH_SOCK`, `GIT_*`, `FACTORY_AGENT`). The cwd tree is writable; the repo's git common dir and `FACTORY_MAIN` are read-only, and the `FACTORY_MAIN` state dirs (`db`, `run`, `logs`, `worktrees`, `exports`, `state`) are masked. `TMPDIR` and `FACTORY_HOME` point at a per-run scratch dir `<cwd>/.factory-test-*` that is removed when the command ends. The exit code of `<cmd>` is the exit code of `factory test`.
+`factory test [--] <cmd...>` runs a test command in the current directory (a coder's or qa's clone or worktree) under the same profile as the gate sandbox (`scout/testbox.py` over `scout/gatebox.py`): own network namespace (only `lo`), own pid namespace, capabilities dropped, `$HOME`, the runtime dir, `/tmp`, `/dev/shm` and `/var/tmp` empty, and an env allow-list (no `GH_TOKEN`, `GITHUB_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `SSH_AUTH_SOCK`, `GIT_*`, `FACTORY_AGENT`). The cwd tree is writable; the repo's git common dir and `FACTORY_MAIN` are read-only, and the `FACTORY_MAIN` state dirs (`db`, `run`, `logs`, `worktrees`, `exports`, `state`) are masked. `TMPDIR` and `FACTORY_HOME` point at a per-run scratch dir `<cwd>/.factory-test-*` that is removed when the command ends. When the tree is a git worktree, its top-level `.git` pointer file is bound read-only too: a writable pointer would let the run redirect `gitdir` to a directory with `core.hooksPath`/`core.fsmonitor`, which the next git command outside the box would execute. The exit code of `<cmd>` is the exit code of `factory test`.
 
 Config flag `test_sandbox` (director only, default `0`):
 
@@ -211,4 +211,4 @@ Config flag `test_sandbox` (director only, default `0`):
 
 Rollback: `factory config test_sandbox 0`. Nested use: tests that need a user namespace skip inside the boxed gate (`FACTORY_GATEBOX=1`).
 
-The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A`.
+The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A` (`.factory-test-*` is gitignored).

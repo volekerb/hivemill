@@ -10,7 +10,7 @@ from pathlib import Path
 from harness import FACTORY, REPO, FactoryTestCase, git
 
 sys.path.insert(0, str(REPO))
-from scout import nsbox  # noqa: E402
+from scout import nsbox, testbox  # noqa: E402
 
 USERNS_OK, USERNS_WHY = nsbox.userns_available()
 SKIP_MSG = f"user namespaces unavailable: {USERNS_WHY}"
@@ -113,6 +113,36 @@ class Sandboxed(Base):
         self.assertEqual((self.clone / "out.txt").read_text(), "hi\n")
         self.assertFalse((self.clone / ".git" / "planted").exists())
         self.assertEqual(list(self.clone.glob(".factory-test-*")), [])
+
+    def test_worktree_git_pointer_file_is_read_only(self):
+        wt = self.env.home / "wt"
+        git("worktree", "add", "-q", "-b", "wt-branch", str(wt), cwd=self.clone)
+        self.assertTrue((wt / ".git").is_file())
+        before = (wt / ".git").read_text()
+        env = self.env.env("zz-test-coder", self.extra)
+        p = subprocess.run([sys.executable, str(FACTORY), "test", "--", "sh", "-c",
+                            "! echo 'gitdir: /elsewhere' > .git && ! rm -f .git && ! mv .git .git.x && echo ok > out.txt"],
+                           cwd=wt, env=env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 0, p.stderr)  # all three writes to the pointer were refused, the tree itself is rw
+        self.assertEqual((wt / "out.txt").read_text(), "ok\n")
+        self.assertEqual((wt / ".git").read_text(), before)  # still the original pointer, not redirected
+        self.assertFalse((wt / ".git.x").exists())
+
+    def test_tree_under_masked_worktrees_dir_stays_rw_with_ro_pointer(self):
+        main = self.env.home / "main"
+        (main / "worktrees").mkdir(parents=True)
+        (main / "db").mkdir()
+        wt = main / "worktrees" / "G-1-T-1"
+        git("worktree", "add", "-q", "-b", "wt2", str(wt), cwd=self.clone)
+        scratch = testbox.new_scratch(wt)
+        self.addCleanup(testbox.cleanup, scratch)
+        argv, benv = testbox.build(
+            ["sh", "-c", "echo hi > out.txt; ls ../../db | wc -l; ! echo x > .git"], str(wt), str(main), scratch, os.environ)
+        p = subprocess.run(argv, cwd=wt, env=benv, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.strip(), "0")  # FACTORY_MAIN/db is masked
+        self.assertEqual((wt / "out.txt").read_text(), "hi\n")  # the tree under the masked worktrees dir is still rw
+        self.assertTrue((wt / ".git").read_text().startswith("gitdir: "))
 
     def test_tmpdir_is_disk_scratch_in_the_clone(self):
         p = self.box('case "$TMPDIR" in %s/.factory-test-*) echo ok;; *) echo "$TMPDIR";; esac; touch "$TMPDIR/a"' % self.clone.resolve())

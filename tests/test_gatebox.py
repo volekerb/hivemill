@@ -123,7 +123,7 @@ class ProfileTests(Fixture):
         self.assertFalse(cfg["net"])
         self.assertNotEqual(cfg.get("pid"), False)
         self.assertEqual(sorted(cfg["rw"]), sorted([str(self.tree), *(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp"))]))
-        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git")]))
+        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git"), str(self.tree / ".git")]))  # tree is a worktree: its .git pointer file is ro
         self.assertEqual(sorted(cfg["masks"]), sorted(f"{self.main}/{d}" for d in gatebox.MASKED))
         self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm"]))  # /var/tmp is patched out here
         self.assertEqual(argv[-3:], ["bash", "-c", "true"])
