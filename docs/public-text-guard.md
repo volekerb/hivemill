@@ -25,6 +25,13 @@ is a hit). A merge commit is diffed with `--cc`: only lines new against every pa
 `main` does not report content `BASE` already published, while a line added in the merge itself does. Added lines honour `ci/scrub_allowlist.txt` by path and pattern id exactly as `scrub_scan --tree` does;
 owner-term, `ipv4` and `private-host` hits are never allowlisted. Messages, identities, paths and ref names have no allowlist.
 
+Image binaries: an added or changed blob that is a verified image (PNG, JPEG, WebP or GIF magic and a well-formed
+structure with only known chunks, CRC-checked for PNG, nothing after the end marker) has its compressed pixel data
+skipped, because random bytes can match an owner term by chance. Its text-bearing parts are still scanned: PNG
+`tEXt`/`iTXt`/`zTXt`/`eXIf`/`iCCP` chunks (also decompressed), JPEG comment and APP1-15 segments, GIF extensions, WebP
+metadata chunks. The decision comes from the content, never the extension; anything malformed, unknown or not an image
+is scanned as text, as before. Hits name the path and the part, never the term.
+
 Importable API (for the worker-guard hook and `bin/factory`): `check_text(text, terms)` and `check_ref(name, terms)`
 return `[(pattern_id, masked)]`; `check_push(repo, base, head, terms, allowlist=None)` returns
 `[(pattern_id, location, masked)]`; `load_terms_or_fail(env, config_path)` returns the terms or raises `NoTermsError`.
