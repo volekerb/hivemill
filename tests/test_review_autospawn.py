@@ -72,7 +72,7 @@ class AutospawnTests(Base):
     def test_skips_task_with_review_agent_verdict_or_not_in_review(self):
         self.on()
         self.task("T-0001")
-        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", task="T-0001", status="exited")
+        self.env.seed_agent("qa-t-0001", "qa", goal="G-001", task="T-0001", status="exited")
         self.task("T-0002")
         self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
                      "VALUES('T-0002','u','x','qa','pass','s','a','t')")
@@ -85,6 +85,14 @@ class AutospawnTests(Base):
         self.task("T-0001")
         self.task("T-0002")
         self.assertEqual(len(self.tick_step(spawn_status="queued")), 1)
+
+    def test_partial_start_gets_its_qa_next_tick(self):
+        self.on()
+        self.task()
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001")
+        calls = self.tick_step()
+        self.assertEqual([(c["role"], c["name"]) for c in calls], [("qa", "qa-t-0001")])
+        self.assertEqual(self.tick_step(), [])
 
     def test_low_tier_one_combined_agent(self):
         self.on(risk_tiers="on")

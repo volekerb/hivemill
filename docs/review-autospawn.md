@@ -14,8 +14,8 @@ waiting for the lead's wake. Design: staff-engineer ADR M10886, "Parallel R+Q at
 
 ## What the tick does (step 2c)
 
-A task is a candidate when it is `in_review` with a `pr_url`, has a team, its goal is `active`, and it has no reviewer or
-qa agent row and no verdict yet. A retry round after a FAIL is not a candidate: the lead spawns it as before.
+A task is a candidate when it is `in_review` with a `pr_url`, has a team, its goal is `active`, and it has no qa agent row (nor a
+`combined-<task>` one) and no verdict yet. A task with only a reviewer row (partial start) gets its qa on the next tick. A retry round after a FAIL is not a candidate: the lead spawns it as before.
 
 - Stored tier T2/T3 or unset (or `risk_tiers` off): `reviewer-<task>` and `qa-<task>` start in the same tick.
 - Stored tier T0/T1 with `risk_tiers=on`: one `combined-<task>` agent (role reviewer). It records the reviewer verdict, then

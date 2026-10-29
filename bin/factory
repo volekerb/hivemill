@@ -9787,11 +9787,12 @@ COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tie
 
 def review_candidates(con):
     """PR tasks the tick may start a first review for (DB only): in_review with a pr_url, active goal, a team, and no
-    reviewer/qa agent row and no verdict yet (a retry round is the lead's to spawn). Ordered by goal priority, then id."""
+    qa agent row (nor a combined one) and no verdict yet (a retry round is the lead's to spawn). A task that has only
+    its reviewer (a partial start: gate closed, queued or refused qa) stays a candidate so the next tick adds the qa. Ordered by goal priority, then id."""
     return con.execute(
         "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
         "AND t.team_id IS NOT NULL AND g.status='active' "
-        "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role IN ('reviewer','qa')) "
+        "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%')) "
         "AND NOT EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id) "
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
@@ -9808,7 +9809,10 @@ def review_autospawn_tick(con):
         low = combined_ok and t["tier"] in ("T0", "T1")
         plan = [("reviewer", combined_name(tid))] if low else [("reviewer", slug(f"reviewer-{tid}")), ("qa", slug(f"qa-{tid}"))]
         for role, name in plan:
-            if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
+            if role == "reviewer":  # any reviewer row (the lead's own included) means the reviewer half is done or in flight
+                if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone():
+                    continue
+            elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
             if not gate(con, role=role)[0]:
                 return
