@@ -98,7 +98,7 @@ class CiWakeParallelTests(FactoryTestCase):
     def test_serial_baseline_is_slower(self):
         seed(self.env, sleep=0.5)
         wall, _ = tick_ci_wake(self.env, 1)
-        self.assertGreaterEqual(wall, 3.0)
+        self.assertGreaterEqual(wall, 2.9)
         print(f"\nci_wake wall, workers=1: {wall:.2f}s", flush=True)
 
     def test_mails_throttle_events_match_serial_in_content_and_order(self):

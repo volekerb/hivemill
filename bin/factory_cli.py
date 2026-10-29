@@ -10548,7 +10548,10 @@ def tick_ci_wake(con):
             todo.append((t, k))
     if not todo:
         return
-    timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
+    try:
+        timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
+    except ValueError:
+        timeout = float(CI_WAKE_GH_TIMEOUT_S)  # a bad override must not stop every probe
     try:
         workers = int(cfg(con, "ci_wake_workers"))
     except (TypeError, ValueError):
