@@ -350,7 +350,7 @@ class VerdictCarryTests(FactoryTestCase):
                  ("remote.origin.url", "git://example.invalid/f.git", "remote.origin.url=git://"),
                  ("url.git://example.invalid/.insteadOf", "https://github.com/", "url.git://"),
                  ("includeIf.gitdir:%s/.git/worktrees/**.path" % self.wt, "inc.cfg", "includeif.gitdir:"),
-                 ("user.name", "x", "user.name"))
+                 ("user.email", "someone" + "@" + "example.invalid", "user.email"))
         for key, val, frag in cases:
             with self.subTest(key=key):
                 self.env.sql("DELETE FROM events WHERE action='git-config-refused'")
