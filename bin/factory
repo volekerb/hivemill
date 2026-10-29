@@ -7318,6 +7318,67 @@ def util_alerts(con):
                 pass
 
 
+def is_night(con, t):
+    """True when local datetime t is outside [day_start_hour, day_end_hour)."""
+    ds, de = day_hours(con)
+    return not ds <= t.hour < de
+
+
+def owner_blockers(con):
+    """Open owner-only blockers: [{key, since (ISO), age_min, text}]. Two sources: escalations to the boss whose subject says
+    "owner action" until the boss records a decision quoting their M-id, and /tmp at or over tmp_max_pct (the cleaner cannot
+    free it; first-seen time kept in the throttle table) until it drops below."""
+    clock = digest_clock()
+    out = []
+    for m in con.execute("SELECT id,created,subject FROM messages WHERE recipient='boss' AND kind='escalation' AND sender<>'tick' "
+                         "AND lower(subject) LIKE '%owner action%' ORDER BY id"):
+        # open until the boss records the owner's answer: a decision from boss whose subject or body quotes the M-id
+        done = con.execute("SELECT 1 FROM messages WHERE sender='boss' AND kind='decision' AND id>? "
+                           "AND (subject GLOB ? OR subject GLOB ? OR body GLOB ? OR body GLOB ?) LIMIT 1",
+                           (m["id"], f"*M{m['id']}[^0-9]*", f"*M{m['id']}", f"*M{m['id']}[^0-9]*", f"*M{m['id']}")).fetchone()
+        if not done:
+            out.append({"key": f"owner-blocker:M{m['id']}", "since": m["created"], "text": f"M{m['id']} {m['subject']}"})
+    tmp = tmp_usage()  # decided from /tmp itself: gate() reports only its first cause, which another cap can mask
+    if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
+        row = con.execute("SELECT ts FROM throttle WHERE key='owner-blocker:gate'").fetchone()
+        since = row["ts"] if row else clock.isoformat(timespec="seconds")
+        if not row:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('owner-blocker:gate',?)", (since,))
+        out.append({"key": f"owner-blocker:gate:{since}", "since": since,
+                    "text": f"spawn gate closed: /tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) "
+                            f"≥ {cfg(con, 'tmp_max_pct')}%"})
+    else:
+        con.execute("DELETE FROM throttle WHERE key='owner-blocker:gate'")
+    for b in out:
+        try:
+            b["age_min"] = max(0, int((clock - dt.datetime.fromisoformat(b["since"]).astimezone()).total_seconds() // 60))
+        except ValueError:
+            b["age_min"] = 0
+    return out
+
+
+def owner_blocker_alerts(con):
+    """Tick hook: an owner-only blocker raised between day_end_hour and day_start_hour pings the boss once, at once. Never raises."""
+    try:
+        for b in owner_blockers(con):
+            if not is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone()):
+                continue
+            key = "alerted:" + b["key"]
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            ds, de = day_hours(con)
+            send(con, "boss", f"OWNER-ONLY BLOCKER (night): {b['text']}"[:200],
+                 f"Raised {b['since']}, outside daytime ({ds}-{de} h). Tell the owner now by the owner channel; "
+                 "tell again at day_start_hour if still open.", "escalation", sender="tick")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-blocker-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-blocker-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
 # ───────────────────────────── local merge gate (T-0515) ─────────────────────────────
 # `factory gate run <task>|--main <project>` runs projects.gate_cmd (from the DB, never from the PR tree) in a detached
 # worktree at the exact head sha, holding a tests/_slot.py slot, and records the outcome in gate_runs. Not yet read
@@ -7933,6 +7994,8 @@ def cmd_res(a):
         n = {k: con.execute("SELECT count(*) c FROM events WHERE action=? AND ts >= ?", (k, cut)).fetchone()["c"]
              for k in ("dispatch", "dispatch-shadow")}
         print(f"lead-less dispatch: {mode}; last hour: {n['dispatch']} spawned, {n['dispatch-shadow']} shadow")
+    ob = owner_blockers(con)
+    print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
     for line in top:
@@ -8753,6 +8816,7 @@ def cmd_tick(a, locked=False):
     tick_relaunches(con)
     util_sample(con)
     util_alerts(con)
+    owner_blocker_alerts(con)
 
 
 # ───────────────────────────── export & backup ─────────────────────────────
