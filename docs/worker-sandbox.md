@@ -227,7 +227,9 @@ Calls that `bin/factory` makes inside a worker's process (`gh_json`, `pr_state`,
 | `gh_token_rw` | empty = `~/.config/factory/gh-worker-rw-token` | read-write token file, same rules |
 | `worker_gh_repos` | empty = the repository of `factory_remote_url` | comma list of `OWNER/NAME` the token is offered for |
 
-`worker_gh_roles` and `gh_rw_roles` accept roles only; `worker_gh_repos` accepts `OWNER/NAME` entries only. Anything else is refused by `factory config` with exit 2.
+`worker_gh_roles` and `gh_rw_roles` accept only `coder`, `qa`, `reviewer`, `judge`, `cleaner` and `pm` (so `lead` and `director` are refused); `worker_gh_repos` accepts `OWNER/NAME` entries only. Anything else is refused by `factory config` with exit 2. The functions are `gh_cred_*` in `bin/factory_cli.py`, behind the `bin/factory` wrapper.
+
+Related notes for the other sections: `pm` also uses the read-only token (the table in section 2 lists the sandboxed users); with R-c the `judge` role gets the rw PAT even though it is not sandboxed (the last paragraph of section 2 is about the sandbox only); the rw PAT has no Workflows permission, so a coder listed in `worker_gh_roles` cannot push a change to `.github/workflows` either, sandboxed or not: such a task is done by the owner, or the coder is left out of `worker_gh_roles` for it; at renewal (section 3), an expired token of a role in `worker_gh_roles` is refused at spawn once the file is missing or unreadable, but a token that merely expired at GitHub is not detected, and the bridge for it is `factory config worker_gh_roles ''`, not `sandbox_roles ''`.
 
 **Fail closed.** A listed role never starts without its credential. Before any pane is placed the spawn checks the token file (regular, 0600, own uid, not empty, directly in `~/.config/factory`), the repository list and that a real `gh` is on the spawner's `PATH`. On failure it exits 3, starts no pane, records event `gh-cred-refused` and sends the director one alert per hour. The text names the config key, never a token path.
 
@@ -246,7 +248,7 @@ Agents that are already running keep the credential they started with until thei
 1. An unsandboxed worker can still read `~/.config/gh/hosts.yml` and `~/.ssh` and unset the pane env on purpose. R-c stops accidents and gives every worker call a scoped, revocable identity; hiding the owner's files is what the sandbox does.
 2. HQ calls (lead, director, boss, tick: `refresh`, gate status posts, state export pushes) stay on the owner login.
 3. The rw PAT can merge a green PR through the API and so bypass `factory judge` (section 2). A separate judge identity is later work.
-4. The token is in the worker's process env (shim, helper) and can be exfiltrated by that worker; it is scoped to the configured repositories and revocable.
+4. An unsandboxed worker can read the token files in `~/.config/factory` directly, the rw one included (a pm or reviewer too), and the shim hands the token to `gh` for each call; it can be exfiltrated by that worker. It is scoped to the configured repositories and revocable.
 
 ## factory test
 
