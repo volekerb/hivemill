@@ -4,6 +4,7 @@ from harness import FactoryTestCase
 
 
 class InboxTests(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
@@ -100,6 +101,7 @@ BODY10 = "\n".join(f"line {i}" for i in range(1, 11))
 
 
 class InboxTerseTests(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env

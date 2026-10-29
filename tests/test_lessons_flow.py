@@ -16,6 +16,7 @@ def iso(delta):
 
 
 class FlowBase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env

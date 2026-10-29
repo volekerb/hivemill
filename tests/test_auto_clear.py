@@ -23,6 +23,8 @@ def wrap(text, width):
 
 
 class AutoClear(UnblockBase):
+    INPROC = True
+
     def setUp(self):
         super().setUp()
         self.texts = {}

@@ -11,6 +11,7 @@ NOW = "2026-01-01T13:00:00+00:00"
 
 
 class Base(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
