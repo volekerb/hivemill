@@ -28,6 +28,8 @@ TOKEN = "sk-ant-" + "oat01-DUMMYTOKEN-RANDOM"  # split so the repo secret scan d
 UNSHARE = os.environ.get("NSBOX_TEST_UNSHARE", "unshare")  # seam: a bogus path forces the clean-skip branch
 USERNS_OK, USERNS_WHY = nsbox.userns_available(UNSHARE)
 SKIP_MSG = f"user namespaces unavailable: {USERNS_WHY}"
+IN_GATEBOX = os.environ.get("FACTORY_GATEBOX") == "1"  # set by scout/gatebox.py (T-0652); never set in CI or a normal run
+GATEBOX_SKIP = "inside the gate box (FACTORY_GATEBOX=1): the outer box already hides $HOME and /proc, so this nested-userns check cannot observe what it asserts; CI runs it unboxed"
 
 
 def tmpdir(case):
@@ -575,6 +577,7 @@ class NsboxNamespaceTests(unittest.TestCase):
     def test_unix_sockets_unreachable(self):
         self.assertEqual(self.obs["sockets"], {"user_bus": "failed", "herdr": "failed"})
 
+    @unittest.skipIf(IN_GATEBOX, GATEBOX_SKIP)
     def test_own_pid_namespace_with_fresh_proc(self):
         self.assertFalse(self.obs["outer_pid_visible"])
         self.assertNotIn(self.sentinel.pid, self.obs["proc_pids"])
@@ -608,6 +611,7 @@ class RunContainedTests(unittest.TestCase):
         p.write_text(body)
         return [sys.executable, str(p)]
 
+    @unittest.skipIf(IN_GATEBOX, GATEBOX_SKIP)
     def test_hiding_no_network_no_secrets_and_output_returned(self):
         real = Path(nsbox.real_home())
         body = f"""
