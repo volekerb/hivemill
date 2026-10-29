@@ -25,10 +25,10 @@ class PublicMainEmailTests(FactoryTestCase):
         self.wt = e.home / "pushwt"
         run_git(e.home, "clone", "-q", str(self.bare), str(self.wt))
 
-    def push(self, env, name="c"):
+    def push(self, env, name="c", msg=None):
         (self.wt / name).write_text(name)
         run_git(self.wt, "add", name)
-        run_git(self.wt, "commit", "-q", "-m", name, env=env)
+        run_git(self.wt, "commit", "-q", "-m", msg or name, env=env)
         run_git(self.wt, "push", "-q", "origin", "HEAD:main")
         return run_git(self.wt, "rev-parse", "HEAD")
 
@@ -59,6 +59,16 @@ class PublicMainEmailTests(FactoryTestCase):
         self.push({**CLEAN, "GIT_COMMITTER_EMAIL": "real.person@example.com"})
         self.ok("export")
         self.assertEqual(len(self.alerts()), 1)
+
+    def test_non_noreply_coauthor_trailer_escalates(self):
+        sha = self.push(CLEAN, "t", msg="t\n\nCo-authored-by: factory refresh <factory-refresh@localhost>")
+        self.push(CLEAN, "u", msg="u\n\nCo-authored-by: Dev <1+dev@users.noreply.github.com>\nCo-authored-by: C <noreply@anthropic.com>")
+        self.ok("export")
+        a = self.alerts()
+        self.assertEqual(len(a), 1, a)
+        self.assertIn(sha[:8], a[0]["subject"])
+        self.assertIn("Co-authored-by", a[0]["body"])
+        self.assertNotIn("localhost", a[0]["body"])
 
     def test_not_a_public_repo_never_alerts(self):
         self.ok("config", "public_text_repos", "acme/other")
