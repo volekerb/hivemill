@@ -585,10 +585,6 @@ class PidAndEnvNamespaceTests(unittest.TestCase):
         self.assertEqual(scrubbed.stdout.split(), ["None", "None"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 @unittest.skipUnless(USERNS_OK, SKIP_MSG)
 class RunMaskTests(unittest.TestCase):
     """T-0673: the host's /run sockets (container engine, ssh-unix-local) are unreachable in allow mode."""
@@ -676,3 +672,7 @@ print(json.dumps(out))
         r = run_cfg(cfg, [])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(set(json.loads(r.stdout).values()), {"blocked"})
+
+
+if __name__ == "__main__":
+    unittest.main()
