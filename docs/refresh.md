@@ -36,7 +36,12 @@ branch first (the task gets the note `refreshed <old> -> <new> by <agent>`).
    fetched head compared with the PR's `headRefOid`. All git calls go through the hardened `_git_rc` helper and
    `git_config_guard`. No new ref namespace.
 2. `git merge-tree --write-tree --name-only <head> <main>`; a conflict stops here (exit 3).
-3. `git commit-tree <tree> -p <head> -p <main>` with a fixed identity (`factory refresh <factory-refresh@localhost>`).
+3. `git commit-tree <tree> -p <head> -p <main>` as `factory refresh <factory-refresh@localhost>`. On a public repo
+   (the PR repo or the project's `gh_repo` is in `public_text_repos`, T-0604) the email is a GitHub noreply address
+   instead: `factory config noreply_email` (must end in `@users.noreply.github.com`), else the worktree's
+   `git config user.email` when it is one. With neither, the refresh is refused (`REFRESH-IDENT: ...`) and nothing is
+   pushed: `factory refresh` exits 4 (`refresh-failed`), the judge blocks (`judge-blocked`), the spawn pre-check logs
+   `precheck-skipped`. This applies to all three, since they share `refresh_branch`.
    The commit is exactly a pure main merge by the T-0095 rule (docs/verdict-carry-over.md): two parents, first
    parent = old head, second = origin/main, tree = the merge-tree output.
 4. `git push --force-with-lease=refs/heads/<branch>:<old head> <repo url> <commit>:refs/heads/<branch>`.

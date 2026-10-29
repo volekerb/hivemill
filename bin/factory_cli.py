@@ -13,6 +13,7 @@ import contextlib
 import fcntl
 import glob
 import hashlib
+import importlib
 import datetime as dt
 import importlib.util
 import io
@@ -57,16 +58,43 @@ WORKTREES = HOME / "worktrees"
 RUN = HOME / "run"
 USAGE_FILE = Path.home() / ".claude" / "usage-limits.json"
 
-from scout import db as scoutdb  # noqa: E402
-from scout import report as scoutreport  # noqa: E402
-from scout import schedule as scoutsched  # noqa: E402
-from scout import sources as scoutsrc  # noqa: E402
-from scout import vendor as scoutvendor  # noqa: E402
-from scout import sandbox as scoutsandbox  # noqa: E402
-from scout import workerbox  # noqa: E402
-from scout import gatebox  # noqa: E402
-from scout import testbox  # noqa: E402
-from scout import ghcred  # noqa: E402
+
+# Tables created by scout.db.SCOUT_DDL; tests/test_cli_lazy_imports.py pins this list to the DDL.
+SCOUT_TABLES = {"scout_candidates", "scout_triage", "scout_stars", "scout_cursors", "scout_runs", "skill_trials"}
+
+
+class _LazyScout:
+    """Stands in for a scout module until first use (PEP 562 cannot serve bare globals read inside functions).
+    Imports scout.<name> on first attribute access, then forwards get/set/del to the real module, so
+    mock.patch.object(f.scoutsandbox, ...) patches the module itself. Keeps `factory inbox` & co. from
+    paying for scout.sources (urllib/ssl) and the sandbox modules."""
+
+    def __init__(self, name):
+        object.__setattr__(self, "_name", name)
+
+    def _mod(self):
+        return importlib.import_module("scout." + object.__getattribute__(self, "_name"))
+
+    def __getattr__(self, attr):
+        return getattr(self._mod(), attr)
+
+    def __setattr__(self, attr, value):
+        setattr(self._mod(), attr, value)
+
+    def __delattr__(self, attr):
+        delattr(self._mod(), attr)
+
+
+scoutdb = _LazyScout("db")
+scoutreport = _LazyScout("report")
+scoutsched = _LazyScout("schedule")
+scoutsrc = _LazyScout("sources")
+scoutvendor = _LazyScout("vendor")
+scoutsandbox = _LazyScout("sandbox")
+workerbox = _LazyScout("workerbox")
+gatebox = _LazyScout("gatebox")
+testbox = _LazyScout("testbox")
+ghcred = _LazyScout("ghcred")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -90,6 +118,8 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 # role never takes it. After a crash the claim stalls the queued row for at most this long (10 min). A fixed literal (tests
 # read it without importing); test_staff_engineer asserts the bound against a real spawn.
 CLAIM_TTL_S = 600
+# a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
+EVALUATOR_SPAWN_RETRY_MAX = 5
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -288,7 +318,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + scoutdb.SCOUT_DDL
+""" + GATE_RUNS_DDL + LESSONS_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -387,7 +417,9 @@ def migrate(con):
     con.executescript(UTIL_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
-    con.executescript(scoutdb.SCOUT_DDL)
+    have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
+        con.executescript(scoutdb.SCOUT_DDL)
 
 
 def cfg(con, key):
@@ -1487,7 +1519,7 @@ def cmd_init(a):
     if a.live_home:
         write_live_home(a.live_home)
     con = db(create=True)
-    con.executescript(SCHEMA)
+    con.executescript(SCHEMA + scoutdb.SCOUT_DDL)
     for k, v in DEFAULT_CONFIG.items():
         con.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
     if (ROLES_DIR / "settings").is_dir():  # a bare data dir without a checkout (tests, dry installs) has no templates to render
@@ -1534,6 +1566,8 @@ def cmd_config(a):
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
         if a.key in ("public_text_repos", "frozen_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
             die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
+            die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
         if a.key == "opus_effort":
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
@@ -2673,6 +2707,68 @@ def cmd_report(a):
 
 # ───────────────────────────── verdicts & merge gate ─────────────────────────────
 
+def cmd_pr(a):
+    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
+    redirect it. The child env drops GH_REPO and GH_HOST."""
+    con = db()
+    role = actor_role(con)
+    if role != "coder":
+        die(f"role '{role}' ({actor()}) may not do this: `factory pr` is for coders; ask your lead", 3)
+    ag = con.execute("SELECT task_id FROM agents WHERE name=?", (actor(),)).fetchone()
+    tid = ag["task_id"] if ag else None
+    if not tid:
+        die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
+    row = con.execute("SELECT p.gh_repo, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    repo = ((row["gh_repo"] if row else "") or "").strip()
+    if not ghcred.SLUG_RE.fullmatch(repo):
+        die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
+    try:
+        g = git_run(os.getcwd(), "branch", "--show-current", timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"cannot read the current git branch ({e}); run `factory pr` from your task worktree", 3)
+    branch = g.stdout.strip() if g.returncode == 0 else ""
+    want = f"factory/{tid.lower()}"
+    if branch != want:
+        die(f"current branch is {branch or '(none)'!r}, not {want!r}: run `factory pr` from your own task worktree", 3)
+    env = {k: v for k, v in gh_git_env().items() if k not in ("GH_REPO", "GH_HOST")}
+    body = None
+    if a.action == "create":
+        if a.body != "-":
+            die("`factory pr create` takes the body on stdin only: --body - with a heredoc", 2)
+        body = read_text("-")
+        if not (a.title or "").strip() or not body:
+            die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
+                "--title", a.title, "--body-file", "-"]
+        if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
+            try:
+                guard = _public_guard()
+                terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
+                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+            except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
+                die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
+                    f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
+            if hits:
+                die(f"pr create refused (public text): {len(hits)} hits in the title, body or branch "
+                    f"({', '.join(sorted({h[0] for h in hits}))}); reword and retry", 3)
+    else:
+        if a.title is not None or a.body is not None:
+            die("`factory pr ready` takes no arguments: it targets the PR of your own branch", 2)
+        argv = ["gh", "pr", "ready", branch, "--repo", repo]
+    try:
+        p = subprocess.run(argv, input=body, capture_output=True, text=True, timeout=120, env=env)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"gh pr {a.action} failed to run: {e}", 1)
+    if p.returncode == 0:
+        event(con, "task", tid, f"pr-{a.action}", f"{repo} {branch}")
+    sys.stdout.write(p.stdout)
+    sys.stderr.write(p.stderr)
+    if p.returncode != 0:
+        sys.exit(p.returncode)
+
+
 def gh_json(*args, timeout=120):
     p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
     if p.returncode != 0:
@@ -3136,6 +3232,27 @@ def judge_max_refreshes(con):
 REFRESH_IDENT = {"GIT_AUTHOR_NAME": "factory refresh", "GIT_AUTHOR_EMAIL": "factory-refresh@localhost",
                  "GIT_COMMITTER_NAME": "factory refresh", "GIT_COMMITTER_EMAIL": "factory-refresh@localhost"}
 
+def refresh_ident(con, repo, task, owner_repo):
+    """Identity env of a refresh merge commit (T-0604). Private repo: REFRESH_IDENT. PR repo or the task's project
+    gh_repo in public_text_repos (no slug at all while the list is set counts as public): author and committer email =
+    noreply_email(con) (config, else git user.email). Returns (env, None), or
+    (None, why) when no noreply address is known: the refresh is refused (fail closed)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    if not public:
+        return REFRESH_IDENT, None
+    proj = con.execute("SELECT p.gh_repo FROM projects p JOIN goals g ON g.project_id=p.id JOIN tasks t ON t.goal_id=g.id "
+                       "WHERE t.id=?", (task,)).fetchone()
+    slugs = [x for x in dict.fromkeys((_repo_slug(owner_repo), _repo_slug(proj["gh_repo"] if proj else ""))) if x]
+    if slugs and not set(slugs) & public:
+        return REFRESH_IDENT, None
+    email = noreply_email(con)
+    if not email:
+        return None, (f"REFRESH-IDENT: {', '.join(slugs) or 'the repo'} is public (public_text_repos) and neither config "
+                      f"noreply_email nor git user.email is a {NOREPLY_SUFFIX} address; set "
+                      f"`factory config noreply_email <id+handle{NOREPLY_SUFFIX}>`")
+    name = REFRESH_IDENT["GIT_AUTHOR_NAME"]
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}, None
+
 
 def refresh_lock(pr_number):
     """Non-blocking exclusive flock on db/refresh-pr-<N>.lock: one refresher per PR at a time. Returns (file, holder): the
@@ -3198,8 +3315,11 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
     frozen = _push_policy(db(), repo_url) or _push_policy(db(), owner_repo)
     if frozen:
         return {"status": "error", "why": f"{frozen}; nothing pushed"}
+    ident, why = refresh_ident(db(), repo, task, owner_repo)
+    if why:
+        return {"status": "error", "why": f"{why}; nothing pushed"}
     msg = f"Merge origin/main into {branch} (factory refresh {task})"
-    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **REFRESH_IDENT})
+    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **ident})
     if rc != 0 or not new:
         return {"status": "error", "why": f"git commit-tree failed: {err or rc}"}
     rc, _, err = _git_rc(["push", "-q", f"--force-with-lease=refs/heads/{branch}:{old}", repo_url, f"{new}:refs/heads/{branch}"],
@@ -8885,8 +9005,20 @@ def cmd_tick(a, locked=False):
         except SystemExit:
             if s["role"] != "evaluator":
                 raise
-            # a transient failure: spawn() left the row queued and the trial running; the next tick retries
-            event(con, "agent", q["name"], "evaluator-spawn-retry", "queued evaluator spawn failed; retried next tick")
+            # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
+            # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
+            fails = int(s.get("spawn_failures", 0)) + 1
+            if fails >= EVALUATOR_SPAWN_RETRY_MAX:
+                why = f"evaluator spawn failed {fails} times; giving up"
+                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
+                            "WHERE agent=? AND status='running'", (now(), why, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-failed", why)
+            else:
+                con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
+                            "WHERE name=? AND status='queued'", (fails, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-retry",
+                      f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
     try:
@@ -10955,6 +11087,10 @@ def main():
     x = sp.add_parser("done", help="worker: finish, send summary to lead, get reaped")
     x.add_argument("--force", action="store_true", help="close even with unread decision/request messages")
     x.add_argument("summary"); x.set_defaults(fn=cmd_done)
+    x = sp.add_parser("pr", help="coder: open (create) or mark ready the PR of your own task; repo and branch are fixed")
+    x.add_argument("action", choices=["create", "ready"])
+    x.add_argument("--title"); x.add_argument("--body", help="create: must be - (body on stdin)")
+    x.set_defaults(fn=cmd_pr)
     x = sp.add_parser("stop", help="owner/director/lead: STOP a busy worker (message + Esc + nudge, then a hard fallback)")
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")
