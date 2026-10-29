@@ -222,6 +222,14 @@ class JudgeTextTests(Base):
         self.assertIn("--match-head-commit", argv)
         self.assertNotIn("--subject", argv)
 
+    def test_public_squash_body_drops_coauthor_headline(self):
+        self.set_commits([{"messageHeadline": "Co-authored-by: X <real@example.com>", "messageBody": ""},
+                          {"messageHeadline": "b", "messageBody": "x"}])
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        argv = self.merge_args()
+        self.assertNotIn("real@example.com", argv[argv.index("--body") + 1])
+
     def test_private_repo_merge_has_no_body(self):
         self.ok("config", "public_text_repos", "")
         self.pr({})

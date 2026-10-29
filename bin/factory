@@ -3243,8 +3243,9 @@ def squash_body(commits, owner_noreply):
         return clean(commits[0].get("messageBody"))
     parts = []
     for c in commits:
-        body = clean(c.get("messageBody"))
-        parts.append(f"* {c.get('messageHeadline') or ''}" + (f"\n\n{body}" if body else ""))
+        head, body = clean(c.get("messageHeadline")), clean(c.get("messageBody"))
+        if head or body:  # a headline that is itself a bad trailer line is dropped like one in the body
+            parts.append(f"* {head}" + (f"\n\n{body}" if body else ""))
     return "\n\n".join(parts)
 
 
