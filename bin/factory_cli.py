@@ -1566,6 +1566,8 @@ def cmd_config(a):
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
         if a.key in ("public_text_repos", "frozen_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
             die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
+            die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
         if a.key == "opus_effort":
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
@@ -3230,6 +3232,27 @@ def judge_max_refreshes(con):
 REFRESH_IDENT = {"GIT_AUTHOR_NAME": "factory refresh", "GIT_AUTHOR_EMAIL": "factory-refresh@localhost",
                  "GIT_COMMITTER_NAME": "factory refresh", "GIT_COMMITTER_EMAIL": "factory-refresh@localhost"}
 
+def refresh_ident(con, repo, task, owner_repo):
+    """Identity env of a refresh merge commit (T-0604). Private repo: REFRESH_IDENT. PR repo or the task's project
+    gh_repo in public_text_repos (no slug at all while the list is set counts as public): author and committer email =
+    noreply_email(con) (config, else git user.email). Returns (env, None), or
+    (None, why) when no noreply address is known: the refresh is refused (fail closed)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    if not public:
+        return REFRESH_IDENT, None
+    proj = con.execute("SELECT p.gh_repo FROM projects p JOIN goals g ON g.project_id=p.id JOIN tasks t ON t.goal_id=g.id "
+                       "WHERE t.id=?", (task,)).fetchone()
+    slugs = [x for x in dict.fromkeys((_repo_slug(owner_repo), _repo_slug(proj["gh_repo"] if proj else ""))) if x]
+    if slugs and not set(slugs) & public:
+        return REFRESH_IDENT, None
+    email = noreply_email(con)
+    if not email:
+        return None, (f"REFRESH-IDENT: {', '.join(slugs) or 'the repo'} is public (public_text_repos) and neither config "
+                      f"noreply_email nor git user.email is a {NOREPLY_SUFFIX} address; set "
+                      f"`factory config noreply_email <id+handle{NOREPLY_SUFFIX}>`")
+    name = REFRESH_IDENT["GIT_AUTHOR_NAME"]
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}, None
+
 
 def refresh_lock(pr_number):
     """Non-blocking exclusive flock on db/refresh-pr-<N>.lock: one refresher per PR at a time. Returns (file, holder): the
@@ -3292,8 +3315,11 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
     frozen = _push_policy(db(), repo_url) or _push_policy(db(), owner_repo)
     if frozen:
         return {"status": "error", "why": f"{frozen}; nothing pushed"}
+    ident, why = refresh_ident(db(), repo, task, owner_repo)
+    if why:
+        return {"status": "error", "why": f"{why}; nothing pushed"}
     msg = f"Merge origin/main into {branch} (factory refresh {task})"
-    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **REFRESH_IDENT})
+    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **ident})
     if rc != 0 or not new:
         return {"status": "error", "why": f"git commit-tree failed: {err or rc}"}
     rc, _, err = _git_rc(["push", "-q", f"--force-with-lease=refs/heads/{branch}:{old}", repo_url, f"{new}:refs/heads/{branch}"],
