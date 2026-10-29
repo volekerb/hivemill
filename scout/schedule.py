@@ -83,8 +83,8 @@ def _count(con, run_id):
     agent = None if superseded else con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
     astart = _ts(agent["started"]) if agent else None
     if astart is not None:
-        evs = [t for e in con.execute("SELECT ts FROM events WHERE entity='scout' AND entity_id=? AND action='scout-slot' "
-                                      "ORDER BY id DESC", (run["slot"],)) if (t := _ts(e["ts"])) is not None and t <= end]
+        evs = [t for e in con.execute("SELECT ts FROM events WHERE entity='scout' AND entity_id=? AND action='scout-slot'",
+                                      (run["slot"],)) if (t := _ts(e["ts"])) is not None and t <= end]
         if evs and astart < max(evs):
             astart = None  # an earlier run's start
     starts = [t for t in (_ts(run["started"]), astart) if t is not None and t <= end]
