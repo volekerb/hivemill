@@ -228,10 +228,10 @@ def make_server(db_path, bind, port, hostnames=(), tokens=None, usage_fn=None, m
 
 
 def code_signature(root=ROOT):
-    """(mtime_ns, size) of every web/**/*.py, scout/**/*.py (bin/factory imports it) and bin/factory under root:
+    """(mtime_ns, size) of every web/**/*.py, scout/**/*.py (bin/factory_cli.py imports it) and bin/factory_cli.py under root:
     what the running process imported."""
     sig = {}
-    for f in [*sorted((root / "web").rglob("*.py")), *sorted((root / "scout").rglob("*.py")), root / "bin" / "factory"]:
+    for f in [*sorted((root / "web").rglob("*.py")), *sorted((root / "scout").rglob("*.py")), root / "bin" / "factory_cli.py"]:
         try:
             st = f.stat()
         except OSError:
@@ -242,7 +242,7 @@ def code_signature(root=ROOT):
 
 def import_check(root=ROOT):
     """None if the code under root imports and bin/factory compiles in a fresh interpreter, else a one-line reason."""
-    code = "import web.server; compile(open('bin/factory').read(), 'bin/factory', 'exec')"
+    code = "import web.server; compile(open('bin/factory_cli.py').read(), 'bin/factory_cli.py', 'exec')"
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     try:
         r = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True, text=True, timeout=30)

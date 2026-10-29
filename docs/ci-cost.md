@@ -21,7 +21,7 @@ This is the kill switch. If CI costs money or misbehaves: remove the required ch
 
 ## What `tests/test_ci_policy.py` enforces
 
-It scans `.github/workflows/*.yml|*.yaml`, `ci/public-overlay/.github/workflows/` if present, and `ci/public-overlay/.github/dependabot.yml`. Each failure names `file:line`.
+It scans `.github/workflows/*.yml|*.yaml`, `ci/public-overlay/.github/workflows/` if present, and `.github/dependabot.yml`. Each failure names `file:line`.
 
 | Rule | Check |
 |---|---|
@@ -29,5 +29,6 @@ It scans `.github/workflows/*.yml|*.yaml`, `ci/public-overlay/.github/workflows/
 | b | no `pull_request_target`, `workflow_run` or `schedule` trigger |
 | c | a top-level `permissions:` block that grants only `read`; a job-level `contents: write` is allowed only when the workflow triggers on `push: tags` and/or `workflow_dispatch` |
 | d | no `secrets.` reference except `secrets.GITHUB_TOKEN` (`github.token` is fine); no `secrets: inherit` |
-| e | no `github.event.pull_request.*`, `github.event.issue.*` or `github.head_ref` expression inside a `run:` block (use `env:`) |
+| e | no `github.event.pull_request.*`, `github.event.issue.*` or `github.head_ref` expression inside a `run:` block (use `env:`), in dot or bracket notation (`github['head_ref']`) and inside `format()` |
 | f | `dependabot.yml` has only the `github-actions` ecosystem on a `weekly` interval |
+| g | every step and job-level (reusable workflow) `uses:` is `OWNER/REPO[/path]@ref`, owner `actions`, `github` or `volekerb`, ref a version tag (`v4`) or a 40-char sha; `./` local paths are fine |
