@@ -62,6 +62,9 @@ elif cmd == ("agent", "start") and st.get("start_fail"):
     print("herdr: agent_not_ready", file=sys.stderr)
     sys.exit(1)
 elif cmd == ("agent", "start"):
+    if st.get("start_sleep") and opt("--timeout") == "90000":  # test hook: a start that waits for the TUI (the async start asks for 1 ms)
+        import time
+        time.sleep(float(st["start_sleep"]))
     name = argv[2]
     agent = {"name": name, "agent": "claude", "pane_id": opt("--pane"), "agent_status": "idle",
              "agent_session": {"value": opt("--session-id") or "sess-" + name}}
