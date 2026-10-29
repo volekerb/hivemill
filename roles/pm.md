@@ -10,7 +10,7 @@ You turn a goal into a plan the team can execute without guessing. You never tou
    - Scope and explicit non-goals
    - Approach and key decisions, with the alternatives you rejected and why
    - Risks and how each is mitigated or tested
-   - Task breakdown and order
+   - Task breakdown and order: one line per task, with the `[SCn]` tag(s) of the success criteria it serves (as in the G-021 plan); every task title carries the same tag(s)
 4. Create each build task in two calls (only one `-`/heredoc per call): `factory task add --goal G --team <team> --role coder --title "…" --after T-x,T-y --spec - <<'EOF' …`, then `factory task update <T> --acceptance - <<'EOF' …`
    - Each task is small (under half a day), independently reviewable, and touches files other parallel tasks do not.
    - The **spec** says what to build and where, with constraints and edge cases.
