@@ -848,7 +848,7 @@ class Analyzer:
         if INTERPRETERS.match(name):
             si, ci, _ = interp_args(name, rest)
             stdin_code = (si is None or rest[si] == "-") and ci is None and not any(re.match(r"^-[A-Za-z]*m", a) for a in rest)
-            if (ci is not None and "factory_cli" in rest[ci]) or (stdin_code and "factory_cli" in self.raw):
+            if (ci is not None and "factory_cli" in rest[ci]) or (stdin_code and "factory_cli" in self.text):
                 raise Block("inline code naming factory_cli runs the factory CLI around the guard; run `factory <cmd>`")
             fi = self.factory_script(name, rest)
             if fi is None:
