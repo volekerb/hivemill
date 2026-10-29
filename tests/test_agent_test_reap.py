@@ -289,6 +289,49 @@ class On(Base):
         self.assertEqual(sent, [(301, signal.SIGTERM)])
 
 
+class ExitingClaude(Base):
+    """T-0738: a runner whose only claude ancestor is the ended agent's own (still exiting) claude is reaped."""
+
+    def own_claude(self, pid=900, minutes=30, agent="coder-t-9", ppid=1):
+        t = time.time()
+        iso = lambda x: time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(x))
+        self.env.sql("UPDATE agents SET started=?, ended=? WHERE name='coder-t-9'", (iso(t - 3600), iso(t)))
+        self.fake(pid, argv=("claude", "x"), agent=agent, cwd=self.tmp, start=self.aged(minutes), ppid=ppid)
+
+    def test_on_own_exiting_claude_ancestor_is_reaped(self):
+        self.own_claude()
+        self.fake(901, ppid=900)
+        self.kill_dies = False
+        self.assertEqual(self.reap(), [(901, signal.SIGTERM), (901, signal.SIGKILL)])
+        self.assertEqual(len(self.events("agent-tests-reaped")), 1)
+
+    def test_never_other_live_claude_ancestor(self):
+        self.own_claude(agent="coder-t-8")
+        self.fake(901, ppid=900)
+        self.assertUntouched(self.reap())
+
+    def test_never_same_name_claude_started_outside_the_agent_window(self):
+        for minutes in (-10, 120):  # started after it ended / before it started: a later or reused claude
+            with self.subTest(minutes=minutes):
+                self.own_claude(minutes=minutes)
+                self.fake(901, ppid=900)
+                self.assertUntouched(self.reap())
+                self.drop(901)
+                self.drop(900)
+
+    def test_never_runner_below_another_live_claude_under_the_own_claude(self):
+        self.own_claude()
+        self.fake(902, argv=("claude", "x"), agent="coder-t-8", cwd=self.tmp, ppid=900)
+        self.fake(901, ppid=902)
+        self.assertUntouched(self.reap())
+
+    def test_never_own_claude_under_a_pane_multiplexer(self):
+        self.fake(899, argv=("her" + "dr", "x"), agent=None, cwd=self.tmp)
+        self.own_claude(ppid=899)
+        self.fake(901, ppid=900)
+        self.assertUntouched(self.reap())
+
+
 class DryRun(Base):
     def test_dry_run_default_one_event_no_kill_and_no_second_event(self):
         self.fake(101)
