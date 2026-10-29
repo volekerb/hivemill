@@ -4,6 +4,8 @@ ADR 0002 T-c, owner yes M11793. `factory test` can put each run in its own child
 
 ## Unit files to install (owner step, not done by the PR)
 
+The same files are in `systemd/factory-tests.slice` and `systemd/factory-tests.service` (owner approved the values, M13102); copy them to `~/.config/systemd/user/`.
+
 `~/.config/systemd/user/factory-tests.slice`:
 
 ```ini
