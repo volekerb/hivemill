@@ -52,6 +52,18 @@ Run only the test modules your change touches, e.g. `python3 -m unittest discove
 
 Any other changed path (web/, ci/*.json, ...) selects the modules that mention its path, its file name or its dotted module path; if none does, it means `FULL`. On `FULL` the output is `FULL (<triggering rule>)`; `--run` then runs every module. Coders and QA run `--run` and quote its output instead of the full suite; the full suite runs only in the judge's local gate, which catches a missed dependency before merge (the cost is one rejection, not a broken main).
 
+### CI tiers: ci/ci_tier.py (T-0658)
+
+On a pull request each job of `tests.yml` (`unittest-shard (1..10)`, `go`, `unittest`; names and required contexts unchanged) first classifies the diff with `ci/ci_tier.py classify`. The script and `ci/affected.py` are taken from the **base commit** (`git archive`), so a PR cannot change its own tier. If the base has no `ci/ci_tier.py`, or the classifier errors, the run is full.
+
+| tier | when | what runs |
+|---|---|---|
+| docs | only `*.md` outside `roles/`, or files under `docs/` | shards and `go` report success without running; `unittest` runs `ci_tier.py docs-check` (relative links resolve, code fences balanced) and `test_docs_index.py` |
+| normal | anything else | each shard runs only its share of the `ci/affected.py` modules (a shard with none reports success); `unittest` verifies exactly that set ran; `go` builds only if `go/**` changed |
+| risky | `.github/**`, `roles/hooks/**`, `roles/**/settings*`, `ci/public_text_guard.py`, `ci/publish_repo.py`, `ci/scrub_*`, `ci/guard_*`, the CI gates (`ci_tier.py`, `affected.py`, `shard.py`, `test_count_gate.py`), `scout/nsbox.py`, `scout/gatebox.py`, `scout/ghcred.py`; a change to `cmd_judge`, `judge_*`, `gate*`, `verdict_carries`, `head_has_main`, `refresh_branch`, `git_config_guard`, `noreply_email`, `_push_policy`, `OWNER_CAP_KEYS`, `DEFAULT_CONFIG` or `SCHEMA` in `bin/factory`; more than 600 changed lines | full suite and `go`, as before |
+
+A push to `main` and `workflow_dispatch` always run the full suite. When `ci/affected.py` answers `FULL`, a normal PR runs the full suite too. The test-count gate runs in every tier. Change the rules in `ci/ci_tier.py` (itself risky); `python3 ci/ci_tier.py classify --base origin/main` shows the tier of your branch locally.
+
 ### Go
 
 The `go` job in `tests.yml` (`actions/setup-go@v5`, `go-version-file: go/go.mod`, `GOTOOLCHAIN=local`) runs in `go/`: a gofmt check (`test -z "$(gofmt -l .)"`, lists the unformatted files on failure), `go vet ./...`, `go test -race -count=1 ./...`, `go build ./...`. The `unittest` aggregator has `needs: [unittest-shard, go]` and fails unless both results are `success`, so a red `go` job turns the required `unittest` check red; the check name and branch protection are unchanged. Run locally (toolchain: `docs/go-toolchain.md`):
