@@ -48,8 +48,8 @@ SIZE = 113084320
 SHA256 = "afaac86e302c4874245991a3d509d529c50ecdd447affff0cdc2b08520906c32"
 BIN_REL = Path("chrome-headless-shell-linux64") / "chrome-headless-shell"
 LDD = "ldd"
-PAGES = {"home": "/", "goals": "/goals", "tasks": "/tasks", "agents": "/agents", "throughput": "/throughput",
-         "quality": "/quality"}
+PAGES = {"home": "/", "goals": "/goals", "goal": "/goal/G-002", "tasks": "/tasks", "agents": "/agents",
+         "throughput": "/throughput", "quality": "/quality"}
 # theme.js follows the OS when no choice is stored, so the browser's preferred colour scheme picks the theme. Blink's
 # PreferredColorScheme enum is {kDark, kLight}: 0 is DARK and 1 is LIGHT (the first owner run had these swapped).
 THEMES = {"light": "1", "dark": "0"}

@@ -215,21 +215,21 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
     <td align="center" width="33%">
       <a href="docs/images/home-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.png">
-        <img src="docs/images/home-light.png" width="280" alt="The overview page: live agents, open PRs, goals, items waiting on the owner and usage">
+        <img src="docs/images/home-light.png" width="280" alt="The overview page: a needs-you list, system gauges, goals with progress, live agents, shipped changes and quality">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Overview</a>: agents, PRs, goals and usage</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/goals-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/goals-dark.png">
-        <img src="docs/images/goals-light.png" width="280" alt="The goals page: goals with status and priority">
+        <img src="docs/images/goals-light.png" width="280" alt="The goals page: goals grouped by status with progress bars and priority">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Goals</a>: status and priority</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/tasks-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/tasks-dark.png">
-        <img src="docs/images/tasks-light.png" width="280" alt="The tasks page: tasks by status with assignee and PR">
+        <img src="docs/images/tasks-light.png" width="280" alt="The tasks page: tasks grouped by status with goal, assignee, PR and CI state">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Tasks</a>: status, assignee and PR</sub>
     </td>
@@ -238,23 +238,32 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
     <td align="center" width="33%">
       <a href="docs/images/agents-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/agents-dark.png">
-        <img src="docs/images/agents-light.png" width="280" alt="The agents page: live agents by role and team">
+        <img src="docs/images/agents-light.png" width="280" alt="The agents page: live agents by role and team with model and uptime">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Agents</a>: live agents by role and team</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/throughput-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/throughput-dark.png">
-        <img src="docs/images/throughput-light.png" width="280" alt="The throughput page: merged changes over time">
+        <img src="docs/images/throughput-light.png" width="280" alt="The throughput page: merges per day and spawn-to-merge times as charts">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Throughput</a>: merged changes over time</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/quality-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/quality-dark.png">
-        <img src="docs/images/quality-light.png" width="280" alt="The quality page: rejections and retries per team">
+        <img src="docs/images/quality-light.png" width="280" alt="The quality page: merge, rejection, retry and CI pass-rate cards with per-team scores">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Quality</a>: rejections and retries per team</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <a href="docs/images/goal-light.png"><picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/goal-dark.png">
+        <img src="docs/images/goal-light.png" width="280" alt="The goal detail page: a goal's intent, plan, teams, tasks and progress">
+      </picture></a><br>
+      <sub><a href="docs/web-ui.md">Goal detail</a>: intent, plan, teams and tasks</sub>
     </td>
   </tr>
 </table>
