@@ -1775,6 +1775,7 @@ class Analyzer:
             self.git_cd(name, rest)
             self.cfg_cd(name, rest)
         self.claude_launchers(name, rest)
+        self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         self.factory_unit(name, rest, assigns)
@@ -1835,6 +1836,70 @@ class Analyzer:
             if name == "xargs":
                 self.xargs(rest)
             self.loose(rest, depth, assigns)
+
+    def test_sandbox_on(self):
+        """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
+        try:
+            con = sqlite3.connect(f"file:{self.db_path()}?mode=ro", uri=True, timeout=2)
+            try:
+                row = con.execute("SELECT value FROM config WHERE key = 'test_sandbox'").fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return False
+        return bool(row) and str(row[0]).strip() == "1"
+
+    @staticmethod
+    def python_m_module(rest):
+        """T-0675: walk CPython argv like the interpreter. Returns the -m module name, None when the command runs a
+        script, stdin or -c (or has no -m), or "?" for an option this walker does not know."""
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            i += 1
+            if tok == "--" or tok == "-" or not tok.startswith("-"):
+                return None
+            if tok.startswith("--"):
+                if tok == "--check-hash-based-pycs":
+                    i += 1
+                elif not (tok.startswith("--check-hash-based-pycs=") or tok == "--version" or tok.startswith("--help")):
+                    return "?"
+                continue
+            for k, ch in enumerate(tok[1:], 1):
+                if ch in "bBdEhiIOPqRsSuvVx?":
+                    continue
+                if ch in "WX":
+                    if k == len(tok) - 1:
+                        i += 1  # value is the next token, even one that starts with "-"
+                    break
+                if ch == "m":
+                    return tok[k + 1:] or (rest[i] if i < len(rest) else None)
+                if ch == "c":
+                    return None
+                return "?"
+        return None
+
+    def sandbox_route(self, name, rest):
+        """T-0675 (ADR M11673 T-d): with test_sandbox=1, coder and qa run test runners through `factory test <cmd>`,
+        not bare. Runners: python -m unittest/pytest, pytest, go test. `factory test ...` never reaches here as a
+        runner: its own words are `factory`, and its arguments are not parsed as commands."""
+        if self.role not in ("coder", "qa"):
+            return
+        runner = None
+        if re.fullmatch(r"python[\d.]*", name):
+            mod = self.python_m_module(rest)
+            if mod == "?":  # unknown interpreter option: fail closed on any later -m naming a runner
+                mod = next((m for m in (t[2:] if t.startswith("-m") and len(t) > 2 else rest[j + 1] if t == "-m" and rest[j + 1:j + 2] else None
+                                        for j, t in enumerate(rest)) if m and m.split(".")[0] in ("unittest", "pytest")), None)
+            if mod and mod.split(".")[0] in ("unittest", "pytest"):
+                runner = f"python3 -m {mod}"
+        elif name in ("pytest", "py.test"):
+            runner = name
+        elif name == "go" and next((a for a in rest if not a.startswith("-")), None) == "test":
+            runner = "go test"
+        if runner and self.test_sandbox_on():
+            raise Block(f"bare test runner `{runner}` with test_sandbox=1: run it as `factory test {name} {' '.join(rest)}` "
+                        "(runs under the test sandbox, T-0675)")
 
     def unittest_full(self, name, rest):
         """T-0642: coder, qa and reviewer run no full suite locally (CI is the full gate). Blocked: `python -m unittest`
