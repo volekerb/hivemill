@@ -22,7 +22,9 @@ class GuardFactoryCli(unittest.TestCase):
         for cmd in ("python3 bin/factory res", "python3 bin/factory_cli.py res", "python3 ./bin/factory_cli.py res",
                     "python3 ~/factory/bin/factory_cli.py res", "python3 -X dev bin/factory_cli.py tick",
                     "python3 -m factory_cli res", "python3 -c 'import factory_cli; factory_cli.main()'",
-                    "python3 -I -c \"import factory_cli\""):
+                    "python3 -I -c \"import factory_cli\"", "python3 -mfactory_cli tick",
+                    "python3 <<< \"import factory_cli\"", "echo 'import factory_cli' | python3",
+                    "PYTHONPATH=bin python3 - <<< 'import factory_cli; factory_cli.main()'"):
             with self.subTest(cmd=cmd):
                 self.blocked(cmd)
 
@@ -35,7 +37,7 @@ class GuardFactoryCli(unittest.TestCase):
     def test_module_is_not_runnable_directly(self):
         self.assertNotIn("__main__", FACTORY_SRC.read_text().split("\n\n\n")[-1])
         p = subprocess.run([sys.executable, str(FACTORY_SRC), "--help"], capture_output=True, text=True)
-        self.assertEqual(p.stdout, "")
+        self.assertEqual(p.stdout, "")  # importing it as __main__ defines functions and runs nothing
 
 
 if __name__ == "__main__":

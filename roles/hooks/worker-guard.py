@@ -773,8 +773,9 @@ class Analyzer:
     def factory_unit(self, name, rest, assigns):
         """Block `factory up|tick|relaunch|spawn|clean` (also via python3 <path>/factory) in the live home."""
         if INTERPRETERS.match(name):
-            _, ci, _ = interp_args(name, rest)
-            if ci is not None and "factory_cli" in rest[ci]:
+            si, ci, _ = interp_args(name, rest)
+            stdin_code = (si is None or rest[si] == "-") and ci is None and not any(re.match(r"^-[A-Za-z]*m", a) for a in rest)
+            if (ci is not None and "factory_cli" in rest[ci]) or (stdin_code and "factory_cli" in self.raw):
                 raise Block("inline code naming factory_cli runs the factory CLI around the guard; run `factory <cmd>`")
             fi = self.factory_script(name, rest)
             if fi is None:
@@ -813,9 +814,11 @@ class Analyzer:
         """Index of the `factory` script word in an interpreter's args, else None. bin/factory is a stub for
         bin/factory_cli.py (T-0660), so that basename and `-m factory_cli` count too. When the options cannot be
         modelled (unknown), any word whose basename is factory counts (fail closed)."""
-        for k, a in enumerate(rest[:-1]):
-            if re.match(r"^-[A-Za-z]*m$", a) and os.path.basename(rest[k + 1]) in FACTORY_NAMES:
+        for k, a in enumerate(rest):
+            if k + 1 < len(rest) and re.match(r"^-[A-Za-z]*m$", a) and os.path.basename(rest[k + 1]) in FACTORY_NAMES:
                 return k + 1
+            if re.match(r"^-[A-Za-z]*mfactory_cli(\.py)?$", a):
+                return k
         si, _, unknown = interp_args(name, rest)
         if unknown:
             return next((k for k, a in enumerate(rest) if os.path.basename(a) in FACTORY_NAMES), None)
