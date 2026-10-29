@@ -74,6 +74,68 @@ class ResAndGate(TmpBase):
         self.assertIn("spawn gate: OPEN", out)
 
 
+class CleanerExempt(TmpBase):
+    """T-0610: at 91% /tmp only the cleaner (which frees /tmp) is exempt from the tmp gate; owner caps still apply."""
+    F91 = "1000000000,90000000"  # 91% used
+
+    def spawn(self, role, name):
+        self.env.set_herdr(agents=[])
+        return self.ok("spawn", role, "--goal", "G-001", "--name", name,
+                       *(["--task", "T-0001"] if role != "cleaner" else []),
+                       extra_env={"FACTORY_TMP_STATVFS": self.F91})
+
+    def status(self, name):
+        return [r["status"] for r in self.env.sql("SELECT status FROM agents WHERE name=?", (name,))]
+
+    def test_cleaner_spawns_coder_queues(self):
+        self.assertIn("QUEUED", self.spawn("coder", "zz-test-c1").stdout)
+        self.assertEqual(self.status("zz-test-c1"), ["queued"])
+        self.assertNotIn("QUEUED", self.spawn("cleaner", "zz-test-cl1").stdout)
+        self.assertNotEqual(self.status("zz-test-cl1"), ["queued"])
+
+    def test_cleaner_still_counts_against_agent_cap(self):
+        self.ok("config", "max_live_agents", "0")
+        self.assertIn("QUEUED", self.spawn("cleaner", "zz-test-cl1").stdout)
+        self.assertEqual(self.status("zz-test-cl1"), ["queued"])
+
+    def test_cleaner_still_held_by_memory_floor(self):
+        self.ok("config", "min_mem_available_mb", "100000000")
+        p = self.spawn("cleaner", "zz-test-cl1")
+        self.assertIn("QUEUED", p.stdout)
+        self.assertIn("MemAvailable", p.stdout)
+
+    def test_res_explains_cleaner_passes(self):
+        out = self.ok("res", extra_env={"FACTORY_TMP_STATVFS": self.F91}).stdout
+        self.assertIn("spawn gate: CLOSED", out)
+        self.assertRegex(out, r"cleaner gate: OPEN — exempt from the /tmp gate")
+
+    def test_res_no_cleaner_line_when_tmp_roomy(self):
+        self.assertNotIn("cleaner gate", self.ok("res", extra_env={"FACTORY_TMP_STATVFS": ROOMY}).stdout)
+
+    def test_tick_starts_queued_cleaner_behind_queued_coder(self):
+        self.spawn("coder", "zz-test-c1")
+        self.spawn("cleaner", "zz-test-cl1")
+        self.env.sql("UPDATE agents SET status='queued', pane_id=NULL WHERE name='zz-test-cl1'")
+        self.tick(statvfs=self.F91)
+        self.assertEqual(self.status("zz-test-c1"), ["queued"])
+        self.assertNotEqual(self.status("zz-test-cl1"), ["queued"])
+
+    def test_tick_does_not_regate_every_row_once_held(self):
+        # each gate() lists agents; a held queue must not pay that per queued row (it runs under the tick lock)
+        def list_calls(n_coders):
+            for i in range(n_coders):
+                self.spawn("coder", f"zz-test-c{n_coders}-{i}")
+            self.spawn("cleaner", f"zz-test-cl{n_coders}")
+            self.env.sql("UPDATE agents SET status='queued', pane_id=NULL WHERE name=?", (f"zz-test-cl{n_coders}",))
+            before = len(self.env.calls("herdr"))
+            self.tick(statvfs=self.F91)
+            self.assertEqual(self.status(f"zz-test-c{n_coders}-0"), ["queued"])
+            self.assertNotEqual(self.status(f"zz-test-cl{n_coders}"), ["queued"])  # cleaner behind the held queue starts
+            return len([c for c in self.env.calls("herdr")[before:] if c["argv"][:2] == ["agent", "list"]])
+        few = list_calls(1)
+        self.assertEqual(list_calls(5), few)  # 5 more queued coders behind the held gate add no agent-list calls
+
+
 class Alert(TmpBase):
     def alerts(self):
         return self.env.sql("SELECT subject FROM messages WHERE sender='tick' AND subject LIKE '/tmp%'")
