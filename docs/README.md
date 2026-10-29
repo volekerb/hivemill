@@ -15,6 +15,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
+- [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
 
 ## Operate it
 
