@@ -106,7 +106,7 @@ class TestAgents(Base):
         self.assertLessEqual(len(s), 200)
         self.assertNotIn("<script>", html)
         self.assertIn("&lt;script&gt;", html)
-        self.assertIn("<details>", html)
+        self.assertIn('<details class="disc" data-key="agents-ended"', html)
 
     def test_no_kickoff_or_spawn_args_anywhere(self):
         d, html = self.page(agents)
@@ -122,8 +122,7 @@ class TestAgents(Base):
         by = {a["name"]: a for a in d["live"]}
         self.assertEqual(by["lead-a"]["rss_mb"], 200)
         self.assertIsNone(by["coder-2"]["rss_mb"])   # no session id
-        self.assertIn("200 MB", html)
-        self.assertIn("—", html)
+        self.assertNotIn("200 MB", html)   # the Mem column is gone until the data is dependable (B3); rss_mb stays in the JSON
 
     def test_resume_flag_also_matches(self):
         fake_proc(self.proc, {7: (["claude", "--resume=s2"], 1, 1024)})

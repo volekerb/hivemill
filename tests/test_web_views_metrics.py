@@ -360,7 +360,9 @@ class TestChangelog(MetricsCase):
         self.assertIn("one", html)
         self.assertRegex(html, r'href="https://github\.com/o/r/pull/5"')
         self.assertIn("deadbeef"[:8], html)
-        self.assertIn("Goal one", html)
+        self.assertRegex(html, r"<h2>(Today|Yesterday|[A-Z][a-z]{2} \d\d) ")   # default view groups by day (B3)
+        by_goal = self.page(changelog, group="goal")[1]
+        self.assertIn("Goal one", by_goal)
 
     def test_goal_filter_and_invalid_values(self):
         d = self.page(changelog, goal="G-2")[0]
