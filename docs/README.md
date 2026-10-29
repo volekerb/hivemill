@@ -53,6 +53,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): how to propose and land a change.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
+- [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
 - [review-rules.md](review-rules.md): rules that keep reviewer, QA and judge verdicts evidence-based.
 - [review-workflow.md](review-workflow.md): the multi-angle review used on risky PRs.
