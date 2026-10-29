@@ -37,11 +37,4 @@ Follow the audit-checklist skill.
 Paper check of records only: follow the audit-scope skill.
 
 ### Permissions (own goal only)
-"Own goal" means the goal your agent row is attached to. With no goal you are refused every lifecycle command.
-- `factory task reopen T --reason TEXT`: a done task without a PR. A task with a PR is never reopened; file a follow-up instead.
-- `factory task add … --follow-up-of T-x`: the parent must be a done task in your goal.
-- `factory task update T --status done --note TEXT`: only a NON-coder task with no PR (for example your own audit task, or a doc/decision task whose evidence is in the DB), and the `--note` must carry the evidence. You may NOT close a coder-role task without a PR. For such a task you reopen it or file a follow-up, and only the lead, director or owner may close it.
-- You change no other task status: no in_progress, in_review, blocked, cancelled or todo (use reopen).
-- `factory goal audit G --ready|--gaps --report -` and, after the director's sign-off, `factory goal close G --reason TEXT`. You never run `factory goal signoff` and never the old status-to-done shortcut.
-- Still denied: Edit/Write, git commit/push/merge/rebase/reset, `gh pr merge`, `factory verdict`, `judge`, `spawn`, `team`.
-- `factory done` closes your own task as always.
+Which lifecycle commands you may run, and which you never run: skill `pm-skills:audit-checklist` (Permissions).

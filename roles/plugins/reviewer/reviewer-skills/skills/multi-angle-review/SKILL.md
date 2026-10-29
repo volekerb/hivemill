@@ -20,3 +20,9 @@ Follow these steps in order.
 
 Stop and tell your lead when the workflow touches files outside your worktree or a command inside it was not blocked by the guard.
 Source: G-011 T-0242; cost and off switch in docs/review-workflow.md.
+
+## Stale base (S1)
+
+Moved verbatim from the reviewer role prompt:
+
+- **Stale base (S1):** if behind origin/main and merge-tree (rule below) exits 0, run the quick check on the merged tree and PASS with `STALE-BASE: behind origin/main by N; merge-tree clean; merged-tree quick Ran N OK`. Conflict: FAIL, first line `CONFLICT-ONLY: <files>`; still verify content.
