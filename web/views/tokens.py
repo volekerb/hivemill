@@ -1,4 +1,5 @@
-"""Tokens page: tokens and estimated API-equivalent cost per goal / task / agent / model / day, plus 5h / weekly usage.
+"""Tokens page: tokens and estimated API-equivalent cost per day and, in one table, per goal / task / agent / model, plus
+5h / weekly usage. The breakdown shows one of the four (?by=, whitelisted; anything else is "goal").
 
 Numbers come from the TokenIndex snapshot (ctx.tokens), attributed to factory agents with web.tokens.attribute and
 priced with web.prices. A model without a price shows "n/a" and is counted separately, never as $0. Only usage
@@ -7,16 +8,20 @@ counts, ids and names are shown: no message text, no full session ids (8-char pr
 import datetime as dt
 import re
 
-from web import queries
-from web.html import bar, card, el, empty, kpi, link, table
+from web import charts, queries
+from web.components import data_table, disclosure, empty_state, href, section, segmented, tile
+from web.html import el, link, table
 from web.prices import PRICES_AS_OF
 from web.tokens import attribute, rollup
+from web.views import resources
 
 TITLE = "Tokens"
 
 PERIODS = ("1", "7", "30", "all")
 DEFAULT_PERIOD = "7"
 TOP = 20
+BY = ("goal", "task", "agent", "model")
+BY_LABEL = {"goal": "By goal", "task": "By task", "agent": "By agent", "model": "By model"}
 VIA = ("session", "event", "name", "worktree", "unattributed")
 GOAL_RE = re.compile(r"^(G-\d+|unattributed)$")
 
@@ -61,7 +66,7 @@ def _usage_data(u):
     if u.get("unreadable"):
         return {"unreadable": True, "label": "unreadable"}
     out = {"five_hour": u.get("five_hour"), "seven_day": u.get("seven_day"), "fresh": bool(u.get("fresh")),
-           "label": None if u.get("fresh") else f"stale: {u.get('age_min', -1)} min old"}
+           "age_min": u.get("age_min"), "label": None if u.get("fresh") else f"stale: {u.get('age_min', -1)} min old"}
     for k in ("five_hour_resets_at", "seven_day_resets_at"):
         v = u.get(k)
         out[k] = _reset(v)
@@ -98,7 +103,8 @@ def data(ctx, **params):
     snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
     snap = snap or {}
     usage = _usage_data(_usage(ctx))
-    base = {"period": period, "prices_as_of": PRICES_AS_OF, "usage": usage, "ready": bool(snap.get("ready")),
+    by = q.get("by") if q.get("by") in BY else "goal"
+    base = {"period": period, "by": by, "prices_as_of": PRICES_AS_OF, "usage": usage, "ready": bool(snap.get("ready")),
             "files": snap.get("files", 0), "mb_read": round(snap.get("bytes_total", 0) / 1048576, 1)}
     if not base["ready"]:
         return base | {"goal": None, "model": None, "models": [], "totals": None, "by_goal": ([], 0), "by_task": ([], 0),
@@ -145,52 +151,49 @@ def data(ctx, **params):
 
 # ───────────────────────────── rendering ─────────────────────────────
 
-def _href(period, goal=None, model=None):
-    parts = [f"days={period}"]
-    if goal:
-        parts.append(f"goal={goal}")
-    if model:
-        parts.append(f"model={model}")
-    return "/tokens?" + "&".join(parts)
+def _href(period, goal=None, model=None, by=None):
+    return href("/tokens", {"days": period, "goal": goal, "model": model, "by": by if by in BY[1:] else None})
 
 
-def _model_href(period, goal, model):
-    return _href(period, goal, model) if re.match(r"^[\w.-]+$", model) else None
+def _model_href(period, goal, model, by=None):
+    return _href(period, goal, model, by) if re.match(r"^[\w.-]+$", model) else None
 
 
-def _filters(d):
-    labels = {"1": "today", "7": "7 days", "30": "30 days", "all": "all time"}
-    items = [el("span", el("strong", labels[p]) if p == d["period"] else link(_href(p, d["goal"], d["model"]), labels[p]), " ")
-             for p in PERIODS]
+def _controls(d):
+    labels = {"1": "Today", "7": "7 days", "30": "30 days", "all": "All time"}
+    seg = segmented("Range", [(labels[p], _href(p, d["goal"], d["model"], d["by"]), p == d["period"]) for p in PERIODS])
     active = []
     if d["goal"]:
         active.append(f"goal {d['goal']}")
     if d["model"]:
         active.append(f"model {d['model']}")
-    if active:
-        items.append(el("span", " · filtered by " + ", ".join(active) + " · ", link(_href(d["period"]), "clear")))
-    return el("p", items, class_="muted")
+    if not active:
+        return seg
+    return el("div", seg, el("p", "Filtered by " + ", ".join(active) + " · ", link(_href(d["period"], by=d["by"]), "clear"),
+                             class_="muted"))
 
 
-def _usage_card(d):
+def _pct(v):
+    """A percentage as a float; anything else (the usage file is outside our control) is unknown."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _usage_section(ctx, d):
     u = d["usage"]
     if u is None:
-        return card("Claude usage", empty("No usage data."))
+        return section("Claude usage", empty_state("No usage data."))
     if u.get("unreadable"):
-        return card("Claude usage", el("p", "unreadable", class_="stale"))
-    out = []
-    for label, pct, reset in (("5-hour", u["five_hour"], u["five_hour_resets_at"]),
-                              ("Weekly", u["seven_day"], u["seven_day_resets_at"])):
-        when = ""
-        if reset is not None:
-            try:
-                when = "resets " + dt.datetime.fromtimestamp(reset).astimezone().strftime("%m-%d %H:%M")
-            except (OverflowError, OSError, ValueError):
-                when = ""
-        out.append(el("div", el("div", label, class_="kpi-label"), bar(pct), el("span", when, class_="muted"), class_="kpi"))
-    if u["label"]:
-        out.append(el("p", u["label"], class_="stale"))
-    return card("Claude usage", el("div", out, class_="grid"))
+        return section("Claude usage", el("p", "unreadable", class_="stale"))
+    view = {"five_hour": _pct(u["five_hour"]), "seven_day": _pct(u["seven_day"]), "stale": not u["fresh"],
+            "cap_five_hour": resources._cfg(ctx, "max_five_hour_pct", 92), "cap_seven_day": resources._cfg(ctx, "max_seven_day_pct", 92)}
+    note = {k: u.get(k) for k in ("five_hour_resets_at", "seven_day_resets_at")}
+    if u["fresh"]:
+        note["age_min"] = u.get("age_min")
+    return section("Claude usage", el("div", resources.usage_row(view), class_="ins-gauges"), resources.usage_note(note),
+                   el("p", u["label"], class_="stale") if u["label"] else None)
 
 
 def _cost_cell(e):
@@ -199,88 +202,93 @@ def _cost_cell(e):
     return _money(e["cost"]) + ("+" if e["cost_unknown"] else "")
 
 
-def _more(n):
-    return el("p", f"+{n} more", class_="muted") if n else ""
+def _all(e):
+    return e["input"] + e["output"] + e["cache_read"] + e["cache_write"]
 
 
-def _tokens_cell(e):
-    return f"{_fmt(e['input'])} / {_fmt(e['output'])}"
-
-
-def _cache_cell(e):
-    return f"{_fmt(e['cache_read'])} / {_fmt(e['cache_write'])}"
-
-
-def _section(title, pair, cols, make_row):
-    items, more = pair
-    if not items:
-        return card(title, empty("no data yet"))
-    return card(title, table(cols, [make_row(e) for e in items], cls="table table--compact"), _more(more))
-
-
-def _kpis(d):
+def _tiles(d):
     t = d["totals"]
-    if t["cost"] is None:
-        cost = "n/a"
-    else:
-        cost = _money(t["cost"])
-    label = f"Estimated API-equivalent cost (list prices as of {d['prices_as_of']})"
+    total = _all(t)
+    share = f"{round(100 * t['cache_read'] / total)}%" if total else "-"
     note = ""
     if d["unpriced"]:
         note = el("p", f"{t['unpriced_requests']} requests on models without a price are not in the cost: ",
                   ", ".join(d["unpriced"]), class_="muted")
-    return el("div", el("div", kpi("Input", _fmt(t["input"])), kpi("Output", _fmt(t["output"])),
-                        kpi("Cache read", _fmt(t["cache_read"])), kpi("Cache write (5m+1h)", _fmt(t["cache_write"])),
-                        kpi("Requests", _fmt(t["requests"])), kpi(label, cost), class_="grid"), note)
+    return el("div", el("div",
+                        tile("Total tokens", _fmt(total),
+                             definition="Input, output and cache tokens (read and write) of every request in the range."),
+                        tile("Cost estimate", _money(t["cost"]),
+                             definition=f"Estimated API-equivalent cost at list prices as of {d['prices_as_of']}. "
+                                        "Requests on a model without a price are left out and listed below."),
+                        tile("Cache read share", share, definition="Cache-read tokens as a share of all tokens. A high share means "
+                             "most context was served from the cache."),
+                        tile("Requests", _fmt(t["requests"]), definition="Model requests that carried usage counts."),
+                        class_="tiles tiles--4"), note)
+
+
+def _day_section(d):
+    items, more = d["by_day"]
+    points = [(e["key"], _all(e)) for e in reversed(items)]
+    return section("By day", charts.columns(points, "tokens"),
+                   el("p", f"+{more} earlier days not shown", class_="muted") if more else None)
+
+
+def _pin_last(items):
+    """The "unattributed" row goes last whatever the order was."""
+    return [e for e in items if e["key"] != "unattributed"] + [e for e in items if e["key"] == "unattributed"]
+
+
+def _unattributed():
+    return el("span", "Not attributed", " ",
+              el("details", el("summary", "i", aria_label="What is Not attributed?"),
+                 el("p", "Usage from sessions that could not be matched to a factory goal, task or agent. "
+                         "See Attribution quality below.", class_="tile-def"), class_="disc--i"))
+
+
+def _name(d, by, e):
+    k = e["key"]
+    if k == "unattributed":
+        return _unattributed()
+    if by == "goal":
+        return el("span", link(_href(d["period"], k, d["model"], d["by"]), k), " ", e.get("title") or "")
+    if by == "task":
+        return el("span", link(f"/task/{k}", k), " ", e.get("title") or "")
+    if by == "agent":
+        sess = ", ".join(e.get("sessions", [])) + (f" +{e['more_sessions']}" if e.get("more_sessions") else "")
+        return el("span", k, " ", el("span", e.get("role") or "", class_="muted"), title=f"sessions: {sess}" if sess else None)
+    href_ = _model_href(d["period"], d["goal"], k, d["by"])
+    return link(href_, k) if href_ else k
+
+
+def _breakdown(d):
+    by = d["by"]
+    seg = segmented("Breakdown", [(BY_LABEL[b], _href(d["period"], d["goal"], d["model"], b), b == by) for b in BY])
+    items, more = d[f"by_{by}"]
+    grand = _all(d["totals"])
+    if not items:
+        return section("Breakdown", seg, empty_state("no data yet"))
+    cols = [{"key": "name", "label": BY_LABEL[by].removeprefix("By ").capitalize(), "cls": "c-title"},
+            {"key": "tokens", "label": "Tokens", "cls": "num"}, {"key": "share", "label": "Share", "cls": "num"},
+            {"key": "io", "label": "In / out", "cls": "num ins-wide"}, {"key": "req", "label": "Requests", "cls": "num ins-wide"},
+            {"key": "cost", "label": "Cost", "cls": "num ins-wide"}]
+    rows = []
+    for e in _pin_last(items):
+        tot = _all(e)
+        pct = 100 * tot / grand if grand else 0
+        rows.append([_name(d, by, e), _fmt(tot), f"{pct:.1f}%" if pct < 10 else f"{pct:.0f}%",
+                     f"{_fmt(e['input'])} / {_fmt(e['output'])}", e["requests"], _cost_cell(e)])
+    return section("Breakdown", seg, data_table(cols, [{"key": "all", "label": None, "count": len(rows), "rows": rows}], key="breakdown"),
+                   el("p", f"+{more} more", class_="muted") if more else None)
 
 
 def render(ctx, d):
-    parts = [_filters(d), _usage_card(d)]
+    parts = [_controls(d), _usage_section(ctx, d)]
     if not d["ready"]:
-        parts.append(card("Token index", el("p", f"indexing… {d['files']} files / {d['mb_read']} MB read", class_="stale")))
-        parts += [card(t, empty("no data yet")) for t in ("By goal", "By task", "By agent", "By model", "By day")]
+        parts.append(section("Token index", el("p", f"indexing… {d['files']} files / {d['mb_read']} MB read", class_="stale")))
         return el("div", parts)
-    parts.append(_kpis(d))
-
-    def goal_row(e):
-        k = e["key"]
-        name = k if k == "unattributed" else el("span", link(_href(d["period"], k, d["model"]), k), " ", e.get("title") or "")
-        return (name, (_tokens_cell(e), "num"), (_cache_cell(e), "num"), (_cost_cell(e), "num"))
-
-    def task_row(e):
-        k = e["key"]
-        name = k if k == "unattributed" else el("span", link(f"/task/{k}", k), " ", e.get("title") or "")
-        return (name, (_tokens_cell(e), "num"), (e["requests"], "num"), (_cost_cell(e), "num"))
-
-    def agent_row(e):
-        k = e["key"]
-        if k == "unattributed":
-            return ("unattributed", (_tokens_cell(e), "num"), (e["requests"], "num"), (_cost_cell(e), "num"))
-        sess = ", ".join(e.get("sessions", [])) + (f" +{e['more_sessions']}" if e.get("more_sessions") else "")
-        return (el("span", k, " ", el("span", e.get("role") or "", class_="muted"), " ", el("span", sess, class_="mono")),
-                (_tokens_cell(e), "num"), (e["requests"], "num"), (_cost_cell(e), "num"))
-
-    def model_row(e):
-        k = e["key"]
-        href = _model_href(d["period"], d["goal"], k)
-        return (link(href, k) if href else k, (_tokens_cell(e), "num"), (_cache_cell(e), "num"), (_cost_cell(e), "num"))
-
-    top_day = max((e["input"] + e["output"] + e["cache_read"] + e["cache_write"] for e in d["by_day"][0]), default=0)
-
-    def day_row(e):
-        tot = e["input"] + e["output"] + e["cache_read"] + e["cache_write"]
-        pct = 100 * tot / top_day if top_day else 0
-        return (e["key"], bar(pct, _fmt(tot), f"{_fmt(tot)} of max {_fmt(top_day)}"), (_cost_cell(e), "num"))
-
-    parts += [
-        _section("By goal", d["by_goal"], ["Goal", "In / out", "Cache r / w", "Cost"], goal_row),
-        _section("By task", d["by_task"], ["Task", "In / out", "Requests", "Cost"], task_row),
-        _section("By agent", d["by_agent"], ["Agent", "In / out", "Requests", "Cost"], agent_row),
-        _section("By model", d["by_model"], ["Model", "In / out", "Cache r / w", "Cost"], model_row),
-        _section("By day", d["by_day"], ["Day", "Usage", "Cost"], day_row),
-        card("Attribution quality", table(["Matched by", "Sessions"], [(v, (d["via"].get(v, 0), "num")) for v in VIA],
-                                          cls="table table--compact")),
-        el("p", f"Costs are estimates at list prices as of {d['prices_as_of']}; a trailing + means some tokens were on "
-                "models without a price.", class_="muted"),
-    ]
+    parts += [_tiles(d), _day_section(d), _breakdown(d),
+              disclosure("Attribution quality", table(["Matched by", "Sessions"], [(v, (d["via"].get(v, 0), "num")) for v in VIA],
+                                                       cls="table table--compact"), key="attribution"),
+              el("p", f"Costs are estimates at list prices as of {d['prices_as_of']}; a trailing + means some tokens were on "
+                      "models without a price.", class_="muted")]
     return el("div", parts)
