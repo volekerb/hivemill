@@ -196,15 +196,15 @@ class SpawnPrecheckTests(FactoryTestCase):
         main = self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
         git(self.env.home_dir, "config", "user.email", "456+zz-test@users.noreply.github.com")
-        p = self.spawn("qa")
-        self.assertRefreshedSpawn(p, "qa", main)
+        p = self.spawn("judge")
+        self.assertRefreshedSpawn(p, "judge", main)
         who = "factory refresh <456+zz-test@users.noreply.github.com>"
         self.assertEqual(git(self.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", self.remote_head()), f"{who}|{who}")
 
     def test_a3_public_repo_no_noreply_address_pushes_nothing(self):
         self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
-        self.spawn("qa")
+        self.spawn("judge")
         self.assertEqual(self.pushes(), [])
         self.assertEqual(self.remote_head(), self.head)
         self.assertEqual(self.events("refreshed"), [])
