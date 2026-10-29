@@ -4378,11 +4378,17 @@ def _red_main_revert_task(con, slug, run, since_ts):
             if _repo_slug(r["gh_repo"]) == slug]
     g = con.execute(f"SELECT id FROM goals WHERE status='active' AND project_id IN ({','.join('?' * len(pids))}) "
                     "ORDER BY priority, id LIMIT 1", pids).fetchone() if pids else None
+    # T-0669: a goal can work in a repo its project row does not name (G-022 runs in hivemill under project factory): fall
+    # back to the active goal whose tasks carry PRs in that repo.
+    prs = f"https://github.com/{slug}/pull/%"
+    if not g:
+        g = con.execute("SELECT g.id FROM goals g JOIN tasks t ON t.goal_id=g.id WHERE g.status='active' AND t.pr_url LIKE ? "
+                        "ORDER BY g.priority, g.id LIMIT 1", (prs,)).fetchone()
     if not g:
         return None, []
-    ev = con.execute(f"SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
-                     f"WHERE e.entity='task' AND e.action='merged' AND g.project_id IN ({','.join('?' * len(pids))}) "
-                     "ORDER BY e.ts DESC", pids).fetchall()
+    ev = con.execute("SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
+                     f"WHERE e.entity='task' AND e.action='merged' AND (g.project_id IN ({','.join('?' * len(pids))}) OR t.pr_url LIKE ?) "
+                     "ORDER BY e.ts DESC", (*pids, prs)).fetchall()
     since = _red_main_when(since_ts)
     ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
@@ -4396,6 +4402,25 @@ def _red_main_revert_task(con, slug, run, since_ts):
                 (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
     event_as(con, "tick", "task", tid, "add", title)
     return tid, merged
+
+
+def cmd_redmain(a):
+    """`factory redmain fix <OWNER/NAME> <T-id>` (director): name the task that may merge while the repo's main is red."""
+    con = db()
+    require_role(con, "director")
+    slug = _repo_slug(a.repo)
+    if not slug:
+        die(f"{a.repo!r} is not an OWNER/NAME repo", 2)
+    st = red_main_state(con, slug)
+    if not st:
+        die(f"{slug} is not frozen (no red_main record): nothing to name a fix task for", 2)
+    if not con.execute("SELECT 1 FROM tasks WHERE id=?", (a.task,)).fetchone():
+        die(f"no task {a.task}: see `factory task show`", 2)
+    old = st.get("task") or ""
+    st["task"] = a.task
+    _red_main_set(con, slug, st)
+    event(con, "redmain", slug, "red-main-fix-task", f"{old or '-'} -> {a.task}")
+    print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
 def red_main_check(con):
@@ -10274,6 +10299,8 @@ def main():
 
     x = sp.add_parser("init"); x.add_argument("--live-home", metavar="ABS_PATH", help="also record ABS_PATH as an extra live home (owner only)")
     x.set_defaults(fn=cmd_init)
+    x = sp.add_parser("redmain", help="director only: name the fix task that may merge while a repo's main is red")
+    x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
