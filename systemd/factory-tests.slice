@@ -1,0 +1,8 @@
+[Unit]
+Description=Factory test runs (parent for per-run cgroups)
+
+[Slice]
+# Hard ceiling for all concurrent test runs together; per-run caps are set by `factory test` below this.
+CPUQuota=600%
+MemoryMax=4G
+TasksMax=2048
