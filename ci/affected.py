@@ -13,6 +13,9 @@ word FULL with the rule that triggered it. --run executes the selection (all mod
     (cmd_judge also "judge") as a whole word.
   4 roles/** -> modules mentioning "roles/" or the role file name; docs/** and *.md -> the smoke set.
   5 smoke set (config key affected_smoke, default below) is always added; over 40% of the modules -> FULL.
+Quick mode (T-0642): `--quick` (or `--budget SECONDS`, default 120) is the role-facing form: one process, only the
+affected modules, the elapsed time printed. A FULL selection is refused: it prints "FULL needed: rely on CI" and runs nothing
+(CI is the full suite). Modules still unrun when the budget is spent are listed and the exit code is 4: rely on CI for them.
 Any other changed path: modules mentioning its path, file name or dotted module path, FULL if none does. Stdlib only. The judge's full gate is the backstop for a missed dependency.
 """
 import argparse
@@ -216,24 +219,38 @@ def _select(root, base, head, tests_dir, modules):
     return sel, notes
 
 
-def run(modules, tests_dir):
-    """Run the modules through the shard.py loader; exit 1 on failure or on 0 tests."""
+QUICK_BUDGET_S = 120
+EXIT_BUDGET = 4
+
+
+def run(modules, tests_dir, budget=None):
+    """Run the modules through the shard.py loader; exit 1 on failure or on 0 tests. With a budget (seconds), stop
+    starting modules once it is spent, list the rest and exit 4 (the unrun modules are CI's job)."""
     root = os.path.dirname(os.path.abspath(tests_dir))
     os.chdir(root)
     sys.path.insert(0, root)
     sys.path.insert(0, tests_dir)
     loader, runner = unittest.TestLoader(), unittest.TextTestRunner(verbosity=2)
-    tests, ok = 0, True
+    tests, ok, start, skipped = 0, True, time.monotonic(), []
     for m in modules:
+        if budget is not None and time.monotonic() - start >= budget:
+            skipped.append(m)
+            continue
         t0 = time.monotonic()
         res = runner.run(loader.discover(tests_dir, pattern=m, top_level_dir=tests_dir))
         print("%s: %d tests, %.1f s" % (m, res.testsRun, time.monotonic() - t0), file=sys.stderr)
         tests += res.testsRun
         ok = ok and res.wasSuccessful()
-    print("affected: Ran %d tests in %d modules: %s" % (tests, len(modules), "OK" if ok else "FAILED"))
+    ran = len(modules) - len(skipped)
+    print("affected: Ran %d tests in %d modules: %s" % (tests, ran, "OK" if ok else "FAILED"))
+    if budget is not None:
+        print("affected: elapsed %.1f s of %d s budget" % (time.monotonic() - start, budget))
     if tests == 0:
         print("affected: ran 0 tests; that is a failure", file=sys.stderr)
         return 1
+    if ok and skipped:
+        print("affected: budget spent, not run: %s; rely on CI for them" % " ".join(skipped), file=sys.stderr)
+        return EXIT_BUDGET
     return 0 if ok else 1
 
 
@@ -244,21 +261,30 @@ def main(argv=None):
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--list", action="store_true", help="print the selection (default)")
     g.add_argument("--run", action="store_true", help="run the selection")
+    ap.add_argument("--quick", action="store_true", help="role mode: affected modules only, one process, never FULL (rely on CI)")
+    ap.add_argument("--budget", type=int, metavar="SECONDS", help="--quick with this time budget (default %d)" % QUICK_BUDGET_S)
     ap.add_argument("--root", default=ROOT, help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
+    if a.budget is not None and a.budget < 1:
+        ap.error("--budget must be at least 1 second")
+    quick = a.quick or a.budget is not None
+    budget = (a.budget or QUICK_BUDGET_S) if quick else None
     try:
         mods, note = select(a.root, a.base, a.head)
     except AffectedError as e:
         print("affected: %s" % e, file=sys.stderr)
         return 2
     if mods == "FULL":
+        if quick:
+            print("FULL needed: rely on CI (%s)" % note)
+            return 0
         print("FULL (%s)" % note)
         if a.run:
             return run(all_modules(os.path.join(a.root, "tests")), os.path.join(a.root, "tests"))
         return 0
     print("\n".join(mods))
     if a.run:
-        return run(mods, os.path.join(a.root, "tests"))
+        return run(mods, os.path.join(a.root, "tests"), budget)
     return 0
 
 
