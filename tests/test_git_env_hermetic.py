@@ -169,14 +169,10 @@ def _subprocess_aliases(tree):
 
 
 def _scope_nodes(scope):
-    """Nodes of one def (or the module) in source order, not descending into nested defs."""
-    out, todo = [], list(ast.iter_child_nodes(scope))
-    while todo:
-        n = todo.pop()
-        out.append(n)
-        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-            todo.extend(ast.iter_child_nodes(n))
-    return sorted(out, key=lambda n: (getattr(n, "lineno", 0), getattr(n, "col_offset", 0)))
+    """Every node under a def (or the module) in source order, nested defs and lambdas included: a closure
+    forwarding the outer def's args is still that def forwarding them."""
+    return sorted((n for n in ast.walk(scope) if n is not scope),
+                  key=lambda n: (getattr(n, "lineno", 0), getattr(n, "col_offset", 0)))
 
 
 def _argv_elts(expr, binds):
@@ -195,21 +191,18 @@ def _argv_elts(expr, binds):
     return None
 
 
-def _bindings(scope, parent=None):
-    """Name -> argv elements for simple `x = [...]` and later `x += ...` in one scope (inheriting the enclosing scope's)."""
-    binds = dict(parent or {})
-    for n in _scope_nodes(scope):
-        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
-            elts = _argv_elts(n.value, binds)
-            if elts is None:
-                binds.pop(n.targets[0].id, None)
-            else:
-                binds[n.targets[0].id] = elts
-        elif isinstance(n, ast.AugAssign) and isinstance(n.op, ast.Add) and isinstance(n.target, ast.Name):
-            if n.target.id in binds:
-                more = _argv_elts(n.value, binds)
-                binds[n.target.id] = binds[n.target.id] + (more if more is not None else [n.value])
-    return binds
+def _track(n, binds):
+    """Update `binds` for a simple `x = [...]` or `x += ...` statement, in source order."""
+    if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+        elts = _argv_elts(n.value, binds)
+        if elts is None:
+            binds.pop(n.targets[0].id, None)
+        else:
+            binds[n.targets[0].id] = elts
+    elif isinstance(n, ast.AugAssign) and isinstance(n.op, ast.Add) and isinstance(n.target, ast.Name):
+        if n.target.id in binds:
+            more = _argv_elts(n.value, binds)
+            binds[n.target.id] = binds[n.target.id] + (more if more is not None else [n.value])
 
 
 def _git_argv(call, aliases=None, binds=None):
@@ -230,20 +223,34 @@ def _git_argv(call, aliases=None, binds=None):
     return None
 
 
-def _git_calls(tree):
-    """(enclosing def or None, call, git argv elements) for every subprocess git spawn, in any supported spelling."""
-    aliases = _subprocess_aliases(tree)
-    top = _bindings(tree)
+def _scope_git_calls(scope, aliases, binds):
+    """Subprocess git calls under one scope, each judged with the bindings in force where it is written."""
     found = []
-    for n in _scope_nodes(tree):
-        if isinstance(n, ast.Call) and (argv := _git_argv(n, aliases, top)):
-            found.append((None, n, argv))
+    for n in _scope_nodes(scope):
+        _track(n, binds)
+        if isinstance(n, ast.Call) and (argv := _git_argv(n, aliases, binds)):
+            found.append((n, argv))
+    return found
+
+
+def _git_calls(tree):
+    """(enclosing def or None, call, git argv elements) for every subprocess git spawn, in any supported spelling.
+    A call is reported for the module and for every def around it."""
+    aliases = _subprocess_aliases(tree)
+    found = [(None, c, a) for c, a in _scope_git_calls(tree, aliases, {})]
+    top = [n for n in tree.body if isinstance(n, (ast.Assign, ast.AugAssign))]
     for fn in ast.walk(tree):
         if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            binds = _bindings(fn, top)
-            for n in _scope_nodes(fn):
-                if isinstance(n, ast.Call) and (argv := _git_argv(n, aliases, binds)):
-                    found.append((fn, n, argv))
+            params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs}
+            params |= {a.arg for a in (fn.args.vararg, fn.args.kwarg) if a}
+            binds = {}
+            for n in top:  # module-level bindings written before the def, minus shadowing params
+                if n.lineno >= fn.lineno:
+                    break
+                _track(n, binds)
+            for k in params:
+                binds.pop(k, None)
+            found += [(fn, c, a) for c, a in _scope_git_calls(fn, aliases, binds)]
     return found
 
 
@@ -321,6 +328,19 @@ class RawGitRemoteGuardTest(unittest.TestCase):
         }
         for label, src in forms.items():
             self.assertTrue(raw_git_violations(src), label)
+
+    def test_scoping_edge_cases(self):
+        flagged = {
+            "lambda": "import subprocess\nf = lambda u: subprocess.run(['git', 'push', u])\n",
+            "closure wrapper": "import subprocess\ndef o(v):\n    def i():\n        subprocess.run(['git', v])\n    i()\n",
+            "rebind after call": "import subprocess\ncmd = ['git', 'push']\nsubprocess.run(cmd)\ncmd = []\n",
+        }
+        for label, src in flagged.items():
+            self.assertTrue(raw_git_violations(src), label)
+        late = "import subprocess\nc = ['git', 'status']\nsubprocess.run(c)\nc += ['push']\n"
+        self.assertEqual(raw_git_violations(late), [], "an extension after the call is not part of the call")
+        shadow = "import subprocess\ncmd = ['git', 'push']\ndef f(cmd):\n    pass\ncmd = ['ls']\n"
+        self.assertEqual(raw_git_violations(shadow), [])
 
     def test_non_literal_argv_local_git_and_non_git_are_not_flagged(self):
         clean = (
