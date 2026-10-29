@@ -188,6 +188,10 @@ def render(ctx, d):
 
 # ── detail ──
 
+from web.components import section, tile                    # noqa: E402  (the list part above is B3's and keeps its imports)
+from web.html import crumbs, glyph, status                  # noqa: E402
+from web.views.goals import DetailView, not_found           # noqa: E402
+
 def _step_text(i):
     """Label plus the few structured details that are safe to show (never free-text notes)."""
     lab, det = i["label"], i.get("detail") or ""
@@ -247,36 +251,179 @@ def _detail_data(ctx, id=None, **params):
         if not pr_seen and i["kind"] == "event" and i["label"] == "update" and _PR_SET_RE.search(i.get("detail") or ""):
             pr_seen = True
             text, tone = "PR opened", "info"
-        steps.append({"ts": i["ts"], "actor": i["actor"], "kind": i["kind"], "text": text, "sha": sha, "tone": tone,
+        steps.append({"ts": i["ts"], "actor": i["actor"], "kind": i["kind"], "label": i["label"], "text": text, "sha": sha, "tone": tone,
                       "links": sorted(set(_TASK_RE.findall(i.get("detail") or ""))) if i["label"] == "follow-up" else []})
     return {"id": id, "found": True, "title": t["title"], "goal_id": t["goal_id"], "role": t["role"], "status": t["status"], "waits": t["waits"],
-            "assignee": t["assignee"], "pr_url": t["pr_url"], "follow_up_of": t["follow_up_of"], "follow_ups": follow,
+            "assignee": t["assignee"], "team_id": t["team_id"], "pr_url": t["pr_url"], "follow_up_of": t["follow_up_of"], "follow_ups": follow,
             "created": t["created"], "merged": bool(merged_ev), "ci": label, "ci_checks": checks,
             "rejections": cyc["rejections"], "retries": cyc["retries"], "attempts": cyc["attempts"], "reopens": cyc["reopens"],
             "total_s": total, "steps": steps}
 
 
-def _detail_render(ctx, d):
-    if not d.get("found"):
-        return card("Task", empty(f"No task {d.get('id')}."))
-    head = el("div",
-              kpi("Status", task_badge(d["status"], d["waits"])), kpi("Total time", dur(d["total_s"])),
-              kpi("Rejections", d["rejections"]), kpi("Retries", d["retries"]), kpi("CI", _ci_badge(d["ci"])), class_="grid")
-    info = el("p", link(f"/goal/{d['goal_id']}", d["goal_id"]), " - ", d["title"], " - ", d["role"], " ",
-              el("span", d["assignee"] or "", class_="muted"), " ", link(d["pr_url"], "PR") if d["pr_url"] else "")
-    items = []
-    for s in d["steps"]:
+_ROLE = {"qa": "QA"}
+_OUTCOME = {"pass": "passed", "fail": "failed", "merge": "merged", "reject": "rejected"}
+_CI_GLYPH = {"green": "done", "green at merge": "done", "failing": "blocked", "pending": "queued"}
+_TIMES = {1: "once"}
+
+
+def _role(r):
+    return _ROLE.get(r, str(r).capitalize())
+
+
+def _is_reject(s):
+    return s["label"] == "judge-reject" or (s["kind"] == "verdict" and s["label"].split(" ", 1)[1] in ("fail", "reject"))
+
+
+def _verb(s):
+    """Human verb of a timeline step (note 4 copy): "Reviewer passed", "Judge merged", "Coder started", ..."""
+    lab, kind, text = s["label"], s["kind"], s["text"]
+    if kind == "verdict":
+        role, verdict = lab.split(" ", 1)
+        return f"{_role(role)} {_OUTCOME.get(verdict, verdict)}"
+    if lab == "judge-reject":
+        return "Judge rejected"
+    if kind == "agent":
+        what, role = lab.split(" ", 1)
+        return f"{_role(role)} {'started' if what == 'spawn' else 'finished'}"
+    if lab == "merged":
+        return "Merged"
+    return text[:1].upper() + text[1:]
+
+
+def _line_key(s):
+    """A judge verdict row and the judge-reject event of one rejection share a second and collapse to one line (the event
+    actor and the verdict author can differ). Every other line is kept."""
+    if _is_reject(s) and ("judge" in s["label"]):
+        return ("judge-reject", (s["ts"] or "")[:19])
+    return None
+
+
+def _attempt_blocks(steps):
+    """Group timeline steps by attempt: an attempt ends at a rejection, a coder spawned again or a reopen starts the next.
+    Duplicate lines (same second, see _line_key) merge. Returns [[step, ...], ...] oldest first."""
+    blocks, cur, seen, rejected = [], [], set(), False
+    for s in steps:
+        key = _line_key(s)
+        if key is not None and key in seen:
+            continue
+        spawn = s["label"] == "spawn coder"
+        late = s["kind"] == "agent" and s["label"].startswith("end ")   # the failed attempt's own coder ending
+        if cur and ((rejected and not late and not _is_reject(s)) or s["label"] == "reopen" or (spawn and any(c["label"] == "spawn coder" for c in cur))):
+            blocks.append(cur)
+            cur, rejected = [], False
+        if key is not None:
+            seen.add(key)
+        cur.append(s)
+        rejected = rejected or _is_reject(s)
+    if cur:
+        blocks.append(cur)
+    return blocks
+
+
+def _verdict_lines(steps):
+    """(role, outcome word, ts) per verdict, duplicates merged; a merged event with no judge merge verdict counts as one."""
+    out, seen = [], set()
+    for s in steps:
+        if s["kind"] == "verdict":
+            role, verdict = s["label"].split(" ", 1)
+            word = _OUTCOME.get(verdict, verdict)
+        elif s["label"] == "judge-reject":
+            role, word = "judge", "rejected"
+        elif s["label"] == "merged":
+            role, word = "judge", "merged"
+        else:
+            continue
+        key = _line_key(s) if word != "merged" else ("merged", role)
+        if (key is not None and key in seen) or (word == "merged" and any(r == "judge" and w == "merged" for r, w, _ in out)):
+            continue
+        if key is not None:
+            seen.add(key)
+        out.append((role, word, s["ts"]))
+    return out
+
+
+def _runs(words):
+    runs = []
+    for w in words:
+        if runs and runs[-1][0] == w:
+            runs[-1][1] += 1
+        else:
+            runs.append([w, 1])
+    return runs
+
+
+def _phrase(words):
+    parts = []
+    for n, (w, c) in enumerate(_runs(words)):
+        parts.append(w + (f" {_TIMES.get(c, f'{c} times')}" if c > 1 or (len(_runs(words)) > 1 and n == 0) else ""))
+    return ", then ".join(parts)
+
+
+def _verdict_summary(d):
+    """C12 one line: "Reviewer passed · QA failed once, then passed · CI passed · Judge merged" (kind and outcome only)."""
+    lines = _verdict_lines(d["steps"])
+    by_role = {}
+    for role, word, _ in lines:
+        by_role.setdefault(role, []).append(word)
+    order = [r for r in ("reviewer", "qa") if r in by_role] + [r for r in by_role if r not in ("reviewer", "qa", "judge")]
+    parts = [f"{_role(r)} {_phrase(by_role[r])}" for r in order]
+    if d["ci"] in CI_WORDS:
+        parts.append(CI_WORDS[d["ci"]])
+    if "judge" in by_role:
+        parts.append(f"Judge {_phrase(by_role['judge'])}")
+    if not parts:
+        return None
+    detail = el("ul", [el("li", f"{_role(r)} {w} · ", ts(t)) for r, w, t in lines], class_="lrow-list")
+    return disclosure(" · ".join(parts), detail, key="task-verdicts") if lines else el("p", " · ".join(parts), class_="summary-line")
+
+
+def _attempt(n, block, last, now):
+    items, prev = [], None
+    for s in block:
+        at, was = parse_ts(s["ts"]), prev
+        prev = at or prev
+        step = f"+{dur((at - was).total_seconds())}" if at and was and at >= was else None
         extra = [el("span", f" @{s['sha']}", class_="mono")] if s["sha"] else []
         extra += [el("span", " ", link(f"/task/{x}", x)) for x in s["links"]]
-        items.append(el("div", ts(s["ts"]), " ", badge(s["text"], s["tone"]), " ", el("span", s["actor"] or "", class_="muted"),
-                        *extra, class_="timeline-item"))
-    parts = [head, card("Task", info), card("PR cycle", el("div", *items, class_="timeline") if items else empty("No events yet."))]
+        items.append(el("li", ts(s["ts"]), " ", badge(_verb(s), s["tone"]), " ", el("span", s["actor"] or "", class_="muted"), *extra,
+                        " ", el("span", step, class_="muted") if step else None, class_="timeline-item",
+                        data_actor=s["actor"] or "", data_kind=s["label"], data_ts=s["ts"]))
+    first, end = parse_ts(block[0]["ts"]), parse_ts(block[-1]["ts"])
+    span = dur((end - first).total_seconds()) if first and end and end > first else None
+    outcome = "rejected" if _is_reject(block[-1]) else "merged" if block[-1]["label"] == "merged" else "in progress" if last else "ended"
+    summ = el("summary", el("span", f"Attempt {n}"), el("span", " · ".join(x for x in (outcome, span) if x), class_="disc-n"))
+    return el("details", summ, el("ol", items, class_="timeline"), class_="disc attempt", data_key=f"task-attempt-{n}", open=last or None)
+
+
+def _fmt_ci(label):
+    return el("span", glyph(_CI_GLYPH[label]), CI_WORDS.get(label, label), class_="st") if label in _CI_GLYPH else None
+
+
+def _meta(d):
+    bits = [status(d["status"]), link(f"/goal/{d['goal_id']}", d["goal_id"]) if d["goal_id"] else None, d["team_id"],
+            d["assignee"] or d["role"], link(d["pr_url"], pr_label(d["pr_url"])) if d["pr_url"] else None, _fmt_ci(d["ci"])]
+    out = []
+    for b in (b for b in bits if b):
+        out += [" · ", b] if out else [b]
+    return el("p", *out, class_="metarow")
+
+
+def _detail_render(ctx, d):
+    crumb = crumbs(("/tasks", "Tasks"), (f"/task/{d.get('id')}", d.get("id") or "?"))
+    if not d.get("found"):
+        return not_found("task", d.get("id"), "/tasks", "Back to Tasks", crumb)
+    tiles = el("div", tile("Total time", dur(d["total_s"])), tile("Rejections", d["rejections"]), tile("Attempts", d["attempts"] or 0),
+               class_="tiles")
+    blocks = _attempt_blocks(d["steps"])
+    cycle = ([_attempt(n, b, n == len(blocks), ctx.now) for n, b in enumerate(blocks, 1)] if blocks else [empty_state("No events yet.")])
+    parts = [crumb, _meta(d), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
+             section("PR cycle", *cycle)]
     fu = [el("span", link(f"/task/{f['id']}", f["id"]), " ", f["title"], " ", task_badge(f["status"], f["waits"]), " ") for f in d["follow_ups"]]
     if d["follow_up_of"]:
         fu.insert(0, el("span", "follow-up of ", link(f"/task/{d['follow_up_of']}", d["follow_up_of"]), " "))
     if fu:
-        parts.append(card("Follow-ups", el("p", *fu)))
+        parts.append(section("Follow-ups", el("p", *fu)))
     return el("div", *parts)
 
 
-detail = SimpleNamespace(TITLE="Task", data=_detail_data, render=_detail_render)
+detail = DetailView("Task", _detail_data, _detail_render)
