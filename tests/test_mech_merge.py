@@ -247,6 +247,13 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.merges(), [])
         self.assertIn("public text", self.events("mech-blocked")[0])
 
+    def test_a_permanent_block_is_recorded_once(self):
+        self.ok("config", "frozen_repos", "zz-test/repo")
+        self.ok("config", "mech_merge_retry_s", "0")
+        self.mech("on")
+        self.cli("mech-merge")
+        self.assertEqual(len(self.events("mech-blocked")), 1)
+
     def test_merge_freeze_stops_the_run(self):
         self.ok("config", "mech_merge", "on")
         self.env.sql("INSERT INTO config(key,value) VALUES('main_freeze','deadbeef') ON CONFLICT(key) DO UPDATE SET value='deadbeef'")

@@ -4186,9 +4186,17 @@ def mech_try(con, t, mode, retry_s):
     block_kind = "mech-would-block" if mode == "shadow" else "mech-blocked"
 
     def block(msg):
-        event(con, "task", tid, block_kind, f"head={sha[:12]}: {msg}"[:900])
+        detail = f"head={sha[:12]}: {msg}"[:900]
+        last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                           "ORDER BY id DESC LIMIT 1", (tid, *MECH_EVENTS)).fetchone()
+        if not last or last["detail"] != detail:  # a permanent block is recorded once, not every retry window
+            event(con, "task", tid, block_kind, detail)
         con.commit()
         return "blocked"
+
+    if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
+                   (tid,)).fetchone() or con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "in_review":
+        return "skipped"  # a judge appeared (or the task moved) since the candidate list was built
 
     if not git_config_guard(con, git_repo, always_event=True):
         return block(f"git config in {git_repo} would run code")
@@ -4208,8 +4216,15 @@ def mech_try(con, t, mode, retry_s):
                                        0, gate_project_for(con, url))
     except SystemExit as e:
         code = e.code if isinstance(e.code, int) else 1
-    if mode == "shadow":  # the gate's own judge-blocked events are not a judge's: keep the judge's counts clean
-        con.execute("DELETE FROM events WHERE id>? AND entity='task' AND entity_id=? AND action='judge-blocked'", (mark, tid))
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:  # the gate could not decide: block, never merge
+        code, err = 1, io.StringIO(f"gate error {type(e).__name__}: {e}")
+    finally:
+        if mode == "shadow":  # the gate's own judge-blocked events are not a judge's: keep the judge's counts clean
+            con.execute("DELETE FROM events WHERE id>? AND entity='task' AND entity_id=? AND action='judge-blocked' AND actor=?",
+                        (mark, tid, actor()))
+    if not code and mode == "on" and pr_state(url)["headRefOid"] != sha and con.execute(
+            "SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "done":
+        return block("PR head changed during the gate; the judge decides")
     if code:
         return block((err.getvalue().strip() or f"gate exit {code}").replace("factory: ", "", 1))
     if mode == "shadow":
