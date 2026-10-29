@@ -768,10 +768,13 @@ def shim_main(shim_cfg, args):
         else:
             pending.append(n)
 
-    for sig in (signal.SIGTERM, signal.SIGHUP):
+    # stage 1 gets the same stop/diagnostic signals the shim gets (SIGINT excepted, see above)
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2):
         signal.signal(sig, on_stop)
     try:
         token = read_token(shim_cfg["token_file"])
+        if pending:  # a stop during read_token must not start the proxy
+            raise _StopBeforeStart(pending[0])
         start_proxy(trial, cfg, shim_cfg["proxy_allow"], shim_cfg["proxy_max_life"], shim_cfg["upstream"])
         passed = ENV_PASS + CLAUDE_ENV_PASS + (EVAL_ENV_PASS if shim_cfg.get("eval_env") else ())
         env = {k: v for k, v in os.environ.items() if k in passed or k.startswith("LC_")}
