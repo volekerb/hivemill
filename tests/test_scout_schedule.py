@@ -215,6 +215,39 @@ class SlotTests(Base):
         r = self.runs()[0]
         self.assertEqual((r["status"], r["new_candidates"]), ("done", 1), str(r))
 
+    def test_a_superseded_run_without_its_own_start_ignores_an_older_scout_agents_start(self):
+        self.tick(at("09:01"))
+        self.env.sql("UPDATE agents SET started=? WHERE name='scout'", (at("01:00", PRIOR),))  # an earlier scout run's start
+        self.env.sql("UPDATE scout_runs SET started=NULL")  # this run never got its own start
+        self.env.sql("INSERT INTO scout_runs(slot,agent,status) VALUES(?,?,?)", (f"{D}T10", "scout", "queued"))  # supersedes it
+        self._cand(1, at("02:00", PRIOR))  # after that agent started, before this run existed
+        self.tick(at("09:05"))
+        old = self.runs()[0]
+        self.assertEqual((old["status"], old["stop_reason"], old["started"]), ("failed", "superseded by a newer run", None), str(old))
+        self.assertEqual((old["new_candidates"], old["triaged"]), (0, 0), str(old))
+
+    def test_an_agent_started_before_the_runs_slot_event_is_ignored(self):
+        self.tick(at("09:01"))
+        self.env.sql("UPDATE agents SET started=? WHERE name='scout'", (at("01:00", PRIOR) + "+01:00",))  # an earlier run's start
+        self.env.sql("UPDATE scout_runs SET started=?", (at("09:01") + "+01:00",))
+        self.env.sql("UPDATE events SET ts=? WHERE action='scout-slot'", (at("09:00") + "+01:00",))  # the events use the real clock
+        self._cand(1, at("02:00", PRIOR) + "+01:00")  # after that agent started, before this run's slot event
+        self.finish()
+        self.tick(at("09:20"))
+        r = self.runs()[0]
+        self.assertEqual((r["status"], r["new_candidates"]), ("done", 0), str(r))
+
+    def test_without_a_slot_event_the_agents_earlier_start_still_opens_the_window(self):
+        self.tick(at("09:01"))
+        self.env.sql("UPDATE agents SET started=? WHERE name='scout'", (at("01:00", PRIOR) + "+01:00",))
+        self.env.sql("UPDATE scout_runs SET started=?", (at("09:01") + "+01:00",))
+        self.env.sql("DELETE FROM events WHERE action='scout-slot'")
+        self._cand(1, at("02:00", PRIOR) + "+01:00")
+        self.finish()
+        self.tick(at("09:20"))
+        r = self.runs()[0]
+        self.assertEqual((r["status"], r["new_candidates"]), ("done", 1), str(r))
+
     def test_a_failed_run_that_was_never_spawned_keeps_null_counts(self):
         self.ok("config", "max_live_agents", "0")
         self.tick(at("09:01"))

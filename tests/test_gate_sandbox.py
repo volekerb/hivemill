@@ -153,7 +153,7 @@ class Wiring(unittest.TestCase):
     def test_runtime_is_passed_explicitly(self):
         sys.path.insert(0, str(REPO / "bin"))
         import importlib.machinery, importlib.util
-        loader = importlib.machinery.SourceFileLoader("factory_cli_t0652", str(REPO / "bin" / "factory"))
+        loader = importlib.machinery.SourceFileLoader("factory_cli_t0652", str(REPO / "bin" / "factory_cli.py"))
         spec = importlib.util.spec_from_loader("factory_cli_t0652", loader)
         mod = importlib.util.module_from_spec(spec)
         loader.exec_module(mod)
