@@ -320,6 +320,20 @@ class JudgeTextTests(Base):
         self.pr(self.terms_env, author_email="alice@realmail.test")
         self.assert_text_refused(self.judge(), "email")
 
+    def test_refusal_names_source_and_category_not_text(self):
+        self.pr(self.terms_env, title="zebracorp rename", body="ok\nsee /home/zebracorp/notes\nmail bob@realmail.test",
+                comments=["fine", "x\nthanks zebracorp team"])
+        p = self.judge()
+        self.assert_text_refused(p, "owner-term@title:line 1", "owner-term@comment 2:line 2", "email@body:line 3")
+        for text in ("realmail", "bob@", "/home/zebracorp", "rename"):
+            self.assertNotIn(text, p.stderr)
+
+    def test_refusal_names_commit_and_path_location(self):
+        self.pr(self.terms_env, author_email="alice@realmail.test")
+        p = self.judge()
+        self.assert_text_refused(p, "email@commit:")
+        self.assertNotIn("alice", p.stderr)
+
     def test_no_terms_refused(self):
         p = self.judge(extra={"SCRUB_TERMS_FILE": ""})
         self.assert_text_refused(p, "no owner terms loaded")
