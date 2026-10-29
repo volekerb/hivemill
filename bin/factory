@@ -3988,7 +3988,7 @@ def _sweep_candidates(con, t):
             found.append((d, "T-" + m.group(1), root))
     out = []
     for d, task, parent in found:
-        if d.is_symlink() or not d.is_dir() or d.resolve().parent != parent.resolve():
+        if d.is_symlink() or not d.is_dir() or d.resolve().parent != parent.resolve() or d.stat().st_uid != os.getuid():
             continue
         rows = con.execute("SELECT status,ended FROM agents WHERE task_id=?", (task,)).fetchall()
         if not rows:
@@ -4016,7 +4016,11 @@ def tmp_sweep(con):
             freed = n = 0
             for d, task in _sweep_candidates(con, t):
                 size = _tree_bytes(d)
-                shutil.rmtree(d)
+                try:
+                    shutil.rmtree(d)
+                except OSError as e:
+                    event_as(con, "tick", "task", task, "tmp-sweep-failed", f"{d}: {e}")
+                    continue
                 freed += size
                 n += 1
             if n:
