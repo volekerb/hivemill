@@ -374,7 +374,8 @@ def _allow_view(cfg):
 
     def tmpfs_opts(path):
         return f"mode=0755,size={sizes.get(path, cfg.get('tmpfs_size', TMPFS_SIZE))}"
-    dirs = [os.path.realpath(d) for d in cfg["hide_dirs"] if os.path.isdir(d)]
+    # not realpath: a symlink in a hide dir path is refused below, never followed
+    dirs = [os.path.abspath(d) for d in cfg["hide_dirs"] if os.path.isdir(d) or os.path.islink(d)]
     dirs = [d for d in dirs if d != "/"]
     dirs = [d for d in dict.fromkeys(dirs) if not any(o != d and _under(d, o) for o in dirs)]
     for m in masks:
@@ -382,15 +383,21 @@ def _allow_view(cfg):
             sys.exit(f"nsbox: mask dir missing or not a directory: {m}")
         os.close(_open_target(m))  # refuse a symlink in the path now; the mount below walks it again
     entries = []  # (path, kind, fd, link); fds are opened BEFORE any tmpfs, a bind from /proc/self/fd survives it
+    dir_fds = []
     try:
+        for d in dirs:  # no-follow, so a parent swapped to a symlink after make_cfg cannot redirect the tmpfs
+            fd = _open_target(d)
+            dir_fds.append(fd)
+            if not stat.S_ISDIR(os.fstat(fd).st_mode):
+                sys.exit(f"nsbox: hide dir {d} is not a directory any more")
         for k, kind in [*((k, "rw") for k in rw), *((k, "ro") for k in ro)]:
             fd, link = _open_chain(k)
             entries.append((k, kind, fd, link))
         entries += [(m, "mask", None, None) for m in masks]
         entries.sort(key=lambda e: _depth(e[0]))  # stable: equal depth keeps the caller's order
         try:
-            for d in dirs:
-                _mount("tmpfs", d, "tmpfs", 0, tmpfs_opts(d))
+            for d, dfd in zip(dirs, dir_fds):
+                _mount("tmpfs", f"/proc/self/fd/{dfd}", "tmpfs", 0, tmpfs_opts(d))
             for k, kind, fd, link in entries:
                 if kind == "mask":
                     mfd = _open_target(k)
@@ -417,12 +424,20 @@ def _allow_view(cfg):
         for _, _, fd, _ in entries:
             if fd is not None:
                 os.close(fd)
+        for fd in dir_fds:
+            os.close(fd)
     for f in cfg["hide_files"]:
+        f = os.path.abspath(f)
         if os.path.isfile(f) or os.path.islink(f):
+            ffd = _open_target(f)  # no-follow: a symlink in any component, leaf included, exits naming it
             try:
-                _mount("/dev/null", f, None, MS_BIND)
+                if stat.S_ISDIR(os.fstat(ffd).st_mode):
+                    sys.exit(f"nsbox: hide file {f} is a directory now")
+                _mount("/dev/null", f"/proc/self/fd/{ffd}", None, MS_BIND)
             except OSError as e:
                 sys.exit(f"nsbox: allow view failed: {e}")
+            finally:
+                os.close(ffd)
     return [*dirs, *masks], [*rw, *ro]
 
 
