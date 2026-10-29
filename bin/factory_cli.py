@@ -212,6 +212,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "lead_wake_debounce_s": "0", # > 0 = a parked lead is woken by mail at most once per this many seconds (escalation/decision kinds and owner/boss senders bypass; pending mail is batched); 0 = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
@@ -10318,6 +10319,29 @@ def _throttle_set(con, key, clock):
     con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, str(clock)))
 
 
+def _wake_debounced(con, team_id, lead, clock):
+    """True while config lead_wake_debounce_s > 0 and the team's last lead wake is younger than that and no unread message
+    for the lead is a bypass one (kind escalation/decision, or sent by the owner or a boss). One 'wake-debounced' event per
+    team per window; the mail stays unread, so the wake that ends the window covers all of it."""
+    try:
+        window = float(cfg(con, "lead_wake_debounce_s") or 0)
+    except ValueError:
+        return False
+    if window <= 0 or not _throttled(con, f"wakedb:{team_id}", clock, window):
+        return False
+    bypass = con.execute(
+        "SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL AND kind != 'fyi' AND (kind IN ('escalation','decision') "
+        "OR sender IN ('owner','boss') OR sender IN (SELECT name FROM agents WHERE role='boss')) LIMIT 1", (lead,)).fetchone()
+    if bypass:
+        return False
+    woke = float(con.execute("SELECT ts FROM throttle WHERE key=?", (f"wakedb:{team_id}",)).fetchone()["ts"])
+    seen = con.execute("SELECT ts FROM throttle WHERE key=?", (f"wakedb-ev:{team_id}",)).fetchone()
+    if not seen or float(seen["ts"]) < woke:
+        _throttle_set(con, f"wakedb-ev:{team_id}", clock)
+        event(con, "team", team_id, "wake-debounced", {"window_s": window, "age_s": round(clock - woke)})
+    return True
+
+
 def tick_wake_leads(con):
     """Tick step 1d: wake the lead of every parked active team that has unread mail (level-triggered: retried every tick
     until the lead row is live, starting or queued). With config lead_parking=0 and no mail, one parked team per tick
@@ -10346,9 +10370,12 @@ def tick_wake_leads(con):
                 continue
         else:
             trigger = f"M{m}"
+            if _wake_debounced(con, t["id"], lead, clock):
+                continue
         if _throttled(con, f"wake:{t['id']}", clock, WAKE_THROTTLE_S):
             continue
         _throttle_set(con, f"wake:{t['id']}", clock)
+        _throttle_set(con, f"wakedb:{t['id']}", clock)
         drained = drained or trigger == "flag-off"
         try:
             wake_lead(con, t, trigger)
