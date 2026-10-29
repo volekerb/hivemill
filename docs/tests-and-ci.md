@@ -38,7 +38,7 @@ Source: Repo hygiene tests: idea from gAmUssA/coding-policy @7a25169 (declares M
 
 ### Running tests on your-box (T-0284)
 
-Run only the test modules your change touches, e.g. `python3 -m unittest discover -s tests -p test_gate.py`; the full suite is CI's job (the sharded `unittest-shard` jobs and the `unittest` aggregator). A local full run (more than 50 test modules in one process) takes one of `test_slots` (default 2) host-wide flock slots under `~/.cache/factory-test-slots/` (`tests/_slot.py`); with none free it prints `waiting for a test slot` every 30 s, and after 30 min it runs anyway with a warning. Runs with `CI=true` and targeted runs take no slot. `factory res` shows `test runs: <n> full suites running (slots <used>/<N>)`. The spawn gate also holds new spawns while load1 is above `gate_max_load_ratio` (default 1.25) x the CPU count; `factory res` shows it and a queued spawn names it as the reason. Persistent HQ relaunches (boss, director, leads) are exempt.
+Run only the test modules your change touches, e.g. `python3 -m unittest discover -s tests -p test_gate.py`; the full suite is CI's job (the sharded `unittest-shard` jobs and the `unittest` aggregator). A local full run (more than 50 test modules in one process) takes one of `test_slots` (default 2) host-wide flock slots under `~/.cache/factory-test-slots/` (`tests/_slot.py`); with none free it prints `waiting for a test slot` every 30 s, and after 30 min it runs anyway with a warning. Runs with `CI=true` and targeted runs take no slot. `factory res` shows `test runs: <n> full suites running (slots <used>/<N>)`. The spawn gate also holds new spawns while load1 is above `gate_max_load_ratio` (default 1.25) x the CPU count; `factory res` shows it and a queued spawn names it as the reason. Persistent HQ relaunches (boss, director, leads) and judges are exempt from the load cap (judges still obey every other cap, including `max_live_judges`).
 
 ### Tiered testing: ci/affected.py (T-0519)
 
@@ -50,7 +50,23 @@ Run only the test modules your change touches, e.g. `python3 -m unittest discove
 4. `roles/**` selects modules that mention `roles/` or the role file name. `docs/**` and `*.md` add nothing beyond the smoke set.
 5. The smoke set is always added: config key `affected_smoke` (space-separated module names; default `test_db_layout.py test_inbox.py test_judge.py`). A selection above 40% of the modules means `FULL`.
 
-Any other changed path (web/, ci/*.json, ...) selects the modules that mention its path, its file name or its dotted module path; if none does, it means `FULL`. On `FULL` the output is `FULL (<triggering rule>)`; `--run` then runs every module. Coders and QA run `--run` and quote its output instead of the full suite; the full suite runs only in the judge's local gate, which catches a missed dependency before merge (the cost is one rejection, not a broken main).
+Any other changed path (web/, ci/*.json, ...) selects the modules that mention its path, its file name or its dotted module path; if none does, it means `FULL`. On `FULL` the output is `FULL (<triggering rule>)`; `--run` then runs every module. Coders, reviewers and QA run `--quick --run` (below) and quote its output instead of the full suite; the full suite runs only in the judge's local gate, which catches a missed dependency before merge (the cost is one rejection, not a broken main).
+
+#### Quick mode and the local-fast policy (T-0642)
+
+`--quick` (or `--budget SECONDS`, default 120) is the form the role files use: affected modules plus the smoke set, one process, time printed (`affected: elapsed N s of 120 s budget`). A selection that would be `FULL` prints `FULL needed: rely on CI` and runs nothing (exit 0). If the budget is spent before every module ran, the rest are listed on stderr and the exit code is 4. The whole policy (what runs locally, what CI runs, the guard, gate fast mode) is in `docs/testing.md`.
+
+### CI tiers: ci/ci_tier.py (T-0658)
+
+On a pull request each job of `tests.yml` (`unittest-shard (1..10)`, `go`, `unittest`; names and required contexts unchanged) first classifies the diff with `ci/ci_tier.py classify`. The script and `ci/affected.py` are taken from the **base commit** (`git archive`), so a PR cannot change its own tier. If the base has no `ci/ci_tier.py`, or the classifier errors, the run is full.
+
+| tier | when | what runs |
+|---|---|---|
+| docs | only `*.md` outside `roles/`, or files under `docs/` (if a test module mentions a changed file, e.g. `CHANGELOG.md`, those modules run as the affected set instead) | shards and `go` report success without running; `unittest` runs `ci_tier.py docs-check` (relative links resolve, code fences balanced) and `test_docs_index.py` |
+| normal | anything else | each shard runs only its share of the `ci/affected.py` modules (a shard with none reports success); `unittest` verifies exactly that set ran; `go` builds only if `go/**` changed |
+| risky | `.github/**`, `roles/hooks/**`, `roles/**/settings*`, `ci/public_text_guard.py`, `ci/publish_repo.py`, `ci/scrub_*`, `ci/guard_*`, the CI gates (`ci_tier.py`, `affected.py`, `shard.py`, `test_count_gate.py`), `scout/nsbox.py`, `gatebox.py`, `ghcred.py`, `egress.py`, `sandbox.py`, `workerbox.py`, `systemd/*`; a change to `cmd_judge`, `judge_*`, `gate*`, `verdict_carries`, `head_has_main`, `refresh_branch`, `git_config_guard`, `noreply_email`, `_push_policy`, `OWNER_CAP_KEYS`, `DEFAULT_CONFIG`, `SCHEMA`, `sandbox_*`, or a refusal/guard def (see `RISKY_DEFS`) in `bin/factory`; more than 600 changed lines | full suite and `go`, as before |
+
+A push to `main` and `workflow_dispatch` always run the full suite. When `ci/affected.py` answers `FULL`, a normal PR runs the full suite too. The test-count gate runs in every tier. Change the rules in `ci/ci_tier.py` (itself risky); `python3 ci/ci_tier.py classify --base origin/main` shows the tier of your branch locally.
 
 ### Go
 
