@@ -570,11 +570,12 @@ def _cfg_num(cfg, defaults, key, fallback):
         return float(fallback)
 
 
-def shell_status(con, usage, defaults):
+def shell_status(con, usage, defaults, mem=None):
     """Data for the global status header and nav badges, the same on every page:
     {needs, agents_attention, health: {tone, text}}. `usage` is the usage_fn() dict (or None), `defaults` the caps.
     needs = what owner_pending lists; agents_attention = queued or blocked agents (running agents never count).
-    health, worst first: usage cap reached, gate closed, usage high, usage unknown, else all normal."""
+    `mem` = MB available (mem_fn()), None when unknown.
+    health, worst first: memory low, usage cap reached, gate closed, usage high, usage unknown, else all normal."""
     pend = owner_pending(con)
     needs = sum(len(v) for v in pend.values())
     n = dict(tuple(r) for r in con.execute("SELECT status, COUNT(*) FROM agents GROUP BY status"))
@@ -588,7 +589,9 @@ def shell_status(con, usage, defaults):
     p5 = usage["five_hour"] if fresh else None
     p7 = usage.get("seven_day") if fresh else None
     ok = fresh and not stale
-    if ok and (p5 >= cap5 or (p7 is not None and p7 >= cap7)):
+    if mem is not None and mem < _cfg_num(cfg, defaults, "min_mem_available_mb", 1024):
+        health = {"tone": "danger", "text": "Memory low"}
+    elif ok and (p5 >= cap5 or (p7 is not None and p7 >= cap7)):
         health = {"tone": "danger", "text": "Usage cap reached"}
     elif n.get("live", 0) >= cap:
         health = {"tone": "warning", "text": f"Gate closed · {queued} queued" if queued else "Gate closed"}
