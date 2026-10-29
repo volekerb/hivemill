@@ -7293,7 +7293,7 @@ def tick_gate(con):
     for r in sorted((r for r in rows if r["status"] == "queued" and r["pid"] is None), key=lambda r: r["id"]):
         if active >= cap:
             break
-        run = [sys.executable, str(Path(__file__).resolve()), "gate", "run", "--run-id", str(r["id"])]
+        run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "gate", "run", "--run-id", str(r["id"])]
         kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                   env={**os.environ, "FACTORY_AGENT": actor()})  # the runner acts as the tick's own identity
         if os.environ.get("INVOCATION_ID"):
@@ -9988,7 +9988,3 @@ def main():
         return a.fn(a)
     require_known(a)
     a.fn(a)
-
-
-if __name__ == "__main__":
-    main()
