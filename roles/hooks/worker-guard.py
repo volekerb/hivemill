@@ -67,6 +67,7 @@ import shlex
 import sqlite3
 import stat
 import sys
+import urllib.parse
 
 MAX_DEPTH = 6
 FACTORY_UNIT_CMDS = {"up", "tick", "relaunch", "spawn", "clean"}
@@ -319,23 +320,36 @@ def gh_repo_change(args):
     edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body, which makes gh use POST)
     on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine."""
     pos, method, body, j = [], None, False, 0
+
+    def note(opt, val):
+        nonlocal method, body
+        if opt in ("-X", "--method"):
+            method = val.upper()
+        elif opt in ("-f", "--raw-field", "-F", "--field", "--input"):
+            body = True
+
     while j < len(args):
         x = args[j]
-        if x in GH_VALUE_OPTS:
-            val = args[j + 1] if j + 1 < len(args) else ""
-            if x in ("-X", "--method"):
-                method = val.upper()
-            elif x in ("-f", "--raw-field", "-F", "--field", "--input"):
-                body = True
-            j += 2
-            continue
-        if x.startswith("--method="):
-            method = x.split("=", 1)[1].upper()
-        elif re.fullmatch(r"-X\S+", x):
-            method = x[2:].upper()
-        elif x.startswith(("--field=", "--raw-field=", "--input=")) or re.fullmatch(r"-[fF]\S+", x):
-            body = True
-        elif not x.startswith("-"):
+        if x.startswith("--") and len(x) > 2:
+            opt, eq, val = x.partition("=")
+            if opt in GH_VALUE_OPTS:
+                if not eq:
+                    val = args[j + 1] if j + 1 < len(args) else ""
+                    j += 1
+                note(opt, val)
+        elif x.startswith("-") and len(x) > 1:  # a short-flag cluster as pflag reads it: -iX DELETE, -XPUT, -X=PUT
+            for k in range(1, len(x)):
+                opt = "-" + x[k]
+                if opt in GH_VALUE_OPTS:
+                    val = x[k + 1:]
+                    if val.startswith("="):
+                        val = val[1:]
+                    elif not val:
+                        val = args[j + 1] if j + 1 < len(args) else ""
+                        j += 1
+                    note(opt, val)
+                    break
+        else:
             pos.append(x)
         j += 1
     if pos[:1] == ["repo"] and pos[1:2] and pos[1] in GH_REPO_VERBS:
@@ -344,7 +358,7 @@ def gh_repo_change(args):
         return f"gh {pos[0]} {pos[1]}"
     if pos[:1] != ["api"] or len(pos) < 2:
         return None
-    endpoint = re.sub(r"#.*", "", pos[1])
+    endpoint = urllib.parse.unquote(re.sub(r"#.*", "", pos[1])).lower()
     if endpoint == "graphql":  # mutations of protection or settings; a query read from a file cannot be inspected
         if GH_GRAPHQL_SETTINGS.search(" ".join(args)) or any(re.search(r"=@|--input", a) for a in args):
             return "gh api graphql (settings mutation or a query read from a file)"
