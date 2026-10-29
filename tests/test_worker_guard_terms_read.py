@@ -34,6 +34,7 @@ class TermsReadTests(unittest.TestCase):
     def hook(self, payload, role="coder", env_terms=True):
         env = {k: v for k, v in os.environ.items() if k != "SCRUB_TERMS_FILE"}
         env["FACTORY_HOME"] = self.home
+        env["HOME"] = self.tmp  # $HOME and a bare cd resolve to the parent of the fixture secrets dir
         if env_terms:
             env["SCRUB_TERMS_FILE"] = self.terms
         payload = {"cwd": self.tmp, **payload}
@@ -107,6 +108,26 @@ class TermsReadTests(unittest.TestCase):
         for role in ROLES:
             for cmd in shapes:
                 self.refused(self.bash(cmd, role=role), f"{role}: {cmd}")
+
+    def test_variable_home_cd_shell_payload_xargs_and_dirflag_shapes_refused(self):
+        d = self.secrets
+        shapes = ["grep -r zebra $HOME", 'grep -r zebra "${HOME}"', "grep -r zebra ~", "cd; grep -r zebra secrets",
+                  "cd && grep -r zebra .", "cd $HOME && grep -r zebra .", f"D={d}; grep -r zebra $D",
+                  f"D={d}; grep -r zebra ${{D}}", f"find $HOME -name 't*.txt' -exec cat {{}} +",
+                  f"echo {d} | xargs grep -r zebra", f"grep -d recurse zebra {d}", f"grep --directories=recurse zebra {d}",
+                  f"bash -c 'grep -r zebra {d}'", f'sh -c "cd {d} && grep -r zebra ."', f"bash -c 'cat {d}/terms.txt'",
+                  "tar cf - $HOME | tar xOf -"]
+        for role in ROLES:
+            for cmd in shapes:
+                self.refused(self.bash(cmd, role=role), f"{role}: {cmd}")
+
+    def test_variable_home_and_shell_payloads_elsewhere_allowed(self):
+        other = os.path.join(self.tmp, "src")
+        os.makedirs(other)
+        for cmd in [f"D={other}; grep -r x $D", f"bash -c 'grep -r x {other}'", f"cd {other}; cd; ls",
+                    "echo $HOME", f"grep -d skip x {other}/a", "ls | xargs wc -l"]:
+            p = self.bash(cmd)
+            self.assertEqual(p.returncode, 0, f"should allow: {cmd}\n{p.stderr}")
 
     def test_recursive_reads_elsewhere_allowed(self):
         other = os.path.join(self.tmp, "src")

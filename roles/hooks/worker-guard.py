@@ -2635,17 +2635,22 @@ TERMS_WRAPPERS = {"env", "command", "nice", "time", "nohup", "xargs"}
 TERMS_BRACE = re.compile(r"\{[^{}\s]*,[^{}\s]*\}|\{\w+\.\.\w+\}")
 
 
-def terms_recursive_hits(toks, cwd, paths):
+def terms_recursive_hits(toks, cwd, paths, home=None):
     """True when a recursive/archive command (grep -r, rg, find, tar, zip, cp -r, rsync) targets the terms file's directory
     or any ancestor of it; without a path argument the target is cwd."""
     toks = list(toks)
+    xargs = False
     while toks and (TERMS_ENV_ASSIGN.match(toks[0]) or os.path.basename(toks[0]) in TERMS_WRAPPERS):
+        xargs = xargs or os.path.basename(toks[0]) == "xargs"
         toks.pop(0)
     if not toks:
         return False
     name = os.path.basename(toks[0])
-    if not (name in TERMS_RECURSIVE or (name in TERMS_GREPS and any(TERMS_REC_FLAG.match(t) for t in toks[1:]))):
+    if not (name in TERMS_RECURSIVE or (name in TERMS_GREPS and (any(TERMS_REC_FLAG.match(t) for t in toks[1:])
+                                                                 or terms_rec_dirflag(toks[1:])))):
         return False
+    if xargs:  # the paths arrive on stdin, so the target cannot be judged: fail closed
+        return True
     reals = {os.path.realpath(p) for p in paths}
     targets, any_path = [], False
     for t in toks[1:]:
@@ -2666,28 +2671,64 @@ def terms_recursive_hits(toks, cwd, paths):
     return any(r.startswith(t.rstrip("/") + "/") for t in targets for r in reals)
 
 
-def terms_bash(cmd, cwd):
+TERMS_SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
+TERMS_VARREF = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
+
+
+def terms_expand(text, env):
+    """Expand $VAR/${VAR} from same-command assignments and $HOME; ~ is expanded by the callers. Unknown names stay."""
+    def sub(m):
+        name = m.group(1) or m.group(2)
+        return env.get(name, os.environ.get(name, m.group(0)) if name == "HOME" else m.group(0))
+    return TERMS_VARREF.sub(sub, text)
+
+
+def terms_rec_dirflag(toks):
+    """grep -d recurse / --directories=recurse is -r in another spelling."""
+    return any(t in ("--directories=recurse",) or (t == "recurse" and i and toks[i - 1] in ("-d", "--directories"))
+               or t == "-drecurse" for i, t in enumerate(toks))
+
+
+def terms_bash(cmd, cwd, env=None, depth=0):
     paths = terms_paths(cwd)
     if not paths:
         return
     ids = terms_ids(paths)
     cwd = cwd or os.getcwd()
+    env = {} if env is None else env
+    home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
     if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
-    for seg in re.split(r"[;&|\n]+", re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
-        if (TERMS_VAR in seg or any(p in seg for p in paths)) and not terms_segment_ok(seg):
+    for raw_seg in re.split(r"[;&|\n]+", re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
+        if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):
             raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
+        seg = terms_expand(raw_seg, env)
         try:
             toks = shlex.split(re.sub(r"\$\(|[`()]", " ", seg))
         except ValueError:  # unbalanced quote from a split inside quotes: judge the raw words instead
             toks = re.sub(r"\$\(|[`()'\"\\]", " ", seg).split()
-        if toks and toks[0] in ("cd", "pushd") and len(toks) > 1:
-            cwd = os.path.realpath(os.path.join(cwd, os.path.expanduser(toks[1])))
+        while toks and toks[0] == "export" and len(toks) > 1:
+            toks.pop(0)
+        for t in toks:  # VAR=value (also as a command prefix) feeds later expansion
+            if not TERMS_ENV_ASSIGN.match(t):
+                break
+            k, v = t.split("=", 1)
+            env[k] = os.path.expanduser(v)
+        if toks and toks[0] in ("cd", "pushd"):
+            cwd = os.path.realpath(os.path.join(cwd, os.path.expanduser(toks[1]) if len(toks) > 1 else home))
             continue
         if terms_segment_ok(seg):
             continue
-        if terms_recursive_hits(toks, cwd, paths):
+        core = list(toks)
+        while core and (TERMS_ENV_ASSIGN.match(core[0]) or os.path.basename(core[0]) in TERMS_WRAPPERS - {"xargs"}):
+            core.pop(0)
+        if core and os.path.basename(core[0]) in TERMS_SHELLS and depth < 4:  # bash -c 'payload' is its own script
+            for i, t in enumerate(core[1:], 1):
+                if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", t) and i + 1 < len(core):
+                    terms_bash(core[i + 1], cwd, dict(env), depth + 1)
+                    break
+        if terms_recursive_hits(toks, cwd, paths, home):
             raise PublicBlock(f"recursive or archive reads of the directory holding the owner-terms file are refused: {TERMS_WHY}")
         if any(terms_token_hits(t, cwd, paths, ids) for t in toks):
             raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
