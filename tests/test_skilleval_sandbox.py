@@ -8,6 +8,7 @@ import ast
 import builtins
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -134,7 +135,7 @@ class LayoutTests(SandboxBase):
         self.assertEqual(subprocess.run(["git", "-C", str(work), "remote"], capture_output=True, text=True).stdout.strip(), "")
         self.assertTrue((work / "taskdeps.py").is_file())
         self.assertFalse((work / "solution").exists() or (work / "hidden").exists())
-        self.assertEqual(list((d / "home").iterdir()), [])
+        self.assertEqual([x.name for x in (d / "home").iterdir()], [sandbox.HOME_RC[0]])
         seed = json.loads((d / "cfg" / ".claude.json").read_text())
         self.assertEqual(seed, {"hasCompletedOnboarding": True, "theme": "dark",
                                 "projects": {os.path.realpath(work): {"hasTrustDialogAccepted": True,
@@ -595,6 +596,49 @@ class NsboxFixTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             nsbox.run_contained(self.real / "own", ["true"], cwd=str(self.link / "other"), home=str(self.tmp),
                                 trials_root=str(self.link))
+
+
+class TrialHomeZshTests(SandboxBase):
+    """T-0699: an empty trial HOME made zsh-newuser-install eat the first key of the pane launch line."""
+
+    def run_zsh(self, home):
+        keys = "(sleep 2; printf 'echo MARKER\\n'; sleep 1; printf 'exit\\n') | script -qc 'zsh -i' /dev/null"
+        r = subprocess.run(["sh", "-c", keys], capture_output=True, text=True, timeout=30,
+                           env={"PATH": os.environ["PATH"], "HOME": str(home), "LC_ALL": "C.UTF-8", "TERM": "dumb"})
+        return r.stdout
+
+    @staticmethod
+    def launch_ok(out):
+        """MARKER as its own output line (not the echoed keystrokes) and no shell error."""
+        return bool(re.search(r"(?m)^MARKER\r?$", out)) and "command not found" not in out
+
+    def setUp(self):
+        super().setUp()
+        if not shutil.which("zsh") or not shutil.which("script"):
+            self.skipTest("zsh or script (pty) not available")
+
+    def test_trial_home_rc_is_comment_only_file(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+        rc = Path(info["dir"]) / "home" / sandbox.HOME_RC[0]
+        self.assertTrue(rc.is_file() and not rc.is_symlink())
+        self.assertEqual(stat.S_IMODE(rc.lstat().st_mode), 0o644)
+        lines = [x for x in rc.read_text().splitlines() if x.strip()]
+        self.assertTrue(lines and all(x.startswith("#") for x in lines))
+
+    def test_launch_line_survives_in_built_home(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+        out = self.run_zsh(Path(info["dir"]) / "home")
+        self.assertTrue(self.launch_ok(out), out)
+        self.assertNotIn("zsh-newuser-install", out)
+
+    def test_empty_home_is_detected(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, True)
+        out = self.run_zsh(d)
+        self.assertIn("zsh-newuser-install", out)
+        self.assertFalse(self.launch_ok(out), out)
 
 
 if __name__ == "__main__":
