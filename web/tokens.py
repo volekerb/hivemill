@@ -21,7 +21,7 @@ from web.prices import cost
 
 COUNTERS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h", "requests")
 IDLE_DROP_SECONDS = 48 * 3600
-MAX_READ_BYTES = 256 << 20   # most bytes read from one file in one refresh; the rest is picked up on later passes
+MAX_READ_BYTES = 64 << 20    # most bytes read from one file in one refresh; the rest is picked up on later passes
 TASK_RE = re.compile(r"worktrees[-/](G-\d+)-(T-\d+)")
 
 
@@ -45,7 +45,7 @@ def _local_day(ts):
 
 class _FileState:
     __slots__ = ("session", "project", "sub", "inode", "offset", "mtime", "contrib", "keys",
-                 "first_ts", "last_ts", "agent_name", "cwd", "cost_state")
+                 "first_ts", "last_ts", "agent_name", "cwd", "cost_state", "skipping")
 
     def __init__(self, session, project, sub):
         self.session, self.project, self.sub = session, project, sub
@@ -56,6 +56,7 @@ class _FileState:
 
     def reset(self):
         self.offset = 0
+        self.skipping = False  # inside an over-long line already reported: drop bytes up to the next newline
         self.contrib = {}      # (model, day, fast) -> [input, output, cache_read, w5m, w1h, requests]
         self.keys = set()
         self.first_ts = self.last_ts = self.agent_name = self.cwd = self.cost_state = None
@@ -87,7 +88,7 @@ class TokenIndex:
     @staticmethod
     def _discover_root(root, confine=None, sid=None):
         """(path, session, project, is_subagent, confine) for every transcript under `root`. With `confine` (a worker controls
-        its own config dir) a file is kept only if it is a regular file whose realpath is inside `confine`. With `sid`
+        its own config dir) a file is kept only if it is a regular file (one link) whose realpath is inside `confine`. With `sid`
         only that session's files are listed."""
         out = []
         try:
@@ -107,7 +108,8 @@ class TokenIndex:
     def _inside(path, confine):
         try:
             real = os.path.realpath(path)
-            if not stat.S_ISREG(os.stat(real).st_mode):
+            st = os.stat(real)
+            if not stat.S_ISREG(st.st_mode) or st.st_nlink > 1:
                 return False
             return os.path.commonpath([real, confine]) == confine
         except (OSError, ValueError):
@@ -123,8 +125,11 @@ class TokenIndex:
         except OSError:
             return None
         try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode):
                 raise OSError("not a regular file")
+            if st.st_nlink > 1:
+                raise OSError("hardlinked file")   # a link to a file outside confine has an inside realpath
             real = os.path.realpath(f"/proc/self/fd/{fd}")
             if os.path.commonpath([real, confine]) != confine:
                 raise OSError("outside confinement")
@@ -230,6 +235,14 @@ class TokenIndex:
         except OSError:
             self._errors += 1
             return 0
+        if fs.skipping:
+            nl = data.find(b"\n")
+            if nl < 0:
+                fs.offset += len(data)
+                return len(data)
+            fs.skipping = False
+            fs.offset += nl + 1
+            return nl + 1
         end = data.rfind(b"\n")
         if end < 0:
             if size - fs.offset <= MAX_READ_BYTES:
@@ -237,10 +250,17 @@ class TokenIndex:
             print(f"web.tokens: {path}: line longer than {MAX_READ_BYTES} bytes at offset {fs.offset}, skipped",
                   file=sys.stderr)
             self._errors += 1
+            fs.skipping = True
             fs.offset += len(data)
             return len(data)
         owner = self._owner.setdefault(fs.session, {})
-        for line in data[:end].split(b"\n"):
+        pos = 0
+        while pos <= end:
+            nl = data.find(b"\n", pos, end)
+            if nl < 0:
+                nl = end
+            line = data[pos:nl]    # one line at a time; never a copy of the whole chunk
+            pos = nl + 1
             if b'"usage"' in line:
                 kind = "usage"
             elif b'"agent-name"' in line:

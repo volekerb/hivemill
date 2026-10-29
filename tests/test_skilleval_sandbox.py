@@ -44,7 +44,7 @@ class SandboxBase(FactoryTestCase):
         self.token.write_text(TOKEN + "\n")
         self.token.chmod(0o600)
         self.claude = self.home / ".local" / "bin" / "claude"
-        self.claude.parent.mkdir(parents=True)
+        self.claude.parent.mkdir(parents=True, exist_ok=True)
         self.claude.write_text(FAKE_CLAUDE)
         self.claude.chmod(0o755)
         e.sql("INSERT INTO scout_candidates(id,key,repo,head_sha,install_risk,status,sources,first_seen,last_seen) "

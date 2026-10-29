@@ -37,6 +37,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
+- [freshness.md](freshness.md): the per-tick check that flags live agents running outdated role files, plugins or CLI.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
 - [verdict-gates.md](verdict-gates.md): machine-checked commands that a verdict summary must show passing.
@@ -79,6 +80,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [context-policy.md](context-policy.md): keeping persistent sessions' context from growing unbounded.
 - [opus-effort.md](opus-effort.md): the reasoning effort given to agents on Opus.
 - [public-text-guard.md](public-text-guard.md): refuses private data in text that becomes public (commit/PR text, refs, pushed diffs).
+- [main-freeze.md](main-freeze.md): the tick freezes merging and syncing when public main gets a non-PR commit; only director/boss clears it.
 - [spawn-context.md](spawn-context.md): what a spawned agent carries, including the advisor tool.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.
 - [web-perf.md](web-perf.md): measured cost of the web UI in time, memory and tick impact.
