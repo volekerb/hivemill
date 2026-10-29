@@ -4893,6 +4893,31 @@ def reap_stray_serves(con):
             pass
 
 
+# tick phase timers (T-0664, log-only; see _pt_lap below): state, and a decorator for phases whose call line is pinned by tests
+_PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
+
+
+def _pt_phase(name):
+    """Time a whole call as tick phase `name` (only while the tick timers are on; otherwise a plain call)."""
+    def deco(fn):
+        def wrapper(*a, **k):
+            if not _PT["on"]:
+                return fn(*a, **k)
+            try:
+                return fn(*a, **k)
+            finally:
+                try:
+                    t = time.perf_counter()
+                    _PT["phases"].append((name, t - _PT["last"]))
+                    _PT["last"] = t
+                except Exception:  # noqa: BLE001 — a timer must never stop the tick
+                    _PT["on"] = False
+        wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
+        return wrapper
+    return deco
+
+
+@_pt_phase("scout")
 def scout_tick(con):
     """Tick hook: start the skill scout at its slot and keep its run within budget (scout/schedule.py). Never breaks the tick."""
     try:
@@ -4912,6 +4937,7 @@ def scout_tick(con):
             pass
 
 
+@_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
     try:
@@ -8626,7 +8652,6 @@ def stale_agents(con):
 
 
 # ── tick phase timers (T-0664): log-only, behind config tick_phase_timers; nothing here may stop the tick ──
-_PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
 
 
 def _pt_reset(con):
@@ -8736,9 +8761,7 @@ def cmd_tick(a, locked=False):
         _pt_emit(con)
         return
     scout_tick(con)
-    _pt_lap("scout")
     skilleval_tick(con)
-    _pt_lap("skilleval")
     by_name = {x.get("name"): x for x in agents if x.get("name")}
     by_pane = {x["pane_id"]: x for x in agents}
     t = time.time()
@@ -8968,7 +8991,6 @@ def cmd_tick(a, locked=False):
         event(con, "agent", "tick", "recycle-error", str(e)[:300])
     _pt_lap("recycle")
     tick_relaunches(con)
-    _pt_lap("relaunches")
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
@@ -10090,6 +10112,7 @@ def _stale_park_alert(con, t, clock):
          "alert", t["goal_id"], sender="tick")
 
 
+@_pt_phase("relaunches")
 def tick_relaunches(con):
     """Run the queued `relaunch --when-idle` requests of agents that are idle now (tick step 5, after export)."""
     rows = con.execute("SELECT * FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL").fetchall()
