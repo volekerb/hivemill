@@ -92,7 +92,7 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 | `gate_max_load_ratio` | `1.25` | The gate closes while load1 is above this times the CPU count (HQ relaunches and judges are exempt). |
 | `test_slots` | `2` | Host-wide slots for full test-suite runs. |
 | `min_mem_available_mb` | `1024` | The gate closes below this much available RAM. |
-| `tmp_max_pct` | `90` | The gate closes when the filesystem holding `/tmp` is this full. |
+| `tmp_max_pct` | `90` | The gate closes when the filesystem holding `/tmp` is this full. The cleaner role is exempt from this check only (it frees `/tmp`); every other cap still applies to it. |
 | `max_five_hour_pct` | `92` | The gate closes above this share of the five-hour Claude usage window. |
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
