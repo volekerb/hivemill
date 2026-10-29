@@ -2696,7 +2696,7 @@ def cmd_pr(a):
     want = f"factory/{tid.lower()}"
     if branch != want:
         die(f"current branch is {branch or '(none)'!r}, not {want!r}: run `factory pr` from your own task worktree", 3)
-    env = {k: v for k, v in os.environ.items() if k not in ("GH_REPO", "GH_HOST")}
+    env = {k: v for k, v in gh_git_env().items() if k not in ("GH_REPO", "GH_HOST")}
     body = None
     if a.action == "create":
         if a.body != "-":
@@ -2706,6 +2706,17 @@ def cmd_pr(a):
             die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
         argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
                 "--title", a.title, "--body-file", "-"]
+        if repo in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
+            try:
+                guard = _public_guard()
+                terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
+                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+            except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
+                die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
+                    f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
+            if hits:
+                die(f"pr create refused (public text): {len(hits)} hits in the title, body or branch "
+                    f"({', '.join(sorted({h[0] for h in hits}))}); reword and retry", 3)
     else:
         if a.title is not None or a.body is not None:
             die("`factory pr ready` takes no arguments: it targets the PR of your own branch", 2)
@@ -2714,7 +2725,8 @@ def cmd_pr(a):
         p = subprocess.run(argv, input=body, capture_output=True, text=True, timeout=120, env=env)
     except (OSError, subprocess.TimeoutExpired) as e:
         die(f"gh pr {a.action} failed to run: {e}", 1)
-    event(con, "task", tid, f"pr-{a.action}", f"{repo} {branch}")
+    if p.returncode == 0:
+        event(con, "task", tid, f"pr-{a.action}", f"{repo} {branch}")
     sys.stdout.write(p.stdout)
     sys.stderr.write(p.stderr)
     if p.returncode != 0:

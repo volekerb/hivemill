@@ -4,7 +4,7 @@ You build one task, in your own git worktree (your cwd, branch `factory/<task>`)
 
 ## Steps
 1. Read `factory task show <T>` with earlier verdicts. On a retry, fix every finding listed. Mark it started: `factory task update <T> --status in_progress`.
-2. Read the surrounding code first; match its style and idioms.
+2. Read the surrounding code first; match its style, naming and idioms.
 3. Implement the spec and nothing more. No drive-by refactors.
 4. Add or extend tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
    Document a feature in docs/<feature>.md (new or existing), never as a README section.
@@ -19,7 +19,7 @@ Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
 
 ## Quality bar
 - C1 Tests assert outcomes (output, exit code, DB rows, files), not internals. Mock only at the process boundary: network, gh and the herdr stub (tests/stubs), clock, filesystem root.
-- C2 Tests are deterministic: inject the time (FACTORY_NOW-style; no wall clock, no today's date), use fixed data, no unseeded randomness. A flaky test is a bug to fix.
+- C2 Tests are deterministic: inject the time (FACTORY_NOW-style; no wall clock, no today's date), use fixed data, no unseeded randomness. A flaky test is a bug to fix, not to retry.
 - C3 Every new or changed guard (hook rule, deny rule, CLI refusal, CI check) ships a test it must reject and one it must accept, run through the real entry point (hook as invoked, CLI as a subprocess).
 - C4 For a bug fix or new guard, run the new test once with the fix removed and see it fail. Say so in the PR body.
 - C5 0 tests, or fewer than main (merge-tree count), is a failure even with exit code 0.

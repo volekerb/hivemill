@@ -3,7 +3,7 @@ import subprocess
 import sys
 import unittest
 
-from harness import FACTORY, FactoryTestCase, git, rendered_settings
+from harness import FACTORY, REPO, FactoryTestCase, git, rendered_settings
 
 REPO_SLUG = "zz-test/repo"
 
@@ -60,6 +60,49 @@ class PrWrapperTests(FactoryTestCase):
         self.assertEqual(c["env"], {"GH_REPO": None, "GH_HOST": None})
         self.assertIn(REPO_SLUG, c["argv"])
         self.assertNotIn("evil/repo", c["argv"])
+
+    # G-021: the wrapper is the only create path, so it runs the public-text guard itself
+    def make_public(self, guard=True):
+        e = self.env
+        e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos',?)", (REPO_SLUG,))
+        listing = e.home / "owner-list.txt"
+        listing.write_text("zebracorp\n")
+        self.term = "zebra" + "corp"  # built at run time: no private-looking value in the test text
+        if guard:
+            (e.home_dir / "ci").symlink_to(REPO / "ci")
+        return {"SCRUB_TERMS_FILE": str(listing)}
+
+    def test_public_repo_term_in_title_refused_before_gh(self):
+        extra = self.make_public()
+        p = self.pr("create", "--title", f"T-0001 {self.term}", "--body", "-", stdin="clean\n", extra=extra)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("public text", p.stderr)
+        self.assertNotIn(self.term, p.stderr)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_public_repo_term_in_body_refused_before_gh(self):
+        extra = self.make_public()
+        p = self.pr("create", "--title", "T-0001 thing", "--body", "-", stdin=f"see {self.term}\n", extra=extra)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertNotIn(self.term, p.stderr)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_public_repo_clean_text_reaches_gh(self):
+        extra = self.make_public()
+        p = self.pr("create", "--title", "T-0001 thing", "--body", "-", stdin="clean body\n", extra=extra)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(self.gh_calls()), 1)
+
+    def test_public_repo_guard_unavailable_refused(self):
+        extra = self.make_public(guard=False)
+        p = self.pr("create", "--title", "T-0001 thing", "--body", "-", stdin="clean body\n", extra=extra)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("cannot check", p.stderr)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_private_repo_text_not_checked(self):
+        p = self.pr("create", "--title", "T-0001 " + "zebra" + "corp", "--body", "-", stdin="b\n")
+        self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_non_coder_refused(self):
         for agent in ("zz-test-qa", "zz-test-nobody"):
