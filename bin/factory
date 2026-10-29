@@ -6582,7 +6582,7 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             if clone:  # a per-task clone (task_clones=1): same rules as a worktree, stricter path and config checks
                 if p.is_symlink() or wt.parent != root:
                     return "outside worktrees/ (clone must be a direct, non-symlink child)", None, tip is not None
-                if not git_config_guard(con, wt):  # before any git call in the clone: its config is worker-writable
+                if not git_config_guard(con, wt, always_event=True):  # before any git call in the clone: its config is worker-writable
                     return "git config refused", None, tip is not None
             top = _git(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
