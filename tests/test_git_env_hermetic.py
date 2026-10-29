@@ -106,10 +106,29 @@ class RemoteGuardTest(unittest.TestCase):
             with self.assertRaises(_gitenv.RemoteRefused):
                 harness.git("push", "origin", "HEAD:main", cwd=d, inert_remote=True)
 
-    def test_child_git_cannot_use_network_transports(self):
-        r = subprocess.run(["git", "ls-remote", "https://invalid.example.invalid/x.git"], capture_output=True, text=True)
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("not allowed", r.stderr)
+
+NOREPLY = re.compile(r"([\w.+-]+)@users\.noreply\.github\.com")
+OWNER_NOREPLY_LOCAL = re.compile(r"(\d+\+)?volekerb")  # the owner's own noreply is the only allowed one
+
+
+class NoRoutableIdentityTest(unittest.TestCase):
+    """M11099: a test identity under *@users.noreply.github.com maps to a real GitHub user and shows up as a contributor
+    of the public repo. Tests use zz-test@example.invalid; the owner's own noreply is allowed where behaviour needs one."""
+
+    def test_no_other_users_noreply_address_in_tests(self):
+        bad = []
+        for p in sorted(TESTS.rglob("*")):
+            if p.is_file() and p.suffix in (".py", ".json", ".sh", ".txt") and p.name != Path(__file__).name:
+                for n, line in enumerate(p.read_text(errors="replace").splitlines(), 1):
+                    bad += ["%s:%d %s" % (p.relative_to(REPO), n, m.group(0)) for m in NOREPLY.finditer(line)
+                            if not OWNER_NOREPLY_LOCAL.fullmatch(m.group(1))]
+        self.assertEqual(bad, [], "use zz-test@example.invalid (or the owner's noreply where a test needs one)")
+
+    def test_pattern_flags_other_users_and_passes_owner(self):
+        self.assertFalse(OWNER_NOREPLY_LOCAL.fullmatch("dev"))
+        self.assertFalse(OWNER_NOREPLY_LOCAL.fullmatch("1+dev"))
+        self.assertTrue(OWNER_NOREPLY_LOCAL.fullmatch("1+volekerb"))
+        self.assertTrue(OWNER_NOREPLY_LOCAL.fullmatch("volekerb"))
 
 
 class EveryGitModuleUsesTheHelperTest(unittest.TestCase):

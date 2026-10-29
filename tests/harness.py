@@ -97,7 +97,7 @@ def _check_remotes(args, cwd):
 
 def git(*args, cwd, inert_remote=False):
     """Run git in cwd. `inert_remote=True` lets `remote add|set-url` record a fake network URL for tests that only parse
-    the configured URL; it never excuses a push/fetch/clone (those are refused, and GIT_ALLOW_PROTOCOL=file backs it)."""
+    the configured URL; it never excuses a push/fetch/clone (those are refused)."""
     if not (inert_remote and args[:2] in (("remote", "add"), ("remote", "set-url"))):
         _check_remotes(args, cwd)
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()

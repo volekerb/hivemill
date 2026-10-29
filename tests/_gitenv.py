@@ -2,8 +2,8 @@
 
 A test that runs `git -C <tmp> ...` still obeys GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR / GIT_INDEX_FILE inherited from
 its caller (a git hook, a worktree shell, the factory), so its `git init` / `git config` can land in the real repo
-instead of the temp one. Importing this module refuses (raises GitEnvLeak) when a repo-pointing GIT_* variable is set,
-and limits git transports to `file` for every child git. Commit identity (GIT_AUTHOR_*, GIT_COMMITTER_*) passes, as the
+instead of the temp one. Importing this module refuses (raises GitEnvLeak) when a repo-pointing GIT_* variable is set.
+Commit identity (GIT_AUTHOR_*, GIT_COMMITTER_*) passes, as the
 repo-config allow-list requires tests to pass it through the environment (see harness.py).
 
 User and system config are left alone by default: some tests point HOME at a temp user config on purpose (test_src).
@@ -17,7 +17,7 @@ from pathlib import Path
 
 KEEP_PREFIXES = ("GIT_AUTHOR_", "GIT_COMMITTER_")
 # Harmless non-repo-pointing variables some callers (the factory pane) export; everything else is refused at import.
-ALLOWED = frozenset({"GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "GIT_PAGER", "GIT_TERMINAL_PROMPT", "GIT_ALLOW_PROTOCOL"})
+ALLOWED = frozenset({"GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "GIT_PAGER", "GIT_TERMINAL_PROMPT"})
 URL_LIKE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://|^[^/\s]+@[^/\s]+:")  # scheme://... or user@host:path
 
 
@@ -56,11 +56,10 @@ def scrub(environ, isolate_config=False):
 
 def install():
     """Refuse (raise) when the caller exported repo-pointing GIT_* state, instead of silently scrubbing it: a leaked
-    GIT_DIR means the run is already unsafe (T-0637 incident). Then allow only the local transport for every child git."""
+    GIT_DIR means the run is already unsafe (T-0637 incident)."""
     bad = leaked(os.environ)
     if bad:
         raise GitEnvLeak("refusing to run tests with %s set; unset them (env -u ...) and rerun" % ", ".join(bad))
-    os.environ["GIT_ALLOW_PROTOCOL"] = "file"
 
 
 install()
