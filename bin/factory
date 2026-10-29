@@ -1489,13 +1489,21 @@ def cmd_project(a):
         if not a.id or not con.execute("SELECT 1 FROM projects WHERE id=?", (a.id,)).fetchone():
             die(f"no project {a.id!r}: see `factory project list`")
         gate_flags = {"gate_cmd": a.gate_cmd, "gate_count_cmd": a.gate_count_cmd, "gate_timeout_s": a.gate_timeout_s}
-        if a.required_checks is None and all(v is None for v in gate_flags.values()):
+        loc_flags = {"gh_repo": a.gh, "repo_path": a.repo}
+        if a.required_checks is None and all(v is None for v in (*gate_flags.values(), *loc_flags.values())):
             die("nothing to update: pass --required-checks \"a,b\" (empty string = use the global config list) "
-                "or --gate-cmd / --gate-count-cmd / --gate-timeout-s")
-        if any(v is not None for v in gate_flags.values()):
-            require_role(con, "director")  # the gate command runs on the host: director (or owner) only
+                "or --gate-cmd / --gate-count-cmd / --gate-timeout-s / --gh OWNER/NAME / --repo PATH")
+        if any(v is not None for v in (*gate_flags.values(), *loc_flags.values())):
+            require_role(con, "director")  # the gate command and the repo location steer the host: director (or owner) only
             if a.gate_timeout_s is not None and a.gate_timeout_s < 1:
                 die("--gate-timeout-s must be a positive number of seconds", 2)
+        if a.gh is not None and not _GH_REPO.fullmatch(a.gh):
+            die(f"--gh must be OWNER/NAME (letters, digits, . _ -), got {a.gh!r}", 2)
+        if a.repo is not None:
+            repo = Path(a.repo).expanduser()
+            if not repo.is_dir() or git_run(str(repo), "rev-parse", "--git-dir", timeout=30).returncode != 0:
+                die(f"--repo {a.repo!r} must be an existing git repository; check the path", 2)
+            loc_flags["repo_path"] = str(repo)
         if a.required_checks is not None:
             con.execute("UPDATE projects SET required_checks=? WHERE id=?", (norm_checks(a.required_checks), a.id))
             event(con, "project", a.id, "update", f"required_checks={norm_checks(a.required_checks)!r}")
@@ -1503,6 +1511,11 @@ def cmd_project(a):
             if v is not None:
                 con.execute(f"UPDATE projects SET {col}=? WHERE id=?", (v, a.id))
                 event(con, "project", a.id, "update", f"{col}={v!r}")
+        for col, v in loc_flags.items():
+            if v is not None:
+                old = con.execute(f"SELECT {col} FROM projects WHERE id=?", (a.id,)).fetchone()[0]
+                con.execute(f"UPDATE projects SET {col}=? WHERE id=?", (v, a.id))
+                event(con, "project", a.id, "update", f"{col}: {old!r} -> {v!r}")
         print(a.id)
     else:
         table(con.execute("SELECT id,name,repo_path,gh_repo,base_branch,auto_merge,required_checks,"
@@ -4530,7 +4543,7 @@ def factory_remote_url():
 
 # The repo-scope keys the live ~/factory/.git/config really has (git -C ~/factory config --file .git/config --list).
 _ALLOWED_KEY = re.compile(r"^(core\.(repositoryformatversion|filemode|bare|logallrefupdates)|remote\.origin\.(url|fetch)"
-                          r"|branch\..+\.(remote|merge)|extensions\.worktreeconfig)$", re.I)
+                          r"|branch\..+\.(remote|merge)|extensions\.worktreeconfig|user\.(name|email))$", re.I)
 _INCLUDE_KEY = re.compile(r"^include(if)?\.", re.I)  # also outside the allow-list; named so the refusal reads as intended
 
 
@@ -4584,7 +4597,8 @@ def git_config_refusal(repo):
     Reads, WITHOUT includes, `<common-dir>/config`, every `<common-dir>/worktrees/*/config.worktree` and the target
     worktree's own config.worktree. Refuses (returns the offending keys; empty = clean): any include.*/includeIf.*
     key, any key outside the allow-list (core.repositoryformatversion|filemode|bare|logallrefupdates,
-    remote.origin.url|fetch, branch.<n>.remote|merge, extensions.worktreeConfig), a remote.origin.url that is not
+    remote.origin.url|fetch, branch.<n>.remote|merge, extensions.worktreeConfig, user.name, user.email), a user.email
+    that does not end in @users.noreply.github.com, a remote.origin.url that is not
     the factory repo or the clone's own registered project (exact https gh_repo URL), extensions.worktreeConfig other than false, a non-empty
     `<common-dir>/info/attributes` or `~/.config/git/attributes`. Fails closed: unreadable config is a refusal.
     Global/XDG config is out of scope (G-010, docs/git-hardening.md)."""
@@ -4618,6 +4632,8 @@ def git_config_refusal(repo):
                 keys.append(k)
             elif k.lower() == "remote.origin.url" and not _remote_url_ok(v, project_urls):
                 keys.append(f"{k}={v}")
+            elif k.lower() == "user.email" and not v.strip().lower().endswith("@users.noreply.github.com"):
+                keys.append(k)  # a real address in repo config would be committed under; only the noreply form is allowed
             elif k.lower() == "extensions.worktreeconfig" and v.strip().lower() not in ("false", "no", "off", "0"):
                 keys.append(k)
     xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")

@@ -50,14 +50,16 @@ The factory keeps running in `~/factory`; the database, `state/`, `exports/`, `r
   git -C ~/factory config user.name volekerb
   git -C ~/factory config user.email 11260070+volekerb@users.noreply.github.com
   ```
-  The previous repo-local identity may hold the owner's real name and email. The guard checks commit identities on push, so this must be done before any push.
+  The git config guard allows these two keys only because the email ends in `@users.noreply.github.com`; a real address in repo config is refused and blocks every record, train, merge and gate (docs/git-hardening.md). The previous repo-local identity may hold the owner's real name and email. The guard checks commit identities on push, so this must be done before any push.
 - **C4** OWNER:
   ```
   git -C ~/factory branch -m main private-main
   git -C ~/factory remote set-url origin https://github.com/volekerb/hivemill.git
+  factory config factory_remote_url https://github.com/volekerb/hivemill.git
   git -C ~/factory fetch --prune origin
   git -C ~/factory switch -c main --track origin/main
   ```
+  The `factory_remote_url` line is what the git config guard compares `remote.origin.url` with; without it every record, train, merge and gate is refused after the `set-url`.
   Ignored directories (`db/`, `state/`, `exports/`, `run/`, `worktrees/`) are untouched. `private-main` and the local `state` branch stay local only.
 - **C5** DIRECTOR: `factory project update factory --gh volekerb/hivemill`.
 - **C6** DIRECTOR, verify:
