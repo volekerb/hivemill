@@ -1,6 +1,7 @@
 """T-0400 (G-014): the tick mails a parked lead when its team's in_review PR is CLEAN + green (or red), then wakes it."""
 import json
 import re
+import subprocess
 import unittest
 
 from harness import FactoryTestCase, FACTORY, PR_URL
@@ -234,6 +235,54 @@ class CiWakeTests(FactoryTestCase):
             self.ok("tick")
         self.assertEqual(len(self.mails("CI green")), 1)
         self.assertEqual(len(self.gh_views()), 3)
+
+    # T-0663: one batched ls-remote per tick, not one per in_review PR.
+    def git_log(self):
+        """Put a logging `git` first on PATH; returns the file listing every ls-remote argv."""
+        log = self.env.home / "git-calls.log"
+        wrapper = self.env.stub_bin / "git"
+        real = subprocess.run(["which", "git"], capture_output=True, text=True, check=True).stdout.strip()
+        wrapper.write_text(f'#!/bin/sh\ncase " $* " in *" ls-remote "*) echo "$*" >> {log};; esac\nexec {real} "$@"\n')
+        wrapper.chmod(0o755)
+        return log
+
+    def test_n_in_review_tasks_make_one_ls_remote_call(self):
+        sha1 = self.setup_origin()
+        for i in (2, 3, 4):
+            git("push", "-q", "origin", f"HEAD:refs/heads/factory/t-000{i}", cwd=self.wt)
+            self.env.seed_task(f"T-000{i}", status="in_review", team=TEAM, pr_url=f"https://example.invalid/pull/{i}")
+            self.env.sql("UPDATE tasks SET branch=? WHERE id=?", (f"factory/t-000{i}", f"T-000{i}"))
+        self.pr([OK], sha=sha1)
+        for i in (1, 2, 3, 4):  # a head is only read for a task already mailed once (ci-head row)
+            self.env.sql("INSERT INTO throttle(key,ts) VALUES(?,'0')", (f"ci-head:T-000{i}",))
+        log = self.git_log()
+        self.ok("tick")
+        calls = [c for c in log.read_text().splitlines() if "refs/heads/factory" in c]  # the state-branch probe is not ours
+        self.assertEqual(len(calls), 1, calls)
+        self.assertIn("refs/heads/factory/*", calls[0])
+        self.assertEqual(len(self.gh_views()), 4)  # every task still gets its gh view (no green mailed yet)
+
+    def test_batched_lookup_decides_like_per_branch_lookup(self):
+        sha1 = self.setup_origin()
+        git("push", "-q", "origin", "HEAD:refs/heads/other/x", cwd=self.wt)
+        table = ["factory/t-0001", "factory/t-9999", "other/x", "", None, "factory/t-000"]
+        with self.env.load_factory() as mod:
+            batch = []
+            for branch in table:
+                with self.subTest(branch=branch):
+                    self.assertEqual(mod._ci_remote_head(branch, batch), mod._ci_remote_head(branch))
+            self.assertEqual(mod._ci_remote_head("factory/t-0001", batch), sha1)
+
+    def test_batched_call_failure_reads_as_unreadable_head_once(self):
+        self.setup_origin()
+        git("remote", "set-url", "origin", str(self.env.home / "missing.git"), cwd=self.env.home_dir)
+        with self.env.load_factory() as mod:
+            n, real = [], mod._git_rc
+            mod._git_rc = lambda a, *x, **k: n.append(a) or real(a, *x, **k)
+            batch = []
+            heads = [mod._ci_remote_head(b, batch) for b in ("factory/t-0001", "factory/t-0002")]
+            self.assertEqual(heads, [None, None])  # same as a failed per-task call
+            self.assertEqual(len(n), 1)  # and the failure is not retried per task
 
 
 if __name__ == "__main__":
