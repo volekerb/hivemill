@@ -9,7 +9,9 @@ keyword. Subjects that ci/scrub_scan.py would flag are dropped; their count is p
   changelog.py --write         write it to CHANGELOG.md
   changelog.py --check         exit 1 if CHANGELOG.md differs from what would be generated
   changelog.py --since SHA     only commits after SHA
-Exit codes: 0 ok, 1 --check differs, 2 usage or git error.
+  changelog.py --release-notes VERSION  print the curated ci/release-notes/VERSION.md
+  changelog.py --prerelease VERSION     print "true" for 0.x or -suffixed versions, else "false"
+Exit codes: 0 ok, 1 --check differs, 2 usage, git error or missing release notes.
 """
 import argparse
 import re
@@ -23,6 +25,8 @@ import scrub_scan  # noqa: E402
 
 PR_SUFFIX = re.compile(r"\s*\(#\d+\)$")
 DATE = re.compile(r"\s*\(?\b\d{4}-\d{2}-\d{2}\b\)?")  # entries carry no dates
+NOTES_DIR = Path(__file__).resolve().parent / "release-notes"
+VERSION_HEADING = re.compile(r"^## \[([^\]]+)\]", re.M)
 SECTIONS = ("Added", "Changed", "Fixed", "Security")
 # First match wins, in this order: fix/bug, then security words, then add/new, else Changed.
 RULES = (
@@ -47,6 +51,37 @@ First public release of the factory, published from a fresh repository.
 
 class ChangelogError(Exception):
     pass
+
+
+def release_notes_path(version):
+    return NOTES_DIR / f"{version}.md"
+
+
+def release_notes(version):
+    path = release_notes_path(version)
+    try:
+        return path.read_text(encoding="utf-8").strip() + "\n"
+    except OSError as e:
+        raise ChangelogError(f"cannot read ci/release-notes/{version}.md: {e.strerror}. Write the curated notes for {version} first.")
+
+
+def is_prerelease(version):
+    return "-" in version or version.split(".", 1)[0] == "0"
+
+
+def with_curated_notes(header):
+    """Insert ci/release-notes/<version>.md under each `## [<version>]` heading of the header."""
+    out, pos = [], 0
+    for m in VERSION_HEADING.finditer(header):
+        if not release_notes_path(m.group(1)).is_file():
+            continue
+        # keep the heading and its intro paragraph, then the curated block
+        nxt = header.find("\n## ", m.end())
+        stop = len(header) if nxt < 0 else nxt
+        out.append(header[pos:stop].rstrip("\n") + "\n\n" + release_notes(m.group(1)))
+        pos = stop
+    out.append(header[pos:])
+    return "".join(out)
 
 
 def merged_subjects(ref, since=None, repo="."):
@@ -80,7 +115,7 @@ def render(subjects):
             dropped += 1
             continue
         groups[section_of(subj)].append(f"- {subj}")
-    out = [HEADER]
+    out = [with_curated_notes(HEADER)]
     for name in SECTIONS:
         if groups[name]:
             out.append(f"### {name}\n\n" + "\n".join(groups[name]) + "\n")
@@ -93,6 +128,8 @@ def build_parser():
     p.add_argument("--since", metavar="SHA", help="only commits after SHA")
     p.add_argument("--repo", default=".", help="git repository (default .)")
     p.add_argument("--file", default="CHANGELOG.md", help="changelog file for --write/--check (default CHANGELOG.md)")
+    p.add_argument("--release-notes", metavar="VERSION", help="print the curated notes of VERSION and exit")
+    p.add_argument("--prerelease", metavar="VERSION", help='print "true" if VERSION is a pre-release (0.x or -suffix), else "false"')
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true", help="write the changelog to --file")
     mode.add_argument("--check", action="store_true", help="exit 1 if --file differs from the generated text")
@@ -101,6 +138,12 @@ def build_parser():
 
 def run(argv):
     args = build_parser().parse_args(argv)
+    if args.release_notes is not None:
+        sys.stdout.write(release_notes(args.release_notes))
+        return 0
+    if args.prerelease is not None:
+        print("true" if is_prerelease(args.prerelease) else "false")
+        return 0
     text, dropped = render(merged_subjects(args.ref, args.since, args.repo))
     print(f"changelog: {dropped} subject(s) dropped by scrub patterns", file=sys.stderr)
     if args.check:
