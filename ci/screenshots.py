@@ -67,6 +67,7 @@ WIDTH = 1280  # CSS px
 SCALE = 2  # device pixel ratio: a PNG is WIDTH * SCALE px wide
 DPR_FLAG = "--force-device-scale-factor=%d" % SCALE
 HMAX = 1600  # CSS px: the capture window height; a page taller than this is truncated here (see crop_to_content)
+PAGE_HEIGHT = {"tasks": 960}  # CSS px: a page-specific capture height below HMAX; /tasks at HMAX is over MAX_PNG_BYTES
 MARGIN_CSS = 32  # CSS px of page background kept below the last content row
 MIN_HEIGHT_CSS = 400  # a cropped image is never shorter than this
 CROP_TOL = 8  # per channel: a pixel within this of the page background counts as background
@@ -372,7 +373,8 @@ def capture(binary, tmp, port, pages, height, dpr=False):
             dest = shots / ("%s-%s.png" % (name, theme))
             profile = tmp / "profile"
             shutil.rmtree(profile, ignore_errors=True)
-            cmd = browser_args(binary, theme, dest, "http://127.0.0.1:%d%s" % (port, PAGES[name]), height, profile, dpr)
+            cmd = browser_args(binary, theme, dest, "http://127.0.0.1:%d%s" % (port, PAGES[name]),
+                               min(height, PAGE_HEIGHT.get(name, height)), profile, dpr)
             rc, out, err = run_child(cmd, 120, env=env)  # one browser process at a time
             if rc != 0 or not dest.is_file():
                 raise Failed("capture of %s-%s failed (exit %d): %s" % (name, theme, rc, err[-500:]))
@@ -719,7 +721,7 @@ def capture_all(binary, tmp, port, pages):
             bg = background(rows, x0)
             rows, truncated = crop_to_content(rows, x0, bg)
             if truncated:
-                print("INFO %s: truncated at HMAX (%d CSS px)" % (fname, HMAX))
+                print("INFO %s: truncated at HMAX (%d CSS px)" % (fname, min(HMAX, PAGE_HEIGHT.get(name, HMAX))))
             write_png(outdir / fname, rows)
             files.append(outdir / fname)
             meta[fname] = (width, bg, blank_percent(rows, [(x0, width, bg)]))

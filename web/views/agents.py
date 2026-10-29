@@ -12,7 +12,8 @@ from urllib.parse import quote
 
 from web import queries
 from web.db import has_column
-from web.html import badge, card, dur, el, empty, link, table, ts
+from web.components import (AGENT_COLS, agent_row, ago, chips, data_table, disclosure, empty_state, row_status, section)
+from web.html import badge, el, link, status
 
 TITLE = "Agents"
 SCOPE_MAX = 120   # teams.scope is a director-written summary; never return the full text
@@ -31,7 +32,12 @@ ROLES = ("boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "
          "evaluator")   # mirrors bin/factory ROLES (web/ never imports it)
 _GOAL_RE = re.compile(r"^G-\d+$")
 MATCH_MAX = 200
-_KIND = {"live": "ok", "queued": "warn", "parked": "muted", "done": "ok", "exited": "muted", "lost": "bad", "stopped": "muted"}
+# status chips: label -> the raw statuses it covers (Ended merges exited and stopped); the first four always show
+CHIP_GROUPS = (("Running", ("live",)), ("Queued", ("queued",)), ("Ended", ("exited", "stopped")), ("Blocked", (BLOCKED,)),
+               ("Starting", ("starting",)), ("Done", ("done",)), ("Lost", ("lost",)), ("Cancelled", ("cancelled",)))
+CHIP_ALWAYS = ("Running", "Queued", "Ended", "Blocked")
+GOAL_CHIPS = 6
+TITLE_MAX = 120
 
 # ── /proc snapshot (shared with the resources view), cached for PROC_TTL_S ──
 _lock = threading.Lock()
@@ -177,6 +183,26 @@ def _agent_rows(con, ctx_now):
     return base
 
 
+def _last_events(con, names):
+    """{agent name: ts of its newest event}; events name the acting agent in `actor`."""
+    names = sorted(names)
+    out = {}
+    for i in range(0, len(names), 500):
+        part = names[i:i + 500]
+        out.update(con.execute(f"SELECT actor, MAX(ts) FROM events WHERE actor IN ({','.join('?' * len(part))}) GROUP BY actor", part).fetchall())
+    return out
+
+
+def _task_titles(con, ids):
+    ids = sorted(ids)
+    out = {}
+    for i in range(0, len(ids), 500):
+        part = ids[i:i + 500]
+        out.update({r[0]: queries._t(r[1], TITLE_MAX) for r in con.execute(
+            f"SELECT id, title FROM tasks WHERE id IN ({','.join('?' * len(part))})", part)})
+    return out
+
+
 def data(ctx, **params):
     con = ctx.db
     counts = {r[0]: r[1] for r in con.execute("SELECT status, count(*) FROM agents GROUP BY status")}   # unfiltered
@@ -212,15 +238,21 @@ def data(ctx, **params):
             by_goal[a["goal_id"]] = by_goal.get(a["goal_id"], 0) + 1
     n_blocked = sum(1 for a in all_rows if is_blocked(a["blocked_since"]))
 
+    cap = dict(con.execute("SELECT key, value FROM config")).get("max_live_agents", (ctx.defaults or {}).get("max_live_agents"))
+    shown = [a for a in live] + (sorted(rows, key=lambda a: a["name"])[:MATCH_MAX] if f else [])
+    last, titles = _last_events(con, {a["name"] for a in shown}), _task_titles(con, {a["task_id"] for a in shown if a["task_id"]})
+    for a in shown:
+        a["last_event"], a["task_title"] = last.get(a["name"]), titles.get(a["task_id"])
+
     def keep(a, extra=()):
         keys = ("name", "role", "goal_id", "team_id", "task_id", "status", "model", "started", "ended", "queued_at",
                 "age_s", "blocked_since", *extra)
         return {k: a.get(k) for k in keys}   # explicit allowlist: spawn_args / session_id / pane never leave this module
-    matches = [keep(a) for a in sorted(rows, key=lambda a: a["name"])[:MATCH_MAX]] if f else []
+    matches = [keep(a, ("last_event", "task_title")) for a in sorted(rows, key=lambda a: a["name"])[:MATCH_MAX]] if f else []
     return {"counts": counts, "blocked": n_blocked, "roles": {r: by_role[r] for r in ROLES if r in by_role},
             "goals": dict(sorted(by_goal.items())), "filters": f, "matches": matches,
             "matches_total": len(rows) if f else None, "teams": teams,
-            "live": [keep(a, ("rss_mb", "stop_requested")) for a in live],
+            "live": [keep(a, ("rss_mb", "stop_requested", "last_event", "task_title")) for a in live], "cap": cap,
             "queued": [keep(a, ("reason",)) for a in queued],
             "ended": [keep(a, ("summary",)) for a in ended[:ENDED_MAX]],
             "ended_total": len(ended), "proc_scan": snap is not None}
@@ -255,61 +287,11 @@ def _lead_state(t, status, parked):
     return "parked" if t["id"] in parked else "-"
 
 
-def _status(s):
-    return badge(s, _KIND.get(s, "muted"))
-
-
-def _who(a):
-    return el("span", a["name"], " ", el("span", a["role"], class_="muted"))
-
-
-def _where(a):
-    out = []
-    if a.get("goal_id"):
-        out.append(link(f"/goal/{a['goal_id']}", a["goal_id"]))
-    if a.get("task_id"):
-        out += [" ", link(f"/task/{a['task_id']}", a["task_id"])]
-    return el("span", *out) if out else "-"
-
-
-def _teams(d):
-    rows = [(t["id"], link(f"/goal/{t['goal_id']}", t["goal_id"]) if t["goal_id"] else "-", t["lead_agent"] or "-",
-             _status(t["status"]) if t["status"] else "-", _status(t["lead_state"]) if t["lead_state"] != "-" else "-",
-             (t["live_workers"], "num")) for t in d["teams"]]
-    return card("Teams", table(["Team", "Goal", "Lead", "Status", "Lead state", "Live"], rows, cls="table table--compact")
-                if rows else empty("No data yet."))
-
-
-def _live(d):
-    rows = []
-    for a in d["live"]:
-        state = [_status("live"), " ", el("span", dur(a["age_s"]), class_="muted")]
-        if a["stop_requested"]:
-            state += [" ", badge("stop requested", "warn")]
-        if is_blocked(a.get("blocked_since")):
-            state += [" ", _blocked(a)]
-        rows.append((_who(a), _where(a), a["model"] or "-", el("span", *state),
-                     (f"{a['rss_mb']} MB" if a["rss_mb"] is not None else "—", "num")))
-    return card("Live agents", table(["Agent", "Goal / task", "Model", "Status", "Mem"], rows, cls="table table--compact")
-                if rows else empty("No live agents."))
-
-
-def _queued(d):
-    rows = [(_who(a), ts(a["queued_at"]), a["reason"] or "-") for a in d["queued"]]
-    return card("Queued agents", table(["Agent", "Queued", "Last reason"], rows, cls="table table--compact")
-                if rows else empty("Nothing is queued."))
-
-
-def _ended(d):
-    rows = []
-    for a in d["ended"]:
-        who = el("div", _who(a), el("div", a["summary"], class_="muted") if a.get("summary") else "")
-        rows.append((who, _where(a), el("span", ts(a["started"]), " → ", ts(a["ended"]), " ", dur(a["age_s"])),
-                     _status(a["status"])))
-    body = (el("details", el("summary", f"{d['ended_total']} ended in the last 24 h"),
-               table(["Agent", "Goal / task", "Ran", "Status"], rows, cls="table table--compact"))
-            if rows else empty("No agents ended in the last 24 h."))
-    return card("Recently ended", body)
+def _blocked(a):
+    if not is_blocked(a.get("blocked_since")):
+        return ""
+    t = _hhmm(a["blocked_since"])
+    return badge(f"blocked since {t}" if t else "blocked (time unknown)", "bad")
 
 
 def _hhmm(epoch):
@@ -320,48 +302,117 @@ def _hhmm(epoch):
         return None
 
 
-def _blocked(a):
-    if not is_blocked(a.get("blocked_since")):
-        return ""
-    t = _hhmm(a["blocked_since"])
-    return badge(f"blocked since {t}" if t else "blocked (time unknown)", "bad")
+def _stat(s):
+    return status(s) if s and s != "-" else ""
 
 
-def _facet(label, f, key, items):
-    """A row of links, one per value; a link sets this facet to that value and keeps the other filters."""
-    out = []
-    for name, n in items:
-        text = f"{name} {n}"
-        out += [link(_href(f, **{key: [name]}), badge(text, "info") if name in f.get(key, []) else text), " "]
-    return el("p", el("span", label + ": ", class_="muted"), *out)
+def _teams(d):
+    cols = [{"key": "team", "label": "Team", "cls": "c-id mono"}, {"key": "goal", "label": "Goal", "cls": "c-who"},
+            {"key": "lead", "label": "Lead", "cls": "c-title"}, {"key": "status", "label": "Status", "cls": "c-who"},
+            {"key": "state", "label": "Lead state", "cls": "c-who"}, {"key": "live", "label": "Live", "cls": "c-age num"}]
+    rows = [[t["id"], link(f"/goal/{t['goal_id']}", t["goal_id"]) if t["goal_id"] else "", t["lead_agent"] or "",
+             _stat(t["status"]), _stat(t["lead_state"]), t["live_workers"]] for t in d["teams"]]
+    return section("Teams", data_table(cols, [{"key": "t", "rows": rows, "count": len(rows)}], key="teams", empty="No data yet."),
+                   count=len(rows) or None)
 
 
-def _filters(d):
+COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "model", "label": "Model", "cls": "c-who"}, AGENT_COLS[3])
+
+
+def _cells(a, now):
+    """agent_row cells plus model; the blocked and stop-requested badges sit next to the name."""
+    c = agent_row(dict(a, blocked=is_blocked(a.get("blocked_since"))), now)
+    extra = [" ", _blocked(a)] + ([" ", badge("stop requested", "warn")] if a.get("stop_requested") else [])
+    return [c[0], el("span", c[1], *extra), c[2], a.get("model") or "", c[3]]
+
+
+def _urgent_first(a):
+    return (0 if is_blocked(a.get("blocked_since")) or a["status"] == "lost" else 1, a["name"])
+
+
+def _running(d, now):
+    teams = {t["id"]: t for t in d["teams"]}
+    by = {}
+    for a in sorted(d["live"], key=_urgent_first):
+        by.setdefault(a["team_id"], []).append(a)
+    groups = []
+    for tid, members in by.items():
+        t = teams.get(tid)
+        label = f"{tid} · {t['goal_id']}" if t and t["goal_id"] else (tid or "No team")
+        groups.append({"key": tid or "none", "label": label, "count": len(members), "rows": [_cells(a, now) for a in members]})
+    return section("Running", data_table(COLS, groups, key="agents-run", empty="No live agents."), count=len(d["live"]))
+
+
+def _queued(d, now):
+    cols = [AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "since", "label": "Queued", "cls": "c-age num"},
+            {"key": "why", "label": "Reason", "cls": "c-who"}]
+    rows = [[row_status("queued"), el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
+             link(f"/task/{a['task_id']}", a["task_id"]) if a["task_id"] else "", ago(a["queued_at"], now),
+             f"Waiting: {a['reason']}" if a.get("reason") else ""] for a in d["queued"]]
+    return section("Queued", data_table(cols, [{"key": "q", "rows": rows, "count": len(rows)}], key="agents-queued",
+                                        empty="Nothing is queued."), count=len(d["queued"]))
+
+
+def _ended(d, now):
+    cols = [AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "ran", "label": "Ran", "cls": "c-age num"},
+            {"key": "sum", "label": "Summary", "cls": "c-who"}]
+    rows = [[row_status(a["status"]), el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
+             link(f"/task/{a['task_id']}", a["task_id"]) if a["task_id"] else "", ago(a["ended"], now), a.get("summary") or ""]
+            for a in d["ended"]]
+    n_all = sum(d["counts"].get(s, 0) for s in ("exited", "stopped"))   # same number as the Ended chip
+    note = el("p", f"Showing the {d['ended_total']} that ended in the last 24 h.", class_="muted")
+    body = (disclosure("Ended", note, data_table(cols, [{"key": "e", "rows": rows, "count": len(rows)}], key="agents-ended-t"),
+                       key="agents-ended", count=n_all) if rows else empty_state("No agents ended in the last 24 h."))
+    return el("section", body, class_="sect")
+
+
+def _chips(d):
     f = d["filters"]
-    present = [s for s in d["counts"] if isinstance(s, str) and s != BLOCKED]
-    present.sort(key=lambda s: (_STATUS_ORDER.index(s) if s in _STATUS_ORDER else len(_STATUS_ORDER), s))
-    status = [(s, d["counts"][s]) for s in present]
-    status.append((BLOCKED, d["blocked"]))
-    body = [_facet("Status", f, "status", status), _facet("Role", f, "role", d["roles"].items()),
-            _facet("Goal", f, "goal", d["goals"].items())]
+    cur = set(f.get("status", []))
+    items = []
+    for label, sts in CHIP_GROUPS:
+        n = d["blocked"] if sts == (BLOCKED,) else sum(d["counts"].get(s, 0) for s in sts)
+        if n or label in CHIP_ALWAYS:
+            on = cur == set(sts)
+            items.append((label, n, _href(f, status=None if on else list(sts)), on))
+    out = [chips("Status", items)]
+    roles = [(r, n, _href(f, role=None if f.get("role") == [r] else [r]), f.get("role") == [r]) for r, n in d["roles"].items()]
+    out.append(chips("Role", roles))
+    goals = list(d["goals"].items())
+    first, rest = goals[:GOAL_CHIPS], goals[GOAL_CHIPS:]
+    row = lambda gs: [(g, n, _href(f, goal=None if f.get("goal") == [g] else [g]), f.get("goal") == [g]) for g, n in gs]
+    out.append(chips("Goal", row(first)))
+    if rest:
+        out.append(disclosure(f"{len(rest)} more goals", chips("More goals", row(rest)), key="agents-goals"))
     if f:
         shown = ", ".join(f"{k}={','.join(v)}" for k, v in f.items())
-        body.append(el("p", f"Showing: {shown} · ", link("/agents", "clear"), class_="muted"))
-    body.append(el("p", "herdr working/idle is not shown: this page is read-only and never calls herdr. "
-                        "“blocked” comes from the tick (blocked_since).", class_="muted"))
-    return card("Filters", *body)
+        out.append(el("p", f"Showing: {shown} · ", link("/agents", "clear"), class_="muted"))
+    return out
 
 
-def _matching(d):
-    rows = [(_who(a), _where(a), a["model"] or "-", el("span", _status(a["status"]), " ", _blocked(a)),
-             ts(a["started"] or a["queued_at"])) for a in d["matches"]]
-    return card(f"Matching agents ({d['matches_total']})",
-                table(["Agent", "Goal / task", "Model", "Status", "Since"], rows, cls="table table--compact")
-                if rows else empty("No agents match these filters."))
+def _summary(d):
+    n = d["counts"]
+    parts = [f"{n.get('live', 0)} running"]
+    if d.get("cap"):
+        parts.append(f"cap {d['cap']}")
+    parts.append(f"{n.get('queued', 0)} queued")
+    if d["blocked"]:
+        parts.append(f"{d['blocked']} blocked")
+    over = str(d.get("cap") or "").isdigit() and n.get("live", 0) >= int(d["cap"])
+    info = el("details", el("summary", "(i)", aria_label="About these states"),
+              el("p", "Busy/idle is not tracked; last event age is shown.", class_="muted"), class_="disc disc--i", data_key="agents-info")
+    return el("div", el("p", " · ".join(parts), class_="summary-line summary-line--warn" if over else "summary-line"), info, class_="summary")
+
+
+def _matching(d, now):
+    rows = [_cells(a, now) for a in d["matches"]]
+    return section("Matching agents", data_table(COLS, [{"key": "m", "rows": rows, "count": len(rows)}], key="agents-match",
+                                                 empty="No agents match these filters."), count=d["matches_total"])
 
 
 def render(ctx, d):
-    head = _filters(d)
+    now = ctx.now
+    head = [_summary(d), *_chips(d)]
     if d["filters"]:
-        return el("div", head, _matching(d), _teams(d))
-    return el("div", head, _teams(d), _live(d), _queued(d), _ended(d))
+        return el("div", head, _matching(d, now), _teams(d))
+    return el("div", head, _running(d, now), _queued(d, now), _teams(d), _ended(d, now))
