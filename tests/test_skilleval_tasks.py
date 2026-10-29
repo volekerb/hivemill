@@ -214,9 +214,11 @@ class ReviewDiffCheck(unittest.TestCase):
         self.assertEqual(self.run_review(REVIEW_GOOD + extra).returncode, 0)
 
     def test_tab_ok_newline_not_a_ref(self):
-        base = "".join("app/util.py:%d\n" % n for n in range(2, 5))
-        self.assertEqual(self.run_review(REVIEW_GOOD + base + "app/util.py:\t5\n").returncode, 0)
-        proc = self.run_review(REVIEW_GOOD + base + "app/util.py:5\napp/util.py:\n6\napp/util.py:\n7\n")
+        base = "".join("app/util.py:%d\n" % n for n in range(2, 6))
+        proc = self.run_review(REVIEW_GOOD + base + "app/util.py:\t6\n")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("6 findings", proc.stdout)
+        proc = self.run_review(REVIEW_GOOD + base + "app/util.py:\n6\napp/util.py:\n7\n")
         self.assertEqual(proc.returncode, 0)
 
     def test_spaced_defect_ref_credited(self):

@@ -2,7 +2,8 @@
 
 Passes iff REVIEW.md names the defect's file with a line number within +-2,
 has a "Verdict:" line saying "request changes", and has at most 5 distinct
-path:line or path: line (optionally -range) references, none spanning more than 10 lines.
+path:line[-range] references (one space or tab allowed after the colon), none
+spanning more than 10 lines.
 """
 import json
 import re
