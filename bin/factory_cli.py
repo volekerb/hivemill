@@ -2244,11 +2244,15 @@ def task_sandbox_required(con, task):
     return bool(r and r["sandbox_required"])
 
 
+# same pattern as web/queries.py _TAG_RE, so a title is tagged exactly when the goal page counts it
+SC_TAG_RE = r"\[(SC\d+(?:\s*,\s*SC\d+)*)\]"
+
+
 def cmd_task(a):
     con = db()
     if a.action == "add":
         require_role(con, "pm", "lead", "director")
-        g = con.execute("SELECT id FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
+        g = con.execute("SELECT id,success_criteria FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
         if a.follow_up_of:
             pm_own_goal(con, g["id"], "the follow-up")
             par = con.execute("SELECT status FROM tasks WHERE id=? AND goal_id=?", (a.follow_up_of, g["id"])).fetchone()
@@ -2275,6 +2279,9 @@ def cmd_task(a):
         if a.follow_up_of:
             event(con, "task", tid, "follow-up", f"follow-up of {a.follow_up_of}")
         warn_file_overlap(con, tid, g["id"], spec)
+        if (g["success_criteria"] or "").strip() and not re.search(SC_TAG_RE, a.title or ""):
+            print(f"warning: {tid} title has no [SCn] tag but {g['id']} has success criteria; the goal page shows "
+                  f"them untracked. Retitle: factory task update {tid} --title '<title> [SCn]'", file=sys.stderr)
         print(tid)
     elif a.action == "reopen":
         role = actor_role(con)
