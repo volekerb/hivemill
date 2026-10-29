@@ -62,7 +62,7 @@ class PublicMainEmailTests(FactoryTestCase):
 
     def test_non_noreply_coauthor_trailer_escalates(self):
         sha = self.push(CLEAN, "t", msg="t\n\nCo-authored-by: factory refresh <factory-refresh@localhost>")
-        self.push(CLEAN, "u", msg="u\n\nCo-authored-by: Dev <1+dev@users.noreply.github.com>\nCo-authored-by: C <noreply@anthropic.com>")
+        self.push(CLEAN, "u", msg="u\n\nCo-authored-by: volekerb <1+volekerb@users.noreply.github.com>\nCo-authored-by: C <noreply@anthropic.com>")
         self.ok("export")
         a = self.alerts()
         self.assertEqual(len(a), 1, a)
@@ -71,7 +71,7 @@ class PublicMainEmailTests(FactoryTestCase):
         self.assertNotIn("localhost", a[0]["body"])
 
     def test_crlf_and_cr_messages_with_good_trailers_do_not_alert(self):
-        good = "Co-authored-by: Dev <1+dev@users.noreply.github.com>"
+        good = "Co-authored-by: Dev <1+volekerb@users.noreply.github.com>"
         self.push(CLEAN, "v", msg=f"v\r\n\r\n{good}\r\nCo-authored-by: C <noreply@anthropic.com>")
         self.push(CLEAN, "w", msg=f"w\r\r{good}")
         self.push(CLEAN, "y", msg=f"y\u2028{good}\x0c{good}\x0bCo-authored-by: C <noreply@anthropic.com>")  # splitlines separators

@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from harness import FactoryTestCase, PR_URL
+from harness import git as harness_git
 
 BRANCH = "factory/t-0001"
 
@@ -68,10 +69,7 @@ done
 
 
 def git(cwd, *args):
-    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    if p.returncode != 0:
-        raise AssertionError(f"git {args}: {p.stderr}")
-    return p.stdout.strip()
+    return harness_git(*args, cwd=cwd)
 
 
 class SpawnPrecheckTests(FactoryTestCase):
@@ -163,7 +161,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         new = self.remote_head()
         self.assertEqual(self.pushes(), [new])
         self.assertEqual(git(self.remote, "rev-list", "--parents", "-n", "1", new).split(), [new, self.head, main])
-        self.assertEqual(subprocess.run(["git", "merge-base", "--is-ancestor", main, new], cwd=self.remote).returncode, 0)
+        self.assertEqual(git(self.remote, "merge-base", main, new), main)
         ev = self.events("refreshed")
         self.assertEqual(len(ev), 1)
         self.assertEqual(json.loads(ev[0]["detail"]),
@@ -200,10 +198,10 @@ class SpawnPrecheckTests(FactoryTestCase):
         # T-0604: on a public_text_repos repo the pre-check merge is committed as the repo's noreply user.email
         main = self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
-        git(self.env.home_dir, "config", "user.email", "456+zz-test@users.noreply.github.com")
+        git(self.env.home_dir, "config", "user.email", "456+volekerb@users.noreply.github.com")
         p = self.spawn("judge")
         self.assertRefreshedSpawn(p, "judge", main)
-        who = "factory refresh <456+zz-test@users.noreply.github.com>"
+        who = "factory refresh <456+volekerb@users.noreply.github.com>"
         self.assertEqual(git(self.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", self.remote_head()), f"{who}|{who}")
 
     def test_a3_public_repo_no_noreply_address_pushes_nothing(self):

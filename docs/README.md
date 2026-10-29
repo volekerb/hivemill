@@ -17,6 +17,10 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
+- [design/g-023/README.md](design/g-023/README.md): three draft README layouts for owner preview.
+- [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
+- [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
+- [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
 
 ## Operate it
 

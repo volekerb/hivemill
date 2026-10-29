@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from harness import FactoryTestCase, PR_URL, gates_summary
+from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 BRANCH = "factory/t-0001"
@@ -33,10 +34,7 @@ else:
 
 
 def git(cwd, *args, check=True):
-    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    if check and p.returncode != 0:
-        raise AssertionError(f"git {args}: {p.stderr}")
-    return p.stdout.strip()
+    return harness_git(*args, cwd=cwd, check=check)
 
 
 class RefreshTests(FactoryTestCase):
@@ -254,10 +252,10 @@ class RefreshTests(FactoryTestCase):
 
     def test_j_public_repo_uses_config_noreply_email(self):
         self.main_commit()
-        self.public(noreply="123+zz-test@users.noreply.github.com", wt_email="456+other@users.noreply.github.com")
+        self.public(noreply="123+volekerb@users.noreply.github.com", wt_email="456+volekerb@users.noreply.github.com")
         p = self.run_cli("refresh", "T-0001")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        who = "factory refresh <123+zz-test@users.noreply.github.com>"
+        who = "factory refresh <123+volekerb@users.noreply.github.com>"
         self.assertEqual(self.refreshed_ident(), f"{who}|{who}")
         g = self.guard_push()
         self.assertEqual(g.returncode, 0, g.stdout + g.stderr)
@@ -265,10 +263,10 @@ class RefreshTests(FactoryTestCase):
 
     def test_j2_public_repo_falls_back_to_repo_noreply_user_email(self):
         self.main_commit()
-        self.public(wt_email="456+zz-test@users.noreply.github.com")
+        self.public(wt_email="456+volekerb@users.noreply.github.com")
         p = self.run_cli("refresh", "T-0001")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        who = "factory refresh <456+zz-test@users.noreply.github.com>"
+        who = "factory refresh <456+volekerb@users.noreply.github.com>"
         self.assertEqual(self.refreshed_ident(), f"{who}|{who}")
         self.assertEqual(self.guard_push().returncode, 0)
 
@@ -288,7 +286,7 @@ class RefreshTests(FactoryTestCase):
     def test_k_private_repo_keeps_localhost_identity(self):
         self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/other-public')")
-        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('noreply_email','123+zz-test@users.noreply.github.com')")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('noreply_email','123+volekerb@users.noreply.github.com')")
         p = self.run_cli("refresh", "T-0001")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         who = "factory refresh <factory-refresh@localhost>"
@@ -310,10 +308,10 @@ class RefreshTests(FactoryTestCase):
         self.assertEqual(bad.returncode, 2, bad.stdout + bad.stderr)
         self.assertIn("@users.noreply.github.com", bad.stderr)
         self.assertNotIn("zz-test@example.invalid", [r["value"] for r in e.sql("SELECT value FROM config WHERE key='noreply_email'")])
-        ok = self.run_cli("config", "noreply_email", "123+zz-test@users.noreply.github.com", agent="zz-test-dir")
+        ok = self.run_cli("config", "noreply_email", "123+volekerb@users.noreply.github.com", agent="zz-test-dir")
         self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
         self.assertEqual(e.sql("SELECT value FROM config WHERE key='noreply_email'")[0]["value"],
-                         "123+zz-test@users.noreply.github.com")
+                         "123+volekerb@users.noreply.github.com")
 
 
 if __name__ == "__main__":
