@@ -35,6 +35,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
+- [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
