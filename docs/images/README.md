@@ -25,16 +25,30 @@ file name. In order, it:
    its own `HOME` and `FACTORY_HOME` (the live home is never read or written);
 5. scrub-scans each page's HTML with `ci/scrub_scan.py --path` and aborts on any hit. Set `SCRUB_TERMS_FILE` to the
    owner terms file (kept outside the repo) to include owner-specific terms; without it only the generic patterns run;
-6. captures each page, light and dark, 1280 px wide, one browser process at a time with a fresh profile. The theme is
-   forced through the browser's preferred colour scheme (Blink value 1 is light, 0 is dark), because
-   `web/static/theme.js` follows the OS when no choice is stored; nothing under `web/` changes. It aborts when a light
-   and a dark image of a page are byte-identical;
-7. checks every PNG is 1280 px wide and at most 307200 bytes and the total at most 3145728 (one retry with a 640 px
-   window);
+6. captures each page, light and dark, at 1280 CSS px wide and a device pixel ratio of 2 (`--force-device-scale-factor=2`,
+   2560 px PNGs), in a window `HMAX` (1600) CSS px high, one browser process at a time with a fresh profile. The theme
+   is forced through the browser's preferred colour scheme (Blink value 1 is light, 0 is dark), because
+   `web/static/theme.js` follows the OS when no choice is stored; nothing under `web/` changes;
+7. crops each capture to its content: trailing rows equal to the page background (within 8 per channel) are dropped,
+   keeping a 32 CSS px (64 px) bottom margin and a minimum height of 400 CSS px. The background is the most frequent
+   colour of the capture's last row, and the crop is measured on the main column only (right of the 232 px sidebar and
+   its hairline, `SIDEBAR_CSS_PX`, checked against `web/static/app.css` by a test); the PNG keeps the full width.
+   Long lists show the top `HMAX` CSS px: a page whose content reaches the last row is kept whole, uncropped, and the
+   script prints `INFO <file>: truncated at HMAX (1600 CSS px)`;
 8. decodes each PNG (stdlib only) and checks the top 400 px: at least 200 distinct colours (anti-aliased text; a page
-   without text has a few dozen), and each page's light image has a mean luminance at least 40 above its dark image.
-   On failure it exits 3 and nothing is written to `docs/images/`;
-9. copies the images into `docs/images/` and prints a summary.
+   without text has a few dozen), and each page's light image has a mean luminance at least 40 above its dark image;
+   then rejects mostly empty images: a row is blank when 99% of its main-column pixels are background, and only runs
+   of at least 48 blank rows (24 CSS px) count, so line spacing does not. More than 35% blank rows exits 3 with
+   `<file>: <pct>% blank rows (limit 35%)`;
+9. builds `hero.png` (home light left half | home dark right half, a 2 px neutral divider, the smaller of the two
+   heights) and `social-preview.png` (exactly 1280x640, at most 1 MB, GitHub's limit): a 160 px top band with the
+   wordmark (`wordmark-light.svg`, cropped to its ink) and a one-line tagline over the hero downscaled by 2. The
+   browser screenshots a small local HTML page for it (the wordmark inline, the hero as a `data:` image, no external
+   URL) at 1280x640, DPR 1;
+10. checks the sizes: it prints `WARN` above 307200 bytes per PNG, and exits 3 above 716800 bytes for one PNG or
+    8388608 bytes for all together (director M6655), listing every file's size. Nothing is written to `docs/images/`
+    on any failure above (everything is built in the temp dir first);
+11. copies the images into `docs/images/` and prints a summary and the exact list of files written (`files: ...`).
 
 ## Pinned browser
 
@@ -49,7 +63,8 @@ Chrome for Testing headless shell, the only thing the script downloads:
 
 ## Images
 
-Captured with `--now 2026-10-27T05:00:00+00:00` (the UTC hour of the run). Each is 1280 px wide.
+The table is filled in after the first reviewed run (the images are committed in a later change); until then no PNG
+listed here is claimed to be current. Page images are 2560 px wide (1280 CSS px at 2x).
 
 | Page | Light | Dark | What it shows |
 |---|---|---|---|
