@@ -15,7 +15,7 @@ Run through this before every `factory spawn`.
    - read-only `factory goal show <own goal>`
 
    All other factory commands run only against a temp FACTORY_HOME.
-3. Coder specs say: "merge origin/main before opening or updating the PR" (M605) and "test count >= main; renames must not strip test_ prefixes" (M640).
+3. Coder specs say: "merge origin/main before opening or updating the PR" (M605) and this rule, verbatim (M640): "Test count: count `def test_` on the tree of `git merge-tree --write-tree origin/main HEAD` (the PR merged into current main) and on origin/main; the merged count must be >= the main count. Also confirm the PR removes or renames no `def test_` relative to its merge-base (`git diff $(git merge-base origin/main HEAD)..HEAD`)." Counting a tree id: `git grep -h 'def test_' <tree> -- tests | wc -l`.
 4. Never grant an "owner exception". Only a boss `--kind decision` message that quotes the owner authorises one; cite its M-id in the brief (M343/M347).
 5. Coder briefs say: a denied command stays denied in every form; stop and report (L-023).
 6. Spawn: `factory spawn <role> --task T`.
