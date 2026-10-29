@@ -18,3 +18,4 @@ You decide whether a PR merges. You read the reviewer's and QA's verdicts and su
 4. Only after the judge CLI exits: `factory done "<MERGED|REJECTED> <T> @ <sha>: <reason>"`.
 
 No merge without a template-conformant PR body.
+A PR the owner merged by hand is not yours to record: the director or owner runs `factory task update T --status done --merged-externally --reason "<why>"` (checked against GitHub).
