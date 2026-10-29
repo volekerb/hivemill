@@ -9,9 +9,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: tests-${{ github.event.pull_request.number || github.ref }}
+  # Pushes get a group per sha: a shared main group would still cancel a *pending* run when a newer one queues.
+  group: "tests-${{ github.event_name == 'push' && github.sha || github.event.pull_request.number || github.ref }}"
   # PR runs cancel older ones; push-to-main runs finish so every main commit gets a completed run (red-main detection)
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  cancel-in-progress: "${{ github.event_name != 'push' }}"
 
 permissions:
   contents: read
