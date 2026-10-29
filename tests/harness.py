@@ -7,6 +7,7 @@ import ast
 import contextlib
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -214,6 +215,21 @@ def _template_home():
     return _TEMPLATE["env"].home_dir
 
 
+def assert_hermetic(home_dir, stub_bin):
+    """Raise unless this process would run the CLI against the temp home with the stub binary first on PATH:
+    FACTORY_HOME inside the temp dir (never ~/factory) and the first agent-multiplexer binary on PATH being the stub (T-0647)."""
+    tmp = Path(tempfile.gettempdir()).resolve()
+    raw = os.environ.get("FACTORY_HOME", "")
+    home = Path(raw).expanduser().resolve()
+    if not raw or tmp not in home.parents or home != Path(home_dir).resolve():
+        raise RuntimeError(f"FACTORY_HOME={raw!r} is not the temp test home {home_dir}; "
+                           "a test would act on a real factory home. Use FactoryEnv.")
+    found = shutil.which("herdr")
+    if not found or Path(found).resolve().parent != Path(stub_bin).resolve():
+        raise RuntimeError(f"the binary on PATH is {found!r}, not the stub in {stub_bin}; a test would reach the real one. "
+                           "Put the harness stub_bin first on PATH.")
+
+
 class FactoryEnv:
     def __init__(self, _build_template=False):
         self.home = Path(tempfile.mkdtemp(prefix="zz-test-factory-")).resolve()
@@ -413,6 +429,7 @@ class FactoryEnv:
             os.environ.pop(k, None)
         os.environ.update(self.env())
         try:
+            assert_hermetic(self.home_dir, self.stub_bin)
             loader = importlib.machinery.SourceFileLoader("factory_under_test", str(FACTORY_SRC))
             spec = importlib.util.spec_from_loader(loader.name, loader)
             mod = importlib.util.module_from_spec(spec)
@@ -420,7 +437,9 @@ class FactoryEnv:
             opened, real_db = [], mod.db
             mod.db = lambda *a, **k: opened.append(real_db(*a, **k)) or opened[-1]
             try:
-                yield mod
+                # in-process spawn() prints SPAWNED/QUEUED lines: keep them out of the test runner's output (T-0647)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    yield mod
             finally:
                 for con in opened:
                     con.close()
