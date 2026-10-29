@@ -118,3 +118,7 @@ The hook is the one place every agent-written public text passes before it leave
 Merge email (T-0602): the hook does not see merges that `factory judge` makes. The judge passes `--author-email <noreply>` and verifies the merge commit, and the tick alerts the boss about any non-noreply author/committer email on public `origin/main`; see docs/CUTOVER.md ("What the guards enforce").
 
 Known limits: split or encoded terms (as in PUBLISHING.md); text produced by a program the command pipes in; a `$` in a flag value is treated as dynamic even if it was single-quoted (put the text in a file); wrappers such as `xargs` are not followed for text that arrives on stdin; `GIT_DIR=` env prefixes are not read (`--git-dir`, `-C` and `cd` are, and every directory a `cd` names counts, so a subshell cannot hide the repo); `git -c alias.*` is refused when the rule applies. Tests: `tests/test_worker_guard_public_text.py`.
+
+## Full local test runs (T-0642)
+
+For `--role coder|qa|reviewer`, a Python command `-m unittest` is refused when it would run the full suite: no test argument, or `discover` without a single-module `-p test_X.py` pattern (a wildcard pattern counts as full). `python3 -m unittest tests.test_x` and `discover -s tests -p test_x.py` are allowed; other roles are not restricted. The message points to `python3 ci/affected.py --base origin/main --quick --run`. Policy: `docs/testing.md`. Tests: `tests/test_worker_guard_unittest.py`.
