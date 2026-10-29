@@ -27,6 +27,12 @@ def kill_group(p):
         p.stderr.close()
 
 
+def left_in_group(pgid, base):
+    """ps lines of processes in process group `pgid` whose args mention the test dir `base` (zz-test-startlog-*)."""
+    r = subprocess.run(["ps", "-eo", "pgid,args"], capture_output=True, text=True, timeout=20)
+    return [ln for ln in r.stdout.splitlines() if str(base) in ln and ln.split()[0] == str(pgid)]
+
+
 VICTIM = b"VICTIM-BYTES-" * 8000  # 104 kB: larger than the 64 KiB cap
 
 
@@ -168,11 +174,12 @@ class ForwardedSignalTests(base.ShimBase):
                         break
                     __import__("time").sleep(0.05)
                 else:
-                    p.kill()
                     self.fail("stage 1 never started")
                 p.send_signal(sig)
                 p.wait(timeout=20)
                 self.assertTrue(got.exists(), f"{sig.name} did not reach stage 1")
+                kill_group(p)
+                self.assertEqual(left_in_group(p.pid, self.base), [], "processes left in the test's process group")
 
 
 class NoLeftoverProcessTests(base.ShimBase):
@@ -195,9 +202,7 @@ class NoLeftoverProcessTests(base.ShimBase):
             kill_group(p)
             self.fail("stage 1 never started")
         kill_group(p)
-        r = subprocess.run(["ps", "-eo", "pgid,args"], capture_output=True, text=True, timeout=20)
-        left = [ln for ln in r.stdout.splitlines() if str(self.base) in ln and ln.split()[0] == str(p.pid)]
-        self.assertEqual(left, [], "processes left in the test's process group")
+        self.assertEqual(left_in_group(p.pid, self.base), [], "processes left in the test's process group")
 
 
 class TeeBoundedTests(unittest.TestCase):

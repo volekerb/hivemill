@@ -271,6 +271,8 @@ Routing (T-0675): with `test_sandbox=1`, `roles/hooks/worker-guard.py` refuses a
 
 The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A` (`.factory-test-*` is gitignored).
 
+Per-run CPU, memory and task caps (config `test_cgroup`, needs an owner-installed user unit): [test-cgroups.md](test-cgroups.md).
+
 See also: [ADR 0002, sandbox runtime v3](adr/0002-sandbox-runtime-v3.md).
 
 ### Subordinate uid (`test_sandbox_subuid`, T-0682)
