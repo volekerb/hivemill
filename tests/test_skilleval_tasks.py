@@ -189,6 +189,48 @@ class ReviewDiffCheck(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("too wide", proc.stdout)
 
+    def test_six_spaced_findings_fail(self):
+        extra = "".join("%d. `app/util.py: %d`: nit.\n" % (n, n) for n in range(2, 7))
+        proc = self.run_review(REVIEW_GOOD + extra)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("6 findings", proc.stdout)
+
+    def test_five_mixed_form_findings_pass(self):
+        extra = "app/util.py: 2, app/util.py:3, app/util.py: 4-5, app/util.py:6\n"
+        self.assertEqual(self.run_review(REVIEW_GOOD + extra).returncode, 0)
+
+    def test_equivalent_ref_forms_count_once(self):
+        extra = "app/util.py:1 app/util.py: 1 app/util.py:1-1\n" + \
+            "".join("app/util.py:%d\n" % n for n in range(2, 5))
+        self.assertEqual(self.run_review(REVIEW_GOOD + extra).returncode, 0)
+
+    def test_version_prose_not_a_ref(self):
+        extra = "".join("app/util.py:%d\n" % n for n in range(2, 6)) + \
+            "Tested on Python 3.11: 2 runs, v1.2: 5 times, 3.11:2.\n"
+        self.assertEqual(self.run_review(REVIEW_GOOD + extra).returncode, 0)
+
+    def test_two_space_ref_not_a_ref(self):
+        extra = "".join("app/util.py:%d\n" % n for n in range(2, 6)) + "app/util.py:  9\n"
+        self.assertEqual(self.run_review(REVIEW_GOOD + extra).returncode, 0)
+
+    def test_tab_ok_newline_not_a_ref(self):
+        base = "".join("app/util.py:%d\n" % n for n in range(2, 6))
+        proc = self.run_review(REVIEW_GOOD + base + "app/util.py:\t6\n")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("6 findings", proc.stdout)
+        proc = self.run_review(REVIEW_GOOD + base + "app/util.py:\n6\napp/util.py:\n7\n")
+        self.assertEqual(proc.returncode, 0)
+
+    def test_spaced_defect_ref_credited(self):
+        proc = self.run_review(REVIEW_GOOD.replace(":39", ": 39"))
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("PASS: defect at app/store.py:39 found", proc.stdout)
+
+    def test_spaced_wide_range_fails(self):
+        proc = self.run_review(REVIEW_GOOD.replace(":39", ": 1-100"))
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("too wide", proc.stdout)
+
     def test_no_review_fails(self):
         proc, _ = _trial("review-diff", with_solution=False)
         self.assertNotEqual(proc.returncode, 0)
