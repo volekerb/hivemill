@@ -149,6 +149,7 @@ DEFAULT_CONFIG = {
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
     "stale_policy": "behind_ok",
+    "refresh_lane": "off",       # G-022: on = only the head of the merge queue (the oldest BEHIND judge row) is refreshed; the rest hold as 'lane: position N' (docs/refresh-lane.md)
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
@@ -213,6 +214,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "lead_wake_debounce_s": "0", # > 0 = a parked lead is woken by mail at most once per this many seconds (escalation/decision kinds and owner/boss senders bypass; pending mail is batched); 0 = off
     "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
@@ -5326,6 +5328,17 @@ def _orphan_signal(sig, targets, group):
     return True
 
 
+def _orphan_term_kill(pid, ident, targets, group, grace):
+    """SIGTERM was sent: wait up to `grace` seconds for `pid` to go, then SIGKILL it if it still has its scanned
+    identity. Returns "KILL" when the SIGKILL was sent, else "TERM"."""
+    deadline = time.time() + grace
+    while _orphan_ident(pid) == ident and time.time() < deadline:
+        time.sleep(0.2)
+    if _orphan_ident(pid) == ident and _orphan_signal(signal.SIGKILL, targets, group):
+        return "KILL"
+    return "TERM"
+
+
 def _orphan_payload(j, how):
     """The event body of a would-reap / reap event: exactly these keys."""
     return {"pid": j["pid"], "start_time": j["ident"][1], "argv0": j["argv"][0],
@@ -5381,11 +5394,7 @@ def reap_orphans(con):
                     targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
             if not _orphan_signal(signal.SIGTERM, targets, group):
                 continue
-            how, deadline = "TERM", time.time() + grace
-            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
-                time.sleep(0.2)
-            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
-                how = "KILL"
+            how = _orphan_term_kill(pid, j["ident"], targets, group, grace)
             event_as(con, "tick", "agent", j["agent"], "orphan-reaped", _orphan_payload(j, how))
             reaped.append(j)
             if _is_factory_serve(j["argv"]) and j["home"]:
@@ -5421,6 +5430,25 @@ def _is_test_runner(argv):
             or (os.path.basename(argv[1]) in ("factory", "factory_cli.py") and argv[2:3] == ["test"]))
 
 
+def _own_ended_claude(pid, row):
+    """True when claude `pid` is the ended agent `row`'s own, still exiting: its FACTORY_AGENT is the agent's name and
+    it started inside the agent's started..ended window (a later claude with the same name, or a reused pid, started
+    outside it). Anything unreadable or unparseable is False: the runner then stays untouched."""
+    try:
+        if (_orphan_env(pid) or {}).get("FACTORY_AGENT", "") != row["name"] or not row["started"] or not row["ended"]:
+            return False
+        raw = (_serve_proc_root() / "stat").read_text()
+        btime = next(int(x.split()[1]) for x in raw.splitlines() if x.startswith("btime "))
+        st = _orphan_stat(pid)
+        if st is None:
+            return False
+        began = btime + st[2] / os.sysconf("SC_CLK_TCK")
+        lo, hi = (dt.datetime.fromisoformat(row[k]).timestamp() for k in ("started", "ended"))
+        return lo - 5 <= began <= hi + 5
+    except (OSError, ValueError, StopIteration, IndexError):
+        return False
+
+
 def _test_judge(con, pid, skip, row):
     """The facts about `pid` when it is a test runner of the ended agent `row`'s own task, else None."""
     if pid in skip:
@@ -5446,7 +5474,8 @@ def _test_judge(con, pid, skip, row):
             return None
         a = _serve_argv(cur)
         if a and os.path.basename(a[0]) in ("claude", "herdr"):
-            return None
+            if os.path.basename(a[0]) != "claude" or not _own_ended_claude(cur, row):
+                return None
         cur = (_orphan_stat(cur) or (None,))[0]
     (goal, task), by = att
     return {"pid": pid, "agent": row["name"], "task": task, "argv": ident[0], "ident": ident, "cwd": cwd,
@@ -5472,7 +5501,7 @@ def reap_agent_tests(con, name, trigger):
         mode = mode if mode in ORPHAN_MODES else "dry-run"
         if mode == "off":
             return
-        row = con.execute("SELECT name,role,status,task_id FROM agents WHERE name=?", (name,)).fetchone()
+        row = con.execute("SELECT name,role,status,task_id,started,ended FROM agents WHERE name=?", (name,)).fetchone()
         if (not row or row["status"] != {"done": "exited", "stop": "stopped"}.get(trigger)
                 or row["role"] in ORPHAN_HQ_ROLES or not row["task_id"]):
             return
@@ -5501,11 +5530,7 @@ def reap_agent_tests(con, name, trigger):
                     targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
             if not _orphan_signal(signal.SIGTERM, targets, group):
                 continue
-            how, deadline = "TERM", time.time() + grace
-            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
-                time.sleep(0.2)
-            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
-                how = "KILL"
+            how = _orphan_term_kill(pid, j["ident"], targets, group, grace)
             event_as(con, "tick", "agent", name, "agent-tests-reaped", {**_orphan_payload(j, how), "trigger": trigger})
     except Exception as e:  # noqa: BLE001 — must never break the tick or force_stop
         _agent_tests_failed(con, name, e)
@@ -9371,6 +9396,62 @@ def judge_hold(con, task, cap=True, behind_ok=False):
     return None
 
 
+LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the task whose judge holds the refresh lane
+LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
+
+
+def refresh_lane_hold(con, task, queued):
+    """G-022 refresh_lane (phase 1): why a queued judge for `task` waits for the refresh lane, or None to let it go on.
+    Only with config refresh_lane=on. Behind-only is not a failure, but every BEHIND judge that starts refreshes its
+    branch and restarts CI, and each merge makes the next one BEHIND again. So one task owns the lane at a time: the
+    oldest queued judge (queue order) whose PR is ready except for being BEHIND. The others get 'T-x lane: position N'
+    and no refresh, no CI run. The owner keeps the lane while it has a queued, starting or live judge and its task is
+    open; when it merges (or its judge ends without a merge) the next BEHIND head takes over. A PR that is not BEHIND
+    is never held, and nothing is held when stale_policy=behind_ok applies (no refresh happens then). `queued` = the
+    tick's queued rows in queue order. A gh failure reads as not BEHIND (not held): the lane only narrows refreshes."""
+    if (cfg(con, "refresh_lane") or "off").strip().lower() != "on" or not task:
+        return None
+
+    def behind(tid):
+        r = con.execute("SELECT pr_url FROM tasks WHERE id=?", (tid,)).fetchone()
+        url = r["pr_url"] if r else None
+        if not url or (url.startswith("https://github.com/") and stale_behind_ok(con, "/".join(url.split("/")[3:5]))):
+            return False
+        ready, why = judge_pr_ready(con, url, True)
+        return bool(ready) and why == "PR is BEHIND"
+
+    row = con.execute("SELECT value FROM config WHERE key=?", (LANE_OWNER_KEY,)).fetchone()
+    owner, _, since = (row["value"] if row else "").partition("|")
+    try:
+        if owner and time.time() - float(since) > LANE_OWNER_TTL_S:
+            owner = ""  # the owner made no progress for an hour (CI red, DIRTY, judge parked): the next head takes over
+    except ValueError:
+        owner = ""  # an unreadable value is a released lane
+    if owner:
+        t = con.execute("SELECT status FROM tasks WHERE id=?", (owner,)).fetchone()
+        live = con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('queued','starting','live')",
+                           (owner,)).fetchone()
+        if not t or t["status"] in ("done", "cancelled") or not live:
+            owner = None
+    if owner == task or not behind(task):
+        return None
+    line = [x for x in dict.fromkeys(q["task_id"] for q in queued if q["role"] == "judge" and q["task_id"])
+            if x != owner and (x == task or behind(x))]
+    if task not in line:
+        return None
+    if not owner and line[0] == task:
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (LANE_OWNER_KEY, f"{task}|{time.time()}"))
+        event(con, "task", task, "lane-head", "refresh lane: this task is the queue head and is refreshed first")
+        return None
+    why = f"lane: position {line.index(task) + 1 + (1 if owner else 0)}"
+    old = con.execute("SELECT ts FROM throttle WHERE key=?", ("lane:" + task,)).fetchone()
+    if not old or old["ts"] != why:
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", ("lane:" + task, why))
+        event(con, "task", task, "lane-hold", why)
+    return f"{task} {why}"
+
+
 QUEUE_AGE_STEP_MIN = 30  # one aging step; see queue_order_key
 QUEUE_AGE_CAP_MIN = 240  # hard age cap: a row queued this long is at level 0 whatever its priority; see queue_order_key
 QUEUE_ROLE_CLASS = {"director": 0, "lead": 1, "judge": 2, "reviewer": 3, "qa": 4}
@@ -9752,6 +9833,8 @@ def cmd_tick(a, locked=False):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
         if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
             continue  # judge cap reached or PR CI not green: the rows behind it may start
+        if s["role"] == "judge" and refresh_lane_hold(con, s.get("task"), queued):
+            continue  # refresh_lane=on: a BEHIND PR that is not the queue head waits without a refresh
         try:
             _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
@@ -10638,6 +10721,29 @@ def _throttle_set(con, key, clock):
     con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, str(clock)))
 
 
+def _wake_debounced(con, team_id, lead, clock):
+    """True while config lead_wake_debounce_s > 0 and the team's last lead wake is younger than that and no unread message
+    for the lead is a bypass one (kind escalation/decision, or sent by the owner or a boss). One 'wake-debounced' event per
+    team per window; the mail stays unread, so the wake that ends the window covers all of it."""
+    try:
+        window = float(cfg(con, "lead_wake_debounce_s") or 0)
+    except ValueError:
+        return False
+    if not math.isfinite(window) or window <= 0 or not _throttled(con, f"wakedb:{team_id}", clock, window):
+        return False
+    bypass = con.execute(
+        "SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL AND kind != 'fyi' AND (kind IN ('escalation','decision') "
+        "OR sender IN ('owner','boss') OR sender IN (SELECT name FROM agents WHERE role='boss')) LIMIT 1", (lead,)).fetchone()
+    if bypass:
+        return False
+    woke = float(con.execute("SELECT ts FROM throttle WHERE key=?", (f"wakedb:{team_id}",)).fetchone()["ts"])
+    seen = con.execute("SELECT ts FROM throttle WHERE key=?", (f"wakedb-ev:{team_id}",)).fetchone()
+    if not seen or float(seen["ts"]) < woke:
+        _throttle_set(con, f"wakedb-ev:{team_id}", clock)
+        event(con, "team", team_id, "wake-debounced", {"window_s": window, "age_s": round(clock - woke)})
+    return True
+
+
 def tick_wake_leads(con):
     """Tick step 1d: wake the lead of every parked active team that has unread mail (level-triggered: retried every tick
     until the lead row is live, starting or queued). With config lead_parking=0 and no mail, one parked team per tick
@@ -10666,9 +10772,12 @@ def tick_wake_leads(con):
                 continue
         else:
             trigger = f"M{m}"
+            if _wake_debounced(con, t["id"], lead, clock):
+                continue
         if _throttled(con, f"wake:{t['id']}", clock, WAKE_THROTTLE_S):
             continue
         _throttle_set(con, f"wake:{t['id']}", clock)
+        _throttle_set(con, f"wakedb:{t['id']}", clock)
         drained = drained or trigger == "flag-off"
         try:
             wake_lead(con, t, trigger)
