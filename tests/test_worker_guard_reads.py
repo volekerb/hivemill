@@ -99,6 +99,14 @@ class BroadReadTests(ReadsBase):
         self.blocked("factory goal show G-*")
         self.blocked("factory goal show")
 
+    def test_full_option_position(self):
+        # G-014: `--full` after the id is allowed (own goal only); before the id it stays blocked (fail closed)
+        self.allowed(f"factory goal show {OWN} --full")
+        self.blocked(f"factory goal show {OTHER} --full")
+        self.blocked(f"factory goal show --full {OWN}")
+        self.allowed("factory task show T-1 --full")
+        self.blocked("factory task list")
+
     def test_goal_show_fail_closed(self):
         self.blocked(f"factory goal show {OWN}", agent=None)
         self.blocked(f"factory goal show {OWN}", agent="ghost")
@@ -162,7 +170,7 @@ class NoFalsePositiveTests(ReadsBase):
         cmds = [
             "git status", "git diff", "git log --oneline -5", 'git commit -m "x"',
             "git push -u origin factory/T-0047", "gh pr create --fill", "gh pr view 5", "gh pr checks 5",
-            "python3 -m unittest discover -s tests -v", "pytest -q", "ls -la", "cat README.md",
+            "python3 -m unittest discover -s tests -p test_x.py -v", "pytest -q", "ls -la", "cat README.md",
             "rg factory README.md", 'grep "factory res" README.md', 'git commit -m "factory task list fix"',
             "echo factory agents", 'gh pr create --title t --body "uses factory res and factory task list"',
             "factory task show T-1", "factory task show T-0041", "factory inbox", "factory inbox --all",

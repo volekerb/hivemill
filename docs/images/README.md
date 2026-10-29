@@ -25,16 +25,30 @@ file name. In order, it:
    its own `HOME` and `FACTORY_HOME` (the live home is never read or written);
 5. scrub-scans each page's HTML with `ci/scrub_scan.py --path` and aborts on any hit. Set `SCRUB_TERMS_FILE` to the
    owner terms file (kept outside the repo) to include owner-specific terms; without it only the generic patterns run;
-6. captures each page, light and dark, 1280 px wide, one browser process at a time with a fresh profile. The theme is
-   forced through the browser's preferred colour scheme (Blink value 1 is light, 0 is dark), because
-   `web/static/theme.js` follows the OS when no choice is stored; nothing under `web/` changes. It aborts when a light
-   and a dark image of a page are byte-identical;
-7. checks every PNG is 1280 px wide and at most 307200 bytes and the total at most 3145728 (one retry with a 640 px
-   window);
+6. captures each page, light and dark, at 1280 CSS px wide and a device pixel ratio of 2 (`--force-device-scale-factor=2`,
+   2560 px PNGs), in a window `HMAX` (1600) CSS px high, one browser process at a time with a fresh profile. The theme
+   is forced through the browser's preferred colour scheme (Blink value 1 is light, 0 is dark), because
+   `web/static/theme.js` follows the OS when no choice is stored; nothing under `web/` changes;
+7. crops each capture to its content: trailing rows equal to the page background (within 8 per channel) are dropped,
+   keeping a 32 CSS px (64 px) bottom margin and a minimum height of 400 CSS px. The background is the most frequent
+   colour of the capture's last row, and the crop is measured on the main column only (right of the 232 px sidebar and
+   its hairline, `SIDEBAR_CSS_PX`, checked against `web/static/app.css` by a test); the PNG keeps the full width.
+   Long lists show the top `HMAX` CSS px: a page whose content reaches the last row is kept whole, uncropped, and the
+   script prints `INFO <file>: truncated at HMAX (1600 CSS px)`;
 8. decodes each PNG (stdlib only) and checks the top 400 px: at least 200 distinct colours (anti-aliased text; a page
-   without text has a few dozen), and each page's light image has a mean luminance at least 40 above its dark image.
-   On failure it exits 3 and nothing is written to `docs/images/`;
-9. copies the images into `docs/images/` and prints a summary.
+   without text has a few dozen), and each page's light image has a mean luminance at least 40 above its dark image;
+   then rejects mostly empty images: a row is blank when 99% of its main-column pixels are background, and only runs
+   of at least 48 blank rows (24 CSS px) count, so line spacing does not. More than 35% blank rows exits 3 with
+   `<file>: <pct>% blank rows (limit 35%)`;
+9. builds `hero.png` (home light left half | home dark right half, a 2 px neutral divider, the smaller of the two
+   heights) and `social-preview.png` (exactly 1280x640, at most 1 MB, GitHub's limit): a 160 px top band with the
+   wordmark (`wordmark-light.svg`, cropped to its ink) and a one-line tagline over the hero downscaled by 2. The
+   browser screenshots a small local HTML page for it (the wordmark inline, the hero as a `data:` image, no external
+   URL) at 1280x640, DPR 1;
+10. checks the sizes: it prints `WARN` above 307200 bytes per PNG, and exits 3 above 716800 bytes for one PNG or
+    8388608 bytes for all together (director M6655), listing every file's size. Nothing is written to `docs/images/`
+    on any failure above (everything is built in the temp dir first);
+11. copies the images into `docs/images/` and prints a summary and the exact list of files written (`files: ...`).
 
 ## Pinned browser
 
@@ -49,13 +63,32 @@ Chrome for Testing headless shell, the only thing the script downloads:
 
 ## Images
 
-Captured with `--now 2026-10-27T05:00:00+00:00` (the UTC hour of the run). Each is 1280 px wide.
+Committed from one `python3 ci/screenshots.py` run (T-0555). Page images are 2560 px wide (1280 CSS px at 2x). `/tasks` is captured at 960 CSS px (`PAGE_HEIGHT`) to stay under the
+per-PNG cap; the other pages use `HMAX` (1600).
+
+| File | Page | Theme | Pixels (w x h) | Bytes |
+|---|---|---|---|---|
+| home-light.png | Home | light | 2560 x 800 | 118898 |
+| home-dark.png | Home | dark | 2560 x 800 | 119936 |
+| goals-light.png | Goals | light | 2560 x 2425 | 409246 |
+| goals-dark.png | Goals | dark | 2560 x 2426 | 413579 |
+| tasks-light.png | Tasks | light | 2560 x 1920 | 580169 |
+| tasks-dark.png | Tasks | dark | 2560 x 1920 | 584898 |
+| agents-light.png | Agents | light | 2560 x 2981 | 598691 |
+| agents-dark.png | Agents | dark | 2560 x 2982 | 604276 |
+| throughput-light.png | Throughput | light | 2560 x 3200 | 496592 |
+| throughput-dark.png | Throughput | dark | 2560 x 3200 | 499435 |
+| quality-light.png | Quality | light | 2560 x 2934 | 528718 |
+| quality-dark.png | Quality | dark | 2560 x 2935 | 533370 |
+| hero.png | Home (light left, dark right) | both | 2560 x 800 | 122340 |
+| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 77104 |
+| **Total** | | | | 5687252 |
 
 | Page | Light | Dark | What it shows |
 |---|---|---|---|
 | Home | ![Home light](home-light.png) | ![Home dark](home-dark.png) | Overview cards: live agents, open PRs, goals by status, waiting on owner, usage. |
 | Goals | ![Goals light](goals-light.png) | ![Goals dark](goals-dark.png) | Waiting-on-owner items, open goals with progress bars, done goals. |
-| Tasks | (dark only) | ![Tasks dark](tasks-dark.png) | Task list with goal, status, PR and CI state, rejections and tries. |
+| Tasks | ![Tasks light](tasks-light.png) | ![Tasks dark](tasks-dark.png) | Task list with goal, status, PR and CI state, rejections and tries. |
 | Agents | ![Agents light](agents-light.png) | ![Agents dark](agents-dark.png) | Status, role and goal filters, teams, live agents with model and uptime. |
 | Throughput | ![Throughput light](throughput-light.png) | ![Throughput dark](throughput-dark.png) | Merges per day, median and p90 spawn-to-merge, open tasks, live workers. |
 | Quality | ![Quality light](quality-light.png) | ![Quality dark](quality-dark.png) | Merge, rejection, retry and CI pass-rate cards; per-team scores. |

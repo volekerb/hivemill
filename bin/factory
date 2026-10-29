@@ -110,6 +110,9 @@ DEFAULT_CONFIG = {
     "min_mem_available_mb": "1024",
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
+    # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
+    # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
+    "stale_policy": "behind_ok",
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
@@ -125,12 +128,16 @@ DEFAULT_CONFIG = {
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
+    "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
+    "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
     "push_interval_s": "600",    # tick exports commit every change but push at most this often (a manual `factory export` pushes now)
     "required_checks": "",       # comma-separated check names the judge needs green before merging
     "gate_max_parallel": "1",    # local merge gate (T-0515): `factory gate run` processes at once; one test slot stays for workers
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
+    "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -141,6 +148,7 @@ DEFAULT_CONFIG = {
     "serve_bind": "",            # `factory serve`: LAN address to listen on; empty = source address of the default route
     "serve_port": "8765",        # `factory serve`: TCP port
     "serve_hostnames": "",       # `factory serve`: extra Host names accepted besides the bind IP (comma-separated); empty = the bind IP only
+    "task_clones": "0",          # 1 = a new coder task gets a standalone `git clone --shared` instead of a `git worktree add` (docs/git-hardening.md); 0 = off
     "factory_remote_url": "",    # the one origin URL the git guard allows for the factory checkout; empty = learned once from the live checkout (docs/git-hardening.md)
     # reasoning effort for Opus agents (`claude --effort`, owner M2741); "" = leave Claude's default. Sonnet is never touched.
     "opus_effort": "medium",
@@ -236,7 +244,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal');
+  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -324,6 +332,12 @@ def migrate(con):
             con.execute("ALTER TABLE tasks ADD COLUMN waits TEXT NOT NULL DEFAULT 'internal'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "waits" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
+    if "sandbox_required" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # 1 = the task must run in the worker sandbox (spawn refuses it without --sandbox, the tick forces it)
+            con.execute("ALTER TABLE tasks ADD COLUMN sandbox_required INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "sandbox_required" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
     for col in ("parked_at", "resume_note"):
         if col not in {r["name"] for r in con.execute("PRAGMA table_info(teams)")}:
@@ -682,6 +696,11 @@ def caller_is_worker():
     if "role" not in _WORKER:
         _WORKER["role"] = _detect_worker()
     return _WORKER["role"]
+
+
+def compact_view(con, a):
+    """G-014: workers get the compact `task show` / `goal show` unless --full; HQ output never changes."""
+    return not a.full and bool(caller_is_worker() or actor_role(con) in WORKER_ROLES)
 
 
 def worker_stub_exempt():
@@ -1078,18 +1097,30 @@ def _userns_link(pid):
         return None
 
 
+def _proc_start(pid):
+    """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        stat = (root / str(pid) / "stat").read_text(errors="replace")
+        return stat[stat.rindex(")") + 1:].split()[19]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def sandbox_escape_close(con, name, pane, pid):
     """G-010 T-C2 (fail closed): a sandboxed agent's claude whose user ns equals the host's ran outside the
     sandbox (a shell rc reordered PATH, a multiplexer resumed a bare claude). Close its pane (the call force_stop
-    and reap use), event `sandbox-escaped` and one director alert per pid. An unreadable link decides nothing.
+    and reap use), event `sandbox-escaped` and one director alert per process (pid + start time,
+    read before the close). An unreadable link decides nothing.
     The host reference is <proc>/1, or this process's own ns when pid 1 is unreadable. Returns True when closed."""
     mine = _userns_link(pid)
     host = _userns_link(1) or _userns_link("self")
     if mine is None or host is None or mine != host:
         return False
+    start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
     if pane:
         herdr("pane", "close", pane, check=False)
-    key = f"sandbox-escaped:{pid}"
+    key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
@@ -1098,6 +1129,32 @@ def sandbox_escape_close(con, name, pane, pid):
              "sandbox. Its pane was closed. Check its shell rc and multiplexer auto-resume, then relaunch.",
              "alert", sender="tick")
     return True
+
+
+ESCAPE_ROW_TTL_S = 7 * 86400
+
+
+def prune_escape_throttle(con, now_ts=None):
+    """Delete `sandbox-escaped:<pid>:<start>` throttle rows (prefix match only) whose process is gone (no /proc
+    entry, or a different start time: a reused pid) or whose ts is older than 7 days. `:None` rows (start time
+    was unreadable) go by the 7-day rule only. Returns the number of rows deleted."""
+    now_ts = time.time() if now_ts is None else now_ts
+    gone = []
+    for r in con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'sandbox-escaped:%'").fetchall():
+        try:
+            old = now_ts - float(r["ts"]) > ESCAPE_ROW_TTL_S
+        except ValueError:
+            old = True
+        parts = r["key"].rsplit(":", 2)
+        if len(parts) != 3:
+            continue
+        pid, start = parts[1], parts[2]
+        dead = start != "None" and _proc_start(pid) != start
+        if old or dead:
+            gone.append(r["key"])
+    for key in gone:
+        con.execute("DELETE FROM throttle WHERE key=?", (key,))
+    return len(gone)
 
 
 def claude_outside_spawn(con):
@@ -1110,6 +1167,7 @@ def claude_outside_spawn(con):
         return []
     con.execute("INSERT INTO throttle(key,ts) VALUES('claude-audit',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
                 (str(time.time()),))
+    prune_escape_throttle(con)
     found = {p: v for p, v in (_scan_claude() or {}).items() if _is_claude_cmd(v[0])}
     if not found:
         return []
@@ -1293,7 +1351,8 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
     from the live-agent and claude-process counts; every cap still applies (what spawn()'s gate sees after the close).
-    The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches).
+    The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches, and
+    judges: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds; every other cap applies).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
     Any other role, or role=None, gets exactly the checks above."""
@@ -1353,8 +1412,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
-        return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
-                       " — clean finished tasks' scratchpads"), stats
+        # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
+        # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
+        if role != "cleaner":
+            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
+                           " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
@@ -1446,6 +1508,10 @@ def cmd_config(a):
             triage_per_run(a.value)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
+        if a.key == "task_clones":
+            a.value = a.value.strip()
+            if a.value not in ("0", "1"):
+                die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
         if a.key == "skilleval_root":
             try:
                 scoutvendor.resolve_root(a.value, HOME)
@@ -1488,13 +1554,21 @@ def cmd_project(a):
         if not a.id or not con.execute("SELECT 1 FROM projects WHERE id=?", (a.id,)).fetchone():
             die(f"no project {a.id!r}: see `factory project list`")
         gate_flags = {"gate_cmd": a.gate_cmd, "gate_count_cmd": a.gate_count_cmd, "gate_timeout_s": a.gate_timeout_s}
-        if a.required_checks is None and all(v is None for v in gate_flags.values()):
+        loc_flags = {"gh_repo": a.gh, "repo_path": a.repo}
+        if a.required_checks is None and all(v is None for v in (*gate_flags.values(), *loc_flags.values())):
             die("nothing to update: pass --required-checks \"a,b\" (empty string = use the global config list) "
-                "or --gate-cmd / --gate-count-cmd / --gate-timeout-s")
-        if any(v is not None for v in gate_flags.values()):
-            require_role(con, "director")  # the gate command runs on the host: director (or owner) only
+                "or --gate-cmd / --gate-count-cmd / --gate-timeout-s / --gh OWNER/NAME / --repo PATH")
+        if any(v is not None for v in (*gate_flags.values(), *loc_flags.values())):
+            require_role(con, "director")  # the gate command and the repo location steer the host: director (or owner) only
             if a.gate_timeout_s is not None and a.gate_timeout_s < 1:
                 die("--gate-timeout-s must be a positive number of seconds", 2)
+        if a.gh is not None and not _GH_REPO.fullmatch(a.gh):
+            die(f"--gh must be OWNER/NAME (letters, digits, . _ -), got {a.gh!r}", 2)
+        if a.repo is not None:
+            repo = Path(a.repo).expanduser()
+            if not repo.is_dir() or git_run(str(repo), "rev-parse", "--git-dir", timeout=30).returncode != 0:
+                die(f"--repo {a.repo!r} must be an existing git repository; check the path", 2)
+            loc_flags["repo_path"] = str(repo)
         if a.required_checks is not None:
             con.execute("UPDATE projects SET required_checks=? WHERE id=?", (norm_checks(a.required_checks), a.id))
             event(con, "project", a.id, "update", f"required_checks={norm_checks(a.required_checks)!r}")
@@ -1502,6 +1576,11 @@ def cmd_project(a):
             if v is not None:
                 con.execute(f"UPDATE projects SET {col}=? WHERE id=?", (v, a.id))
                 event(con, "project", a.id, "update", f"{col}={v!r}")
+        for col, v in loc_flags.items():
+            if v is not None:
+                old = con.execute(f"SELECT {col} FROM projects WHERE id=?", (a.id,)).fetchone()[0]
+                con.execute(f"UPDATE projects SET {col}=? WHERE id=?", (v, a.id))
+                event(con, "project", a.id, "update", f"{col}: {old!r} -> {v!r}")
         print(a.id)
     else:
         table(con.execute("SELECT id,name,repo_path,gh_repo,base_branch,auto_merge,required_checks,"
@@ -1536,7 +1615,7 @@ def cmd_goal(a):
         table(con.execute(q + " ORDER BY g.priority, g.id").fetchall(),
               ["id", "status", "priority", "project_id", "done", "total", "title"])
     elif a.action == "show":
-        show_goal(con, a.id)
+        show_goal(con, a.id, compact=compact_view(con, a))
     elif a.action == "edit":
         require_role(con, "boss", "director")
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
@@ -1698,7 +1777,9 @@ def latest_audit(con, gid):
     return au, so
 
 
-def show_goal(con, gid):
+def show_goal(con, gid, compact=False):
+    """compact (workers without --full, G-014): intent and success criteria in full; plan, audit and tasks
+    shrink to pointer/summary lines and the teams table is left out."""
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
     if not g:
         die(f"no goal {gid}")
@@ -1707,9 +1788,23 @@ def show_goal(con, gid):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
     p = con.execute("SELECT * FROM plans WHERE goal_id=? ORDER BY version DESC LIMIT 1", (gid,)).fetchone()
+    au, so = latest_audit(con, gid)
+    if compact:
+        if p:
+            print(f"\nplan v{p['version']} by {p['author']} {p['created']}, {len(p['body'].splitlines())} lines: "
+                  f"factory goal show {gid} --full")
+        if au:
+            print(f"audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})")
+            if so:
+                print(f"sign-off of audit v{au['version']} ({so['author']}, {so['created']})")
+        c = {r["status"]: r["n"] for r in con.execute(
+            "SELECT status, count(*) n FROM tasks WHERE goal_id=? GROUP BY status", (gid,))}
+        std = ("todo", "in_progress", "in_review", "done", "cancelled")
+        parts = ", ".join([f"{st} {c.get(st, 0)}" for st in std] + [f"{st} {n}" for st, n in sorted(c.items()) if st not in std])
+        print(f"tasks: {sum(c.values())} ({parts})")
+        return
     if p:
         print(f"\n## plan v{p['version']} ({p['author']}, {p['created']})\n{p['body']}")
-    au, so = latest_audit(con, gid)
     if au:
         print(f"\n## audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})\n{au['body']}")
         if so:
@@ -1999,6 +2094,19 @@ def warn_file_overlap(con, tid, goal_id, spec):
     event(con, "task", tid, "file-overlap", ",".join(ids))
 
 
+def check_sandbox_required_role(role):
+    if role not in workerbox.SANDBOXABLE:
+        die(f"--sandbox-required: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
+
+
+def task_sandbox_required(con, task):
+    """True when the task carries the sandbox_required flag (False when it does not exist)."""
+    if not task:
+        return False
+    r = con.execute("SELECT sandbox_required FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(r and r["sandbox_required"])
+
+
 def cmd_task(a):
     con = db()
     if a.action == "add":
@@ -2013,6 +2121,8 @@ def cmd_task(a):
                 die(f"--follow-up-of: {a.follow_up_of} is {par['status']}; follow-ups are filed against done tasks", 2)
         if a.role not in ROLES:
             die(f"role must be one of {ROLES}")
+        if a.sandbox_required == "1":
+            check_sandbox_required_role(a.role)
         deps = split_after(a.after)
         tid = next_id(con, "tasks", "T", 4)
         check_after(con, tid, g["id"], deps)
@@ -2022,6 +2132,9 @@ def cmd_task(a):
                     (tid, g["id"], a.team, a.title, spec, read_text(a.acceptance), a.role,
                      json.dumps(deps), now(), now(), a.follow_up_of))
         event(con, "task", tid, "add", a.title)
+        if a.sandbox_required == "1":
+            con.execute("UPDATE tasks SET sandbox_required=1 WHERE id=?", (tid,))
+            event(con, "task", tid, "sandbox-required", "1")
         if a.follow_up_of:
             event(con, "task", tid, "follow-up", f"follow-up of {a.follow_up_of}")
         warn_file_overlap(con, tid, g["id"], spec)
@@ -2064,7 +2177,7 @@ def cmd_task(a):
     elif a.action == "show":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         for k in t.keys():
-            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked"):
+            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]):
                 print(f"{k}: {t[k]}")
         for k in ("spec", "acceptance"):
             if t[k]:
@@ -2078,8 +2191,17 @@ def cmd_task(a):
         notes = con.execute("SELECT ts,actor,action,detail FROM events WHERE entity='task' AND entity_id=? ORDER BY id",
                             (a.id,)).fetchall()
         print("\n## history")
+        if compact_view(con, a):
+            others = [i for i, n in enumerate(notes) if n["action"] != "note"]
+            keep = set(others[-5:])
+            dropped = len(others) - len(keep)
+            notes = [n for i, n in enumerate(notes) if n["action"] == "note" or i in keep]
+        else:
+            dropped = 0
         for n in notes:
             print(f"- {n['ts']} {n['actor']} {n['action']}" + (f": {n['detail']}" if n['detail'] else ""))
+        if dropped:
+            print(f"({dropped} earlier events: factory task show {a.id} --full)")
     elif a.action == "update":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         role = actor_role(con)
@@ -2103,6 +2225,11 @@ def cmd_task(a):
                 die(f"only a lead, director or the owner may set a task's priority ({role} may not use --priority)", 3)
             if a.priority not in (1, 2, 3):
                 die("--priority must be 1, 2 or 3", 2)
+        if a.sandbox_required is not None:
+            if role not in ("owner", "lead", "director", "boss"):
+                die(f"only a lead, director or the owner may set a task's sandbox_required ({role} may not use --sandbox-required)", 3)
+            if a.sandbox_required == "1":
+                check_sandbox_required_role(t["role"])
         if a.team is not None:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may change a task's team ({role} may not use --team)", 3)
@@ -2116,11 +2243,58 @@ def cmd_task(a):
                 die(f"--team: no team {a.team}", 2)
             if tm["goal_id"] != t["goal_id"]:
                 die(f"--team: team {a.team} belongs to goal {tm['goal_id']}, but {a.id} is in goal {t['goal_id']}", 2)
+        if a.goal is not None:
+            if role not in ("owner", "director", "boss"):
+                die(f"only the director or the owner may move a task to another goal ({role} may not use --goal)", 3)
+            if a.goal == t["goal_id"]:
+                die(f"{a.id} is already in goal {a.goal}; nothing to move", 2)
+            if a.team is not None:
+                die("--goal clears the task's team; run the --team update as a second call once the task is in the new goal", 2)
+            if not con.execute("SELECT 1 FROM goals WHERE id=?", (a.goal,)).fetchone():
+                die(f"--goal: no goal {a.goal}", 2)
+            if t["status"] in ("in_progress", "in_review"):
+                die(f"{a.id} is {t['status']}; stop its worker and reopen it before moving it to another goal", 2)
+            live = con.execute("SELECT name FROM agents WHERE task_id=? AND status='live' LIMIT 1", (a.id,)).fetchone()
+            if live:
+                die(f"{a.id} has a live agent {live['name']}; factory stop {live['name']} --reason ... before moving the task", 2)
+            if json.loads(t["depends_on"] or "[]"):
+                die(f"{a.id} depends on {t['depends_on']} in {t['goal_id']}; clear it first: factory task update {a.id} --after ''", 2)
+            dependents = [r["id"] for r in con.execute("SELECT id, depends_on FROM tasks WHERE goal_id=?", (t["goal_id"],))
+                          if a.id in json.loads(r["depends_on"] or "[]")]
+            if dependents:
+                die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
+        elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
+                                             a.team, a.priority, a.after, a.waits, a.note, a.reason,
+                                             a.sandbox_required)):
+            die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
+                "--acceptance --team --priority --after --waits --note --goal --sandbox-required", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
             die("give --reason or --note, not both (--reason is the blocked reason)", 2)
         a.note = a.note or a.reason
+        if a.merged_externally:
+            if role not in ("owner", "director"):
+                die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
+            if a.status != "done" or not (a.note or "").strip():
+                die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
+            extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
+                                    ("--priority", a.priority), ("--after", a.after), ("--branch", a.branch),
+                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits)) if v is not None]
+            if extra:
+                die(f"--merged-externally only closes the task; do not combine it with {', '.join(extra)}", 2)
+            if t["role"] != "coder" or not t["pr_url"]:
+                die(f"{a.id} is not a coder task with a PR; close it with a plain --status done", 2)
+            if t["status"] == "done":
+                die(f"{a.id} is already done", 2)
+            sha, err = verify_merged_externally(t["pr_url"])
+            if err:
+                die(err, 3)
+            con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.id))
+            event(con, "task", a.id, "update",
+                  f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
+            print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
+            return
         if role == "coder" and a.status == "in_review":
             require_acceptance_walk(a.pr or t["pr_url"])
         if a.spec is not None or a.acceptance is not None:
@@ -2140,7 +2314,7 @@ def cmd_task(a):
             sets.append("depends_on=?"); args.append(json.dumps(deps))
         for col, val in (("status", a.status), ("pr_url", a.pr), ("branch", a.branch), ("assignee", a.assignee),
                          ("title", a.title), ("spec", spec), ("acceptance", read_text(a.acceptance)),
-                         ("team_id", a.team), ("priority", a.priority)):
+                         ("team_id", a.team), ("priority", a.priority), ("goal_id", a.goal)):
             if val is not None:
                 if col == "status" and val not in TASK_STATUSES:
                     die(f"status must be one of {TASK_STATUSES}")
@@ -2153,6 +2327,8 @@ def cmd_task(a):
                 if col == "pr_url" and not val and t["pr_url"] and role not in ("owner", "judge"):
                     die("only the owner or judge may clear the PR of a task", 3)
                 sets.append(f"{col}=?"); args.append(val)
+        if a.goal is not None:
+            sets.append("team_id=NULL")
         if a.status == "in_progress" and t["status"] != "in_progress":
             sets.append("attempts=attempts+1")
         if a.status == "blocked":  # who it waits on; default internal, kept when already blocked (T-0370)
@@ -2165,6 +2341,8 @@ def cmd_task(a):
                 sets.append("waits=?"); args.append(a.waits)
         con.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id=?", (*args, a.id))
         parts = [f"{k}={v}" for k, v in (("status", a.status), ("pr", a.pr), ("team", a.team), ("priority", a.priority)) if v]
+        if a.goal is not None:
+            parts.append(f"goal={t['goal_id']} -> {a.goal}")
         if a.status == "blocked":
             parts.append(f"waits={a.waits or (t['waits'] if t['status'] == 'blocked' else 'internal')}")
         if deps is not None:
@@ -2173,6 +2351,9 @@ def cmd_task(a):
         if a.note:
             detail = f"{detail} — {a.note}" if detail else a.note
         event(con, "task", a.id, "update", detail)
+        if a.sandbox_required is not None and int(a.sandbox_required) != t["sandbox_required"]:
+            con.execute("UPDATE tasks SET sandbox_required=? WHERE id=?", (int(a.sandbox_required), a.id))
+            event(con, "task", a.id, "sandbox-required", a.sandbox_required)
         if spec is not None:
             warn_file_overlap(con, a.id, t["goal_id"], spec)
         if a.status == "in_progress":
@@ -2391,6 +2572,28 @@ def gh_json(*args, timeout=120):
     if p.returncode != 0:
         die(f"gh {' '.join(args[:3])}: {p.stderr.strip()}")
     return json.loads(p.stdout)
+
+
+def verify_merged_externally(pr_url):
+    """(merge sha, error) for a PR merged outside the judge: GitHub must say MERGED and the merge commit must be on the
+    base branch. Anything unverifiable is an error, never a pass."""
+    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/\d+$", pr_url or "")
+    if not m:
+        return None, f"PR url {pr_url!r} is not a https://github.com/OWNER/REPO/pull/N url"
+    try:
+        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName")
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+        return None, f"gh pr view {pr_url} failed: cannot verify the merge, so nothing is closed; retry when gh works"
+    sha = (pr.get("mergeCommit") or {}).get("oid") or ""
+    if pr.get("state") != "MERGED" or not sha:
+        return None, f"{pr_url} is {pr.get('state')}, not MERGED on GitHub; merge it through `factory judge` instead"
+    try:
+        cmp = gh_json("api", f"repos/{m.group(1)}/compare/{pr.get('baseRefName')}...{sha}")
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+        return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
+    if cmp.get("status") not in ("identical", "behind"):
+        return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
+    return sha, None
 
 
 ACCEPTANCE_WALK = "## Acceptance walk"
@@ -2710,6 +2913,38 @@ def _judge_wait_limit(con):
         return int(cfg(con, "judge_ci_wait_s"))
     except ValueError:
         die(f"config judge_ci_wait_s must be an integer number of seconds, got {cfg(con, 'judge_ci_wait_s')!r}")
+
+
+STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub)"
+
+
+def stale_behind_ok(con, owner_repo):
+    """G-022 stale_policy: True when a clean BEHIND head may be merged/spawned on without a refresh. Needs config
+    stale_policy=behind_ok (default; `factory config stale_policy strict` is the rollback) AND GitHub's branch
+    protection of main reading required_status_checks.strict == false, read live via `gh api` (cached STRICT_TTL_S).
+    strict true, no protection, or any read failure -> False (behave as strict)."""
+    if (cfg(con, "stale_policy") or "strict").strip().lower() != "behind_ok":
+        return False
+    key, t = "stale_strict:" + owner_repo, time.time()
+    row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    try:
+        c = json.loads(row["value"]) if row else None
+        if c and 0 <= t - float(c["at"]) < STRICT_TTL_S:
+            return c["strict"] is False
+    except (ValueError, KeyError, TypeError):
+        pass  # an unreadable cache entry is just a miss
+    try:
+        p = subprocess.run(["gh", "api", f"repos/{owner_repo}/branches/main/protection", "--jq",
+                            ".required_status_checks.strict"], capture_output=True, text=True, timeout=GH_API_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    out = p.stdout.strip()
+    if p.returncode != 0 or out not in ("true", "false"):
+        return False  # unreadable or not required at all: cannot confirm strict=false
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, json.dumps({"at": t, "strict": out == "true"})))
+    return out == "false"
 
 
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
@@ -3181,6 +3416,112 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
     return None
 
 
+NOREPLY_SUFFIX = "@users.noreply.github.com"
+WEB_FLOW_EMAIL = "noreply@github.com"  # GitHub's own committer on web/API merges
+
+
+def _judge_is_public(con, t, owner_repo):
+    """Does the public text rule apply to this PR's repo? Same scope as judge_public_text_refusal (unknown repo = public)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    slugs = _judge_slugs(con, t, owner_repo)
+    return bool(public) and (not slugs or bool(set(slugs) & public))
+
+
+def noreply_email(con):
+    """Author email for a judge merge into a public repo (G-021): config noreply_email, else the repo-local git
+    user.email of the main checkout. None unless it ends @users.noreply.github.com."""
+    email = cfg(con, "noreply_email").strip()
+    if not email:
+        try:  # a plain read of the identity git itself would use (includeIf and global config included); runs no repo code
+            r = git_run(HOME, "config", "--get", "user.email", timeout=30)
+            email = r.stdout.strip() if r.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, OSError):
+            email = ""
+    return email if email.lower().endswith(NOREPLY_SUFFIX) else None
+
+
+COAUTHOR_LINE = re.compile(r"^\s*co-authored-by:.*$", re.I)
+COAUTHOR_EMAIL = re.compile(r"<([^<>\s]+@[^<>\s]+)>\s*$")
+ANTHROPIC_NOREPLY = "noreply@anthropic.com"
+
+
+def squash_body(commits, owner_noreply):
+    """Public squash body (G-021 T-0616): the PR commit messages joined the way GitHub's default does (a single commit:
+    its body; several: '* headline' + body per commit), minus every Co-authored-by trailer whose email is not a noreply
+    address (owner noreply, *@users.noreply.github.com, noreply@anthropic.com). An unparsable trailer is dropped too."""
+    ok = lambda m: m.lower() in (ANTHROPIC_NOREPLY, (owner_noreply or "").lower()) or m.lower().endswith(NOREPLY_SUFFIX)
+
+    def clean(text):
+        keep = []
+        for line in (text or "").splitlines():
+            if COAUTHOR_LINE.match(line):
+                m = COAUTHOR_EMAIL.search(line)
+                if not (m and ok(m.group(1))):
+                    continue
+            keep.append(line)
+        return "\n".join(keep).strip()
+    if len(commits) == 1:
+        return clean(commits[0].get("messageBody"))
+    parts = []
+    for c in commits:
+        head, body = clean(c.get("messageHeadline")), clean(c.get("messageBody"))
+        if head or body:  # a headline that is itself a bad trailer line is dropped like one in the body
+            parts.append(f"* {head}" + (f"\n\n{body}" if body else ""))
+    return "\n\n".join(parts)
+
+
+def judge_squash_body(pr_url, owner_noreply):
+    """The squash --body for a public repo, from the PR's commits. Raises RuntimeError when they cannot be read."""
+    p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "commits"], capture_output=True, text=True,
+                       timeout=120, env=gh_git_env())
+    if p.returncode != 0:
+        raise RuntimeError(f"gh pr view failed: {p.stderr.strip()[:120]}")
+    try:
+        commits = json.loads(p.stdout)["commits"]
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"unreadable commits: {type(e).__name__}") from e
+    if not commits:
+        raise RuntimeError("the PR lists no commits")
+    return squash_body(commits, owner_noreply)
+
+
+def _email_problems(author, committer):
+    """Which of author/committer emails break the public-main rule. Committer may also be GitHub's web-flow address."""
+    bad = []
+    if not (author or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("author")
+    if (committer or "").strip().lower() not in (WEB_FLOW_EMAIL,) and not (committer or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("committer")
+    return bad
+
+
+def judge_merge_email_check(con, t, a, owner_repo, merged_sha):
+    """After a merge into a public repo: read the merge commit and fail loudly (event, message to the director, exit 6)
+    unless author and committer emails are noreply. Cannot read it = cannot verify = also loud. Returns normally if clean."""
+    slug = _repo_slug(owner_repo)
+    why = None
+    try:
+        sha = merged_sha
+        if not sha:
+            sha = ((gh_json("pr", "view", t["pr_url"], "--json", "mergeCommit").get("mergeCommit")) or {}).get("oid") or ""
+        if not sha:
+            why = "cannot find the merge commit of the PR, email not verified"
+        else:
+            c = gh_json("api", f"repos/{slug}/commits/{sha}")["commit"]
+            bad = _email_problems(c["author"]["email"], c["committer"]["email"])
+            if bad:
+                why = f"merge commit {sha[:8]} has a non-noreply {' and '.join(bad)} email (author {c['author']['email'][:3]}***, committer {c['committer']['email'][:3]}***)"
+    except (SystemExit, ValueError, KeyError, TypeError, subprocess.TimeoutExpired, OSError) as e:
+        why = f"cannot read the merge commit, email not verified: {type(e).__name__}: {str(e)[:120]}"
+    if why is None:
+        return
+    event(con, "task", a.task, "merge-email-leak", why)
+    send(con, "director", f"{a.task}: public merge email check FAILED", f"{why}. The change is on {slug} main. Rewrite or "
+         "verify the commit before anyone builds on it (G-021 T-0602).", "escalation", task=a.task, sender=actor())
+    con.commit()
+    die(f"{a.task} merged but the public-main email check failed: {why}; director notified", 6)
+
+
 def judge_requeue(con, task, proj, pr_url, new_head):
     """Local mode after a refresh: the new head needs its own gate run (a pass never carries across a head change).
     Enqueue it and exit without waiting; the tick launches the run and respawns a judge once it passes."""
@@ -3208,6 +3549,11 @@ def cmd_judge(a):
     t = con.execute("SELECT * FROM tasks WHERE id=?", (a.task,)).fetchone() or die(f"no task {a.task}")
     if not t["pr_url"]:
         die(f"{a.task} has no PR")
+    frozen = None if a.reject else merge_freeze_refusal(con)
+    if frozen:
+        event(con, "task", a.task, "judge-blocked", frozen)
+        con.commit()
+        die(f"merge refused: {frozen}; nothing merged. Only the director or boss clears it (factory main-unfreeze)", 4)
     pr = pr_state(t["pr_url"])
     sha = pr["headRefOid"]
     reason = read_text(a.reason)
@@ -3264,7 +3610,12 @@ def cmd_judge(a):
             stale = (False, f"gh repo view failed: {e}", None)
         else:
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
-        if not stale[0]:
+        # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
+        behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+        if behind_clean:
+            if BEHIND_OK_NOTE not in reason:
+                reason += "; " + BEHIND_OK_NOTE
+        elif not stale[0]:
             problems.insert(0, "STALE-ONLY: head does not contain origin/main" if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
@@ -3278,7 +3629,7 @@ def cmd_judge(a):
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
             run = gate_run_for_head(con, t["pr_url"], sha)
-            if stale[0] and not gate_waited and (not run or run["status"] in ("queued", "running")):
+            if (stale[0] or behind_clean) and not gate_waited and (not run or run["status"] in ("queued", "running")):
                 # no verdict yet on this head: queue it for the tick, wait for it, then run the whole gate again
                 gate_enqueue(con, proj, t["pr_url"], sha)
                 con.commit()
@@ -3286,9 +3637,9 @@ def cmd_judge(a):
                 pr = pr_state(t["pr_url"])
                 sha = pr["headRefOid"]
                 continue
-            if stale[1] != "STALE":  # a stale head is refreshed below and gated again on the new head
+            if stale[1] != "STALE" or behind_clean:  # a stale head is refreshed below and gated again on the new head
                 problems += local_gate_problems(
-                    con, proj, t["pr_url"], sha, stale[2], stale[0],
+                    con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
         else:
             problems += missing_checks(con, pr, t["pr_url"])
@@ -3306,7 +3657,9 @@ def cmd_judge(a):
                 err = close_landed_pr(t["pr_url"], landed, reason)
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
-        if stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
+        if behind_clean:
+            pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
             if pr.get("baseRefName") != "main":
@@ -3380,12 +3733,31 @@ def cmd_judge(a):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
+        if red:
+            event(con, "task", a.task, "judge-blocked", red)
+            die(f"merge refused: {red}; nothing merged", 4)
         refused = judge_public_text_refusal(con, t, owner_repo, git_repo, stale[2], sha)
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
             die(refused, 4)
+        author_args = []
+        if _judge_is_public(con, t, owner_repo):  # G-021: the squash commit must not carry a real email
+            noreply = noreply_email(con)
+            if not noreply:
+                msg = ("merge refused: no noreply author email; set `factory config noreply_email <id>+<user>@users.noreply.github.com` "
+                       "or the repo-local git user.email; nothing merged")
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            try:  # explicit body: GitHub's default one adds a Co-authored-by per commit author, real emails included
+                body = judge_squash_body(t["pr_url"], noreply)
+            except (RuntimeError, subprocess.TimeoutExpired, OSError) as e:
+                msg = f"merge refused: cannot build the public squash body: {e}; nothing merged"
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            author_args = ["--author-email", noreply, "--body", body]
         try:
-            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha],
+            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
         except subprocess.TimeoutExpired:  # outcome unknown, like a 5xx: the squash may have landed
             p = subprocess.CompletedProcess([], 124, "", "gh pr merge timed out")
@@ -3429,6 +3801,8 @@ def cmd_judge(a):
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
+    if _judge_is_public(con, t, owner_repo):
+        judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
 
 def cmd_refresh(a):
@@ -3527,8 +3901,12 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
-    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task)
-    if r["status"] == "fresh":
+    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
+        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
+    # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
+    # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
+    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
+    if r["status"] in ("fresh", "dry-run"):
         return None
     if r["status"] == "in-flight":
         return f"REFRESH-IN-FLIGHT: PR #{pr['number']}; another refresh is pushing{held_by(r.get('holder'))}; spawn again after its CI starts"
@@ -3751,6 +4129,7 @@ def build_digest(con, goal=None, date=None, hours=24):
     events = [e for e in con.execute("SELECT * FROM events ORDER BY id") if inwin(e["ts"])]
     score_rows = scorecard_rows(con)
     shown = 0
+    fresh_shown = False
     closed_earlier = []
     for g in goals:
         if g["status"] in ("done", "cancelled"):
@@ -3836,6 +4215,10 @@ def build_digest(con, goal=None, date=None, hours=24):
         out += ["### Up next", f"{len(ready)} ready todo task(s)", ""]
         drift = drift_items(con, g, end, drift_pr_states(con))  # D2 uses the PR states of the last tick: no gh call here
         out += ["Drift: " + ("; ".join(drift) if drift else "none"), ""]
+        if not fresh_shown:
+            fresh_shown = True
+            stale = stale_agents(con)
+            out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
 
         for t in con.execute("SELECT id, parked_at FROM teams WHERE status='active' AND parked_at IS NOT NULL AND goal_id=? ORDER BY id", (g["id"],)):
             wakes = sum(1 for e in events if e["action"] == "lead-wake" and e["entity_id"] == t["id"])
@@ -3916,6 +4299,161 @@ def morning_digest(con):
             pass
 
 
+RED_MAIN_WORKFLOW = "tests.yml"
+RED_MAIN_BAD = ("failure", "timed_out", "startup_failure")
+
+
+def red_main_state(con, slug):
+    """The stored red-main record of repo `slug` ({run, sha, url, since}) or None while its main is not known red."""
+    r = con.execute("SELECT value FROM config WHERE key=?", (f"red_main:{slug}",)).fetchone()
+    try:
+        st = json.loads(r["value"]) if r and r["value"] else None
+    except ValueError:
+        st = ""
+    if st is None:
+        return None
+    return st if isinstance(st, dict) else {"run": "?", "sha": "", "url": "", "since": ""}  # an unreadable record keeps the freeze (fail closed)
+
+
+def red_main_refusal(con, slugs, task_id=None):
+    """Why a merge into one of `slugs` (OWNER/NAME) must wait: the latest completed push run of tests.yml on main is red
+    (T-0614 signal, kept by red_main_check). None with red_main_freeze off, or when none of the repos is red. The revert/fix
+    task the check filed (`task_id` equals the stored "task") may merge: it is what lifts the freeze."""
+    if cfg(con, "red_main_freeze") != "1":
+        return None
+    for slug in slugs:
+        st = red_main_state(con, slug)
+        if st and not (task_id and st.get("task") == task_id):
+            return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
+    return None
+
+
+def _red_main_set(con, slug, st):
+    key = f"red_main:{slug}"
+    if st is None:
+        con.execute("DELETE FROM config WHERE key=?", (key,))
+    else:
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, json.dumps(st)))
+
+
+def _red_main_latest(slug):
+    """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
+    or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
+    p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                       capture_output=True, text=True, timeout=30, env=gh_git_env())
+    if p.returncode != 0:
+        raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
+    return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+
+
+def _red_main_green_mark(value):
+    try:
+        m = json.loads(value)
+    except ValueError:
+        return {}
+    return m if isinstance(m, dict) else {}
+
+
+def _red_main_green_run(value):
+    return str(_red_main_green_mark(value).get("run", ""))
+
+
+def _red_main_green_at(value):
+    return _red_main_green_mark(value).get("created") or ""
+
+
+def _red_main_when(ts):
+    """Aware datetime of an ISO timestamp (GitHub's 'Z' form or the DB's offset form), None when empty or unreadable."""
+    try:
+        d = dt.datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.astimezone()
+
+
+def _red_main_revert_task(con, slug, run, since_ts):
+    """File a coder task to revert or fix the PRs merged since the last green main; returns its id or None (no goal)."""
+    pids = [r["id"] for r in con.execute("SELECT id, gh_repo FROM projects WHERE gh_repo IS NOT NULL AND gh_repo!=''")
+            if _repo_slug(r["gh_repo"]) == slug]
+    g = con.execute(f"SELECT id FROM goals WHERE status='active' AND project_id IN ({','.join('?' * len(pids))}) "
+                    "ORDER BY priority, id LIMIT 1", pids).fetchone() if pids else None
+    if not g:
+        return None, []
+    ev = con.execute(f"SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
+                     f"WHERE e.entity='task' AND e.action='merged' AND g.project_id IN ({','.join('?' * len(pids))}) "
+                     "ORDER BY e.ts DESC", pids).fetchall()
+    since = _red_main_when(since_ts)
+    ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
+    merged = list(dict.fromkeys(r["entity_id"] for r in ev))
+    tid = next_id(con, "tasks", "T", 4)
+    title = f"Red main: revert or fix {slug} run {run['databaseId']}"
+    spec = (f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main failed ({run.get('url') or 'no url'}, "
+            f"head {str(run.get('headSha') or '')[:8]}). The red-main freeze holds every merge until a green push run. Merged since "
+            f"the last green main: {', '.join(merged) or 'unknown'}. Find the cause in the run log and open a PR that reverts or "
+            "fixes it; the freeze lifts by itself on the next green push run.")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+                (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
+    event_as(con, "tick", "task", tid, "add", title)
+    return tid, merged
+
+
+def red_main_check(con):
+    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
+    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
+    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    if cfg(con, "red_main_freeze") != "1":
+        return
+    try:
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
+        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
+                                           con.execute("SELECT gh_repo FROM projects WHERE gh_repo IS NOT NULL AND gh_repo!=''")) if s]
+        for slug in slugs:
+            try:
+                run = _red_main_latest(slug)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+                event(con, "redmain", slug, "red-main-unknown", str(e)[:300])
+                continue
+            if run is None:
+                continue
+            old = red_main_state(con, slug)
+            if run["conclusion"] in RED_MAIN_BAD:
+                if old and str(old.get("run")) == str(run["databaseId"]):
+                    continue
+                tid, merged = (None, [])
+                if not old:
+                    gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
+                    tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
+                                          "task": tid or (old or {}).get("task") or "",
+                                          "since": (old or {}).get("since") or now()})
+                event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
+                send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
+                     f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
+                     f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
+                     + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
+                        if tid else "No active goal for the project: file the revert task by hand.")
+                     + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
+            elif run["conclusion"] == "success":
+                mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
+                if not mark or _red_main_green_run(mark["value"]) != str(run["databaseId"]):  # the mark is the green run's own start
+                    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                                (f"red_main_green:{slug}", json.dumps({"run": run["databaseId"], "created": run.get("createdAt") or ""})))
+                if old:
+                    _red_main_set(con, slug, None)
+                    event_as(con, "tick", "redmain", slug, "red-main-clear", f"run {run['databaseId']} green")
+    except Exception as e:  # noqa: BLE001 — the tick must go on
+        try:
+            event(con, "redmain", "-", "red-main-failed", str(e)[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 TMP_CLEAN_THROTTLE_S = 3600    # the tick cleans finished tasks' scratchpads at most once an hour
 TMP_CLEAN_MIN_AGE_S = 3600     # ...and only those untouched for this long
 
@@ -3935,6 +4473,86 @@ def tmp_alert(con):
     if over != bool(armed and armed["value"] == "1"):
         con.execute("INSERT INTO config(key,value) VALUES('tmp_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     ("1" if over else "0",))
+
+
+def remote_url_mismatch(con, home=None):
+    """None when config `factory_remote_url` is empty (learned later) or equals the checkout's `origin` URL (git remote
+    get-url origin, compared exactly like the git guard does); else a message saying what to run. URLs are shown without
+    credentials."""
+    want = cfg(con, "factory_remote_url").strip()
+    if not want:
+        return None
+    p = git_run(Path(home or LIVE_HOME), "remote", "get-url", "origin", timeout=30)
+    got = p.stdout.strip() if p.returncode == 0 else ""
+    if got and got == want:
+        return None
+    show = lambda u: re.sub(r"(?<=://)[^/@\s]*@", "", u)  # noqa: E731 — never copy a token from a URL into the DB
+    return (f"config factory_remote_url is {show(want)!r} but `git remote get-url origin` of the factory checkout is "
+            f"{show(got) or '(none)'!r}: the git guard will refuse pushes. After a remote switch run "
+            "`factory config factory_remote_url <new origin url>`; otherwise restore the origin.")
+
+
+def remote_url_alert(con):
+    """Tick hook: one alert to the director per distinct mismatch (re-armed once it matches again)."""
+    try:
+        msg = remote_url_mismatch(con)
+    except (OSError, subprocess.SubprocessError) as e:
+        event(con, "tick", "remote-url", "remote-url-check-failed", str(e)[:300])
+        return
+    row = con.execute("SELECT value FROM config WHERE key='remote_url_alerted'").fetchone()
+    seen = row["value"] if row else ""
+    if msg and msg != seen:
+        send(con, "director", "factory_remote_url does not match origin", msg, "alert", sender="tick")
+    if (msg or "") != seen:
+        con.execute("INSERT INTO config(key,value) VALUES('remote_url_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (msg or "",))
+
+
+MAIN_PROTECTION_EVERY_S = 3600  # the check, and so the boss alert, runs at most this often (R-a)
+
+
+def main_protection_problem(slug):
+    """Why the main branch protection of OWNER/NAME fails rule R-a (PR required and enforce_admins on), None when it
+    holds. Raises OSError/SubprocessError/ValueError when gh cannot answer: unknown is never reported as fine."""
+    p = subprocess.run(["gh", "api", f"repos/{slug}/branches/main/protection"], capture_output=True, text=True, timeout=30)
+    if p.returncode != 0:
+        if "branch not protected" in (p.stdout + p.stderr).lower():
+            return "main has no branch protection at all"
+        raise subprocess.SubprocessError(f"gh api protection exited {p.returncode}: {p.stderr.strip()[-200:]}")
+    prot = json.loads(p.stdout)
+    missing = []
+    if not (prot.get("enforce_admins") or {}).get("enabled"):
+        missing.append("enforce_admins is off (admins, including the owner's login, can push to main)")
+    if not prot.get("required_pull_request_reviews"):
+        missing.append("pull requests are not required")
+    return "; ".join(missing) or None
+
+
+def main_protection_alert(con):
+    """Tick hook (R-a): once an hour check main protection of every public_text_repos repo; alert the boss for each one that
+    lacks enforce_admins or the PR requirement. Fix: `python3 ci/publish_repo.py --repo OWNER/NAME --apply` by the owner."""
+    slugs = sorted(_cfg_slugs(con, "public_text_repos") - _cfg_slugs(con, "frozen_repos"))
+    if not slugs:
+        return
+    row = con.execute("SELECT value FROM config WHERE key='main_protection_checked_at'").fetchone()
+    try:
+        if row and (dt.datetime.fromisoformat(now()) - dt.datetime.fromisoformat(row["value"])).total_seconds() < MAIN_PROTECTION_EVERY_S:
+            return
+    except ValueError:
+        pass  # an unreadable stamp: check now and overwrite it
+    con.execute("INSERT INTO config(key,value) VALUES('main_protection_checked_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (now(),))
+    for slug in slugs:
+        try:
+            why = main_protection_problem(slug)
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            event(con, "tick", "main-protection", "main-protection-check-failed", f"{slug}: {str(e)[:300]}")
+            continue
+        if why:
+            send(con, "boss", f"public repo {slug}: main protection is too weak",
+                 f"{slug} main: {why}. Owner rule R-a: PR required (0 approvals), enforce_admins on, no force push, no deletion. "
+                 f"The owner fixes it with `python3 ci/publish_repo.py --repo {slug} --apply`; agents may not change protection. "
+                 "Next reminder in one hour while it stays wrong.", "alert", sender="tick")
 
 
 def _tree_bytes(path):
@@ -4457,11 +5075,30 @@ def factory_remote_url():
 
 # The repo-scope keys the live ~/factory/.git/config really has (git -C ~/factory config --file .git/config --list).
 _ALLOWED_KEY = re.compile(r"^(core\.(repositoryformatversion|filemode|bare|logallrefupdates)|remote\.origin\.(url|fetch)"
-                          r"|branch\..+\.(remote|merge)|extensions\.worktreeconfig)$", re.I)
+                          r"|branch\..+\.(remote|merge)|extensions\.worktreeconfig|user\.(name|email))$", re.I)
 _INCLUDE_KEY = re.compile(r"^include(if)?\.", re.I)  # also outside the allow-list; named so the refusal reads as intended
 
 
 _GH_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # used with fullmatch: `$` would also match before a trailing newline
+
+
+def _clone_source(con, common):
+    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task>, the
+    DB names that task's project repo, and the clone's one alternates line is exactly <repo>/.git/objects. The
+    alternates file is worker-writable, so it is only compared, never trusted. None otherwise."""
+    try:
+        wt = common.parent
+        if wt.parent != WORKTREES.resolve():
+            return None
+        alt = (common / "objects" / "info" / "alternates").read_text().splitlines()
+    except OSError:
+        return None
+    row = con.execute("SELECT p.repo_path FROM tasks t JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id "
+                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name,)).fetchone()
+    if not row or not isinstance(row["repo_path"], str) or not Path(row["repo_path"]).is_absolute():
+        return None
+    repo = Path(row["repo_path"]).resolve()
+    return repo if alt == [str(repo / ".git" / "objects")] else None
 
 
 def _project_remote_urls(common):
@@ -4474,6 +5111,7 @@ def _project_remote_urls(common):
     try:
         con = db()
         try:
+            root = _clone_source(con, common) or common.parent  # a per-task clone is judged by its own task's project repo
             rows = con.execute("SELECT repo_path, gh_repo FROM projects WHERE repo_path IS NOT NULL AND gh_repo IS NOT NULL").fetchall()
         finally:
             con.close()
@@ -4487,7 +5125,7 @@ def _project_remote_urls(common):
                 continue
             if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
                 continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
-            if Path(rp).resolve() != common.parent or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
+            if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
                 continue
             urls |= {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
         return urls
@@ -4511,7 +5149,8 @@ def git_config_refusal(repo):
     Reads, WITHOUT includes, `<common-dir>/config`, every `<common-dir>/worktrees/*/config.worktree` and the target
     worktree's own config.worktree. Refuses (returns the offending keys; empty = clean): any include.*/includeIf.*
     key, any key outside the allow-list (core.repositoryformatversion|filemode|bare|logallrefupdates,
-    remote.origin.url|fetch, branch.<n>.remote|merge, extensions.worktreeConfig), a remote.origin.url that is not
+    remote.origin.url|fetch, branch.<n>.remote|merge, extensions.worktreeConfig, user.name, user.email), a user.email
+    that does not end in @users.noreply.github.com, a remote.origin.url that is not
     the factory repo or the clone's own registered project (exact https gh_repo URL), extensions.worktreeConfig other than false, a non-empty
     `<common-dir>/info/attributes` or `~/.config/git/attributes`. Fails closed: unreadable config is a refusal.
     Global/XDG config is out of scope (G-010, docs/git-hardening.md)."""
@@ -4545,6 +5184,8 @@ def git_config_refusal(repo):
                 keys.append(k)
             elif k.lower() == "remote.origin.url" and not _remote_url_ok(v, project_urls):
                 keys.append(f"{k}={v}")
+            elif k.lower() == "user.email" and not v.strip().lower().endswith("@users.noreply.github.com"):
+                keys.append(k)  # a real address in repo config would be committed under; only the noreply form is allowed
             elif k.lower() == "extensions.worktreeconfig" and v.strip().lower() not in ("false", "no", "off", "0"):
                 keys.append(k)
     xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
@@ -4581,6 +5222,56 @@ def git_config_guard(con, repo, always_event=False):
     return False
 
 
+def make_task_clone(con, repo, wt, branch, base):
+    """Standalone clone of `repo` at `wt` (task_clones=1): objects borrowed through alternates, origin = the repo's
+    own origin URL, refs/remotes/origin/* copied from the repo (no network), `branch` checked out from origin/<base>.
+    Every git call goes through git_run; the guard runs on the clone before anything checks out."""
+    if wt.exists():
+        die(f"clone refused: {wt} already exists; remove it or fix tasks.worktree", 4)
+    u = git_run(repo, "remote", "get-url", "origin")
+    url = u.stdout.strip()
+    if u.returncode != 0 or not url:
+        die(f"clone refused: {repo} has no origin URL to give the clone: {u.stderr.strip()}", 4)
+
+    def fail(msg, code=1):
+        shutil.rmtree(wt, ignore_errors=True)
+        con.commit()
+        die(msg, code)
+
+    # the one place a local path is cloned: file transport is allowed for this call alone (the source passed the guard)
+    p = git_run(repo, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", str(repo), str(wt))
+    if p.returncode != 0:
+        fail(f"clone failed: {p.stderr.strip()}")
+    p = git_run(wt, "remote", "set-url", "origin", url)
+    if p.returncode != 0:
+        fail(f"clone setup failed (remote set-url): {p.stderr.strip()}")
+    old = git_run(wt, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
+    new = git_run(repo, "for-each-ref", "--format=%(objectname) %(refname)", "refs/remotes/origin")
+    if old.returncode != 0 or new.returncode != 0:
+        fail(f"clone setup failed (for-each-ref): {(old.stderr + new.stderr).strip()}")
+    want = {}
+    for line in new.stdout.splitlines():
+        sha, _, ref = line.partition(" ")
+        if re.fullmatch(r"[0-9a-f]{40,64}", sha) and ref.startswith("refs/remotes/origin/") and ref != "refs/remotes/origin/HEAD":
+            want[ref] = sha
+    # what clone fetched from the repo's local branches is replaced by the repo's own origin refs (one update per ref)
+    cmds = [f"delete {r}\n" for r in old.stdout.split() if r not in want and r != "refs/remotes/origin/HEAD"] + [f"update {r} {sha}\n" for r, sha in want.items()]
+    if "refs/remotes/origin/HEAD" in old.stdout.split():  # clone's symref would make the update below hit origin/<default> twice
+        p = git_run(wt, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+        if p.returncode != 0:
+            fail(f"clone setup failed (symbolic-ref): {p.stderr.strip()}")
+    p = git_run(wt, "update-ref", "--stdin", input="".join(cmds))
+    if p.returncode != 0:
+        fail(f"clone setup failed (update-ref): {p.stderr.strip()}")
+    if not git_config_guard(con, wt):  # before the first checkout: filters, fsmonitor and includes only act then
+        why = ", ".join(git_config_refusal(wt))
+        fail(f"spawn refused: git config in {wt} would run code: {why}", 4)
+    has_remote = git_run(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}").returncode == 0
+    p = git_run(wt, "checkout", "-q", "-f", "-B", branch, f"origin/{base}" if has_remote else base)
+    if p.returncode != 0:
+        fail(f"clone checkout failed: {p.stderr.strip()}")
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -4608,6 +5299,10 @@ def prepare_worktree(con, task, role):
     git_run(repo, "fetch", "-q", "origin", text=False)
     has_remote = git_run(repo, "rev-parse", "--verify", "-q", f"origin/{base}", text=False).returncode == 0
     start = f"origin/{base}" if has_remote else base
+    if cfg(con, "task_clones") == "1":
+        make_task_clone(con, repo, wt, branch, base)
+        con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
+        return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
     if p.returncode != 0:
         die(f"worktree add failed: {p.stderr.strip()}")
@@ -4723,6 +5418,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
         die(f"{name} is already live in {existing['pane_id']}")
     release_stale_pane(con, name)  # name reuse after `done` but before the tick reaped the old pane
+    if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task):
+        sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
             "prompt": prompt, "model": model, "resume": resume, "fresh": fresh}
     if sandbox_optin:
@@ -4731,7 +5428,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         args.update(env_extra=env_extra, plugin_dirs=list(plugin_dirs or []), add_home_dir=add_home_dir)
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
-    ok, why, stats = gate(con, load_exempt=relaunch and role in ("boss", "director", "lead"), role=role,
+    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director", "lead")) or role == "judge", role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live")
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
@@ -4880,7 +5577,9 @@ def sandbox_preflight(role, cwd, name):
 
 
 class SandboxRefused(SystemExit):
-    """A sandboxed spawn that preflight refused: exit 3. The tick's dequeue loop skips it (the row stays queued)."""
+    """A sandboxed spawn that preflight refused: exit 3. A direct spawn just exits; the tick's dequeue loop cancels
+    the queued row (sandbox_drop_queued). reason and why say what to fix."""
+    reason = why = ""
 
 
 def sandbox_refuse(con, role, name, reason, why):
@@ -4902,7 +5601,25 @@ def sandbox_refuse(con, role, name, reason, why):
     con.commit()  # the exit follows: the event and the message must survive
     print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
           "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
-    raise SandboxRefused(3)
+    e = SandboxRefused(3)
+    e.reason, e.why = reason, why
+    raise e
+
+
+def sandbox_drop_queued(con, row, s, e):
+    """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
+    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path."""
+    if not cancel_queued(con, row["name"], "sandbox-preflight", f"{e.reason}: {e.why}"):
+        return
+    team = s.get("team")
+    subject = f"sandbox refused queued spawn {row['name']}"
+    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: sandbox preflight refused it "
+            f"({e.reason}: {e.why}). Fix it and spawn again.")
+    try:
+        send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
+             sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
 def sandbox_prepare(con, role, name, cwd):
@@ -5000,8 +5717,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (name,))
         event(con, "agent", name, "flagless-cleared", {"via": "spawn"})
     if sandboxed and (sid or resume):  # the session's claude pid is known now: close an escape right away
-        for pid, _argv in claude_procs(sid or resume):
-            if sandbox_escape_close(con, name, pane, pid):
+        for pid, argv in claude_procs(sid or resume):
+            if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid):
                 break
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
           f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
@@ -5049,6 +5766,10 @@ def cmd_spawn(a):
             event(con, "task", a.task, "spawn-bounced", f"{a.role}: {why}")
             con.commit()
             die(why, 2)
+        if a.role in workerbox.SANDBOXABLE and not a.sandbox and task_sandbox_required(con, a.task):
+            event(con, "task", a.task, "sandbox-required-refused", f"{a.role} {a.name or a.role}")
+            con.commit()
+            die(f"{a.task} is sandbox_required: rerun with --sandbox (factory spawn {a.role} ... --task {a.task} --sandbox)", 3)
     spawn(con, a.role, a.goal, a.team, a.task, a.name, a.cwd, read_text(a.prompt), a.model, sandbox_optin=a.sandbox)
 
 
@@ -5061,6 +5782,32 @@ def mark_read(con, msgs):
 def _git_out(wt, *args):
     p = git_run(wt, *args)
     return p.returncode, p.stdout.rstrip("\n")
+
+
+def done_remote_ref(wt, task_id, branch):
+    """Remote-tracking ref holding the task's pushed work: (name, sha, matches). Local refs only, no network.
+
+    Order: recorded branch; the worktree's upstream if it is factory/<task-id> in any case; the single
+    refs/remotes/origin ref equal to it case-insensitively. Several such refs and no matching upstream: none chosen, all named in matches."""
+    if branch:
+        rc, sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}")
+        if rc == 0 and sha:
+            return branch, sha, []
+    want = f"factory/{task_id}".lower()
+    rc, up = _git_out(wt, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    if rc == 0 and up.startswith("origin/") and up[7:].lower() == want:
+        rc, sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{up[7:]}")
+        if rc == 0 and sha:
+            return up[7:], sha, []
+    found = []
+    for l in _git_out(wt, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes/origin/")[1].splitlines():
+        ref, _, sha = l.partition(" ")
+        name = ref[len("refs/remotes/origin/"):]
+        if name.lower() == want:
+            found.append((name, sha))
+    if len(found) == 1:
+        return found[0][0], found[0][1], []
+    return None, "", [n for n, _ in found]
 
 
 def coder_done_findings(con, r, force=False):
@@ -5078,14 +5825,19 @@ def coder_done_findings(con, r, force=False):
                  if l.startswith("??")]
     unpushed = None
     head = _git_out(wt, "rev-parse", "HEAD")[1]
-    remote = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}")[1] if branch else ""
+    used, remote, variants = done_remote_ref(wt, r["task_id"], branch)
+    if head and head == remote and used != branch:
+        print(f"pushed to origin/{used}, task branch is {branch or '(unset)'}; the PR head must match", file=sys.stderr)
     if head and head != remote:
         brc, base_sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}")
         if brc != 0:  # no remote-tracking base: fall back to the local base branch
             brc, base_sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/heads/{base}")
         ahead = _git_out(wt, "rev-list", "--count", f"{base_sha}..HEAD")[1] if brc == 0 else "1"
         if ahead.isdigit() and int(ahead) > 0:
-            unpushed = f"HEAD {head[:9]} is not on origin/{branch} ({ahead} commit(s) beyond {base})"
+            unpushed = f"HEAD {head[:9]} is not on origin/{used or branch} ({ahead} commit(s) beyond {base})"
+            if variants:
+                unpushed += "; several case variants of the task branch exist, none chosen: " + ", ".join(
+                    f"origin/{v}" for v in variants)
     ci = None
     if t["pr_url"] and (force or not (dirty or unpushed)):
         try:
@@ -5823,6 +6575,8 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             wt = p.resolve()
             if wt == root or root not in wt.parents:
                 return "outside worktrees/", None, tip is not None
+            if (wt / ".git").is_dir():
+                return "per-task clone (removal not supported yet)", None, tip is not None
             top = _git(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
                 return "not a git worktree", None, tip is not None
@@ -6271,6 +7025,20 @@ def gate_dir():
     return Path.home() / ".cache" / "factory-gate"
 
 
+GATE_FAST_CMD = ("python3 -m py_compile bin/factory ci/affected.py && "
+                 "python3 ci/affected.py --base {main_sha} --quick --budget 600 --run")
+
+
+def gate_fast(con, proj):
+    """T-0642: True when the project runs the gate in fast mode (config gate_fast_projects): lint + smoke + affected quick
+    modules instead of its gate_cmd. The full suite is CI's job (the judge still needs the GitHub checks green)."""
+    return proj["id"] in cfg(con, "gate_fast_projects").split()
+
+
+def gate_cmd_for(con, proj):
+    return GATE_FAST_CMD if gate_fast(con, proj) else proj["gate_cmd"]
+
+
 def gate_pid_alive(pid):
     if not pid:
         return False
@@ -6439,11 +7207,11 @@ def gate_run(con, a):
     repo = proj["repo_path"] or str(HOME)
     if queued:
         run_id = queued["id"]
-        con.execute("UPDATE gate_runs SET pid=?, cmd=? WHERE id=?", (os.getpid(), proj["gate_cmd"], run_id))
+        con.execute("UPDATE gate_runs SET pid=?, cmd=? WHERE id=?", (os.getpid(), gate_cmd_for(con, proj), run_id))
         event(con, "gate", str(run_id), "gate-launched", f"{kind} {task_id or proj['id']}")
     else:
         cur = con.execute("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,status,cmd,actor,created,pid) VALUES(?,?,?,?,'queued',?,?,?,?)",
-                          (proj["id"], task_id, pr_url, kind, proj["gate_cmd"], actor(), now(), os.getpid()))
+                          (proj["id"], task_id, pr_url, kind, gate_cmd_for(con, proj), actor(), now(), os.getpid()))
         run_id = cur.lastrowid
         event(con, "gate", str(run_id), "gate-queued", f"{kind} {task_id or proj['id']}")
     con.commit()  # the pid is visible to the tick before the long part starts
@@ -6461,7 +7229,7 @@ def gate_run(con, a):
             head, main_sha, note = gate_resolve(con, run_id, kind, pr_url, owner_repo, repo)
             if not a.no_cache:
                 hit = con.execute("SELECT * FROM gate_runs WHERE project_id=? AND head_sha=? AND main_sha=? AND status='pass' AND cmd=? AND id<>? "
-                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, proj["gate_cmd"], run_id)).fetchone()
+                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, gate_cmd_for(con, proj), run_id)).fetchone()
                 if hit:  # same tree, same main, same command: the result cannot differ, so no slot and no run
                     gate_finish(con, run_id, "pass", f"cached: pass of run #{hit['id']} (same head and main)", exit_code=hit["exit_code"],
                                 test_count=hit["test_count"], main_count=hit["main_count"])
@@ -6541,7 +7309,10 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
     shards = gate_shard_count(con)
     env.update({"GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(wt_root / "reports")})
     gate_worktree(repo, head, wt_root / "head")
-    code, timed_out = gate_run_cmd(proj["gate_cmd"], wt_root / "head", log, proj["gate_timeout_s"], env)
+    cmd = gate_cmd_for(con, proj).replace("{main_sha}", main_sha)
+    if gate_fast(con, proj):
+        note = "; ".join(x for x in (note, "fast mode (gate_fast_projects): lint + affected quick; CI runs the full suite") if x)
+    code, timed_out = gate_run_cmd(cmd, wt_root / "head", log, proj["gate_timeout_s"], env)
     if timed_out:
         raise RuntimeError(f"gate_cmd timed out after {proj['gate_timeout_s']} s; process group killed")
     counts = {}
@@ -6570,6 +7341,8 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
         except (ValueError, KeyError) as e:
             note = "; ".join(x for x in (note, f"unreadable shard summary: {e!r}") if x)
     status = "pass" if code == 0 else "fail"
+    if gate_fast(con, proj) and "FULL needed: rely on CI" in Path(log).read_text(errors="replace"):
+        note = "; ".join(x for x in (note, "no local tests ran (FULL needed): CI is the gate for this diff") if x)
     gate_finish(con, run_id, status, note or None, exit_code=code, **counts)
     if kind == "pr" and cfg(con, "gate_post_status") == "1":
         state = "success" if status == "pass" else "failure"
@@ -6648,7 +7421,7 @@ def gate_enqueue(con, proj, pr_url, sha=None):
         return r["id"]
     t = con.execute("SELECT id FROM tasks WHERE pr_url=?", (pr_url,)).fetchone()
     cur = con.execute("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,head_sha,status,cmd,actor,created) VALUES(?,?,?,'pr',?,'queued',?,?,?)",
-                      (proj["id"], t["id"] if t else None, pr_url, sha, proj["gate_cmd"], actor(), now()))
+                      (proj["id"], t["id"] if t else None, pr_url, sha, gate_cmd_for(con, proj), actor(), now()))
     event(con, "gate", str(cur.lastrowid), "gate-enqueued", f"pr {pr_url}")
     return cur.lastrowid
 
@@ -6786,6 +7559,10 @@ def cmd_res(a):
     gr = con.execute("SELECT id,kind,task_id,project_id,pid FROM gate_runs WHERE status='running' ORDER BY id").fetchall()
     print(f"gate runs: {len(gr)} running (max {cfg(con, 'gate_max_parallel')})"
           + "".join(f" · #{r['id']} {r['task_id'] or r['kind'] + ':' + r['project_id']}" for r in gr))
+    if s.get("tmp") and s["tmp"]["pct"] >= float(cfg(con, "tmp_max_pct")):
+        cok, cwhy, _ = gate(con, role="cleaner")
+        print("cleaner gate: " + ("OPEN — exempt from the /tmp gate (tmp_max_pct) so it can free /tmp; every other cap still applies"
+                                  if cok else f"CLOSED — {cwhy}"))
     print(f"agents live {s['live']}/{s['cap']} · queued {q} · other claude panes {s['other']} (counted in host total)")
     lc = lead_counts(con)
     reserved = int(cfg(con, "reserved_worker_slots"))
@@ -7212,6 +7989,8 @@ def judge_pr_ready(con, pr_url, behind_ok=False):
     behind_ok: a BEHIND head is accepted (the spawn pre-check refreshes it, and the ready check runs again after
     that); the cached answer then says 'behind' in `why` instead of not-ready.
     Local mode (the project has a gate_cmd, T-0516): decided from gate_runs, see gate_pr_ready; no GitHub checks."""
+    if not behind_ok and pr_url.startswith("https://github.com/"):  # G-022 stale_policy=behind_ok with strict=false
+        behind_ok = stale_behind_ok(con, "/".join(pr_url.split("/")[3:5]))
     proj = gate_project_for(con, pr_url)
     if proj:
         return gate_pr_ready(con, proj, pr_url, behind_ok)
@@ -7313,6 +8092,95 @@ def queue_order_key(row, at=None):
     return (cls, 0 if refresh else 1, level, -steps, prio, row["queued_at"] or "", row["name"])
 
 
+FRESH_PERSISTENT = ("boss", "director", "lead")
+
+
+def role_prompt_text(role):
+    """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md)."""
+    return (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+
+
+def _newest_mtime(*paths):
+    """Newest mtime of any file under the given files/dirs (0 when none exist). A vanished file is skipped."""
+    best = 0.0
+    for p in paths:
+        p = Path(p)
+        files = [p] if p.is_file() else [Path(d) / f for d, _dirs, fs in os.walk(p) for f in fs]
+        for f in files:
+            try:
+                best = max(best, f.stat().st_mtime)
+            except FileNotFoundError:
+                continue
+    return best
+
+
+def freshness_checkout_stale():
+    """True when the CLI launcher or the main checkout is not the current one: ~/.local/bin/factory does not resolve to
+    HOME/bin/factory (no PATH lookup: the tick's systemd unit lacks ~/.local/bin), or HEAD != the local origin/main ref
+    (the tick's own sync_pull just updated it; no fetch here). No origin/main ref: that half cannot decide, so it is skipped."""
+    launcher = Path.home() / ".local" / "bin" / "factory"
+    if os.path.realpath(launcher) != os.path.realpath(HOME / "bin" / "factory"):
+        return True
+    rc, head, _ = _git_rc(["rev-parse", "-q", "--verify", "HEAD^{commit}"])
+    rc2, origin, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+    return rc == 0 and rc2 == 0 and head != origin
+
+
+def tick_freshness(con):
+    """Every tick (docs/freshness.md): flag live agents that run older role files, settings, plugins or CLI than main.
+    Reasons: prompt, settings, plugins, checkout. Hooks are not a reason (they run from disk on every call). Writes
+    `stale-agent` when an agent's reason set changes, `fresh-agent` when it clears (dedupe: throttle key fresh:<name>),
+    and tells the director (boss, for the director) once per new reason set of a persistent agent that has no relaunch
+    queued. Workers get the event and the digest line only. Raises on an unreadable file: the caller wraps it."""
+    checkout = freshness_checkout_stale()
+    seen = set()
+    for r in con.execute("SELECT * FROM agents WHERE status='live' AND role!='evaluator' ORDER BY name").fetchall():
+        name, role = r["name"], r["role"]
+        seen.add(name)
+        reasons = []
+        started = _ts(r["started"])
+        t0 = started.timestamp() + 1 if started else None  # `started` is whole seconds: tolerate a same-second write
+        try:
+            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role):
+                reasons.append("prompt")
+        except FileNotFoundError:
+            pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare
+        if t0 is not None:
+            sdir = ROLES_DIR / "settings"
+            if _newest_mtime(sdir / f"{role}.json", sdir / f"{role}.json.in") > t0:
+                reasons.append("settings")
+            pdirs = [ROLES_DIR / "plugins" / role]
+            if role == "coder" and r["goal_id"] and re.fullmatch(r"G-\d+", r["goal_id"]):
+                pdirs.append(GOAL_PLUGINS / r["goal_id"])
+            if _newest_mtime(*[d for d in pdirs if d.is_dir()]) > t0:
+                reasons.append("plugins")
+        if checkout:
+            reasons.append("checkout")
+        key, val = f"fresh:{name}", ",".join(sorted(reasons))
+        old = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+        if (old["ts"] if old else "") == val:
+            continue
+        if not reasons:
+            con.execute("DELETE FROM throttle WHERE key=?", (key,))
+            event(con, "agent", name, "fresh-agent", {"name": name})
+            continue
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, val))
+        event(con, "agent", name, "stale-agent", {"name": name, "role": role, "reasons": sorted(reasons)})
+        if role in FRESH_PERSISTENT and not r["relaunch_requested_at"]:
+            send(con, "boss" if role == "director" else "director", f"stale agent: {name}",
+                 f"{name} ({role}) runs older files than main: {', '.join(sorted(reasons))}. "
+                 f"Restart it with the current ones: factory relaunch {name} --when-idle", "alert", sender="tick")
+    for row in con.execute("SELECT key FROM throttle WHERE key LIKE 'fresh:%'").fetchall():
+        if row["key"][len("fresh:"):] not in seen:  # gone (exited, lost, relaunched under a new row): forget it silently
+            con.execute("DELETE FROM throttle WHERE key=?", (row["key"],))
+
+
+def stale_agents(con):
+    """[(name, reasons)] from the last tick's `fresh:` throttle rows, for the digest."""
+    return [(r["key"][len("fresh:"):], r["ts"]) for r in
+            con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'fresh:%' ORDER BY key").fetchall()]
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
@@ -7323,7 +8191,10 @@ def cmd_tick(a, locked=False):
     agents = herdr_agents()
     morning_digest(con)
     tmp_alert(con)
+    remote_url_alert(con)
+    main_protection_alert(con)
     tmp_clean(con)
+    red_main_check(con)
     reap_stray_serves(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
@@ -7433,9 +8304,17 @@ def cmd_tick(a, locked=False):
     queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
                                 "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
+    held = False
     for q in queued:
-        if not gate(con)[0]:
-            break
+        if not held and not gate(con)[0]:
+            held = True  # a closed gate stops the queue, except for a judge (exempt from the load cap only) or a cleaner (tmp gate only)
+        if held:
+            if q["role"] == "judge":
+                ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+            else:
+                ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
+            if not ok:
+                continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
@@ -7452,8 +8331,9 @@ def cmd_tick(a, locked=False):
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
-        except SandboxRefused:
-            continue  # refused and logged; spawn() left the row queued, a later tick retries
+        except SandboxRefused as e:
+            sandbox_drop_queued(con, q, s, e)  # spawn() left the row queued; every refusal needs a human fix
+            con.commit()
         except EvaluatorInvalid:
             # a trial sandbox that no longer validates (cleaned up, tampered) must not wedge the tick every minute
             con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
@@ -7517,6 +8397,11 @@ def cmd_tick(a, locked=False):
               label, "--ttl-ms", "180000", check=False)
     export(con)  # the main checkout now holds the merged role files
 
+    try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
+        tick_freshness(con)
+    except Exception as e:  # noqa: BLE001 — the check must never stop the tick
+        event(con, "tick", "freshness", "freshness-failed", str(e)[:300])
+
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
         tick_recycle(con)
@@ -7570,7 +8455,7 @@ def _sync_failed(con, err):
     return False
 
 
-def _migrate_state_commits(con, push_ok=True):
+def _migrate_state_commits(con, push_ok=True, target="origin/main"):
     """Old code committed "state:" commits on main. Drain them once by dropping them locally; they are never pushed
     (they carry factory.sql, T-0326). With git_push=0, state_push=0 or --no-push (push_ok False) the commits stay
     where they are. Returns an error string when main holds anything else (nothing is touched then), else None."""
@@ -7591,7 +8476,7 @@ def _migrate_state_commits(con, push_ok=True):
     # They are never pushed (they carry factory.sql, which is private): drop them locally.
     if not push_ok:
         return None
-    rc, _, err = _git_rc(["reset", "-q", "--keep", "origin/main"])
+    rc, _, err = _git_rc(["reset", "-q", "--keep", target])
     if rc != 0:
         return err or "git reset --keep failed"
     how = "dropped"
@@ -7617,11 +8502,15 @@ def sync_pull(con, push_ok=True):
     if tracked:
         _git_rc(["restore", "--worktree", "--source=HEAD", "--pathspec-from-file=-", "--pathspec-file-nul"], input=tracked)
         _git_rc(["update-index", "-q", "--refresh"])  # restore leaves stale stat data: reset --keep / ff-merge would say "not uptodate"
-    err = _migrate_state_commits(con, push_ok)
+    target = _sync_target(con)
+    if target is None:
+        _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])  # later checks (email) read origin/main
+        return False  # public main holds (or may hold) a non-PR commit: the freeze alert already went out (T-0639)
+    err = _migrate_state_commits(con, push_ok, target)
     if err is None:
         rc, _, err = _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])
         if rc == 0:
-            rc, _, err = _git_rc(["merge", "-q", "--ff-only", "refs/remotes/origin/main"])
+            rc, _, err = _git_rc(["merge", "-q", "--ff-only", target])
         if rc == 0:
             render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2); the pull just deleted the tracked files
             try:
@@ -7631,6 +8520,199 @@ def sync_pull(con, push_ok=True):
             return True
         err = err or f"git sync exited {rc}"
     return _sync_failed(con, err)
+
+
+MAIN_CHECK_EVERY_S = 50  # the tick runs every 60 s; a tick that lands a few seconds early must not be skipped
+
+
+def main_freeze_sha(con):
+    """Sha of the first non-PR commit that froze merging (T-0639), "" when there is no freeze."""
+    r = con.execute("SELECT value FROM config WHERE key='main_freeze'").fetchone()
+    return r["value"] if r else ""
+
+
+def merge_freeze_refusal(con):
+    """Error string when a merge must be refused because public main holds a non-PR commit; None = allowed."""
+    sha = main_freeze_sha(con)
+    return f"non-PR push on main: {sha}" if sha else None
+
+
+def _public_main_slug(con):
+    """OWNER/NAME of origin when it is in public_text_repos, else None."""
+    public = _cfg_slugs(con, "public_text_repos")
+    return next((s for s in (_repo_slug(u) for u in _origin_urls()) if s in public), None) if public else None
+
+
+def _set_config(con, key, value):
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+
+
+def _sync_target(con):
+    """What the live checkout may fast-forward to: refs/remotes/origin/main, or for a public origin only the last sha
+    whose commits all passed the PR check. None = do not sync (frozen, or nothing verified yet; fail closed)."""
+    slug = _public_main_slug(con)
+    if not slug:
+        if _cfg_slugs(con, "public_text_repos") and not any(_repo_slug(u) for u in _origin_urls()):
+            return None  # origin cannot be parsed while public_text_repos is set: fail closed, never sync unchecked
+        return "refs/remotes/origin/main"
+    row = con.execute("SELECT value FROM config WHERE key=?", (f"main_verified:{slug}",)).fetchone()
+    return None if main_freeze_sha(con) or not row or not row["value"] else row["value"]
+
+
+def _is_pr_squash(slug, sha, committer, subject):
+    """(True, "") when `sha` is the GitHub squash of a merged PR: committer noreply@github.com, subject ends (#N), and PR N
+    is merged with merge_commit_sha == sha. (False, why) when it is not; raises RuntimeError when gh cannot say."""
+    if committer.strip().lower() != "noreply@github.com":
+        return False, f"committer {committer.strip()[:3]}*** is not noreply@github.com"
+    m = re.search(r"\(#(\d+)\)$", subject.strip())
+    if not m:
+        return False, "subject does not end with (#N)"
+    try:
+        p = subprocess.run(["gh", "api", f"repos/{slug}/pulls/{m.group(1)}"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise RuntimeError(f"gh api pulls/{m.group(1)}: {e}")
+    if p.returncode != 0:
+        raise RuntimeError(f"gh api pulls/{m.group(1)}: {p.stderr.strip()[:200]}")
+    try:
+        pr = json.loads(p.stdout)
+    except ValueError as e:
+        raise RuntimeError(f"gh api pulls/{m.group(1)}: not JSON ({e})")
+    if not isinstance(pr, dict):
+        raise RuntimeError(f"gh api pulls/{m.group(1)}: unexpected answer")
+    if not pr.get("merged") or pr.get("merge_commit_sha") != sha:
+        return False, f"PR #{m.group(1)} is not merged with merge_commit_sha {sha[:8]}"
+    return True, ""
+
+
+def public_main_pr_check(con):
+    """Tick (G-021 T-0639, owner rule R-d): when origin is in public_text_repos, every commit new on origin/main must be a
+    GitHub squash of a merged PR. The first one that is not sets the merge freeze (judges refuse), tells the boss and the
+    director at once and records an event. main_verified:<repo> is the last sha whose commits all passed: the live checkout
+    only syncs to it. A check that cannot decide (gh down) leaves the watermark where it is. Never raises."""
+    try:
+        slug = _public_main_slug(con)
+        if not slug:
+            return
+        last = con.execute("SELECT value FROM config WHERE key='main_check_ts'").fetchone()
+        if last and 0 <= time.time() - float(last["value"]) < MAIN_CHECK_EVERY_S:
+            return
+        _set_config(con, "main_check_ts", str(time.time()))
+        if main_freeze_sha(con):
+            return  # already frozen: only a director or boss clears it
+        if _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])[0] != 0:
+            raise RuntimeError("git fetch origin main failed")
+        rc, tip, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+        if rc != 0 or not tip:
+            return
+        key = f"main_verified:{slug}"
+        row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+        seen = row["value"] if row else ""
+        if not seen:  # first run: what the live checkout already has is the baseline
+            rc, local, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/heads/main^{commit}"])
+            if rc == 0 and _git_rc(["merge-base", "--is-ancestor", local, tip])[0] == 0:
+                seen = local
+        rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
+        rc, out, err = _git_rc(["log", "--reverse", "--format=%x00%H%x09%ce%x09%s", *rng])
+        if rc != 0:
+            raise RuntimeError(err or f"git log exited {rc}")
+        good = seen
+        for rec in out.split("\x00"):
+            if not rec.strip():
+                continue
+            sha, ce, subj = (rec.split("\t", 2) + ["", ""])[:3]
+            sha = sha.strip()
+            ok, why = _is_pr_squash(slug, sha, ce, subj)
+            if not ok:
+                _set_config(con, "main_freeze", sha)
+                event(con, "system", slug, "main-freeze", json.dumps({"sha": sha, "why": why}))
+                body = (f"Commit {sha} on {slug} origin/main is not a GitHub squash of a merged PR ({why}). Merging is frozen: "
+                        f"judges refuse with 'non-PR push on main: {sha}', and the tick will not sync ~/factory to this main. "
+                        "Verify main (git log, git diff against the last good sha), then run `factory main-unfreeze --reason ...` "
+                        "(director or boss). G-021 T-0639, owner rule R-d.")
+                for to in ("boss", "director"):
+                    send(con, to, f"MERGE FREEZE: non-PR push on {slug} main {sha[:8]}", body, "escalation", sender="tick")
+                break
+            good = sha
+        else:
+            good = tip
+        if good:
+            _set_config(con, key, good)
+    except Exception as e:  # noqa: BLE001 — a failed check must not stop the tick; the watermark stays, so sync stays put
+        try:
+            k = f"main-check-fail:{int(time.time() // 3600)}"
+            if not con.execute("SELECT 1 FROM throttle WHERE key=?", (k,)).fetchone():
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (k, str(time.time())))
+                event(con, "system", "tick", "public-main-check-failed", str(e)[:200])
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def cmd_main_unfreeze(a):
+    """Director or boss: clear the merge freeze after main was verified; origin/main's tip becomes the verified sha."""
+    con = db()
+    require_role(con, "director", "boss")
+    sha = main_freeze_sha(con)
+    if not sha:
+        die("no merge freeze is set; nothing to clear")
+    reason = read_text(a.reason)
+    slug = _public_main_slug(con)
+    if slug:
+        rc, tip, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+        if rc != 0 or not tip:
+            die("cannot read origin/main (git fetch origin main first); freeze kept")
+        _set_config(con, f"main_verified:{slug}", tip)
+    con.execute("DELETE FROM config WHERE key='main_freeze'")
+    event(con, "system", slug or "-", "main-unfreeze", json.dumps({"sha": sha, "reason": reason}))
+    print(f"merge freeze cleared (was {sha[:8]}); verified main moved to origin/main")
+
+
+PUBLIC_MAIN_SCAN_MAX = 200  # commits looked at when there is no usable watermark
+
+
+def public_main_email_check(con):
+    """Tick (G-021 T-0602): for the main checkout when its origin is in public_text_repos, look at the commits that are new
+    on origin/main since the last check; an author or committer email that is not noreply (web-flow committer allowed)
+    -> one escalation to the boss per sha. Never raises: the tick goes on."""
+    try:
+        public = _cfg_slugs(con, "public_text_repos")
+        if not public:
+            return
+        slug = next((s for s in (_repo_slug(u) for u in _origin_urls()) if s in public), None)
+        if not slug:
+            return
+        key = f"public_main_seen:{slug}"
+        row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+        rc, tip, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+        if rc != 0 or not tip:
+            return
+        seen = row["value"] if row else ""
+        rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
+        rc, out, err = _git_rc(["log", "--format=%x00%H%x09%ae%x09%ce%x09%B", *rng])
+        if rc != 0:
+            raise RuntimeError(err or f"git log exited {rc}")
+        for rec in out.split("\x00"):
+            if not rec.strip():
+                continue
+            sha, ae, ce, msg = (rec.split("\t", 3) + ["", "", ""])[:4]
+            sha = sha.strip()
+            bad = _email_problems(ae, ce)
+            if squash_body([{"messageBody": msg}], noreply_email(con)) != msg.strip():
+                bad.append("Co-authored-by trailer")
+            tkey = f"email-alert:{sha}"
+            if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
+                continue
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (tkey, str(time.time())))
+            send(con, "boss", f"public main {slug}: non-noreply email on {sha[:8]}",
+                 f"Commit {sha} on {slug} origin/main has a non-noreply {' and '.join(bad)} email (author {ae[:3]}***, "
+                 f"committer {ce[:3]}***). Required: ...{NOREPLY_SUFFIX}. Rewrite the commit or confirm it is fine; "
+                 "alerted once for this sha (G-021 T-0602).", "escalation", sender="tick")
+            event(con, "system", slug, "public-main-email", sha)
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, tip))
+    except Exception as e:  # noqa: BLE001 — a failed alert check must not stop the tick
+        try:
+            event(con, "system", "tick", "public-main-email-failed", str(e)[:200])
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def state_commit(msg):
@@ -7665,7 +8747,9 @@ def state_commit(msg):
 def export(con, push=None):
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
+    public_main_pr_check(con)  # before the sync: it must never move the checkout to a main with a non-PR commit
     sync_pull(con, push_ok and state_ok)  # first: merged code goes live and tracked generated files are restored before they are rewritten
+    public_main_email_check(con)
     banner = "<!-- generated by `factory export` from factory.db — edits here are overwritten -->\n"
     goals = con.execute("SELECT g.*,(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status='done') done,"
                         "(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status!='cancelled') total FROM goals g ORDER BY id").fetchall()
@@ -7910,7 +8994,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             die(f"pane {pane} runs a process that is not a registered agent; refusing to touch it", 3)
     else:
         pane = None
-    optin = optin_of(r)
+    optin = optin_of(r) or (r["role"] in workerbox.SANDBOXABLE and task_sandbox_required(con, r["task_id"]))
     if sandbox_wanted(con, r["role"], optin):  # refuse before the old pane is closed: a refused restart must not kill a running agent
         bad = sandbox_preflight(r["role"], r["cwd"], r["name"]) if r["cwd"] else (
             "cwd", "the agent row has no recorded cwd; spawn it again instead of relaunching")
@@ -8328,10 +9412,29 @@ CI_WAKE_GH_TIMEOUT_S = 15  # one slow gh call must not stall the tick
 CI_WAKE_RECHECK_S = 600  # fallback only: when the remote head cannot be read, a mailed task's PR is not queried again for this long
 
 
-def _ci_remote_head(branch):
-    """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read."""
+def _ci_remote_heads():
+    """{branch: head sha} for every origin refs/heads/factory/* from ONE `git ls-remote`, or None when it cannot be read."""
+    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S)
+    if rc != 0:
+        return None
+    heads = {}
+    for l in out.splitlines():
+        row = l.split("\t")
+        if len(row) == 2 and row[1].startswith("refs/heads/") and re.fullmatch(r"[0-9a-f]{40}", row[0]):
+            heads[row[1][len("refs/heads/"):]] = row[0]
+    return heads
+
+
+def _ci_remote_head(branch, batch=None):
+    """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read.
+    `batch` is a one-item list holding the per-tick _ci_remote_heads() result (filled on first use): a factory/* branch is
+    looked up there, so a tick makes one ls-remote however many PRs it checks; any other branch gets its own call."""
     if not branch:
         return None
+    if batch is not None and branch.startswith("factory/"):
+        if not batch:
+            batch.append(_ci_remote_heads())
+        return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
     rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
@@ -8354,6 +9457,7 @@ def tick_ci_wake(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
+    batch = []  # one ls-remote per tick, made on first need
     for t in con.execute("SELECT * FROM teams WHERE status='active' AND parked_at IS NOT NULL ORDER BY id").fetchall():
         lead = t["lead_agent"]
         r = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone() if lead else None
@@ -8361,7 +9465,7 @@ def tick_ci_wake(con):
             continue
         for k in con.execute("SELECT id, pr_url, branch FROM tasks WHERE team_id=? AND status='in_review' AND pr_url IS NOT NULL "
                              "AND pr_url != '' ORDER BY id", (t["id"],)).fetchall():
-            head = _ci_remote_head(k["branch"]) if _throttled(con, f"ci-head:{k['id']}", clock, float("inf")) else None
+            head = _ci_remote_head(k["branch"], batch) if _throttled(con, f"ci-head:{k['id']}", clock, float("inf")) else None
             if head is not None and _throttled(con, f"ci-green:{k['id']}:{head}", clock, float("inf")):
                 continue  # this head's green was already mailed: nothing can change it
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
@@ -9159,7 +10263,7 @@ def evaluator_home_guard():
     opened, an unset/empty FACTORY_HOME or one that resolves to the live home."""
     if os.environ.get("FACTORY_ROLE") != "evaluator":
         return
-    if not os.environ.get("FACTORY_HOME") or home_is_live():
+    if not os.environ.get("FACTORY_HOME", "").strip() or home_is_live():
         die("the evaluator may not use the live factory home: set FACTORY_HOME to its temp home "
             "(FACTORY_HOME=<temp dir> factory <cmd>)", 3)
 
@@ -9172,6 +10276,8 @@ def main():
     x = sp.add_parser("init"); x.add_argument("--live-home", metavar="ABS_PATH", help="also record ABS_PATH as an extra live home (owner only)")
     x.set_defaults(fn=cmd_init)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
+    x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
+    x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
     sp.add_parser("whoami").set_defaults(fn=cmd_whoami)
 
     x = sp.add_parser("project"); x.add_argument("action", choices=["add", "update", "list"]); x.add_argument("id", nargs="?")
@@ -9185,6 +10291,7 @@ def main():
     x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close"])
     x.add_argument("id", nargs="?"); x.add_argument("status", nargs="?")
     x.add_argument("--ready", action="store_true"); x.add_argument("--gaps", action="store_true")
+    x.add_argument("--full", action="store_true")
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
@@ -9200,6 +10307,7 @@ def main():
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
     x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen"])
+    x.add_argument("--full", action="store_true")
     x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
     x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")
@@ -9207,6 +10315,10 @@ def main():
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
     x.add_argument("--waits", choices=TASK_WAITS, help="with --status blocked: owner (the owner must act) or internal (queue/freeze; default)")
+    x.add_argument("--merged-externally", dest="merged_externally", action="store_true",
+                   help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
+    x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
+                   help="task must run in the worker sandbox: spawn refuses it without --sandbox; the tick starts it sandboxed")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)
 
     x = sp.add_parser("lesson"); x.add_argument("action", choices=["add", "list", "show", "edit", "link", "apply", "verify", "reopen"])

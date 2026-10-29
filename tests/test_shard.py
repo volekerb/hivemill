@@ -146,8 +146,51 @@ class VerifyTest(unittest.TestCase):
         with self.assertRaises(shard.ShardError):
             shard.verify(self.reports, 2, self.tests)
 
+    def test_only_expects_just_the_listed_modules(self):
+        self.write(1, 2, ["test_a.py"])
+        self.write(2, 2, [])
+        summary, tests = shard.verify(self.reports, 2, self.tests, only={"test_a.py"})
+        self.assertIn("1 modules, 10 tests across 2 shards", summary)
+
+    def test_only_still_rejects_a_listed_module_that_never_ran(self):
+        self.write(1, 2, ["test_a.py"])
+        self.write(2, 2, [])
+        with self.assertRaisesRegex(shard.ShardError, "never ran=.*test_b"):
+            shard.verify(self.reports, 2, self.tests, only={"test_a.py", "test_b.py"})
+
+    def test_cli_verify_only_file(self):
+        self.write(1, 2, ["test_b.py"])
+        self.write(2, 2, [])
+        only = os.path.join(self.tmp.name, "only.txt")
+        Path(only).write_text("test_b.py\n")
+        r = subprocess.run([sys.executable, str(ROOT / "ci" / "shard.py"), "verify", "--total", "2", "--dir", self.reports,
+                            "--only", only], capture_output=True, text=True)
+        # the real tests/ dir is the reference, so only a listed module that exists there verifies
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("unknown=['test_b.py']", r.stderr)
+
 
 class RunTest(unittest.TestCase):
+    def test_only_filters_the_shard_and_empty_selection_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tests = os.path.join(tmp, "tests")
+            os.mkdir(tests)
+            Path(tests, "test_x.py").write_text("import unittest\nclass T(unittest.TestCase):\n    def test_1(self): pass\n")
+            Path(tests, "test_y.py").write_text("import unittest\nclass T(unittest.TestCase):\n    def test_2(self): self.fail('x')\n")
+            out = os.path.join(tmp, "o.json")
+            cwd = os.getcwd()
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    rc = shard.run_shard(1, 1, out, tests, only={"test_x.py"})
+                    rc_empty = shard.run_shard(1, 1, out + "2", tests, only=set())
+            finally:
+                os.chdir(cwd)
+                sys.path[:] = [p for p in sys.path if p not in (tests, tmp)]
+                for m in ("test_x", "test_y"):
+                    sys.modules.pop(m, None)
+            self.assertEqual((rc, json.loads(Path(out).read_text())["modules"]), (0, ["test_x.py"]))
+            self.assertEqual((rc_empty, json.loads(Path(out + "2").read_text())["modules"]), (0, []))
+
     def test_run_writes_report_with_modules_and_count(self):
         with tempfile.TemporaryDirectory() as tmp:
             tests = os.path.join(tmp, "tests")
