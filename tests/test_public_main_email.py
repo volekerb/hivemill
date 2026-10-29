@@ -28,7 +28,7 @@ class PublicMainEmailTests(FactoryTestCase):
     def push(self, env, name="c", msg=None):
         (self.wt / name).write_text(name)
         run_git(self.wt, "add", name)
-        run_git(self.wt, "commit", "-q", "-m", msg or name, env=env)
+        run_git(self.wt, "commit", "-q", "--cleanup=verbatim", "-m", msg or name, env=env)  # keeps CRs in the message
         run_git(self.wt, "push", "-q", "origin", "HEAD:main")
         return run_git(self.wt, "rev-parse", "HEAD")
 
@@ -69,6 +69,22 @@ class PublicMainEmailTests(FactoryTestCase):
         self.assertIn(sha[:8], a[0]["subject"])
         self.assertIn("Co-authored-by", a[0]["body"])
         self.assertNotIn("localhost", a[0]["body"])
+
+    def test_crlf_and_cr_messages_with_good_trailers_do_not_alert(self):
+        good = "Co-authored-by: Dev <1+dev@users.noreply.github.com>"
+        self.push(CLEAN, "v", msg=f"v\r\n\r\n{good}\r\nCo-authored-by: C <noreply@anthropic.com>")
+        self.push(CLEAN, "w", msg=f"w\r\r{good}")
+        self.push(CLEAN, "y", msg=f"y\u2028{good}\x0c{good}\x0bCo-authored-by: C <noreply@anthropic.com>")  # splitlines separators
+        self.ok("export")
+        self.assertEqual(self.alerts(), [])
+
+    def test_bad_trailer_in_crlf_message_still_escalates(self):
+        sha = self.push(CLEAN, "x", msg="x\r\n\r\nCo-authored-by: factory refresh <factory-refresh@localhost>\r\n")
+        sha2 = self.push(CLEAN, "z", msg="z\u2028Co-authored-by: factory refresh <factory-refresh@localhost>\x0c")
+        self.ok("export")
+        a = self.alerts()
+        self.assertEqual(len(a), 2, a)
+        self.assertEqual({x["subject"][-8:] for x in a}, {sha[:8], sha2[:8]})
 
     def test_not_a_public_repo_never_alerts(self):
         self.ok("config", "public_text_repos", "acme/other")

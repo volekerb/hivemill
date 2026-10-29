@@ -342,7 +342,7 @@ class JudgeTextTests(Base):
             "def check_ref(*a): return []\ndef check_push(*a, **k): return []\n")
         self.env.sql("UPDATE tasks SET worktree=? WHERE id='T-0001'", (str(wt),))
         self.assert_text_refused(self.judge(), "owner-term")
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         self.assertIn("HOME / PUBLIC_GUARD", src)
         self.assertNotIn("git_repo / PUBLIC_GUARD", src)
 

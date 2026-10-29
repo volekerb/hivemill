@@ -4,7 +4,7 @@ import re
 import subprocess
 import unittest
 
-from harness import FactoryTestCase, FACTORY, PR_URL
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC, PR_URL
 from harness import git
 
 LEAD = "lead-g-001-a"
@@ -133,7 +133,7 @@ class CiWakeTests(FactoryTestCase):
         self.assertIn("timed out", ev[0]["detail"])
 
     def test_default_gh_timeout_is_short(self):
-        m = re.search(r"^CI_WAKE_GH_TIMEOUT_S = (\d+)", FACTORY.read_text(), re.M)
+        m = re.search(r"^CI_WAKE_GH_TIMEOUT_S = (\d+)", FACTORY_SRC.read_text(), re.M)
         self.assertIsNotNone(m)
         self.assertLessEqual(int(m.group(1)), 20)
 

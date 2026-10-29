@@ -68,7 +68,7 @@ class AffectedTest(unittest.TestCase):
         self.write("ci/shard.py", "y = 1\n")
         self.write("roles/coder.md", "a\n")
         self.write("docs/a.md", "a\n")
-        self.write("bin/factory", BIN_BASE)
+        self.write("bin/factory_cli.py", BIN_BASE)
         self.git("add", "-A")
         self.git("commit", "-qm", "base")
         self.git("branch", "base")
@@ -114,7 +114,7 @@ class AffectedTest(unittest.TestCase):
         self.assertIn("test_alpha.py", got)  # mentions ci/tool
 
     def test_bin_factory_change_inside_one_cmd_selects_its_tests_only(self):
-        self.write("bin/factory", BIN_BASE.replace("def cmd_inbox(a):\n    return 2", "def cmd_inbox(a):\n    return 3"))
+        self.write("bin/factory_cli.py", BIN_BASE.replace("def cmd_inbox(a):\n    return 2", "def cmd_inbox(a):\n    return 3"))
         self.commit()
         got = self.selected()
         self.assertIn("test_beta.py", got)  # "inbox" subcommand
@@ -122,14 +122,14 @@ class AffectedTest(unittest.TestCase):
         self.assertNotIn("test_alpha.py", got)
 
     def test_bin_factory_helper_change_selects_by_def_name(self):
-        self.write("bin/factory", BIN_BASE.replace("def helper(x):\n    return x", "def helper(x):\n    return x + 1"))
+        self.write("bin/factory_cli.py", BIN_BASE.replace("def helper(x):\n    return x", "def helper(x):\n    return x + 1"))
         self.commit()
         got = self.selected()
         self.assertIn("test_alpha.py", got)
         self.assertNotIn("test_beta.py", got)
 
     def test_schema_change_is_full(self):
-        self.write("bin/factory", BIN_BASE.replace('SCHEMA = "a"', 'SCHEMA = "b"'))
+        self.write("bin/factory_cli.py", BIN_BASE.replace('SCHEMA = "a"', 'SCHEMA = "b"'))
         self.commit()
         r = self.affected()
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -141,12 +141,12 @@ class AffectedTest(unittest.TestCase):
                          ("def db():\n    return 1", "def db():\n    return 2")]:
             self.git("checkout", "-q", "work")
             self.git("reset", "-q", "--hard", "base")
-            self.write("bin/factory", BIN_BASE.replace(old, new))
+            self.write("bin/factory_cli.py", BIN_BASE.replace(old, new))
             self.commit()
             self.assertTrue(self.affected().stdout.startswith("FULL"), old)
 
     def test_hub_def_change_is_full(self):
-        self.write("bin/factory", BIN_BASE.replace("def hub(x):\n    return x", "def hub(x):\n    return -x"))
+        self.write("bin/factory_cli.py", BIN_BASE.replace("def hub(x):\n    return x", "def hub(x):\n    return -x"))
         self.commit()
         r = self.affected()
         self.assertTrue(r.stdout.startswith("FULL"), r.stdout)
