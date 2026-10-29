@@ -73,23 +73,23 @@ per-PNG cap; the other pages use `HMAX` (1600).
 
 | File | Page | Theme | Pixels (w x h) | Bytes |
 |---|---|---|---|---|
-| home-light.png | Home | light | 2560 x 1949 | 418753 |
-| home-dark.png | Home | dark | 2560 x 1950 | 418685 |
+| home-light.png | Home | light | 2560 x 1949 | 418931 |
+| home-dark.png | Home | dark | 2560 x 1950 | 418824 |
 | goals-light.png | Goals | light | 2560 x 2672 | 366556 |
 | goals-dark.png | Goals | dark | 2560 x 2672 | 367537 |
 | goal-light.png | Goal | light | 2560 x 2043 | 241866 |
 | goal-dark.png | Goal | dark | 2560 x 2044 | 243659 |
-| tasks-light.png | Tasks | light | 2560 x 1872 | 317956 |
-| tasks-dark.png | Tasks | dark | 2560 x 1872 | 319042 |
-| agents-light.png | Agents | light | 2560 x 3009 | 378136 |
-| agents-dark.png | Agents | dark | 2560 x 3009 | 377803 |
+| tasks-light.png | Tasks | light | 2560 x 1872 | 318193 |
+| tasks-dark.png | Tasks | dark | 2560 x 1872 | 319185 |
+| agents-light.png | Agents | light | 2560 x 3009 | 378334 |
+| agents-dark.png | Agents | dark | 2560 x 3009 | 377916 |
 | throughput-light.png | Throughput | light | 2560 x 3110 | 356615 |
 | throughput-dark.png | Throughput | dark | 2560 x 3111 | 358938 |
 | quality-light.png | Quality | light | 2560 x 2549 | 220236 |
 | quality-dark.png | Quality | dark | 2560 x 2549 | 222533 |
-| hero.png | Home (light left, dark right) | both | 2562 x 974 | 386011 |
-| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 173073 |
-| **Total** | | | | 5167399 |
+| hero.png | Home (light left, dark right) | both | 2562 x 974 | 386030 |
+| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 173207 |
+| **Total** | | | | 5168560 |
 
 | Page | Light | Dark | What it shows |
 |---|---|---|---|
