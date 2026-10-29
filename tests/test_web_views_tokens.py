@@ -108,22 +108,36 @@ class TestTotals(TokensCase):
 
     def test_render_values_and_na(self):
         d, html = self.page(days="all")
-        for needle in ("1.5M", "150.0k", "Goal one", "$6.01", "n/a", "unattributed", "claude-nope",
-                       f"list prices as of {PRICES_AS_OF}", "Estimated API-equivalent cost", "By day"):
+        for needle in ("1.5M", "Goal one", "$6.01", "Not attributed", f"list prices as of {PRICES_AS_OF}",
+                       "Cost estimate", "By day", "Total tokens", "Cache read share", "Requests"):
             self.assertIn(needle, html)
+        _, models = self.page(days="all", by="model")
+        for needle in ("claude-nope", "n/a", "claude-opus-5-5"):
+            self.assertIn(needle, models)
 
-    def test_by_day_header_and_cells_align(self):
+    def test_by_day_is_a_column_chart_with_a_table_fallback(self):
         _, html = self.page(days="all")
-        section = html.split("By day")[1].split("</table>")[0]
-        rows = re.findall(r"<tr>(.*?)</tr>", section, re.S)
-        heads = re.findall(r"<th[ >]", rows[0])
-        self.assertEqual(len(heads), 3)       # Day, Usage, Cost: the bar already shows the token count
-        self.assertNotIn("Tokens", rows[0])
-        body = [r for r in rows[1:] if "<td" in r]
-        self.assertTrue(body)
-        for r in body:
-            self.assertEqual(len(re.findall(r"<td[ >]", r)), 3, r)
-            self.assertRegex(r, r'<td[^>]*>\$[\d.]+\+?</td>\s*$|<td[^>]*>n/a</td>\s*$')    # cost under Cost
+        section = html.split("By day")[1]
+        self.assertRegex(section, r'<svg [^>]*role="img"[^>]*aria-label="[^"]*tokens in \d+ days[^"]*"[^>]*class="cols">')
+        self.assertIn('</svg><table class="sr-only">', section)
+        self.assertNotIn("bar--", html)
+
+    def test_breakdown_is_one_table_with_a_by_switch(self):
+        d, html = self.page(days="all")
+        seg = html.split('aria-label="Breakdown"')[1].split("</nav>")[0]
+        self.assertEqual(re.findall(r'<a href="([^"]+)"( aria-current="true")?>([^<]+)</a>', seg),
+                         [("/tokens?days=all", ' aria-current="true"', "By goal"), ("/tokens?days=all&amp;by=task", "", "By task"),
+                          ("/tokens?days=all&amp;by=agent", "", "By agent"), ("/tokens?days=all&amp;by=model", "", "By model")])
+        self.assertEqual(html.count('<table class="dt">'), 1)
+        rows = re.findall(r'<tr><td class="c-title">(.*?)</td>', html.split('aria-label="Breakdown"')[1])
+        self.assertIn("Not attributed", rows[-1])        # pinned last, with its (i) definition
+        self.assertIn("What is Not attributed?", rows[-1])
+        self.assertIn("G-1", rows[0])
+
+    def test_agent_rows_hide_session_ids_in_the_title_tooltip(self):
+        d, html = self.page(days="all", by="agent")
+        self.assertRegex(html, r'<span title="sessions: s1">coder-t-1 <span class="muted">coder</span></span>')
+        self.assertNotIn(">s1<", html)
 
     def test_total_not_na_because_of_synthetic_rows(self):
         c = self.ctx(days="all", model="<synthetic>")
@@ -157,7 +171,7 @@ class TestStates(TokensCase):
         d, html = self.page(snap={"ready": False, "files": 3, "bytes_total": 5 * 1048576, "rows": [], "sessions": {}})
         self.assertLess(time.time() - t0, 1.0)
         self.assertIn("indexing… 3 files / 5.0 MB read", html)
-        self.assertEqual(html.count("no data yet"), 5)
+        self.assertNotIn("Total tokens", html)
         self.assertIn("Claude usage", html)
 
     def test_no_index_at_all(self):
@@ -165,27 +179,20 @@ class TestStates(TokensCase):
         c.tokens = None
         self.assertIn("indexing…", str(tokens.render(c, tokens.data(c))))
 
-    def test_by_day_bar_shows_tokens_not_percent(self):
-        d, html = self.page()
-        found = re.findall(r'aria-label="([^"]+) of max ([^"]+)"><span class="mono">([^<]*)</span>', html)
-        self.assertTrue(found)
-        for n, mx, shown in found:
-            self.assertEqual(shown, n)
-            self.assertFalse(shown.endswith("%"))
-
     def test_empty_sections(self):
         snap = self.index.snapshot()
         snap["rows"] = []
         d, html = self.page(snap=snap)
-        self.assertEqual(html.count("no data yet"), 5)
+        self.assertEqual(html.count("no data yet"), 1)
+        self.assertIn("No tokens in this range", html)
 
 
 class TestUsage(TokensCase):
     def test_fresh_values_and_reset(self):
         d, html = self.page()
         self.assertEqual((d["usage"]["five_hour"], d["usage"]["seven_day"]), (42.0, 17.0))
-        self.assertIn("bar bar--40", html)
-        self.assertIn("bar bar--15", html)
+        self.assertIn('aria-label="Claude usage 5-hour 42%, cap 92%"', html)
+        self.assertIn('aria-label="Claude usage weekly 17%, cap 92%"', html)
         self.assertIn("resets ", html)
         self.assertNotIn("stale:", html)
 

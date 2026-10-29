@@ -18,6 +18,7 @@ import sqlite3
 import statistics
 import stat
 import sys
+import unicodedata
 from pathlib import Path
 
 try:
@@ -325,7 +326,13 @@ def needs_start_log(r):
     return r["status"] in ("error", "lost") or (r["status"] == "running" and no_tokens)
 
 
-_CTRL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")  # ESC and the C0 set except \t: the sandbox writes this log
+_CTRL = re.compile("[\x00-\x08\x0a-\x1f\x7f-\x9f\ufffd]")
+# ESC, C0 except \t, DEL, C1 and U+FFFD (invalid UTF-8 decodes to it), plus every Unicode format char (category Cf:
+# U+200B-U+200F, U+2060, U+FEFF, ...): the sandbox writes this log and any of them inside a token defeats the shape match
+
+
+def _clean(line):
+    return "".join(c for c in _CTRL.sub("", line) if unicodedata.category(c) != "Cf")
 
 
 def start_log_lines(r, tail=START_TAIL):
@@ -349,10 +356,11 @@ def start_log_lines(r, tail=START_TAIL):
         for f in (fd, dfd):
             if f is not None:
                 os.close(f)
-    lines = [nsbox._TOKEN_SHAPE.sub("[redacted-token]", _CTRL.sub("", l))[:300] for l in raw.decode("utf-8", "replace").splitlines() if l.strip()]
+    # split on \n only (str.splitlines also breaks on \x0b \x0c \x1c-\x1e \x85), strip controls/format chars, and only then redact
+    lines = [c for l in raw.decode("utf-8", "replace").split("\n") if (c := _clean(l)).strip()]
     if not lines:
         return []
-    shown = lines[-tail:]
+    shown = [nsbox._TOKEN_SHAPE.sub("[redacted-token]", l)[:300] for l in lines[-tail:]]
     out = ["  start.log:"] + ["    " + l for l in shown]
     if not any(_RC.search(l) for l in shown):
         rcs = [m.group(1) for l in lines if (m := _RC.search(l))]

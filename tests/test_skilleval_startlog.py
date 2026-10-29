@@ -21,7 +21,7 @@ import test_skilleval_sandbox as sb  # noqa: E402  (module import: its test clas
 from harness import FactoryTestCase, REPO  # noqa: E402
 
 sys.path.insert(0, str(REPO))
-from scout import egress, nsbox  # noqa: E402
+from scout import egress, nsbox, skilleval  # noqa: E402
 
 TOKEN = "sk-ant-" + "oat01-STARTLOGDUMMYTOKEN-9f3a1c"  # split so the repo secret scan does not flag the dummy
 UNSHARE = os.environ.get("NSBOX_TEST_UNSHARE", "unshare")
@@ -246,6 +246,54 @@ class SkillevalOutputTests(FactoryTestCase):
             self.assertNotIn("start-line-10", out)
             shown = re.findall(r"start-line-\d\d", out)
             self.assertTrue(1 <= len(shown) <= 20, f"{len(shown)} tail lines in {out!r}")
+
+    def test_token_shape_joined_by_a_stripped_control_is_redacted_in_results_and_list(self):
+        rest = "A" * 30
+        # \x00 and \x9b are stripped; \x1c and \x0b are line breaks for str.splitlines, so they must not split the token
+        self.trial("error", "fix-bug", lines=["boom sk-ant-\x00" + rest, "x sk-ant-\x1c" + rest, "y sk-ant-\x0b" + rest,
+                                              "z sk-ant-\x9b" + rest], rc=3)
+        for out in self.outputs():
+            self.assertNotIn("sk-ant-", out)
+            self.assertNotIn(rest, out)
+            self.assertIn("[redacted-token]", out)
+
+    def test_replacement_and_format_chars_inside_a_token_are_stripped_in_results_and_list(self):
+        rest = "A" * 30
+        d = self.trial("error", "fix-bug", lines=[], rc=3)
+        (d / "log" / "start.log").write_bytes(
+            b"boom sk-ant-\xff" + rest.encode() + b"\nx sk-ant-\xe2\x80\x8b" + rest.encode() + b"\ny sk-ant-\xef\xbb\xbf"
+            + rest.encode() + b"\nz sk-ant-\xe2\x81\xa0" + rest.encode() + b"\ntab\there\nrc=3\n")
+        for out in self.outputs():
+            self.assertNotIn("sk-ant-", out)
+            self.assertNotIn(rest, out)
+            self.assertNotIn("\ufffd", out)
+            self.assertNotIn("\u200b", out)
+            self.assertIn("[redacted-token]", out)
+            self.assertIn("tab\there", out)
+
+    def test_c1_controls_are_not_displayed(self):
+        self.trial("error", "fix-bug", lines=["a\x9bb\x85c\x80d\x9fe"], rc=3)
+        for out in self.outputs():
+            self.assertIn("abcde", out)
+            for ch in "\x9b\x85\x80\x9f":
+                self.assertNotIn(ch, out)
+
+    def test_redaction_runs_only_on_the_displayed_lines(self):
+        calls = []
+        real = skilleval.nsbox._TOKEN_SHAPE
+        class Spy:
+            def sub(self, repl, text):
+                calls.append(text)
+                return real.sub(repl, text)
+        with tempfile.TemporaryDirectory(prefix="zz-test-startlog-spy-") as d:
+            nsbox.start_log_append(Path(d), "\n".join(f"line-{i:03d}" for i in range(100)) + "\n")
+            row = {"status": "error", "tokens_in": None, "tokens_out": None, "sandbox": d}
+            skilleval.nsbox._TOKEN_SHAPE = Spy()
+            try:
+                skilleval.start_log_lines(row)
+            finally:
+                skilleval.nsbox._TOKEN_SHAPE = real
+        self.assertEqual(len(calls), 20)
 
     def test_running_without_tokens_shows_the_log_but_running_with_tokens_does_not(self):
         self.trial("running", "fix-bug", lines=["stuck-without-tokens-mark"], rc=137)

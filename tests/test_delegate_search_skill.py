@@ -18,7 +18,7 @@ class DelegateSearchSkillTests(unittest.TestCase):
 
     def test_worked_example_names_real_symbols(self):
         # line numbers drift as bin/factory changes; the symbols the example cites must still exist
-        with open(os.path.join(ROOT, "bin", "factory")) as f:
+        with open(os.path.join(ROOT, "bin", "factory_cli.py")) as f:
             src = f.read()
         self.assertIn('out += ["Drift: "', src)
         self.assertIn("def drift_items(", src)
