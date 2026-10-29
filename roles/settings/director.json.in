@@ -112,7 +112,8 @@
     "ask": [
       "Bash(factory project * --gate-cmd*)",
       "Bash(factory project * --gate-count-cmd*)",
-      "Bash(factory project * --repo *)"
+      "Bash(factory project * --gate-c*)",
+      "Bash(factory project * --rep*)"
     ]
   },
   "autoMode": {

@@ -65,7 +65,8 @@ class AllowListTests(unittest.TestCase):
 
     def test_director_asks_on_host_steering_project_flags(self):
         ask = load("director")["permissions"]["ask"]
-        for flag in ("--gate-cmd*", "--gate-count-cmd*", "--repo *"):
+        # argparse accepts --repo=x and unique prefixes (--rep, --gate-cm), so the patterns are prefix globs
+        for flag in ("--gate-cmd*", "--gate-count-cmd*", "--gate-c*", "--rep*"):
             self.assertIn(f"Bash(factory project * {flag})", ask)
 
     def test_no_rm_allow_rule_and_no_owner_cap_config_rule(self):
@@ -88,12 +89,17 @@ class AllowListTests(unittest.TestCase):
         self.assertEqual([r for r in allow("coder") if re.match(r"Bash\((git push|gh pr (merge|close|edit|comment))", r)
                           and not r.startswith(("Bash(git push origin HEAD:factory/", "Bash(gh pr create", "Bash(gh pr ready"))], [])
 
+    def test_coder_push_denies_extra_args_after_the_factory_refspec(self):
+        # allow globs span spaces: the deny must catch a second refspec or flag after HEAD:factory/<x>
+        self.assertIn("Bash(git push origin HEAD:factory/* *)", load("coder")["permissions"]["deny"])
+        self.assertNotIn("Bash(git push origin HEAD:factory/* *)", allow("coder"))
+
     def test_other_worker_roles_gain_no_push_or_pr_create_rule(self):
         for role in ("pm", "qa", "reviewer", "judge", "director", "lead"):
             for r in allow(role):
                 self.assertNotRegex(r, r"git push|gh pr (create|ready)", role)
 
-    def test_checker_rejects_lowercase_and_accepts_valid_rules_in_new_rules(self):
+    def test_every_rendered_allow_and_deny_rule_name_is_valid_with_ask_present(self):
         for p in SETTINGS:
             d = json.loads(p.read_text())
             self.assertEqual(bad_rules({"permissions": {"ask": [], **d["permissions"]}}), [], p.name)
