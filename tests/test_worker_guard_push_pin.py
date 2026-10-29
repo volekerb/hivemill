@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 
+import _gitenv  # noqa: F401
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 TASK = "t-0689"
