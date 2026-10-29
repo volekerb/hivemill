@@ -9139,13 +9139,15 @@ def public_main_email_check(con):
         rc, out, err = _git_rc(["log", "--format=%x00%H%x09%ae%x09%ce%x09%B", *rng])
         if rc != 0:
             raise RuntimeError(err or f"git log exited {rc}")
+        owner_noreply = noreply_email(con)
         for rec in out.split("\x00"):
             if not rec.strip():
                 continue
             sha, ae, ce, msg = (rec.split("\t", 3) + ["", "", ""])[:4]
             sha = sha.strip()
             bad = _email_problems(ae, ce)
-            if squash_body([{"messageBody": msg}], noreply_email(con)) != msg.strip():
+            msg = "\n".join(msg.splitlines()).strip()  # CRLF / CR / other separators: squash_body joins with \n
+            if squash_body([{"messageBody": msg}], owner_noreply) != msg:
                 bad.append("Co-authored-by trailer")
             tkey = f"email-alert:{sha}"
             if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
