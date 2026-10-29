@@ -157,38 +157,114 @@ RAW_GIT_ALLOWLIST = {
 }
 
 
-def _git_argv(call):
-    """The argv list of a subprocess call when it starts with the literal "git", else None."""
+def _subprocess_aliases(tree):
+    """(module names, function names) through which subprocess is reachable: `import subprocess as sp`, `from subprocess import run as r`."""
+    mods, funcs = {"subprocess"}, {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            mods |= {a.asname or a.name for a in n.names if a.name == "subprocess"}
+        elif isinstance(n, ast.ImportFrom) and n.module == "subprocess":
+            funcs.update({a.asname or a.name: a.name for a in n.names if a.name in SUBPROCESS_CALLS})
+    return mods, funcs
+
+
+def _scope_nodes(scope):
+    """Nodes of one def (or the module) in source order, not descending into nested defs."""
+    out, todo = [], list(ast.iter_child_nodes(scope))
+    while todo:
+        n = todo.pop()
+        out.append(n)
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            todo.extend(ast.iter_child_nodes(n))
+    return sorted(out, key=lambda n: (getattr(n, "lineno", 0), getattr(n, "col_offset", 0)))
+
+
+def _argv_elts(expr, binds):
+    """Elements of an argv expression: a list/tuple literal, a Name bound to one in this scope, or a `+` concatenation.
+    A non-literal operand is kept as one opaque element so the wrapper check still sees the names inside it."""
+    if isinstance(expr, (ast.List, ast.Tuple)):
+        return list(expr.elts)
+    if isinstance(expr, ast.Name):
+        return binds.get(expr.id)
+    if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
+        left = _argv_elts(expr.left, binds)
+        if left is None:
+            return None
+        right = _argv_elts(expr.right, binds)
+        return left + (right if right is not None else [expr.right])
+    return None
+
+
+def _bindings(scope, parent=None):
+    """Name -> argv elements for simple `x = [...]` and later `x += ...` in one scope (inheriting the enclosing scope's)."""
+    binds = dict(parent or {})
+    for n in _scope_nodes(scope):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            elts = _argv_elts(n.value, binds)
+            if elts is None:
+                binds.pop(n.targets[0].id, None)
+            else:
+                binds[n.targets[0].id] = elts
+        elif isinstance(n, ast.AugAssign) and isinstance(n.op, ast.Add) and isinstance(n.target, ast.Name):
+            if n.target.id in binds:
+                more = _argv_elts(n.value, binds)
+                binds[n.target.id] = binds[n.target.id] + (more if more is not None else [n.value])
+    return binds
+
+
+def _git_argv(call, aliases=None, binds=None):
+    """The argv elements of a subprocess call when the argv starts with the literal "git", else None."""
+    mods, funcs = aliases or ({"subprocess"}, {})
     f = call.func
-    name = f.attr if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "subprocess" else None
-    if name not in SUBPROCESS_CALLS or not call.args or not isinstance(call.args[0], (ast.List, ast.Tuple)):
+    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id in mods:
+        name = f.attr
+    elif isinstance(f, ast.Name):
+        name = funcs.get(f.id)
+    else:
+        name = None
+    if name not in SUBPROCESS_CALLS or not call.args:
         return None
-    elts = call.args[0].elts
+    elts = _argv_elts(call.args[0], binds or {})
     if elts and isinstance(elts[0], ast.Constant) and elts[0].value == "git":
         return elts
     return None
+
+
+def _git_calls(tree):
+    """(enclosing def or None, call, git argv elements) for every subprocess git spawn, in any supported spelling."""
+    aliases = _subprocess_aliases(tree)
+    top = _bindings(tree)
+    found = []
+    for n in _scope_nodes(tree):
+        if isinstance(n, ast.Call) and (argv := _git_argv(n, aliases, top)):
+            found.append((None, n, argv))
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            binds = _bindings(fn, top)
+            for n in _scope_nodes(fn):
+                if isinstance(n, ast.Call) and (argv := _git_argv(n, aliases, binds)):
+                    found.append((fn, n, argv))
+    return found
 
 
 def raw_git_violations(source):
     """Static (AST) scan: network-verb git via raw subprocess, and every def that forwards its args into a subprocess git argv."""
     out = []
     tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and (argv := _git_argv(node)):
-            words = [e.value for e in argv if isinstance(e, ast.Constant) and isinstance(e.value, str)]
-            if NETWORK_VERBS & set(words) or ("remote" in words and {"add", "set-url"} & set(words)):
-                out.append("line %d: raw subprocess git %s; use harness.git" % (node.lineno, " ".join(words[1:])))
+    calls = _git_calls(tree)
+    for _, node, argv in calls:
+        words = [e.value for e in argv if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+        if NETWORK_VERBS & set(words) or ("remote" in words and {"add", "set-url"} & set(words)):
+            out.append("line %d: raw subprocess git %s; use harness.git" % (node.lineno, " ".join(words[1:])))
     # A def that forwards its own args into a git argv is a wrapper and is banned whatever verb, caller or module hands it
     # (6c-iii(2)); a literal network verb in a git argv is caught above even in a def that forwards nothing.
-    for fn in ast.walk(tree):
-        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs} - {"self", "cls"}
-            params |= {a.arg for a in (fn.args.vararg, fn.args.kwarg) if a}
-            for c in ast.walk(fn):
-                if isinstance(c, ast.Call) and (argv := _git_argv(c)) and any(
-                        isinstance(n, ast.Name) and n.id in params for e in argv for n in ast.walk(e)):
-                    out.append("line %d: def %s wraps subprocess git; use harness.git" % (fn.lineno, fn.name))
-                    break
+    for fn, _, argv in calls:
+        if fn is None:
+            continue
+        params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs} - {"self", "cls"}
+        params |= {a.arg for a in (fn.args.vararg, fn.args.kwarg) if a}
+        if any(isinstance(n, ast.Name) and n.id in params for e in argv for n in ast.walk(e)):
+            out.append("line %d: def %s wraps subprocess git; use harness.git" % (fn.lineno, fn.name))
     return sorted(set(out))
 
 
@@ -228,6 +304,33 @@ class RawGitRemoteGuardTest(unittest.TestCase):
         self.assertTrue(raw_git_violations(named))
         nested = "import subprocess\ndef g(cwd, url):\n    return subprocess.run(['git', 'push', f'{url}'], cwd=cwd)\n"
         self.assertTrue(raw_git_violations(nested))
+
+    def test_non_literal_argv_forms_are_flagged(self):
+        # T-0694: each spelling below hid a git argv from the old literal-list-only scan.
+        forms = {
+            "name-bound push": "import subprocess\ncmd = ['git', 'push', 'origin']\nsubprocess.run(cmd)\n",
+            "name-bound augmented": "import subprocess\ndef f():\n    cmd = ['git']\n    cmd += ['fetch']\n    subprocess.run(cmd)\n",
+            "name-bound wrapper": "import subprocess\ndef g(*a):\n    cmd = ['git', *a]\n    return subprocess.run(cmd)\n",
+            "concat push": "import subprocess\nsubprocess.run(['git'] + ['push', 'origin'])\n",
+            "concat wrapper": "import subprocess\ndef g(*a):\n    return subprocess.run(['git'] + list(a))\n",
+            "augmented wrapper": "import subprocess\ndef g(*a):\n    c = ['git']\n    c += list(a)\n    subprocess.run(c)\n",
+            "from-import": "from subprocess import run\nrun(['git', 'push', 'origin'])\n",
+            "from-import as": "from subprocess import check_output as co\nco(['git', 'clone', 'x'])\n",
+            "import as": "import subprocess as sp\nsp.run(['git', 'pull'])\n",
+            "import as wrapper": "import subprocess as sp\ndef g(v):\n    sp.Popen(['git', v])\n",
+        }
+        for label, src in forms.items():
+            self.assertTrue(raw_git_violations(src), label)
+
+    def test_non_literal_argv_local_git_and_non_git_are_not_flagged(self):
+        clean = (
+            "import subprocess\ncmd = ['git', 'status']\nsubprocess.run(cmd)\n"
+            "subprocess.run(['git'] + ['log'])\n"
+            "from subprocess import run\nrun(['ls', 'push'])\n"
+            "import subprocess as sp\nsp.run(['echo', 'git', 'push'])\n"
+            "def f():\n    cmd = ['ls']\n    cmd += ['push']\n    subprocess.run(cmd)\n"
+        )
+        self.assertEqual(raw_git_violations(clean), [])
 
     def test_local_non_network_git_is_not_flagged(self):
         src = "import subprocess\nsubprocess.run(['git', 'rev-parse', 'HEAD'], cwd='x')\nsubprocess.run(['rm', '-rf', 'y'])\n"

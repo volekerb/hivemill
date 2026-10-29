@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 AFFECTED = ROOT / "ci" / "affected.py"
@@ -75,7 +76,7 @@ class AffectedTest(unittest.TestCase):
         self.git("checkout", "-qb", "work")
 
     def git(self, *args):
-        subprocess.run(["git", "-C", str(self.repo)] + list(args), check=True, capture_output=True)
+        harness.git(*args, cwd=self.repo)
 
     def write(self, rel, text):
         p = self.repo / rel
