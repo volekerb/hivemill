@@ -15,6 +15,9 @@ Every command here was run on this branch under a temporary `HOME` and `FACTORY_
 | Python | `python3 --version` | **3.11 or newer.** See below. Standard library only: there is nothing to `pip install`. |
 | sqlite3 CLI | `sqlite3 --version` | Optional. Only for restoring a state dump by hand. |
 | systemd user session with linger | `loginctl show-user $USER -p Linger` prints `Linger=yes` | Only needed for the boot units (see [systemd](#systemd)). **Not run in CI.** |
+| util-linux `unshare` and `setpriv`, plus unprivileged user namespaces | `unshare -r -n -m true && echo ok` prints `ok` | Optional: only for the [worker sandbox](#worker-sandbox-optional). The preflight (`nsbox.userns_available`) runs `unshare -r -n -m --pid --fork --mount-proc true`; if it fails the spawn is refused with reason `userns`. See the AppArmor note below. |
+
+**Ubuntu 24.04 and later (AppArmor).** These releases can block unprivileged user namespaces. Check with `sysctl kernel.apparmor_restrict_unprivileged_userns`: `1` means restricted, and the sandbox preflight then refuses with reason `userns`. This is the owner's decision; the factory changes nothing itself. The options are an AppArmor profile that allows `userns` for the tools the sandbox uses (narrow, keeps the restriction for everything else), or setting the sysctl to `0` as root (persist it under `/etc/sysctl.d/`), which is simple but lowers host hardening for every program on the box. If you do neither, leave `sandbox_roles` empty.
 
 **Python minimum.** `web/tokens.py` calls `datetime.fromisoformat` on Claude log timestamps that end in `Z`, which only parses on Python 3.11 or newer; on 3.9 and 3.10 every token row would land in day `unknown`. Elsewhere `bin/factory` uses `Path.is_relative_to` (3.9) and SQLite's `ON CONFLICT ... DO UPDATE` upsert (SQLite 3.24+), so 3.11 is the true floor. CI runs Python 3.13 only.
 
@@ -89,7 +92,7 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 |---|---|---|
 | `max_live_agents` | `6` | Cap on live factory agents that herdr also lists. |
 | `max_total_claude` | `10` | Cap on all `claude` processes on the host, yours included. The spawn gate closes at this number. |
-| `gate_max_load_ratio` | `1.25` | The gate closes while load1 is above this times the CPU count. |
+| `gate_max_load_ratio` | `1.25` | The gate closes while load1 is above this times the CPU count (HQ relaunches and judges are exempt). |
 | `test_slots` | `2` | Host-wide slots for full test-suite runs. |
 | `min_mem_available_mb` | `1024` | The gate closes below this much available RAM. |
 | `tmp_sweep_pct` | `80` | Over this, the tick deletes `/tmp` scratch dirs and `/tmp/qa-*` homes of agents that all finished (done/stopped/lost/exited) 30+ min ago; unknown dirs stay. One `tmp-swept` event per sweep, shown in `factory res`; if `/tmp` is still over `tmp_max_pct` the director is alerted once. |
@@ -254,9 +257,33 @@ What the units do (details in [operations.md](operations.md)):
 
 The units assume the factory lives in `~/factory` and that `factory` and `herdr` are reachable at `~/.local/bin` (symlink herdr there if it is installed elsewhere). If you chose another `FACTORY_HOME`, add an `Environment=FACTORY_HOME=...` line to each unit before you install.
 
+## Worker sandbox (optional)
+
+By default every agent runs as your user and can read your `~/.claude`, `~/.ssh`, gh config and the user bus. The worker sandbox runs a role's Claude in unprivileged user and mount namespaces that hide those, and logs the worker in with separate, revocable tokens. It is not a full security boundary. What it hides, the rollout order, rollback and residual risk are in [worker-sandbox.md](worker-sandbox.md).
+
+**Prerequisites.** `unshare` and `setpriv` installed, and user namespaces working (see [Prerequisites](#prerequisites) and its AppArmor note).
+
+**Token files.** You create three files, each a regular file, mode `0600`, owned by you, not empty, not a symlink. Never paste a token into a message, task, PR or log.
+
+| File | Used by |
+|---|---|
+| `~/.config/factory/worker-oauth-token` | every sandboxed role (Claude setup-token) |
+| `~/.config/factory/gh-worker-ro-token` | reviewer, qa |
+| `~/.config/factory/gh-worker-rw-token` | coder |
+
+How to create them, what scopes each token gets and the 90-day renewal are in [worker-sandbox.md section 3](worker-sandbox.md#3-owner-steps-o1-o4). The preflight checks only the file metadata, not the token itself.
+
+**Switch it on.**
+
+- Per role, read at every spawn: `factory config sandbox_roles reviewer` (comma list from `reviewer`, `qa`, `coder`; turn on one role at a time, in that order).
+- Per agent: `factory spawn ... --sandbox` (the same roles only).
+- Off again: `factory config sandbox_roles ''`. Running agents keep their current mode until they are relaunched.
+
+A refused spawn starts no pane, exits 3, records a `sandbox-refused` event and messages the director (at most once an hour per reason). The reasons are in [Troubleshooting](#troubleshooting).
+
 ## Identity and remote
 
-- **Remote.** The factory pushes its exports and creates PR branches through `origin`. `factory_remote_url` is empty by default. The first time the git guard needs it, the factory reads `remote.origin.url` from the live checkout, keeps it if it looks like `https://github.com/<owner>/<repo>.git` (trust on first use), and stores it. The guard then accepts only that URL for the factory checkout. Set the key yourself with `factory config factory_remote_url <url>` to pin another one.
+- **Remote.** The factory pushes its exports and creates PR branches through `origin`. `factory_remote_url` is empty by default. The first time the git guard needs it, the factory reads `remote.origin.url` from the live checkout, keeps it if it looks like `https://github.com/<owner>/<repo>.git` (trust on first use), and stores it. The guard then accepts only that URL for the factory checkout. Set the key yourself with `factory config factory_remote_url <url>` to pin another one. After a remote switch run it too: the tick alerts the director while the key and `git remote get-url origin` differ.
 - **LAN name.** `serve_hostnames` defaults to empty, so the web UI answers only to its bind address. To reach it by a name on your LAN, set `factory config serve_hostnames factory.example` (several names, comma separated) and point your DNS at the box. Any other `Host` header gets `421 misdirected request`.
 - **State branch.** `state_push` is off by default. With `factory config state_push 1` (and `git_push` `1`) the tick pushes the `state` branch, including a full database dump, to `origin`. **Privacy warning:** those files contain every goal, plan, message and verdict. Turn it on only when the remote is private and everyone who can read it may read all of that. See [state-branch.md](state-branch.md).
 - **Agent identity** (`FACTORY_AGENT`, fail-closed rules): see the Identity section of [operations.md](operations.md#identity).
@@ -272,5 +299,15 @@ The units assume the factory lives in `~/factory` and that `factory` and `herdr`
 | `QUEUED <agent>: ...` from `factory up` | The spawn gate is closed. `factory res` shows which limit and the current numbers; the tick starts the agent when it opens, or raise the matching config key. |
 | `factory: factory.db moved to db/factory.db; rerun the command` | A tick migrated an old-layout home. Rerun the command. |
 | `unknown`/permission errors for commands you run | You are inside an agent's pane; run from a plain shell (see [operations.md](operations.md#identity)). |
+| `factory: sandbox refused for <agent> (<reason>): ...; no pane was started` (exit 3) | The worker sandbox preflight failed; the reason in parentheses says why. Fix it, or turn the sandbox off with `factory config sandbox_roles ''`. The reasons are in the next rows. |
+| sandbox refused: `userns` | `unshare` is missing or user namespaces are restricted. Run `unshare -r -n -m true && echo ok`. On Ubuntu 24.04+ check `sysctl kernel.apparmor_restrict_unprivileged_userns` (owner options: see the AppArmor note under [Prerequisites](#prerequisites)). |
+| sandbox refused: `token` | The worker OAuth token or the role's gh token file is missing, not a regular file, not mode 0600, not owned by you, a symlink, or empty. Create it as in [worker-sandbox.md section 3](worker-sandbox.md#3-owner-steps-o1-o4) and `chmod 600` it. |
+| sandbox refused: `claude` | No `claude` on the pane `PATH`. Install Claude Code so `which claude` works in the shell that runs the tick. |
+| sandbox refused: `db-layout` | The DB is not at `<FACTORY_HOME>/db/factory.db`. Let a tick migrate an old-layout home (see the `factory.db moved` row), then retry. |
+| sandbox refused: `code-root` | A live factory must spawn sandboxed workers from its own checkout. Run `factory` from the installed checkout, not from a copy of the repo. |
+| sandbox refused: `role` | That role cannot be sandboxed. Only `reviewer`, `qa` and `coder` can; remove the other role from `sandbox_roles`. |
+| sandbox refused: `cwd` | The agent's working directory is not allowed in the sandbox (for example it is, contains or sits inside a hidden directory such as `~/factory` itself). Spawn the task with its own worktree or clone. The message names the path. |
+| sandbox refused: `clone` | qa and coder need a per-task clone with a real `.git` directory, not a legacy worktree. Spawn again so a clone is made. |
+| sandbox refused: `prepare` | Writing the agent's sandbox directory under `~/.local/state/factory/workers/<agent>/` failed (permissions, a symlink in the way, disk). The message says which; fix it and retry. |
 
 Where things are: the database is `<FACTORY_HOME>/db/factory.db`, moved only by `FACTORY_HOME`, exports are in `<FACTORY_HOME>/exports/`, and the audit log is `<FACTORY_HOME>/state/events.jsonl`.
