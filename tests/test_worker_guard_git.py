@@ -49,6 +49,14 @@ class GitGuardBase(unittest.TestCase):
 
 
 class SharedCheckoutTests(GitGuardBase):
+    def test_git_in_a_per_task_clone_is_allowed(self):
+        """T-0165: a clone under worktrees/ has a .git DIRECTORY but is not the live home: not the shared checkout."""
+        clone = os.path.join(self.home, "worktrees", "G-007-T-clone")
+        os.makedirs(os.path.join(clone, ".git"))
+        self.allowed("git commit -m x", cwd=clone)
+        self.allowed("git switch -c factory/t-x", cwd=clone)
+        self.blocked("git commit -m x", cwd=self.home)
+
     def test_mutating_blocked_with_advice(self):
         for cmd in ("git commit -m x", "git stash", "git checkout -b foo", "git reset --hard", "git branch -D x",
                     "git worktree add ../y"):

@@ -5,6 +5,7 @@ import json
 import os
 import pwd
 import re
+import sqlite3
 import stat
 import sys
 import tempfile
@@ -105,6 +106,15 @@ class Base(unittest.TestCase):
         (git / "HEAD").write_text("ref: refs/heads/main\n")
         (git / "config").write_text(f'[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n\turl = {url}\n')
 
+    def frozen(self, value):
+        """The live home's DB with config frozen_repos = value (the table bin/factory keeps)."""
+        (self.acct / "factory" / "db").mkdir(exist_ok=True)
+        con = sqlite3.connect(self.acct / "factory" / "db" / "factory.db")
+        con.execute("CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT)")
+        con.execute("INSERT OR REPLACE INTO config(key,value) VALUES('frozen_repos',?)", (value,))
+        con.commit()
+        con.close()
+
     def main(self, *argv):
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
@@ -166,8 +176,34 @@ class TestApply(Base):
         self.assertEqual(rec[3]["stdin"], "")
         self.assertEqual(rec[4]["stdin"], "")
         self.assertEqual(json.loads(rec[5]["stdin"]), {"required_status_checks": {"strict": True, "contexts": meta["required_checks"]},
-                                                       "enforce_admins": False, "required_pull_request_reviews": None, "restrictions": None})
+                                                       "enforce_admins": True, "required_pull_request_reviews": {"required_approving_review_count": 0},
+                                                       "restrictions": None, "allow_force_pushes": False, "allow_deletions": False})
         self.assertIn("Upload docs/images/social-preview.png by hand", out)
+
+    def test_main_protection_requires_prs_for_admins_and_is_idempotent(self):
+        self.make_stub(private=False)
+        first = self.main_protection_body(["--apply", "--gh", str(self.stub)])
+        second = self.main_protection_body(["--apply", "--gh", str(self.stub)])
+        self.assertEqual(first, second)  # a rerun sends the same PUT, so it converges instead of piling up
+        self.assertIs(first["enforce_admins"], True)
+        self.assertEqual(first["required_pull_request_reviews"], {"required_approving_review_count": 0})
+        self.assertIs(first["allow_force_pushes"], False)
+        self.assertIs(first["allow_deletions"], False)
+
+    def test_dry_run_prints_the_protection_call_and_runs_nothing(self):
+        self.make_stub(private=False)
+        rc, out, err = self.main("--repo", PUBLIC, "--metadata", self.tokenized_meta(), "--gh", str(self.stub))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("gh api -X PUT repos/acme/public/branches/main/protection", out)
+        self.assertIn('"enforce_admins": true', out)
+        self.assertIn('"required_approving_review_count": 0', out)
+        self.assertEqual(self.recorded(), [])
+
+    def main_protection_body(self, extra):
+        self.calls.unlink(missing_ok=True)
+        rc, _, err = self.main("--repo", PUBLIC, "--metadata", self.tokenized_meta(), *extra)
+        self.assertEqual(rc, 0, err)
+        return json.loads(self.recorded()[5]["stdin"])
 
     def test_private_repository_is_refused_after_the_get_only(self):
         self.make_stub(private=True)
@@ -198,15 +234,41 @@ class TestRefusals(Base):
         self.assertFalse(self.calls.exists(), "a refusal must come before any call")
         return err
 
-    def test_live_home_origin_slug_is_refused_in_both_modes(self):
+    def test_frozen_repo_is_refused_in_both_modes(self):
         self.make_stub(private=False)
-        self.live_origin("https://github.com/Acme/Private.git")
+        self.frozen("Acme/Private, other/frozen")
         for extra in ([], ["--apply"]):
-            err = self.assert_refused("--repo", "acme/private", "--gh", str(self.stub), *extra)
-            self.assertIn("private repository", err)
+            for repo in ("acme/private", "OTHER/frozen"):
+                err = self.assert_refused("--repo", repo, "--gh", str(self.stub), *extra)
+                self.assertIn("private repository", err)
 
-    def test_other_slug_passes_with_a_live_home_origin(self):
-        self.live_origin("https://github.com/acme/private.git")
+    def test_live_public_origin_is_accepted(self):
+        """After the cutover origin is the public repo: it must not be forbidden, only frozen_repos are."""
+        self.make_stub(private=False)
+        self.live_origin("https://github.com/acme/public.git")
+        self.frozen("acme/private")
+        rc, _out, err = self.main("--repo", PUBLIC, "--gh", str(self.stub), "--apply")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(len(self.recorded()), 6)
+
+    def test_live_origin_equal_to_repo_is_accepted_without_frozen_repos(self):
+        self.live_origin("https://github.com/acme/public")
+        rc, _out, err = self.main("--repo", PUBLIC)
+        self.assertEqual(rc, 0, err)
+
+    def test_malformed_frozen_repos_entry_is_refused(self):
+        self.frozen("acme/private,notaslug")
+        err = self.assert_refused("--repo", PUBLIC)
+        self.assertIn("frozen_repos", err)
+
+    def test_unreadable_database_is_refused(self):
+        (self.acct / "factory" / "db").mkdir()
+        (self.acct / "factory" / "db" / "factory.db").write_text("not a database")
+        err = self.assert_refused("--repo", PUBLIC)
+        self.assertIn("frozen_repos", err)
+
+    def test_other_slug_passes_with_frozen_repos(self):
+        self.frozen("acme/private")
         rc, _out, err = self.main("--repo", PUBLIC)
         self.assertEqual(rc, 0, err)
 
@@ -232,7 +294,7 @@ class TestRefusals(Base):
 
     def test_private_slug_inside_metadata_is_refused(self):
         self.make_stub(private=False)
-        self.live_origin("https://github.com/acme/private")
+        self.frozen("acme/private")
         meta = json.loads(META.read_text())
         meta["description"] = "mirror of acme/private"
         copy = self.root / "meta.json"
@@ -241,19 +303,20 @@ class TestRefusals(Base):
         self.assertIn("private repository slug", err)
 
     def test_prefix_slug_does_not_falsely_refuse(self):
-        self.live_origin("https://github.com/acme/pub")
+        self.frozen("acme/pub")
         rc, _out, err = self.main("--repo", PUBLIC)
         self.assertEqual(rc, 0, err)
 
     def test_dot_git_suffix_cannot_bypass(self):
         self.make_stub(private=False)
-        self.live_origin("https://github.com/acme/private")
+        self.frozen("acme/private")
         self.assert_refused("--repo", "acme/private.git", "--gh", str(self.stub))
         self.assert_refused("--repo", PUBLIC, "--private-repo", "acme/other.git", "--metadata", str(self.root / "missing.json"))
 
-    def test_unparsable_live_origin_is_refused(self):
+    def test_unparsable_live_origin_is_not_a_problem(self):
         self.live_origin("https://git.example.test/acme/private")
-        self.assert_refused("--repo", PUBLIC)
+        rc, _out, err = self.main("--repo", PUBLIC)
+        self.assertEqual(rc, 0, err)
 
     def test_broken_metadata_is_refused(self):
         copy = self.root / "meta.json"

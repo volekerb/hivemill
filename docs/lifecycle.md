@@ -53,3 +53,5 @@ Delivery: one `alert` message per goal per run, subject `drift G-xxx: N items`, 
 If `gh` fails for a task, D2 is skipped for it and the body ends with a `D2 unchecked T-… (reason)` line. All `gh` calls of one run share a 60 s budget (`FACTORY_DRIFT_GH_BUDGET_S`); tasks reached after it is used up are `D2 unchecked` too. The drift check runs after the tick has reaped finished agents, so a just-reaped agent is not seen as missing. That note alone never causes a message. Any other error in the check records a `drift-failed` event; the tick always goes on.
 
 `factory digest` prints `Drift: none` or the item list (joined by `; `) for every goal it shows, computed live from the DB. D2 needs a PR state and the digest makes no gh call: it reuses the states the last drift tick stored (config key `drift_pr_states`), so before the first tick D2 is not shown.
+
+The next line, `Freshness:`, is the agent freshness check (see [freshness.md](freshness.md)); it does not change the `Drift:` line.

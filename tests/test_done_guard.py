@@ -57,6 +57,67 @@ class DoneGuardTests(FactoryTestCase):
         self.ok("done", "all good", agent="zz-test-coder")
         self.assertEqual(self.agent_status(), "done")
 
+    def push_as(self, name):
+        git("push", "-q", "origin", f"HEAD:refs/heads/{name}", cwd=self.wt)
+
+    def test_recorded_lowercase_branch_pushed_no_finding(self):
+        self.commit()
+        self.push()
+        p = self.ok("done", "x", agent="zz-test-coder")
+        self.assertNotIn("pushed to ", p.stderr)
+
+    def test_upper_case_variant_pushed_passes_with_warning(self):
+        self.commit()
+        self.push_as("factory/T-0001")
+        p = self.ok("done", "x", agent="zz-test-coder")
+        self.assertEqual(self.agent_status(), "done")
+        lines = [l for l in p.stderr.splitlines() if l.startswith("pushed to ")]
+        self.assertEqual(len(lines), 1)
+        self.assertIn(BRANCH, lines[0])
+        self.assertEqual(self.env.sql("SELECT branch FROM tasks WHERE id='T-0001'")[0]["branch"], BRANCH)
+
+    def test_case_variant_behind_head_is_unpushed(self):
+        self.commit()
+        self.push_as("factory/T-0001")
+        self.commit("c.txt")
+        p = self.refused(3, "done", "x", agent="zz-test-coder")
+        self.assertIn("is not on origin/", p.stderr)
+        self.assertNotIn("pushed to ", p.stderr)
+        self.nothing_changed()
+
+    def test_two_case_variants_named_in_finding(self):
+        self.commit()
+        self.push_as("factory/T-0001")
+        self.push_as("Factory/T-0001")
+        p = self.refused(3, "done", "x", agent="zz-test-coder")
+        self.assertIn("origin/factory/T-0001", p.stderr)
+        self.assertIn("origin/Factory/T-0001", p.stderr)
+        self.nothing_changed()
+
+    def test_other_task_branch_is_unpushed(self):
+        self.commit()
+        self.push_as("factory/t-0002")
+        p = self.refused(3, "done", "x", agent="zz-test-coder")
+        self.assertIn("is not on origin/", p.stderr)
+        self.nothing_changed()
+
+    def test_upstream_picks_among_two_variants(self):
+        self.commit()
+        self.push_as("Factory/T-0001")
+        git("push", "-q", "-u", "origin", "HEAD:refs/heads/factory/T-0001", cwd=self.wt)
+        p = self.ok("done", "x", agent="zz-test-coder")
+        self.assertEqual(self.agent_status(), "done")
+        self.assertEqual(len([l for l in p.stderr.splitlines() if l.startswith("pushed to ")]), 1)
+
+    def test_recorded_branch_behind_head_wins_over_variant(self):
+        self.commit()
+        self.push()
+        self.commit("c.txt")
+        self.push_as("factory/T-0001")
+        p = self.refused(3, "done", "x", agent="zz-test-coder")
+        self.assertIn("is not on origin/factory/t-0001", p.stderr)
+        self.nothing_changed()
+
     def test_modified_tracked_file_refused(self):
         (self.wt / "a.txt").write_text("changed\n")
         p = self.refused(3, "done", "x", agent="zz-test-coder")
