@@ -106,6 +106,59 @@ class StopBeforeStartTests(base.ShimBase):
         self.assertFalse(marker.exists())
 
 
+class StopDuringTokenReadTests(base.ShimBase):
+    def run_driver(self, sig):
+        marker = self.base / "stage1-ran"
+        proxy_marker = self.base / "proxy-called"
+        self.claude.write_text(f"#!/bin/sh\ntouch {marker}\n")
+        cfg = self.shim_cfg()
+        code = (f"import os, signal, sys; sys.path.insert(0, {str(REPO)!r}); from scout import nsbox\n"
+                f"real = nsbox.read_token\n"
+                f"def rt(path):\n    t = real(path)\n    os.kill(os.getpid(), {int(sig)})\n    return t\n"
+                f"nsbox.read_token = rt\n"
+                f"nsbox.start_proxy = lambda *a: open({str(proxy_marker)!r}, 'w').close()\n"
+                f"nsbox.shim_main({cfg!r}, [])\n")
+        p = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60,
+                           env={"PATH": os.environ["PATH"], "HOME": str(self.home)})
+        return p, marker, proxy_marker
+
+    def test_sigterm_during_read_token_never_starts_the_proxy(self):
+        p, marker, proxy_marker = self.run_driver(signal.SIGTERM)
+        self.assertEqual(p.returncode, 128 + signal.SIGTERM, p.stderr)
+        self.assertFalse(proxy_marker.exists(), "proxy started after a stop signal")
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.trial / "proxy.pid").exists())
+        self.assertFalse((self.trial / "proxy.sock").exists())
+        self.assertIn("stopped by signal 15", self.log_text())
+
+
+class ForwardedSignalTests(base.ShimBase):
+    def test_quit_usr1_usr2_reach_stage1(self):
+        for sig in (signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2):
+            with self.subTest(sig=sig.name):
+                got = self.base / f"got-{sig.name}"
+                ready = self.base / f"ready-{sig.name}"
+                self.fake_unshare.write_text(  # stage 1 is whatever unshare runs
+                    f"#!/bin/sh\ntrap 'touch {got}; exit 0' {sig.name[3:]}\ntouch {ready}\n"
+                    "while :; do sleep 0.05; done\n")
+                cfg = self.shim_cfg()
+                code = (f"import sys; sys.path.insert(0, {str(REPO)!r}); from scout import nsbox\n"
+                        "nsbox.start_proxy = lambda *a: 0\n"
+                        f"nsbox.shim_main({cfg!r}, [])\n")
+                p = subprocess.Popen([sys.executable, "-I", "-c", code], stderr=subprocess.PIPE,
+                                     env={"PATH": os.environ["PATH"], "HOME": str(self.home)})
+                for _ in range(200):
+                    if ready.exists():
+                        break
+                    __import__("time").sleep(0.05)
+                else:
+                    p.kill()
+                    self.fail("stage 1 never started")
+                p.send_signal(sig)
+                p.wait(timeout=20)
+                self.assertTrue(got.exists(), f"{sig.name} did not reach stage 1")
+
+
 class TeeBoundedTests(unittest.TestCase):
     """The tee reads the sandbox-controlled stderr of claude: memory must not grow with newline-free input."""
     FAKE = "sk-ant-oat01-" + "Q" * 40  # fake: 53 chars
