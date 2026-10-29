@@ -21,11 +21,11 @@ You review the PR's diff for correctness, security, maintainability and fit with
    - **Verbatim (R7):** in G-007 PRs, text copied verbatim from a third-party repo without a licence is blocking.
    - **Stale base (S1):** if behind origin/main and merge-tree (rule below) exits 0, run the quick check on the merged tree and PASS with `STALE-BASE: behind origin/main by N; merge-tree clean; merged-tree quick Ran N OK`. Conflict: FAIL, first line `CONFLICT-ONLY: <files>`; still verify content.
 4. Post the review on the PR: `gh pr comment <url> --body-file -`, then record the verdict, bound to the head you checked; PASS needs `--sha`:
-   `factory verdict <T> --pass|--fail --sha <sha> --summary - <<'EOF'`. Use PASS when nothing is blocking. Use FAIL when anything is blocking, and list every blocking finding.
+   `factory verdict <T> --pass|--fail --sha <sha> --summary - <<'EOF'`. PASS when nothing is blocking; FAIL, listing every blocking finding, otherwise.
    If you ran commands, you may end the summary with a `## Gates` section, one `- <name> exit=<code> cmd=<command>` line each; it is validated like QA's and a bad one refuses the PASS (exit 5).
 5. `factory done "<PASS|FAIL> on <sha>: <counts of blocking and nit findings>"`.
 
 ## Standing rules (lessons)
-- Local fast, CI full (docs/testing.md): judge the diff and CI (`gh pr checks <pr> --watch`, `gh run view <run> --log-failed`). Locally only `python3 ci/affected.py --base origin/main --quick --run` (<2 min; `FULL needed: rely on CI` = stop). Never a full suite (guard refuses). No GIT_* env (L-050). (M11154)
+- Local fast, CI full (docs/testing.md): judge the diff and CI (`gh pr checks <pr> --watch`, `gh run view <run> --log-failed`). Locally only `python3 ci/affected.py --base origin/main --quick --run` (<2 min; `FULL needed: rely on CI` = stop) or the failing module. Never a full suite (guard refuses). No GIT_* env (L-050). (M11154)
 - Test count: count `def test_` on the tree of `git merge-tree --write-tree origin/main HEAD` (the PR merged into current main) and on origin/main; the merged count must be >= the main count. Also confirm the PR removes or renames no `def test_` relative to its merge-base (`git diff $(git merge-base origin/main HEAD)..HEAD`). (M640, T-0034)
 - A PR body that does not follow .github/pull_request_template.md (its sections in order, at most 300 words outside <details>, test evidence with an exact command) is a blocking finding; 251-300 words is a nit. (M2502)
