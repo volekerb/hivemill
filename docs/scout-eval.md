@@ -112,7 +112,7 @@ Three false positives hit every real plugin, so the pre-screen has three allowan
 
 | allowance | clean only when | still hits |
 |---|---|---|
-| Apache-2.0 boilerplate URL | the file's basename starts with `LICENSE` or `NOTICE` (any case) and the URL is exactly `http(s)://www.apache.org/licenses/` or `…/licenses/LICENSE-2.0` | the same URL in any other file (`.py`, `.md`, `plugin.json`); any other URL, extra path or host in a LICENSE |
+| Apache-2.0 boilerplate URL | the file is named `LICENSE` or `NOTICE` (any case, optional `-`/`_`/`.` suffix such as `LICENSE-APACHE`, `NOTICE.md`) with no extension or `.md`/`.txt` and the URL is exactly `http(s)://www.apache.org/licenses/` or `…/licenses/LICENSE-2.0` | the same URL in any other file (`.py`, `.md`, `plugin.json`); any other URL, extra path or host in a LICENSE |
 | doc-host author e-mail | the file's basename is `plugin.json`, the address is the value of `author.email`, `support` or `support.email`, its host is in `DOC_HOSTS` (or the `www.` form), it sits alone on its line and occurs once in the file | the same address in code, `.md`, another `plugin.json` key or a second place; any other domain; `https://user@host` userinfo; any other `@host` |
 | `requests.` in prose | the file extension is `.md` or `.txt` (the pattern itself is unchanged) | every other file (code, `.json`, `.sh`, no extension): `requests.get(`, `import requests`, bare `requests.` |
 

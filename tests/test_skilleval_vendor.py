@@ -649,6 +649,12 @@ class PrescreenScopedAllowanceTests(unittest.TestCase):
             hits = self.scan({name: f"see {self.APACHE}\n"})
             self.assertIn("url", {h["pattern"] for h in hits}, name)
 
+    def test_license_lookalike_names_still_hit(self):
+        for name in ("LICENSE.py", "LICENSE-x.sh", "LICENSEfoo", "NOTICES"):
+            self.assertIn("url", {h["pattern"] for h in self.scan({name: f"see {self.APACHE}\n"})}, name)
+        for name in ("LICENSE-APACHE", "license.txt", "NOTICE.md"):
+            self.assertEqual(self.scan({name: f"see {self.APACHE}\n"}), [], name)
+
     def test_other_urls_in_license_still_hit(self):
         for url in ("http://www.apache.org/licenses/evil", "http://evil.example/licenses/LICENSE-2.0",
                     "http://www.apache.org/licenses/LICENSE-2.0/x", "http://www.apache.org.evil.example/licenses/"):

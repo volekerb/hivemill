@@ -323,6 +323,7 @@ def _bare_host_bad(line, own_repo):
 APACHE_URL = re.compile(r"https?://www\.apache\.org/licenses/(?:LICENSE-2\.0)?")  # Apache-2.0 boilerplate, exactly
 EMAIL = re.compile(r"[A-Za-z0-9._+-]+@([A-Za-z0-9.-]+)")
 PROSE_EXTS = {".md", ".txt"}
+LICENSE_NAME = re.compile(r"(?:license|notice)(?:[-_.][^/]*)?", re.I)  # LICENSE, LICENSE.txt, LICENSE-APACHE, NOTICE.md
 
 
 def _doc_email(addr):
@@ -337,7 +338,7 @@ def _plugin_json_emails(text):
     if not text.isascii():
         return set()
     try:
-        data = json.loads(text.lstrip("﻿"))
+        data = json.loads(text)
     except ValueError:
         return set()
     if not isinstance(data, dict):
@@ -365,7 +366,7 @@ def prescreen(path, own_repo=None):
                 if len(joined) >= 200 and len(set(joined)) > 8 and re.search(r"[0-9+/=]", joined):
                     wrapped.add(m.string.count("\n", 0, m.start()))
             wrapped |= _small_chunk_blobs(lines)
-            license_file = n.lower().startswith(("license", "notice"))
+            license_file = bool(LICENSE_NAME.fullmatch(n)) and full.suffix.lower() in ("", ".md", ".txt")
             prose = full.suffix.lower() in PROSE_EXTS
             emails = _plugin_json_emails("\n".join(lines)) if n == "plugin.json" else set()
             for ln, line in enumerate(lines, 1):
