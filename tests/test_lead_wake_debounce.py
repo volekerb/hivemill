@@ -133,6 +133,20 @@ class DebounceTests(DebounceBase):
         self.assertEqual(len(self.events("lead-wake")), 2)
         self.assertEqual(self.events("wake-debounced"), [])
 
+    def test_refused_wake_does_not_start_debounce_window(self):
+        self.env.sql("UPDATE agents SET model='claude-opus-5-5' WHERE name=?", (LEAD,))
+        self.env.sql("INSERT INTO config(key,value) VALUES('opus_effort','bogus') "
+                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value")  # spawn refuses a bad effort (SystemExit)
+        self.mail()
+        self.tick_at(0)
+        errs = self.env.sql("SELECT count(*) c FROM events WHERE entity_id=? AND action='wake-error'", (TEAM,))
+        self.assertEqual(errs[0]["c"], 1)
+        self.assertEqual(self.events("lead-wake"), [])
+        self.env.sql("DELETE FROM config WHERE key='opus_effort'")
+        self.tick_at(130)  # past WAKE_THROTTLE_S, far inside the 600 s window
+        self.assertEqual(len(self.events("lead-wake")), 1)
+        self.assertEqual(self.events("wake-debounced"), [])
+
 
 if __name__ == "__main__":
     unittest.main()
