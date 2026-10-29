@@ -9397,6 +9397,33 @@ LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the tas
 LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
 
 
+LANE_PENDING = ("QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED", "EXPECTED")
+
+
+def lane_owner_stuck(con, task):
+    """Why the lane owner `task` can no longer be merged without a new push (a red check, or a DIRTY/conflicting head),
+    else None. A pending check, a BEHIND head or a gh failure is not stuck: the owner is still on its way."""
+    r = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    if not r or not r["pr_url"]:
+        return None
+    ready, why = judge_pr_ready(con, r["pr_url"], True)
+    if ready:
+        return None
+    if why == "PR is DIRTY":
+        return why
+    if why.startswith("CI not green: "):
+        red = [x for x in why[len("CI not green: "):].split(", ") if "=" in x and x.rsplit("=", 1)[1].upper() not in LANE_PENDING]
+        if red:
+            return why
+    return None
+
+
+def lane_throttle_sweep(con):
+    """Drop 'lane:<task>' throttle rows of tasks that are finished or gone (the lane is released when they end)."""
+    con.execute("DELETE FROM throttle WHERE key LIKE 'lane:%' AND substr(key, 6) NOT IN "
+                "(SELECT id FROM tasks WHERE status NOT IN ('done','cancelled'))")
+
+
 def refresh_lane_hold(con, task, queued):
     """G-022 refresh_lane (phase 1): why a queued judge for `task` waits for the refresh lane, or None to let it go on.
     Only with config refresh_lane=on. Behind-only is not a failure, but every BEHIND judge that starts refreshes its
@@ -9406,6 +9433,7 @@ def refresh_lane_hold(con, task, queued):
     open; when it merges (or its judge ends without a merge) the next BEHIND head takes over. A PR that is not BEHIND
     is never held, and nothing is held when stale_policy=behind_ok applies (no refresh happens then). `queued` = the
     tick's queued rows in queue order. A gh failure reads as not BEHIND (not held): the lane only narrows refreshes."""
+    lane_throttle_sweep(con)
     if (cfg(con, "refresh_lane") or "off").strip().lower() != "on" or not task:
         return None
 
@@ -9430,13 +9458,23 @@ def refresh_lane_hold(con, task, queued):
                            (owner,)).fetchone()
         if not t or t["status"] in ("done", "cancelled") or not live:
             owner = None
+    if owner:
+        stuck = lane_owner_stuck(con, owner)
+        if stuck:  # red CI or DIRTY: it needs a new push, so it must not hold the lane for the TTL
+            con.execute("DELETE FROM config WHERE key=?", (LANE_OWNER_KEY,))
+            con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + owner,))
+            event(con, "task", owner, "lane-release", f"refresh lane released: {stuck}"[:300])
+            owner = None
     if owner == task or not behind(task):
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
         return None
     line = [x for x in dict.fromkeys(q["task_id"] for q in queued if q["role"] == "judge" and q["task_id"])
             if x != owner and (x == task or behind(x))]
     if task not in line:
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
         return None
     if not owner and line[0] == task:
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (LANE_OWNER_KEY, f"{task}|{time.time()}"))
         event(con, "task", task, "lane-head", "refresh lane: this task is the queue head and is refreshed first")
