@@ -8206,7 +8206,11 @@ def cmd_test(a):
 
     def into_cgroup():
         if cgfd is not None:
-            os.write(cgfd, b"0")  # moves this forked child into the run's cgroup before exec
+            try:
+                os.write(cgfd, b"0")  # moves this forked child into the run's cgroup before exec
+            except OSError as e:  # preexec_fn exceptions lose their cause; say it, and never exec the command uncapped
+                os.write(2, f"factory test: cannot move the run into {cgpath}: {e.strerror} (errno {e.errno}); the command was not run uncapped\n".encode())
+                os._exit(127)
 
     def end():
         if cgfd is not None:
