@@ -79,6 +79,9 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     common = _git_common_dir(tree)
     if not _under(common, main):
         ro.append(common)  # hooks, config, refs, objects: read-only even when it sits inside the rw tree
+    ptr = os.path.join(tree, ".git")
+    if os.path.isfile(ptr) and not os.path.islink(ptr):
+        ro.append(ptr)  # worktree pointer file: a rw one lets the run redirect gitdir to code that git then runs outside the box
     masks = [os.path.join(main, m) for m in MASKED if os.path.isdir(os.path.join(main, m))]
     hide = [home, runtime, *HIDE_TMP]
     try:
