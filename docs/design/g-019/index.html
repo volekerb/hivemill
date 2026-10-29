@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Hivemill redesign mockups</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<main class="idx" id="content">
+<h1>Hivemill web UI redesign: static mockups</h1>
+<p class="lead">G-019 B1 for approval. Six pages as hand-written HTML and one stylesheet, light and dark (follows the OS; the screenshots in shots/ force each theme), desktop 1280 x 860 and phone 390 x 844. No JavaScript, no external requests, system fonts only. Read README.md for the brief summary, the screenshot table and the checks.</p>
+<h2 class="section-title">Pages</h2>
+<div class="grid"><a class="card" href="overview.html"><b>Overview</b><span>Operator cockpit: needs you, system gauges, goals, agents, shipped, quality (J1-J6).</span></a><a class="card" href="goals.html"><b>Goals</b><span>Open goals with progress meters, criteria and blocking reasons.</span></a><a class="card" href="goal.html"><b>Goal detail</b><span>G-002: what is blocking, success criteria with task glyphs, grouped tasks, right rail.</span></a><a class="card" href="agents.html"><b>Agents</b><span>Running agents grouped by team, queued with reasons, teams, recently ended.</span></a><a class="card" href="tasks.html"><b>Tasks</b><span>Filter chips with counts, tasks grouped by status, sortable columns.</span></a><a class="card" href="quality.html"><b>Quality</b><span>Headline tiles with deltas, bouncing tasks, per team, by source, per week.</span></a></div>
+<h2 class="section-title">Direction in six lines</h2>
+<ul class="plain"><li>Answer first: every page opens with what needs you, is it healthy, what changed.</li><li>Colour means state only; one blue accent for interaction; every status has a shape and a word.</li><li>Quiet structure: grouped lists on a neutral canvas, hairlines instead of boxes, one type family in three weights.</li><li>Dense, never empty: 36 px rows on desktop, 44 px on phone, overview blank area under 35%.</li><li>Same thing, same component, same word on every page.</li><li>Light and dark designed together, WCAG AA for every token pair, no sideways scroll at 390 px, complete without JavaScript.</li></ul>
+<h2 class="section-title">Status tones</h2>
+<div class="swatches"><span class="tone-neutral">To do / Ended</span><span class="tone-info">In progress / Active</span><span class="tone-review">In review</span><span class="tone-success">Done / Running</span><span class="tone-warning">Queued / waiting</span><span class="tone-danger">Blocked / Lost</span></div>
+</main>
+</body>
+</html>
