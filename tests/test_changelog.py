@@ -121,6 +121,14 @@ class ChangelogTest(unittest.TestCase):
         for needle in ("Hivemill v0.1.0", "Pre-release.", "SECURITY.md", "On-demand", "sandbox"):
             self.assertIn(needle, text)
 
+    def test_release_notes_links_are_absolute(self):
+        # The same text lands in CHANGELOG.md and the GitHub release body, so a relative link breaks in one of them.
+        for path in sorted((ROOT / "ci" / "release-notes").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(re.findall(r"\]\((?:\.\.?/)[^)]*\)", text), [], path.name)
+            for target in re.findall(r"\]\(([^)]*)\)", text):
+                self.assertRegex(target, r"^https://", f"{path.name}: {target}")
+
 
 class WorkflowTextTest(unittest.TestCase):
     def read(self, name):
