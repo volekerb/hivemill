@@ -70,6 +70,8 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [profiling.md](profiling.md): the baseline script for per-call cost measurements.
+- [adr/README.md](adr/README.md): index of architecture decision records.
+- [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
 
 ## Internals
 

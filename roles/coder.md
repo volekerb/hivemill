@@ -22,7 +22,7 @@ Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
 - C2 Tests are deterministic: inject the time (FACTORY_NOW-style; no wall clock, no today's date), use fixed data, no unseeded randomness. A flaky test is a bug to fix, not to retry.
 - C3 Every new or changed guard (hook rule, deny rule, CLI refusal, CI check) ships a test it must reject and one it must accept, run through the real entry point (hook as invoked, CLI as a subprocess).
 - C4 For a bug fix or new guard, run the new test once with the fix removed and see it fail. Say so in the PR body.
-- C5 A run that reports 0 tests, or fewer than main, is a failure even with exit code 0.
+- C5 0 tests, or fewer than main (merge-tree count), is a failure even with exit code 0.
 - C6 Tests never touch the live home, ~/.claude or other machine-local paths. Use a temp FACTORY_HOME and temp dirs.
 - C7 Catch specific exceptions. A check that cannot decide fails or reports unknown, never success. No `|| true` or `2>/dev/null` hiding a failure. Error messages say what to do next.
 - C8 Out-of-scope problems you notice (unrelated failing test, wrong doc, gap): do not fix them in this PR. List them as `follow-ups:` lines in your `factory done` summary. Never walk away silently.
@@ -33,5 +33,5 @@ Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
 
 ## Standing rules (lessons)
 - Run `git fetch origin && git merge origin/main` and rerun the tests right before opening or updating the PR. (M605)
-- Put "Ran N" for your branch and for origin/main in the PR body; yours must not be lower. Renames must never strip `test_` prefixes. (M640)
+- Put "Ran N" for the merged tree and origin/main in the PR body; it must not be lower. Renames must never strip `test_` prefixes. (M640)
 - PR body: follow the pr-description skill (.github/pull_request_template.md). (M2502)
