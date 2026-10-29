@@ -69,76 +69,35 @@ The factory runs on [herdr](https://herdr.dev), the terminal multiplexer that ho
 
 ## Quickstart
 
-Needs Python 3.11+, git, `gh`, `herdr` and a logged-in Claude Code. Full steps and troubleshooting: [docs/SETUP.md](docs/SETUP.md). Every output below was captured from a real run against the seeded demo home ([docs/demo-data.md](docs/demo-data.md)); `...` marks every cut (whole lines or parts of lines).
+Needs Python 3.11+, git, `gh`, `herdr` and a logged-in Claude Code. Full steps and troubleshooting: [docs/SETUP.md](docs/SETUP.md).
 
 ### 1. Look around without herdr or Claude
 
-Seeded fictional data, nothing real runs. Run from the repository root:
+Seeded fictional data, nothing real runs ([docs/demo-data.md](docs/demo-data.md)). Run from the repository root:
 
 ```
 export TRIAL=$(mktemp -d)
 python3 ci/demo_seed.py --home "$TRIAL/demo" --now 2026-10-25T12:00:00+01:00
-```
-
-```
-seeded .../demo/db/factory.db at now=2026-10-25T11:00:00+00:00: 12 goals, 111 tasks, 258 verdicts, 187 messages, 105 agents, 755 events
-scrub scan: no hits
-view it with (the HOME prefix is MANDATORY: without it the tokens page shows the real owner's live usage):
-  HOME=... FACTORY_HOME=... factory serve --bind 127.0.0.1 --port 8799
-```
-
-Serve the read-only web UI on it:
-
-```
 HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo bin/factory serve --bind 127.0.0.1 --port 18624
 ```
 
-```
-factory serve: http://127.0.0.1:18624/ (read-only, LAN only, no auth)
-127.0.0.1 "GET / HTTP/1.1" 200 -
-127.0.0.1 "GET /goals HTTP/1.1" 200 -
-```
-
-Open <http://127.0.0.1:18624/>. In another shell, list the demo goals (put `HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of every `factory` command below):
-
-```
-factory goal list
-```
-
-```
-ID     STATUS    PRIORITY  PROJECT_ID  DONE  TOTAL  TITLE
-G-002  active    1         acme-web    3     9      Build the checkout flow
-G-006  active    1         ledger-api  23    31     Rate-limit the public API
-G-003  active    2         acme-web    4     5      Add account settings
-...
-G-011  planning  3         docs-site   0     0      Add versioned docs
-G-012  planning  3         acme-web    0     0      Add a wishlist
-```
+Open <http://127.0.0.1:18624/> to see the read-only web UI on the demo data. In another shell, put `HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of `factory goal list` to see the demo goals as a table.
 
 ### 2. Run the real factory
 
-Put the CLI on your `PATH` (`~/.local/bin` must exist and be on it), then initialise:
+Put the CLI on your `PATH` (`~/.local/bin` must exist and be on it), initialise, register a project, bring up the headquarters and open the web UI:
 
 ```
 git clone https://github.com/volekerb/hivemill.git ~/factory
 cd ~/factory
 ln -s "$PWD/bin/factory" ~/.local/bin/factory
 factory init
-```
-
-```
-initialised .../db/factory.db
-```
-
-Then register a project, bring up the headquarters and open the web UI:
-
-```
 factory project add myapp --name "My app" --repo ~/src/myapp --gh example-org/myapp
 factory up
 factory serve --bind 127.0.0.1
 ```
 
-`project add` and `up` need a plain shell (workers are refused), a running herdr server and a logged-in Claude Code, so their output is not reproduced here; the walk-through is in [docs/SETUP.md](docs/SETUP.md). Then open the boss's pane in herdr and describe what you want built.
+`project add` and `up` need a plain shell (workers are refused), a running herdr server and a logged-in Claude Code; the walk-through is in [docs/SETUP.md](docs/SETUP.md). Then open the boss's pane in herdr and describe what you want built.
 
 <details>
 <summary>Let Claude set it up</summary>
@@ -160,103 +119,7 @@ Read docs/adopt/ADOPT.md in this checkout and set up Hivemill step by step; stop
 
 ## A task's life in commands
 
-Same demo home (`HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of each command). Three walkthroughs with full output: [from a goal to a merged PR](docs/examples/01-goal-to-merged-pr.md), [handling a rejection](docs/examples/02-handling-a-rejection.md), [the digest and scorecard](docs/examples/03-digest-and-scorecard.md).
-
-A goal, with its intent, success criteria, plan, team and tasks:
-
-```
-factory goal show G-002
-```
-
-```
-# G-002 — Build the checkout flow
-status=active priority=1 project=acme-web
-
-## intent
-Let a visitor pay for a cart in one short flow.
-
-## success_criteria
-1. Cart page works.
-2. Shipping details are collected.
-3. Payment step completes an order.
-4. Confirmation email is sent.
-
-## plan v1 (lead-g-002-a, 2026-10-13T15:48:00+00:00)
-1. Specify
-2. Build
-3. Verify
-
-## teams
-ID       LEAD_AGENT    STATUS  SCOPE
-g-002-a  lead-g-002-a  active  Cart, shipping, payment and confirmation
-
-## tasks
-ID      STATUS       ROLE   ASSIGNEE      DEPENDS_ON  PR_URL                                            TITLE
-T-0006  done         pm     pm-t-0006     []                                                            Specify the checkout flow
-T-0007  done         coder  coder-t-0007  ["T-0006"]  https://github.com/example-org/acme-web/pull/104  Add cart page [SC1]
-...
-T-0014  todo         coder                ["T-0010"]                                                    Add receipt download
-```
-
-One task with its acceptance criteria and every verdict. This one failed QA, was rejected by the judge for touching a file no acceptance item covers, and merged on the third attempt:
-
-```
-factory task show T-0004
-```
-
-```
-id: T-0004
-goal_id: G-001
-...
-title: Add contact form [SC3]
-role: coder
-status: done
-...
-attempts: 3
-...
-## acceptance
-1. A valid post returns 200 and queues one email.
-2. A missing email returns 422 with a field error.
-3. A message over 2000 characters is rejected.
-
-## verdicts
-- ... qa FAIL @ba49e234 by qa-t-0004: Changes needed: POST /api/contact with email 'a@' returned 200, expected 422 (api/contact.py:31 only checks for an @ sign).
-- ... reviewer PASS @3bb1e7aa by reviewer-t-0004: Checked input validation in api/contact.py and that the mail queue call is made once per request.
-- ... qa PASS @3bb1e7aa by qa-t-0004: Posted a valid, an invalid-email and a 2001-character message; got 200, 422 and 422 as specified.
-- ... judge REJECT @3bb1e7aa by judge-t-0004: Rejected: the diff edits src/cart.js:88, which no acceptance item of this task covers. Remove it or split it into its own task.
-- ... reviewer PASS @a6bd606d by reviewer-t-0004: Checked input validation in api/contact.py and that the mail queue call is made once per request.
-- ... qa PASS @a6bd606d by qa-t-0004: Posted a valid, an invalid-email and a 2001-character message; got 200, 422 and 422 as specified.
-- ... judge MERGE @a6bd606d by judge-t-0004: Reviewer and QA PASS at a6bd606d; checks green; merging.
-...
-```
-
-Reviewers and QA record verdicts with `factory verdict`, the judge merges or rejects with `factory judge` ([docs/verdict-gates.md](docs/verdict-gates.md)). The owner's overview of everything:
-
-```
-factory digest
-```
-
-```
-# Factory digest ...
-
-Leads: 5 live, 1 parked, 0 queued; workers live 10
-
-## G-002 — Build the checkout flow (active)
-
-### Done
-_nothing_
-
-### In progress
-- T-0010 Add payment step [SC3] (in_review, coder-t-0010, attempts 2)
-- T-0011 Verify checkout end to end (in_progress, qa-t-0011, attempts 1)
-- T-0012 Add order confirmation email [SC4] (in_progress, coder-t-0012, attempts 1)
-...
-### Team scores
-| team | tasks | done | merged | rejections | retries | score |
-|---|---|---|---|---|---|---|
-| g-002-a | 9 | 3 | 2 | 2 | 2 | 4.0 |
-...
-```
+Three walkthroughs with full output on the demo data: [from a goal to a merged PR](docs/examples/01-goal-to-merged-pr.md), [handling a rejection](docs/examples/02-handling-a-rejection.md), [the digest and scorecard](docs/examples/03-digest-and-scorecard.md).
 
 ## How it works
 
@@ -366,7 +229,10 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
       <sub><a href="docs/web-ui.md">Goals</a>: status and priority</sub>
     </td>
     <td align="center" width="33%">
-      <a href="docs/images/tasks-dark.png"><img src="docs/images/tasks-dark.png" width="280" alt="The tasks page: tasks by status with assignee and PR"></a><br>
+      <a href="docs/images/tasks-light.png"><picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/tasks-dark.png">
+        <img src="docs/images/tasks-light.png" width="280" alt="The tasks page: tasks by status with assignee and PR">
+      </picture></a><br>
       <sub><a href="docs/web-ui.md">Tasks</a>: status, assignee and PR</sub>
     </td>
   </tr>
@@ -400,13 +266,14 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
 - Every agent is a Claude Code session, so it uses your Claude usage.
 - It is built for a single box, not a cluster. State is one SQLite file.
 - Agent isolation is a tripwire, not a sandbox. Hooks and permission settings stop honest mistakes and make bypasses visible; they do not contain a determined adversary. Read [SECURITY.md](SECURITY.md) for the threat model and the known limits before you point it at anything you cannot afford to lose.
+- The worker sandbox, which would add real containment, is [in progress](docs/worker-sandbox.md).
 - The web UI is read-only and has no authentication; bind it to an address you trust.
 
 Not affiliated with Anthropic. Claude and Claude Code are products of Anthropic.
 
 ## Use it from your phone
 
-[Moshi](https://getmoshi.app) is an SSH and Mosh terminal app built for checking on coding agents. Its App Store listing is [Moshi: herdr/tmux on SSH/MOSH](https://apps.apple.com/app/id6757859949) by Moshi Tech Ltd., and the developer's site also links a [Google Play listing](https://play.google.com/store/apps/details?id=app.getmoshi.android). Connect from the phone to your box over SSH or Mosh (`you@your-box`), then run `herdr` there: per the [herdr README](https://github.com/herdrdev/herdr), "`ctrl+b q` detaches, `herdr` reattaches." Open the boss's pane and talk to it as you would at your desk. Moshi is a third-party app, not part of Hivemill. To reach the web UI from there, use an SSH port forward to `127.0.0.1`.
+Install [Moshi](https://getmoshi.app) on your phone, connect to your box over SSH, and run `herdr` there to reach the boss's pane. Moshi is a third-party app, not part of Hivemill.
 
 ## Resources
 
