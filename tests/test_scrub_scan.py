@@ -10,6 +10,7 @@ import time
 import unittest
 from pathlib import Path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN = ROOT / "ci" / "scrub_scan.py"
@@ -39,8 +40,7 @@ GIT_ENV = {
 
 
 def git(cwd, *args, env=None):
-    e = {**os.environ, **GIT_ENV, **(env or {})}
-    return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True, text=True, env=e).stdout.strip()
+    return harness.git(*args, cwd=cwd, env={**GIT_ENV, **(env or {})})
 
 
 def scan(*args, terms_env=None, env_extra=None):

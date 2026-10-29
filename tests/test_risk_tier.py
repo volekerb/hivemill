@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("risk_tier_under_test", ROOT / "ci" / "risk_tier.py")
@@ -111,7 +112,7 @@ class ClassifyRangeTests(unittest.TestCase):
     def git(self, *a):
         env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
-        subprocess.run(["git", "-C", self.root, *a], check=True, capture_output=True, env=env)
+        harness.git(*a, cwd=self.root, env=env)
 
     def write(self, rel, text, mode="w"):
         path = os.path.join(self.root, rel)

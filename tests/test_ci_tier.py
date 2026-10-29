@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ci"))
@@ -19,8 +20,7 @@ BIN_SRC = "def cmd_other():\n    return 1\n\n\ndef cmd_judge():\n    return 1\n\
 
 
 def git(cwd, *args):
-    subprocess.run(["git", "-C", str(cwd), "-c", "user.email=t@example.invalid", "-c", "user.name=t", *args],
-                   check=True, capture_output=True, text=True)
+    harness.git("-c", "user.email=t@example.invalid", "-c", "user.name=t", *args, cwd=cwd)
 
 
 class Repo:

@@ -2,11 +2,11 @@ import subprocess
 import unittest
 
 from harness import FactoryTestCase
+import harness
 
 
 def git(*args, cwd):
-    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=cwd, check=True,
-                   capture_output=True, text=True)
+    harness.git("-c", "user.name=t", "-c", "user.email=t@t", *args, cwd=cwd)
 
 
 class TaskOverlapTests(FactoryTestCase):

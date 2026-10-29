@@ -98,7 +98,7 @@ class RemoteGuardTest(unittest.TestCase):
         users = sorted(p.name for p in TESTS.glob("test_*.py") if p.name != Path(__file__).name
                        and "inert_remote=True" in p.read_text())
         self.assertEqual(users, ["test_fresh_export.py", "test_git_hardening.py", "test_project_remote.py", "test_public_repo_safety.py",
-                         "test_remote_url_check.py"])
+                         "test_remote_url_check.py", "test_worker_guard_public_text.py"])
 
     def test_inert_remote_does_not_excuse_a_network_push(self):
         import harness
@@ -169,7 +169,7 @@ def _git_argv(call):
 
 
 def raw_git_violations(source):
-    """Static (AST) scan: network-verb git via raw subprocess, and defs that wrap subprocess with a forwarded git argv."""
+    """Static (AST) scan: network-verb git via raw subprocess, and every def that forwards its args into a subprocess git argv."""
     out = []
     tree = ast.parse(source)
     for node in ast.walk(tree):
@@ -177,23 +177,18 @@ def raw_git_violations(source):
             words = [e.value for e in argv if isinstance(e, ast.Constant) and isinstance(e.value, str)]
             if NETWORK_VERBS & set(words) or ("remote" in words and {"add", "set-url"} & set(words)):
                 out.append("line %d: raw subprocess git %s; use harness.git" % (node.lineno, " ".join(words[1:])))
-    wrappers = {}
+    # A def that forwards its own args into a git argv is a wrapper and is banned whatever verb, caller or module hands it
+    # (6c-iii(2)); a literal network verb in a git argv is caught above even in a def that forwards nothing.
     for fn in ast.walk(tree):
         if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs}
             params |= {a.arg for a in (fn.args.vararg, fn.args.kwarg) if a}
             for c in ast.walk(fn):
-                if isinstance(c, ast.Call) and (argv := _git_argv(c)):
-                    if any(isinstance(e, ast.Starred) and isinstance(e.value, ast.Name) and e.value.id in params
-                           for e in argv):
-                        wrappers[fn.name] = fn.lineno
-    # A wrapper that forwards its args to git is banned once the module hands it a network verb (it would push unchecked).
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in wrappers:
-            words = {a.value for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)}
-            if NETWORK_VERBS & words or ("remote" in words and {"add", "set-url"} & words):
-                out.append("line %d: def %s wraps subprocess git and is called with %s; use harness.git"
-                           % (wrappers[node.func.id], node.func.id, " ".join(sorted(words))))
+                if isinstance(c, ast.Call) and (argv := _git_argv(c)) and any(
+                        isinstance(e, ast.Starred) and isinstance(e.value, ast.Name) and e.value.id in params
+                        for e in argv):
+                    out.append("line %d: def %s wraps subprocess git; use harness.git" % (fn.lineno, fn.name))
+                    break
     return sorted(set(out))
 
 
@@ -216,10 +211,22 @@ class RawGitRemoteGuardTest(unittest.TestCase):
         for src in (pushes, wrapper, remote):
             self.assertTrue(raw_git_violations(src), src)
 
+    def test_wrapper_is_flagged_whoever_calls_it_and_with_whatever_verb(self):
+        # cross-module: module A only ever calls run_git("status"); module B imports it and pushes to a network URL.
+        mod_a = ("import subprocess\ndef run_git(cwd, *a):\n    return subprocess.run(['git', *a], cwd=cwd)\n"
+                 "run_git('x', 'status')\n")
+        mod_b = "from mod_a import run_git\nrun_git('x', 'push', 'https://github.com/x/y', 'HEAD:main')\n"
+        self.assertTrue(raw_git_violations(mod_a), "the def itself is flagged, so the importer needs no scan")
+        self.assertEqual(raw_git_violations(mod_b), [], "mod_b spawns nothing itself; mod_a's def is the violation")
+        # variable verb: the call site carries no literal network verb, the wrapper def is still flagged.
+        variable = ("import subprocess\ndef g(*a):\n    return subprocess.run(['git', *a])\n"
+                    "verb = 'push'\ng('x', verb, 'https://github.com/x/y')\n")
+        self.assertTrue(raw_git_violations(variable))
+
     def test_local_non_network_git_is_not_flagged(self):
         src = "import subprocess\nsubprocess.run(['git', 'rev-parse', 'HEAD'], cwd='x')\nsubprocess.run(['rm', '-rf', 'y'])\n"
         self.assertEqual(raw_git_violations(src), [])
-        src = "import subprocess\ndef g(*a):\n    return subprocess.run(['git', *a])\ng('status')\n"
+        src = "import subprocess\ndef g(cwd):\n    return subprocess.run(['git', 'status'], cwd=cwd)\ng('x')\n"
         self.assertEqual(raw_git_violations(src), [])
 
 

@@ -11,6 +11,7 @@ import tempfile
 import time
 import unittest
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -39,8 +40,7 @@ class PublicTextTests(unittest.TestCase):
 
     # ── helpers
     def git(self, *args, cwd=None, env=None):
-        return subprocess.run(["git", *args], cwd=cwd or self.repo, check=True, capture_output=True, text=True,
-                              env={**os.environ, **GIT_ENV, **(env or {})}).stdout.strip()
+        return harness.git(*args, cwd=cwd or self.repo, env={**GIT_ENV, **(env or {})}, inert_remote=True)
 
     def set_origin(self, url):
         subprocess.run(["git", "remote", "remove", "origin"], cwd=self.repo, capture_output=True)
