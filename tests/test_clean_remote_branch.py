@@ -270,6 +270,63 @@ class CleanRemoteBranchTests(FactoryTestCase):
             self.assertIn("push failed", mod._rb_delete("factory/t-0007", sha))
         self.assertTrue(self.exists("factory/t-0007"))
 
+    # -- stray branches (T-0408) ---------------------------------------------
+    def stray_setup(self, stray="factory/T-0001", pr_branch="factory/t-0001", pr_state="MERGED", extra_commit=False):
+        """A merged PR head (branch pr_branch, PR #1) and a stray branch at its parent (or one commit ahead of it)."""
+        git("checkout", "-q", "-b", "tmp-s", "main", cwd=self.repo)
+        base = self.commit("base")
+        head = self.commit("head")
+        git("push", "-q", "origin", f"{head}:refs/heads/{pr_branch}", f"{base}:refs/heads/{stray}", cwd=self.repo)
+        if extra_commit:
+            git("push", "-q", "-f", "origin", f"{self.commit('extra')}:refs/heads/{stray}", cwd=self.repo)
+        git("checkout", "-q", "main", cwd=self.repo)
+        git("branch", "-q", "-D", "tmp-s", cwd=self.repo)
+        git("--git-dir", str(self.origin), "update-ref", "refs/pull/1/head", head, cwd=self.repo)
+        st = json.loads(self.env.gh_state.read_text())
+        st["pr_list"] = [self.pr(1, head, pr_state, pr_branch)]
+        self.env.gh_state.write_text(json.dumps(st))
+        if self.exists(pr_branch) and pr_branch != stray:  # the PR's own branch is gone from origin
+            git("--git-dir", str(self.origin), "update-ref", "-d", f"refs/heads/{pr_branch}", cwd=self.repo)
+        return base, head
+
+    def test_stray_ancestor_of_merged_pr_head_deleted_with_evidence(self):
+        base, head = self.stray_setup()
+        p = self.ok_rm("factory/T-0001")
+        self.assertIn(f"stray {base[:8]} ancestor of merged PR #1 head {head[:8]}", p.stdout)
+        self.assertFalse(self.exists("factory/T-0001"))
+        d = json.loads(self.events("branch-deleted")[0]["detail"])
+        self.assertEqual((d["sha"], d["pr"], d["pr_head"]), (base, 1, head))
+
+    def test_stray_equal_to_merged_pr_head_deleted(self):
+        _, head = self.stray_setup()
+        git("push", "-q", "origin", f"{head}:refs/heads/factory/T-0001", cwd=self.repo)
+        self.ok_rm("factory/T-0001")
+        self.assertFalse(self.exists("factory/T-0001"))
+
+    def test_stray_with_extra_commit_refused(self):
+        self.stray_setup(extra_commit=True)
+        p = self.rm("factory/T-0001")
+        self.assertRefused(p, "no PR in this repo has the branch as its head")
+        self.assertTrue(self.exists("factory/T-0001"))
+
+    def test_stray_with_open_pr_refused(self):
+        self.stray_setup(pr_state="OPEN")
+        self.assertRefused(self.rm("factory/T-0001"), "OPEN PR")
+        self.assertTrue(self.exists("factory/T-0001"))
+
+    def test_stray_of_a_different_task_refused(self):
+        self.stray_setup(stray="factory/T-0002")
+        self.assertRefused(self.rm("factory/T-0002"), "no PR in this repo")
+        self.assertTrue(self.exists("factory/T-0002"))
+
+    def test_stray_dry_run_lists_and_keeps_branch(self):
+        base, head = self.stray_setup()
+        p = self.ok_rm("factory/T-0001", extra=("--dry-run",))
+        self.assertIn("would delete", p.stdout)
+        self.assertIn(f"ancestor of merged PR #1 head {head[:8]}", p.stdout)
+        self.assertTrue(self.exists("factory/T-0001"))
+        self.assertEqual(self.events("branch-deleted"), [])
+
     # -- roles --------------------------------------------------------------
     def test_other_workers_exit_3(self):
         self.remote_branch()

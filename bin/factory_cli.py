@@ -7038,9 +7038,39 @@ def _rb_in_use(con, name):
     return f"agent {ag['name']} is live or queued on the branch" if ag else None
 
 
+def _rb_stray_pr(name, sha):
+    """A stray factory/<task-id> branch (no PR of its own, e.g. wrong case) is deletable when its head is an ancestor of
+    (or equal to) the head of a MERGED PR for the same task id, matched case-insensitively. Returns that PR dict, a
+    refusal string (an OPEN PR for the task, or a git/gh error), or None when no merged PR covers the branch."""
+    task = name[len("factory/"):]
+    if "/" in task:
+        return None
+    prs = []
+    for head in dict.fromkeys([name, "factory/" + task.lower(), "factory/" + task.upper()]):
+        got, err = _rb_prs(head)
+        if err:
+            return err
+        prs += got
+    if any(x.get("state") == "OPEN" for x in prs):
+        return f"an OPEN PR uses the task's branch (PRs seen: {sorted(x.get('number') for x in prs)})"
+    merged = [x for x in prs if x.get("state") == "MERGED" and x.get("headRefName", "").lower() == name.lower()
+              and re.fullmatch(r"[0-9a-f]{40}", x.get("headRefOid") or "")]
+    for pr in sorted(merged, key=lambda x: -x["number"]):
+        pref, err = _rb_ls_remote(f"refs/pull/{pr['number']}/head")
+        if err or pref != pr["headRefOid"]:
+            continue  # the merged head must stay recoverable on origin
+        rc, _, err = _git_rc(["fetch", "-q", "origin", f"refs/pull/{pr['number']}/head", f"refs/heads/{name}"],
+                             timeout=REMOTE_GIT_TIMEOUT)
+        if rc != 0:
+            return f"git fetch for PR #{pr['number']} failed: {err or 'exit ' + str(rc)}"[:160]
+        if _git_rc(["merge-base", "--is-ancestor", sha, pr["headRefOid"]], timeout=REMOTE_GIT_TIMEOUT)[0] == 0:
+            return pr
+    return None
+
+
 def _rb_check(con, name):
     """Run the safety checks for one remote branch. Returns (refusal reason or None, info dict). Fails closed."""
-    info = {"sha": None, "pr": None, "pr_state": None}
+    info = {"sha": None, "pr": None, "pr_state": None, "pr_head": None}
     if len(name) > 200 or not REMOTE_BRANCH_RE.match(name):
         return "name is not a factory/* branch (^factory/[A-Za-z0-9._/-]+$, max 200 chars)", info
     rc, _, _ = _git_rc(["check-ref-format", f"refs/heads/{name}"])
@@ -7054,13 +7084,18 @@ def _rb_check(con, name):
     if err:
         return err, info
     seen = sorted(x.get("number") for x in prs)
-    if not prs:
-        return "no PR in this repo has the branch as its head", info
     if any(x.get("state") == "OPEN" for x in prs):
         return f"an OPEN PR uses the branch (PRs seen: {seen})", info
     match = [x for x in prs if x.get("headRefOid") == sha]
     if not match:
-        return f"no PR head equals the branch head {sha[:8]} (force-pushed after close?; PRs seen: {seen})", info
+        why = ("no PR in this repo has the branch as its head" if not prs else
+               f"no PR head equals the branch head {sha[:8]} (force-pushed after close?; PRs seen: {seen})")
+        stray = _rb_stray_pr(name, sha)
+        if stray is None or isinstance(stray, str):
+            return (stray or why), info
+        info["pr"], info["pr_state"], info["pr_head"] = stray["number"], "MERGED", stray["headRefOid"]
+        why = _rb_in_use(con, name)
+        return (why, info) if why else (None, info)
     pr = max(match, key=lambda x: x["number"])
     info["pr"], info["pr_state"] = pr["number"], pr.get("state")
     if pr.get("state") not in ("MERGED", "CLOSED"):
@@ -7099,6 +7134,12 @@ def _rb_delete_local(name, sha):
     return "; local branch deleted" if rc == 0 else f"; local branch kept ({err[:60]})"
 
 
+def _rb_evidence(info):
+    if info["pr_head"]:
+        return f"stray {info['sha'][:8]} ancestor of merged PR #{info['pr']} head {info['pr_head'][:8]}"
+    return f"PR #{info['pr']} {info['pr_state']}, head {info['sha'][:8]}"
+
+
 def cmd_clean_remote_branch(con, names, dry_run):
     """`factory clean --remote-branch NAME...`: delete stale factory/* branches on origin after safety checks that keep
     the content recoverable through refs/pull/N/head. Per-name table; exit 4 if any name is refused."""
@@ -7109,16 +7150,17 @@ def cmd_clean_remote_branch(con, names, dry_run):
         why, info = _rb_check(con, name)
         row = {"branch": name, "result": "refused", "reason": why or ""}
         if why is None and dry_run:
-            row["result"], row["reason"] = "would delete", f"PR #{info['pr']} {info['pr_state']}, head {info['sha'][:8]}"
+            row["result"], row["reason"] = "would delete", _rb_evidence(info)
         elif why is None:
             why = _rb_delete(name, info["sha"], con=con)
             if why:
                 row["reason"] = why
             else:
-                row["result"], row["reason"] = "deleted", f"PR #{info['pr']} {info['pr_state']}, head {info['sha'][:8]}" \
-                    + _rb_delete_local(name, info["sha"])
-                event(con, "branch", name, "branch-deleted", {"name": name, "sha": info["sha"], "pr": info["pr"],
-                                                              "pr_state": info["pr_state"]})
+                row["result"], row["reason"] = "deleted", _rb_evidence(info) + _rb_delete_local(name, info["sha"])
+                detail = {"name": name, "sha": info["sha"], "pr": info["pr"], "pr_state": info["pr_state"]}
+                if info["pr_head"]:
+                    detail["pr_head"] = info["pr_head"]
+                event(con, "branch", name, "branch-deleted", detail)
         if row["result"] == "refused" and not dry_run:
             event(con, "branch", name, "branch-delete-refused", {"name": name, "reason": row["reason"]})
         rows.append(row)
@@ -7316,6 +7358,67 @@ def util_alerts(con):
                     event(con, "util", "-", "util-alert-failed", str(e))
             except Exception:  # noqa: BLE001 — not even the failure log may break the tick
                 pass
+
+
+def is_night(con, t):
+    """True when local datetime t is outside [day_start_hour, day_end_hour)."""
+    ds, de = day_hours(con)
+    return not ds <= t.hour < de
+
+
+def owner_blockers(con):
+    """Open owner-only blockers: [{key, since (ISO), age_min, text}]. Two sources: escalations to the boss whose subject says
+    "owner action" until the boss records a decision quoting their M-id, and /tmp at or over tmp_max_pct (the cleaner cannot
+    free it; first-seen time kept in the throttle table) until it drops below."""
+    clock = digest_clock()
+    out = []
+    for m in con.execute("SELECT id,created,subject FROM messages WHERE recipient='boss' AND kind='escalation' AND sender<>'tick' "
+                         "AND lower(subject) LIKE '%owner action%' ORDER BY id"):
+        # open until the boss records the owner's answer: a decision from boss whose subject or body quotes the M-id
+        done = con.execute("SELECT 1 FROM messages WHERE sender='boss' AND kind='decision' AND id>? "
+                           "AND (subject GLOB ? OR subject GLOB ? OR body GLOB ? OR body GLOB ?) LIMIT 1",
+                           (m["id"], f"*M{m['id']}[^0-9]*", f"*M{m['id']}", f"*M{m['id']}[^0-9]*", f"*M{m['id']}")).fetchone()
+        if not done:
+            out.append({"key": f"owner-blocker:M{m['id']}", "since": m["created"], "text": f"M{m['id']} {m['subject']}"})
+    tmp = tmp_usage()  # decided from /tmp itself: gate() reports only its first cause, which another cap can mask
+    if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
+        row = con.execute("SELECT ts FROM throttle WHERE key='owner-blocker:gate'").fetchone()
+        since = row["ts"] if row else clock.isoformat(timespec="seconds")
+        if not row:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('owner-blocker:gate',?)", (since,))
+        out.append({"key": f"owner-blocker:gate:{since}", "since": since,
+                    "text": f"spawn gate closed: /tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) "
+                            f"≥ {cfg(con, 'tmp_max_pct')}%"})
+    else:
+        con.execute("DELETE FROM throttle WHERE key='owner-blocker:gate'")
+    for b in out:
+        try:
+            b["age_min"] = max(0, int((clock - dt.datetime.fromisoformat(b["since"]).astimezone()).total_seconds() // 60))
+        except ValueError:
+            b["age_min"] = 0
+    return out
+
+
+def owner_blocker_alerts(con):
+    """Tick hook: an owner-only blocker raised between day_end_hour and day_start_hour pings the boss once, at once. Never raises."""
+    try:
+        for b in owner_blockers(con):
+            if not is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone()):
+                continue
+            key = "alerted:" + b["key"]
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            ds, de = day_hours(con)
+            send(con, "boss", f"OWNER-ONLY BLOCKER (night): {b['text']}"[:200],
+                 f"Raised {b['since']}, outside daytime ({ds}-{de} h). Tell the owner now by the owner channel; "
+                 "tell again at day_start_hour if still open.", "escalation", sender="tick")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-blocker-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-blocker-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
 
 
 # ───────────────────────────── local merge gate (T-0515) ─────────────────────────────
@@ -7933,6 +8036,8 @@ def cmd_res(a):
         n = {k: con.execute("SELECT count(*) c FROM events WHERE action=? AND ts >= ?", (k, cut)).fetchone()["c"]
              for k in ("dispatch", "dispatch-shadow")}
         print(f"lead-less dispatch: {mode}; last hour: {n['dispatch']} spawned, {n['dispatch-shadow']} shadow")
+    ob = owner_blockers(con)
+    print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
     for line in top:
@@ -8753,6 +8858,7 @@ def cmd_tick(a, locked=False):
     tick_relaunches(con)
     util_sample(con)
     util_alerts(con)
+    owner_blocker_alerts(con)
 
 
 # ───────────────────────────── export & backup ─────────────────────────────
