@@ -1700,7 +1700,7 @@ class Analyzer:
         raise Block("branch deletion is refused (the cleaner may delete only factory/<x> branches, every target "
                     "must match; other roles never)")
 
-    def git_push_pin(self, rest, assigns=()):
+    def git_push_pin(self, rest):
         """T-0689: a coder's only allowed push is `git push origin HEAD:factory/<own task id>`; the task id comes from
         FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
         no -c / --git-dir overrides (push.default, remote URLs); an unknown own task id refuses."""
@@ -1724,9 +1724,17 @@ class Analyzer:
                         "force, --all/--mirror/--tags/--delete or option)")
         # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
         # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
-        if not re.fullmatch(rf"git( -C [\w./-]+)? push origin HEAD:factory/{m.group(1)}", self.text.strip()):
+        w = re.fullmatch(rf"git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
+        if not w:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
-                        "(optionally `git -C <path> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
+                        "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
+        # T-0719: -C may only name this pane's own worktree (the hook cwd), never a scratch clone
+        if w.group(1):
+            own = os.path.realpath(self.cwd)
+            tgt = os.path.realpath(w.group(1) if os.path.isabs(w.group(1)) else os.path.join(self.cwd, w.group(1)))
+            if tgt != own:
+                raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this pane's own "
+                            f"worktree (your cwd), not {w.group(1)}; drop -C or fix the path")
 
     def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
         words = list(words)
@@ -1742,7 +1750,7 @@ class Analyzer:
                 self.check_identity(assigns)
             return
         if os.path.basename(words[0]) == "git":
-            self.git_push_pin(words[1:], assigns)  # before the public-text push check: names the one allowed push
+            self.git_push_pin(words[1:])  # before the public-text push check: names the one allowed push
         if self.pt:
             self.pt.command(words, self.hq)
         if not in_loose:

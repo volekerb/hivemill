@@ -90,7 +90,7 @@ class PushPinTests(unittest.TestCase):
             f"git -C $HOME push origin {OWN}",
         ):
             with self.subTest(cmd=cmd):
-                self.assertTrue(self.pinned(cmd), self.run_hook(cmd).stderr)
+                self.assertTrue(self.pinned(cmd), cmd)
 
     def test_unknown_task_id_refuses(self):
         for agent in (None, "coder", "qa-t-0689", "coder-t-0689x"):
@@ -103,10 +103,26 @@ class PushPinTests(unittest.TestCase):
 
     def test_allowed_form_is_allowed(self):
         """The exact push exits 0 (real clone + local bare origin) and the pin names no refusal."""
-        for cmd in (f"git push origin {OWN}", f"git -C {self.wt} push origin {OWN}"):
+        for cmd in (f"git push origin {OWN}", f"git -C {self.wt} push origin {OWN}", f"git -C . push origin {OWN}"):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_dash_c_must_be_own_worktree(self):
+        """T-0719: -C into a scratch clone (another origin) is refused, also via a symlink to it; a symlink to the own one passes."""
+        scratch = os.path.join(self.tmp, "scratch")
+        subprocess.run(["git", "init", "-q", "-b", "main", scratch], check=True)
+        link = os.path.join(self.tmp, "link")
+        os.symlink(scratch, link)
+        for tgt in (scratch, link, "..", os.path.join(self.home, "worktrees", "G-018-T-0001")):
+            cmd = f"git -C {tgt} push origin {OWN}"
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("own worktree", p.stderr)
+        link_own = os.path.join(self.tmp, "ownlink")
+        os.symlink(self.wt, link_own)
+        self.assertEqual(self.run_hook(f"git -C {link_own} push origin {OWN}").returncode, 0)
 
 
 if __name__ == "__main__":
