@@ -2,7 +2,7 @@
 
 Every `factory tick` compares each live agent with the role files, CLI and plugins on main and flags the ones that
 run something older (`tick_freshness` in `bin/factory`, runs after the tick's own state export and `sync_pull`, on
-every tick, no throttle). A failure inside the check records a `freshness-failed` event and never stops the tick.
+every tick, no throttle). A failure inside the check records a `freshness-failed` event and never stops the tick. The event fires once per new error text (throttle key `fresh-failed` holds the text); when a later tick succeeds, one `freshness-recovered` event clears it.
 
 ## What is checked
 
@@ -13,6 +13,7 @@ Per live agent (the `evaluator` role is skipped: it runs on sandbox copies). Rea
 | `prompt` | `run/<name>.prompt.md` differs from what a spawn would write now (`roles/_common.md` + blank line + `roles/<role>.md`) |
 | `settings` | `roles/settings/<role>.json.in` (the template) or `<role>.json` (legacy rendered copy) is newer than `agents.started` (+1 s: it is whole seconds) |
 | `plugins` | a file under `roles/plugins/<role>/` (coders also `roles/plugins/goals/<goal>/`) is newer than `agents.started` |
+| `unreadable` | `run/<name>.prompt.md` exists but cannot be read (not a file, bad encoding); only that agent is flagged, the others are still checked |
 | `checkout` | global: `~/.local/bin/factory` does not resolve (`realpath`) to `$FACTORY_HOME/bin/factory`, or main's `HEAD` != the local `origin/main` ref. Marks every live agent. No PATH lookup (the systemd unit's PATH lacks `~/.local/bin`) and no extra fetch |
 
 A prompt file that does not exist is not compared (the row was not started by `factory spawn`). With no
@@ -33,7 +34,7 @@ A prompt file that does not exist is not compared (the row was not started by `f
   (the boss for the director), subject `stale agent: <name>`, body ending in `factory relaunch <name> --when-idle`.
   An agent with `relaunch_requested_at` set gets the event only (the judge's role-change notice already covered it).
   Workers get the event and the digest line only.
-- `factory digest`: one line `Freshness: all current` or `Freshness: <name> (<reasons>); ...`, after the first
+- `factory digest`: one line (also printed when there is no goal block) `Freshness: all current` or `Freshness: <name> (<reasons>); ...`, after the first
   `Drift:` line. It shows the state of the last tick, also for a past `--date`/`--hours` window.
 
 ## How to act
