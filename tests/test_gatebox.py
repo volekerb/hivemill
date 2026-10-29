@@ -89,6 +89,13 @@ class Fixture(unittest.TestCase):
 
 
 class ProfileTests(Fixture):
+    def setUp(self):
+        super().setUp()
+        # pure argv/env tests must pass on runners without user namespaces; the unavailable case patches it back below
+        pns = mock.patch.object(nsbox, "userns_available", return_value=(True, ""))
+        pns.start()
+        self.addCleanup(pns.stop)
+
     def test_env_is_an_allow_list(self):
         _, env = self.build()
         for k in ("GH_TOKEN", "SSH_AUTH_SOCK", "FACTORY_AGENT", "DBUS_SESSION_BUS_ADDRESS"):
@@ -123,7 +130,7 @@ class ProfileTests(Fixture):
                 popen.assert_not_called()
 
     def test_bad_paths_raise(self):
-        with self.assertRaises(gatebox.GateboxError):
+        with self.assertRaisesRegex(gatebox.GateboxError, "gate tree .* is not a directory"):
             gatebox.build("true", str(self.root / "nope"), str(self.main), str(self.wt), self.env, home=str(self.home))
 
 
