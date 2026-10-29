@@ -3219,6 +3219,50 @@ def noreply_email(con):
     return email if email.lower().endswith(NOREPLY_SUFFIX) else None
 
 
+COAUTHOR_LINE = re.compile(r"^\s*co-authored-by:.*$", re.I)
+COAUTHOR_EMAIL = re.compile(r"<([^<>\s]+@[^<>\s]+)>\s*$")
+ANTHROPIC_NOREPLY = "noreply@anthropic.com"
+
+
+def squash_body(commits, owner_noreply):
+    """Public squash body (G-021 T-0616): the PR commit messages joined the way GitHub's default does (a single commit:
+    its body; several: '* headline' + body per commit), minus every Co-authored-by trailer whose email is not a noreply
+    address (owner noreply, *@users.noreply.github.com, noreply@anthropic.com). An unparsable trailer is dropped too."""
+    ok = lambda m: m.lower() in (ANTHROPIC_NOREPLY, (owner_noreply or "").lower()) or m.lower().endswith(NOREPLY_SUFFIX)
+
+    def clean(text):
+        keep = []
+        for line in (text or "").splitlines():
+            if COAUTHOR_LINE.match(line):
+                m = COAUTHOR_EMAIL.search(line)
+                if not (m and ok(m.group(1))):
+                    continue
+            keep.append(line)
+        return "\n".join(keep).strip()
+    if len(commits) == 1:
+        return clean(commits[0].get("messageBody"))
+    parts = []
+    for c in commits:
+        body = clean(c.get("messageBody"))
+        parts.append(f"* {c.get('messageHeadline') or ''}" + (f"\n\n{body}" if body else ""))
+    return "\n\n".join(parts)
+
+
+def judge_squash_body(pr_url, owner_noreply):
+    """The squash --body for a public repo, from the PR's commits. Raises RuntimeError when they cannot be read."""
+    p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "commits"], capture_output=True, text=True,
+                       timeout=120, env=gh_git_env())
+    if p.returncode != 0:
+        raise RuntimeError(f"gh pr view failed: {p.stderr.strip()[:120]}")
+    try:
+        commits = json.loads(p.stdout)["commits"]
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"unreadable commits: {type(e).__name__}") from e
+    if not commits:
+        raise RuntimeError("the PR lists no commits")
+    return squash_body(commits, owner_noreply)
+
+
 def _email_problems(author, committer):
     """Which of author/committer emails break the public-main rule. Committer may also be GitHub's web-flow address."""
     bad = []
@@ -3467,7 +3511,13 @@ def cmd_judge(a):
                        "or the repo-local git user.email; nothing merged")
                 event(con, "task", a.task, "judge-blocked", msg)
                 die(msg, 4)
-            author_args = ["--author-email", noreply]
+            try:  # explicit body: GitHub's default one adds a Co-authored-by per commit author, real emails included
+                body = judge_squash_body(t["pr_url"], noreply)
+            except (RuntimeError, subprocess.TimeoutExpired, OSError) as e:
+                msg = f"merge refused: cannot build the public squash body: {e}; nothing merged"
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            author_args = ["--author-email", noreply, "--body", body]
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
@@ -7743,12 +7793,17 @@ def public_main_email_check(con):
             return
         seen = row["value"] if row else ""
         rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
-        rc, out, err = _git_rc(["log", "--format=%H%x09%ae%x09%ce", *rng])
+        rc, out, err = _git_rc(["log", "--format=%x00%H%x09%ae%x09%ce%x09%B", *rng])
         if rc != 0:
             raise RuntimeError(err or f"git log exited {rc}")
-        for line in out.splitlines():
-            sha, ae, ce = (line.split("\t") + ["", ""])[:3]
+        for rec in out.split("\x00"):
+            if not rec.strip():
+                continue
+            sha, ae, ce, msg = (rec.split("\t", 3) + ["", "", ""])[:4]
+            sha = sha.strip()
             bad = _email_problems(ae, ce)
+            if squash_body([{"messageBody": msg}], noreply_email(con)) != msg.strip():
+                bad.append("Co-authored-by trailer")
             tkey = f"email-alert:{sha}"
             if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
                 continue
