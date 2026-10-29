@@ -84,5 +84,5 @@ class GoalPluginDirTests(FactoryTestCase):
 
     def test_relaunch_path_goes_through_spawn(self):
         import re
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         self.assertEqual(len(re.findall(r'"--plugin-dir"', src)), 2)  # only spawn builds the flag

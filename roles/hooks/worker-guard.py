@@ -33,7 +33,7 @@ gh comment) and is allowed. R2 blocks re-targeting HERDR_SOCKET_PATH/HERDR_SESSI
 pkill/killall and any kill that is not `%job` or `$!` (T-0102, G-008 M1932). R3 blocks copying or
 reading the real herdr binary. Layer 3 (bin/factory herdr() pins the socket; worker settings point
 HERDR_SOCKET_PATH at a dead path) lives outside this file.
-Factory unit commands: a command word `factory` (or a path with that basename, also `python3 <path>/factory`)
+Factory unit commands: a command word `factory` (or a path with that basename, also `python3 <path>/factory`, `<path>/factory_cli.py`, `-m factory_cli`)
 whose subcommand is up|tick|relaunch|spawn|clean is blocked, except (a) when the same simple command assigns
 FACTORY_HOME=<path> to a path that is not the live home (a temp home for QA), (b) `clean` for `--role cleaner`.
 Broad reads (res, agents, scorecard, digest, config, goal list, goal show <not own goal>, task list|ready, team list,
@@ -254,6 +254,7 @@ R2_SET = re.compile(r"\bHERDR_(?:SOCKET_PATH|SESSION)\s*\+?=|\bexport\s+(?:-\w+\
                     r"|\b(?:declare|typeset)\s+-\w*x\w*\s+HERDR_(?:SOCKET_PATH|SESSION)\b")
 R2_PATH = re.compile(r"herdr\.sock|\.config/herdr")
 # commands that only print/search/record text: a quoted herdr.sock / .config/herdr there is data, not a target
+FACTORY_NAMES = ("factory", "factory_cli.py", "factory_cli")  # script basenames that run the factory CLI
 DATA_CMDS = {"git", "gh", "grep", "rg", "cat", "less", "echo", "printf", "factory"}
 LAUNCHERS = {"env", "sudo", "nohup", "timeout", "command", "exec", "nice", "ionice", "setsid", "stdbuf", "xargs"}
 FIND_EXEC = {"-exec", "-execdir", "-ok", "-okdir"}
@@ -846,6 +847,10 @@ class Analyzer:
     def factory_unit(self, name, rest, assigns):
         """Block `factory up|tick|relaunch|spawn|clean` (also via python3 <path>/factory) in the live home."""
         if INTERPRETERS.match(name):
+            si, ci, _ = interp_args(name, rest)
+            stdin_code = (si is None or rest[si] == "-") and ci is None and not any(re.match(r"^-[A-Za-z]*m", a) for a in rest)
+            if (ci is not None and "factory_cli" in rest[ci]) or (stdin_code and "factory_cli" in self.text):
+                raise Block("inline code naming factory_cli runs the factory CLI around the guard; run `factory <cmd>`")
             fi = self.factory_script(name, rest)
             if fi is None:
                 return
@@ -880,12 +885,18 @@ class Analyzer:
             raise Block("the evaluator may run factory commands only against its temp FACTORY_HOME, not the live home")
 
     def factory_script(self, name, rest):
-        """Index of the `factory` script word in an interpreter's args, else None. When the options cannot be
+        """Index of the `factory` script word in an interpreter's args, else None. bin/factory is a stub for
+        bin/factory_cli.py (T-0660), so that basename and `-m factory_cli` count too. When the options cannot be
         modelled (unknown), any word whose basename is factory counts (fail closed)."""
+        for k, a in enumerate(rest):
+            if k + 1 < len(rest) and re.match(r"^-[A-Za-z]*m$", a) and os.path.basename(rest[k + 1]) in FACTORY_NAMES:
+                return k + 1
+            if re.match(r"^-[A-Za-z]*mfactory_cli(\.py)?$", a):
+                return k
         si, _, unknown = interp_args(name, rest)
         if unknown:
-            return next((k for k, a in enumerate(rest) if os.path.basename(a) == "factory"), None)
-        if si is None or os.path.basename(rest[si]) != "factory":
+            return next((k for k, a in enumerate(rest) if os.path.basename(a) in FACTORY_NAMES), None)
+        if si is None or os.path.basename(rest[si]) not in FACTORY_NAMES:
             return None
         return si
 
