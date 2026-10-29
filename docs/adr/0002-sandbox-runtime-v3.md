@@ -23,7 +23,7 @@ sandboxes?"
   active, so this was a rollout gap, not an nsbox failure.
 - Box (measured at the time): 8 vCPU, 11.9 GB RAM (not 5.7), 4.9 GB available, 3.0 GB swap used, /tmp tmpfs 88% full,
   load1 5.3, 13 agents live. `/dev/kvm` present, nested=Y, but the owner uid is NOT in group kvm. No podman, bwrap,
-  firecracker, qemu, pasta, slirp4netns, newuidmap. Present: unshare, runc, docker. /etc/subuid: 
+  firecracker, qemu, pasta, slirp4netns, newuidmap. Present: unshare, runc, docker. /etc/subuid exists;
   the owner user has a subuid range of 65536. cgroup v2, the systemd user manager of uid 1000 delegates cpu, memory, pids.
 
 ## 2. New finding (fix first, independent of the option chosen)
