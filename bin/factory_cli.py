@@ -3817,7 +3817,6 @@ def cmd_judge(a):
     reason = read_text(a.reason)
     waited = 0
     proj = gate_project_for(con, t["pr_url"])  # local merge gate mode (T-0516) iff the project has a gate_cmd
-    gate_waited = False
     if not a.reject:
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
@@ -3830,6 +3829,13 @@ def cmd_judge(a):
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
+    return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
+
+
+def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
+    """The merge gate of `factory judge` (pure extraction from cmd_judge): verdicts + carry, freshness, CI, refresh,
+    push-policy, public-text, noreply, then `gh pr merge` and the post-merge records. Dies (exit 4/5/6) on any refusal."""
+    gate_waited = False
     wt = t["worktree"]
     git_repo = wt if wt and Path(wt).is_dir() else HOME
     for r in dict.fromkeys([str(git_repo), os.getcwd()]):  # the carry check runs in git_repo, `gh pr merge` in the cwd
@@ -5801,6 +5807,31 @@ def make_task_clone(con, repo, wt, branch, base):
         fail(f"clone checkout failed: {p.stderr.strip()}")
 
 
+PRE_PUSH_MARK = "# factory pre-push public-text guard (G-021 T-0696)"
+
+
+def install_pre_push_hook(repo):
+    """<git-common-dir>/hooks/pre-push runs ci/pre_push_public_text.py of the factory home, so every worktree of `repo`
+    (and a task clone's own repo) refuses a push to a public_text_repos remote that carries private text. A hook file,
+    not core.hooksPath: git_config_refusal allows no such key. Dies (spawn refused) when it cannot be written."""
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the pre-push guard: {p.stderr.strip()}", 4)
+    hooks = Path(repo, p.stdout.strip()).resolve() / "hooks"
+    script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+    body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+            f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+    dst = hooks / "pre-push"
+    try:
+        hooks.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -5816,6 +5847,7 @@ def prepare_worktree(con, task, role):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
+        install_pre_push_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -5830,6 +5862,7 @@ def prepare_worktree(con, task, role):
     start = f"origin/{base}" if has_remote else base
     if cfg(con, "task_clones") == "1":
         make_task_clone(con, repo, wt, branch, base)
+        install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
@@ -5843,6 +5876,7 @@ def prepare_worktree(con, task, role):
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
         die(f"worktree checkout failed: {p.stderr.strip()}")
+    install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 

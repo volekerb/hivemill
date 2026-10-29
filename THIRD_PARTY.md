@@ -94,10 +94,21 @@ Files under `roles/plugins/` that are not covered by a section below are written
 - Licence: SIL Open Font License 1.1 (both). Copyright: The Inter Project Authors; The JetBrains Mono Project Authors.
 - Compatibility with MIT: the OFL allows bundling and redistribution of the unmodified fonts with software; the font files stay under the OFL, and the licence texts are kept next to them.
 
+## Inter (web UI, `web/static/fonts/`)
+
+- Path: `web/static/fonts/` (woff2 files referenced by `@font-face` in `web/static/app.css`; licence text `LICENSE-Inter.txt`, the upstream `LICENSE.txt` unmodified).
+- Source: https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip, version v4.1 (zip sha256 `9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e`), files taken unmodified from `web/` in the zip.
+  - `Inter-Regular.woff2` sha256 `e06f6b1bc553aaea4e4668023ed0ab0a147129c3107f511bc7d03d361b0ae085`
+  - `Inter-Medium.woff2` sha256 `0ff3e94614e1493eb556314fd247ae6c4a85a7783b4cc86be539940cf83f2a48`
+  - `Inter-SemiBold.woff2` sha256 `5cb7103e4e605989afebc03d989c79201e54b21b5183db33981f70db9178a301`
+  - `Inter-Bold.woff2` sha256 `fa888127b6da015b65569f0351f3b5c391ad928904951f1c20e9f8462a8d95ea`
+- Licence: SIL Open Font License 1.1. Copyright: The Inter Project Authors.
+- Compatibility with MIT: as above, the OFL allows bundling the unmodified fonts with software; they stay under the OFL with the licence text next to them.
+
 ## Other third-party content
 
 None found outside the sections above. Searches run on the tracked files (`git ls-files` and `git grep`):
 
-- `git ls-files | grep -i -E '(^|/)(LICENSE|NOTICE|COPYING)|\.(woff2?|ttf|otf|svg|png|jpg|ico)$|\.min\.(js|css)$'` returns only the six licence files above and `web/static/favicon.svg` (ours).
+- `git ls-files | grep -i -E '(^|/)(LICENSE|NOTICE|COPYING)|\.(woff2?|ttf|otf|svg|png|jpg|ico)$|\.min\.(js|css)$'` returns only the licence files and fonts listed above and `web/static/favicon.svg` (ours).
 - `git grep -n -i -l -E 'SPDX-License|licensed under|Copyright \(c\)|vendored from|adapted from'` outside `roles/plugins/staff-engineer` and `roles/plugins/goals` returns nothing.
-- `web/static` holds `app.css`, `favicon.svg` and `theme.js` (ours); `skilleval/tasks/` and `tests/fixtures/` (including `tests/fixtures/scout/`) hold project-written or synthetic data.
+- `web/static` holds `app.css`, `favicon.svg` and `theme.js` (ours) and `fonts/` (Inter, above); `skilleval/tasks/` and `tests/fixtures/` (including `tests/fixtures/scout/`) hold project-written or synthetic data.

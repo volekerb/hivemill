@@ -67,3 +67,19 @@ run time, or private data that has no fixed shape. Review is still the last line
 
 `tests/test_public_text_guard.py` runs `tests/fixtures/public_text_corpus.json` through the CLI and the API. The corpus
 holds templates (for example `{HOME}`, `{GHP}`) that the test expands, so the repo itself adds no scrub hits.
+
+## Pre-push hook (T-0696)
+
+Every push to a `public_text_repos` remote is checked at push time, not only at judge time. Two layers:
+
+- `roles/hooks/worker-guard.py` blocks an agent's `git push` (see docs/worker-guard.md).
+- `factory spawn` installs `<git-common-dir>/hooks/pre-push` (a wrapper around `ci/pre_push_public_text.py`, with the
+  factory home baked in) when it creates or reuses a task worktree or clone, so plain git is covered too. It is a hook file,
+  not `core.hooksPath`, which the git config allow-list refuses.
+
+For each pushed ref it scans the destination ref name and every new commit (messages, identities, paths, added lines): the
+range is the remote's old sha, else the merge-base with `origin/main`. A delete pushes nothing and is skipped. A remote that
+is not in `public_text_repos` is unaffected; with the list empty the hook does nothing. It fails closed: unreadable factory
+DB, missing or empty terms file, unloadable checker, no base, or an unparsable remote URL while a public repo is configured
+all refuse the push. Output is `pre-push: refused (public text: N hits: <pattern ids>)`; the term is never printed. Tests:
+`tests/test_pre_push_public_text.py`.
