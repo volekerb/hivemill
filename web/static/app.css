@@ -477,15 +477,14 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 
 @media (min-width: 1024px) {
   .ov { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
-  /* Wide screens: every overview row is a tinted tile (the same --fill surface as the quality tiles) so a card reads
-     as a stack of rows, not as a white sheet with sparse text. */
-  .ov .lrow-list, .ov .feed { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
-  .ov .lrow-list > li, .ov .feed > li, .ov .ov-trend, .ov .summary-line, .ov .gauge-row { background: var(--fill); border-radius: var(--r-md); padding-left: var(--s3); padding-right: var(--s3); border-bottom: 0; }
-  .ov .system { gap: var(--s2); }
-  .ov .summary-line { margin: var(--s2) 0; padding-top: var(--s2); padding-bottom: var(--s2); }
-  .ov .more-link { padding-top: var(--s3); }
-  .ov .feed-row { border-bottom: 0; }
-  .ov .ov-trend { margin-bottom: var(--s2); padding-top: var(--s1); }
+  /* Desktop: tighter vertical rhythm so more real rows fit the viewport (spacing tokens only) */
+  .ov-sect { margin-bottom: var(--s3); }
+  .ov .sect-box { padding-top: var(--s1); padding-bottom: var(--s1); }
+  .ov .goalrow { padding: var(--s1) 0; }
+  .ov .needs, .ov .agentrow { min-height: 36px; }
+  .ov .gauge-row { min-height: 36px; }
+  .ov .gm .meter-svg { width: 160px; }
+  .ov .gm { gap: var(--s1) var(--s4); }
 }
 @media (max-width: 639px) {
   .system { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); padding: var(--s2) 0; }

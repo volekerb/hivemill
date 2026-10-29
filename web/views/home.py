@@ -11,9 +11,9 @@ from web.views import resources
 TITLE = "Overview"
 
 NEEDS_MAX = 4
-GOALS_MAX = 4
-AGENTS_MAX = 4
-MERGES_MAX = 5
+GOALS_MAX = 5
+AGENTS_MAX = 6
+MERGES_MAX = 6
 BOUNCING_MAX = 3
 DAYS = 14
 HQ_ROLES = ("boss", "director", "staff-engineer")
