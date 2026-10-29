@@ -88,6 +88,7 @@ per-PNG cap; the other pages use `HMAX` (1600).
 |---|---|---|---|
 | Home | ![Home light](home-light.png) | ![Home dark](home-dark.png) | Overview cards: live agents, open PRs, goals by status, waiting on owner, usage. |
 | Goals | ![Goals light](goals-light.png) | ![Goals dark](goals-dark.png) | Waiting-on-owner items, open goals with progress bars, done goals. |
+| Goal | ![Goal light](goal-light.png) | ![Goal dark](goal-dark.png) | Goal detail (`/goal/G-002`): intent, plan, teams, tasks and progress. |
 | Tasks | ![Tasks light](tasks-light.png) | ![Tasks dark](tasks-dark.png) | Task list with goal, status, PR and CI state, rejections and tries. |
 | Agents | ![Agents light](agents-light.png) | ![Agents dark](agents-dark.png) | Status, role and goal filters, teams, live agents with model and uptime. |
 | Throughput | ![Throughput light](throughput-light.png) | ![Throughput dark](throughput-dark.png) | Merges per day, median and p90 spawn-to-merge, open tasks, live workers. |
