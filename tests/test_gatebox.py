@@ -123,9 +123,10 @@ class ProfileTests(Fixture):
         self.assertFalse(cfg["net"])
         self.assertNotEqual(cfg.get("pid"), False)
         self.assertEqual(sorted(cfg["rw"]), sorted([str(self.tree), *(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp"))]))
-        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git")]))
+        resolve = ["/run/systemd/resolve"] if os.path.isdir("/run/systemd/resolve") else []  # DNS stub, ro (T-0673)
+        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git"), *resolve]))
         self.assertEqual(sorted(cfg["masks"]), sorted(f"{self.main}/{d}" for d in gatebox.MASKED))
-        self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm"]))  # /var/tmp is patched out here
+        self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm", "/run"]))  # /var/tmp is patched out here
         self.assertEqual(argv[-3:], ["bash", "-c", "true"])
 
     def test_unavailable_userns_raises_and_never_runs(self):
@@ -221,6 +222,27 @@ class RealNamespaceTests(Fixture):
         self.bus.settimeout(0.2)
         with self.assertRaises(socket.timeout):
             self.bus.accept()  # nothing ever reached the real listener
+
+    def test_host_run_sockets_unreachable(self):
+        """T-0673: the container-engine and ssh-unix-local sockets under the host /run are masked in the gate profile."""
+        socks = []
+        for p in ("/run/docker.sock", "/var/run/docker.sock", "/run/ssh-unix-local/socket"):
+            c = socket.socket(socket.AF_UNIX)
+            try:
+                c.connect(p)  # control: connectable outside, or not asserted
+                socks.append(p)
+            except OSError:
+                pass
+            finally:
+                c.close()
+        if not socks:
+            self.skipTest("no connectable host /run socket on this box")
+        for p in socks:
+            with self.subTest(p):
+                code = f"import socket; s=socket.socket(socket.AF_UNIX); s.connect('{p}')"
+                r = self.run_in(f"{PY} -c \"{code}\"")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("FileNotFoundError", r.output)
 
     def test_outside_loopback_listener_unreachable(self):
         code = f"import socket; socket.create_connection(('127.0.0.1', {self.port}), 2)"
