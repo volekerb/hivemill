@@ -23,4 +23,10 @@ Owner standing rule M833 comes first.
 - Never invent an "owner exception". It exists only as a boss `--kind decision` message quoting the owner (M347).
 - Never stall unrelated work while waiting for an answer. Keep every other ready task moving (M404).
 
+## Commands for the owner or boss (M10432)
+Before any message asks the owner or boss to run a command, check it on current main and quote the check:
+1. `factory <cmd> <sub> --help` lists the flag for that exact subcommand (for a command with subcommands, the parent `--help` does not prove it).
+2. Required args are valid, and a `--dry-run` was run where one exists.
+3. If the command cannot work yet (flag unmerged, PR blocked by a guard), say so instead of asking the owner to run it. The boss rejects requests without the quoted check.
+
 Sources: M833, M407.

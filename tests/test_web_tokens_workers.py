@@ -168,6 +168,26 @@ class SwapAfterDiscoverTests(_Base):
         self.assertEqual(self.total(i.snapshot()), (7, 1))
 
 
+class HardlinkTests(_Base):
+    def test_hardlink_to_outside_file_not_read(self):
+        outside = self.put(self.tmp, "outside/x.jsonl", line(usage_row("x", "m9", "r9", TS, inp=99)))
+        (self.wproj / "q").mkdir(parents=True)
+        os.link(outside, self.wproj / "q" / "x.jsonl")
+        self.put(self.wproj, "q/ok.jsonl", line(usage_row("ok", "m1", "r1", TS, inp=3)))
+        snap = self.index().snapshot()
+        self.assertEqual(set(snap["sessions"]), {"ok"})
+        self.assertEqual(self.total(snap), (3, 1))
+
+    def test_hardlink_made_after_discover_not_read(self):
+        outside = self.put(self.tmp, "outside/x.jsonl", line(usage_row("x", "m9", "r9", TS, inp=99)))
+        mine = self.put(self.wproj, "q/x.jsonl", line(usage_row("x", "m1", "r1", TS, inp=1)))
+        mine.unlink()
+        os.link(outside, mine)
+        with mock.patch.object(TokenIndex, "_inside", staticmethod(lambda p, c: True)):
+            snap = self.index().snapshot()
+        self.assertEqual(self.total(snap), (0, 0))
+
+
 class ReadCapTests(_Base):
     def rows(self, n):
         return "".join(line(usage_row("b", "m", f"r{k}", TS, inp=1)) for k in range(n))
@@ -205,6 +225,21 @@ class ReadCapTests(_Base):
                 i.refresh()
         self.assertTrue(any("skipped" in str(c) for c in err.write.call_args_list))
         self.assertEqual(self.total(i.snapshot())[0], 3)
+
+    def test_cap_is_64_mib(self):
+        self.assertEqual(web.tokens.MAX_READ_BYTES, 64 << 20)
+
+    def test_tail_of_skipped_line_gives_no_parse_errors(self):
+        good = line(usage_row("b", "m", "r1", TS, inp=3))
+        cap = len(good) + 10
+        junk = '{"usage": ' * (cap // 5)      # parses badly in any fragment, spans several chunks
+        self.put(self.root, "p/b.jsonl", junk + "\n" + good)
+        with mock.patch.object(web.tokens, "MAX_READ_BYTES", cap), mock.patch("sys.stderr"):
+            i = TokenIndex(self.root)
+            for _ in range(30):
+                i.refresh()
+        self.assertEqual(self.total(i.snapshot())[0], 3)
+        self.assertEqual(i.snapshot()["errors"], 1)
 
 
 if __name__ == "__main__":
