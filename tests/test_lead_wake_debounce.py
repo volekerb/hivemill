@@ -113,6 +113,18 @@ class DebounceTests(DebounceBase):
         self.assertEqual([w["trigger"] for w in self.events("lead-wake")], ["flag-off", "flag-off"])
         self.assertEqual(self.events("wake-debounced"), [])
 
+    def test_non_finite_window_means_off(self):
+        for bad in ("inf", "nan"):
+            with self.subTest(bad=bad):
+                self.env.sql("DELETE FROM messages")
+                self.env.sql("DELETE FROM events")
+                self.env.sql("DELETE FROM throttle")
+                self.ok("config", "lead_wake_debounce_s", bad)
+                self.first_wake()
+                self.mail()
+                self.tick_at(130)
+                self.assertEqual(len(self.events("lead-wake")), 2)
+
     def test_off_by_default_wakes_every_throttle_window(self):
         self.ok("config", "lead_wake_debounce_s", "0")
         self.first_wake()

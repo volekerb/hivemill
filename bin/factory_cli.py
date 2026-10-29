@@ -10508,7 +10508,7 @@ def _wake_debounced(con, team_id, lead, clock):
         window = float(cfg(con, "lead_wake_debounce_s") or 0)
     except ValueError:
         return False
-    if window <= 0 or not _throttled(con, f"wakedb:{team_id}", clock, window):
+    if not math.isfinite(window) or window <= 0 or not _throttled(con, f"wakedb:{team_id}", clock, window):
         return False
     bypass = con.execute(
         "SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL AND kind != 'fyi' AND (kind IN ('escalation','decision') "
