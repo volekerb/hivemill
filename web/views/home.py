@@ -57,7 +57,8 @@ def _system(ctx, ag):
     queued = sum(1 for a in ag if a["status"] == "queued")
     cap = int(_cfg(ctx, "max_live_agents", 6))
     floor = int(_cfg(ctx, "min_mem_available_mb", 1024))
-    mem = ctx.mem_fn() if ctx.mem_fn else None
+    mem_fn = getattr(ctx, "mem_fn", None)
+    mem = mem_fn() if mem_fn else None
     m = machine()
     load, cpus = (m.get("load") or [None])[0], m.get("cpus")
     u = ctx.usage_fn() if ctx.usage_fn else None
