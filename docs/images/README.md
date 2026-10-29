@@ -63,26 +63,28 @@ Chrome for Testing headless shell, the only thing the script downloads:
 
 ## Images
 
-Committed from one `python3 ci/screenshots.py` run (T-0555). Page images are 2560 px wide (1280 CSS px at 2x). `/tasks` is captured at 960 CSS px (`PAGE_HEIGHT`) to stay under the
+Committed from one owner `python3 ci/screenshots.py` run (T-0480, Inter at 2x). Page images are 2560 px wide (1280 CSS px at 2x). `/tasks` is captured at 960 CSS px (`PAGE_HEIGHT`) to stay under the
 per-PNG cap; the other pages use `HMAX` (1600).
 
 | File | Page | Theme | Pixels (w x h) | Bytes |
 |---|---|---|---|---|
-| home-light.png | Home | light | 2560 x 800 | 118898 |
-| home-dark.png | Home | dark | 2560 x 800 | 119936 |
-| goals-light.png | Goals | light | 2560 x 2425 | 409246 |
-| goals-dark.png | Goals | dark | 2560 x 2426 | 413579 |
-| tasks-light.png | Tasks | light | 2560 x 1920 | 580169 |
-| tasks-dark.png | Tasks | dark | 2560 x 1920 | 584898 |
-| agents-light.png | Agents | light | 2560 x 2981 | 598691 |
-| agents-dark.png | Agents | dark | 2560 x 2982 | 604276 |
-| throughput-light.png | Throughput | light | 2560 x 3200 | 496592 |
-| throughput-dark.png | Throughput | dark | 2560 x 3200 | 499435 |
-| quality-light.png | Quality | light | 2560 x 2934 | 528718 |
-| quality-dark.png | Quality | dark | 2560 x 2935 | 533370 |
-| hero.png | Home (light left, dark right) | both | 2560 x 800 | 122340 |
-| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 77104 |
-| **Total** | | | | 5687252 |
+| home-light.png | Home | light | 2560 x 1949 | 420142 |
+| home-dark.png | Home | dark | 2560 x 1950 | 420202 |
+| goals-light.png | Goals | light | 2560 x 2672 | 366556 |
+| goals-dark.png | Goals | dark | 2560 x 2672 | 367537 |
+| goal-light.png | Goal | light | 2560 x 2043 | 241866 |
+| goal-dark.png | Goal | dark | 2560 x 2044 | 243659 |
+| tasks-light.png | Tasks | light | 2560 x 1920 | 322701 |
+| tasks-dark.png | Tasks | dark | 2560 x 1920 | 323397 |
+| agents-light.png | Agents | light | 2560 x 3200 | 400881 |
+| agents-dark.png | Agents | dark | 2560 x 3200 | 400984 |
+| throughput-light.png | Throughput | light | 2560 x 3110 | 359042 |
+| throughput-dark.png | Throughput | dark | 2560 x 3111 | 361979 |
+| quality-light.png | Quality | light | 2560 x 2549 | 220236 |
+| quality-dark.png | Quality | dark | 2560 x 2549 | 222533 |
+| hero.png | Home (light left, dark right) | both | 2560 x 1949 | 427883 |
+| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 124706 |
+| **Total** | | | | 5224304 |
 
 | Page | Light | Dark | What it shows |
 |---|---|---|---|
