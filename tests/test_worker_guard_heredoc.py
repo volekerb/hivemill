@@ -188,5 +188,83 @@ class ShellFedBodies(unittest.TestCase):
         self.check_both_modes("two heredocs", lines("cat <<A; bash <<B", "a\\", "b", "A", PAYLOAD, "B"))
 
 
+SUDO = "su" + "do id"
+
+
+class SubstitutionGaps(unittest.TestCase):
+    """T-0199: `<<` in arithmetic is an operator, `EOF)` ends a heredoc inside $( ), and an unquoted heredoc
+    body is scanned for $( ) and backticks (bash runs them). Both modes must block the privilege word."""
+
+    def both(self, cmd, want):
+        self.assertEqual(hook(cmd), want, f"worker mode: {cmd!r}")
+        self.assertEqual(hook(cmd, hq=True), want, f"hq mode: {cmd!r}")
+
+    def test_g1_arithmetic_shift_then_guarded_line(self):
+        for cmd in (f"echo $((1<<2))\n{SUDO}", f"x=$((1<<EOF))\n{SUDO}", f"(( x = 1<<2 ))\n{SUDO}",
+                    f"let x=1<<2\n{SUDO}", f"for ((i=0;i<1<<2;i++)); do :; done\n{SUDO}"):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_g2_terminator_inside_comsub(self):
+        self.both(f"y=$(cat <<EOF\nhi\nEOF)\n{SUDO}", 2)
+        self.both(f"y=$(cat <<-EOF\n\thi\n\tEOF)\n{SUDO}", 2)
+
+    def test_g3_unquoted_body_is_expanded(self):
+        for cmd in (f"cat <<EOF\n`{SUDO}`\nEOF", f"cat <<EOF\n$({SUDO})\nEOF", f"cat <<-EOF\n\t$({SUDO})\n\tEOF",
+                    f"cat <<EOF\n$(( $({SUDO}) ))\nEOF", f"cat <<EOF\n${{x:-$({SUDO})}}\nEOF"):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_self_review_shapes(self):
+        # let / (( )) after a keyword, brace or wrapper; DELIM) after a case pattern or inside <( )
+        for cmd in (f"if true; then let x=1<<EOF; fi\n{SUDO}\nEOF", f"{{ let x=1<<EOF; }}\n{SUDO}\nEOF",
+                    f"{{ ((x=1<<EOF)); }}\n{SUDO}\nEOF", f"time let x=1<<EOF\n{SUDO}\nEOF",
+                    f"echo $(case a in a) true;; esac; cat <<EOF\nx\nEOF)\n{SUDO}\nEOF",
+                    f"cat <(cat <<EOF\nx\nEOF)\n{SUDO}\nEOF"):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_review_b1_terminator_then_space_or_tab_paren(self):
+        # bash ends the heredoc at `EOF )` / `EOF<TAB>)` inside $( ); the code after it runs
+        for term in ("EOF )", "EOF\t)", "EOF  \t )"):
+            with self.subTest(term):
+                self.both(f"x=$(cat <<EOF\nhi\n{term}\n{SUDO}\n)", 2)
+
+    def test_review_b2_paren_in_comment_inside_comsub(self):
+        # a `)` inside a comment in $( ) closes nothing; the next line is still code
+        self.both(f"cat <<EOF\n$(# )\n{SUDO})\nEOF", 2)
+        self.both(f"cat <<EOF\n$(echo a # )\n{SUDO})\nEOF", 2)
+
+    def test_review_b2_hash_after_close_paren_or_brace_is_a_comment(self):
+        # bash starts a comment after `)` and `}` too, so the `)` in it closes nothing and the next line is code
+        for cmd in (f"cat <<EOF\n$( (true)#)\n{SUDO})\nEOF", f"cat <<EOF\n$({{ true;}}#)\n{SUDO})\nEOF"):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_hash_inside_word_is_not_a_comment(self):
+        self.both("cat <<EOF\n$(echo a#b)\nEOF", 0)
+
+    def test_same_line_still_blocked(self):
+        self.both(f"echo $((1<<2)); {SUDO}", 2)
+
+    def test_quoted_and_escaped_bodies_stay_data(self):
+        for cmd in (f"cat <<'EOF'\n`{SUDO}` and $({SUDO})\nEOF", f'cat <<"EOF"\n$({SUDO})\nEOF',
+                    f"cat <<\\EOF\n$({SUDO})\nEOF", f"cat <<EOF\n\\$({SUDO}) \\`{SUDO}\\`\nEOF"):
+            with self.subTest(cmd):
+                self.assertEqual(hook(cmd), 0, f"data body was blocked: {cmd!r}")
+
+    def test_no_false_positives(self):
+        for cmd in ("t0=$(date +%s%N)", "a=1 b=$(date +%s) true", "echo $((1<<2))", "echo $((1<<2)) x",
+                    "git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\"",
+                    "cat <<EOF\nplain $(date +%s) and `hostname`\nEOF",
+                    "y=$(cat <<EOF\nhi\nEOF\n)\necho done", "cat <<EOF\n$((1<<2))\nEOF"):
+            with self.subTest(cmd):
+                self.both(cmd, 0)
+
+    def test_unbalanced_body_fails_closed(self):
+        self.assertEqual(hook("cat <<EOF\n$(date\nEOF"), 2)
+        self.assertEqual(hook("cat <<EOF\n`date\nEOF"), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

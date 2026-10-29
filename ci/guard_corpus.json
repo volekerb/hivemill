@@ -1217,7 +1217,77 @@
   "echo x >> .git/config.worktree",
   "echo x >> .git/info/attributes",
   "echo x >> ../../.git/config",
-  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x"
+  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x",
+  {
+   "cmd": "echo $((1<<2))\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "x=$((1<<EOF))\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "y=$(cat <<EOF\nhi\nEOF)\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n`sudo id`\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo $((1<<2)); sudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "x=$(cat <<EOF\nhi\nEOF )\nsudo id\n)",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(# )\nsudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$( (true)#)\nsudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$({ true;}#)\nsudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  }
  ],
  "must_allow": [
   "awk 1 ~/.zshrc",
@@ -1479,6 +1549,11 @@
   "cat ~/factory/.git/config",
   "git config --file @SCRATCH@/x.cfg a b",
   "echo x > config.json",
-  "echo x > docs/config.md"
+  "echo x > docs/config.md",
+  "t0=$(date +%s%N)",
+  "a=1 b=$(date +%s) true",
+  "echo $((1<<2))",
+  "git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\"",
+  "cat <<'EOF'\n`sudo id` and $(sudo id)\nEOF"
  ]
 }

@@ -525,6 +525,51 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
+def heredoc_subs(body):
+    """Texts bash runs when it expands an UNQUOTED heredoc body: $( ) and backtick contents (also nested in $(( ) and ${ }).
+    A backslash protects the next char. Unbalanced -> Block (fail closed)."""
+    subs, i, n = [], 0, len(body)
+    while i < n:
+        c = body[i]
+        if c == "\\":
+            i += 2
+        elif c == "`":
+            j = i + 1
+            while j < n and body[j] != "`":
+                j += 2 if body[j] == "\\" else 1
+            if j >= n:
+                raise Block("unbalanced backtick in heredoc body")
+            subs.append(body[i + 1:j].replace("\\`", "`"))
+            i = j + 1
+        elif body.startswith("$((", i):
+            i += 3  # arithmetic: its contents are scanned on, $( ) and backticks in it are live
+        elif body.startswith("$(", i):
+            j, depth, q = i + 2, 1, None
+            while j < n and depth:
+                d = body[j]
+                if q:
+                    q = None if d == q else q
+                elif d == "\\":
+                    j += 1
+                elif d in "'\"":
+                    q = d
+                elif d == "#" and (body[j - 1] in " \t\n;&|(){}"):
+                    j = body.find("\n", j)  # a comment runs to end of line; a `)` in it closes nothing
+                    if j < 0:
+                        j = n
+                    continue
+                else:
+                    depth += (d == "(") - (d == ")")
+                j += 1
+            if depth:
+                raise Block("unbalanced $( ) in heredoc body")
+            subs.append(body[i + 2:j - 1])
+            i = j
+        else:
+            i += 1
+    return subs
+
+
 def preprocess(cmd, fold_ticks=False, bodies=None):
     """Make newlines separators, drop comments and non-shell heredoc bodies.
 
@@ -535,6 +580,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
     out, extras = [], []
     i, n, q = 0, len(cmd), None
     pending, line_start = [], 0
+    par = []  # open parens outside quotes: 'a' arithmetic ($(( )), (( )), let-free grouping inside them), 'c' $( ), 's' ( )
     while i < n:
         c = cmd[i]
         if q == "'":
@@ -577,10 +623,37 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             while i < n and cmd[i] != "\n":
                 i += 1
             continue
+        if c == "$" and cmd.startswith("$((", i):
+            par += ["a", "a"]
+            out.append("$((")
+            i += 3
+            continue
+        if c == "$" and cmd.startswith("$(", i):
+            par.append("c")
+            out.append("$(")
+            i += 2
+            continue
+        if c == "(":
+            if par[-1:] == ["a"]:
+                par.append("a")
+            elif cmd.startswith("((", i):
+                par += ["a", "a"]  # (( )) command or for (( ; ; )), after any keyword or `{`: arithmetic
+                out.append("((")
+                i += 2
+                continue
+            else:
+                par.append("s")
+        elif c == ")" and par:
+            par.pop()
+        if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i) and (
+                par[-1:] == ["a"] or re.search(r"(^|[^\w$-])let\s", "".join(out[line_start:]))):
+            out.append("<<")  # shift operator in arithmetic / let: never a heredoc
+            i += 2
+            continue
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
             r = heredoc_delim(cmd, i)
             if r:
-                pending.append((r[0], r[1], r[3]))
+                pending.append((r[0], r[1], r[3], par.count("c")))
                 out.append(cmd[i:r[2]])
                 i = r[2]
             else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
@@ -591,7 +664,8 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             head = "".join(out[line_start:])
             out.append(" ; ")
             i += 1
-            for strip, delim, quoted in pending:
+            resume = None
+            for k, (strip, delim, quoted, depth) in enumerate(pending):
                 body = []
                 while i < n:
                     seg = i
@@ -604,7 +678,15 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                         j = cmd.find("\n", i)
                         cmp = cmp[:-1] + (cmd[i:] if j < 0 else cmd[i:j])
                         i = n if j < 0 else j + 1
-                    if (cmp.lstrip("\t") if strip else cmp) == delim:
+                    tl = cmp.lstrip("\t") if strip else cmp
+                    if tl == delim:
+                        break
+                    if cmp == line and tl.startswith(delim) and tl[len(delim):].lstrip(" \t").startswith(")"):
+                        # inside $( ) or <( ): bash ends the body at `DELIM)` and the `)` closes it; honoured at any
+                        # depth (paren tracking can be off, e.g. a case pattern): the rest is only scanned as code
+                        if k + 1 < len(pending):
+                            raise Block("heredoc terminator inside $( ) with more heredocs pending")
+                        resume = seg + len(line) - len(tl) + len(delim)
                         break
                     body.append(cmd[seg:i].rstrip("\n"))  # every raw line consumed
                     if cmp != line:
@@ -612,6 +694,8 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                 body = "\n".join(body)
                 if bodies is not None:
                     bodies.append((head, body))
+                if not quoted:
+                    extras.extend(("sh", t) for t in heredoc_subs(body))
                 if re.search(r"\b(%s|eval|source)\b" % "|".join(SHELLS), head):
                     extras.append(("sh", body))
                 else:
@@ -626,6 +710,8 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                         if b in DATA_CMDS | {"tee", "sed", "awk", "wc"}:
                             break
             pending = []
+            if resume is not None:
+                i = resume
             line_start = len(out)
             continue
         out.append(c)
