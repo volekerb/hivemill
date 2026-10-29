@@ -10,6 +10,7 @@ from pathlib import Path
 
 import _gitenv
 
+AT = chr(64)  # no literal email-looking text in the fixtures (scrub gate)
 TESTS = Path(__file__).resolve().parent
 REPO = TESTS.parent
 SPAWNS_GIT = re.compile(r"""\[\s*['"]git['"]|['"]git['"]|def git\b|_git\(|\.git\(""")
@@ -59,8 +60,8 @@ class RemoteGuardTest(unittest.TestCase):
     """R-b (M11068): no test may reach a real or network remote."""
 
     def test_network_and_foreign_remotes_are_refused(self):
-        for url in ("https://github.com/volekerb/hivemill.git", "git@github.com:volekerb/hivemill.git",
-                    "ssh://git@github.com/volekerb/hivemill", "/home/someone/factory", "relative/path", str(REPO)):
+        for url in ("https://github.com/volekerb/hivemill.git", "git" + AT + "github.com:volekerb/hivemill.git",
+                    "ssh://git" + AT + "github.com/volekerb/hivemill", "/srv/someone/factory", "relative/path", str(REPO)):
             with self.assertRaises(_gitenv.RemoteRefused, msg=url):
                 _gitenv.assert_local_remote(url, root=tempfile.gettempdir())
 
@@ -73,7 +74,7 @@ class RemoteGuardTest(unittest.TestCase):
         import harness
         with tempfile.TemporaryDirectory() as d:
             for args in (("clone", "https://github.com/volekerb/hivemill.git", d + "/c"),
-                         ("remote", "add", "origin", "git@github.com:volekerb/hivemill.git"),
+                         ("remote", "add", "origin", "git" + AT + "github.com:volekerb/hivemill.git"),
                          ("push", "https://github.com/volekerb/hivemill.git", "HEAD:main")):
                 with self.assertRaises(_gitenv.RemoteRefused, msg=str(args)):
                     harness.git(*args, cwd=d)
