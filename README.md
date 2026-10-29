@@ -1,8 +1,13 @@
 <a id="readme-top"></a>
 
+<!-- README media slots. Each SLOT marker names a block that T-0480 (new screenshots) or T-0708 (video v2) swaps by
+     changing only the file path or URL inside it, never the surrounding layout. See docs/readme-media.md. -->
+
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg"><img src="docs/images/wordmark-light.svg" alt="Hivemill" height="72"></picture></p>
 
-# Hivemill
+<h1 align="center">The agent that writes the code never merges it.</h1>
+
+<h3 align="center">Hivemill is a self-hosted software factory of Claude Code agents,<br>with separate review, QA and a judge that decides the merge.</h3>
 
 <p align="center">
   <a href="https://github.com/volekerb/hivemill/actions/workflows/tests.yml"><img src="https://github.com/volekerb/hivemill/actions/workflows/tests.yml/badge.svg?branch=main&event=push" alt="CI"></a>
@@ -11,16 +16,8 @@
   <a href="https://github.com/volekerb/hivemill/releases"><img src="https://img.shields.io/github/v/release/volekerb/hivemill?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
-<div align="center">
-
-**A self-hosted software factory of Claude Code agents with review, QA and a judge merge gate.**
-
-Hivemill's CLI is `factory`.
-
-</div>
-
 <p align="center">
-  <a href="#quickstart">Quickstart</a> ·
+  <a href="#quickstart"><b>Quickstart</b></a> ·
   <a href="docs/README.md">Docs</a> ·
   <a href="docs/examples/README.md">Examples</a> ·
   <a href="docs/adopt/ADOPT.md">Adopt with Claude</a> ·
@@ -28,13 +25,45 @@ Hivemill's CLI is `factory`.
   <a href="https://github.com/volekerb/hivemill/discussions">Discussions</a>
 </p>
 
----
-
+<!-- SLOT:VIDEO (T-0708): replace only the bare user-attachments URL on the next line and the MP4 link below it. -->
 https://github.com/user-attachments/assets/7615b7c0-48b0-4b44-ad01-aacd7f692583
 
-<p align="center"><a href="https://github.com/volekerb/hivemill/releases/download/v0.1.0/demo.mp4">Download the MP4</a> · <a href="docs/demo/README.md">how it was made</a></p>
+<p align="center"><a href="https://github.com/volekerb/hivemill/releases/download/v0.1.0/demo.mp4">Download the MP4</a> · <a href="docs/demo/README.md">how it was made</a> · seeded demo data only</p>
 
-You describe what you want built to one boss agent. It turns the request into a goal, a director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The coder who writes a change never reviews, tests or merges it, and every goal, task, message and verdict is a row in one SQLite database behind the single `factory` CLI.
+<!-- SLOT:HERO (T-0480): one big screenshot. Swap the two paths (light in img src, dark in source srcset) and the alt text. -->
+<p align="center">
+  <a href="docs/images/home-light.png"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.png">
+    <img src="docs/images/home-light.png" width="860" alt="The overview page of the web UI: live agents, open PRs, goals, items waiting on the owner and usage">
+  </picture></a>
+</p>
+
+## What you get
+
+You describe what you want built to one boss agent. A director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The agent that writes a change never reviews, tests or merges it. Hivemill's CLI is `factory`.
+
+<table>
+  <tr>
+    <td width="33%"><b>Fixed roles</b><br>Each role has its own prompt and permissions, enforced by hooks rather than by trust.</td>
+    <td width="33%"><b>Independent review</b><br>A separate reviewer and QA check every pull request against a real test run.</td>
+    <td width="33%"><b>A judge merges</b><br>Only on passing reviewer and QA verdicts. Anything else goes back with findings.</td>
+  </tr>
+  <tr>
+    <td><b>One source of truth</b><br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log.</td>
+    <td><b>Small-box friendly</b><br>A spawn gate queues agents until RAM, load and Claude process count allow.</td>
+    <td><b>A read-only web UI</b><br>Goals, agents, throughput and quality, in light and dark.</td>
+  </tr>
+</table>
+
+## One change, five steps
+
+1. **You ask.** Describe what you want to the boss. It becomes a goal with success criteria.
+2. **A team forms.** A director staffs a lead, who plans tasks. Each task gets its own worktree and branch.
+3. **A coder builds.** It opens a pull request and stops. It cannot merge or review.
+4. **Two others check.** A reviewer reads the diff. QA runs the tests against the acceptance criteria.
+5. **A judge decides.** Both pass, it merges. Either fails, it goes back with findings. Every verdict is stored.
+
+The roles and the merge gate as diagrams are under [How it works](#how-it-works).
 
 The factory runs on [herdr](https://herdr.dev), the terminal multiplexer that hosts the agent panes ([source](https://github.com/herdrdev/herdr), pinned release [v0.9.5](https://github.com/herdrdev/herdr/releases/tag/v0.9.5)).
 
@@ -319,6 +348,7 @@ Works with: Claude Code, [herdr](https://github.com/herdrdev/herdr), `gh`, syste
 
 A read-only web UI shows goals, tasks, live agents, throughput and quality, in light and dark themes. Start it with `factory serve` ([docs/web-ui.md](docs/web-ui.md)). The screenshots come from fictional demo data only ([docs/demo-data.md](docs/demo-data.md)); click one for the full-size light image.
 
+<!-- SLOT:GALLERY (T-0480): six page shots in a 3x2 table; swap paths and alt text only. -->
 <table>
   <tr>
     <td align="center" width="33%">
