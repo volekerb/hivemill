@@ -32,10 +32,23 @@ except ImportError:  # run as a script by path (stage 1 setup, python -I): egres
 
 HIDE_DIRS = ("~/.claude", "~/.config", "~/.ssh", "~/.gnupg", "~/factory", "$XDG_RUNTIME_DIR")
 HIDE_FILES = ("~/.git-credentials", "~/.netrc")
-# allow mode masks all of /run (container-engine socket, ssh-unix-local/socket, the user bus); only these come back,
-# read-only: /etc/resolv.conf links to /run/systemd/resolve/stub-resolv.conf, so DNS in a net=True profile needs that dir
+# allow mode masks all of /run (container-engine socket, ssh-unix-local/socket, the user bus); only the dir that holds
+# the real /etc/resolv.conf comes back, read-only (systemd-resolved, resolvconf, NetworkManager: whichever the host uses)
 RUN_MASK = "/run"
-RUN_KEEP_RO = ("/run/systemd/resolve",)
+
+
+def run_keep_ro(resolv_path="/etc/resolv.conf"):
+    """Dirs to bind back read-only inside the /run mask so DNS keeps working: the parent of resolv_path's real path,
+    only when that is a directory strictly under /run. /run itself and /run/user/* are never re-exposed."""
+    real = os.path.realpath(resolv_path)
+    parent = os.path.dirname(real)
+    if not real.startswith(RUN_MASK + "/") or parent == RUN_MASK:
+        return ()
+    if parent == RUN_MASK + "/user" or parent.startswith(RUN_MASK + "/user/"):
+        return ()
+    return (parent,)
+
+
 TOKEN_FILE = "~/.config/factory/eval-oauth-token"
 NO_TOKEN_MSG = "owner decision D3 pending: no eval token"
 SCRUB_ENV = ("SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS")
@@ -149,7 +162,7 @@ def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs
         if run_mask:  # `run_mask=False` is for tests that count mounts; no profile turns it off
             if RUN_MASK not in cfg["hide_dirs"]:
                 cfg["hide_dirs"].append(RUN_MASK)
-            cfg["ro"] += [k for k in RUN_KEEP_RO if os.path.isdir(k) and k not in cfg["ro"]]
+            cfg["ro"] += [k for k in run_keep_ro() if os.path.isdir(k) and k not in cfg["ro"]]
         for p in cfg["ro"][len(ro):]:  # the claude link may be a link itself, its parents may not
             bad = _symlink_parent(p)
             if bad:
@@ -667,10 +680,13 @@ def shim_main(shim_cfg, args):
         else:
             pending.append(n)
 
-    for sig in (signal.SIGTERM, signal.SIGHUP):
+    # stage 1 gets the same stop/diagnostic signals the shim gets (SIGINT excepted, see above)
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2):
         signal.signal(sig, on_stop)
     try:
         token = read_token(shim_cfg["token_file"])
+        if pending:  # a stop during read_token must not start the proxy
+            raise _StopBeforeStart(pending[0])
         start_proxy(trial, cfg, shim_cfg["proxy_allow"], shim_cfg["proxy_max_life"], shim_cfg["upstream"])
         passed = ENV_PASS + CLAUDE_ENV_PASS + (EVAL_ENV_PASS if shim_cfg.get("eval_env") else ())
         env = {k: v for k, v in os.environ.items() if k in passed or k.startswith("LC_")}

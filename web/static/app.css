@@ -520,3 +520,25 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 @media (max-width: 639px) {
   .crit-text { flex: 1 1 100%; order: 3; }
 }
+
+/* == B6 insights == */
+.tiles--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.disc .tiles { margin-top: var(--s2); }
+.ins-list { display: grid; gap: var(--s2); }
+.ins-row { display: grid; grid-template-columns: minmax(6rem, 10rem) auto minmax(0, 1fr); align-items: center; gap: var(--s3); }
+.ins-name { color: var(--text-2); }
+.ins-gauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2) var(--s5); }
+.ins-check { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s1) var(--s3); min-height: var(--row); list-style: none; }
+.ins-check .ins-name { min-width: 9rem; }
+.ins-check .gz { margin-left: auto; }
+.ins-key { margin-left: var(--s2); color: var(--text-3); font-size: 12px; }
+.disc > .table { display: block; overflow-x: auto; max-width: 100%; }
+.sect-box .st--pill { margin-right: var(--s2); }
+
+@media (max-width: 639px) {
+  .tiles--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ins-gauges { grid-template-columns: minmax(0, 1fr); }
+  .ins-row { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
+  .ins-check .gz { margin-left: 0; }
+  .dt .ins-wide { display: none; }
+}
