@@ -153,9 +153,10 @@ def build_skill_scout_section(con, since, until):
     return "\n".join(out) + "\n"
 
 
-def run_window(con, run):
-    """(since, until] of a finished run: from the end of the previous reported run (else 24 h before) to its own end."""
-    until = ts(run["ended"])
+def run_window(con, run, now=None):
+    """(since, until] of a finished run: from the end of the previous reported run (else 24 h before) to its own end.
+    A run whose `ended` is unparsable ends `now` (the caller's clock, else the current UTC time), so it is reported once."""
+    until = ts(run["ended"]) or now or dt.datetime.now(dt.timezone.utc)
     prev = con.execute("SELECT ended FROM scout_runs WHERE id<? AND reported_msg IS NOT NULL AND ended IS NOT NULL "
                        "ORDER BY id DESC LIMIT 1", (run["id"],)).fetchone()
     since = ts(prev["ended"]) if prev else None
@@ -180,7 +181,7 @@ def send_pending(con, api):
         try:
             run = con.execute("SELECT * FROM scout_runs WHERE id=? AND reported_msg IS NULL", (rid,)).fetchone()
             if run is not None:
-                since, until = run_window(con, run)
+                since, until = run_window(con, run, api.clock())
                 body = build_skill_scout_section(con, since, until)
                 if run["new_candidates"] is not None:
                     body += f"\nThis run: {run['new_candidates']} new candidates, {run['triaged']} triaged.\n"
