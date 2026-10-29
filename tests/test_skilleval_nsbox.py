@@ -160,6 +160,55 @@ class ProxyTests(unittest.TestCase):
         self.assertEqual(seen, [])
 
 
+class WorkerAllowListTests(unittest.TestCase):
+    """egress.WORKER_ALLOW (ADR M11673 T-e): a host set for worker panes; eval trials keep the single-host ALLOW."""
+    HOSTS = ["api.anthropic.com", "github.com", "api.github.com", "codeload.githubusercontent.com",
+             "objects.githubusercontent.com", "pypi.org", "files.pythonhosted.org"]
+
+    def setUp(self):
+        self.tmp = tmpdir(self)
+        self.up = FakeUpstream(self.tmp / "up.sock")
+        self.addCleanup(self.up.close)
+        self.sock = self.tmp / "proxy.sock"
+        ready = threading.Event()
+        resolver = egress.upstream_resolver({f"{h}:443": self.up.path for h in self.HOSTS})
+        threading.Thread(target=egress.serve, daemon=True, kwargs=dict(
+            sock_path=str(self.sock), allow=egress.WORKER_ALLOW, resolver=resolver, max_life=30, ready=ready)).start()
+        self.assertTrue(ready.wait(5))
+
+    def status(self, request):
+        with connect_via(self.sock, request) as s:
+            return s.recv(4096).split(b"\r\n")[0]
+
+    def test_set_is_exactly_the_spec_hosts_on_443(self):
+        self.assertEqual(sorted(egress.WORKER_ALLOW), sorted(f"{h}:443" for h in self.HOSTS))
+        self.assertEqual(egress.ALLOW, "api.anthropic.com:443")
+
+    def test_every_listed_host_is_relayed(self):
+        for h in self.HOSTS:
+            with connect_via(self.sock, f"CONNECT {h}:443 HTTP/1.1\r\n\r\n".encode()) as s:
+                self.assertIn(b" 200 ", s.recv(100), h)
+                s.sendall(b"x")
+                self.assertEqual(s.recv(10), b"UP:x", h)
+
+    def test_unlisted_lookalikes_ports_and_methods_are_denied(self):
+        for req in (b"CONNECT example.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT github.com:80 HTTP/1.1\r\n\r\n",
+                    b"CONNECT github.com:22 HTTP/1.1\r\n\r\n",
+                    b"CONNECT github.com.evil.test:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT evilgithub.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT gist.github.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT raw.githubusercontent.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT pypi.org:8443 HTTP/1.1\r\n\r\n",
+                    b"GET http://github.com/ HTTP/1.1\r\nHost: github.com\r\n\r\n"):
+            self.assertEqual(self.status(req), b"HTTP/1.1 403 Forbidden", req)
+
+    def test_single_host_default_still_denies_the_extra_hosts(self):
+        self.assertIsNone(egress.allowed_target("CONNECT github.com:443 HTTP/1.1", egress.ALLOW))
+        self.assertEqual(egress.allowed_target("CONNECT GitHub.com:443 HTTP/1.1", egress.WORKER_ALLOW),
+                         ("GitHub.com", 443))
+
+
 class ProxyLifetimeTests(unittest.TestCase):
     pids = []
 
