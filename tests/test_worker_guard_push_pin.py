@@ -47,7 +47,7 @@ class PushPinTests(unittest.TestCase):
         p = self.run_hook(cmd, **kw)
         return p.returncode == 2 and ("coders push exactly" in p.stderr or "git push:" in p.stderr
                                       or "before push" in p.stderr or "environment overrides" in p.stderr
-                                      or "by another name" in p.stderr)
+                                      or "by another name" in p.stderr or "whole command" in p.stderr)
 
     def test_refused_shapes(self):
         for cmd in (
@@ -81,6 +81,13 @@ class PushPinTests(unittest.TestCase):
             "git send-pack /x HEAD:main", "git http-push http://x/ HEAD:main",
             f"FACTORY_AGENT=coder-t-0001 git push origin HEAD:factory/t-0001",
             f"git push -o x origin {OWN}",
+            f"set -a; n=GI; printf -v \"${{n}}T_CONFIG_PARAMETERS\" '%s' \"'remote.origin.pushurl=/x'\"; git push origin {OWN}",
+            f"f(){{ local -x ${{1}}IT_CONFIG_PARAMETERS=x; git push origin {OWN}; }}; f G",
+            f"BASH_ENV=/tmp/benv bash -c 'git push origin {OWN}'",
+            f"HOME=/tmp/h git push origin {OWN}",
+            f"set -a; a=GI; b=T_DIR; printf -v \"$a$b\" /x; git push origin {OWN}",
+            f"true && git push origin {OWN}", f"git push origin {OWN}; true", f"git push origin '{OWN}'",
+            f"git -C $HOME push origin {OWN}",
         ):
             with self.subTest(cmd=cmd):
                 self.assertTrue(self.pinned(cmd), self.run_hook(cmd).stderr)

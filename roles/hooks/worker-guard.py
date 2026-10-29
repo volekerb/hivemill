@@ -1719,15 +1719,14 @@ class Analyzer:
         m = re.fullmatch(r"coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
         if not m:
             raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
-        if any(a.split("=", 1)[0].startswith("GIT_") for a in assigns) or any(k.startswith("GIT_") for k in self.vars) \
-                or re.search(r"GIT_[A-Za-z0-9_]*|(?<![\w-])(?:export|declare|typeset)(?![\w-])", self.text):
-            # fail closed: any GIT_* token or `export` anywhere in the call (printf -v / read / for / mapfile / += can
-            # set and export GIT_DIR or GIT_CONFIG_PARAMETERS without a NAME=value word)
-            raise Block("git push with GIT_* environment overrides (GIT_CONFIG_*, GIT_DIR, GIT_SSH_COMMAND, ...) or an "
-                        "export/declare in the same command is refused; run the push as its own plain command")
         if args != ["origin", f"HEAD:factory/{m.group(1)}"]:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` (no other remote, refspec, "
                         "force, --all/--mirror/--tags/--delete or option)")
+        # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
+        # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
+        if not re.fullmatch(rf"git( -C [\w./-]+)? push origin HEAD:factory/{m.group(1)}", self.text.strip()):
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
+                        "(optionally `git -C <path> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
 
     def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
         words = list(words)
