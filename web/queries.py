@@ -689,3 +689,22 @@ def message_refs(con, ids):
 def task_titles(con, ids, width=80):
     """{task id: title truncated to `width` characters, [SCn] tags removed} for the given tasks, one query."""
     return {r["id"]: _t(_strip_tags(r["title"]), width) for r in _in(con, "SELECT id, title FROM tasks WHERE id IN ({in})", ids)}
+
+
+# ───────────────────────────── goal criteria (G-019 B5) ─────────────────────────────
+
+def criteria_by_goal(con):
+    """{goal id: (met, total)} for the goals that have [SCn]-tagged tasks; untagged goals are absent (no invented counts).
+    total = the goal's parsed criteria plus any tag with no criterion text; met = a criterion whose non-cancelled tagged
+    tasks are all done (at least one). Two queries."""
+    text = {r["id"]: r["success_criteria"] for r in con.execute("SELECT id, success_criteria FROM goals")}
+    tagged = {}
+    for r in con.execute("SELECT goal_id, title, status FROM tasks WHERE title LIKE '%[SC%'"):
+        for n in _tags(r["title"]):
+            tagged.setdefault(r["goal_id"], {}).setdefault(n, []).append(r["status"])
+    out = {}
+    for gid, by_n in tagged.items():
+        nums = {n for n, _ in parse_criteria(text.get(gid))} | set(by_n)
+        met = sum(1 for n in by_n if (live := [s for s in by_n[n] if s != "cancelled"]) and all(s == "done" for s in live))
+        out[gid] = (met, len(nums))
+    return out
