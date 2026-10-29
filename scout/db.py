@@ -38,10 +38,11 @@ CREATE TABLE IF NOT EXISTS scout_runs (
 CREATE TABLE IF NOT EXISTS skill_trials (
   id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id TEXT NOT NULL REFERENCES scout_candidates(id),
   vendor_sha TEXT NOT NULL, task TEXT NOT NULL, condition TEXT NOT NULL,   -- with | without
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending | running | passed | failed | timeout | over-budget | error | cancelled
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | running | passed | failed | timeout | over-budget | error | cancelled | voided
   agent TEXT, sandbox TEXT, queued TEXT NOT NULL, started TEXT, ended TEXT,
   passed INTEGER, wall_s INTEGER, tokens_in INTEGER, tokens_out INTEGER, cache_read INTEGER, cache_write INTEGER,
   skill_invoked INTEGER, check_output TEXT, author TEXT,
+  void_reason TEXT, void_why TEXT,   -- set by `skilleval void`; the row keeps every other field
   UNIQUE(candidate_id, vendor_sha, task, condition));
 """
 

@@ -8,7 +8,7 @@
    `--candidate none` (or no `--candidate`) is the baseline smoke: it uses the reserved candidate `C-0000`, created on demand, and the condition is always `without`.
 2. Fail closed (exit 3, nothing created, no multiplexer call, no agent row): the token file `~/.config/factory/eval-oauth-token` must be a regular file, mode 0600, owned by you (message `owner decision D3 pending: no eval token`); user namespaces must work (`unshare -r -n -m`). There is no fallback to an unsandboxed claude.
 3. For condition `with`, vendors the candidate if needed (`factory skilleval vendor`) and re-checks the gate against the vendored copy.
-4. Inserts a `skill_trials` row (an existing `error` or `cancelled` row for the same candidate, sha, task and condition is reused; any other existing row is refused) and builds `<skilleval_root>/trials/trNNNN/`.
+4. Inserts a `skill_trials` row (an existing `error`, `cancelled` or `voided` row for the same candidate, sha, task and condition is reused; any other existing row is refused) and builds `<skilleval_root>/trials/trNNNN/`.
 5. Runs a preflight: the real namespace view with no proxy and no token, around the claude version command. A mount or bind failure ends in exit 3, the trial dir is removed and the row is `error`.
 6. Spawns `eval-trNNNN` through the normal gate (it may queue) and sets the row to `running`.
 
@@ -69,7 +69,7 @@ C-0001 fix-bug with: trial 1 status=passed passed=1 tokens=165 wall_s=300 skill_
 C-0001 summary: with: passed 1/2 tasks, median tokens 382, median wall_s 450; without: passed 1/2 tasks, median tokens 165, median wall_s 300
 ```
 
-`tokens` is `tokens_in + tokens_out`; `-` means not recorded. Only trials in a terminal status count in the with/without figures; open trials are added as `; pending N` and `; running N`.
+`tokens` is `tokens_in + tokens_out`; `-` means not recorded. Only trials in a terminal status other than `voided` count in the with/without figures; open trials are added as `; pending N` and `; running N`.
 
 ### Start log
 
@@ -86,6 +86,19 @@ Tests: `tests/test_skilleval_collect.py` (fixtures in `tests/fixtures/skilleval/
 3. The key `(candidate, vendor_sha, task, condition)` is unique, so a second `queue` adds nothing, says `already queued` and prints the existing trials.
 
 `factory skilleval cancel <trial id|trNNNN|C-xxxx>` (same roles) turns pending trials into `cancelled` and stops running ones through `collect` with reason `cancelled` (the checker does not run). If a stop fails, the command exits 2 and that trial stays running for a retry.
+
+### Voiding a trial: `factory skilleval void <trial id|trNNNN> --reason infra --why "<text>"`
+
+Roles director and lead only (workers and the boss are refused). For a finished trial whose result says nothing about the skill because the harness failed (for example the `timeout` of trial 1 caused by the T-0718 hook bug). Code: `scout/skilleval.py` (`void`).
+
+- Allowed on `passed`, `failed`, `timeout`, `over-budget` and `error`. `pending`, `starting` and `running` trials are refused (use `cancel`); so are `cancelled` and already `voided` ones. Exit 2, row unchanged.
+- `--reason infra` and a non-empty `--why` are both required; any other reason is refused. (`collect --reason` does not accept `infra`.)
+- The status becomes `voided`. The row is never deleted and keeps `passed`, `wall_s`, tokens and the rest; `void_reason` and `void_why` (two nullable `skill_trials` columns, added to an existing DB by `migrate`) hold the reason. One `skilleval` event `void` records the old status, the figures and the why.
+- `list` and `results` still print the trial line, with `status=voided void_reason=infra void_why='...'`. The with/without figures (passed x/y, median tokens, median wall_s) ignore voided trials; the summary adds `; voided N`.
+- `factory skilleval try` treats a `voided` trial like `error` or `cancelled`: it reuses the row (the key is unique) and starts it again, clearing `void_reason` and `void_why`. The void event keeps the old figures.
+- Sandboxes of voided trials are cleaned like `error` ones (`skilleval_keep_failed_h`).
+
+Tests: `VoidCliTests` in `tests/test_skilleval_tick.py`; the re-run in `tests/test_skilleval_sandbox.py`.
 
 `cmd_tick` calls `skilleval_tick` right after `scout_tick`, on the normal path only. It is wrapped like `scout_tick`: an exception is recorded as one `skilleval-failed` event per local day and never breaks the tick. Each pass (`scout/skilleval.py`, `tick`):
 
