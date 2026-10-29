@@ -4,6 +4,7 @@ from harness import FactoryTestCase
 
 
 class ResumeTestCase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env

@@ -22,6 +22,7 @@ def ago(seconds):
 
 
 class StopBase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
