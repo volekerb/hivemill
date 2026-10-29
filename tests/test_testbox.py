@@ -165,5 +165,113 @@ class Sandboxed(Base):
         self.assertNotIn("FAKE-GH", p.stdout)
 
 
+SUBUID_OK, SUBUID_WHY = nsbox.subuid_available() if USERNS_OK else (False, SKIP_MSG)
+
+
+class SubuidFailClosed(Base):
+    """T-0682: test_sandbox_subuid=1 never runs the command as the owner uid when the mapping cannot be set up."""
+
+    def setUp(self):
+        super().setUp()
+        self.flag("1")
+        self.ok("config", "test_sandbox_subuid", "1", agent="zz-test-director")
+
+    def test_missing_newuidmap_refuses_and_does_not_run(self):
+        bare = self.env.home / "bin"
+        bare.mkdir()
+        for tool in ("unshare", "setpriv", "sh", "touch", "git", "true"):  # everything but newuidmap/newgidmap
+            (bare / tool).symlink_to(subprocess.run(["which", tool], capture_output=True, text=True).stdout.strip())
+        p = self.ftest("touch", "ran", extra={"PATH": str(bare)})
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("newuidmap", p.stderr)
+        self.assertIn("test_sandbox_subuid 0", p.stderr)
+        self.assertFalse((self.clone / "ran").exists())
+        self.assertEqual(list(self.clone.glob(".factory-test-*")), [])
+
+    def test_invalid_subuid_flag_is_an_error_and_not_run(self):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('test_sandbox_subuid','yes')")
+        p = self.ftest("touch", "ran")
+        self.assertEqual(p.returncode, 3)
+        self.assertIn("factory config test_sandbox_subuid 1", p.stderr)
+        self.assertFalse((self.clone / "ran").exists())
+
+    def test_subid_range_parsing(self):
+        self.assertEqual(nsbox._subid_range("/nonexistent/subuid", "x", 1), (0, 0))
+        f = self.env.home / "subuid"
+        f.write_text("bob:100000:65536\n1000:200000:10\nbob:5:2\n")
+        self.assertEqual(nsbox._subid_range(str(f), "bob", 7), (100000, 65536))
+        self.assertEqual(nsbox._subid_range(str(f), "carol", 1000), (200000, 10))
+        self.assertEqual(nsbox._subid_range(str(f), "carol", 1001), (0, 0))
+
+
+@unittest.skipUnless(SUBUID_OK, f"subuid mapping unavailable: {SUBUID_WHY}")
+@unittest.skipIf(NESTED, "needs a nested user namespace; skipped inside the boxed gate")
+class SubuidBox(Base):
+    def setUp(self):
+        super().setUp()
+        self.flag("1")
+        self.ok("config", "test_sandbox_subuid", "1", agent="zz-test-director")
+        os.chmod(self.clone, 0o770)  # the box is another host uid in the owner's group: the tree needs group write
+        os.chmod(self.clone / "f.txt", 0o660)
+
+    def box(self, script):
+        return self.ftest("--", "sh", "-c", script)
+
+    def test_runs_as_a_subordinate_uid_and_tree_stays_writable(self):
+        p = self.box("id -u > out.txt; id -u")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.strip(), "1")  # inside uid 1 = a host uid from the /etc/subuid range, never the owner
+        self.assertEqual((self.clone / "out.txt").read_text(), "1\n")
+        self.assertNotEqual((self.clone / "out.txt").stat().st_uid, os.getuid())
+
+    def test_owner_0600_file_is_unreadable(self):
+        secret = self.clone / "secret.txt"
+        secret.write_text("FAKE-OWNER-SECRET")
+        secret.chmod(0o600)
+        p = self.box("cat secret.txt")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertNotIn("FAKE-OWNER-SECRET", p.stdout)
+        self.assertEqual(self.box("echo ok > f.txt").returncode, 0)  # a 0660 owner file in the owner's group stays writable
+
+    def test_no_capabilities_and_no_supplementary_groups(self):
+        p = self.box("grep -E '^(CapEff|CapBnd):' /proc/self/status; id -G")
+        self.assertEqual(p.stdout.split()[1::2][:2], ["0000000000000000"] * 2, p.stdout)
+        self.assertEqual(p.stdout.split()[-1], "0")  # only the owner's primary group (inside gid 0), no extra groups
+
+    def _contained(self, script):
+        """nsbox directly with the /run mask OFF and no pid namespace: only the uid mapping stands between box and owner."""
+        cfg = nsbox.make_cfg(str(self.clone), None, str(self.env.user_home), mode="allow", net=False, pid=False,
+                             hide_dirs=(), hide_files=(), rw=[str(self.clone)], cwd=str(self.clone), run_mask=False,
+                             subuid=True)
+        return subprocess.run(nsbox.compose_stage1(cfg, ["sh", "-c", script]), capture_output=True, text=True, timeout=60,
+                              cwd=self.clone, stdin=subprocess.DEVNULL)
+
+    def test_socket_connect_fails_without_the_run_mask(self):
+        import socket
+        sock = self.clone / "owner.sock"
+        s = socket.socket(socket.AF_UNIX)
+        self.addCleanup(s.close)
+        s.bind(str(sock))
+        sock.chmod(0o600)  # owner-only, like the engine socket is to anyone outside its group
+        s.listen(1)
+        code = f"import socket; c = socket.socket(socket.AF_UNIX); c.connect({str(sock)!r})"
+        r = self._contained(f'{sys.executable} -c "{code}"')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("PermissionError", r.stderr)
+        engine = Path("/run/docker.sock")
+        if engine.exists():  # the real one, when this box has it: the owner is in its group, the subordinate uid is not
+            code = "import socket; c = socket.socket(socket.AF_UNIX); c.connect('/run/docker.sock')"
+            r = self._contained(f'{sys.executable} -c "{code}"')
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("PermissionError", r.stderr)
+
+    def test_kill_of_an_owner_pid_fails_even_in_the_same_pid_namespace(self):
+        victim = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(lambda: (victim.kill(), victim.wait()))
+        r = self._contained(f"kill -9 {victim.pid}")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIsNone(victim.poll())  # still alive
+
+
 if __name__ == "__main__":
     unittest.main()

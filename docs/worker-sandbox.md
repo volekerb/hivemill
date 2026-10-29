@@ -214,3 +214,11 @@ Rollback: `factory config test_sandbox 0`. Nested use: tests that need a user na
 The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A` (`.factory-test-*` is gitignored).
 
 See also: [ADR 0002, sandbox runtime v3](adr/0002-sandbox-runtime-v3.md).
+
+### Subordinate uid (`test_sandbox_subuid`, T-0682)
+
+Config flag `test_sandbox_subuid` (director only, default `0`; only meaningful with `test_sandbox 1`). With `1` the box does not run as the owner's host uid. `scout/nsbox.py --launch` creates the user namespace, `newuidmap`/`newgidmap` map inside uid 0 to the owner (stage-1 setup only) and inside uids 1.. to the owner's `/etc/subuid` range, and the final process is dropped to inside uid 1 (a host uid such as 100000) with inside gid 0 (the owner's primary group), no supplementary groups and no capabilities. Owner-only (0600) files are unreadable, the engine socket and the docker group are out of reach even without the `/run` mask, and `kill` of an owner pid fails with EPERM even in a shared pid namespace.
+
+- Fail closed: no `newuidmap`/`newgidmap` (install the `uidmap` package), no `/etc/subuid` or `/etc/subgid` range for the owner, or a failing probe means `factory test` exits 3 and the command is not run. It never falls back to the owner uid.
+- Known limit: the tree must be writable through the owner's group (mode `g+w`; the scratch and gate dirs are chmod 0770 by the profile). Files the run creates are owned by the subordinate uid and group-owned by the owner's group. Owner files that are group-readable stay readable to the box; 0600 ones do not.
+- Rollback: `factory config test_sandbox_subuid 0` (back to the owner uid with the same namespaces), or `factory config test_sandbox 0`.

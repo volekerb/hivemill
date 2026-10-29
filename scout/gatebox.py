@@ -60,11 +60,15 @@ def make_env(env, factory_main, wt_root, home):
     return out
 
 
-def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, unshare="unshare"):
+def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, unshare="unshare", subuid=False):
     """(argv, env) to run the shell command `cmd` in `tree` under the gate profile. Raises GateboxError."""
     ok, why = nsbox.userns_available(unshare)
     if not ok:
         raise GateboxError(f"gatebox: user namespaces unavailable ({why}); the gate must not run unsandboxed")
+    if subuid:
+        ok, why = nsbox.subuid_available(unshare)
+        if not ok:
+            raise GateboxError(f"gatebox: subordinate uid mapping unavailable ({why}); the command must not run as the owner uid")
     tree, main, wt = _real(tree, "gate tree"), _real(factory_main, "FACTORY_MAIN"), os.path.realpath(wt_root)
     home = str(home or nsbox.real_home())
     runtime = str(runtime or os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
@@ -72,6 +76,8 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     try:
         for d in rw:
             os.makedirs(d, exist_ok=True)
+            if subuid:
+                os.chmod(d, os.stat(d).st_mode | 0o070)  # the box is another host uid in the owner's group
     except OSError as e:
         raise GateboxError(f"gatebox: cannot create {e.filename}: {e.strerror}; fix wt_root, the command was not run") from e
     rw = [tree, *(os.path.realpath(d) for d in rw)]  # the gate tree is a throwaway detached checkout: tests write into it
@@ -86,7 +92,7 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     hide = [home, runtime, *HIDE_TMP]
     try:
         cfg = nsbox.make_cfg(f"{wt}/reports", None, home, mode="allow", net=False, pid=True, unshare=unshare,
-                             hide_dirs=hide, hide_files=(), rw=rw, ro=ro, masks=masks, cwd=tree,
+                             hide_dirs=hide, hide_files=(), rw=rw, ro=ro, masks=masks, cwd=tree, subuid=subuid,
                              tmpfs_sizes={d: s for d, s in TMPFS_SIZES.items() if os.path.isdir(d)})
     except ValueError as e:
         raise GateboxError(f"gatebox: {e}") from e
