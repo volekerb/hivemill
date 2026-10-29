@@ -472,7 +472,11 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .tile-label { color: var(--text-2); font: 500 12px/16px var(--font); }
 .tile-label a { color: var(--text-2); }
 .tile-label .disc--i { margin-left: var(--s1); vertical-align: middle; }
-.tile-label .disc--i > summary { font-weight: 500; color: var(--text-2); }   /* the native marker stays (design guard) */
+.tile-label .disc--i > summary { display: list-item; list-style-position: outside; font: 600 11px/16px var(--font); color: var(--text-2);
+                                 width: 16px; height: 16px; text-align: center; border: 1px solid var(--border); border-radius: 50%; }
+.tile-label .disc--i > summary::marker { content: ""; }                        /* no triangle next to the i; the summary keeps display:list-item (design guard) */
+.tile-label .disc--i > summary::-webkit-details-marker { display: none; }
+.tile-label .disc--i > summary:hover, .tile-label .disc--i[open] > summary { color: var(--info-fg); border-color: var(--info-fg); }
 .tile-def { margin-top: var(--s1); color: var(--text-2); font-weight: 400; }
 .metric { font: 600 22px/28px var(--font); font-variant-numeric: tabular-nums; }
 .metric small { color: var(--text-2); font: 500 13px/16px var(--font); }

@@ -432,7 +432,8 @@ class TestIsolation(ScreenshotsBase):
         seed_env = next(e for c, e in self.spawned if any(str(a).endswith("demo_seed.py") for a in c))
         serve_env = next(e for c, e in self.spawned if "serve" in c)
         self.assertEqual(set(seed_env), {"HOME", "PATH", "LANG"})
-        self.assertEqual(set(serve_env), {"HOME", "PATH", "LANG", "FACTORY_HOME"})
+        self.assertEqual(set(serve_env), {"HOME", "PATH", "LANG", "FACTORY_HOME", "FACTORY_LOADAVG", "FACTORY_MEM_AVAILABLE_MB"})
+        self.assertEqual({k: serve_env[k] for k in screenshots.DEMO_MACHINE}, screenshots.DEMO_MACHINE)
         self.assertEqual(serve_env["HOME"], serve_env["FACTORY_HOME"] + "/home")
         self.assertNotIn("nonexistent", " ".join(serve_env.values()) + " ".join(seed_env.values()))
 
@@ -525,7 +526,7 @@ class TestFullRun(ScreenshotsBase):
                           "social-preview.png"])
         for p in self.images.iterdir():
             data = p.read_bytes()
-            want = 1280 if p.name == "social-preview.png" else 2560  # 1280 CSS px at 2x
+            want = {"social-preview.png": 1280, "hero.png": 2562}.get(p.name, 2560)  # 1280 CSS px at 2x; the hero is two 1x pages and the divider
             self.assertEqual(struct.unpack(">I", data[16:20])[0], want, p.name)
         self.assertIn("files: home-light.png home-dark.png goals-light.png goals-dark.png hero.png social-preview.png", out)
         self.assertNotEqual((self.images / "home-light.png").read_bytes(), (self.images / "home-dark.png").read_bytes())
@@ -635,10 +636,10 @@ class TestFullRun(ScreenshotsBase):
 
     def test_per_png_cap_breach_aborts_with_exit_3_and_writes_nothing(self):
         self.use_zip()
-        with unittest.mock.patch.object(screenshots, "MAX_PNG_BYTES", 20000):  # the stub hero is ~27 KB
+        with unittest.mock.patch.object(screenshots, "MAX_PNG_BYTES", 5200):  # the stub hero is 5252 bytes
             code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
         self.assertEqual(code, 3, out + err)
-        self.assertIn("over the per-PNG cap: hero.png", err)
+        self.assertIn("over the per-PNG cap: home-light.png, home-dark.png, hero.png", err)
         for name in ("home-light.png", "home-dark.png", "hero.png", "social-preview.png"):
             self.assertRegex(err, r"  %s: \d+ bytes" % name)  # every file's size is listed
         self.assertFalse(self.images.exists())
@@ -646,7 +647,7 @@ class TestFullRun(ScreenshotsBase):
 
     def test_total_cap_breach_aborts_with_exit_3_and_writes_nothing(self):
         self.use_zip()
-        with unittest.mock.patch.object(screenshots, "MAX_TOTAL_BYTES", 50000):
+        with unittest.mock.patch.object(screenshots, "MAX_TOTAL_BYTES", 40000):
             code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
         self.assertEqual(code, 3, out + err)
         self.assertIn("total over the cap", err)
@@ -1049,31 +1050,33 @@ class TestImageProcessing(unittest.TestCase):
         self.assertEqual(screenshots.blank_percent([one] * 60, [(0, 200, (255, 255, 255))]), 100.0)
         self.assertEqual(screenshots.blank_percent([two] * 60, [(0, 200, (255, 255, 255))]), 0.0)
 
-    def test_hero_is_the_left_and_right_halves_with_a_divider(self):
+    def test_hero_is_the_light_and_dark_pages_side_by_side_with_a_gutter_divider(self):
         w, h1, h2 = 2560, 600, 500
         left = [solid(w, (250, 250, 250)) for _ in range(h1)]
         right = [solid(w, (10, 20, 30)) for _ in range(h2)]
         for y in range(h1):
-            left[y][0:3] = bytes((1, 2, 3))
-            left[y][1279 * 3:1280 * 3] = bytes((7, 7, 7))
+            left[y][w * 3 - 3:w * 3] = bytes((7, 7, 7))   # content at the light page's right edge
         hero = screenshots.compose_hero(left, right)
-        self.assertEqual((len(hero), len(hero[0]) // 3), (h2, w))  # the smaller height
-        d0 = 1280 - screenshots.HERO_DIVIDER_PX // 2
-        for y in (0, 250, h2 - 1):
+        half = w // 2
+        self.assertEqual((len(hero), len(hero[0]) // 3), (h2 // 2, 2 * half + screenshots.HERO_DIVIDER_PX))  # smaller height, halved
+        for y in (0, 100, h2 // 2 - 1):
             row = bytes(hero[y])
-            self.assertEqual(row[:d0 * 3], bytes(left[y][:d0 * 3]))
-            self.assertEqual(row[(d0 + 2) * 3:], bytes(right[y][(d0 + 2) * 3:]))
-            self.assertEqual(row[d0 * 3:(d0 + 2) * 3], bytes(screenshots.HERO_DIVIDER_RGB) * 2)
+            self.assertEqual(row[:3], bytes((250, 250, 250)))
+            self.assertEqual(row[half * 3:(half + 2) * 3], bytes(screenshots.HERO_DIVIDER_RGB) * 2)
+            self.assertEqual(row[(half + 2) * 3:(half + 3) * 3], bytes((10, 20, 30)))
+            self.assertEqual(row[-3:], bytes((10, 20, 30)))
+            self.assertNotIn(bytes((7, 7, 7)), (row[(half - 1) * 3:half * 3],))   # the edge pixel is averaged, never cut by the divider
 
     def test_hero_blank_rows_use_each_halfs_own_background(self):
         w, h = 2560, 900
         light = page_rows(LIGHT, w, content=800, total=h)
         dark = page_rows(DARK, w, content=800, total=h)
         hero = screenshots.compose_hero(light, dark)
-        x0 = screenshots.main_x0(w)
-        regions = [(x0, 1279, LIGHT["bg"]), (1281, w, DARK["bg"])]
+        half = w // 2
+        x0 = screenshots.main_x0(w) // 2
+        regions = [(x0, half, LIGHT["bg"]), (half + screenshots.HERO_DIVIDER_PX, 2 * half + screenshots.HERO_DIVIDER_PX, DARK["bg"])]
         right = screenshots.blank_percent(hero, regions)
-        wrong = screenshots.blank_percent(hero, [(x0, w, LIGHT["bg"])])  # one colour for both halves
+        wrong = screenshots.blank_percent(hero, [(x0, 2 * half + 2, LIGHT["bg"])])  # one colour for both halves
         self.assertLess(right, screenshots.BLANK_LIMIT_PCT + 1)
         self.assertEqual(wrong, 0.0)  # the dark half is never "blank" against the light background
 
@@ -1101,6 +1104,34 @@ class TestImageProcessing(unittest.TestCase):
         self.assertIn(screenshots.SOCIAL_TAGLINE, page)
         self.assertNotRegex(page, r"https?://")
         self.assertIn("data:image/png;base64,", page)
+
+    def test_social_tagline_is_set_in_the_inlined_inter(self):
+        page = screenshots.social_html(b"x", (255, 255, 255))
+        self.assertIn('font-family: "Inter"', page)
+        self.assertIn("data:font/woff2;base64,", page)
+        self.assertRegex(page, r'\.tag \{ font: 600 21px/1\.35 "Inter"')
+
+    def test_taller_page_is_cut_at_a_section_boundary_not_mid_section(self):
+        w, bg, card = 2560, (240, 240, 240), (255, 255, 255)
+        gap = screenshots.BLANK_RUN_MIN + 10
+        def band(colour, n):
+            r = bytearray(solid(w, bg))
+            r[600 * 3:(w - 100) * 3] = bytes(colour) * (w - 700)   # inset from the main column (x0 = 466)
+            return [bytearray(r) for _ in range(n)]
+        rows = band(card, 900) + [bytearray(solid(w, bg)) for _ in range(gap)] + band(card, 700)   # capture ends mid-section
+        x0 = screenshots.main_x0(w)
+        out, truncated = screenshots.crop_to_content(rows, x0, card)
+        self.assertTrue(truncated)
+        self.assertEqual(len(out), 900 + screenshots.MARGIN_CSS * screenshots.SCALE)
+        self.assertEqual(bytes(out[-1][:3]), bytes(bg))   # ends in the gap, below the first section
+
+    def test_taller_page_without_a_gap_is_kept_whole(self):
+        w, bg = 2560, (240, 240, 240)
+        r = bytearray(solid(w, bg))
+        r[600 * 3:(w - 100) * 3] = bytes((255, 255, 255)) * (w - 700)
+        rows = [bytearray(r) for _ in range(1500)]
+        out, truncated = screenshots.crop_to_content(rows, screenshots.main_x0(w), bg)
+        self.assertEqual((len(out), truncated), (1500, True))
 
     def test_social_tagline_is_escaped(self):
         self.assertIn("a &lt;b&gt; &amp; c", screenshots.social_html(b"x", (0, 0, 0), tagline="a <b> & c"))

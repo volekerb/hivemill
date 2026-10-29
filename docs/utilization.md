@@ -32,7 +32,7 @@ than 35 days. A failure never breaks the tick: it logs `util / util-sample-faile
 `factory export` leaves `util_samples` out of `state/factory.sql`, as it does `events`.
 
 The web home shows the newest row in the D2 format, plus ` (UNDER TARGET)` when workers < target and demand. With no
-row, or a newest row older than 5 minutes, it shows `utilization: no fresh tick sample`.
+row, or a newest row older than 5 minutes, it shows the friendly line `Utilization appears after the next tick sample`.
 
 Gap: when herdr is unreachable the tick returns early and writes no sample, so the web home shows the "no fresh tick
 sample" text until herdr is back.

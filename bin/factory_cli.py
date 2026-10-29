@@ -1343,6 +1343,9 @@ def claude_outside_spawn(con):
 # ───────────────────────────── resources ─────────────────────────────
 
 def mem_available_mb():
+    pinned = os.environ.get("FACTORY_MEM_AVAILABLE_MB")   # pinned by the screenshot/demo server, like FACTORY_LOADAVG
+    if pinned:
+        return int(pinned)
     for line in Path("/proc/meminfo").read_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024

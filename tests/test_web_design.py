@@ -182,6 +182,14 @@ class Contrast(unittest.TestCase):
         self.assertNotRegex(body, r"display:\s*flex")
         self.assertNotRegex(CSS, r"summary[^{}]*\{[^}]*list-style\s*:\s*none")
 
+    def test_tile_info_icon_has_no_text_marker(self):
+        """The tile's (i) disclosure draws a round icon: the native triangle is blanked, the summary stays display:list-item."""
+        body = block(".tile-label .disc--i > summary")
+        self.assertRegex(body, r"display:\s*list-item")
+        self.assertRegex(body, r"border-radius:\s*50%")
+        self.assertRegex(block(".tile-label .disc--i > summary::marker"), r'content:\s*""')
+        self.assertRegex(block(".tile-label .disc--i > summary::-webkit-details-marker"), r"display:\s*none")
+
     def test_contrast_function_known_values(self):
         self.assertAlmostEqual(contrast("#000000", "#ffffff"), 21.0, places=1)
         self.assertLess(contrast("#777777", "#888888"), 1.5)

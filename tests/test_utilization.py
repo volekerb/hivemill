@@ -262,13 +262,13 @@ class WebHomeCase(Base):
         self.assertIn(LINE, self.env.run("res").stdout)
 
     def test_no_sample_and_stale_sample(self):
-        self.assertIn("utilization: no fresh tick sample", self.page(NOW))
+        self.assertIn("Utilization appears after the next tick sample", self.page(NOW))
         con = self.load()
         with mock.patch.dict(os.environ, {"FACTORY_NOW": NOW}):
             self.mod.util_sample(con)
         self.assertIn("P1 goals without workers", self.page("2026-10-27T10:04:00"))
         html = self.page("2026-10-27T10:06:00")
-        self.assertIn("utilization: no fresh tick sample", html)
+        self.assertIn("Utilization appears after the next tick sample", html)
         self.assertNotIn("P1 goals without workers", html)
 
     def test_not_under_target_without_demand(self):

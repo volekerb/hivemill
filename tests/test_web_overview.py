@@ -251,5 +251,20 @@ class TestQueries(Base):
         self.assertEqual(refs, {1: ("G-1", None), 5: (None, None)})
 
 
+class TestMachinePin(unittest.TestCase):
+    """The demo/screenshot server pins the host's load so the System card shows the same state on any machine."""
+
+    def test_pinned_load_is_used(self):
+        from web.views import resources
+        with mock.patch.dict("os.environ", {"FACTORY_LOADAVG": "1.4"}):
+            self.assertEqual(resources.machine()["load"], [1.4, 1.4, 1.4])
+
+    def test_unpinned_load_is_the_hosts(self):
+        from web.views import resources
+        env = {k: v for k, v in __import__("os").environ.items() if k != "FACTORY_LOADAVG"}
+        with mock.patch.dict("os.environ", env, clear=True), mock.patch("os.getloadavg", return_value=(2.0, 3.0, 4.0)):
+            self.assertEqual(resources.machine()["load"], [2.0, 3.0, 4.0])
+
+
 if __name__ == "__main__":
     unittest.main()
