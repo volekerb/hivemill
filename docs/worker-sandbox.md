@@ -213,4 +213,6 @@ Rollback: `factory config test_sandbox 0`. Nested use: tests that need a user na
 
 The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A` (`.factory-test-*` is gitignored).
 
+Per-run CPU, memory and task caps (config `test_cgroup`, needs an owner-installed user unit): [test-cgroups.md](test-cgroups.md).
+
 See also: [ADR 0002, sandbox runtime v3](adr/0002-sandbox-runtime-v3.md).

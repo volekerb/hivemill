@@ -58,6 +58,7 @@ RUN = HOME / "run"
 USAGE_FILE = Path.home() / ".claude" / "usage-limits.json"
 
 from scout import db as scoutdb  # noqa: E402
+from scout import testcg  # noqa: E402
 from scout import report as scoutreport  # noqa: E402
 from scout import schedule as scoutsched  # noqa: E402
 from scout import sources as scoutsrc  # noqa: E402
@@ -144,6 +145,11 @@ DEFAULT_CONFIG = {
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
     "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
+    "test_cgroup": "0",          # 1 = each `factory test` run gets a child cgroup with the caps below; parent = the delegated factory-tests unit, missing = exit 3, never uncapped (T-0681, docs/test-cgroups.md)
+    "test_cgroup_parent": "",    # absolute cgroupfs dir of the delegated parent; '' = derived from the uid
+    "test_cpu_quota": "400",     # percent of one CPU per run (cpu.max)
+    "test_mem_max": "3G",        # memory.max per run (swap 0)
+    "test_tasks_max": "512",     # pids.max per run
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -7847,21 +7853,51 @@ def cmd_test(a):
     v = cfg(db(), "test_sandbox").strip()
     if v not in ("0", "1"):
         die(f"config test_sandbox is {v!r}, not 0 or 1; fix it with `factory config test_sandbox 1`, the command was not run", 3)
-    if v == "0":
+    cg = cfg(db(), "test_cgroup").strip()
+    if cg not in ("0", "1"):
+        die(f"config test_cgroup is {cg!r}, not 0 or 1; fix it with `factory config test_cgroup 0`, the command was not run", 3)
+    cgpath = cgfd = None
+    if cg == "1":  # T-0681: per-run child cgroup with caps; fail closed, never run uncapped
         try:
-            os.execvp(cmd[0], cmd)
-        except OSError as e:
-            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+            lim = testcg.limits(cfg(db(), "test_cpu_quota"), cfg(db(), "test_mem_max"), cfg(db(), "test_tasks_max"))
+            parent = cfg(db(), "test_cgroup_parent").strip() or testcg.default_parent(os.getuid())
+            cgpath = testcg.create(parent, f"run-{os.getpid()}", lim)
+            cgfd = testcg.enter_fd(cgpath)
+        except testcg.CgroupError as e:
+            die(str(e), 3)
+
+    def into_cgroup():
+        if cgfd is not None:
+            os.write(cgfd, b"0")  # moves this forked child into the run's cgroup before exec
+
+    def end():
+        if cgfd is not None:
+            os.close(cgfd)
+            testcg.destroy(cgpath)
     tree, scratch = os.getcwd(), None
-    try:
-        scratch = testbox.new_scratch(tree)
-        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ,
-                                  runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
-    except testbox.TestboxError as e:
-        if scratch:
-            testbox.cleanup(scratch)
-        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
-    p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
+    if v == "0":
+        if cg == "0":
+            try:
+                os.execvp(cmd[0], cmd)
+            except OSError as e:
+                die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+        try:
+            p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, start_new_session=True, preexec_fn=into_cgroup)
+        except OSError as e:
+            end()
+            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+    else:
+        try:
+            scratch = testbox.new_scratch(tree)
+            argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ,
+                                      runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+        except testbox.TestboxError as e:
+            if scratch:
+                testbox.cleanup(scratch)
+            end()
+            die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
+        p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True,  # no tty: no TIOCSTI into the caller's shell
+                             preexec_fn=into_cgroup)
 
     def forward(sig, _frame):
         try:
@@ -7873,7 +7909,9 @@ def cmd_test(a):
     try:
         rc = p.wait()
     finally:
-        testbox.cleanup(scratch)
+        if scratch:
+            testbox.cleanup(scratch)
+        end()
     sys.exit(rc if rc >= 0 else 128 - rc)
 
 
