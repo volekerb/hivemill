@@ -149,6 +149,7 @@ DEFAULT_CONFIG = {
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
     "stale_policy": "behind_ok",
+    "refresh_lane": "off",       # G-022: on = only the head of the merge queue (the oldest BEHIND judge row) is refreshed; the rest hold as 'lane: position N' (docs/refresh-lane.md)
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
@@ -9392,6 +9393,62 @@ def judge_hold(con, task, cap=True, behind_ok=False):
     return None
 
 
+LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the task whose judge holds the refresh lane
+LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
+
+
+def refresh_lane_hold(con, task, queued):
+    """G-022 refresh_lane (phase 1): why a queued judge for `task` waits for the refresh lane, or None to let it go on.
+    Only with config refresh_lane=on. Behind-only is not a failure, but every BEHIND judge that starts refreshes its
+    branch and restarts CI, and each merge makes the next one BEHIND again. So one task owns the lane at a time: the
+    oldest queued judge (queue order) whose PR is ready except for being BEHIND. The others get 'T-x lane: position N'
+    and no refresh, no CI run. The owner keeps the lane while it has a queued, starting or live judge and its task is
+    open; when it merges (or its judge ends without a merge) the next BEHIND head takes over. A PR that is not BEHIND
+    is never held, and nothing is held when stale_policy=behind_ok applies (no refresh happens then). `queued` = the
+    tick's queued rows in queue order. A gh failure reads as not BEHIND (not held): the lane only narrows refreshes."""
+    if (cfg(con, "refresh_lane") or "off").strip().lower() != "on" or not task:
+        return None
+
+    def behind(tid):
+        r = con.execute("SELECT pr_url FROM tasks WHERE id=?", (tid,)).fetchone()
+        url = r["pr_url"] if r else None
+        if not url or (url.startswith("https://github.com/") and stale_behind_ok(con, "/".join(url.split("/")[3:5]))):
+            return False
+        ready, why = judge_pr_ready(con, url, True)
+        return bool(ready) and why == "PR is BEHIND"
+
+    row = con.execute("SELECT value FROM config WHERE key=?", (LANE_OWNER_KEY,)).fetchone()
+    owner, _, since = (row["value"] if row else "").partition("|")
+    try:
+        if owner and time.time() - float(since) > LANE_OWNER_TTL_S:
+            owner = ""  # the owner made no progress for an hour (CI red, DIRTY, judge parked): the next head takes over
+    except ValueError:
+        owner = ""  # an unreadable value is a released lane
+    if owner:
+        t = con.execute("SELECT status FROM tasks WHERE id=?", (owner,)).fetchone()
+        live = con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('queued','starting','live')",
+                           (owner,)).fetchone()
+        if not t or t["status"] in ("done", "cancelled") or not live:
+            owner = None
+    if owner == task or not behind(task):
+        return None
+    line = [x for x in dict.fromkeys(q["task_id"] for q in queued if q["role"] == "judge" and q["task_id"])
+            if x != owner and (x == task or behind(x))]
+    if task not in line:
+        return None
+    if not owner and line[0] == task:
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (LANE_OWNER_KEY, f"{task}|{time.time()}"))
+        event(con, "task", task, "lane-head", "refresh lane: this task is the queue head and is refreshed first")
+        return None
+    why = f"lane: position {line.index(task) + 1 + (1 if owner else 0)}"
+    old = con.execute("SELECT ts FROM throttle WHERE key=?", ("lane:" + task,)).fetchone()
+    if not old or old["ts"] != why:
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", ("lane:" + task, why))
+        event(con, "task", task, "lane-hold", why)
+    return f"{task} {why}"
+
+
 QUEUE_AGE_STEP_MIN = 30  # one aging step; see queue_order_key
 QUEUE_AGE_CAP_MIN = 240  # hard age cap: a row queued this long is at level 0 whatever its priority; see queue_order_key
 QUEUE_ROLE_CLASS = {"director": 0, "lead": 1, "judge": 2, "reviewer": 3, "qa": 4}
@@ -9773,6 +9830,8 @@ def cmd_tick(a, locked=False):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
         if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
             continue  # judge cap reached or PR CI not green: the rows behind it may start
+        if s["role"] == "judge" and refresh_lane_hold(con, s.get("task"), queued):
+            continue  # refresh_lane=on: a BEHIND PR that is not the queue head waits without a refresh
         try:
             _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
