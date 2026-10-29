@@ -55,7 +55,7 @@ def make_env(env, factory_main, wt_root, home):
     out.setdefault("FACTORY_MAIN", factory_main)
     out.setdefault("FACTORY_HOME", f"{wt_root}/factory-home")
     out.setdefault("GATE_REPORT_DIR", f"{wt_root}/reports")
-    out.update({"HOME": home, "TMPDIR": f"{wt_root}/tmp", "PYTHONDONTWRITEBYTECODE": "1",
+    out.update({"HOME": home, "TMPDIR": f"{wt_root}/tmp", "PYTHONDONTWRITEBYTECODE": "1", "FACTORY_GATEBOX": "1",  # marker: tests that need a nested userns skip on it
                 "PYTHONPYCACHEPREFIX": f"{wt_root}/tmp/pycache"})  # py_compile ignores DONTWRITE; the tree is read-only
     return out
 
