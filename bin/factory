@@ -5676,6 +5676,32 @@ def _git_out(wt, *args):
     return p.returncode, p.stdout.rstrip("\n")
 
 
+def done_remote_ref(wt, task_id, branch):
+    """Remote-tracking ref holding the task's pushed work: (name, sha, matches). Local refs only, no network.
+
+    Order: recorded branch; the worktree's upstream if it is factory/<task-id> in any case; the single
+    refs/remotes/origin ref equal to it case-insensitively. Several such refs and no matching upstream: none chosen, all named in matches."""
+    if branch:
+        rc, sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}")
+        if rc == 0 and sha:
+            return branch, sha, []
+    want = f"factory/{task_id}".lower()
+    rc, up = _git_out(wt, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    if rc == 0 and up.startswith("origin/") and up[7:].lower() == want:
+        rc, sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{up[7:]}")
+        if rc == 0 and sha:
+            return up[7:], sha, []
+    found = []
+    for l in _git_out(wt, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes/origin/")[1].splitlines():
+        ref, _, sha = l.partition(" ")
+        name = ref[len("refs/remotes/origin/"):]
+        if name.lower() == want:
+            found.append((name, sha))
+    if len(found) == 1:
+        return found[0][0], found[0][1], []
+    return None, "", [n for n, _ in found]
+
+
 def coder_done_findings(con, r, force=False):
     """Local-only handoff checks for a coder's `factory done`: (dirty, untracked, unpushed, ci_note).
 
@@ -5691,14 +5717,19 @@ def coder_done_findings(con, r, force=False):
                  if l.startswith("??")]
     unpushed = None
     head = _git_out(wt, "rev-parse", "HEAD")[1]
-    remote = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}")[1] if branch else ""
+    used, remote, variants = done_remote_ref(wt, r["task_id"], branch)
+    if head and head == remote and used != branch:
+        print(f"pushed to origin/{used}, task branch is {branch or '(unset)'}; the PR head must match", file=sys.stderr)
     if head and head != remote:
         brc, base_sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}")
         if brc != 0:  # no remote-tracking base: fall back to the local base branch
             brc, base_sha = _git_out(wt, "rev-parse", "--verify", "-q", f"refs/heads/{base}")
         ahead = _git_out(wt, "rev-list", "--count", f"{base_sha}..HEAD")[1] if brc == 0 else "1"
         if ahead.isdigit() and int(ahead) > 0:
-            unpushed = f"HEAD {head[:9]} is not on origin/{branch} ({ahead} commit(s) beyond {base})"
+            unpushed = f"HEAD {head[:9]} is not on origin/{used or branch} ({ahead} commit(s) beyond {base})"
+            if variants:
+                unpushed += "; several case variants of the task branch exist, none chosen: " + ", ".join(
+                    f"origin/{v}" for v in variants)
     ci = None
     if t["pr_url"] and (force or not (dirty or unpushed)):
         try:
