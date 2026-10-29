@@ -66,7 +66,7 @@ class Tmp(unittest.TestCase):
         os.chmod(self.file, mode)
 
     def run_cli(self, argv, env):
-        """bin/factory through runpy as __main__ with pwd.getpwuid patched; (exit code, stdout, stderr)."""
+        """bin/factory_cli.py through runpy, main() called, with pwd.getpwuid patched; (exit code, stdout, stderr)."""
         out, err = io.StringIO(), io.StringIO()
         full = {"HOME": os.path.join(self.tmp, "userhome"), **env}
         keep = {k: v for k, v in os.environ.items() if k not in ("FACTORY_ROLE", "FACTORY_HOME", "FACTORY_AGENT", "HERDR_PANE_ID", "CLAUDECODE")}
@@ -75,7 +75,7 @@ class Tmp(unittest.TestCase):
                 mock.patch.dict(os.environ, full), mock.patch.object(sys, "argv", ["factory", *argv]), \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             try:
-                runpy.run_path(FACTORY, run_name="__main__")
+                runpy.run_path(FACTORY, run_name="factory_cli")["main"]()
             except SystemExit as e:
                 code = e.code or 0
         return code, out.getvalue(), err.getvalue()
