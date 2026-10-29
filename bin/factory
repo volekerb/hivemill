@@ -132,6 +132,7 @@ DEFAULT_CONFIG = {
     "required_checks": "",       # comma-separated check names the judge needs green before merging
     "gate_max_parallel": "1",    # local merge gate (T-0515): `factory gate run` processes at once; one test slot stays for workers
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
+    "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -6636,6 +6637,20 @@ def gate_dir():
     return Path.home() / ".cache" / "factory-gate"
 
 
+GATE_FAST_CMD = ("python3 -m py_compile bin/factory ci/affected.py && "
+                 "python3 ci/affected.py --base {main_sha} --quick --budget 600 --run")
+
+
+def gate_fast(con, proj):
+    """T-0642: True when the project runs the gate in fast mode (config gate_fast_projects): lint + smoke + affected quick
+    modules instead of its gate_cmd. The full suite is CI's job (the judge still needs the GitHub checks green)."""
+    return proj["id"] in cfg(con, "gate_fast_projects").split()
+
+
+def gate_cmd_for(con, proj):
+    return GATE_FAST_CMD if gate_fast(con, proj) else proj["gate_cmd"]
+
+
 def gate_pid_alive(pid):
     if not pid:
         return False
@@ -6804,11 +6819,11 @@ def gate_run(con, a):
     repo = proj["repo_path"] or str(HOME)
     if queued:
         run_id = queued["id"]
-        con.execute("UPDATE gate_runs SET pid=?, cmd=? WHERE id=?", (os.getpid(), proj["gate_cmd"], run_id))
+        con.execute("UPDATE gate_runs SET pid=?, cmd=? WHERE id=?", (os.getpid(), gate_cmd_for(con, proj), run_id))
         event(con, "gate", str(run_id), "gate-launched", f"{kind} {task_id or proj['id']}")
     else:
         cur = con.execute("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,status,cmd,actor,created,pid) VALUES(?,?,?,?,'queued',?,?,?,?)",
-                          (proj["id"], task_id, pr_url, kind, proj["gate_cmd"], actor(), now(), os.getpid()))
+                          (proj["id"], task_id, pr_url, kind, gate_cmd_for(con, proj), actor(), now(), os.getpid()))
         run_id = cur.lastrowid
         event(con, "gate", str(run_id), "gate-queued", f"{kind} {task_id or proj['id']}")
     con.commit()  # the pid is visible to the tick before the long part starts
@@ -6826,7 +6841,7 @@ def gate_run(con, a):
             head, main_sha, note = gate_resolve(con, run_id, kind, pr_url, owner_repo, repo)
             if not a.no_cache:
                 hit = con.execute("SELECT * FROM gate_runs WHERE project_id=? AND head_sha=? AND main_sha=? AND status='pass' AND cmd=? AND id<>? "
-                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, proj["gate_cmd"], run_id)).fetchone()
+                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, gate_cmd_for(con, proj), run_id)).fetchone()
                 if hit:  # same tree, same main, same command: the result cannot differ, so no slot and no run
                     gate_finish(con, run_id, "pass", f"cached: pass of run #{hit['id']} (same head and main)", exit_code=hit["exit_code"],
                                 test_count=hit["test_count"], main_count=hit["main_count"])
@@ -6906,7 +6921,10 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
     shards = gate_shard_count(con)
     env.update({"GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(wt_root / "reports")})
     gate_worktree(repo, head, wt_root / "head")
-    code, timed_out = gate_run_cmd(proj["gate_cmd"], wt_root / "head", log, proj["gate_timeout_s"], env)
+    cmd = gate_cmd_for(con, proj).replace("{main_sha}", main_sha)
+    if gate_fast(con, proj):
+        note = "; ".join(x for x in (note, "fast mode (gate_fast_projects): lint + affected quick; CI runs the full suite") if x)
+    code, timed_out = gate_run_cmd(cmd, wt_root / "head", log, proj["gate_timeout_s"], env)
     if timed_out:
         raise RuntimeError(f"gate_cmd timed out after {proj['gate_timeout_s']} s; process group killed")
     counts = {}
@@ -6935,6 +6953,8 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
         except (ValueError, KeyError) as e:
             note = "; ".join(x for x in (note, f"unreadable shard summary: {e!r}") if x)
     status = "pass" if code == 0 else "fail"
+    if gate_fast(con, proj) and "FULL needed: rely on CI" in Path(log).read_text(errors="replace"):
+        note = "; ".join(x for x in (note, "no local tests ran (FULL needed): CI is the gate for this diff") if x)
     gate_finish(con, run_id, status, note or None, exit_code=code, **counts)
     if kind == "pr" and cfg(con, "gate_post_status") == "1":
         state = "success" if status == "pass" else "failure"
@@ -7013,7 +7033,7 @@ def gate_enqueue(con, proj, pr_url, sha=None):
         return r["id"]
     t = con.execute("SELECT id FROM tasks WHERE pr_url=?", (pr_url,)).fetchone()
     cur = con.execute("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,head_sha,status,cmd,actor,created) VALUES(?,?,?,'pr',?,'queued',?,?,?)",
-                      (proj["id"], t["id"] if t else None, pr_url, sha, proj["gate_cmd"], actor(), now()))
+                      (proj["id"], t["id"] if t else None, pr_url, sha, gate_cmd_for(con, proj), actor(), now()))
     event(con, "gate", str(cur.lastrowid), "gate-enqueued", f"pr {pr_url}")
     return cur.lastrowid
 
