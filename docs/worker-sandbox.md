@@ -39,7 +39,7 @@ qa and coder run with `rw_cwd=True` on a per-task clone (`git clone --shared`, o
 |---|---|
 | Read-write | the task's own clone (its `.git` included: commits, branches, `FETCH_HEAD`), `~/factory/db/`, the agent's `claude/` config dir, the private `$HOME` and `/tmp` tmpfs |
 | Read-only | `~/factory` including `~/factory/.git` (`config`, `hooks/`, `info/attributes`, `refs/`, `objects/`: every write fails with EROFS), the claude install, the agent's `bin/` and `gitconfig` |
-| Not visible | other tasks' clones (`~/factory/worktrees/` is masked; only the own clone is bound back), the owner's home, the user bus, the ssh-agent and multiplexer sockets |
+| Not visible | other tasks' clones (`~/factory/worktrees/` is masked; only the own clone is bound back), the owner's home, the user bus, the ssh-agent and multiplexer sockets (these are tested in `tests/test_workerbox.py`) |
 
 The clone reads the shared objects through `<clone>/.git/objects/info/alternates`, so `git cat-file` of an object that exists only in `~/factory/.git/objects` works. New objects are written to the clone, never to `~/factory/.git`. `git push` and `git fetch` authenticate with the `credential.https://github.com.helper` of the agent's `gitconfig` (`username=x-access-token`, `password=$GH_TOKEN`: the rw token for coder, the read-only one for qa). The reviewer profile is unchanged: its cwd is read-only.
 

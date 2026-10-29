@@ -91,7 +91,7 @@ print("GH_TOKEN set" if os.environ.get("GH_TOKEN") else "GH_TOKEN unset")
 
 def git(*args, cwd):
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "t",
-           "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_NOSYSTEM": "1"}
+           "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}  # no owner-level git config
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True, env=env).stdout.strip()
 
 
@@ -283,7 +283,7 @@ class CloneProfileTests(unittest.TestCase):
         (res,) = self.probe([{"op": "listdir", "path": str(self.fh / "worktrees")}])
         self.assertEqual(res["val"], [TASK])
         (res,) = self.probe([{"op": "listdir", "path": str(self.other)}])
-        self.assertFalse(res["ok"], res)
+        self.assertEqual(res.get("err"), "ENOENT", res)
 
     def test_the_clone_is_the_only_rw_path_beyond_db_and_claude_dir(self):
         """The gate is not weakened: coder/qa get exactly their clone writable, reviewer none."""
