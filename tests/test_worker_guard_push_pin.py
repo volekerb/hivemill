@@ -22,10 +22,16 @@ class PushPinTests(unittest.TestCase):
         self.wt = os.path.join(self.home, "worktrees", "G-018-T-0689")
         os.makedirs(os.path.join(self.home, ".git"))
         os.makedirs(os.path.join(self.home, "roles"))
-        os.makedirs(os.path.join(self.home, ".git", "worktrees", "G-018-T-0689"))
-        os.makedirs(self.wt)
-        with open(os.path.join(self.wt, ".git"), "w") as f:
-            f.write(f"gitdir: {self.home}/.git/worktrees/G-018-T-0689\n")
+        # a real clone under worktrees/ (own .git dir, not the live home) with a local bare origin
+        origin = os.path.join(self.tmp, "origin.git")
+        git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+        subprocess.run(git + ["init", "-q", "--bare", origin], check=True)
+        subprocess.run(git + ["init", "-q", "-b", "main", self.wt], check=True)
+        subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", "i"], cwd=self.wt, check=True)
+        subprocess.run(git + ["remote", "add", "origin", origin], cwd=self.wt, check=True)
+        subprocess.run(git + ["push", "-q", "origin", "main"], cwd=self.wt, check=True)
+        subprocess.run(git + ["fetch", "-q", "origin"], cwd=self.wt, check=True)
+        subprocess.run(git + ["checkout", "-q", "-b", f"factory/{TASK}"], cwd=self.wt, check=True)
 
     def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}"):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
@@ -40,7 +46,8 @@ class PushPinTests(unittest.TestCase):
         """True when the pin itself refused (its message names the exact allowed push)."""
         p = self.run_hook(cmd, **kw)
         return p.returncode == 2 and ("coders push exactly" in p.stderr or "git push:" in p.stderr
-                                      or "before push" in p.stderr or "GIT_CONFIG" in p.stderr)
+                                      or "before push" in p.stderr or "environment overrides" in p.stderr
+                                      or "by another name" in p.stderr)
 
     def test_refused_shapes(self):
         for cmd in (
@@ -57,7 +64,10 @@ class PushPinTests(unittest.TestCase):
             f"git push other {OWN}", f"git push https://example.com/x.git {OWN}", f"git push git@example.com:x/y.git {OWN}",
             f"git push --repo=https://example.com/x.git {OWN}",
             f"git -c push.default=matching push origin {OWN}", f"git -c remote.origin.pushurl=/x push origin {OWN}",
-            f"git --git-dir=/x push origin {OWN}", f"GIT_CONFIG_COUNT=1 git push origin {OWN}",
+            f"git --git-dir=/x push origin {OWN}", f"GIT_CONFIG_COUNT=1 git push origin {OWN}", f"GIT_DIR=/x git push origin {OWN}",
+            f"GIT_SSH_COMMAND=true git push origin {OWN}", f"GIT_EXEC_PATH=/x git push origin {OWN}",
+            "git send-pack /x HEAD:main", "git http-push http://x/ HEAD:main",
+            f"FACTORY_AGENT=coder-t-0001 git push origin HEAD:factory/t-0001",
             f"git push -o x origin {OWN}",
         ):
             with self.subTest(cmd=cmd):
@@ -72,13 +82,12 @@ class PushPinTests(unittest.TestCase):
         p = self.run_hook("git push origin HEAD:factory/t-0001", role="qa")
         self.assertNotIn("coders push exactly", p.stderr)
 
-    def test_allowed_form_passes_the_pin(self):
-        """The exact push is not refused by the pin (the fixture is no real repo, so only the pin is asserted)."""
+    def test_allowed_form_is_allowed(self):
+        """The exact push exits 0 (real clone + local bare origin) and the pin names no refusal."""
         for cmd in (f"git push origin {OWN}", f"git -C {self.wt} push origin {OWN}"):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
-                self.assertNotIn("coders push exactly", p.stderr)
-                self.assertNotIn("cannot tell this pane", p.stderr)
+                self.assertEqual(p.returncode, 0, p.stderr)
 
 
 if __name__ == "__main__":

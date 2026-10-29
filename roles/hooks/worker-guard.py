@@ -1700,14 +1700,16 @@ class Analyzer:
             if rest[i] != "-C" and "push" in rest[i + 1:]:
                 raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i < len(rest) and rest[i] in ("send-pack", "http-push"):
+            raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
         if i >= len(rest) or rest[i] != "push":
             return
         args = rest[i + 1:]
         m = re.fullmatch(r"coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
         if not m:
             raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
-        if any(a.split("=", 1)[0].startswith("GIT_CONFIG") for a in assigns):
-            raise Block("git push with GIT_CONFIG_* overrides is refused")
+        if any(a.split("=", 1)[0].startswith("GIT_") for a in assigns):
+            raise Block("git push with GIT_* environment overrides (GIT_CONFIG_*, GIT_DIR, GIT_SSH_COMMAND, ...) is refused")
         if args != ["origin", f"HEAD:factory/{m.group(1)}"]:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` (no other remote, refspec, "
                         "force, --all/--mirror/--tags/--delete or option)")
