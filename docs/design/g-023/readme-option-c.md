@@ -1,6 +1,6 @@
 # README option C: The loop
 
-> **Rationale.** Built for the curious reader who wants to understand why this is different from "one agent with subagents". The page is organised around the idea that nobody marks their own homework: a one-line pitch, a numbered walk through a change's life with a screenshot at each stage, then a comparison table. The phone-width screenshots show it works on a small screen. The trade-off is that install instructions come late and the page is opinionated; it sells the design more than the setup, so it links to the quickstart prominently up top.
+> **Rationale.** Built for the curious reader who wants to understand why this is different from "one agent with subagents". The page is organised around the idea that nobody marks their own homework: a one-line pitch, a numbered walk through a change's life with a screenshot at each stage, then a comparison table. The phone-width screenshots show it works on a small screen. The trade-off is that install instructions come late and the page is opinionated; it sells the design more than the setup, so it links to the setup guide prominently up top.
 
 <div align="center">
 
@@ -11,6 +11,7 @@
 Hivemill is a self-hosted factory of Claude Code agents with separate review, QA and a merge gate.
 
 [![CI](https://github.com/volekerb/hivemill/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/volekerb/hivemill/actions/workflows/tests.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
 [![Release](https://img.shields.io/github/v/release/volekerb/hivemill?include_prereleases&sort=semver)](https://github.com/volekerb/hivemill/releases)
 
@@ -20,7 +21,7 @@ Hivemill is a self-hosted factory of Claude Code agents with separate review, QA
 
 https://github.com/user-attachments/assets/7615b7c0-48b0-4b44-ad01-aacd7f692583
 
-## One change, five hands
+## One change, five steps
 
 ### 1. You ask
 
@@ -70,7 +71,7 @@ flowchart LR
 
 | | One session | Hand-run subagents | Hivemill |
 |---|---|---|---|
-| Who reviews | The author | If you remember | A separate reviewer and QA |
+| Who reviews | The author | Only if you remember to | A separate reviewer and QA |
 | Who merges | You | You | The judge, gated on verdicts |
 | Audit trail | A chat transcript | Whatever you wrote down | SQLite with an append-only log |
 
@@ -83,6 +84,10 @@ HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo bin/factory serve --bind 127.0.0.
 ```
 
 Seeded fictional data; no herdr or Claude needed. For the real install see [SETUP](../../SETUP.md).
+
+## Under the hood
+
+One SQLite file behind the `factory` CLI holds every goal, task and verdict. Hooks block each role from actions outside its job, and a ticker spawns agents when the box has room. See [lifecycle](../../lifecycle.md) and [db-layout](../../db-layout.md).
 
 ## Good to know
 

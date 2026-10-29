@@ -1,6 +1,6 @@
-# README option B: Docs-first
+**README option B: Docs-first**
 
-> **Rationale.** Built for an engineer who is evaluating the project and wants answers fast: what is it, how do I run it, how is it put together. It opens with a compact header, a one-line summary and a table of contents, shows a small screenshot strip, and puts the quickstart before anything else. The trade-off is that it looks plainer and tells less of a story; the video moves down the page. It is the closest to today's README, only tighter, and the easiest to keep accurate.
+> **Rationale.** Built for an engineer who is evaluating the project and wants answers fast: what is it, how do I run it, how is it put together. It opens with a compact header, a one-line summary and a table of contents, shows a small screenshot strip, and puts the quickstart right after a four-line summary of what it does. The trade-off is that it looks plainer and tells less of a story; the video moves down the page. It is the closest to today's README, only tighter, and the easiest to keep accurate.
 
 # Hivemill
 
@@ -10,10 +10,6 @@
 [![Release](https://img.shields.io/github/v/release/volekerb/hivemill?include_prereleases&sort=semver)](https://github.com/volekerb/hivemill/releases)
 
 **A self-hosted software factory of Claude Code agents, with review, QA and a judge merge gate.** The CLI is `factory`.
-
-| Quickstart | Architecture | Web UI | Docs | Security |
-|:--|:--|:--|:--|:--|
-| [Run it](#quickstart) | [How it fits](#architecture) | [Screenshots](#web-ui) | [Index](../../README.md) | [Threat model](../../../SECURITY.md) |
 
 - [What it does](#what-it-does)
 - [Quickstart](#quickstart)

@@ -36,10 +36,18 @@ https://github.com/user-attachments/assets/7615b7c0-48b0-4b44-ad01-aacd7f692583
 
 You describe what you want built to one boss agent. A director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The agent that writes a change never reviews, tests or merges it.
 
-| | | |
-|:--|:--|:--|
-| **Fixed roles**<br>Each role has its own prompt and permissions, enforced by hooks. | **Independent review**<br>A separate reviewer and QA check every pull request. | **A judge merges**<br>Only on passing reviewer and QA verdicts. |
-| **One source of truth**<br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log. | **Small-box friendly**<br>A spawn gate queues agents until RAM and load allow. | **A read-only web UI**<br>Goals, agents, throughput and quality, light and dark. |
+<table>
+  <tr>
+    <td width="33%"><b>Fixed roles</b><br>Each role has its own prompt and permissions, enforced by hooks.</td>
+    <td width="33%"><b>Independent review</b><br>A separate reviewer and QA check every pull request.</td>
+    <td width="33%"><b>A judge merges</b><br>Only on passing reviewer and QA verdicts.</td>
+  </tr>
+  <tr>
+    <td><b>One source of truth</b><br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log.</td>
+    <td><b>Small-box friendly</b><br>A spawn gate queues agents until RAM and load allow.</td>
+    <td><b>A read-only web UI</b><br>Goals, agents, throughput and quality, light and dark.</td>
+  </tr>
+</table>
 
 ## Quickstart
 
