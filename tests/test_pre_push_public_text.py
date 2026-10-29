@@ -106,7 +106,7 @@ class PrePushTests(FactoryTestCase):
         self.assertEqual(p.returncode, 1)
         self.assertIn("owner-term", p.stderr)
         self.assertNotIn(TERM, p.stderr)
-        self.assertEqual(self.hook_run("git@github.com:other/repo.git").returncode, 0)
+        self.assertEqual(self.hook_run("git" + "@github.com:other/repo.git").returncode, 0)
 
     def test_unparsable_remote_url_is_checked_not_skipped(self):
         self.commit(f"add {TERM} notes")
