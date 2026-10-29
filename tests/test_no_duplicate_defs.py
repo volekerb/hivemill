@@ -15,7 +15,7 @@ ALLOW = set()
 
 
 def scan_files():
-    files = [os.path.join(ROOT, "bin", "factory")]
+    files = [os.path.join(ROOT, "bin", "factory_cli.py")]
     for d in SCAN_DIRS:
         for dirpath, dirnames, filenames in os.walk(os.path.join(ROOT, d)):
             dirnames[:] = sorted(n for n in dirnames if n != "__pycache__")
@@ -74,7 +74,7 @@ def find_duplicates(source, filename="<src>"):
 class NoDuplicateDefs(unittest.TestCase):
     def test_scan_covers_files(self):
         files = scan_files()
-        self.assertTrue(os.path.exists(files[0]), "bin/factory missing")
+        self.assertTrue(os.path.exists(files[0]), "bin/factory_cli.py missing")
         self.assertGreater(len(files), 20, "scan found too few files: %d" % len(files))
 
     def test_no_duplicate_defs_in_repo(self):

@@ -11,6 +11,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "ci"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import envcheck  # noqa: E402
 
 import demo_cdp  # noqa: E402
 import demo_record  # noqa: E402
@@ -152,11 +154,13 @@ class CliTests(unittest.TestCase):
         r = self.run_cli("--scene", "hook", "--out", str(REPO / "docs/demo/out/x"), "--work", "/tmp/w")
         self.assertEqual(r.returncode, 3, r.stderr)
 
+    @envcheck.skip_on_ram()
     def test_ui_scene_rejected_exit_2(self):
         r = self.run_cli("--scene", "tour", "--out", str(REPO / "docs/demo/out/x"), "--browser", "/nonexistent")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("web UI tour", r.stderr)
 
+    @envcheck.skip_on_ram()
     def test_unknown_scene_exit_2(self):
         r = self.run_cli("--scene", "nope", "--out", str(REPO / "docs/demo/out/x"))
         self.assertEqual(r.returncode, 2, r.stderr)
@@ -194,6 +198,7 @@ class LaunchCleanupTests(unittest.TestCase):
             if proc not in self.before:
                 demo_cdp.stop(proc)
 
+    @envcheck.skip_on_ram()
     def test_work_none_never_uses_tmp(self):
         default = self.tmp / "default-work"
         old = demo_cdp.DEFAULT_WORK
@@ -234,6 +239,7 @@ class LaunchCleanupTests(unittest.TestCase):
         self.assertEqual(spawned, [])
         self.assertEqual(list(self.tmp.glob("profile-*")), [])
 
+    @envcheck.skip_on_ram()
     def test_main_sweeps_children_when_launch_never_returns(self):
         spawned = []
 
