@@ -88,7 +88,7 @@ def userns_available(unshare="unshare"):
     return True, "ok"
 
 
-SUB_UID, SUB_GID = 1, 0  # subuid mode: the box runs as inside uid 1 (a host uid from the /etc/subuid range) and inside gid 0 (the owner's group)
+SUB_UID, SUB_GID = 1, 1  # subuid mode: the box runs as inside uid/gid 1 = host ids from the /etc/subuid and /etc/subgid ranges; no owner group
 
 
 def _subid_range(path, user, uid):
@@ -136,12 +136,12 @@ def _expand(entry, home, runtime):
 def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs=HIDE_DIRS, hide_files=HIDE_FILES,
              vendor_dir=None, keep=(), net=False, forward=False, unshare="unshare", cwd=None, *,
              mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None,
-             run_mask=True, subuid=False):
+             run_mask=True, subuid=False, copy=None):
     """Everything setup needs, as plain JSON-able data with absolute paths.
 
     The keyword-only args are the allow-list mode (docs/scout-nsbox.md#allow-list-mode). At their defaults the dict
     is exactly the deny-mode dict of old: the extra keys (mode, rw, ro, masks, pid, tmpfs_size, tmpfs_sizes) appear only
-    when non-default. `subuid=True` runs the box as a subordinate host uid (see compose_stage1); allow mode only. `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
+    when non-default. `subuid=True` runs the box as a subordinate host uid (see compose_stage1); allow mode only. `copy` ({"tree", "size", "mkdirs"}, subuid only) replaces the tree with a private tmpfs copy owned by the box uid (see _copy_tree). `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
     (or mask) to its own size; tmpfs is memory-backed, so keep them small. In allow mode /run is masked too (see
     RUN_MASK) unless `run_mask=False`."""
     if not _size_ok(tmpfs_size) or any(not _size_ok(v) for v in (tmpfs_sizes or {}).values()):
@@ -212,6 +212,13 @@ def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs
         if mode != "allow":
             raise ValueError("subuid needs mode='allow'")
         cfg["subuid"] = True
+        if copy:
+            cfg["copy"] = {"tree": os.path.abspath(copy["tree"]), "size": str(copy["size"]),
+                           "mkdirs": [os.path.abspath(d) for d in copy.get("mkdirs", [])]}
+            if not _size_ok(cfg["copy"]["size"]):
+                raise ValueError(f"copy size must be like 512m, got {copy['size']!r}")
+    elif copy:
+        raise ValueError("copy needs subuid=True")
     return cfg
 
 
@@ -516,6 +523,47 @@ def _settle_cwd(cfg, want, dirs, keeps):
         os.chdir(fallback)
 
 
+def tree_bytes(path):
+    """Bytes of the regular files under `path` (links not followed); sizes the tmpfs copy."""
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                st = os.lstat(os.path.join(root, f))
+            except FileNotFoundError:
+                continue
+            total += st.st_size if stat.S_ISREG(st.st_mode) else 0
+    return total
+
+
+def _copy_tree(cfg):
+    """Subuid mode: put a private tmpfs over the tree, fill it from the read-only original, and give it to the box uid.
+    Nothing the run writes reaches the host, and no host file owned by the owner is writable from the box. The old view
+    stays reachable through the fd opened before the tmpfs goes on. Any failure exits non-zero before exec."""
+    c = cfg["copy"]
+    tree = c["tree"]
+    try:
+        src_fd = _open_target(tree)
+        dst_fd = _open_target(tree)
+    except OSError as e:
+        sys.exit(f"nsbox: copy of {tree} failed: {e}")
+    try:
+        _mount("tmpfs", f"/proc/self/fd/{dst_fd}", "tmpfs", 0, f"mode=0755,uid={SUB_UID},gid={SUB_GID},size={c['size']}")
+        def keep(_d, names):  # sockets, fifos and devices are not copied
+            return [n for n in names if not (stat.S_ISREG(m := os.lstat(os.path.join(_d, n)).st_mode) or stat.S_ISDIR(m) or stat.S_ISLNK(m))]
+        shutil.copytree(f"/proc/self/fd/{src_fd}", tree, symlinks=True, dirs_exist_ok=True, ignore=keep)
+        for d in c["mkdirs"]:
+            os.makedirs(d, exist_ok=True)
+        for root, dirs, files in os.walk(tree):
+            for n in [*dirs, *files]:
+                os.lchown(os.path.join(root, n), SUB_UID, SUB_GID)
+    except (OSError, shutil.Error) as e:
+        sys.exit(f"nsbox: copy of {tree} into the private tmpfs failed: {e}; the command was not run")
+    finally:
+        os.close(src_fd)
+        os.close(dst_fd)
+
+
 def setup(cfg, args):
     if not cfg["net"]:
         _lo_up()
@@ -526,6 +574,8 @@ def setup(cfg, args):
     except OSError:
         want = None
     dirs, keeps = _allow_view(cfg) if cfg.get("mode", "deny") == "allow" else _hide_and_keep(cfg)
+    if cfg.get("copy"):
+        _copy_tree(cfg)
     _settle_cwd(cfg, want, dirs, keeps)
     for k in cfg["scrub"]:
         os.environ.pop(k, None)

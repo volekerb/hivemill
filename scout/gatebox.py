@@ -76,12 +76,22 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     try:
         for d in rw:
             os.makedirs(d, exist_ok=True)
-            if subuid:
-                os.chmod(d, os.stat(d).st_mode | 0o070)  # the box is another host uid in the owner's group
     except OSError as e:
         raise GateboxError(f"gatebox: cannot create {e.filename}: {e.strerror}; fix wt_root, the command was not run") from e
     rw = [tree, *(os.path.realpath(d) for d in rw)]  # the gate tree is a throwaway detached checkout: tests write into it
-    ro = [main]
+    box = f"{tree}/.factory-box"  # subuid mode: scratch inside the in-box copy of the tree (TMPDIR, FACTORY_HOME, reports)
+    copy = None
+    if subuid:  # no host path is writable: the tree is bound read-only and copied into a tmpfs the box's uid owns
+        try:
+            size = nsbox.tree_bytes(tree)
+        except OSError as e:
+            raise GateboxError(f"gatebox: cannot size the tree {tree}: {e.strerror}; the command was not run") from e
+        copy = {"tree": tree, "mkdirs": [f"{box}/{d}" for d in ("reports", "factory-home", "tmp", "tmp/pycache")],
+                "size": f"{(size * 2 >> 20) + 128}m"}
+        ro_tree, rw = [tree], []
+    else:
+        ro_tree = []
+    ro = [main, *ro_tree]
     common = _git_common_dir(tree)
     if not _under(common, main):
         ro.append(common)  # hooks, config, refs, objects: read-only even when it sits inside the rw tree
@@ -92,11 +102,11 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     hide = [home, runtime, *HIDE_TMP]
     try:
         cfg = nsbox.make_cfg(f"{wt}/reports", None, home, mode="allow", net=False, pid=True, unshare=unshare,
-                             hide_dirs=hide, hide_files=(), rw=rw, ro=ro, masks=masks, cwd=tree, subuid=subuid,
+                             hide_dirs=hide, hide_files=(), rw=rw, ro=ro, masks=masks, cwd=tree, subuid=subuid, copy=copy,
                              tmpfs_sizes={d: s for d, s in TMPFS_SIZES.items() if os.path.isdir(d)})
     except ValueError as e:
         raise GateboxError(f"gatebox: {e}") from e
-    return nsbox.compose_stage1(cfg, ["bash", "-c", cmd]), make_env(env, main, wt, home)
+    return nsbox.compose_stage1(cfg, ["bash", "-c", cmd]), make_env(env, main, box if subuid else wt, home)
 
 
 def run(cmd, tree, factory_main, wt_root, env, timeout=600, **kw):

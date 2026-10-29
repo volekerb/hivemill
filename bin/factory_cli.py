@@ -7859,7 +7859,7 @@ def cmd_test(a):
     subuid = sv == "1"
     tree, scratch = os.getcwd(), None
     try:
-        scratch = testbox.new_scratch(tree, subuid=subuid)
+        scratch = testbox.new_scratch(tree)
         argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
                                   runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     except testbox.TestboxError as e:

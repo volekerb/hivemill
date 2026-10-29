@@ -26,14 +26,10 @@ class TestboxError(RuntimeError):
     __test__ = False
 
 
-def new_scratch(tree, subuid=False):
-    """A fresh disk-backed per-run dir under `tree`; the caller removes it with cleanup(). With `subuid` the box runs as
-    another host uid in the owner's group, so the dir is group-writable (mkdtemp makes it 0700)."""
+def new_scratch(tree):
+    """A fresh disk-backed per-run dir under `tree`; the caller removes it with cleanup()."""
     try:
-        d = tempfile.mkdtemp(prefix=".factory-test-", dir=os.path.realpath(tree))
-        if subuid:
-            os.chmod(d, 0o770)
-        return d
+        return tempfile.mkdtemp(prefix=".factory-test-", dir=os.path.realpath(tree))
     except OSError as e:
         raise TestboxError(f"testbox: cannot create the scratch dir under {tree}: {e.strerror}; the command was not run") from e
 
