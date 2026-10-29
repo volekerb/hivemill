@@ -59,16 +59,24 @@ def _finish(con, api, run_id, status, reason=None, session=None):
         _count(con, run_id)
 
 
+NEVER_SPAWNED = ("spawn failed", "claimed but never spawned", "scout agent row missing")
+
+
 def _count(con, run_id):
     """Store the counts of candidates first seen and triage rows created in the run's [started, ended] window.
     The bounds are made explicit-UTC here (a naive stamp is local time) and julianday() compares across offsets;
-    a skipped run (never started) keeps NULL."""
-    run = con.execute("SELECT started, ended FROM scout_runs WHERE id=? AND status IN ('done','stopped','failed') "
+    the window opens at the earlier of the run's and the agent's started (a run queued and dequeued in one tick is
+    stamped late). A skipped run, and a failed run that was never spawned, keep NULL."""
+    run = con.execute("SELECT started, ended, stop_reason FROM scout_runs WHERE id=? AND status IN ('done','stopped','failed') "
                       "AND new_candidates IS NULL", (run_id,)).fetchone()
     end = _ts(run["ended"]) if run else None
     if end is None:
         return
-    start = _ts(run["started"]) or end
+    if run["started"] is None and (run["stop_reason"] or "").startswith(NEVER_SPAWNED):
+        return
+    agent = con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
+    starts = [t for t in (_ts(run["started"]), _ts(agent["started"]) if agent else None) if t is not None and t <= end]
+    start = min(starts, default=end)
     lo, hi = (x.astimezone(dt.timezone.utc).isoformat() for x in (start, end))
     n = con.execute("SELECT COUNT(*) FROM scout_candidates WHERE julianday(first_seen) BETWEEN julianday(?) AND julianday(?)",
                     (lo, hi)).fetchone()[0]

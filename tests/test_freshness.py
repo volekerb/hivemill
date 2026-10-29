@@ -221,13 +221,52 @@ class CheckoutTests(FreshBase):
 
 
 class RobustnessAndDigestTests(FreshBase):
-    def test_unreadable_prompt_file_records_an_event_and_the_tick_still_exports(self):
+    def test_unreadable_prompt_file_is_reason_unreadable_and_the_others_are_still_checked(self):
         self.agent("zz-test-lead", "lead", goal="G-001", team="g-001-a", prompt=False)
         (self.env.home_dir / "run" / "zz-test-lead.prompt.md").mkdir()  # reading it raises IsADirectoryError
+        self.agent("zz-test-qa", "qa", goal="G-001")
+        self.touch("settings/qa.json.in")
+        exported = self.env.home_dir / "exports" / "INDEX.md"
+        exported.unlink()  # only this tick's export can bring it back
         p = self.ok("tick")
-        rows = self.env.sql("SELECT detail FROM events WHERE action='freshness-failed'")
-        self.assertEqual(len(rows), 1, p.stderr)
-        self.assertTrue((self.env.home_dir / "exports" / "INDEX.md").is_file())
+        self.assertEqual({e["name"]: e["reasons"] for e in self.stale_events()},
+                         {"zz-test-lead": ["unreadable"], "zz-test-qa": ["settings"]}, p.stderr)
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='freshness-failed'"), [])
+        self.assertTrue(exported.is_file())
+
+    def failing_check(self, text):
+        """Make every dedupe-state write of the check fail with `text`: a failure that is not about one agent's files, repeating each tick."""
+        self.env.sql("DROP TRIGGER IF EXISTS fresh_boom")
+        self.env.sql(f"CREATE TRIGGER fresh_boom BEFORE INSERT ON throttle WHEN NEW.key LIKE 'fresh:%' "
+                     f"BEGIN SELECT RAISE(ABORT, '{text}'); END")
+
+    def failure_events(self, action):
+        return [r["detail"] for r in self.env.sql("SELECT detail FROM events WHERE action=? ORDER BY id", (action,))]
+
+    def test_same_failure_on_three_ticks_is_one_event_and_clearing_is_one_event(self):
+        self.agent("zz-test-qa", "qa", goal="G-001")
+        self.touch("settings/qa.json.in")
+        self.failing_check("boom one")
+        for _ in range(3):
+            self.ok("tick")
+        self.assertIn("boom one", self.failure_events("freshness-failed")[0])
+        self.assertEqual(len(self.failure_events("freshness-failed")), 1)
+        self.failing_check("boom two")  # a new error text is a new event
+        self.ok("tick")
+        self.assertEqual(len(self.failure_events("freshness-failed")), 2)
+        self.env.sql("DROP TRIGGER fresh_boom")
+        self.ok("tick")
+        self.ok("tick")
+        self.assertEqual(len(self.failure_events("freshness-recovered")), 1)
+        self.assertEqual(len(self.failure_events("freshness-failed")), 2)
+
+    def test_digest_without_a_goal_block_still_has_the_freshness_line(self):
+        self.env.sql("DELETE FROM teams")
+        self.env.sql("DELETE FROM goals")
+        self.ok("tick")
+        out = self.ok("digest").stdout
+        self.assertIn("_no active goals_", out)
+        self.assertIn("\nFreshness: all current\n", out)
 
     def test_digest_line_all_current_then_names_the_stale_agent(self):
         self.agent("zz-test-lead", "lead", goal="G-001", team="g-001-a")
