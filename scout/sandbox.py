@@ -1,7 +1,7 @@
 """Evaluator trial sandbox (G-009 T8a): the on-disk layout of one skill trial and the fail-closed checks around it.
 
 SECURITY CODE. `build_sandbox` creates <skilleval_root>/trials/<trial-id>/ with work/ (the task repo, a fresh git
-repo), fh/ (a temp FACTORY_HOME with its own DB), home/ (empty HOME), cfg/ (CLAUDE_CONFIG_DIR), role/ (read-only
+repo), fh/ (a temp FACTORY_HOME with its own DB), home/ (HOME holding only a comment-only rc file), cfg/ (CLAUDE_CONFIG_DIR), role/ (read-only
 claude settings + system prompt, written by spawn), bin/claude (the nsbox shim) and a read-only factory CLI snapshot.
 The evaluator only ever runs through that shim (nsbox allow-list view: the real home, the runtime dir, /tmp and
 /dev/shm are hidden; only the trial dir, the one vendored plugin and the claude install are bound back).
@@ -34,6 +34,9 @@ EVAL_AGENT_ROLE = "evaluator"
 SEED_GOAL, SEED_TASK = "G-001", "T-0001"
 DEAD_SOCKET = "/proc/nonexistent/eval.sock"
 PREFLIGHT_TIMEOUT_S = 30
+
+# An empty HOME makes interactive zsh run zsh-newuser-install, which eats the first key of the pane launch line.
+HOME_RC = (".zshrc", "# factory skilleval trial: suppress zsh-newuser-install\n")
 
 # The one seed for <trial>/cfg/.claude.json (plan v3 §7.5, M1613). Add only keys a startup dialog demands.
 CLAUDE_JSON_SEED = {"hasCompletedOnboarding": True, "theme": "dark", "projects": {}}
@@ -170,6 +173,8 @@ def build_sandbox(con, trial, root, *, home=None, real_claude=None, token_file=N
     try:
         for sub in ("work", "fh", "home", "cfg", "role", "bin"):
             (d / sub).mkdir(parents=True)
+        (d / "home" / HOME_RC[0]).write_text(HOME_RC[1])
+        os.chmod(d / "home" / HOME_RC[0], 0o644)
         shutil.copytree(task_dir / "repo", d / "work", dirs_exist_ok=True)  # data only; nothing is run
         _git(d / "work", "init", "-q")
         _git(d / "work", "config", "user.name", "eval")
