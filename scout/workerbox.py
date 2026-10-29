@@ -14,6 +14,7 @@ agent_dir/claude is followed through a symlink. Every ~ is resolved from the pas
 import json
 import os
 import re
+import shlex
 import stat
 import subprocess
 import sys
@@ -21,10 +22,10 @@ import tempfile
 from pathlib import Path
 
 try:
-    from scout import nsbox
+    from scout import ghcred, nsbox
 except ImportError:  # run as a script by path
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from scout import nsbox
+    from scout import ghcred, nsbox
 
 SANDBOXABLE = {"reviewer", "qa", "coder"}  # pm's cwd is ~/factory, which the cwd rule refuses (plan 7.5: documented)
 SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
@@ -53,7 +54,6 @@ WORKER_ENV_PASS = ("PATH", "LANG", "TERM", *nsbox.CLAUDE_ENV_PASS,
 TMP_SIZE, HOME_SIZE = "512m", "64m"
 KEEP_ENV = ("CLAUDE_CODE_OAUTH_TOKEN", "GH_TOKEN")  # exempt from nsbox's scrub list (net=True, forward=False)
 
-GH_HELPER = '!f(){ echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
 SEED = {"hasCompletedOnboarding": True, "theme": "dark", "projects": {}}
 PROJECT_SEED = {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True}
 CLAUDE_JSON_MAX = 16 << 20  # a larger .claude.json is refused, never truncated and reseeded (worker state would be lost)
@@ -180,13 +180,23 @@ def _q(value):
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def render_gitconfig(name=None, email=None):
+def gh_helper(repo, slugs):
+    """The scoped git credential helper (scout/ghcred.py, the one unsandboxed workers use): answers only for `slugs`,
+    with $GH_TOKEN, which stays in the sandbox env."""
+    slugs = list(slugs or ())
+    if not slugs or not all(ghcred.SLUG_RE.fullmatch(s) for s in slugs):
+        raise ValueError(f"worker gh repos must be OWNER/NAME slugs, got {slugs!r}; set config worker_gh_repos")
+    script = os.path.join(str(repo), "scout", "ghcred.py")
+    return f"!{shlex.quote(sys.executable)} -I {shlex.quote(script)} git-credential {shlex.quote(','.join(slugs))}"
+
+
+def render_gitconfig(helper, name=None, email=None):
     out = ["[user]"] if name or email else []
     if name:
         out.append(f"\tname = {_q(name)}")
     if email:
         out.append(f"\temail = {_q(email)}")
-    out += ['[credential "https://github.com"]', f"\thelper = {_q(GH_HELPER)}"]
+    out += ["[credential]", "\tuseHttpPath = true", '[credential "https://github.com"]', f"\thelper = {_q(helper)}"]
     return "\n".join(out) + "\n"
 
 
@@ -257,13 +267,16 @@ def check_cwd(agent, cwd, factory_home, *, home=None, token_dir=None, workers_ro
 
 
 def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home=None, token_dir=None,
-                  workers_root=None, runtime=None, hide_extra=(), identity=None, repo=None):
+                  workers_root=None, runtime=None, hide_extra=(), identity=None, repo=None, gh_token_path=None, gh_slugs=None):
     """Create/refresh <workers_root>/<agent> and return it. See the module doc.
 
     The keyword-only args are test seams; HQ passes none of them: home defaults to the passwd home, token_dir to
     <home>/.config/factory, workers_root to <home>/.local/state/factory/workers, runtime to /run/user/<uid>.
     `hide_extra` adds tmpfs trees on top of the fixed four; `identity` is (user.name, user.email).
-    `repo` pins the checkout the shim imports from (HQ passes factory_home); default: the checkout this file is in."""
+    `repo` pins the checkout the shim imports from (HQ passes factory_home); default: the checkout this file is in.
+    `gh_token_path` is the role's token file from config gh_token_ro / gh_token_rw (default: the fixed file of the role
+    in token_dir); `gh_slugs` is the OWNER/NAME list the credential helper answers for (config worker_gh_repos): without
+    it there is no helper and the call is refused."""
     check_agent_name(agent)
     if role not in SANDBOXABLE:
         raise ValueError(f"role {role!r} is not sandboxable; one of {sorted(SANDBOXABLE)}")
@@ -284,8 +297,10 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
         d.mkdir(mode=0o700, exist_ok=True)
         if d.is_symlink() or d.stat().st_uid != os.getuid():
             raise ValueError(f"{d} must be a real directory owned by uid {os.getuid()}")
+    repo = Path(repo).resolve() if repo else Path(__file__).resolve().parent.parent
+    helper = gh_helper(repo, gh_slugs)
     name, email = identity if identity is not None else owner_identity(home)
-    _atomic_write(str(agent_dir), "gitconfig", render_gitconfig(name, email).encode(), 0o644)  # before make_cfg: it refuses a symlink there
+    _atomic_write(str(agent_dir), "gitconfig", render_gitconfig(helper, name, email).encode(), 0o644)  # before make_cfg: it refuses a symlink there
     cfg = make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, home=home, runtime=runtime,
                    hide_extra=hide_extra)
     config_dir = agent_dir / "claude"
@@ -293,9 +308,8 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     cfd = _open_dir(str(config_dir))  # symlink / foreign owner => refuse, before anything is written below it
     os.close(cfd)
     shim_cfg = {"ns": cfg, "home": home, "config_dir": str(config_dir), "gitconfig": f"{agent_dir}/gitconfig",
-                "oauth_token": p["oauth"], "gh_token": p[_GH_KEY[role]],
+                "oauth_token": p["oauth"], "gh_token": gh_token_path or p[_GH_KEY[role]],
                 "role": role}
-    repo = Path(repo).resolve() if repo else Path(__file__).resolve().parent.parent
     shim = SHIM.format(python=sys.executable, repo=str(repo), cfg=json.dumps(shim_cfg))
     _atomic_write(str(agent_dir / "bin"), "claude", shim.encode(), 0o755)
     _seed_claude_json(str(config_dir), cfg["cwd"])
