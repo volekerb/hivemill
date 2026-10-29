@@ -60,7 +60,27 @@
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(factory judge * --merge *)",
+      "Bash(factory judge * --reject *)",
+      "Bash(factory task show *)",
+      "Bash(factory inbox)",
+      "Bash(factory inbox *)",
+      "Bash(factory done *)",
+      "Bash(factory gate show *)",
+      "Bash(git merge-base --is-ancestor origin/main *)",
+      "Bash(git fetch origin)"
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Organization: single-owner AI agent factory on one Proxmox VM; agents run unattended overnight while the owner sleeps.",
+      "Org-specific CLIs: `factory` (~/factory/bin/factory) is the factory's trusted orchestration CLI. It enforces role permissions, owner caps, the resource spawn gate and the head-SHA merge gate itself. `factory spawn` is the only sanctioned way to start agents."
+    ],
+    "allow": [
+      "$defaults",
+      "Factory merge gate: the judge running `factory judge <task> --merge|--reject --reason \u2026` is routine and allowed; the CLI performs the squash-merge with its own checks."
     ]
   },
   "env": {
