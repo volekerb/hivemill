@@ -124,7 +124,7 @@ class ProfileTests(Fixture):
         self.assertNotEqual(cfg.get("pid"), False)
         self.assertEqual(sorted(cfg["rw"]), sorted([str(self.tree), *(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp"))]))
         resolve = ["/run/systemd/resolve"] if os.path.isdir("/run/systemd/resolve") else []  # DNS stub, ro (T-0673)
-        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git"), *resolve]))
+        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git"), str(self.tree / ".git"), *resolve]))  # tree is a worktree: its .git pointer file is ro
         self.assertEqual(sorted(cfg["masks"]), sorted(f"{self.main}/{d}" for d in gatebox.MASKED))
         self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm", "/run"]))  # /var/tmp is patched out here
         self.assertEqual(argv[-3:], ["bash", "-c", "true"])

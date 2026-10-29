@@ -257,6 +257,20 @@ class SkillevalOutputTests(FactoryTestCase):
             self.assertNotIn(rest, out)
             self.assertIn("[redacted-token]", out)
 
+    def test_replacement_and_format_chars_inside_a_token_are_stripped_in_results_and_list(self):
+        rest = "A" * 30
+        d = self.trial("error", "fix-bug", lines=[], rc=3)
+        (d / "log" / "start.log").write_bytes(
+            b"boom sk-ant-\xff" + rest.encode() + b"\nx sk-ant-\xe2\x80\x8b" + rest.encode() + b"\ny sk-ant-\xef\xbb\xbf"
+            + rest.encode() + b"\nz sk-ant-\xe2\x81\xa0" + rest.encode() + b"\ntab\there\nrc=3\n")
+        for out in self.outputs():
+            self.assertNotIn("sk-ant-", out)
+            self.assertNotIn(rest, out)
+            self.assertNotIn("\ufffd", out)
+            self.assertNotIn("\u200b", out)
+            self.assertIn("[redacted-token]", out)
+            self.assertIn("tab\there", out)
+
     def test_c1_controls_are_not_displayed(self):
         self.trial("error", "fix-bug", lines=["a\x9bb\x85c\x80d\x9fe"], rc=3)
         for out in self.outputs():

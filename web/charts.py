@@ -50,9 +50,9 @@ def _day(iso):
     return iso[5:10] if len(iso) >= 10 else iso
 
 
-def _data_table(points, label, caption):
+def _data_table(points, label, caption, unit="day"):
     rows = [el("tr", el("td", d), el("td", n)) for d, n in points]
-    return el("table", el("caption", caption), el("thead", el("tr", el("th", "Day", scope="col"), el("th", label.capitalize(), scope="col"))),
+    return el("table", el("caption", caption), el("thead", el("tr", el("th", unit.capitalize(), scope="col"), el("th", label.capitalize(), scope="col"))),
               el("tbody", rows), class_="sr-only")
 
 
@@ -87,10 +87,10 @@ def gauge(label, value_text, pct, thresholds, zone, caption=None):
               el("span", value_text, sub, class_="gv"), class_="gauge-row")
 
 
-def _summary(points, label):
+def _summary(points, label, unit="day"):
     total = sum(n for _, n in points)
     peak = max((n for _, n in points), default=0)
-    text = f"{total:g} {label} in {len(points)} days"
+    text = f"{total:g} {label} in {len(points)} {unit}s"
     if peak > 0:
         day = [d for d, n in points if n == peak][-1]
         text += f", peak {peak:g} on {_day(day)}"
@@ -115,10 +115,11 @@ def sparkline(points, label, caption="per day"):
               el("span", caption, class_="spark-cap"), class_="spark-wrap")
 
 
-def columns(points, label, height=96):
+def columns(points, label, height=96, unit="day"):
     """C10: one <rect> per day, each with a <title> holding its exact value; value labels on non-zero bars when there
     are 14 days or fewer; an x label every 7th day. Empty data (no points, or all zero) gives the calm C14 line
-    "No <label> in this range" instead of an empty axis."""
+    "No <label> in this range" instead of an empty axis. `unit` names what one bar is ("day" or "week") in the aria-label
+    and the data table."""
     points = list(points)
     if not points or not any(v for _, v in points):
         return empty_state(f"No {label} in this range")
@@ -137,5 +138,5 @@ def columns(points, label, height=96):
         if i % 7 == 0:
             texts.append(el("text", _day(day), class_="col-x", x=_num(x + (COL_W - 8) / 2), y=height - 3, text_anchor="middle"))
     svg = _svg([*bars, *texts], f"0 0 {n * COL_W} {height}", width=n * COL_W, height=height, role="img", focusable="false",
-               **{"aria-label": _summary(points, label)}, **{"class": "cols"})
-    return el("div", svg, _data_table(points, label, f"{label.capitalize()} per day, last {n} days"), class_="cols-wrap")
+               **{"aria-label": _summary(points, label, unit)}, **{"class": "cols"})
+    return el("div", svg, _data_table(points, label, f"{label.capitalize()} per {unit}, last {n} {unit}s", unit), class_="cols-wrap")
