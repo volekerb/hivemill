@@ -32,10 +32,23 @@ except ImportError:  # run as a script by path (stage 1 setup, python -I): egres
 
 HIDE_DIRS = ("~/.claude", "~/.config", "~/.ssh", "~/.gnupg", "~/factory", "$XDG_RUNTIME_DIR")
 HIDE_FILES = ("~/.git-credentials", "~/.netrc")
-# allow mode masks all of /run (container-engine socket, ssh-unix-local/socket, the user bus); only these come back,
-# read-only: /etc/resolv.conf links to /run/systemd/resolve/stub-resolv.conf, so DNS in a net=True profile needs that dir
+# allow mode masks all of /run (container-engine socket, ssh-unix-local/socket, the user bus); only the dir that holds
+# the real /etc/resolv.conf comes back, read-only (systemd-resolved, resolvconf, NetworkManager: whichever the host uses)
 RUN_MASK = "/run"
-RUN_KEEP_RO = ("/run/systemd/resolve",)
+
+
+def run_keep_ro(resolv_path="/etc/resolv.conf"):
+    """Dirs to bind back read-only inside the /run mask so DNS keeps working: the parent of resolv_path's real path,
+    only when that is a directory strictly under /run. /run itself and /run/user/* are never re-exposed."""
+    real = os.path.realpath(resolv_path)
+    parent = os.path.dirname(real)
+    if not real.startswith(RUN_MASK + "/") or parent == RUN_MASK:
+        return ()
+    if parent == RUN_MASK + "/user" or parent.startswith(RUN_MASK + "/user/"):
+        return ()
+    return (parent,)
+
+
 TOKEN_FILE = "~/.config/factory/eval-oauth-token"
 NO_TOKEN_MSG = "owner decision D3 pending: no eval token"
 SCRUB_ENV = ("SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS")
@@ -88,6 +101,47 @@ def userns_available(unshare="unshare"):
     return True, "ok"
 
 
+SUB_UID, SUB_GID = 1, 1  # subuid mode: the box runs as inside uid/gid 1 = host ids from the /etc/subuid and /etc/subgid ranges; no owner group
+
+
+def _subid_range(path, user, uid):
+    """(start, count) of the largest `name:start:count` line of /etc/subuid or /etc/subgid for this user (by name or
+    number); (0, 0) when there is none or the file is unreadable."""
+    best = (0, 0)
+    try:
+        lines = Path(path).read_text().splitlines()
+    except OSError:
+        return best
+    for ln in lines:
+        f = ln.split(":")
+        if len(f) == 3 and f[0] in (user, str(uid)) and f[1].isdigit() and f[2].isdigit() and int(f[2]) > best[1]:
+            best = (int(f[1]), int(f[2]))
+    return best
+
+
+def subuid_available(unshare="unshare"):
+    """(ok, reason): can this box map a subordinate uid range (newuidmap/newgidmap installed, subuid/subgid ranges)?
+    Fails closed: any doubt is (False, why); the caller must not fall back to the owner uid."""
+    for tool in ("newuidmap", "newgidmap"):
+        if not shutil.which(tool):
+            return False, f"{tool} not found (install the uidmap package)"
+    user = pwd.getpwuid(os.getuid()).pw_name
+    for f in ("/etc/subuid", "/etc/subgid"):
+        if _subid_range(f, user, os.getuid())[1] < 2:
+            return False, f"no subordinate id range for {user} in {f} (usermod --add-subuids/--add-subgids)"
+    ok, why = userns_available(unshare)
+    if not ok:
+        return False, why
+    try:
+        r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "--launch", json.dumps({"unshare": shutil.which(unshare) or unshare, "probe": True}), "--", "true"],
+                           capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f"subuid probe could not run: {e}"
+    if r.returncode != 0:
+        return False, f"subuid mapping probe failed: {r.stderr.strip() or r.returncode}"
+    return True, "ok"
+
+
 def _expand(entry, home, runtime):
     return entry.replace("~", home, 1).replace("$XDG_RUNTIME_DIR", runtime) if entry.startswith(("~", "$")) else entry
 
@@ -95,12 +149,12 @@ def _expand(entry, home, runtime):
 def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs=HIDE_DIRS, hide_files=HIDE_FILES,
              vendor_dir=None, keep=(), net=False, forward=False, unshare="unshare", cwd=None, *,
              mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None,
-             run_mask=True):
+             run_mask=True, subuid=False, copy=None):
     """Everything setup needs, as plain JSON-able data with absolute paths.
 
     The keyword-only args are the allow-list mode (docs/scout-nsbox.md#allow-list-mode). At their defaults the dict
     is exactly the deny-mode dict of old: the extra keys (mode, rw, ro, masks, pid, tmpfs_size, tmpfs_sizes) appear only
-    when non-default. `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
+    when non-default. `subuid=True` runs the box as a subordinate host uid (see compose_stage1); allow mode only. `copy` ({"tree", "size", "mkdirs"}, subuid only) replaces the tree with a private tmpfs copy owned by the box uid (see _copy_tree). `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
     (or mask) to its own size; tmpfs is memory-backed, so keep them small. In allow mode /run is masked too (see
     RUN_MASK) unless `run_mask=False`."""
     if not _size_ok(tmpfs_size) or any(not _size_ok(v) for v in (tmpfs_sizes or {}).values()):
@@ -149,7 +203,7 @@ def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs
         if run_mask:  # `run_mask=False` is for tests that count mounts; no profile turns it off
             if RUN_MASK not in cfg["hide_dirs"]:
                 cfg["hide_dirs"].append(RUN_MASK)
-            cfg["ro"] += [k for k in RUN_KEEP_RO if os.path.isdir(k) and k not in cfg["ro"]]
+            cfg["ro"] += [k for k in run_keep_ro() if os.path.isdir(k) and k not in cfg["ro"]]
         for p in cfg["ro"][len(ro):]:  # the claude link may be a link itself, its parents may not
             bad = _symlink_parent(p)
             if bad:
@@ -167,12 +221,25 @@ def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs
         cfg["masks"] = [os.path.abspath(m) for m in masks]
     if not pid:
         cfg["pid"] = False
+    if subuid:
+        if mode != "allow":
+            raise ValueError("subuid needs mode='allow'")
+        cfg["subuid"] = True
+        if copy:
+            cfg["copy"] = {"tree": os.path.abspath(copy["tree"]), "size": str(copy["size"]),
+                           "mkdirs": [os.path.abspath(d) for d in copy.get("mkdirs", [])]}
+            if not _size_ok(cfg["copy"]["size"]):
+                raise ValueError(f"copy size must be like 512m, got {copy['size']!r}")
+    elif copy:
+        raise ValueError("copy needs subuid=True")
     return cfg
 
 
 def compose_stage2(cfg, args):
     """Final argv: real uid back, then every capability dropped. The target is claude, or the caller's argv."""
     cmd = [cfg["claude"], *args] if cfg["claude"] else list(args)
+    if cfg.get("subuid"):  # stage 1 is inside root (= the owner's host uid): become the subordinate uid, no owner groups
+        return [cfg["setpriv"], f"--reuid={SUB_UID}", f"--regid={SUB_GID}", "--clear-groups", *DROP_CAPS, *cmd]
     return [cfg["unshare"], f"--map-user={cfg['uid']}", f"--map-group={cfg['gid']}", "--keep-caps",
             cfg["setpriv"], *DROP_CAPS, *cmd]
 
@@ -180,6 +247,10 @@ def compose_stage2(cfg, args):
 def compose_stage1(cfg, args):
     net = [] if cfg["net"] else ["-n"]
     pid = ["--pid", "--fork", "--kill-child", "--mount-proc"] if cfg.get("pid", True) else []
+    if cfg.get("subuid"):
+        # unshare -r would map the one owner uid only; the launcher builds the user namespace itself and has newuidmap
+        # map inside 0 -> owner, inside 1.. -> the subuid range, then execs the same unshare minus -r
+        return [cfg["python"], "-I", cfg["nsbox"], "--launch", json.dumps(cfg), "--", *args]
     return [cfg["unshare"], "-r", *net, "-m", *pid, "--propagation", "private", cfg["python"], "-I", cfg["nsbox"], "--setup", json.dumps(cfg), "--", *args]
 
 
@@ -465,6 +536,47 @@ def _settle_cwd(cfg, want, dirs, keeps):
         os.chdir(fallback)
 
 
+def tree_bytes(path):
+    """Bytes of the regular files under `path` (links not followed); sizes the tmpfs copy."""
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                st = os.lstat(os.path.join(root, f))
+            except FileNotFoundError:
+                continue
+            total += st.st_size if stat.S_ISREG(st.st_mode) else 0
+    return total
+
+
+def _copy_tree(cfg):
+    """Subuid mode: put a private tmpfs over the tree, fill it from the read-only original, and give it to the box uid.
+    Nothing the run writes reaches the host, and no host file owned by the owner is writable from the box. The old view
+    stays reachable through the fd opened before the tmpfs goes on. Any failure exits non-zero before exec."""
+    c = cfg["copy"]
+    tree = c["tree"]
+    try:
+        src_fd = _open_target(tree)
+        dst_fd = _open_target(tree)
+    except OSError as e:
+        sys.exit(f"nsbox: copy of {tree} failed: {e}")
+    try:
+        _mount("tmpfs", f"/proc/self/fd/{dst_fd}", "tmpfs", 0, f"mode=0755,uid={SUB_UID},gid={SUB_GID},size={c['size']}")
+        def keep(_d, names):  # sockets, fifos and devices are not copied
+            return [n for n in names if not (stat.S_ISREG(m := os.lstat(os.path.join(_d, n)).st_mode) or stat.S_ISDIR(m) or stat.S_ISLNK(m))]
+        shutil.copytree(f"/proc/self/fd/{src_fd}", tree, symlinks=True, dirs_exist_ok=True, ignore=keep)
+        for d in c["mkdirs"]:
+            os.makedirs(d, exist_ok=True)
+        for root, dirs, files in os.walk(tree):
+            for n in [*dirs, *files]:
+                os.lchown(os.path.join(root, n), SUB_UID, SUB_GID)
+    except (OSError, shutil.Error) as e:
+        sys.exit(f"nsbox: copy of {tree} into the private tmpfs failed: {e}; the command was not run")
+    finally:
+        os.close(src_fd)
+        os.close(dst_fd)
+
+
 def setup(cfg, args):
     if not cfg["net"]:
         _lo_up()
@@ -475,6 +587,8 @@ def setup(cfg, args):
     except OSError:
         want = None
     dirs, keeps = _allow_view(cfg) if cfg.get("mode", "deny") == "allow" else _hide_and_keep(cfg)
+    if cfg.get("copy"):
+        _copy_tree(cfg)
     _settle_cwd(cfg, want, dirs, keeps)
     for k in cfg["scrub"]:
         os.environ.pop(k, None)
@@ -801,7 +915,67 @@ def run_contained(trial_dir, argv, cwd=None, env=None, timeout=60, net=False, ho
     return Contained(p.returncode, out.decode(errors="replace"), timed_out)
 
 
+def launch(cfg, args):
+    """Subuid stage 0: new user namespace, id maps via newuidmap/newgidmap, then exec the stage-1 unshare inside it.
+    Exits non-zero (never runs `args`) when any step fails. Returns nothing: it exits with the child's status."""
+    uid, gid = os.getuid(), os.getgid()
+    user = pwd.getpwuid(uid).pw_name
+    ranges = {"newuidmap": _subid_range("/etc/subuid", user, uid), "newgidmap": _subid_range("/etc/subgid", user, uid)}
+    if min(c for _, c in ranges.values()) < 2:
+        sys.exit("nsbox: no subordinate id range in /etc/subuid or /etc/subgid; the command was not run")
+    ready_r, ready_w = os.pipe()
+    go_r, go_w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.close(ready_r), os.close(go_w)
+            os.unshare(os.CLONE_NEWUSER)
+            os.write(ready_w, b"1")
+            if os.read(go_r, 1) != b"1":
+                os._exit(125)
+            net = [] if cfg.get("net") else ["-n"]
+            pidns = ["--pid", "--fork", "--kill-child", "--mount-proc"] if cfg.get("pid", True) else []
+            if cfg.get("probe"):
+                argv = [cfg["unshare"], "-m", "--pid", "--fork", "--mount-proc", "true"]
+            else:
+                argv = [cfg["unshare"], *net, "-m", *pidns, "--propagation", "private", cfg["python"], "-I", cfg["nsbox"],
+                        "--setup", json.dumps(cfg), "--", *args]
+            os.execv(argv[0], argv)
+        except OSError as e:
+            sys.stderr.write(f"nsbox: subuid child failed: {e}\n")
+            os._exit(126)
+    os.close(ready_w), os.close(go_r)
+    failed = None
+    if os.read(ready_r, 1) != b"1":
+        failed = "child could not create a user namespace"
+    else:
+        for tool, own in (("newuidmap", uid), ("newgidmap", gid)):
+            start, count = ranges[tool]
+            r = subprocess.run([tool, str(pid), "0", str(own), "1", "1", str(start), str(count)],
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                failed = f"{tool} failed: {r.stderr.strip() or r.returncode}"
+                break
+    if failed:
+        os.close(go_w)  # child reads EOF and exits 125
+        os.waitpid(pid, 0)
+        sys.exit(f"nsbox: subuid mapping failed: {failed}; the command was not run")
+    os.write(go_w, b"1")
+    for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(s, lambda sig, _f: os.kill(pid, sig))
+    while True:
+        try:
+            _, st = os.waitpid(pid, 0)
+            break
+        except InterruptedError:
+            continue
+    rc = os.waitstatus_to_exitcode(st)
+    sys.exit(rc if rc >= 0 else 128 - rc)
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 4 and sys.argv[1] == "--launch" and sys.argv[3] == "--":
+        launch(json.loads(sys.argv[2]), sys.argv[4:])
     if len(sys.argv) < 4 or sys.argv[1] != "--setup" or sys.argv[3] != "--":
         sys.exit("usage: nsbox.py --setup <cfg json> -- ARGS...")
     setup(json.loads(sys.argv[2]), sys.argv[4:])
