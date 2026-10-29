@@ -161,6 +161,17 @@ class RefusalTests(GhCredCase):
         (self.tdir / "gh-worker-rw-token").symlink_to(self.tdir / "real")
         self.assert_refused("coder", "gh_token_rw")
 
+    def test_token_file_outside_the_config_dir_is_refused_without_naming_it(self):
+        self.flag("coder")
+        elsewhere = self.env.user_home / "zz-elsewhere-tok"
+        elsewhere.write_text(RW + "\n")
+        elsewhere.chmod(0o600)
+        self.ok("config", "gh_token_rw", str(elsewhere), agent="zz-test-director")
+        p = self.assert_refused("coder", "gh_token_rw")
+        self.assertNotIn("zz-elsewhere-tok", p.stderr)
+        body = self.env.sql("SELECT body FROM messages WHERE subject LIKE 'worker gh credential refused%'")[0]["body"]
+        self.assertNotIn("zz-elsewhere-tok", body)
+
     def test_no_repository_refuses(self):
         self.flag("coder")
         self.env.sql("DELETE FROM config WHERE key='worker_gh_repos'")

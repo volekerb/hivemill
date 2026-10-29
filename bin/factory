@@ -5686,9 +5686,13 @@ def gh_cred_inputs(con, role):
     home = Path(sandbox_home() or ghcred.real_home())
     value = cfg(con, key).strip() or f"~/.config/factory/gh-worker-{key[-2:]}-token"
     path = str(home / value[2:]) if value.startswith("~/") else value
-    if not path or not os.path.isabs(path) or not _token_file_ok(path):
-        raise ValueError(f"the worker gh token file named by config {key} is missing, not a regular 0600 file of ours, "
-                         "or empty (docs/worker-sandbox.md)")
+    try:
+        located = bool(path) and os.path.isabs(path) and _token_file_ok(path) and bool(ghcred.check_token_path(path, str(home)))
+    except ValueError:  # its text names the path: say the config key instead
+        located = False
+    if not located:
+        raise ValueError(f"the worker gh token file named by config {key} is missing, not a regular 0600 file of ours "
+                         "directly in ~/.config/factory, or empty (docs/worker-sandbox.md)")
     slugs = _csv(cfg(con, "worker_gh_repos")) or [x for x in [_repo_slug(factory_remote_url())] if x]
     if not slugs or not all(ghcred.SLUG_RE.fullmatch(x) for x in slugs):
         raise ValueError("no repository for the worker token: set config worker_gh_repos (comma list of OWNER/NAME) "
@@ -5735,7 +5739,9 @@ def gh_cred_env(con, role, name):
         home = str(sandbox_home() or ghcred.real_home())
         agent_dir = ghcred.prepare_dir(name, role, path, slugs, real_gh, home=home)
     except (ValueError, OSError, subprocess.SubprocessError) as e:
-        gh_cred_refuse(con, role, name, f"cannot prepare the worker gh credential: {e}")
+        # e can name paths (the token's among them for ValueError): the refusal says only what failed
+        gh_cred_refuse(con, role, name, f"cannot prepare the worker gh credential ({type(e).__name__}); "
+                       "check config worker_gh_repos and the worker token files")
     scrub = {k: "" for k in GH_SCRUB_ENV}
     scrub.update({k: "" for k in os.environ if GIT_CONFIG_PAIR_RE.fullmatch(k)})
     scrub["GIT_CONFIG_COUNT"] = "0"  # git dies on an empty count
