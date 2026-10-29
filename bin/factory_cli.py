@@ -1313,7 +1313,8 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
     from the live-agent and claude-process counts; every cap still applies (what spawn()'s gate sees after the close).
-    The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches).
+    The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches, and
+    judges: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds; every other cap applies).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
     Any other role, or role=None, gets exactly the checks above."""
@@ -5075,7 +5076,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         args.update(env_extra=env_extra, plugin_dirs=list(plugin_dirs or []), add_home_dir=add_home_dir)
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
-    ok, why, stats = gate(con, load_exempt=relaunch and role in ("boss", "director", "lead"), role=role,
+    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director", "lead")) or role == "judge", role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live")
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
@@ -7826,9 +7827,14 @@ def cmd_tick(a, locked=False):
     held = False
     for q in queued:
         if not held and not gate(con)[0]:
-            held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
-        if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
-            continue
+            held = True  # a closed gate stops the queue, except for a judge (exempt from the load cap only) or a cleaner (tmp gate only)
+        if held:
+            if q["role"] == "judge":
+                ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+            else:
+                ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
+            if not ok:
+                continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
