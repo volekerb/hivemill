@@ -4116,7 +4116,7 @@ def build_digest(con, goal=None, date=None, hours=24):
 
     def inwin(s):
         d = _ts(s)
-        return d is not None and start <= d <= end
+        return d is not None and start < d <= end  # (start, end], the same rule as the scout section
 
     lc = lead_counts(con)  # factory-wide: printed once in the header, not in every goal block
     out = [f"# Factory digest {date or end.date().isoformat()}", "",
@@ -10114,11 +10114,12 @@ def scout_report(con, a):
         until = clock
         if a.since:
             since = scoutreport.ts(a.since) or die(f"--since must be an ISO timestamp, got {a.since!r}", 2)
-        else:  # since the previous run ended, else 24 h
-            last = con.execute("SELECT ended FROM scout_runs WHERE status IN ('done','stopped','failed') AND ended IS NOT NULL "
+        else:  # the newest finished run's own window, so its finds are included; 24 h when there is none
+            last = con.execute("SELECT * FROM scout_runs WHERE status IN ('done','stopped','failed') AND ended IS NOT NULL "
                                "ORDER BY id DESC LIMIT 1").fetchone()
-            since = scoutreport.ts(last["ended"]) if last else None
-            if since is None or since >= until:
+            if last:
+                since = scoutreport.run_window(con, last)[0]
+            else:
                 since = until - dt.timedelta(hours=scoutreport.DEFAULT_HOURS)
         slot = clock.strftime("%Y-%m-%dT%H")
     text = scoutreport.build_skill_scout_section(con, since, until)

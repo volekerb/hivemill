@@ -132,13 +132,29 @@ class SendTests(Base):
         self.report("--slot", f"{D}T09", "--send", agent="zz-test-director")
         self.assertEqual(self.msgs()[0]["subject"], f"skill scout {D} 09")
 
-    def test_default_window_starts_at_the_previous_run_end(self):
-        self.cand("C-0001", "gh:o/a", "adopt", created=at("09:30"))
-        self.env.sql("INSERT INTO scout_runs(slot,agent,status,started,ended) VALUES(?,?,?,?,?)",
-                     (f"{D}T09", "scout", "done", at("09:01"), at("10:00")))
-        self.assertEqual(self.report(), "## Skill scout\nNo new finds.\n")  # triaged before the run ended
-        self.assertIn("C-0001", self.report("--since", at("09:00")))
+    def run_row(self, slot, ended, reported=None):
+        self.env.sql("INSERT INTO scout_runs(slot,agent,status,started,ended,reported_msg) VALUES(?,?,?,?,?,?)",
+                     (slot, "scout", "done", ended, ended, reported))
 
+    def test_default_window_includes_the_newest_finished_run(self):
+        self.cand("C-0001", "gh:o/a", "adopt", created=at("09:30"))  # triaged during the newest run
+        self.run_row(f"{D}T08", at("08:00"), reported=1)
+        self.run_row(f"{D}T09", at("10:00"))
+        out = self.report()
+        self.assertIn("C-0001", out)  # window is (08:00, now], not (10:00, now]
+        self.assertNotIn("C-0001", self.report("--since", at("10:00")))
+
+    def test_default_window_without_a_run_is_24h(self):
+        self.cand("C-0001", "gh:o/a", "adopt", created=at("01:00", "2026-10-25"))  # 43 h before NOW
+        self.cand("C-0002", "gh:o/b", "adopt", created=at("12:00"))
+        out = self.report()
+        self.assertIn("C-0002", out)
+        self.assertNotIn("C-0001", out)
+
+    def test_find_exactly_on_a_boundary_is_in_exactly_one_report(self):
+        self.cand("C-0001", "gh:o/a", "adopt", created=at("10:00"))
+        self.assertIn("C-0001", self.report("--since", at("09:00")))  # end of an earlier window is inclusive
+        self.assertNotIn("C-0001", self.report("--since", at("10:00")))  # start is exclusive
 
 class TickReportTests(Base):
     def tick(self, now):
@@ -192,6 +208,18 @@ class DigestTests(Base):
         self.assertIn("C-0001", out)
         out = self.ok("digest", "--hours", "1", extra_env=NOW).stdout
         self.assertIn("## Skill scout\nNo new finds.", out)
+
+
+    def test_digest_window_start_is_exclusive_like_the_section(self):
+        self.env.sql("INSERT INTO lessons(id,title,roles,rule,created,updated) VALUES('L-900','on the boundary','all','r',?,?)",
+                     (at("19:00"), at("19:00")))  # exactly NOW - 1 h
+        self.cand("C-0001", "gh:o/a", "adopt", created=at("19:00"))
+        one = self.ok("digest", "--hours", "1", extra_env=NOW).stdout
+        self.assertNotIn("L-900", one)
+        self.assertIn("## Skill scout\nNo new finds.", one)
+        two = self.ok("digest", "--hours", "2", extra_env=NOW).stdout
+        self.assertIn("L-900", two)
+        self.assertIn("C-0001", two)
 
 
 class UnitTests(unittest.TestCase):
