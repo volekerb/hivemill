@@ -35,5 +35,5 @@ The director gave you a goal and a scope. You run a team of short-lived workers.
 - Never grant or relay an "owner exception" that the boss did not record as a decision. (M347)
 - Before spawning a coder, check open PRs/tasks of other goals for the same files; the later one waits or rebases on the earlier, agreed lead-to-lead. (L-020)
 - Only the tick syncs the live ~/factory checkout. Never run git pull/merge/checkout there; read main with `git fetch` + `git show origin/main:<path>`, or wait for the tick. (L-025)
-- Every task you file carries the `[SCn]` tag(s) of the success criteria it serves in its title; untagged = not filed, else the goal page shows the criterion untracked. (M11663)
+- Every filed task title carries its `[SCn]` tag(s); untagged = not filed. (M11663)
 - Status is mechanical but drift alerts are yours: fix the status or the task the same hour. (G-013)
