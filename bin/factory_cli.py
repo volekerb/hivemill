@@ -429,6 +429,14 @@ def migrate(con):
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
         con.executescript(scoutdb.SCOUT_DDL)
+    tcols = {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}
+    for col in ("void_reason", "void_why"):  # T-0729: `skilleval void` records why a terminal trial was voided
+        if col not in tcols:
+            try:
+                con.execute(f"ALTER TABLE skill_trials ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError:  # a concurrent process added it first
+                if col not in {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}:
+                    raise
 
 
 def cfg(con, key):
@@ -11131,13 +11139,13 @@ def skilleval_try(con, a):
             die(f"{cid} failed the eval gate after vendoring", 2)
     old = con.execute("SELECT * FROM skill_trials WHERE candidate_id=? AND vendor_sha=? AND task=? AND condition=?",
                       (cid, sha, task, cond)).fetchone()
-    if old and old["status"] not in ("error", "cancelled"):
+    if old and old["status"] not in ("error", "cancelled", "voided"):
         die(f"trial {old['id']} for {cid}@{sha[:9]} {task} {cond} already exists (status {old['status']})", 2)
     sk = _skilleval()
     if old:
         tid = old["id"]
-        if not sk.transition(con, tid, "starting", ("error", "cancelled"), agent=None, sandbox=None, queued=now(),
-                             started=now(), ended=None, author=actor()):
+        if not sk.transition(con, tid, "starting", ("error", "cancelled", "voided"), agent=None, sandbox=None, queued=now(),
+                             started=now(), ended=None, author=actor(), void_reason=None, void_why=None):
             die(f"trial {tid} for {cid}@{sha[:9]} {task} {cond} was taken by another start meanwhile", 2)
     else:
         try:
@@ -11221,6 +11229,21 @@ def skilleval_cancel(con, a):
         die("; ".join(errors), 2)
 
 
+def skilleval_void(con, a):
+    scoutskilleval = _skilleval()
+    why = (a.why or "").strip()
+    if a.reason != "infra" or not why:
+        die('usage: factory skilleval void <trial id|trNNNN> --reason infra --why "<what failed>"', 2)
+    try:
+        r = scoutskilleval.void(con, a.id, a.reason, why)
+    except scoutskilleval.CollectError as e:
+        die(str(e), 2)
+    event(con, "skilleval", r["candidate_id"], "void",
+          (f"trial {r['id']} {r['task']} {r['condition']} was {r['prev']} (passed={r['passed']} tokens_in={r['tokens_in']} "
+           f"tokens_out={r['tokens_out']} wall_s={r['wall_s']}): {a.reason}: {why}")[:400])
+    print(scoutskilleval.trial_line(r))
+
+
 def cmd_skilleval(a):
     w = caller_is_worker()
     if w and not worker_stub_exempt():
@@ -11242,6 +11265,8 @@ def cmd_skilleval(a):
         skilleval_queue(con, a)
     elif a.action == "cancel":
         skilleval_cancel(con, a)
+    elif a.action == "void":
+        skilleval_void(con, a)
     elif a.action in ("list", "results"):
         scoutskilleval = _skilleval()
         lines = (scoutskilleval.list_lines if a.action == "list" else scoutskilleval.result_lines)(con, a.candidate)
@@ -11497,10 +11522,11 @@ def main():
     x.add_argument("--slot"); x.add_argument("--send", action="store_true")
     x.set_defaults(fn=cmd_scout)
 
-    x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, list, results")
-    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "list", "results"]); x.add_argument("id", nargs="?")
+    x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, void, list, results")
+    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
-    x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled"]); x.add_argument("--tasks")
+    x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled", "infra"]); x.add_argument("--tasks")
+    x.add_argument("--why")
     x.set_defaults(fn=cmd_skilleval)
 
     x = sp.add_parser("msg"); x.add_argument("to"); x.add_argument("subject"); x.add_argument("body", nargs="?")
