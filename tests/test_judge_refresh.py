@@ -248,6 +248,28 @@ class JudgeRefreshTests(FactoryTestCase):
             self.assertEqual((c["from"], c["to"], c["main"]), (self.head, new, main))
         self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
 
+    def test_a3_public_repo_refresh_uses_noreply_identity(self):
+        # T-0604: the judge's refresh merge on a public_text_repos repo is committed as config noreply_email
+        self.main_commit()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('noreply_email','123+zz-test@users.noreply.github.com')")
+        self.judge()  # the merge itself then meets the public text check; only the refresh is under test here
+        new = self.remote_ref(f"refs/heads/{BRANCH}")
+        self.assertEqual(self.pushes(), [new])
+        who = "factory refresh <123+zz-test@users.noreply.github.com>"
+        self.assertEqual(git(self.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", new), f"{who}|{who}")
+
+    def test_a4_public_repo_no_noreply_address_refuses_nothing_pushed(self):
+        self.main_commit()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("REFRESH-IDENT", p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.remote_ref(f"refs/heads/{BRANCH}"), self.head)
+        self.assertTrue(any("REFRESH-IDENT" in r["detail"] for r in self.events("judge-blocked")))
+        self.assertNoMerge()
+
     def test_a2_fresh_head_merges_without_refresh(self):
         git(self.wt, "fetch", "-q", "origin", "main")
         p = self.judge()

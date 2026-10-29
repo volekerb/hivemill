@@ -191,6 +191,25 @@ class SpawnPrecheckTests(FactoryTestCase):
         starts = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
         self.assertEqual(starts, [])
 
+    def test_a2_public_repo_refresh_uses_noreply_identity(self):
+        # T-0604: on a public_text_repos repo the pre-check merge is committed as the repo's noreply user.email
+        main = self.main_commit()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
+        git(self.wt, "config", "user.email", "456+zz-test@users.noreply.github.com")
+        p = self.spawn("qa")
+        self.assertRefreshedSpawn(p, "qa", main)
+        who = "factory refresh <456+zz-test@users.noreply.github.com>"
+        self.assertEqual(git(self.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", self.remote_head()), f"{who}|{who}")
+
+    def test_a3_public_repo_no_noreply_address_pushes_nothing(self):
+        self.main_commit()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
+        self.spawn("qa")
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.remote_head(), self.head)
+        self.assertEqual(self.events("refreshed"), [])
+        self.assertTrue(any("REFRESH-IDENT" in r["detail"] for r in self.events("precheck-skipped")))
+
     def test_b_head_contains_main_no_push(self):
         git(self.wt, "fetch", "-q", "origin", "main")
         git(self.wt, "merge", "-q", "--no-edit", "origin/main")  # already contained: nothing to do
