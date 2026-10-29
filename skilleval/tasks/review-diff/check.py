@@ -2,7 +2,8 @@
 
 Passes iff REVIEW.md names the defect's file with a line number within +-2,
 has a "Verdict:" line saying "request changes", and has at most 5 distinct
-path:line[-range] references, none spanning more than 10 lines.
+path:line[-range] references (one space or tab allowed after the colon), none
+spanning more than 10 lines.
 """
 import json
 import re
@@ -10,7 +11,7 @@ import sys
 
 MAX_FINDINGS = 5
 LINE_SLACK = 2
-REF = re.compile(r"([\w./-]+\.\w+):(\d+)(?:-(\d+))?")
+REF = re.compile(r"([\w./-]+\.[A-Za-z]\w*):[ \t]?(\d+)(?:-(\d+))?")
 MAX_RANGE = 10
 VERDICT = re.compile(r"^[\s>*_#-]*verdict\b[\s*_:-]*(.*)$", re.IGNORECASE | re.MULTILINE)
 
@@ -35,7 +36,7 @@ if not verdicts:
 if not all(re.match(r"[\s*_`]*request[\s_-]+changes", v) for v in verdicts):
     fail('verdict is not "request changes"')
 
-findings = {m.groups() for m in REF.finditer(text)}
+findings = {(m.group(1), int(m.group(2)), int(m.group(3) or m.group(2))) for m in REF.finditer(text)}
 if len(findings) > MAX_FINDINGS:
     fail("%d findings listed (max %d)" % (len(findings), MAX_FINDINGS))
 
