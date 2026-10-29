@@ -640,15 +640,21 @@ def evaluator_settings(rdir):
     copied (stdlib-only, 0555, regular file, replaced atomically on every launch) into <trial>/role/roles/hooks and
     every hook command is pointed at that copy. A hook command left under the live home would fail closed on every
     tool call. The depth matters: the guard counts dirname^3 of its own path as a live home, so <trial>/role/ (which
-    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`."""
+    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`.
+    The copy layout mirrors the repo (roles/hooks/, ci/) under <trial>/role/, because the guard resolves its sibling
+    files (ci/public_text_guard.py, which loads ci/scrub_scan.py by path) and its live home via dirname^3 of its own
+    path. Those two ci files are copied the same way (0555, atomic, every launch)."""
     rdir = Path(rdir)
-    src = ROLES_DIR / "hooks" / "worker-guard.py"
-    try:
-        body = src.read_text()
-    except OSError as e:
-        die(f"cannot read {src}: {e}; restore it with git checkout", 3)
-    guard = rdir / "roles" / "hooks" / "worker-guard.py"
-    write_atomic(guard, body, 0o555)
+    copies = [(ROLES_DIR / "hooks" / "worker-guard.py", rdir / "roles" / "hooks" / "worker-guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "public_text_guard.py", rdir / "ci" / "public_text_guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "scrub_scan.py", rdir / "ci" / "scrub_scan.py")]
+    for src, dst in copies:
+        try:
+            body = src.read_text()
+        except OSError as e:
+            die(f"cannot read {src}: {e}; restore it with git checkout", 3)
+        write_atomic(dst, body, 0o555)
+    guard = copies[0][1]
     cfg = json.loads(settings_text("evaluator"))
     n = 0
     for groups in cfg.get("hooks", {}).values():
