@@ -26,6 +26,10 @@ class TaskAddScTagTests(FactoryTestCase):
         for title in ("Build it [SC1]", "Build it [SC1,SC2]"):
             self.assertEqual(self.add(title).stderr, "")
 
+    def test_space_separated_tags_warn_like_the_goal_page(self):
+        self.criteria("1. a\n2. b")
+        self.assertIn("title has no [SCn] tag", self.add("Build it [SC1 SC2]").stderr)
+
     def test_goal_without_success_criteria_is_quiet(self):
         self.assertEqual(self.add("Build it").stderr, "")
         self.criteria("  ")
