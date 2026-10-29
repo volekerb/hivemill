@@ -2570,13 +2570,13 @@ def terms_paths(cwd):
 
 def terms_segment_ok(seg):
     """A command segment that names the terms file is fine only when it runs one of the two scanners."""
-    if re.search(r"`|\$\(|<|>\(", seg):
+    if re.search(r"`|\$\(|<", seg):
         return False
     try:
         toks = shlex.split(seg)
     except ValueError:
         return False
-    while toks and (TERMS_ENV_ASSIGN.match(toks[0]) or toks[0] == "env"):
+    while toks and (TERMS_ENV_ASSIGN.match(toks[0]) or toks[0] == "env" or (toks[0].startswith("-") and len(toks) > 1)):
         toks.pop(0)
     if toks and re.fullmatch(r"(?:.*/)?python3?", toks[0]):
         toks.pop(0)
@@ -2585,7 +2585,7 @@ def terms_segment_ok(seg):
 
 def terms_bash(cmd, cwd):
     paths = terms_paths(cwd)
-    for seg in re.split(r"[;&|\n]+", cmd):
+    for seg in re.split(r"[;&|\n]+", re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in seg or any(p in seg for p in paths)) and not terms_segment_ok(seg):
             raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
 

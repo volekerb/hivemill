@@ -11,7 +11,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
-ROLES = ("coder", "qa", "reviewer", "judge")
+ROLES = ("coder", "qa", "reviewer", "judge", "pm")
 
 
 class TermsReadTests(unittest.TestCase):
@@ -74,13 +74,19 @@ class TermsReadTests(unittest.TestCase):
     def test_scanners_allowed(self):
         for cmd in ["python3 ci/scrub_scan.py --text hello", "SCRUB_TERMS_FILE=$SCRUB_TERMS_FILE python3 ci/scrub_scan.py x",
                     'python3 ci/scrub_scan.py --terms "$SCRUB_TERMS_FILE" file', "python3 ci/public_text_guard.py --check x",
-                    "env SCRUB_TERMS_FILE=/x/y python3 ./ci/scrub_scan.py a", "git status && python3 ci/scrub_scan.py"]:
+                    "env SCRUB_TERMS_FILE=/x/y python3 ./ci/scrub_scan.py a", "git status && python3 ci/scrub_scan.py",
+                    'python3 ci/scrub_scan.py --terms "$SCRUB_TERMS_FILE" f 2>&1', "python3 ci/scrub_scan.py x > out.txt",
+                    "env -i python3 ci/scrub_scan.py x"]:
             p = self.bash(cmd)
             self.assertEqual(p.returncode, 0, f"should allow: {cmd}\n{p.stderr}")
 
     def test_unrelated_commands_allowed_and_non_worker_roles_unaffected(self):
         self.assertEqual(self.bash("cat README.md").returncode, 0)
         self.assertEqual(self.bash("cat $SCRUB_TERMS_FILE", role="lead").returncode, 0)
+
+    def test_pm_read_tool_refused(self):
+        p = self.hook({"tool_name": "Read", "tool_input": {"file_path": self.terms}}, role="pm")
+        self.refused(p, "pm Read")
 
     def test_read_and_grep_tools(self):
         self.refused(self.tool("Read", file_path=self.terms), "Read path")
