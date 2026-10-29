@@ -2,8 +2,8 @@
 """CI test sharding: pick, run and verify a deterministic slice of tests/test_*.py.
 
   shard.py list [--shard I --total N]     module file names, one per line (I is 1-based)
-  shard.py run --shard I --total N --out F   run that slice, write its report (JSON) to F
-  shard.py verify --total N --dir D       check the shard reports in D cover every module once
+  shard.py run --shard I --total N --out F [--only L]   run that slice (just the modules listed in file L), write its report (JSON) to F
+  shard.py verify --total N --dir D [--only L]   check the shard reports in D cover every module (of L) once
   shard.py timings --dir D [--out F]      merge the reports' per-module seconds into a timing file
 
 Modules are packed greedily, longest first, onto the lightest shard (ties: lowest shard, then module
@@ -72,9 +72,19 @@ def select(modules, shard, total, timings=None):
     return pack(modules, total, timings)[shard - 1]
 
 
-def run_shard(shard, total, out, tests_dir=TESTS):
-    """Run the shard's modules; write {shard,total,modules,tests} to `out`; return the exit code."""
+def read_only(path):
+    """Module names listed one per line in `path` (the affected selection of ci/ci_tier.py); None if no path."""
+    if not path:
+        return None
+    with open(path) as f:
+        return {l.strip() for l in f if l.strip()}
+
+
+def run_shard(shard, total, out, tests_dir=TESTS, only=None):
+    """Run the shard's modules (only those in `only`, if given); write {shard,total,modules,tests} to `out`; return the exit code."""
     mods = select(all_modules(tests_dir), shard, total)
+    if only is not None:
+        mods = [m for m in mods if m in only]
     root = os.path.dirname(os.path.abspath(tests_dir))
     os.chdir(root)
     # `python -m unittest` puts the cwd (repo root) on sys.path; tests import `web` from there.
@@ -97,8 +107,8 @@ def run_shard(shard, total, out, tests_dir=TESTS):
     return 0 if ok else 1
 
 
-def verify(reports_dir, total, tests_dir=TESTS):
-    """Return (summary, tests) if the reports cover every module exactly once; else raise ShardError."""
+def verify(reports_dir, total, tests_dir=TESTS, only=None):
+    """Return (summary, tests) if the reports cover every module (every module of `only`, if given) exactly once; else raise ShardError."""
     reports = {}
     for name in sorted(os.listdir(reports_dir)):
         path = os.path.join(reports_dir, name)
@@ -120,6 +130,8 @@ def verify(reports_dir, total, tests_dir=TESTS):
         for m in r["modules"]:
             seen.setdefault(m, []).append(i)
     expected = all_modules(tests_dir)
+    if only is not None:
+        expected = [m for m in expected if m in only]
     dup = sorted(m for m, s in seen.items() if len(s) > 1)
     absent = sorted(set(expected) - set(seen))
     extra = sorted(set(seen) - set(expected))
@@ -159,9 +171,11 @@ def main(argv=None):
     rn.add_argument("--shard", type=int, required=True)
     rn.add_argument("--total", type=int, required=True)
     rn.add_argument("--out", required=True)
+    rn.add_argument("--only", help="file of module names: run only those (affected mode)")
     vf = sub.add_parser("verify")
     vf.add_argument("--total", type=int, required=True)
     vf.add_argument("--dir", required=True)
+    vf.add_argument("--only", help="file of module names: only those must have run (affected mode)")
     tm = sub.add_parser("timings")
     tm.add_argument("--dir", required=True)
     tm.add_argument("--out", default=TIMINGS)
@@ -174,7 +188,7 @@ def main(argv=None):
             print("\n".join(mods))
             return 0
         if a.cmd == "run":
-            return run_shard(a.shard, a.total, a.out)
+            return run_shard(a.shard, a.total, a.out, only=read_only(a.only))
         if a.cmd == "timings":
             data = merge_timings(a.dir)
             with open(a.out, "w") as f:
@@ -182,7 +196,7 @@ def main(argv=None):
                 f.write("\n")
             print("wrote %d module timings to %s" % (len(data), a.out))
             return 0
-        summary, _ = verify(a.dir, a.total)
+        summary, _ = verify(a.dir, a.total, only=read_only(a.only))
         print(summary)
         return 0
     except ShardError as e:

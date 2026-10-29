@@ -8,6 +8,8 @@ Replace <private-repo> with the private repository slug (owner knows it).
 
 Nothing here is run by the person who reads it first. Each step names who runs it, in order.
 
+**Director steps** (`factory` commands and checks): F1 to F4, C2, C4b, C5, C6, C8. Everything else in phases 1 to 3 is an OWNER step.
+
 ## Before you start
 
 Phase 0, prerequisites. All three must hold before F1.
@@ -45,12 +47,14 @@ The factory keeps running in `~/factory`; the database, `state/`, `exports/`, `r
   factory config scrub_terms_file <owner terms file>
   ```
   From here the public text guard applies to `volekerb/hivemill` and nothing may push to or merge into `<private-repo>`.
-- **C3** OWNER (repo-local, untracked; worktrees share it):
+- **C3** OWNER (a global `includeIf`, untracked, covers `~/factory` and every worktree under it; do not use repo-local keys):
   ```
-  git -C ~/factory config user.name volekerb
-  git -C ~/factory config user.email 11260070+volekerb@users.noreply.github.com
+  git config --global includeIf.gitdir:~/factory/.path ~/.gitconfig-factory
+  git config --file ~/.gitconfig-factory user.name volekerb
+  git config --file ~/.gitconfig-factory user.email 11260070+volekerb@users.noreply.github.com
   ```
   The git config guard allows these two keys only because the email ends in `@users.noreply.github.com`; a real address in repo config is refused and blocks every record, train, merge and gate (docs/git-hardening.md). The previous repo-local identity may hold the owner's real name and email. The guard checks commit identities on push, so this must be done before any push.
+  A repo-local `user.name` / `user.email` may still hold the owner's real name and email and would win over the include: unset them (`git -C ~/factory config --local --unset user.name`, same for `user.email`). The guard checks commit identities on push, so this must be done before any push. Check with `git -C ~/factory config user.email` (the noreply address).
 - **C4** OWNER:
   ```
   git -C ~/factory branch -m main private-main
@@ -61,6 +65,7 @@ The factory keeps running in `~/factory`; the database, `state/`, `exports/`, `r
   ```
   The `factory_remote_url` line is what the git config guard compares `remote.origin.url` with; without it every record, train, merge and gate is refused after the `set-url`.
   Ignored directories (`db/`, `state/`, `exports/`, `run/`, `worktrees/`) are untouched. `private-main` and the local `state` branch stay local only.
+  Then **C4b** DIRECTOR: confirm `factory config factory_remote_url` prints `https://github.com/volekerb/hivemill.git`, and set it with that value if the C4 line was skipped. The tick alerts the director while `factory_remote_url` and `git remote get-url origin` differ, so a forgotten C4b shows up within a minute.
 - **C5** DIRECTOR: `factory project update factory --gh volekerb/hivemill`.
 - **C6** DIRECTOR, verify:
   - `git -C ~/factory remote -v` shows hivemill only.
@@ -74,7 +79,7 @@ The factory keeps running in `~/factory`; the database, `state/`, `exports/`, `r
 
 ## Rollback (before the flip only)
 
-C1, `git -C ~/factory switch private-main`, set `origin` back to `https://github.com/<private-repo>.git`, `factory config public_text_repos ""`, `factory config frozen_repos ""`, `factory project update factory --gh <private-repo>`, then C7.
+C1, `git -C ~/factory switch private-main`, set `origin` back to `https://github.com/<private-repo>.git`, `factory config public_text_repos ""`, `factory config frozen_repos ""`, `factory config factory_remote_url <private-repo url>`, `factory project update factory --gh <private-repo>`, then C7.
 
 After the repository is public there is no rollback of published text. Fix forward.
 
@@ -104,7 +109,7 @@ Every owner-specific setting stays on this machine. None of it is in the reposit
 | `scrub_terms_file` | DB config (`factory config`) | path of the owner terms file; the env var `SCRUB_TERMS_FILE` wins; never committed |
 | other DB config (`state_push`, `git_push`, caps) | the live database under `db/` | gitignored; never committed |
 | owner terms file | a path outside the repository | holds names, handle, hostnames, private project names; never committed |
-| git identity | repo-local `git config user.name` / `user.email` in `~/factory` | set at C3 to the handle and the noreply address; never committed |
+| git identity | global `includeIf gitdir:~/factory/` file (`~/.gitconfig-factory`) | set at C3 to the handle and the noreply address; never committed |
 | `gh` auth | the `gh` credential store of the owner's user | token never in the repo or in agent text; never committed |
 | systemd user units | the owner's user systemd directory (`factory-tick.timer` and friends) | never committed |
 | herdr socket | herdr runtime directory of the owner's user | never committed |
@@ -119,4 +124,5 @@ The public slug `volekerb/hivemill` and the noreply identity are not private and
 - [ci-cost.md](ci-cost.md): free hosted runners only, a `$0` Actions budget, fork pull requests without secrets, and the kill switch.
 - Merge email guard (T-0602), two layers so no real email lands on public `main` again (a web merge once created a merge commit with the owner's real email):
   - Layer 1, `factory judge --merge` into a `public_text_repos` repo: the squash is made with `gh pr merge --author-email <noreply>` (`-A`; checked on gh 2.103.0). The address is config `noreply_email`, else the git `user.email` of `~/factory`, and must end `@users.noreply.github.com`; with none the judge refuses to merge (exit 4, nothing merged). After the merge it reads the merge commit with `gh api repos/<repo>/commits/<sha>`; an author or committer email that is not noreply (GitHub's own `noreply@github.com` committer is allowed) or a commit it cannot read gives an event `merge-email-leak`, an escalation to the director and exit 6. The task is already `done` then: the change is on `main`.
+  - The squash body is built explicitly (`--body`, default title kept): the PR commit messages joined like GitHub's default, minus every `Co-authored-by` trailer whose email is not noreply (owner noreply, `*@users.noreply.github.com`, `noreply@anthropic.com`). If the commits cannot be read the judge refuses (exit 4). The tick public-main check also escalates a `main` commit whose message carries a non-noreply `Co-authored-by` (T-0616).
   - Layer 2, tick: for the `origin` of `~/factory` when it is in `public_text_repos`, each tick checks the commits new on `origin/main` (up to the last 200 when there is no earlier check) and sends the boss one escalation per sha whose author or committer email is not noreply. It also catches commits made outside the factory (web UI, owner pushes). The message masks the address.
