@@ -191,6 +191,24 @@ class ShellFedBodies(unittest.TestCase):
 SUDO = "su" + "do id"
 
 
+NLS = "\n"
+MUST_BLOCK = [
+    f"$( (true)#){NLS}{SUDO})", f"$({{ true;}}#){NLS}{SUDO})",
+    f"$(case a in a) {SUDO};; esac)", f"$(echo $'\\')' ; {SUDO})", f'$(echo "\\")" ; {SUDO})',
+    f'$(echo "$(echo ")")" ; {SUDO})', f"$(echo `echo )` ; {SUDO})",
+    f"$(echo ${{x/)/y}} ; {SUDO})", f"$(echo ${{x#)}} ; {SUDO})", f"$(echo ${{x:-)}} ; {SUDO})",
+    f"$(cat <<X{NLS}){NLS}X{NLS}{SUDO})",
+    f"$((echo hi); {SUDO})", f'$(echo $"x" ; {SUDO})',
+]
+MUST_ALLOW = [
+    'cat <<EOF\n$(git rev-parse --short HEAD) $(date +%s%N) "$x" ${HOME} $(( 1 + 2 ))\nEOF',
+    "cat <<EOF\nok $(echo 'a)b;c' \"d e\") $(basename $(pwd))\nEOF",
+    "cat <<EOF\n${x}# and it's fine\nEOF",
+    "cat <<EOF\nprose (with parens) it's a # note, ok\nEOF",
+    "cat <<'EOF'\n$(echo ${x/)/y} ; case a in a) b;; esac) `x` {\nEOF",
+]
+
+
 class SubstitutionGaps(unittest.TestCase):
     """T-0199: `<<` in arithmetic is an operator, `EOF)` ends a heredoc inside $( ), and an unquoted heredoc
     body is scanned for $( ) and backticks (bash runs them). Both modes must block the privilege word."""
@@ -253,7 +271,7 @@ class SubstitutionGaps(unittest.TestCase):
     def test_hash_after_param_expansion_is_not_a_comment(self):
         # `${x}#` is a word, so this `)` still closes the substitution and the heredoc body is plain data
         self.both("cat <<EOF\n$(echo ${x}#)\nEOF", 0)
-        self.both("cat <<EOF\n$(echo ${x:-a}#b)\nEOF", 0)
+        self.both("cat <<EOF\n$(echo $x#b)\nEOF", 0)
 
     def test_hash_inside_word_is_not_a_comment(self):
         self.both("cat <<EOF\n$(echo a#b)\nEOF", 0)
@@ -271,9 +289,46 @@ class SubstitutionGaps(unittest.TestCase):
         for cmd in ("t0=$(date +%s%N)", "a=1 b=$(date +%s) true", "echo $((1<<2))", "echo $((1<<2)) x",
                     "git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\"",
                     "cat <<EOF\nplain $(date +%s) and `hostname`\nEOF",
-                    "y=$(cat <<EOF\nhi\nEOF\n)\necho done", "cat <<EOF\n$((1<<2))\nEOF"):
+                    "y=$(cat <<EOF\nhi\nEOF\n)\necho done"):
             with self.subTest(cmd):
                 self.both(cmd, 0)
+
+    def test_v2_must_block_shapes(self):
+        """T-0587: every unmodelled or hostile shape in an unquoted body is rc 2 in worker and hq mode."""
+        for shape in MUST_BLOCK:
+            with self.subTest(shape):
+                self.both(f"cat <<EOF\n{shape}\nEOF", 2)
+
+    def test_v2_must_block_shapes_really_run_in_bash(self):
+        """The shapes are not hypothetical: bash runs the marker line (harmless touch in a scratch dir)."""
+        for shape in MUST_BLOCK:
+            if shape.startswith("$({"):
+                continue  # `}#` is one word in bash 5.2 (syntax error, nothing runs); blocked anyway, fail closed
+            cmd = f"cat <<EOF\n{shape.replace(SUDO, 'touch MARK')}\nEOF"
+            with self.subTest(shape):
+                self.assertTrue(bash_runs_marker(cmd), f"bash did not run the marker for {cmd!r}")
+
+    def test_v2_must_allow_shapes(self):
+        for cmd in MUST_ALLOW:
+            with self.subTest(cmd):
+                self.both(cmd, 0)
+
+    def test_v2_unmodelled_shape_prints_the_message_and_workaround(self):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "cat <<EOF\n$(echo ${x/)/y})\nEOF"}})
+        for argv in ([], ["--role", "coder"], ["--hq"]):
+            r = subprocess.run([sys.executable, HOOK] + argv, input=payload, capture_output=True, text=True, timeout=30)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("unquoted heredoc body has a $( ) the guard cannot parse; quote the delimiter (<<'EOF') "
+                          "or compute the value before the heredoc", r.stderr)
+
+    def test_v2_arithmetic_shift_in_body_fails_closed(self):
+        self.both("cat <<EOF\n$((1<<2))\nEOF", 2)
+
+    def test_v2_structure(self):
+        with open(HOOK) as f:
+            src = f.read()
+        self.assertNotIn("unknown_end", src)
+        self.assertIn("class HeredocBlock(Block)", src)
 
     def test_unbalanced_body_fails_closed(self):
         self.assertEqual(hook("cat <<EOF\n$(date\nEOF"), 2)

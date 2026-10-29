@@ -1322,6 +1322,48 @@
     "worker",
     "hq"
    ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo ${x/)/y} ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo ${x#)} ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo ${x:-)} ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(cat <<X\n)\nX\nsudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$((echo hi); sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n$(echo $\"x\" ; sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
   }
  ],
  "must_allow": [
@@ -1590,6 +1632,11 @@
   "echo $((1<<2))",
   "git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\"",
   "cat <<'EOF'\n`sudo id` and $(sudo id)\nEOF",
-  "cat <<EOF\n$(echo ${x}#)\nEOF"
+  "cat <<EOF\n$(echo ${x}#)\nEOF",
+  "cat <<EOF\n$(git rev-parse --short HEAD) $(date +%s%N) \"$x\" ${HOME} $(( 1 + 2 ))\nEOF",
+  "cat <<EOF\nok $(echo 'a)b;c' \"d e\") $(basename $(pwd))\nEOF",
+  "cat <<EOF\n${x}# and it's fine\nEOF",
+  "cat <<EOF\nprose (with parens) it's a # note, ok\nEOF",
+  "cat <<'EOF'\n$(echo ${x/)/y} ; case a in a) b;; esac) `x` {\nEOF"
  ]
 }

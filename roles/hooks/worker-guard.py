@@ -295,6 +295,10 @@ class GitBlock(Block):
     pass
 
 
+class HeredocBlock(Block):
+    """An unquoted heredoc body holds a $( ) the guard cannot delimit; blocks in every mode (T-0587)."""
+
+
 class UnitBlock(PrivBlock):
     """Mutating systemctl (HQ mode) or systemd-run (every mode), T-0102 part D, director M2108."""
 
@@ -525,15 +529,98 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
-def unknown_end(rest):
-    """The rest of a body $( ) whose closing paren cannot be found: the whole text, plus each `;` `&` `|` newline
-    separated piece with trailing parens dropped, so a quote or paren the parser trips on hides none of them."""
-    return [rest] + [p.rstrip(") \t") for p in re.split(r"[;&|\n]", rest) if p.strip()]
+HEREDOC_UNPARSED = ("unquoted heredoc body has a $( ) the guard cannot parse; quote the delimiter (<<'EOF') or "
+                    "compute the value before the heredoc")
+CS_WORD = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./:=+%@,~*?^!-")
+CS_PLAIN = frozenset(" \t\n;|&[]")
+CS_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+CS_BRACED = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
+CS_DQ_OK = CS_WORD | {" ", "'", "(", ")"}
+
+
+def scan_comsub(body, j):
+    """Index just past the `)` that closes the $( ) whose contents start at body[j]. ALLOWLIST: only the shapes listed
+    here are modelled; any other char or construct raises HeredocBlock, because bash decides where a $( ) ends by its
+    full grammar and a wrong guess hides the rest of the body from the scan (T-0587)."""
+    n, depth, word, mid = len(body), 1, "", False
+
+    def unknown():
+        raise HeredocBlock(HEREDOC_UNPARSED)
+
+    while j < n:
+        c = body[j]
+        if c in CS_WORD or (c == "#" and mid):  # a `#` is a literal only inside a word
+            word += c
+            mid = True
+            j += 1
+            continue
+        if word in ("case", "esac"):
+            unknown()
+        word = ""
+        if c in CS_PLAIN:
+            mid = False
+            j += 1
+        elif c in "<>":
+            k = j + 2 if body.startswith(">>", j) else j + 1
+            if body[k:k + 1] in ("<", "("):
+                unknown()
+            mid = False
+            j = k
+        elif c == "(":
+            depth += 1
+            mid = False
+            j += 1
+        elif c == ")":
+            depth -= 1
+            mid = False
+            j += 1
+            if not depth:
+                return j
+        elif c == "'":
+            k = body.find("'", j + 1)
+            if k < 0:
+                unknown()
+            mid = False
+            j = k + 1
+        elif c == '"':
+            j += 1
+            while j < n and body[j] != '"':
+                if body[j] == "$":  # only $NAME / ${NAME} inside "..."
+                    m = CS_NAME.match(body, j + 1) or CS_BRACED.match(body, j + 1)
+                    if not m:
+                        unknown()
+                    j = m.end()
+                elif body[j] in CS_DQ_OK:
+                    j += 1
+                else:
+                    unknown()
+            if j >= n:
+                unknown()
+            mid = False
+            j += 1
+        elif c == "$":
+            j, mid = expansion(body, j, unknown)
+        else:
+            unknown()
+    unknown()
+
+
+def expansion(body, j, unknown):
+    """The `$` at body[j]: a plain variable or a nested $( ). Returns (index after it, whether a word continues)."""
+    nxt = body[j + 1:j + 2]
+    m = CS_NAME.match(body, j + 1) or CS_BRACED.match(body, j + 1)
+    if m:
+        return m.end(), True
+    if nxt and nxt in "123456789?$!#@*":
+        return j + 2, True
+    if nxt == "(":
+        return scan_comsub(body, j + 2), False
+    unknown()
 
 
 def heredoc_subs(body):
-    """Texts bash runs when it expands an UNQUOTED heredoc body: $( ) and backtick contents (also nested in $(( ) and ${ }).
-    A backslash protects the next char. Unbalanced -> Block (fail closed)."""
+    """Texts bash runs when it expands an UNQUOTED heredoc body: $( ) and backtick contents. A backslash protects the
+    next char. A $( ) is delimited by scan_comsub (allowlist; anything it does not model raises HeredocBlock)."""
     subs, i, n = [], 0, len(body)
     while i < n:
         c = body[i]
@@ -547,43 +634,8 @@ def heredoc_subs(body):
                 raise Block("unbalanced backtick in heredoc body")
             subs.append(body[i + 1:j].replace("\\`", "`"))
             i = j + 1
-        elif body.startswith("$((", i):
-            i += 3  # arithmetic: its contents are scanned on, $( ) and backticks in it are live
         elif body.startswith("$(", i):
-            j, depth, q = i + 2, 1, None
-            pclose, pdepth = -1, 0  # pclose: index of the `}` that ended a ${ } (so `${x}#` is no comment)
-            while j < n and depth:
-                d = body[j]
-                if q == "'":
-                    q = None if d == q else q
-                elif q:
-                    # inside "..": a backslash, backtick or nested $( ) changes where the substitution ends
-                    if d == "\\" or d == "`" or body.startswith("$(", j):
-                        return subs + unknown_end(body[i + 2:])  # end unknown: scan the rest of the body as code
-                    q = None if d == q else q
-                elif d == "\\":
-                    j += 1
-                elif d == "`" or body.startswith("$'", j):
-                    return subs + unknown_end(body[i + 2:])
-                elif d in "'\"":
-                    q = d
-                elif d == "c" and body.startswith("case", j) and body[j - 1] in " \t\n;&|(){}" and body[j + 4:j + 5] in ("", " ", "\t", "\n"):
-                    return subs + unknown_end(body[i + 2:])
-                elif d == "#" and (body[j - 1] in " \t\n;&|(){}") and pclose != j - 1:
-                    j = body.find("\n", j)  # a comment runs to end of line; a `)` in it closes nothing
-                    if j < 0:
-                        j = n
-                    continue
-                else:
-                    if body.startswith("${", j):
-                        pdepth += 1
-                    elif d == "}" and pdepth:
-                        pdepth -= 1
-                        pclose = j
-                    depth += (d == "(") - (d == ")")
-                j += 1
-            if depth:
-                raise Block("unbalanced $( ) in heredoc body")
+            j = scan_comsub(body, i + 2)
             subs.append(body[i + 2:j - 1])
             i = j
         else:
@@ -1083,7 +1135,7 @@ class Analyzer:
         """Run fn; in HQ mode only a PRIV block counts, so parse trouble never blocks (no false positives)."""
         try:
             fn(*args)
-        except (PrivBlock, PublicBlock):
+        except (PrivBlock, PublicBlock, HeredocBlock):
             raise
         except Block:
             if not self.hq:
@@ -2355,7 +2407,7 @@ class PublicText:
                     an = Analyzer(self.cwd, None, True)
                     an.pt = self
                     an.script(payload, 1)
-                except PublicBlock:
+                except (PublicBlock, HeredocBlock):
                     raise
                 except Block:
                     if PT_WRITE_HINT.search(payload):
@@ -2575,7 +2627,7 @@ def check(cmd, cwd=None, role=None, hq=False):
         if not hq:
             claude_over_priv(cmd, cwd, role)
         raise
-    except PublicBlock:
+    except (PublicBlock, HeredocBlock):
         raise
     except Block:
         if hq and pt.active and PT_WRITE_HINT.search(cmd):  # the one HQ rule that blocks on parse trouble
@@ -2661,6 +2713,9 @@ def main():
         sys.stderr.write(f"worker-guard: blocked {e}\n")
         return 2
     except PublicBlock as e:
+        sys.stderr.write(f"worker-guard: blocked ({e})\n")
+        return 2
+    except HeredocBlock as e:
         sys.stderr.write(f"worker-guard: blocked ({e})\n")
         return 2
     except Block as e:
