@@ -64,6 +64,7 @@ from scout import sources as scoutsrc  # noqa: E402
 from scout import vendor as scoutvendor  # noqa: E402
 from scout import sandbox as scoutsandbox  # noqa: E402
 from scout import workerbox  # noqa: E402
+from scout import gatebox  # noqa: E402
 from scout import ghcred  # noqa: E402
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
@@ -140,6 +141,7 @@ DEFAULT_CONFIG = {
     "gate_max_parallel": "1",    # local merge gate (T-0515): `factory gate run` processes at once; one test slot stays for workers
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
+    "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -7396,10 +7398,32 @@ def gate_child_env(scratch_home):
     return env
 
 
-def gate_run_cmd(cmd, cwd, log, timeout, env):
+def gate_box(con, env, wt_root):
+    """T-0652: the gatebox spec for this run when config gate_sandbox is 1, None when 0. Any other value is a config error:
+    the gate then fails closed instead of guessing."""
+    v = cfg(con, "gate_sandbox").strip()
+    if v not in ("0", "1"):
+        raise RuntimeError(f"config gate_sandbox is {v!r}, not 0 or 1; fix it with `factory config gate_sandbox 1`, the command was not run")
+    return {"factory_main": env["FACTORY_MAIN"], "wt_root": str(wt_root)} if v == "1" else None
+
+
+def gate_argv(cmd, tree, env, box):
+    """(argv, env) for the gate command: bash -c, or the gatebox argv when `box` is set. A sandbox that cannot be built
+    raises RuntimeError and the command is never run unsandboxed."""
+    if box is None:
+        return ["bash", "-c", cmd], env
+    try:
+        return gatebox.build(cmd, str(tree), box["factory_main"], box["wt_root"], env,
+                             runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    except gatebox.GateboxError as e:
+        raise RuntimeError(f"gate_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config gate_sandbox 0)") from e
+
+
+def gate_run_cmd(cmd, cwd, log, timeout, env, box=None):
     """Run `cmd` through bash in its own process group; the whole group is killed on timeout. Returns (exit, timed_out)."""
+    argv, env = gate_argv(cmd, cwd, env, box)
     with open(log, "ab") as lf:
-        p = subprocess.Popen(["bash", "-c", cmd], cwd=cwd, stdout=lf, stderr=subprocess.STDOUT, env=env, start_new_session=True)
+        p = subprocess.Popen(argv, cwd=cwd, stdout=lf, stderr=subprocess.STDOUT, env=env, start_new_session=True)
         try:
             return p.wait(timeout=timeout), False
         except subprocess.TimeoutExpired:
@@ -7410,12 +7434,13 @@ def gate_run_cmd(cmd, cwd, log, timeout, env):
             p.wait()
 
 
-def gate_count(cmd, tree, log, env):
+def gate_count(cmd, tree, log, env, box=None):
     """Run gate_count_cmd in `tree`; its last stdout line is the integer test count. (None, why) when it cannot be decided.
     Own process group, killed whole on timeout, so a grandchild holding the pipe cannot hang the runner."""
     limit = float(os.environ.get("FACTORY_GATE_COUNT_TIMEOUT_S") or GATE_COUNT_TIMEOUT_S)  # the env var is for tests
+    argv, env = gate_argv(cmd, tree, env, box)
     with tempfile.TemporaryFile("w+") as out:
-        p = subprocess.Popen(["bash", "-c", cmd], cwd=tree, stdout=out, stderr=subprocess.STDOUT, env=env, start_new_session=True)
+        p = subprocess.Popen(argv, cwd=tree, stdout=out, stderr=subprocess.STDOUT, env=env, start_new_session=True)
         try:
             rc, timed_out = p.wait(timeout=limit), False
         except subprocess.TimeoutExpired:
@@ -7605,16 +7630,19 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
     (wt_root / "factory-home").mkdir()
     shards = gate_shard_count(con)
     env.update({"GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(wt_root / "reports")})
+    box = gate_box(con, env, wt_root)
+    if box:
+        note = "; ".join(x for x in (note, "sandboxed (gate_sandbox=1: ro tree, no net, no $HOME)") if x)
     gate_worktree(repo, head, wt_root / "head")
     cmd = gate_cmd_for(con, proj).replace("{main_sha}", main_sha)
     if gate_fast(con, proj):
         note = "; ".join(x for x in (note, "fast mode (gate_fast_projects): lint + affected quick; CI runs the full suite") if x)
-    code, timed_out = gate_run_cmd(cmd, wt_root / "head", log, proj["gate_timeout_s"], env)
+    code, timed_out = gate_run_cmd(cmd, wt_root / "head", log, proj["gate_timeout_s"], env, box)
     if timed_out:
         raise RuntimeError(f"gate_cmd timed out after {proj['gate_timeout_s']} s; process group killed")
     counts = {}
     if proj["gate_count_cmd"].strip():
-        counts["test_count"], why = gate_count(proj["gate_count_cmd"], wt_root / "head", log, env)
+        counts["test_count"], why = gate_count(proj["gate_count_cmd"], wt_root / "head", log, env, box)
         if counts["test_count"] is None:
             raise RuntimeError(f"head test count: {why}")
         if kind == "main":
@@ -7626,7 +7654,7 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
                 counts["main_count"] = r["main_count"]
             else:
                 gate_worktree(repo, main_sha, wt_root / "main")
-                counts["main_count"], why = gate_count(proj["gate_count_cmd"], wt_root / "main", log, env)
+                counts["main_count"], why = gate_count(proj["gate_count_cmd"], wt_root / "main", log, env, box)
                 if counts["main_count"] is None:
                     raise RuntimeError(f"main test count: {why}")
     summary = wt_root / "reports" / "summary.json"
