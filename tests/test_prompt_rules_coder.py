@@ -129,7 +129,7 @@ class PromptRulesCoder(unittest.TestCase):
     def test_self_review_gate_list_and_three_angle_workflow(self):
         text = self._skill()
         step = text.split("\n6. ", 1)[1].split("\n\n", 1)[0]
-        self.assertIn('Workflow(name="multi-angle-review"', step)
+        self.assertIn('Workflow(name="coder-skills:multi-angle-review"', step)
         for item in ("roles/hooks/", "roles/settings/", "ci/", ".github/", "scout/nsbox.py",
                      "scout/workerbox.py", "500", "def cmd_judge", "def refresh_branch",
                      "def cmd_refresh", "def head_has_main", "def verdict_carries"):

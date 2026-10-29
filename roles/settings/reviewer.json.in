@@ -61,7 +61,7 @@
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
-      "Workflow(multi-angle-review)"
+      "Workflow(reviewer-skills:multi-angle-review)"
     ]
   },
   "env": {

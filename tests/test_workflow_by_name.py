@@ -7,8 +7,9 @@ import unittest
 from harness import REPO
 
 SETTINGS = REPO / "roles" / "settings"
-RULE = "Workflow(multi-angle-review)"
 ROLES = ("reviewer", "qa", "coder")
+RULES = {r: f"Workflow({r}-skills:multi-angle-review)" for r in ROLES}
+BARE = "Workflow(multi-angle-review)"
 LINKS = {
     "reviewer": REPO / "roles/plugins/reviewer/reviewer-skills/workflows/multi-angle-review.js",
     "qa": REPO / "roles/plugins/qa/qa-skills/workflows/multi-angle-review.js",
@@ -23,24 +24,42 @@ class WorkflowAllowRuleTests(unittest.TestCase):
 
     def test_exact_rule_for_three_roles_only(self):
         for role in ROLES:
-            self.assertEqual(self.allow(role).count(RULE), 1, role)
+            self.assertEqual(self.allow(role).count(RULES[role]), 1, role)
         for f in sorted(SETTINGS.glob("*.json.in")):
             role = f.name.split(".")[0]
-            if role not in ROLES:
-                self.assertNotIn(RULE, f.read_text(), role)
+            for rule in RULES.values():
+                if role not in ROLES or rule != RULES[role]:
+                    self.assertNotIn(rule, f.read_text(), (role, rule))
 
     def test_no_bare_or_wildcard_workflow_rule(self):
         for f in sorted(SETTINGS.glob("*.json.in")):
             rules = json.loads(f.read_text())["permissions"].get("allow", [])
             for r in rules:
                 if r.startswith("Workflow"):
-                    self.assertEqual((f.name, r), (f.name, RULE))
+                    self.assertEqual((f.name, r), (f.name, RULES[f.name.split(".")[0]]))
             self.assertNotRegex(f.read_text(), r'"Workflow"')
+            self.assertNotIn(BARE, f.read_text(), f.name)
+
+    def test_plugin_names_match_rules(self):
+        for role in ROLES:
+            pj = REPO / "roles" / "plugins" / role / f"{role}-skills" / ".claude-plugin" / "plugin.json"
+            self.assertEqual(json.loads(pj.read_text())["name"], f"{role}-skills")
+
+
+def git_ls_files(*args):
+    inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=REPO, capture_output=True, text=True)
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        raise unittest.SkipTest("not a git checkout (extracted tree): git ls-files unavailable")
+    return subprocess.run(["git", "ls-files", *args], cwd=REPO, capture_output=True, text=True, check=True).stdout
 
 
 class WorkflowByNameTests(unittest.TestCase):
+    def test_no_tracked_project_workflows(self):
+        # a project workflow in <cwd>/.claude/workflows/ runs by bare name; none may be tracked
+        self.assertEqual(git_ls_files(".claude/workflows/*").split(), [])
+
     def test_one_script_and_links_resolve_to_it(self):
-        listed = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True).stdout
+        listed = git_ls_files()
         paths = [l for l in listed.splitlines() if l.endswith("multi-angle-review.js")]
         self.assertEqual(len(paths), 4, paths)  # the script + 3 plugin symlinks
         for role, link in LINKS.items():
@@ -63,8 +82,9 @@ class WorkflowByNameTests(unittest.TestCase):
             text = (REPO / f).read_text()
             self.assertNotIn("scriptPath", text, f)
             self.assertNotRegex(text, r"/ho" r"me/\w+", f)
-        for f in files[:2]:
-            self.assertIn('Workflow(name="multi-angle-review"', (REPO / f).read_text(), f)
+        for f, plugin in zip(files[:2], ("reviewer-skills", "coder-skills")):
+            self.assertIn(f'Workflow(name="{plugin}:multi-angle-review"', (REPO / f).read_text(), f)
+            self.assertNotIn('name="multi-angle-review"', (REPO / f).read_text(), f)
 
 
 if __name__ == "__main__":

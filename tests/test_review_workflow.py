@@ -107,7 +107,7 @@ class SkillAndBriefTests(unittest.TestCase):
     def test_skill_states_gate_path_and_verdict(self):
         t = SKILL.read_text()
         for needle in ("roles/hooks/", "roles/settings/", "ci/", ".github/", "> 500",
-                       'Workflow(name="multi-angle-review"',
+                       'Workflow(name="reviewer-skills:multi-angle-review"',
                        "write your own `factory verdict", "do not run the workflow"):
             self.assertIn(needle, t)
 

@@ -177,7 +177,7 @@
       "Bash(git log:*)",
       "Bash(git diff:*)",
       "Bash(git push origin HEAD:factory/*)",
-      "Workflow(multi-angle-review)"
+      "Workflow(coder-skills:multi-angle-review)"
     ]
   },
   "env": {

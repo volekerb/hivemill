@@ -5,7 +5,7 @@ export const meta = {
 }
 
 // Returns {confirmed, unverified, dropped, angles}; angles[].error is 'review' or 'verify' when a subagent died.
-// args: {pr, base, spec_task}. Runs from the main checkout by absolute path, never from a PR worktree.
+// args: {pr, base, spec_task}. Run by the namespaced name <plugin>:multi-angle-review (reviewer-skills, qa-skills, coder-skills); the plugin dir is the main checkout, never a PR worktree.
 // Coder mode (args.mode === 'coder', also needs pr; optional task, acceptance): a coder's self-review of its own PR.
 // Angles security/spec/tests, all Sonnet, NO verifier agents (3 agents in total); the findings come back in
 // 'unverified' for the coder to check itself; 'confirmed' is always empty. The default path is unchanged.
