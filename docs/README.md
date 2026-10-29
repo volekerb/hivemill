@@ -40,6 +40,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
 - [verdict-gates.md](verdict-gates.md): machine-checked commands that a verdict summary must show passing.
 - [spawn-queue.md](spawn-queue.md): the order in which queued spawns start once the gate opens.
+- [stale-policy.md](stale-policy.md): `stale_policy=behind_ok`, when judge and spawn pre-check skip refreshing a BEHIND PR.
 - [finishing-coders.md](finishing-coders.md): what `factory done` checks in a coder's worktree.
 - [goal-lifecycle.md](goal-lifecycle.md): how a goal's tickets are owned from creation to done.
 - [lifecycle.md](lifecycle.md): the mechanical status transitions of goals and tasks.
