@@ -35,12 +35,12 @@ class PushPinTests(unittest.TestCase):
         git(*ident, "fetch", "-q", "origin", cwd=self.wt)
         git(*ident, "checkout", "-q", "-b", f"factory/{TASK}", cwd=self.wt)
 
-    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}"):
+    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
         env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home)
         if agent:
             env["FACTORY_AGENT"] = agent
-        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.wt})
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
         return subprocess.run([sys.executable, HOOK, "--role", role], input=payload, capture_output=True,
                               text=True, timeout=30, env=env)
 
@@ -92,7 +92,7 @@ class PushPinTests(unittest.TestCase):
             f"git -C $HOME push origin {OWN}",
         ):
             with self.subTest(cmd=cmd):
-                self.assertTrue(self.pinned(cmd), self.run_hook(cmd).stderr)
+                self.assertTrue(self.pinned(cmd), cmd)
 
     def test_unknown_task_id_refuses(self):
         for agent in (None, "coder", "qa-t-0689", "coder-t-0689x"):
@@ -105,10 +105,32 @@ class PushPinTests(unittest.TestCase):
 
     def test_allowed_form_is_allowed(self):
         """The exact push exits 0 (real clone + local bare origin) and the pin names no refusal."""
-        for cmd in (f"git push origin {OWN}", f"git -C {self.wt} push origin {OWN}"):
+        for cmd in (f"git push origin {OWN}", f"git -C {self.wt} push origin {OWN}", f"git -C . push origin {OWN}"):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_dash_c_must_be_own_worktree(self):
+        """T-0719: -C into a scratch clone (another origin) is refused, also via a symlink to it; a symlink to the own one passes."""
+        scratch = os.path.join(self.tmp, "scratch")
+        git("init", "-q", "-b", "main", scratch, cwd=self.tmp)
+        link = os.path.join(self.tmp, "link")
+        os.symlink(scratch, link)
+        for tgt in (scratch, link, "..", os.path.join(self.home, "worktrees", "G-018-T-0001")):
+            cmd = f"git -C {tgt} push origin {OWN}"
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("own worktree", p.stderr)
+        # cwd in a scratch clone: even `-C .` is refused; cwd in a worktree subdir: -C <worktree root> passes
+        for tgt in (".", scratch):
+            self.assertEqual(self.run_hook(f"git -C {tgt} push origin {OWN}", cwd=scratch).returncode, 2)
+        sub = os.path.join(self.wt, "sub")
+        os.makedirs(sub)
+        self.assertEqual(self.run_hook(f"git -C {self.wt} push origin {OWN}", cwd=sub).returncode, 0)
+        link_own = os.path.join(self.tmp, "ownlink")
+        os.symlink(self.wt, link_own)
+        self.assertEqual(self.run_hook(f"git -C {link_own} push origin {OWN}").returncode, 0)
 
 
 if __name__ == "__main__":

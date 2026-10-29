@@ -214,6 +214,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "tick_async_start": "0",     # 1 = _spawn_start does not wait for the TUI or sleep before the kickoff; the tick's start_confirm phase sends it once the agent is listed ready (sandboxed spawns and the evaluator stay synchronous); 0 = off
     "lead_wake_debounce_s": "0", # > 0 = a parked lead is woken by mail at most once per this many seconds (escalation/decision kinds and owner/boss senders bypass; pending mail is batched); 0 = off
     "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
@@ -314,7 +315,8 @@ CREATE TABLE IF NOT EXISTS agents (
   queued_at TEXT, started TEXT, ended TEXT,
   flagless INTEGER NOT NULL DEFAULT 0, flagless_since TEXT,
   stop_requested_at TEXT, stop_attempt_at TEXT, stop_failed_kind TEXT,
-  relaunch_requested_at TEXT, relaunch_requested_by TEXT, relaunch_fresh INTEGER NOT NULL DEFAULT 0);
+  relaunch_requested_at TEXT, relaunch_requested_by TEXT, relaunch_fresh INTEGER NOT NULL DEFAULT 0,
+  start_pending REAL, start_pending_info TEXT);
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL);
 {UTIL_DDL}
 CREATE TABLE IF NOT EXISTS messages (
@@ -374,7 +376,8 @@ def migrate(con):
     for col, ddl in (("flagless", "INTEGER NOT NULL DEFAULT 0"), ("flagless_since", "TEXT"),
                      ("stop_requested_at", "TEXT"), ("stop_attempt_at", "TEXT"), ("stop_failed_kind", "TEXT"),
                      ("relaunch_requested_at", "TEXT"), ("relaunch_requested_by", "TEXT"),
-                     ("relaunch_fresh", "INTEGER NOT NULL DEFAULT 0")):
+                     ("relaunch_fresh", "INTEGER NOT NULL DEFAULT 0"),
+                     ("start_pending", "REAL"), ("start_pending_info", "TEXT")):
         if col not in cols:
             try:
                 con.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
@@ -6647,6 +6650,44 @@ def gh_cred_env(con, role, name):
     return {**scrub, **ghcred.pane_env(agent_dir, path)}
 
 
+ASYNC_START_TIMEOUT_MS = "1"  # tick_async_start: the shortest agent-start --timeout; the tick checks readiness itself
+START_CONFIRM_S = 90          # a start-pending agent not listed ready after this long is start-uncertain (the old --timeout 90000)
+
+
+def start_confirm(con, agents):
+    """Tick phase for tick_async_start: finish the spawns whose agent start did not wait for the TUI.
+    Ready (idle/done/working in the agent list) -> relaunched-fresh event, flagless clear, one kickoff prompt.
+    Not ready after START_CONFIRM_S -> the start-uncertain event, no prompt. Otherwise it waits for the next tick.
+    Returns the names still pending or just confirmed, which the nudge step must leave alone this tick."""
+    rows = con.execute("SELECT * FROM agents WHERE status='live' AND start_pending IS NOT NULL").fetchall()
+    if not rows:
+        return set()
+    agents = herdr_agents() if agents is None else agents
+    by_name = {x.get("name"): x for x in agents or [] if x.get("name")}
+    by_pane = {x.get("pane_id"): x for x in agents or []}
+    skip = set()
+    for r in rows:
+        skip.add(r["name"])
+        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        try:
+            info = json.loads(r["start_pending_info"] or "{}")
+        except json.JSONDecodeError:
+            info = {}
+        if h and h.get("agent_status") in ("idle", "done", "working"):
+            if info.get("fresh"):
+                event(con, "agent", r["name"], "relaunched-fresh", {"old_sid": info.get("old_sid"), "new_sid": info.get("new_sid")})
+            if info.get("flagless") and r["flagless"]:
+                con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (r["name"],))
+                event(con, "agent", r["name"], "flagless-cleared", {"via": "spawn"})
+            if info.get("kick") and herdr("agent", "prompt", h.get("name") or r["name"], info["kick"], check=False) is not None:
+                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
+            con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
+        elif time.time() - r["start_pending"] > START_CONFIRM_S:
+            event(con, "agent", r["name"], "start-uncertain", r["pane_id"])
+            con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
+    return skip
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
@@ -6718,21 +6759,31 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
                 "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
-                "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL",
+                "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
                 (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
     if role == "lead" and team:
         con.execute("UPDATE teams SET lead_agent=?, tab_id=?, parked_at=NULL WHERE id=?", (name, tab, team))
     if task and role == "coder":
         con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
     task_auto_start(con, task, f"spawn {name}", role)
-    r = herdr("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout", "90000", "--", *claude_args, check=False)
-    if r is None:
+    # tick_async_start: not sandboxed (its escape check must not wait a tick), not the evaluator; the start is told
+    # not to wait for the TUI and the tick's start_confirm phase finishes what follows a successful start
+    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
+    r = herdr("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
+              ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args, check=False)
+    if async_start:
+        con.execute("UPDATE agents SET start_pending=?, start_pending_info=? WHERE name=?",
+                    (time.time(), json.dumps({"fresh": bool(fresh), "old_sid": existing["session_id"] if existing else None,
+                                              "new_sid": sid, "flagless": bool(existing and existing["flagless"]),
+                                              "kick": None if resume else kickoff_text(role, name, goal, team, task, prompt)}),
+                     name))
+    elif r is None:
         # agent_not_ready usually means a startup dialog (e.g. trust); the tick alerts if it stays blocked
         event(con, "agent", name, "start-uncertain", pane)
     elif fresh:
         event(con, "agent", name, "relaunched-fresh",
               {"old_sid": existing["session_id"] if existing else None, "new_sid": sid})
-    if r is not None and existing and existing["flagless"]:
+    if not async_start and r is not None and existing and existing["flagless"]:
         # every spawn carries the full role flags: drop the old marker now instead of waiting for the hourly
         # check, but only once the start succeeded (a failed or uncertain start leaves it as it was)
         con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (name,))
@@ -6750,9 +6801,10 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if not evaluator:  # it reads mail from its temp DB; an unread live message would be nudged forever
             send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
                  sender="factory")
-        time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))  # lets the TUI settle; tests set 0
-        if herdr("agent", "prompt", name, kick, check=False) is not None:
-            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+        if not async_start:  # async: the tick sends the kickoff prompt once the agent is ready
+            time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))  # lets the TUI settle; tests set 0
+            if herdr("agent", "prompt", name, kick, check=False) is not None:
+                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "live": stats["live"] + 1,
                                         **({"sandbox": True} if sandboxed else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
@@ -9400,6 +9452,33 @@ LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the tas
 LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
 
 
+LANE_PENDING = ("QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED", "EXPECTED")
+
+
+def lane_owner_stuck(con, task):
+    """Why the lane owner `task` can no longer be merged without a new push (a red check, or a DIRTY/conflicting head),
+    else None. A pending check, a BEHIND head or a gh failure is not stuck: the owner is still on its way."""
+    r = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    if not r or not r["pr_url"]:
+        return None
+    ready, why = judge_pr_ready(con, r["pr_url"], True)
+    if ready:
+        return None
+    if why == "PR is DIRTY":
+        return why
+    if why.startswith("CI not green: "):
+        red = [x for x in why[len("CI not green: "):].split(", ") if "=" in x and x.rsplit("=", 1)[1].upper() not in LANE_PENDING]
+        if red:
+            return why
+    return None
+
+
+def lane_throttle_sweep(con):
+    """Drop 'lane:<task>' throttle rows of tasks that are finished or gone (the lane is released when they end)."""
+    con.execute("DELETE FROM throttle WHERE key LIKE 'lane:%' AND substr(key, 6) NOT IN "
+                "(SELECT id FROM tasks WHERE status NOT IN ('done','cancelled'))")
+
+
 def refresh_lane_hold(con, task, queued):
     """G-022 refresh_lane (phase 1): why a queued judge for `task` waits for the refresh lane, or None to let it go on.
     Only with config refresh_lane=on. Behind-only is not a failure, but every BEHIND judge that starts refreshes its
@@ -9409,6 +9488,7 @@ def refresh_lane_hold(con, task, queued):
     open; when it merges (or its judge ends without a merge) the next BEHIND head takes over. A PR that is not BEHIND
     is never held, and nothing is held when stale_policy=behind_ok applies (no refresh happens then). `queued` = the
     tick's queued rows in queue order. A gh failure reads as not BEHIND (not held): the lane only narrows refreshes."""
+    lane_throttle_sweep(con)
     if (cfg(con, "refresh_lane") or "off").strip().lower() != "on" or not task:
         return None
 
@@ -9433,13 +9513,23 @@ def refresh_lane_hold(con, task, queued):
                            (owner,)).fetchone()
         if not t or t["status"] in ("done", "cancelled") or not live:
             owner = None
+    if owner:
+        stuck = lane_owner_stuck(con, owner)
+        if stuck:  # red CI or DIRTY: it needs a new push, so it must not hold the lane for the TTL
+            con.execute("DELETE FROM config WHERE key=?", (LANE_OWNER_KEY,))
+            con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + owner,))
+            event(con, "task", owner, "lane-release", f"refresh lane released: {stuck}"[:300])
+            owner = None
     if owner == task or not behind(task):
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
         return None
     line = [x for x in dict.fromkeys(q["task_id"] for q in queued if q["role"] == "judge" and q["task_id"])
             if x != owner and (x == task or behind(x))]
     if task not in line:
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
         return None
     if not owner and line[0] == task:
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (LANE_OWNER_KEY, f"{task}|{time.time()}"))
         event(con, "task", task, "lane-head", "refresh lane: this task is the queue head and is refreshed first")
@@ -9875,6 +9965,14 @@ def cmd_tick(a, locked=False):
         event(con, "tick", "dispatch", "dispatch-error", str(e)[:300])
     _pt_lap("dispatch")
 
+    # 2c. tick_async_start: confirm the spawns whose agent start did not wait for the TUI (no-op when nothing is pending)
+    try:
+        starting = start_confirm(con, None)
+    except Exception as e:  # noqa: BLE001 — confirming must never stop the tick
+        starting = set()
+        event(con, "tick", "start_confirm", "start-confirm-error", str(e)[:300])
+    _pt_lap("start_confirm")
+
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
     agents = herdr_agents() or []
@@ -9883,6 +9981,8 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
         if r["role"] == "boss":
             continue  # the owner types in this pane: the tick never prompts it (badge in step 4, hook reads the mail)
+        if r["name"] in starting:
+            continue  # start pending or just kicked off: no second prompt
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])  # herdr may have resumed it under another name
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue
@@ -11519,6 +11619,42 @@ def skilleval_vendor(con, cid):
     return cand, res
 
 
+def skilleval_rescreen(con, cid):
+    """factory skilleval vendor C-xxxx --rescreen: re-run the current pre-screen on the kept copy of a candidate held
+    for pre-screen hits. 0 hits -> triaged; any hit -> stays needs-owner, exit non-zero. Never clears a hit by itself."""
+    r = con.execute("SELECT * FROM scout_candidates WHERE id=?", (cid,)).fetchone() or die(f"no candidate {cid}", 2)
+    cand = dict(r)
+    if cand["status"] != "needs-owner":
+        die(f"{cid} is {cand['status']}, not needs-owner; --rescreen only releases a pre-screen hold", 2)
+    try:
+        held = json.loads(cand["risk_detail"] or "[]")
+    except ValueError:
+        held = None
+    if not isinstance(held, list) or not held or not all(
+            isinstance(x, str) and (x.startswith("prescreen ") or x.startswith("... and ")) for x in held):
+        die(f"{cid} is held for a reason other than pre-screen hits; --rescreen does not clear it", 2)
+    try:
+        root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
+        meta, hits, d = scoutvendor.rescreen(root, cand)
+    except scoutvendor.VendorError as e:
+        die(str(e), e.code)
+    if hits:
+        lines = scoutvendor.hit_lines(hits)
+        scoutdb.set_needs_owner(con, cid, lines)
+        event(con, "skilleval", cid, "vendor-rescreen-hit", f"{len(hits)} pre-screen hit(s) remain")
+        die(f"{cid}: {len(hits)} pre-screen hit(s) remain; status stays needs-owner\n" + "\n".join(lines),
+            scoutvendor.EXIT_PRESCREEN)
+    old = {}
+    for h in meta.get("prescreen_hits") or []:
+        old[h["pattern"]] = old.get(h["pattern"], 0) + 1
+    scoutvendor.clear_hits(d, meta)
+    con.execute("UPDATE scout_candidates SET status='triaged', risk_detail=NULL WHERE id=? AND status='needs-owner'", (cid,))
+    cleared = ", ".join(f"{k} x{v}" for k, v in sorted(old.items())) or "none recorded"
+    event(con, "skilleval", cid, "vendor-rescreen-clear",
+          f"{sum(old.values())} old pre-screen hit(s), now 0; rules cleared: {cleared}")
+    print(f"{cid}@{cand['head_sha']} rescreened: 0 pre-screen hits (was {sum(old.values())}: {cleared}); status triaged")
+
+
 BASELINE_ID, BASELINE_SHA = "C-0000", "baseline"
 
 
@@ -11711,10 +11847,12 @@ def cmd_skilleval(a):
         require_role(con, "director", "lead", "boss")
     else:
         require_role(con, "director", "lead")
+    if a.rescreen and a.action != "vendor":
+        die("--rescreen belongs to `factory skilleval vendor C-xxxx --rescreen`", 2)
     if a.action == "vendor":
         if not a.id:
-            die("usage: factory skilleval vendor C-xxxx", 2)
-        skilleval_vendor(con, a.id)
+            die("usage: factory skilleval vendor C-xxxx [--rescreen]", 2)
+        skilleval_rescreen(con, a.id) if a.rescreen else skilleval_vendor(con, a.id)
     elif a.action == "try":
         skilleval_try(con, a)
     elif a.action == "collect":
@@ -11985,6 +12123,7 @@ def main():
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
     x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled", "infra"]); x.add_argument("--tasks")
     x.add_argument("--why")
+    x.add_argument("--rescreen", action="store_true")
     x.set_defaults(fn=cmd_skilleval)
 
     x = sp.add_parser("msg"); x.add_argument("to"); x.add_argument("subject"); x.add_argument("body", nargs="?")

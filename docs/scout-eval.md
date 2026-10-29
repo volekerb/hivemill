@@ -118,3 +118,19 @@ Tests: `VoidCliTests` in `tests/test_skilleval_tick.py`; the re-run in `tests/te
 Six trials per candidate is one candidate per day by default; the director may raise the daily cap temporarily with `factory config`.
 
 Tests: `tests/test_skilleval_tick.py` (injected clock, a fake launch, the checker mocked; the CLI tests run `bin/factory` as a subprocess).
+
+## Scoped allowances and `--rescreen` (T-0728)
+
+Three false positives hit every real plugin, so the pre-screen has three allowances. Each is scoped by file kind and exact pattern; the same text anywhere else still hits, and no other rule changed.
+
+| allowance | clean only when | still hits |
+|---|---|---|
+| Apache-2.0 boilerplate URL | the file is named `LICENSE` or `NOTICE` (any case, optional `-`/`_`/`.` suffix such as `LICENSE-APACHE`, `NOTICE.md`) with no extension or `.md`/`.txt` and the URL is exactly `http(s)://www.apache.org/licenses/` or `…/licenses/LICENSE-2.0` | the same URL in any other file (`.py`, `.md`, `plugin.json`); any other URL, extra path or host in a LICENSE |
+| doc-host author e-mail | the file's basename is `plugin.json`, the address is the value of `author.email`, `support` or `support.email`, its host is in `DOC_HOSTS` (or the `www.` form), it sits alone on its line and occurs once in the file | the same address in code, `.md`, another `plugin.json` key or a second place; any other domain; `https://user@host` userinfo; any other `@host` |
+| `requests.` in prose | the file extension is `.md` or `.txt` (the pattern itself is unchanged) | every other file (code, `.json`, `.sh`, no extension): `requests.get(`, `import requests`, bare `requests.` |
+
+`factory skilleval vendor C-xxxx --rescreen` (director or lead; workers are refused, exit 3) re-runs the current pre-screen on the kept copy (same sha) of a `needs-owner` candidate whose hold came from pre-screen hits:
+
+- 0 hits: `VENDOR.json` records no hits, status goes back to `triaged`, event `vendor-rescreen-clear` names the old hit count and the rules that cleared (e.g. `url x3, requests x1`).
+- any hit: status stays `needs-owner`, the hits are printed, exit 4. A rescreen never clears a hit by itself and never partially clears.
+- refused with exit 2, status unchanged: a candidate that is not `needs-owner` (dismissed, new, …), one held for another reason (`risk_detail` is not a list of pre-screen hits), or one with no valid vendored copy.
