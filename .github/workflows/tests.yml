@@ -10,7 +10,8 @@ on:
 
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # PR runs cancel older ones; push-to-main runs finish so every main commit gets a completed run (red-main detection)
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
   contents: read
