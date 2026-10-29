@@ -162,7 +162,7 @@ class CleanTests(FactoryTestCase):
         (orphan / "keep").write_text("x")
         p = self.clean()
         self.assertIn("orphan (left alone)", p.stdout)
-        self.assertIn("1 orphan(s)", p.stdout)  # the path cell is cut at 60 chars, so a long TMPDIR hides the name
+        self.assertIn("total: 0 removed, 0 would remove, 0 skipped, 1 orphan(s)", p.stdout)  # the path cell is cut at 60 chars, so a long TMPDIR hides the name
         self.assertTrue((orphan / "keep").exists())
 
     def test_clean_role_refused(self):
