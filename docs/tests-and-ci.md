@@ -50,7 +50,11 @@ Run only the test modules your change touches, e.g. `python3 -m unittest discove
 4. `roles/**` selects modules that mention `roles/` or the role file name. `docs/**` and `*.md` add nothing beyond the smoke set.
 5. The smoke set is always added: config key `affected_smoke` (space-separated module names; default `test_db_layout.py test_inbox.py test_judge.py`). A selection above 40% of the modules means `FULL`.
 
-Any other changed path (web/, ci/*.json, ...) selects the modules that mention its path, its file name or its dotted module path; if none does, it means `FULL`. On `FULL` the output is `FULL (<triggering rule>)`; `--run` then runs every module. Coders and QA run `--run` and quote its output instead of the full suite; the full suite runs only in the judge's local gate, which catches a missed dependency before merge (the cost is one rejection, not a broken main).
+Any other changed path (web/, ci/*.json, ...) selects the modules that mention its path, its file name or its dotted module path; if none does, it means `FULL`. On `FULL` the output is `FULL (<triggering rule>)`; `--run` then runs every module. Coders, reviewers and QA run `--quick --run` (below) and quote its output instead of the full suite; the full suite runs only in the judge's local gate, which catches a missed dependency before merge (the cost is one rejection, not a broken main).
+
+#### Quick mode and the local-fast policy (T-0642)
+
+`--quick` (or `--budget SECONDS`, default 120) is the form the role files use: affected modules plus the smoke set, one process, time printed (`affected: elapsed N s of 120 s budget`). A selection that would be `FULL` prints `FULL needed: rely on CI` and runs nothing (exit 0). If the budget is spent before every module ran, the rest are listed on stderr and the exit code is 4. The whole policy (what runs locally, what CI runs, the guard, gate fast mode) is in `docs/testing.md`.
 
 ### Go
 
