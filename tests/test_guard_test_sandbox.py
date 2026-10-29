@@ -96,3 +96,42 @@ class TestSandboxRoutingExtra(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    # T-0735
+    DENY = ("python3 -W error -m unittest", "python3 -X dev -m unittest", "python3 -Im unittest",
+            "python3 -Werror -m unittest", "python3 --check-hash-based-pycs always -m unittest",
+            "go -C sub test ./...", "go -C sub -v test ./...",
+            "coverage run -m pytest", "coverage run -m unittest tests.test_x", "coverage run --branch -m pytest x",
+            "uv run pytest", "uv run --with foo pytest tests", "uv run python -m pytest", "uv run python3 -X dev -m pytest",
+            "tox", "tox -e py3")
+    ALLOW_ON = ("go -C sub build ./...", "coverage report", "coverage run script.py", "uv run script.py",
+                "uv run python script.py", "uv sync", "python3 -W error -m pip list")
+
+    def test_t0735_shapes_denied_with_message(self):
+        self.seed("1")
+        for cmd in self.DENY:
+            for role in ("coder", "qa"):
+                p = self.run_hook(cmd, role=role)
+                self.assertEqual(p.returncode, 2, (role, cmd))
+                self.assertIn("factory test", p.stderr, cmd)
+
+    def test_t0735_shapes_allowed_when_flag_off(self):
+        self.seed("0")
+        for cmd in self.DENY:
+            if "unittest" in cmd and cmd.startswith("python3"):
+                continue  # unittest_full (T-0642) is independent of the flag
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0735_unrelated_allowed_when_flag_on(self):
+        self.seed("1")
+        for cmd in self.ALLOW_ON:
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_unittest_full_option_values(self):
+        self.seed("0")
+        for cmd in ("python3 -W error -m unittest", "python3 -X dev -m unittest", "python3 -Im unittest"):
+            p = self.run_hook(cmd)
+            self.assertEqual(p.returncode, 2, cmd)
+            self.assertIn("full suite", p.stderr, cmd)
+        for cmd in ("python3 -W error -m unittest tests.test_x", "python3 -X dev -m unittest discover -s tests -p test_x.py"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
