@@ -125,6 +125,7 @@ DEFAULT_CONFIG = {
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
+    "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
     "push_interval_s": "600",    # tick exports commit every change but push at most this often (a manual `factory export` pushes now)
@@ -141,6 +142,7 @@ DEFAULT_CONFIG = {
     "serve_bind": "",            # `factory serve`: LAN address to listen on; empty = source address of the default route
     "serve_port": "8765",        # `factory serve`: TCP port
     "serve_hostnames": "",       # `factory serve`: extra Host names accepted besides the bind IP (comma-separated); empty = the bind IP only
+    "task_clones": "0",          # 1 = a new coder task gets a standalone `git clone --shared` instead of a `git worktree add` (docs/git-hardening.md); 0 = off
     "factory_remote_url": "",    # the one origin URL the git guard allows for the factory checkout; empty = learned once from the live checkout (docs/git-hardening.md)
     # reasoning effort for Opus agents (`claude --effort`, owner M2741); "" = leave Claude's default. Sonnet is never touched.
     "opus_effort": "medium",
@@ -684,6 +686,11 @@ def caller_is_worker():
     return _WORKER["role"]
 
 
+def compact_view(con, a):
+    """G-014: workers get the compact `task show` / `goal show` unless --full; HQ output never changes."""
+    return not a.full and bool(caller_is_worker() or actor_role(con) in WORKER_ROLES)
+
+
 def worker_stub_exempt():
     """The one exemption for workers: a tests/stubs herdr AND a non-live FACTORY_HOME (QA by hand). Either alone
     does not qualify. Used by both herdr_gate() and refuse_worker()."""
@@ -1078,18 +1085,30 @@ def _userns_link(pid):
         return None
 
 
+def _proc_start(pid):
+    """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        stat = (root / str(pid) / "stat").read_text(errors="replace")
+        return stat[stat.rindex(")") + 1:].split()[19]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def sandbox_escape_close(con, name, pane, pid):
     """G-010 T-C2 (fail closed): a sandboxed agent's claude whose user ns equals the host's ran outside the
     sandbox (a shell rc reordered PATH, a multiplexer resumed a bare claude). Close its pane (the call force_stop
-    and reap use), event `sandbox-escaped` and one director alert per pid. An unreadable link decides nothing.
+    and reap use), event `sandbox-escaped` and one director alert per process (pid + start time,
+    read before the close). An unreadable link decides nothing.
     The host reference is <proc>/1, or this process's own ns when pid 1 is unreadable. Returns True when closed."""
     mine = _userns_link(pid)
     host = _userns_link(1) or _userns_link("self")
     if mine is None or host is None or mine != host:
         return False
+    start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
     if pane:
         herdr("pane", "close", pane, check=False)
-    key = f"sandbox-escaped:{pid}"
+    key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
@@ -1353,8 +1372,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
-        return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
-                       " — clean finished tasks' scratchpads"), stats
+        # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
+        # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
+        if role != "cleaner":
+            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
+                           " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
@@ -1446,6 +1468,10 @@ def cmd_config(a):
             triage_per_run(a.value)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
+        if a.key == "task_clones":
+            a.value = a.value.strip()
+            if a.value not in ("0", "1"):
+                die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
         if a.key == "skilleval_root":
             try:
                 scoutvendor.resolve_root(a.value, HOME)
@@ -1488,13 +1514,21 @@ def cmd_project(a):
         if not a.id or not con.execute("SELECT 1 FROM projects WHERE id=?", (a.id,)).fetchone():
             die(f"no project {a.id!r}: see `factory project list`")
         gate_flags = {"gate_cmd": a.gate_cmd, "gate_count_cmd": a.gate_count_cmd, "gate_timeout_s": a.gate_timeout_s}
-        if a.required_checks is None and all(v is None for v in gate_flags.values()):
+        loc_flags = {"gh_repo": a.gh, "repo_path": a.repo}
+        if a.required_checks is None and all(v is None for v in (*gate_flags.values(), *loc_flags.values())):
             die("nothing to update: pass --required-checks \"a,b\" (empty string = use the global config list) "
-                "or --gate-cmd / --gate-count-cmd / --gate-timeout-s")
-        if any(v is not None for v in gate_flags.values()):
-            require_role(con, "director")  # the gate command runs on the host: director (or owner) only
+                "or --gate-cmd / --gate-count-cmd / --gate-timeout-s / --gh OWNER/NAME / --repo PATH")
+        if any(v is not None for v in (*gate_flags.values(), *loc_flags.values())):
+            require_role(con, "director")  # the gate command and the repo location steer the host: director (or owner) only
             if a.gate_timeout_s is not None and a.gate_timeout_s < 1:
                 die("--gate-timeout-s must be a positive number of seconds", 2)
+        if a.gh is not None and not _GH_REPO.fullmatch(a.gh):
+            die(f"--gh must be OWNER/NAME (letters, digits, . _ -), got {a.gh!r}", 2)
+        if a.repo is not None:
+            repo = Path(a.repo).expanduser()
+            if not repo.is_dir() or git_run(str(repo), "rev-parse", "--git-dir", timeout=30).returncode != 0:
+                die(f"--repo {a.repo!r} must be an existing git repository; check the path", 2)
+            loc_flags["repo_path"] = str(repo)
         if a.required_checks is not None:
             con.execute("UPDATE projects SET required_checks=? WHERE id=?", (norm_checks(a.required_checks), a.id))
             event(con, "project", a.id, "update", f"required_checks={norm_checks(a.required_checks)!r}")
@@ -1502,6 +1536,11 @@ def cmd_project(a):
             if v is not None:
                 con.execute(f"UPDATE projects SET {col}=? WHERE id=?", (v, a.id))
                 event(con, "project", a.id, "update", f"{col}={v!r}")
+        for col, v in loc_flags.items():
+            if v is not None:
+                old = con.execute(f"SELECT {col} FROM projects WHERE id=?", (a.id,)).fetchone()[0]
+                con.execute(f"UPDATE projects SET {col}=? WHERE id=?", (v, a.id))
+                event(con, "project", a.id, "update", f"{col}: {old!r} -> {v!r}")
         print(a.id)
     else:
         table(con.execute("SELECT id,name,repo_path,gh_repo,base_branch,auto_merge,required_checks,"
@@ -1536,7 +1575,7 @@ def cmd_goal(a):
         table(con.execute(q + " ORDER BY g.priority, g.id").fetchall(),
               ["id", "status", "priority", "project_id", "done", "total", "title"])
     elif a.action == "show":
-        show_goal(con, a.id)
+        show_goal(con, a.id, compact=compact_view(con, a))
     elif a.action == "edit":
         require_role(con, "boss", "director")
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
@@ -1698,7 +1737,9 @@ def latest_audit(con, gid):
     return au, so
 
 
-def show_goal(con, gid):
+def show_goal(con, gid, compact=False):
+    """compact (workers without --full, G-014): intent and success criteria in full; plan, audit and tasks
+    shrink to pointer/summary lines and the teams table is left out."""
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
     if not g:
         die(f"no goal {gid}")
@@ -1707,9 +1748,23 @@ def show_goal(con, gid):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
     p = con.execute("SELECT * FROM plans WHERE goal_id=? ORDER BY version DESC LIMIT 1", (gid,)).fetchone()
+    au, so = latest_audit(con, gid)
+    if compact:
+        if p:
+            print(f"\nplan v{p['version']} by {p['author']} {p['created']}, {len(p['body'].splitlines())} lines: "
+                  f"factory goal show {gid} --full")
+        if au:
+            print(f"audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})")
+            if so:
+                print(f"sign-off of audit v{au['version']} ({so['author']}, {so['created']})")
+        c = {r["status"]: r["n"] for r in con.execute(
+            "SELECT status, count(*) n FROM tasks WHERE goal_id=? GROUP BY status", (gid,))}
+        std = ("todo", "in_progress", "in_review", "done", "cancelled")
+        parts = ", ".join([f"{st} {c.get(st, 0)}" for st in std] + [f"{st} {n}" for st, n in sorted(c.items()) if st not in std])
+        print(f"tasks: {sum(c.values())} ({parts})")
+        return
     if p:
         print(f"\n## plan v{p['version']} ({p['author']}, {p['created']})\n{p['body']}")
-    au, so = latest_audit(con, gid)
     if au:
         print(f"\n## audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})\n{au['body']}")
         if so:
@@ -2078,8 +2133,17 @@ def cmd_task(a):
         notes = con.execute("SELECT ts,actor,action,detail FROM events WHERE entity='task' AND entity_id=? ORDER BY id",
                             (a.id,)).fetchall()
         print("\n## history")
+        if compact_view(con, a):
+            others = [i for i, n in enumerate(notes) if n["action"] != "note"]
+            keep = set(others[-5:])
+            dropped = len(others) - len(keep)
+            notes = [n for i, n in enumerate(notes) if n["action"] == "note" or i in keep]
+        else:
+            dropped = 0
         for n in notes:
             print(f"- {n['ts']} {n['actor']} {n['action']}" + (f": {n['detail']}" if n['detail'] else ""))
+        if dropped:
+            print(f"({dropped} earlier events: factory task show {a.id} --full)")
     elif a.action == "update":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         role = actor_role(con)
@@ -3181,6 +3245,67 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
     return None
 
 
+NOREPLY_SUFFIX = "@users.noreply.github.com"
+WEB_FLOW_EMAIL = "noreply@github.com"  # GitHub's own committer on web/API merges
+
+
+def _judge_is_public(con, t, owner_repo):
+    """Does the public text rule apply to this PR's repo? Same scope as judge_public_text_refusal (unknown repo = public)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    slugs = _judge_slugs(con, t, owner_repo)
+    return bool(public) and (not slugs or bool(set(slugs) & public))
+
+
+def noreply_email(con):
+    """Author email for a judge merge into a public repo (G-021): config noreply_email, else the repo-local git
+    user.email of the main checkout. None unless it ends @users.noreply.github.com."""
+    email = cfg(con, "noreply_email").strip()
+    if not email:
+        try:  # a plain read of the identity git itself would use (includeIf and global config included); runs no repo code
+            r = git_run(HOME, "config", "--get", "user.email", timeout=30)
+            email = r.stdout.strip() if r.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, OSError):
+            email = ""
+    return email if email.lower().endswith(NOREPLY_SUFFIX) else None
+
+
+def _email_problems(author, committer):
+    """Which of author/committer emails break the public-main rule. Committer may also be GitHub's web-flow address."""
+    bad = []
+    if not (author or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("author")
+    if (committer or "").strip().lower() not in (WEB_FLOW_EMAIL,) and not (committer or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("committer")
+    return bad
+
+
+def judge_merge_email_check(con, t, a, owner_repo, merged_sha):
+    """After a merge into a public repo: read the merge commit and fail loudly (event, message to the director, exit 6)
+    unless author and committer emails are noreply. Cannot read it = cannot verify = also loud. Returns normally if clean."""
+    slug = _repo_slug(owner_repo)
+    why = None
+    try:
+        sha = merged_sha
+        if not sha:
+            sha = ((gh_json("pr", "view", t["pr_url"], "--json", "mergeCommit").get("mergeCommit")) or {}).get("oid") or ""
+        if not sha:
+            why = "cannot find the merge commit of the PR, email not verified"
+        else:
+            c = gh_json("api", f"repos/{slug}/commits/{sha}")["commit"]
+            bad = _email_problems(c["author"]["email"], c["committer"]["email"])
+            if bad:
+                why = f"merge commit {sha[:8]} has a non-noreply {' and '.join(bad)} email (author {c['author']['email'][:3]}***, committer {c['committer']['email'][:3]}***)"
+    except (SystemExit, ValueError, KeyError, TypeError, subprocess.TimeoutExpired, OSError) as e:
+        why = f"cannot read the merge commit, email not verified: {type(e).__name__}: {str(e)[:120]}"
+    if why is None:
+        return
+    event(con, "task", a.task, "merge-email-leak", why)
+    send(con, "director", f"{a.task}: public merge email check FAILED", f"{why}. The change is on {slug} main. Rewrite or "
+         "verify the commit before anyone builds on it (G-021 T-0602).", "escalation", task=a.task, sender=actor())
+    con.commit()
+    die(f"{a.task} merged but the public-main email check failed: {why}; director notified", 6)
+
+
 def judge_requeue(con, task, proj, pr_url, new_head):
     """Local mode after a refresh: the new head needs its own gate run (a pass never carries across a head change).
     Enqueue it and exit without waiting; the tick launches the run and respawns a judge once it passes."""
@@ -3384,8 +3509,17 @@ def cmd_judge(a):
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
             die(refused, 4)
+        author_args = []
+        if _judge_is_public(con, t, owner_repo):  # G-021: the squash commit must not carry a real email
+            noreply = noreply_email(con)
+            if not noreply:
+                msg = ("merge refused: no noreply author email; set `factory config noreply_email <id>+<user>@users.noreply.github.com` "
+                       "or the repo-local git user.email; nothing merged")
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            author_args = ["--author-email", noreply]
         try:
-            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha],
+            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
         except subprocess.TimeoutExpired:  # outcome unknown, like a 5xx: the squash may have landed
             p = subprocess.CompletedProcess([], 124, "", "gh pr merge timed out")
@@ -3429,6 +3563,8 @@ def cmd_judge(a):
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
+    if _judge_is_public(con, t, owner_repo):
+        judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
 
 def cmd_refresh(a):
@@ -4457,11 +4593,30 @@ def factory_remote_url():
 
 # The repo-scope keys the live ~/factory/.git/config really has (git -C ~/factory config --file .git/config --list).
 _ALLOWED_KEY = re.compile(r"^(core\.(repositoryformatversion|filemode|bare|logallrefupdates)|remote\.origin\.(url|fetch)"
-                          r"|branch\..+\.(remote|merge)|extensions\.worktreeconfig)$", re.I)
+                          r"|branch\..+\.(remote|merge)|extensions\.worktreeconfig|user\.(name|email))$", re.I)
 _INCLUDE_KEY = re.compile(r"^include(if)?\.", re.I)  # also outside the allow-list; named so the refusal reads as intended
 
 
 _GH_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # used with fullmatch: `$` would also match before a trailing newline
+
+
+def _clone_source(con, common):
+    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task>, the
+    DB names that task's project repo, and the clone's one alternates line is exactly <repo>/.git/objects. The
+    alternates file is worker-writable, so it is only compared, never trusted. None otherwise."""
+    try:
+        wt = common.parent
+        if wt.parent != WORKTREES.resolve():
+            return None
+        alt = (common / "objects" / "info" / "alternates").read_text().splitlines()
+    except OSError:
+        return None
+    row = con.execute("SELECT p.repo_path FROM tasks t JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id "
+                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name,)).fetchone()
+    if not row or not isinstance(row["repo_path"], str) or not Path(row["repo_path"]).is_absolute():
+        return None
+    repo = Path(row["repo_path"]).resolve()
+    return repo if alt == [str(repo / ".git" / "objects")] else None
 
 
 def _project_remote_urls(common):
@@ -4474,6 +4629,7 @@ def _project_remote_urls(common):
     try:
         con = db()
         try:
+            root = _clone_source(con, common) or common.parent  # a per-task clone is judged by its own task's project repo
             rows = con.execute("SELECT repo_path, gh_repo FROM projects WHERE repo_path IS NOT NULL AND gh_repo IS NOT NULL").fetchall()
         finally:
             con.close()
@@ -4487,7 +4643,7 @@ def _project_remote_urls(common):
                 continue
             if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
                 continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
-            if Path(rp).resolve() != common.parent or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
+            if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
                 continue
             urls |= {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
         return urls
@@ -4511,7 +4667,8 @@ def git_config_refusal(repo):
     Reads, WITHOUT includes, `<common-dir>/config`, every `<common-dir>/worktrees/*/config.worktree` and the target
     worktree's own config.worktree. Refuses (returns the offending keys; empty = clean): any include.*/includeIf.*
     key, any key outside the allow-list (core.repositoryformatversion|filemode|bare|logallrefupdates,
-    remote.origin.url|fetch, branch.<n>.remote|merge, extensions.worktreeConfig), a remote.origin.url that is not
+    remote.origin.url|fetch, branch.<n>.remote|merge, extensions.worktreeConfig, user.name, user.email), a user.email
+    that does not end in @users.noreply.github.com, a remote.origin.url that is not
     the factory repo or the clone's own registered project (exact https gh_repo URL), extensions.worktreeConfig other than false, a non-empty
     `<common-dir>/info/attributes` or `~/.config/git/attributes`. Fails closed: unreadable config is a refusal.
     Global/XDG config is out of scope (G-010, docs/git-hardening.md)."""
@@ -4545,6 +4702,8 @@ def git_config_refusal(repo):
                 keys.append(k)
             elif k.lower() == "remote.origin.url" and not _remote_url_ok(v, project_urls):
                 keys.append(f"{k}={v}")
+            elif k.lower() == "user.email" and not v.strip().lower().endswith("@users.noreply.github.com"):
+                keys.append(k)  # a real address in repo config would be committed under; only the noreply form is allowed
             elif k.lower() == "extensions.worktreeconfig" and v.strip().lower() not in ("false", "no", "off", "0"):
                 keys.append(k)
     xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
@@ -4581,6 +4740,56 @@ def git_config_guard(con, repo, always_event=False):
     return False
 
 
+def make_task_clone(con, repo, wt, branch, base):
+    """Standalone clone of `repo` at `wt` (task_clones=1): objects borrowed through alternates, origin = the repo's
+    own origin URL, refs/remotes/origin/* copied from the repo (no network), `branch` checked out from origin/<base>.
+    Every git call goes through git_run; the guard runs on the clone before anything checks out."""
+    if wt.exists():
+        die(f"clone refused: {wt} already exists; remove it or fix tasks.worktree", 4)
+    u = git_run(repo, "remote", "get-url", "origin")
+    url = u.stdout.strip()
+    if u.returncode != 0 or not url:
+        die(f"clone refused: {repo} has no origin URL to give the clone: {u.stderr.strip()}", 4)
+
+    def fail(msg, code=1):
+        shutil.rmtree(wt, ignore_errors=True)
+        con.commit()
+        die(msg, code)
+
+    # the one place a local path is cloned: file transport is allowed for this call alone (the source passed the guard)
+    p = git_run(repo, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", str(repo), str(wt))
+    if p.returncode != 0:
+        fail(f"clone failed: {p.stderr.strip()}")
+    p = git_run(wt, "remote", "set-url", "origin", url)
+    if p.returncode != 0:
+        fail(f"clone setup failed (remote set-url): {p.stderr.strip()}")
+    old = git_run(wt, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
+    new = git_run(repo, "for-each-ref", "--format=%(objectname) %(refname)", "refs/remotes/origin")
+    if old.returncode != 0 or new.returncode != 0:
+        fail(f"clone setup failed (for-each-ref): {(old.stderr + new.stderr).strip()}")
+    want = {}
+    for line in new.stdout.splitlines():
+        sha, _, ref = line.partition(" ")
+        if re.fullmatch(r"[0-9a-f]{40,64}", sha) and ref.startswith("refs/remotes/origin/") and ref != "refs/remotes/origin/HEAD":
+            want[ref] = sha
+    # what clone fetched from the repo's local branches is replaced by the repo's own origin refs (one update per ref)
+    cmds = [f"delete {r}\n" for r in old.stdout.split() if r not in want and r != "refs/remotes/origin/HEAD"] + [f"update {r} {sha}\n" for r, sha in want.items()]
+    if "refs/remotes/origin/HEAD" in old.stdout.split():  # clone's symref would make the update below hit origin/<default> twice
+        p = git_run(wt, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+        if p.returncode != 0:
+            fail(f"clone setup failed (symbolic-ref): {p.stderr.strip()}")
+    p = git_run(wt, "update-ref", "--stdin", input="".join(cmds))
+    if p.returncode != 0:
+        fail(f"clone setup failed (update-ref): {p.stderr.strip()}")
+    if not git_config_guard(con, wt):  # before the first checkout: filters, fsmonitor and includes only act then
+        why = ", ".join(git_config_refusal(wt))
+        fail(f"spawn refused: git config in {wt} would run code: {why}", 4)
+    has_remote = git_run(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}").returncode == 0
+    p = git_run(wt, "checkout", "-q", "-f", "-B", branch, f"origin/{base}" if has_remote else base)
+    if p.returncode != 0:
+        fail(f"clone checkout failed: {p.stderr.strip()}")
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -4608,6 +4817,10 @@ def prepare_worktree(con, task, role):
     git_run(repo, "fetch", "-q", "origin", text=False)
     has_remote = git_run(repo, "rev-parse", "--verify", "-q", f"origin/{base}", text=False).returncode == 0
     start = f"origin/{base}" if has_remote else base
+    if cfg(con, "task_clones") == "1":
+        make_task_clone(con, repo, wt, branch, base)
+        con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
+        return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
     if p.returncode != 0:
         die(f"worktree add failed: {p.stderr.strip()}")
@@ -5000,8 +5213,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (name,))
         event(con, "agent", name, "flagless-cleared", {"via": "spawn"})
     if sandboxed and (sid or resume):  # the session's claude pid is known now: close an escape right away
-        for pid, _argv in claude_procs(sid or resume):
-            if sandbox_escape_close(con, name, pane, pid):
+        for pid, argv in claude_procs(sid or resume):
+            if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid):
                 break
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
           f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
@@ -5823,6 +6036,8 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             wt = p.resolve()
             if wt == root or root not in wt.parents:
                 return "outside worktrees/", None, tip is not None
+            if (wt / ".git").is_dir():
+                return "per-task clone (removal not supported yet)", None, tip is not None
             top = _git(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
                 return "not a git worktree", None, tip is not None
@@ -6786,6 +7001,10 @@ def cmd_res(a):
     gr = con.execute("SELECT id,kind,task_id,project_id,pid FROM gate_runs WHERE status='running' ORDER BY id").fetchall()
     print(f"gate runs: {len(gr)} running (max {cfg(con, 'gate_max_parallel')})"
           + "".join(f" · #{r['id']} {r['task_id'] or r['kind'] + ':' + r['project_id']}" for r in gr))
+    if s.get("tmp") and s["tmp"]["pct"] >= float(cfg(con, "tmp_max_pct")):
+        cok, cwhy, _ = gate(con, role="cleaner")
+        print("cleaner gate: " + ("OPEN — exempt from the /tmp gate (tmp_max_pct) so it can free /tmp; every other cap still applies"
+                                  if cok else f"CLOSED — {cwhy}"))
     print(f"agents live {s['live']}/{s['cap']} · queued {q} · other claude panes {s['other']} (counted in host total)")
     lc = lead_counts(con)
     reserved = int(cfg(con, "reserved_worker_slots"))
@@ -7433,9 +7652,12 @@ def cmd_tick(a, locked=False):
     queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
                                 "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
+    held = False
     for q in queued:
-        if not gate(con)[0]:
-            break
+        if not held and not gate(con)[0]:
+            held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
+        if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
+            continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
@@ -7633,6 +7855,50 @@ def sync_pull(con, push_ok=True):
     return _sync_failed(con, err)
 
 
+PUBLIC_MAIN_SCAN_MAX = 200  # commits looked at when there is no usable watermark
+
+
+def public_main_email_check(con):
+    """Tick (G-021 T-0602): for the main checkout when its origin is in public_text_repos, look at the commits that are new
+    on origin/main since the last check; an author or committer email that is not noreply (web-flow committer allowed)
+    -> one escalation to the boss per sha. Never raises: the tick goes on."""
+    try:
+        public = _cfg_slugs(con, "public_text_repos")
+        if not public:
+            return
+        slug = next((s for s in (_repo_slug(u) for u in _origin_urls()) if s in public), None)
+        if not slug:
+            return
+        key = f"public_main_seen:{slug}"
+        row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+        rc, tip, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+        if rc != 0 or not tip:
+            return
+        seen = row["value"] if row else ""
+        rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
+        rc, out, err = _git_rc(["log", "--format=%H%x09%ae%x09%ce", *rng])
+        if rc != 0:
+            raise RuntimeError(err or f"git log exited {rc}")
+        for line in out.splitlines():
+            sha, ae, ce = (line.split("\t") + ["", ""])[:3]
+            bad = _email_problems(ae, ce)
+            tkey = f"email-alert:{sha}"
+            if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
+                continue
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (tkey, str(time.time())))
+            send(con, "boss", f"public main {slug}: non-noreply email on {sha[:8]}",
+                 f"Commit {sha} on {slug} origin/main has a non-noreply {' and '.join(bad)} email (author {ae[:3]}***, "
+                 f"committer {ce[:3]}***). Required: ...{NOREPLY_SUFFIX}. Rewrite the commit or confirm it is fine; "
+                 "alerted once for this sha (G-021 T-0602).", "escalation", sender="tick")
+            event(con, "system", slug, "public-main-email", sha)
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, tip))
+    except Exception as e:  # noqa: BLE001 — a failed alert check must not stop the tick
+        try:
+            event(con, "system", "tick", "public-main-email-failed", str(e)[:200])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def state_commit(msg):
     """Commit exports/ and state/ to refs/heads/state with plumbing and a private index: main's index, HEAD and
     branch are never touched. Returns True if a new commit was made."""
@@ -7666,6 +7932,7 @@ def export(con, push=None):
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
     sync_pull(con, push_ok and state_ok)  # first: merged code goes live and tracked generated files are restored before they are rewritten
+    public_main_email_check(con)
     banner = "<!-- generated by `factory export` from factory.db — edits here are overwritten -->\n"
     goals = con.execute("SELECT g.*,(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status='done') done,"
                         "(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status!='cancelled') total FROM goals g ORDER BY id").fetchall()
@@ -9185,6 +9452,7 @@ def main():
     x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close"])
     x.add_argument("id", nargs="?"); x.add_argument("status", nargs="?")
     x.add_argument("--ready", action="store_true"); x.add_argument("--gaps", action="store_true")
+    x.add_argument("--full", action="store_true")
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
@@ -9200,6 +9468,7 @@ def main():
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
     x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen"])
+    x.add_argument("--full", action="store_true")
     x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
     x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")

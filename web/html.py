@@ -282,7 +282,8 @@ def _item_link(path, label, icon, active, shell, cls, size=16):
     here = path == active
     main_nav = cls == "nav-item"
     classes = " ".join(c for c in (cls, "nav-item--active" if here and main_nav else "is-current" if here else "") if c)
-    return el("a", _svg(_SVG16[icon], size), el("span", label), _nav_count(path, shell),
+    count = None if cls == "tab" and path == "/" else _nav_count(path, shell)   # phone: the top bar badge is the one Needs-you count
+    return el("a", _svg(_SVG16[icon], size), el("span", label), count,
               href=path, class_=classes or None, aria_current="page" if here and main_nav else None)
 
 
