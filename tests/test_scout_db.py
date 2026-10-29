@@ -24,7 +24,7 @@ TABLES = {
                    "stop_reason", "reported_msg"],
     "skill_trials": ["id", "candidate_id", "vendor_sha", "task", "condition", "status", "agent", "sandbox", "queued",
                      "started", "ended", "passed", "wall_s", "tokens_in", "tokens_out", "cache_read", "cache_write",
-                     "skill_invoked", "check_output", "author"],
+                     "skill_invoked", "check_output", "author", "void_reason", "void_why"],
 }
 WORKERS = ["coder", "qa", "reviewer", "judge", "cleaner", "pm"]
 GOOD = ("--purpose", "p", "--roles", "coder,qa", "--overlap", "o", "--rec", "watch", "--why", "w")
