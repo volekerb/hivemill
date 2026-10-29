@@ -1,7 +1,8 @@
 """Visual QA for the web UI (G-019 B7): captures every page in both themes at desktop and phone width and checks it.
 
 Per capture: (a) no horizontal overflow, (b) on the overview at 1280 px no blank area above BLANK_MAX of the content
-column, (c) WCAG AA contrast of every token pair in app.css (text >= AA_TEXT, non-text >= AA_NON_TEXT), (d) server-side
+column (blank = plain page background --surface-0 outside cards; card interiors, --surface-1, are content),
+(c) WCAG AA contrast of every token pair in app.css (text >= AA_TEXT, non-text >= AA_NON_TEXT), (d) server-side
 render time per route (median of RENDER_RUNS GETs) below RENDER_MS_MAX.
 
 Everything runs on a demo DB seeded by ci/demo_seed.py into a temp FACTORY_HOME/HOME (tempfile.mkdtemp); the live
@@ -33,7 +34,7 @@ sys.path.insert(0, str(ROOT / "ci"))
 sys.path.insert(0, str(ROOT))
 import demo_cdp  # noqa: E402  (the only gateway to ci/screenshots.py)
 
-BLANK_MAX = 0.35        # share of the overview content column that may be plain background
+BLANK_MAX = 0.35        # share of the overview content column that may be plain page background (--surface-0)
 AA_TEXT = 4.5           # WCAG AA, text pairs
 AA_NON_TEXT = 3.0       # WCAG AA, non-text pairs
 RENDER_MS_MAX = 200     # median server-side render per route, demo DB
@@ -58,7 +59,7 @@ JS_OVERFLOW = """(function () {
   });
   var cs = getComputedStyle(document.documentElement);
   return {scroll_width: document.documentElement.scrollWidth, inner_width: iw, elements: out.slice(0, 200),
-          bg: [cs.getPropertyValue('--surface-0').trim(), cs.getPropertyValue('--surface-1').trim()]};
+          bg: [cs.getPropertyValue('--surface-0').trim()]};
 })()"""
 
 
@@ -88,7 +89,8 @@ def hex_rgb(value):
 
 
 def blank_share(width, channels, rows, backgrounds, x0, cell=CELL):
-    """Share of cell x cell blocks (x >= x0) that are one uniform colour equal to a background. Rows are the
+    """Share of cell x cell blocks (x >= x0) that are one uniform colour equal to a background (callers pass only
+    --surface-0, the page background). Rows are the
     decoded PNG scanlines (ci/screenshots.decode_png); partial edge blocks are ignored."""
     bgs = set(backgrounds)
     blank = total = 0

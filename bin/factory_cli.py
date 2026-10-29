@@ -13,6 +13,7 @@ import contextlib
 import fcntl
 import glob
 import hashlib
+import importlib
 import datetime as dt
 import importlib.util
 import io
@@ -57,15 +58,43 @@ WORKTREES = HOME / "worktrees"
 RUN = HOME / "run"
 USAGE_FILE = Path.home() / ".claude" / "usage-limits.json"
 
-from scout import db as scoutdb  # noqa: E402
-from scout import report as scoutreport  # noqa: E402
-from scout import schedule as scoutsched  # noqa: E402
-from scout import sources as scoutsrc  # noqa: E402
-from scout import vendor as scoutvendor  # noqa: E402
-from scout import sandbox as scoutsandbox  # noqa: E402
-from scout import workerbox  # noqa: E402
-from scout import gatebox  # noqa: E402
-from scout import ghcred  # noqa: E402
+
+# Tables created by scout.db.SCOUT_DDL; tests/test_cli_lazy_imports.py pins this list to the DDL.
+SCOUT_TABLES = {"scout_candidates", "scout_triage", "scout_stars", "scout_cursors", "scout_runs", "skill_trials"}
+
+
+class _LazyScout:
+    """Stands in for a scout module until first use (PEP 562 cannot serve bare globals read inside functions).
+    Imports scout.<name> on first attribute access, then forwards get/set/del to the real module, so
+    mock.patch.object(f.scoutsandbox, ...) patches the module itself. Keeps `factory inbox` & co. from
+    paying for scout.sources (urllib/ssl) and the sandbox modules."""
+
+    def __init__(self, name):
+        object.__setattr__(self, "_name", name)
+
+    def _mod(self):
+        return importlib.import_module("scout." + object.__getattribute__(self, "_name"))
+
+    def __getattr__(self, attr):
+        return getattr(self._mod(), attr)
+
+    def __setattr__(self, attr, value):
+        setattr(self._mod(), attr, value)
+
+    def __delattr__(self, attr):
+        delattr(self._mod(), attr)
+
+
+scoutdb = _LazyScout("db")
+scoutreport = _LazyScout("report")
+scoutsched = _LazyScout("schedule")
+scoutsrc = _LazyScout("sources")
+scoutvendor = _LazyScout("vendor")
+scoutsandbox = _LazyScout("sandbox")
+workerbox = _LazyScout("workerbox")
+gatebox = _LazyScout("gatebox")
+testbox = _LazyScout("testbox")
+ghcred = _LazyScout("ghcred")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -89,6 +118,8 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 # role never takes it. After a crash the claim stalls the queued row for at most this long (10 min). A fixed literal (tests
 # read it without importing); test_staff_engineer asserts the bound against a real spawn.
 CLAIM_TTL_S = 600
+# a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
+EVALUATOR_SPAWN_RETRY_MAX = 5
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -142,6 +173,8 @@ DEFAULT_CONFIG = {
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
+    "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
+    "test_sandbox_subuid": "0",  # 1 (with test_sandbox 1) = the test box runs as a subordinate host uid via newuidmap, not the owner uid; no newuidmap/subuid range = exit 3, never as the owner (T-0682)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -171,6 +204,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -286,7 +320,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + scoutdb.SCOUT_DDL
+""" + GATE_RUNS_DDL + LESSONS_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -385,7 +419,9 @@ def migrate(con):
     con.executescript(UTIL_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
-    con.executescript(scoutdb.SCOUT_DDL)
+    have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
+        con.executescript(scoutdb.SCOUT_DDL)
 
 
 def cfg(con, key):
@@ -1485,7 +1521,7 @@ def cmd_init(a):
     if a.live_home:
         write_live_home(a.live_home)
     con = db(create=True)
-    con.executescript(SCHEMA)
+    con.executescript(SCHEMA + scoutdb.SCOUT_DDL)
     for k, v in DEFAULT_CONFIG.items():
         con.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
     if (ROLES_DIR / "settings").is_dir():  # a bare data dir without a checkout (tests, dry installs) has no templates to render
@@ -1532,6 +1568,8 @@ def cmd_config(a):
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
         if a.key in ("public_text_repos", "frozen_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
             die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
+            die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
         if a.key == "opus_effort":
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
@@ -2671,6 +2709,68 @@ def cmd_report(a):
 
 # ───────────────────────────── verdicts & merge gate ─────────────────────────────
 
+def cmd_pr(a):
+    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
+    redirect it. The child env drops GH_REPO and GH_HOST."""
+    con = db()
+    role = actor_role(con)
+    if role != "coder":
+        die(f"role '{role}' ({actor()}) may not do this: `factory pr` is for coders; ask your lead", 3)
+    ag = con.execute("SELECT task_id FROM agents WHERE name=?", (actor(),)).fetchone()
+    tid = ag["task_id"] if ag else None
+    if not tid:
+        die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
+    row = con.execute("SELECT p.gh_repo, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    repo = ((row["gh_repo"] if row else "") or "").strip()
+    if not ghcred.SLUG_RE.fullmatch(repo):
+        die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
+    try:
+        g = git_run(os.getcwd(), "branch", "--show-current", timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"cannot read the current git branch ({e}); run `factory pr` from your task worktree", 3)
+    branch = g.stdout.strip() if g.returncode == 0 else ""
+    want = f"factory/{tid.lower()}"
+    if branch != want:
+        die(f"current branch is {branch or '(none)'!r}, not {want!r}: run `factory pr` from your own task worktree", 3)
+    env = {k: v for k, v in gh_git_env().items() if k not in ("GH_REPO", "GH_HOST")}
+    body = None
+    if a.action == "create":
+        if a.body != "-":
+            die("`factory pr create` takes the body on stdin only: --body - with a heredoc", 2)
+        body = read_text("-")
+        if not (a.title or "").strip() or not body:
+            die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
+                "--title", a.title, "--body-file", "-"]
+        if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
+            try:
+                guard = _public_guard()
+                terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
+                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+            except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
+                die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
+                    f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
+            if hits:
+                die(f"pr create refused (public text): {len(hits)} hits in the title, body or branch "
+                    f"({', '.join(sorted({h[0] for h in hits}))}); reword and retry", 3)
+    else:
+        if a.title is not None or a.body is not None:
+            die("`factory pr ready` takes no arguments: it targets the PR of your own branch", 2)
+        argv = ["gh", "pr", "ready", branch, "--repo", repo]
+    try:
+        p = subprocess.run(argv, input=body, capture_output=True, text=True, timeout=120, env=env)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"gh pr {a.action} failed to run: {e}", 1)
+    if p.returncode == 0:
+        event(con, "task", tid, f"pr-{a.action}", f"{repo} {branch}")
+    sys.stdout.write(p.stdout)
+    sys.stderr.write(p.stderr)
+    if p.returncode != 0:
+        sys.exit(p.returncode)
+
+
 def gh_json(*args, timeout=120):
     p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
     if p.returncode != 0:
@@ -3134,6 +3234,27 @@ def judge_max_refreshes(con):
 REFRESH_IDENT = {"GIT_AUTHOR_NAME": "factory refresh", "GIT_AUTHOR_EMAIL": "factory-refresh@localhost",
                  "GIT_COMMITTER_NAME": "factory refresh", "GIT_COMMITTER_EMAIL": "factory-refresh@localhost"}
 
+def refresh_ident(con, repo, task, owner_repo):
+    """Identity env of a refresh merge commit (T-0604). Private repo: REFRESH_IDENT. PR repo or the task's project
+    gh_repo in public_text_repos (no slug at all while the list is set counts as public): author and committer email =
+    noreply_email(con) (config, else git user.email). Returns (env, None), or
+    (None, why) when no noreply address is known: the refresh is refused (fail closed)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    if not public:
+        return REFRESH_IDENT, None
+    proj = con.execute("SELECT p.gh_repo FROM projects p JOIN goals g ON g.project_id=p.id JOIN tasks t ON t.goal_id=g.id "
+                       "WHERE t.id=?", (task,)).fetchone()
+    slugs = [x for x in dict.fromkeys((_repo_slug(owner_repo), _repo_slug(proj["gh_repo"] if proj else ""))) if x]
+    if slugs and not set(slugs) & public:
+        return REFRESH_IDENT, None
+    email = noreply_email(con)
+    if not email:
+        return None, (f"REFRESH-IDENT: {', '.join(slugs) or 'the repo'} is public (public_text_repos) and neither config "
+                      f"noreply_email nor git user.email is a {NOREPLY_SUFFIX} address; set "
+                      f"`factory config noreply_email <id+handle{NOREPLY_SUFFIX}>`")
+    name = REFRESH_IDENT["GIT_AUTHOR_NAME"]
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}, None
+
 
 def refresh_lock(pr_number):
     """Non-blocking exclusive flock on db/refresh-pr-<N>.lock: one refresher per PR at a time. Returns (file, holder): the
@@ -3196,8 +3317,11 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
     frozen = _push_policy(db(), repo_url) or _push_policy(db(), owner_repo)
     if frozen:
         return {"status": "error", "why": f"{frozen}; nothing pushed"}
+    ident, why = refresh_ident(db(), repo, task, owner_repo)
+    if why:
+        return {"status": "error", "why": f"{why}; nothing pushed"}
     msg = f"Merge origin/main into {branch} (factory refresh {task})"
-    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **REFRESH_IDENT})
+    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **ident})
     if rc != 0 or not new:
         return {"status": "error", "why": f"git commit-tree failed: {err or rc}"}
     rc, _, err = _git_rc(["push", "-q", f"--force-with-lease=refs/heads/{branch}:{old}", repo_url, f"{new}:refs/heads/{branch}"],
@@ -4888,6 +5012,222 @@ def reap_stray_serves(con):
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "serve-reap", "serve-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+ORPHAN_REAP_THROTTLE_S = 600   # same cadence as the serve reaper
+ORPHAN_ENDED = ("done", "exited", "lost", "cancelled")   # a 'stopped' agent can be resumed: not ended
+ORPHAN_BLOCKING = ("live", "queued", "starting", "stopped")
+ORPHAN_HQ_ROLES = ("boss", "director", "lead", "staff-engineer")
+ORPHAN_MODES = ("dry-run", "on", "off")
+
+
+def _orphan_stat(pid):
+    """(ppid, pgid, starttime) from /proc/<pid>/stat, or None when it is gone or unreadable."""
+    try:
+        s = (_serve_proc_root() / str(pid) / "stat").read_text(errors="replace")
+        f = s[s.rindex(")") + 2:].split()
+        return int(f[1]), int(f[2]), int(f[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _orphan_ident(pid):
+    """(argv, starttime) of a pid right now, or None: the pid-reuse guard compares this before every signal."""
+    st, argv = _orphan_stat(pid), _serve_argv(pid)
+    return (argv, st[2]) if st and argv else None
+
+
+def _orphan_env(pid):
+    try:
+        raw = (_serve_proc_root() / str(pid) / "environ").read_bytes()
+    except OSError:
+        return None
+    return dict(x.decode(errors="replace").split("=", 1) for x in raw.split(b"\0") if b"=" in x)
+
+
+def _orphan_task(cwd, argv):
+    """((goal, task), attributed_by) when cwd/scratchpad/argv all point at one task's worktree, else None (nothing
+    found, or two tasks: then the process is not ours). attributed_by is the first of cwd, scratchpad, argv that matched."""
+    wt = WORKTREES.resolve()
+
+    def in_worktree(path):
+        try:
+            rel = Path(path).relative_to(wt).parts
+        except ValueError:
+            return None
+        m = re.fullmatch(r"(G-\d+)-(T-\d+)", rel[0]) if rel else None
+        return (m.group(1), m.group(2)) if m else None
+
+    found = []
+    if (k := in_worktree(cwd)):
+        found.append(("cwd", k))
+    pad = _serve_pad(cwd)
+    if pad and pad[0].parent.name == f"claude-{os.getuid()}":  # the Claude scratchpad shape only
+        m = re.search(r"(G-\d+)-(T-\d+)$", pad[0].name)
+        if m:
+            found.append(("scratchpad", (m.group(1), m.group(2))))
+    for el in argv[1:]:
+        if el and (k := in_worktree(os.path.realpath(os.path.join(cwd, el)))):
+            found.append(("argv", k))
+    if not found or len({k for _by, k in found}) != 1:
+        return None
+    return found[0][1], found[0][0]
+
+
+def _orphan_judge(con, pid, skip):
+    """The facts about `pid` when it is an orphan of an ended worker (see reap_orphans), else None."""
+    if pid in skip:
+        return None
+    root = _serve_proc_root()
+    try:
+        if (root / str(pid)).stat().st_uid != os.getuid():
+            return None
+        cwd = os.path.realpath(os.readlink(root / str(pid) / "cwd"))
+    except OSError:
+        return None
+    env, ident = _orphan_env(pid), _orphan_ident(pid)
+    if env is None or ident is None:
+        return None
+    agent = env.get("FACTORY_AGENT", "")
+    if not agent or agent == "owner":
+        return None  # not started by a factory agent: never ours to reap
+    argv = ident[0]
+    att = _orphan_task(cwd, argv)
+    if not att:
+        return None
+    (goal, task), by = att
+    rows = con.execute("SELECT name,role,status FROM agents WHERE task_id=?", (task,)).fetchall()
+    mine = next((r for r in rows if r["name"] == agent), None)
+    if (not mine or mine["status"] not in ORPHAN_ENDED or mine["role"] in ORPHAN_HQ_ROLES
+            or agent in ("boss", "director", "staff-engineer") or agent.startswith("lead-")
+            or any(r["status"] in ORPHAN_BLOCKING for r in rows)):
+        return None
+    home = env.get("FACTORY_HOME", "")
+    if os.path.basename(argv[0]) in ("claude", "herdr"):
+        return None  # a pane's own process
+    if home and home_is_live(home) and any(os.path.basename(x) == "factory" for x in argv[:3]):
+        return None  # a factory process on the live home (the owner's serve, a tick, a CLI call)
+    cur = (_orphan_stat(pid) or (None,))[0]
+    for _ in range(64):  # a live pane's process tree is never ours
+        if cur is None or cur <= 1:
+            break
+        if cur in skip:
+            return None
+        a = _serve_argv(cur)
+        if a and os.path.basename(a[0]) == "claude":
+            return None
+        anc = (_orphan_env(cur) or {}).get("FACTORY_AGENT", "")
+        if anc and anc != "owner":
+            row = con.execute("SELECT status FROM agents WHERE name=?", (anc,)).fetchone()
+            if row and row["status"] not in ORPHAN_ENDED:
+                return None
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return {"pid": pid, "agent": agent, "task": task, "argv": argv, "ident": ident, "cwd": cwd, "home": home,
+            "worktree": str(WORKTREES / f"{goal}-{task}"), "by": by}
+
+
+def _orphan_skip(main_pid):
+    """The tick, its ancestors and the factory-serve unit's MainPID."""
+    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    for _ in range(64):
+        if cur is None or cur <= 1:
+            break
+        skip.add(cur)
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return skip
+
+
+def _orphan_signal(sig, targets, group):
+    """Send `sig` (to the group when `group`) only if every (pid, ident) in targets still has its scanned identity."""
+    if any(_orphan_ident(pid) != ident for pid, ident in targets):
+        return False
+    try:
+        _serve_kill(-group if group else targets[0][0], sig)
+    except OSError:  # gone (ProcessLookupError) or not ours to signal (PermissionError)
+        return False
+    return True
+
+
+def _orphan_payload(j, how):
+    """The event body of a would-reap / reap event: exactly these keys."""
+    return {"pid": j["pid"], "start_time": j["ident"][1], "argv0": j["argv"][0],
+            "cmd_sha": hashlib.sha256(b"\0".join(x.encode() for x in j["argv"])).hexdigest()[:12],
+            "cwd": j["cwd"], "worktree": j["worktree"], "task": j["task"], "agent": j["agent"],
+            "attributed_by": j["by"], "signal": how}
+
+
+def reap_orphans(con):
+    """Tick hook, at most every 10 min, per config orphan_reap_mode: 'dry-run' (default; an unknown value too) logs one
+    "orphan-would-reap" event per (pid, start time) and signals nothing; 'on' sends SIGTERM (SIGKILL after 10 s); 'off'
+    skips the scan. A candidate is a same-user process attributed to ONE task by its cwd in the task worktree, its cwd in
+    that task's Claude scratchpad, or an argv path in the worktree (two tasks = untouched), whose FACTORY_AGENT is an
+    ENDED (done/exited/lost/cancelled) non-HQ agent of that task while no agent of the task is live/queued/starting/
+    stopped. FACTORY_AGENT unset, empty or 'owner' is never touched; nor the tick and its ancestors, the unit's
+    MainPID, a factory process on the live home, or anything under a claude process or a non-ended agent. start time +
+    cmdline are re-read before each signal (pid reuse). The process group goes too only when its leader passes every
+    check itself. One event per pid, one batched alert to the director. A reaped factory serve's own demo FACTORY_HOME
+    directly under /tmp goes afterwards, unless some process still uses it."""
+    try:
+        mode = cfg(con, "orphan_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off":
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='orphanreap'").fetchone()
+        if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('orphanreap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        skip = _orphan_skip(_serve_mainpid())
+        grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
+        reaped, homes = [], {}
+        for d in sorted(_serve_proc_root().iterdir()):
+            if not d.name.isdigit():
+                continue
+            j = _orphan_judge(con, int(d.name), skip)
+            if not j:
+                continue
+            pid = j["pid"]
+            if mode == "dry-run":
+                body = _orphan_payload(j, "none")
+                key = json.dumps({"pid": pid, "start_time": j["ident"][1]})[:-1] + ","
+                if not con.execute("SELECT 1 FROM events WHERE action='orphan-would-reap' AND substr(detail,1,?)=?",
+                                   (len(key), key)).fetchone():
+                    event_as(con, "tick", "agent", j["agent"], "orphan-would-reap", body)
+                continue
+            targets, group = [(pid, j["ident"])], 0
+            st = _orphan_stat(pid)
+            if st and st[1] > 1 and st[1] != os.getpgrp():
+                lead = j if st[1] == pid else _orphan_judge(con, st[1], skip)
+                if lead:
+                    group = st[1]
+                    targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
+            if not _orphan_signal(signal.SIGTERM, targets, group):
+                continue
+            how, deadline = "TERM", time.time() + grace
+            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
+                time.sleep(0.2)
+            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
+                how = "KILL"
+            event_as(con, "tick", "agent", j["agent"], "orphan-reaped", _orphan_payload(j, how))
+            reaped.append(j)
+            if _is_factory_serve(j["argv"]) and j["home"]:
+                homes[j["home"]] = j["agent"]
+        for home, agent in homes.items():
+            h, tmp = Path(home), tmp_dir().resolve()
+            if home_is_live(home) or h.is_symlink() or not h.is_dir() or h.resolve().parent != tmp or _pad_in_use(h.resolve()):
+                continue
+            size = _tree_bytes(h)
+            shutil.rmtree(h)
+            event_as(con, "tick", "agent", agent, "tmp-cleaned", {"path": str(h), "mb": round(size / 1048576, 1)})
+        if reaped:
+            lines = [f"{j['agent']} ({j['task']}) pid {j['pid']} {j['argv'][0]} cwd {j['cwd']} by {j['by']}" for j in reaped]
+            send(con, "director", f"reaped {len(reaped)} orphan process(es) of ended workers",
+                 "The tick sent SIGTERM (SIGKILL after 10 s) to:\n" + "\n".join(lines), "alert", sender="tick")
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
         except Exception:  # noqa: BLE001
             pass
 
@@ -7856,6 +8196,49 @@ def gate_show_row(r):
     print(f"  actor  {r['actor']}  created {r['created']}  started {r['started'] or '-'}  finished {r['finished'] or '-'}")
 
 
+def cmd_test(a):
+    """T-0674: run a command in the cwd under the test sandbox when config test_sandbox is 1, directly when 0.
+    Fail closed: an unbuildable sandbox or a bad flag value exits non-zero and the command is not run."""
+    cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
+    if not cmd:
+        die("factory test needs a command: factory test [--] <cmd...>", 2)
+    v = cfg(db(), "test_sandbox").strip()
+    if v not in ("0", "1"):
+        die(f"config test_sandbox is {v!r}, not 0 or 1; fix it with `factory config test_sandbox 1`, the command was not run", 3)
+    if v == "0":
+        try:
+            os.execvp(cmd[0], cmd)
+        except OSError as e:
+            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+    sv = cfg(db(), "test_sandbox_subuid").strip()
+    if sv not in ("0", "1"):
+        die(f"config test_sandbox_subuid is {sv!r}, not 0 or 1; fix it with `factory config test_sandbox_subuid 1`, the command was not run", 3)
+    subuid = sv == "1"
+    tree, scratch = os.getcwd(), None
+    try:
+        scratch = testbox.new_scratch(tree)
+        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
+                                  runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    except testbox.TestboxError as e:
+        if scratch:
+            testbox.cleanup(scratch)
+        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0, or test_sandbox_subuid 0)", 3)
+    p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
+
+    def forward(sig, _frame):
+        try:
+            os.killpg(p.pid, sig)
+        except ProcessLookupError:
+            pass
+    for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(s, forward)
+    try:
+        rc = p.wait()
+    finally:
+        testbox.cleanup(scratch)
+    sys.exit(rc if rc >= 0 else 128 - rc)
+
+
 def cmd_gate(a):
     con = db()
     if a.action == "run":
@@ -8689,6 +9072,7 @@ def cmd_tick(a, locked=False):
     tmp_clean(con)
     red_main_check(con)
     reap_stray_serves(con)
+    reap_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
         print("herdr unreachable; exporting only")
@@ -8836,8 +9220,20 @@ def cmd_tick(a, locked=False):
         except SystemExit:
             if s["role"] != "evaluator":
                 raise
-            # a transient failure: spawn() left the row queued and the trial running; the next tick retries
-            event(con, "agent", q["name"], "evaluator-spawn-retry", "queued evaluator spawn failed; retried next tick")
+            # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
+            # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
+            fails = int(s.get("spawn_failures", 0)) + 1
+            if fails >= EVALUATOR_SPAWN_RETRY_MAX:
+                why = f"evaluator spawn failed {fails} times; giving up"
+                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
+                            "WHERE agent=? AND status='running'", (now(), why, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-failed", why)
+            else:
+                con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
+                            "WHERE name=? AND status='queued'", (fails, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-retry",
+                      f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
     try:
@@ -10795,6 +11191,8 @@ def main():
     x.set_defaults(fn=cmd_init)
     x = sp.add_parser("redmain", help="director only: name the fix task that may merge while a repo's main is red")
     x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
+    x = sp.add_parser("test", help="run <cmd> in the cwd under the test sandbox (config test_sandbox)")
+    x.add_argument("cmd", nargs=argparse.REMAINDER); x.set_defaults(fn=cmd_test)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
@@ -10904,6 +11302,10 @@ def main():
     x = sp.add_parser("done", help="worker: finish, send summary to lead, get reaped")
     x.add_argument("--force", action="store_true", help="close even with unread decision/request messages")
     x.add_argument("summary"); x.set_defaults(fn=cmd_done)
+    x = sp.add_parser("pr", help="coder: open (create) or mark ready the PR of your own task; repo and branch are fixed")
+    x.add_argument("action", choices=["create", "ready"])
+    x.add_argument("--title"); x.add_argument("--body", help="create: must be - (body on stdin)")
+    x.set_defaults(fn=cmd_pr)
     x = sp.add_parser("stop", help="owner/director/lead: STOP a busy worker (message + Esc + nudge, then a hard fallback)")
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")

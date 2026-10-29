@@ -15,3 +15,4 @@ audit.log
 go/bin/
 *.test
 go/**/coverage.out
+.factory-test-*
