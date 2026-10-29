@@ -164,7 +164,8 @@ class JudgeTextTests(Base):
         e.seed_pr(checks=GREEN)
         st = json.loads(e.gh_state.read_text())
         st["prs"]["https://github.com/zz-test/repo/pull/1"].update(
-            {"title": title, "body": body, "comments": [{"body": c} for c in comments], "reviews": [], "commits": [],
+            {"title": title, "body": body, "comments": [{"body": c} for c in comments], "reviews": [],
+             "commits": [{"messageHeadline": "add feature", "messageBody": ""}],
              "mergeCommit": {"oid": MERGE_SHA}})
         st["api"] = [{"match": ["/commits/" + MERGE_SHA], "out": {"commit": {
             "author": {"email": merge_emails[0]}, "committer": {"email": merge_emails[1]}}}}]
@@ -198,6 +199,51 @@ class JudgeTextTests(Base):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         argv = self.merge_args()
         self.assertEqual(argv[argv.index("--author-email") + 1], NOREPLY)
+
+    def set_commits(self, commits):
+        st = json.loads(self.env.gh_state.read_text())
+        st["prs"]["https://github.com/zz-test/repo/pull/1"]["commits"] = commits
+        self.env.gh_state.write_text(json.dumps(st))
+
+    def test_public_squash_body_drops_non_noreply_coauthors(self):
+        self.set_commits([
+            {"messageHeadline": "one", "messageBody": "Co-authored-by: Dev <1+dev@users.noreply.github.com>"},
+            {"messageHeadline": "two", "messageBody": "keep this\n\nCo-authored-by: factory refresh <factory-refresh@localhost>"},
+            {"messageHeadline": "three", "messageBody": "Co-authored-by: Claude <noreply@anthropic.com>"}])
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        argv = self.merge_args()
+        body = argv[argv.index("--body") + 1]
+        self.assertNotIn("localhost", body)
+        self.assertIn("1+dev@users.noreply.github.com", body)
+        self.assertIn("noreply@anthropic.com", body)
+        self.assertIn("keep this", body)
+        self.assertEqual(argv[argv.index("--author-email") + 1], NOREPLY)
+        self.assertIn("--match-head-commit", argv)
+        self.assertNotIn("--subject", argv)
+
+    def test_public_squash_body_drops_coauthor_headline(self):
+        self.set_commits([{"messageHeadline": "Co-authored-by: X <real@example.com>", "messageBody": ""},
+                          {"messageHeadline": "b", "messageBody": "x"}])
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        argv = self.merge_args()
+        self.assertNotIn("real@example.com", argv[argv.index("--body") + 1])
+
+    def test_private_repo_merge_has_no_body(self):
+        self.ok("config", "public_text_repos", "")
+        self.pr({})
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("--body", self.merge_args())
+        self.assertNotIn("--author-email", self.merge_args())
+
+    def test_unreadable_commits_refuse_public_merge(self):
+        self.set_commits([])
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("cannot build the public squash body", p.stderr)
+        self.assertEqual(self.merges(), [])
 
     def test_private_repo_merge_has_no_author_email(self):
         self.ok("config", "public_text_repos", "")
