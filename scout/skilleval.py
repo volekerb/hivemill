@@ -32,7 +32,8 @@ except ImportError:  # run as a script by path
 CHECK_TIMEOUT_S = 60
 OUTPUT_MAX = 2048
 REASONS = ("timeout", "over-budget", "cancelled")
-TERMINAL = ("passed", "failed", "timeout", "over-budget", "error", "cancelled")
+TERMINAL = ("passed", "failed", "timeout", "over-budget", "error", "cancelled", "voided")
+VOIDABLE = ("passed", "failed", "timeout", "over-budget", "error")
 DELETE_SANDBOX = ("passed", "failed", "cancelled")  # error / timeout / over-budget are kept for T9 to clean later
 
 
@@ -295,7 +296,8 @@ def trial_line(r):
     tok = None if r["tokens_in"] is None and r["tokens_out"] is None else (r["tokens_in"] or 0) + (r["tokens_out"] or 0)
     return (f"{r['candidate_id']} {r['task']} {r['condition']}: trial {r['id']} status={r['status']} "
             f"passed={_cell(r['passed'])} tokens={_cell(tok)} wall_s={_cell(r['wall_s'])} "
-            f"skill_invoked={_cell(r['skill_invoked'])}")
+            f"skill_invoked={_cell(r['skill_invoked'])}"
+            + (f" void_reason={r['void_reason']} void_why={r['void_why']!r}" if r["status"] == "voided" else ""))
 
 
 def _median(vals):
@@ -306,13 +308,13 @@ def _median(vals):
 def summary_line(cid, rows):
     parts = []
     for cond in ("with", "without"):
-        rs = [r for r in rows if r["condition"] == cond and r["status"] in TERMINAL]
+        rs = [r for r in rows if r["condition"] == cond and r["status"] in TERMINAL and r["status"] != "voided"]
         passed = sum(1 for r in rs if r["status"] == "passed")
         tok = _median([None if r["tokens_in"] is None and r["tokens_out"] is None
                        else (r["tokens_in"] or 0) + (r["tokens_out"] or 0) for r in rs])
         parts.append(f"{cond}: passed {passed}/{len(rs)} tasks, median tokens {_cell(tok)}, "
                      f"median wall_s {_cell(_median([r['wall_s'] for r in rs]))}")
-    parts += [f"{st} {n}" for st in ("pending", "running") if (n := sum(1 for r in rows if r["status"] == st))]
+    parts += [f"{st} {n}" for st in ("pending", "running", "voided") if (n := sum(1 for r in rows if r["status"] == st))]
     return f"{cid} summary: " + "; ".join(parts)
 
 
@@ -467,6 +469,27 @@ def cancel(con, target, root, api, *, home=None, unshare="unshare"):
     return lines, errors
 
 
+def void(con, target, reason, why):
+    """Void one finished trial (id or trNNNN) whose result says nothing about the skill (reason infra): status becomes
+    voided, every recorded field is kept, summaries ignore it and `try` may re-run it. Returns the row plus 'prev'."""
+    m = re.fullmatch(r"(?:tr0*)?(\d+)", target or "")
+    if not m:
+        raise CollectError("usage: factory skilleval void <trial id|trNNNN> --reason infra --why <text>")
+    if reason != "infra":
+        raise CollectError("void needs --reason infra")
+    r = con.execute("SELECT * FROM skill_trials WHERE id=?", (int(m.group(1)),)).fetchone()
+    if r is None:
+        raise CollectError(f"no trial {target}")
+    if r["status"] not in VOIDABLE:
+        hint = "use `factory skilleval cancel`" if r["status"] in ("pending", "running", "starting") else "nothing to do"
+        raise CollectError(f"trial {r['id']} is {r['status']}: only a finished trial ({', '.join(VOIDABLE)}) can be voided; {hint}")
+    if not transition(con, r["id"], "voided", r["status"], void_reason=reason, void_why=why):
+        raise CollectError(f"trial {r['id']} changed meanwhile; look at `factory skilleval list` and retry")
+    out = dict(con.execute("SELECT * FROM skill_trials WHERE id=?", (r["id"],)).fetchone())
+    out["prev"] = r["status"]
+    return out
+
+
 def _tokens(d):
     """input + output + cache creation of a trial's transcripts (the evaluator wrote them: plain files only)."""
     projects = d / "cfg" / "projects" if d else None
@@ -568,7 +591,7 @@ def _cleanup(con, root, clock, keep_h):
     trials = Path(root).resolve() / "trials"
     if not trials.is_dir():
         return
-    for r in con.execute("SELECT * FROM skill_trials WHERE status IN ('error','timeout','over-budget')").fetchall():
+    for r in con.execute("SELECT * FROM skill_trials WHERE status IN ('error','timeout','over-budget','voided')").fetchall():
         ended = _ts(r["ended"])
         d = trial_dir(root, r)
         if d and ended and (clock - ended).total_seconds() > keep_h * 3600:

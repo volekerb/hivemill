@@ -548,6 +548,20 @@ class NamespaceTests(SandboxBase):
         self.assertEqual(row["agent"], start[2])
         self.assertTrue(row["agent"].startswith("eval-"))
 
+    def test_try_is_refused_for_a_finished_trial_until_it_is_voided_then_reruns_it(self):
+        self.ok("skilleval", "try", "fix-bug", "--candidate", "none", extra_env=self.extra())
+        tid = self.env.sql("SELECT id FROM skill_trials")[0]["id"]
+        self.env.sql("UPDATE skill_trials SET status='timeout', passed=0, wall_s=900 WHERE id=?", (tid,))
+        refused = self.env.run("skilleval", "try", "fix-bug", "--candidate", "none", extra_env=self.extra())
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertIn("already exists (status timeout)", refused.stderr)
+        self.ok("skilleval", "void", str(tid), "--reason", "infra", "--why", "hook bug", agent="owner")
+        self.env.sql("UPDATE agents SET status='done' WHERE name LIKE 'eval-%'")  # the first evaluator has exited
+        again = self.env.run("skilleval", "try", "fix-bug", "--candidate", "none", extra_env=self.extra())
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        row = self.env.sql("SELECT * FROM skill_trials")[0]
+        self.assertEqual((row["id"], row["status"], row["void_reason"]), (tid, "running", None))
+
     def test_try_with_candidate_vendors_nothing_new_and_passes_one_plugin_dir(self):
         p = self.env.run("skilleval", "try", "fix-bug", "--candidate", "C-0001", extra_env=self.extra())
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
