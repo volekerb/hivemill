@@ -1,6 +1,7 @@
 """G-019 B6: the insights pages /quality, /throughput, /resources and /tokens (web/views/{quality,throughput,resources,tokens}.py)
 and the queries appended to web/queries.py for them. Seeded temp DBs only; time is the fixed NOW of test_web_queries."""
 import ast
+import datetime as dt
 import json
 import re
 import subprocess
@@ -8,10 +9,9 @@ import sys
 import tempfile
 import time
 import unittest
-import datetime as dt
-from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
