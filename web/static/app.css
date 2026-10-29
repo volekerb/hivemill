@@ -532,6 +532,7 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .ins-check .ins-name { min-width: 9rem; }
 .ins-check .gz { margin-left: auto; }
 .ins-key { margin-left: var(--s2); color: var(--text-3); font-size: 12px; }
+.disc > .table { display: block; overflow-x: auto; max-width: 100%; }
 .sect-box .st--pill { margin-right: var(--s2); }
 
 @media (max-width: 639px) {
