@@ -154,6 +154,7 @@ DEFAULT_CONFIG = {
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
+    "tmp_sweep_pct": "80",       # over this, the tick deletes scratch dirs of finished agents (T-0606); keep it below tmp_max_pct
     "tmp_max_pct": "90",         # the gate closes when the filesystem holding /tmp is this full (it is RAM-backed tmpfs on your-box)
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
@@ -432,6 +433,14 @@ def migrate(con):
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
         con.executescript(scoutdb.SCOUT_DDL)
+    tcols = {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}
+    for col in ("void_reason", "void_why"):  # T-0729: `skilleval void` records why a terminal trial was voided
+        if col not in tcols:
+            try:
+                con.execute(f"ALTER TABLE skill_trials ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError:  # a concurrent process added it first
+                if col not in {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}:
+                    raise
 
 
 def cfg(con, key):
@@ -1046,11 +1055,15 @@ def pane_at_shell(pane_id):
     return bool(names) and all(n in ("zsh", "bash", "sh", "dash", "fish") for n in names)
 
 
+def _relaunch_poll_s():
+    return float(os.environ.get("FACTORY_RELAUNCH_POLL_S") or 0.5)  # tests set a tiny value
+
+
 def export_in_shell(pane, env, cwd):
     """An idle shell lacks the agent's env: export it before the agent launches."""
     herdr("pane", "run", pane, "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
           + f" && cd {shlex.quote(cwd)} && clear")
-    time.sleep(1)
+    time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
 
 
 # ───────────────────────────── flagless detection ─────────────────────────────
@@ -4879,6 +4892,101 @@ def _tree_bytes(path):
     return total
 
 
+TMP_SWEEP_MIN_AGE_S = 1800                    # an agent counts as finished for the sweep once it ended this long ago
+TMP_SWEEP_DONE = ("done", "stopped", "lost", "exited")
+
+
+def _sweep_candidates(con, t):
+    """[(dir, task)] of per-session scratch dirs (<tmp>/claude-<uid>/<worktrees slug>-<GOAL>-<TASK>) and QA homes
+    (<tmp>/qa-*-T-nnnn-*) whose task has agent rows, every one finished (done/stopped/lost/exited) for >= 30 min.
+    Anything else (HQ scratch, unknown names, task without agents, symlinks, a dir resolving elsewhere) is not listed."""
+    root = tmp_dir()
+    if not root.is_dir() or root.is_symlink():
+        return []
+    root = root.resolve()
+    found = []
+    base = root / f"claude-{os.getuid()}"
+    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)$")
+    if base.is_dir() and not base.is_symlink():
+        for d in sorted(base.iterdir()):
+            m = slug.match(d.name)
+            if m:
+                found.append((d, m.group(1), base))
+    for d in sorted(root.glob("qa-*")):
+        m = re.search(r"(?<![A-Za-z0-9])[Tt]-(\d+)(?![0-9])", d.name)
+        if m:
+            found.append((d, "T-" + m.group(1), root))
+    out = []
+    for d, task, parent in found:
+        if d.is_symlink() or not d.is_dir() or d.resolve().parent != parent.resolve() or d.stat().st_uid != os.getuid():
+            continue
+        rows = con.execute("SELECT status,ended FROM agents WHERE task_id=?", (task,)).fetchall()
+        if not rows:
+            continue
+        try:
+            ok = all(r["status"] in TMP_SWEEP_DONE and r["ended"]
+                     and t - dt.datetime.fromisoformat(r["ended"]).timestamp() >= TMP_SWEEP_MIN_AGE_S for r in rows)
+        except ValueError:
+            ok = False  # an ended stamp we cannot read: ownership unclear, keep
+        if ok:
+            out.append((d, task))
+    return out
+
+
+def tmp_sweep(con):
+    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates),
+    write one tmp-swept event (MB freed, dir count), and alert the director once if /tmp is still over tmp_max_pct.
+    No agent involved; any failure is an event, never a stopped tick."""
+    try:
+        tmp = tmp_usage()
+        if tmp is None:
+            return
+        if tmp["pct"] > float(cfg(con, "tmp_sweep_pct")):
+            t = time.time()
+            freed = n = 0
+            for d, task in _sweep_candidates(con, t):
+                size = _tree_bytes(d)
+                try:
+                    shutil.rmtree(d)
+                except OSError as e:
+                    event_as(con, "tick", "task", task, "tmp-sweep-failed", f"{d}: {e}")
+                    continue
+                freed += size
+                n += 1
+            if n:
+                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept", {"mb": round(freed / 1048576, 1), "dirs": n})
+            tmp = tmp_usage() or tmp
+        over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
+        armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
+        armed = bool(armed and armed["value"] == "1")
+        if over and not armed:
+            send(con, "director", f"tmp sweep: /tmp still {tmp['pct']:.0f}% full",
+                 f"The tick swept the scratch of finished agents but /tmp uses {tmp['used_mb']}/{tmp['total_mb']} MB, "
+                 f"over tmp_max_pct {cfg(con, 'tmp_max_pct')}%: spawns stay held and nothing more is safe to delete "
+                 "automatically. Find what holds the space (`du -sh /tmp/* | sort -h`) and ask the owner or boss.",
+                 "alert", sender="tick")
+        if over != armed:
+            con.execute("INSERT INTO config(key,value) VALUES('tmp_sweep_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        ("1" if over else "0",))
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def last_tmp_sweep(con):
+    """(ts, mb, dirs) of the last tmp-swept event, or None."""
+    r = con.execute("SELECT ts,detail FROM events WHERE action='tmp-swept' ORDER BY id DESC LIMIT 1").fetchone()
+    if not r:
+        return None
+    try:
+        d = json.loads(r["detail"])
+        return r["ts"], d["mb"], d["dirs"]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
 def tmp_clean(con):
     """Tick hook, at most hourly: delete <tmp>/claude-<uid>/<worktrees dir as a path slug>-<GOAL>-<TASK> scratchpads whose
     task is done or cancelled, that no live/starting/queued/done-unreaped agent of that task holds, and that are older than
@@ -8060,12 +8168,31 @@ def owner_blockers(con):
     return out
 
 
+def owner_blocker_nudge(con, blockers):
+    """The one night exception to "the tick never prompts the boss pane": prompt it once per alerted night blocker, like
+    step 3 does for other agents (idle/done only, never into a running turn; retried each tick until delivered)."""
+    agents = herdr_agents() or []
+    for b in blockers:
+        key = "nudged:" + b["key"]
+        if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone() or \
+                not con.execute("SELECT 1 FROM throttle WHERE key=?", ("alerted:" + b["key"],)).fetchone():
+            continue
+        r = con.execute("SELECT name,pane_id FROM agents WHERE role='boss' AND status='live' ORDER BY rowid DESC LIMIT 1").fetchone()
+        h = next((x for x in agents if r and (x.get("name") == r["name"] or x.get("pane_id") == r["pane_id"])), None)
+        if not h or h.get("agent_status") not in ("idle", "done"):
+            continue
+        if herdr("agent", "prompt", h.get("name") or r["name"],
+                 "📬 OWNER-ONLY BLOCKER (night): run `factory inbox` and tell the owner now.", check=False) is None:
+            continue  # herdr failed: no throttle row, no event; retried next tick
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+        event_as(con, "tick", "agent", r["name"], "owner-blocker-nudge", b["text"][:200])
+
+
 def owner_blocker_alerts(con):
     """Tick hook: an owner-only blocker raised between day_end_hour and day_start_hour pings the boss once, at once. Never raises."""
     try:
-        for b in owner_blockers(con):
-            if not is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone()):
-                continue
+        night = [b for b in owner_blockers(con) if is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone())]
+        for b in night:
             key = "alerted:" + b["key"]
             if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
                 continue
@@ -8074,6 +8201,7 @@ def owner_blocker_alerts(con):
                  f"Raised {b['since']}, outside daytime ({ds}-{de} h). Tell the owner now by the owner channel; "
                  "tell again at day_start_hour if still open.", "escalation", sender="tick")
             con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+        owner_blocker_nudge(con, night)
     except Exception as e:  # noqa: BLE001 — alerting must never break the tick
         try:
             if not _util_throttled(con, "owner-blocker-failed", 3600, digest_clock().timestamp()):
@@ -8766,6 +8894,8 @@ def cmd_res(a):
     else:
         print(f"tmp used {tmp['used_mb']} MB / {tmp['total_mb']} MB ({tmp['pct']:.0f}%)"
               + (f" on {tmp['fstype']}" if tmp["fstype"] else "") + f" (gate closes at {cfg(con, 'tmp_max_pct')}%)")
+        sw = last_tmp_sweep(con)
+        print(f"tmp sweep (over {cfg(con, 'tmp_sweep_pct')}%): " + (f"last {sw[0]} freed {sw[1]} MB in {sw[2]} dirs" if sw else "never swept"))
     if s["total"] is None:
         print("claude processes unknown")
     else:
@@ -9457,6 +9587,7 @@ def cmd_tick(a, locked=False):
     _pt_lap("digest")
     tmp_alert(con)
     _pt_lap("tmp_alert")
+    tmp_sweep(con)
     remote_url_alert(con)
     _pt_lap("remote_url_alert")
     main_protection_alert(con)
@@ -9468,6 +9599,7 @@ def cmd_tick(a, locked=False):
     reap_stray_serves(con)
     _pt_lap("reap_serves")
     reap_orphans(con)
+    _pt_lap("reap_orphans")
     alert_test_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
@@ -10359,12 +10491,12 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         for _ in range(20):
             if not find_pane(pane):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
             if not claude_procs(r["session_id"]):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         else:
             die(f"a claude process still runs session {r['session_id']} after its pane closed; not restarting", 3)
     event(con, "agent", r["name"], "relaunch", {"pane": r["pane_id"], "session": r["session_id"]})
@@ -11389,13 +11521,13 @@ def skilleval_try(con, a):
             die(f"{cid} failed the eval gate after vendoring", 2)
     old = con.execute("SELECT * FROM skill_trials WHERE candidate_id=? AND vendor_sha=? AND task=? AND condition=?",
                       (cid, sha, task, cond)).fetchone()
-    if old and old["status"] not in ("error", "cancelled"):
+    if old and old["status"] not in ("error", "cancelled", "voided"):
         die(f"trial {old['id']} for {cid}@{sha[:9]} {task} {cond} already exists (status {old['status']})", 2)
     sk = _skilleval()
     if old:
         tid = old["id"]
-        if not sk.transition(con, tid, "starting", ("error", "cancelled"), agent=None, sandbox=None, queued=now(),
-                             started=now(), ended=None, author=actor()):
+        if not sk.transition(con, tid, "starting", ("error", "cancelled", "voided"), agent=None, sandbox=None, queued=now(),
+                             started=now(), ended=None, author=actor(), void_reason=None, void_why=None):
             die(f"trial {tid} for {cid}@{sha[:9]} {task} {cond} was taken by another start meanwhile", 2)
     else:
         try:
@@ -11479,6 +11611,21 @@ def skilleval_cancel(con, a):
         die("; ".join(errors), 2)
 
 
+def skilleval_void(con, a):
+    scoutskilleval = _skilleval()
+    why = (a.why or "").strip()
+    if a.reason != "infra" or not why:
+        die('usage: factory skilleval void <trial id|trNNNN> --reason infra --why "<what failed>"', 2)
+    try:
+        r = scoutskilleval.void(con, a.id, a.reason, why)
+    except scoutskilleval.CollectError as e:
+        die(str(e), 2)
+    event(con, "skilleval", r["candidate_id"], "void",
+          (f"trial {r['id']} {r['task']} {r['condition']} was {r['prev']} (passed={r['passed']} tokens_in={r['tokens_in']} "
+           f"tokens_out={r['tokens_out']} wall_s={r['wall_s']}): {a.reason}: {why}")[:400])
+    print(scoutskilleval.trial_line(r))
+
+
 def cmd_skilleval(a):
     w = caller_is_worker()
     if w and not worker_stub_exempt():
@@ -11502,6 +11649,8 @@ def cmd_skilleval(a):
         skilleval_queue(con, a)
     elif a.action == "cancel":
         skilleval_cancel(con, a)
+    elif a.action == "void":
+        skilleval_void(con, a)
     elif a.action in ("list", "results"):
         scoutskilleval = _skilleval()
         lines = (scoutskilleval.list_lines if a.action == "list" else scoutskilleval.result_lines)(con, a.candidate)
@@ -11757,10 +11906,11 @@ def main():
     x.add_argument("--slot"); x.add_argument("--send", action="store_true")
     x.set_defaults(fn=cmd_scout)
 
-    x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, list, results")
-    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "list", "results"]); x.add_argument("id", nargs="?")
+    x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, void, list, results")
+    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
-    x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled"]); x.add_argument("--tasks")
+    x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled", "infra"]); x.add_argument("--tasks")
+    x.add_argument("--why")
     x.add_argument("--rescreen", action="store_true")
     x.set_defaults(fn=cmd_skilleval)
 

@@ -681,6 +681,20 @@ class PrescreenScopedAllowanceTests(unittest.TestCase):
                 ' "mcpServers": {"x": {\n  "email": "' + at("support", "anthropic.com") + '"\n}}}\n')
         self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
 
+    def test_plugin_json_fullwidth_quote_cannot_move_allowance(self):
+        # U+FF02 inside a raw string folds (NFKC) to a real quote. Parsed folded, the address sits at author.email on
+        # its own (exempt-looking) line; raw, it sits at mcpServers.email
+        q, addr = "\uff02", at("support", "anthropic.com")
+        text = ('{"mcpServers": {"a": "' + q + '}, ' + q + 'author' + q + ': {' + q + 'b' + q + ': ' + q + '",\n'
+                '  "email": "' + addr + '"\n}}\n')
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
+
+    def test_plugin_json_any_non_ascii_byte_gives_no_allowance(self):
+        author = {"name": "Zoë", "email": at("support", "anthropic.com")}
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": self.pj(author=author)})})
+        text = self.pj(author={"email": at("support", "anthropic.com")}).replace('"demo"', '"démo"')
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
+
     def test_plugin_json_author_email_other_domain_hits(self):
         for addr in (at("me", h) for h in ("evil.example", "anthropic.com.evil.example", "notanthropic.com", "sub.anthropic.com")):
             hits = self.scan({"plugin.json": self.pj(author={"email": addr})})

@@ -335,7 +335,8 @@ def _doc_email(addr):
 def _plugin_json_emails(text):
     """Addresses a plugin.json may carry without a hit: the `author.email`, `support` or `support.email` value, at a
     DOC_HOSTS host, written on one line and nowhere else in the file. Anything unparseable or ambiguous gives none."""
-    if not text.isascii() or "\\" in text:  # an escape lets the literal sit under a different key than the parsed one
+    # ASCII + no backslash: raw == folded == parsed literals. `text` must be the raw file; never parse the folded text.
+    if not text.isascii() or "\\" in text:
         return set()
     try:
         data = json.loads(text)
@@ -368,7 +369,7 @@ def prescreen(path, own_repo=None):
             wrapped |= _small_chunk_blobs(lines)
             license_file = bool(LICENSE_NAME.fullmatch(n)) and full.suffix.lower() in ("", ".md", ".txt")
             prose = full.suffix.lower() in PROSE_EXTS
-            emails = _plugin_json_emails("\n".join(lines)) if n == "plugin.json" else set()
+            emails = _plugin_json_emails(_read_text(full)) if n == "plugin.json" else set()
             for ln, line in enumerate(lines, 1):
                 found = [pid for pid, rx in PATTERNS if rx.search(line) and not (pid == "requests" and prose)]
                 if any(len(set(m.group())) > 8 for m in B64_RUN.finditer(line)) or ln - 1 in wrapped:

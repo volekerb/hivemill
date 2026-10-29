@@ -443,6 +443,14 @@ class TestIsolation(ScreenshotsBase):
             self.assertEqual(screenshots.clean_env("/h", "/f")["FACTORY_HOME"], "/f")
 
 
+class TestPages(unittest.TestCase):
+    def test_pages_lists_goal_detail_of_a_seeded_goal(self):
+        self.assertEqual(screenshots.PAGES["goal"], "/goal/G-002")
+        self.assertEqual(list(screenshots.PAGES),
+                         ["home", "goals", "goal", "tasks", "agents", "throughput", "quality"])
+        self.assertIn('"G-002"', (ROOT / "ci" / "demo_seed.py").read_text())
+
+
 class TestStop(unittest.TestCase):
     def setUp(self):
         p = unittest.mock.patch.object(screenshots, "GRACE", 0.5)
