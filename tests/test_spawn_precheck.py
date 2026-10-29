@@ -161,7 +161,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         new = self.remote_head()
         self.assertEqual(self.pushes(), [new])
         self.assertEqual(git(self.remote, "rev-list", "--parents", "-n", "1", new).split(), [new, self.head, main])
-        self.assertEqual(subprocess.run(["git", "merge-base", "--is-ancestor", main, new], cwd=self.remote).returncode, 0)
+        self.assertEqual(git(self.remote, "merge-base", main, new), main)
         ev = self.events("refreshed")
         self.assertEqual(len(ev), 1)
         self.assertEqual(json.loads(ev[0]["detail"]),

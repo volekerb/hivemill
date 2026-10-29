@@ -181,12 +181,11 @@ def raw_git_violations(source):
     # (6c-iii(2)); a literal network verb in a git argv is caught above even in a def that forwards nothing.
     for fn in ast.walk(tree):
         if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs}
+            params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs} - {"self", "cls"}
             params |= {a.arg for a in (fn.args.vararg, fn.args.kwarg) if a}
             for c in ast.walk(fn):
                 if isinstance(c, ast.Call) and (argv := _git_argv(c)) and any(
-                        isinstance(e, ast.Starred) and isinstance(e.value, ast.Name) and e.value.id in params
-                        for e in argv):
+                        isinstance(n, ast.Name) and n.id in params for e in argv for n in ast.walk(e)):
                     out.append("line %d: def %s wraps subprocess git; use harness.git" % (fn.lineno, fn.name))
                     break
     return sorted(set(out))
@@ -222,6 +221,12 @@ class RawGitRemoteGuardTest(unittest.TestCase):
         variable = ("import subprocess\ndef g(*a):\n    return subprocess.run(['git', *a])\n"
                     "verb = 'push'\ng('x', verb, 'https://github.com/x/y')\n")
         self.assertTrue(raw_git_violations(variable))
+        # named parameter forwarded into the argv (not *args): the def is still a wrapper.
+        named = ("import subprocess\ndef g(cwd, verb, url):\n    return subprocess.run(['git', verb, url], cwd=cwd)\n"
+                 "g('x', 'push', 'https://github.com/x/y')\n")
+        self.assertTrue(raw_git_violations(named))
+        nested = "import subprocess\ndef g(cwd, url):\n    return subprocess.run(['git', 'push', f'{url}'], cwd=cwd)\n"
+        self.assertTrue(raw_git_violations(nested))
 
     def test_local_non_network_git_is_not_flagged(self):
         src = "import subprocess\nsubprocess.run(['git', 'rev-parse', 'HEAD'], cwd='x')\nsubprocess.run(['rm', '-rf', 'y'])\n"

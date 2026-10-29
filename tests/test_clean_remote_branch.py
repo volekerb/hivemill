@@ -65,8 +65,8 @@ class CleanRemoteBranchTests(FactoryTestCase):
             if self.exists(name) else None
 
     def exists(self, name):
-        return subprocess.run(["git", "--git-dir", str(self.origin), "rev-parse", "-q", "--verify", f"refs/heads/{name}"],
-                              capture_output=True).returncode == 0
+        return bool(git("--git-dir", str(self.origin), "rev-parse", "-q", "--verify", f"refs/heads/{name}",
+                        cwd=self.repo, check=False))
 
     def rm(self, *names, agent="zz-test-cleaner", extra=()):
         return self.env.run("clean", "--remote-branch", *names, *extra, agent=agent)

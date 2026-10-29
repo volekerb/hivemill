@@ -35,9 +35,9 @@ class MainFreeze(FactoryTestCase):
             git("clone", "-q", "-b", "main", str(self.bare), str(other), cwd=self.env.home)
         (other / name).write_text("x\n")
         git("add", name, cwd=other)
-        env = {**os.environ, "GIT_COMMITTER_EMAIL": committer, "GIT_COMMITTER_NAME": "c",
+        env = {"GIT_COMMITTER_EMAIL": committer, "GIT_COMMITTER_NAME": "c",
                "GIT_AUTHOR_EMAIL": "zz-test@example.invalid", "GIT_AUTHOR_NAME": "zz-test"}
-        subprocess.run(["git", "commit", "-q", "-m", subject], cwd=other, env=env, check=True)
+        git("commit", "-q", "-m", subject, cwd=other, env=env)
         git("push", "-q", "origin", "main", cwd=other)
         return git("rev-parse", "HEAD", cwd=other)
 

@@ -219,8 +219,9 @@ class JudgeRefreshTests(FactoryTestCase):
         argv = m[0]["argv"]
         self.assertEqual(argv[argv.index("--match-head-commit") + 1], head)
         self.assertEqual(self.remote_ref(f"refs/heads/{BRANCH}"), head)
-        self.assertEqual(subprocess.run(["git", "merge-base", "--is-ancestor", self.remote_ref("refs/heads/main"), head],
-                                        cwd=self.remote).returncode, 0, "merged head does not contain origin/main")
+        main_tip = self.remote_ref("refs/heads/main")
+        self.assertEqual(git(self.remote, "merge-base", main_tip, head), main_tip,
+                         "merged head does not contain origin/main")
         self.assertEqual(m[0]["last_view"]["head"], head)
         self.assertEqual([c["conclusion"] for c in m[0]["last_view"]["rollup"]], ["SUCCESS"])
         self.assertEqual(len(self.events("merged")), 1)
