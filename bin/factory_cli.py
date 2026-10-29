@@ -11090,6 +11090,42 @@ def skilleval_vendor(con, cid):
     return cand, res
 
 
+def skilleval_rescreen(con, cid):
+    """factory skilleval vendor C-xxxx --rescreen: re-run the current pre-screen on the kept copy of a candidate held
+    for pre-screen hits. 0 hits -> triaged; any hit -> stays needs-owner, exit non-zero. Never clears a hit by itself."""
+    r = con.execute("SELECT * FROM scout_candidates WHERE id=?", (cid,)).fetchone() or die(f"no candidate {cid}", 2)
+    cand = dict(r)
+    if cand["status"] != "needs-owner":
+        die(f"{cid} is {cand['status']}, not needs-owner; --rescreen only releases a pre-screen hold", 2)
+    try:
+        held = json.loads(cand["risk_detail"] or "[]")
+    except ValueError:
+        held = None
+    if not isinstance(held, list) or not held or not all(
+            isinstance(x, str) and (x.startswith("prescreen ") or x.startswith("... and ")) for x in held):
+        die(f"{cid} is held for a reason other than pre-screen hits; --rescreen does not clear it", 2)
+    try:
+        root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
+        meta, hits, d = scoutvendor.rescreen(root, cand)
+    except scoutvendor.VendorError as e:
+        die(str(e), e.code)
+    if hits:
+        lines = scoutvendor.hit_lines(hits)
+        scoutdb.set_needs_owner(con, cid, lines)
+        event(con, "skilleval", cid, "vendor-rescreen-hit", f"{len(hits)} pre-screen hit(s) remain")
+        die(f"{cid}: {len(hits)} pre-screen hit(s) remain; status stays needs-owner\n" + "\n".join(lines),
+            scoutvendor.EXIT_PRESCREEN)
+    old = {}
+    for h in meta.get("prescreen_hits") or []:
+        old[h["pattern"]] = old.get(h["pattern"], 0) + 1
+    scoutvendor.clear_hits(d, meta)
+    con.execute("UPDATE scout_candidates SET status='triaged', risk_detail=NULL WHERE id=? AND status='needs-owner'", (cid,))
+    cleared = ", ".join(f"{k} x{v}" for k, v in sorted(old.items())) or "none recorded"
+    event(con, "skilleval", cid, "vendor-rescreen-clear",
+          f"{sum(old.values())} old pre-screen hit(s), now 0; rules cleared: {cleared}")
+    print(f"{cid}@{cand['head_sha']} rescreened: 0 pre-screen hits (was {sum(old.values())}: {cleared}); status triaged")
+
+
 BASELINE_ID, BASELINE_SHA = "C-0000", "baseline"
 
 
@@ -11267,10 +11303,12 @@ def cmd_skilleval(a):
         require_role(con, "director", "lead", "boss")
     else:
         require_role(con, "director", "lead")
+    if a.rescreen and a.action != "vendor":
+        die("--rescreen belongs to `factory skilleval vendor C-xxxx --rescreen`", 2)
     if a.action == "vendor":
         if not a.id:
-            die("usage: factory skilleval vendor C-xxxx", 2)
-        skilleval_vendor(con, a.id)
+            die("usage: factory skilleval vendor C-xxxx [--rescreen]", 2)
+        skilleval_rescreen(con, a.id) if a.rescreen else skilleval_vendor(con, a.id)
     elif a.action == "try":
         skilleval_try(con, a)
     elif a.action == "collect":
@@ -11538,6 +11576,7 @@ def main():
     x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "list", "results"]); x.add_argument("id", nargs="?")
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
     x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled"]); x.add_argument("--tasks")
+    x.add_argument("--rescreen", action="store_true")
     x.set_defaults(fn=cmd_skilleval)
 
     x = sp.add_parser("msg"); x.add_argument("to"); x.add_argument("subject"); x.add_argument("body", nargs="?")
