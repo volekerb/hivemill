@@ -346,6 +346,21 @@ class PreflightAllowedTests(SandboxCase):
         self.assertEqual(self.spawn("coder").returncode, 0)
         self.assertEqual(self.shim_cfg("zz-coder")["gh_token"], str(other))
 
+    def test_gh_token_ro_config_names_the_token_for_a_reviewer(self):
+        self.set_roles("reviewer")
+        other = self.env.user_home / ".config" / "factory" / "gh-other-ro"
+        other.write_text(MARKER + "\n")
+        other.chmod(0o600)
+        self.ok("config", "gh_token_ro", str(other))
+        self.assertEqual(self.spawn("reviewer").returncode, 0)
+        self.assertEqual(self.shim_cfg("zz-reviewer")["gh_token"], str(other))
+
+    def test_gh_rw_roles_picks_the_rw_token_for_a_reviewer(self):
+        self.set_roles("reviewer")
+        self.ok("config", "gh_rw_roles", "reviewer")
+        self.assertEqual(self.spawn("reviewer").returncode, 0)
+        self.assertTrue(self.shim_cfg("zz-reviewer")["gh_token"].endswith("gh-worker-rw-token"))
+
     def test_gh_token_config_outside_the_config_dir_is_refused(self):
         self.set_roles("coder")
         elsewhere = self.env.home / "elsewhere-token"

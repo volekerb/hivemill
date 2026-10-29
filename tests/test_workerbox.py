@@ -264,6 +264,14 @@ class AgentDirTests(unittest.TestCase):
         self.assertIn("password=tok-x", r.stdout)
         self.assertIn("username=x-access-token", r.stdout)
 
+    def test_no_scoped_helper_without_valid_repo_slugs(self):
+        for bad in (None, [], ["bad slug"], ["no-slash"]):
+            with self.subTest(bad):
+                with self.assertRaises(ValueError) as cm:
+                    self.w.prepare(gh_slugs=bad)
+                self.assertIn("worker_gh_repos", str(cm.exception))
+        self.assertFalse((self.w.home / ".local/state/factory/workers/coder-t-1/gitconfig").exists())
+
     def test_gitconfig_without_identity_has_just_the_helper(self):
         d = self.w.prepare(identity=(None, None))
         out = subprocess.run(["git", "config", "-f", str(d / "gitconfig"), "--list"], capture_output=True, text=True,
