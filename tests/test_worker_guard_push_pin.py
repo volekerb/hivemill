@@ -37,7 +37,7 @@ class PushPinTests(unittest.TestCase):
         git(*ident, "fetch", "-q", "origin", cwd=self.wt)
         git(*ident, "checkout", "-q", "-b", f"factory/{TASK}", cwd=self.wt)
 
-    def write_db(self, worktree):
+    def write_db(self, worktree, task=TASK.upper()):
         """T-0743: the factory DB row the pin resolves the own worktree from (tasks.worktree)."""
         os.makedirs(os.path.join(self.home, "db"), exist_ok=True)
         db = os.path.join(self.home, "db", "factory.db")
@@ -45,7 +45,7 @@ class PushPinTests(unittest.TestCase):
             os.remove(db)
         con = sqlite3.connect(db)
         con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
-        con.execute("INSERT INTO tasks VALUES (?, ?)", (TASK.upper(), worktree))
+        con.execute("INSERT INTO tasks VALUES (?, ?)", (task, worktree))
         con.commit()
         con.close()
 
@@ -165,6 +165,8 @@ class PushPinTests(unittest.TestCase):
         self.assertIn("cannot resolve the worktree", p.stderr)
         self.write_db("")
         self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
+        self.write_db(self.wt, task="T-0001")  # a DB without this task's row
+        self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
 
     def test_db_worktree_not_cwd_decides(self):
         """T-0743: the DB path is the pin; a worktree-looking cwd that is not the recorded one is refused, the recorded one passes."""
@@ -172,7 +174,7 @@ class PushPinTests(unittest.TestCase):
         git("init", "-q", "-b", "main", other, cwd=self.tmp)
         self.write_db(other)
         self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
-        self.assertNotEqual(self.run_hook(f"git push origin {OWN}", cwd=other).returncode, 2)
+        self.assertEqual(self.run_hook(f"git push origin {OWN}", cwd=other).returncode, 0)
 
 
 if __name__ == "__main__":
