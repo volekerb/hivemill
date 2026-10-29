@@ -125,6 +125,7 @@ DEFAULT_CONFIG = {
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
+    "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
     "push_interval_s": "600",    # tick exports commit every change but push at most this often (a manual `factory export` pushes now)
@@ -684,6 +685,11 @@ def caller_is_worker():
     return _WORKER["role"]
 
 
+def compact_view(con, a):
+    """G-014: workers get the compact `task show` / `goal show` unless --full; HQ output never changes."""
+    return not a.full and bool(caller_is_worker() or actor_role(con) in WORKER_ROLES)
+
+
 def worker_stub_exempt():
     """The one exemption for workers: a tests/stubs herdr AND a non-live FACTORY_HOME (QA by hand). Either alone
     does not qualify. Used by both herdr_gate() and refuse_worker()."""
@@ -1078,18 +1084,30 @@ def _userns_link(pid):
         return None
 
 
+def _proc_start(pid):
+    """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        stat = (root / str(pid) / "stat").read_text(errors="replace")
+        return stat[stat.rindex(")") + 1:].split()[19]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def sandbox_escape_close(con, name, pane, pid):
     """G-010 T-C2 (fail closed): a sandboxed agent's claude whose user ns equals the host's ran outside the
     sandbox (a shell rc reordered PATH, a multiplexer resumed a bare claude). Close its pane (the call force_stop
-    and reap use), event `sandbox-escaped` and one director alert per pid. An unreadable link decides nothing.
+    and reap use), event `sandbox-escaped` and one director alert per process (pid + start time,
+    read before the close). An unreadable link decides nothing.
     The host reference is <proc>/1, or this process's own ns when pid 1 is unreadable. Returns True when closed."""
     mine = _userns_link(pid)
     host = _userns_link(1) or _userns_link("self")
     if mine is None or host is None or mine != host:
         return False
+    start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
     if pane:
         herdr("pane", "close", pane, check=False)
-    key = f"sandbox-escaped:{pid}"
+    key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
@@ -1353,8 +1371,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
-        return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
-                       " — clean finished tasks' scratchpads"), stats
+        # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
+        # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
+        if role != "cleaner":
+            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
+                           " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
@@ -1549,7 +1570,7 @@ def cmd_goal(a):
         table(con.execute(q + " ORDER BY g.priority, g.id").fetchall(),
               ["id", "status", "priority", "project_id", "done", "total", "title"])
     elif a.action == "show":
-        show_goal(con, a.id)
+        show_goal(con, a.id, compact=compact_view(con, a))
     elif a.action == "edit":
         require_role(con, "boss", "director")
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
@@ -1711,7 +1732,9 @@ def latest_audit(con, gid):
     return au, so
 
 
-def show_goal(con, gid):
+def show_goal(con, gid, compact=False):
+    """compact (workers without --full, G-014): intent and success criteria in full; plan, audit and tasks
+    shrink to pointer/summary lines and the teams table is left out."""
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
     if not g:
         die(f"no goal {gid}")
@@ -1720,9 +1743,23 @@ def show_goal(con, gid):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
     p = con.execute("SELECT * FROM plans WHERE goal_id=? ORDER BY version DESC LIMIT 1", (gid,)).fetchone()
+    au, so = latest_audit(con, gid)
+    if compact:
+        if p:
+            print(f"\nplan v{p['version']} by {p['author']} {p['created']}, {len(p['body'].splitlines())} lines: "
+                  f"factory goal show {gid} --full")
+        if au:
+            print(f"audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})")
+            if so:
+                print(f"sign-off of audit v{au['version']} ({so['author']}, {so['created']})")
+        c = {r["status"]: r["n"] for r in con.execute(
+            "SELECT status, count(*) n FROM tasks WHERE goal_id=? GROUP BY status", (gid,))}
+        std = ("todo", "in_progress", "in_review", "done", "cancelled")
+        parts = ", ".join([f"{st} {c.get(st, 0)}" for st in std] + [f"{st} {n}" for st, n in sorted(c.items()) if st not in std])
+        print(f"tasks: {sum(c.values())} ({parts})")
+        return
     if p:
         print(f"\n## plan v{p['version']} ({p['author']}, {p['created']})\n{p['body']}")
-    au, so = latest_audit(con, gid)
     if au:
         print(f"\n## audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})\n{au['body']}")
         if so:
@@ -2091,8 +2128,17 @@ def cmd_task(a):
         notes = con.execute("SELECT ts,actor,action,detail FROM events WHERE entity='task' AND entity_id=? ORDER BY id",
                             (a.id,)).fetchall()
         print("\n## history")
+        if compact_view(con, a):
+            others = [i for i, n in enumerate(notes) if n["action"] != "note"]
+            keep = set(others[-5:])
+            dropped = len(others) - len(keep)
+            notes = [n for i, n in enumerate(notes) if n["action"] == "note" or i in keep]
+        else:
+            dropped = 0
         for n in notes:
             print(f"- {n['ts']} {n['actor']} {n['action']}" + (f": {n['detail']}" if n['detail'] else ""))
+        if dropped:
+            print(f"({dropped} earlier events: factory task show {a.id} --full)")
     elif a.action == "update":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         role = actor_role(con)
@@ -3194,6 +3240,67 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
     return None
 
 
+NOREPLY_SUFFIX = "@users.noreply.github.com"
+WEB_FLOW_EMAIL = "noreply@github.com"  # GitHub's own committer on web/API merges
+
+
+def _judge_is_public(con, t, owner_repo):
+    """Does the public text rule apply to this PR's repo? Same scope as judge_public_text_refusal (unknown repo = public)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    slugs = _judge_slugs(con, t, owner_repo)
+    return bool(public) and (not slugs or bool(set(slugs) & public))
+
+
+def noreply_email(con):
+    """Author email for a judge merge into a public repo (G-021): config noreply_email, else the repo-local git
+    user.email of the main checkout. None unless it ends @users.noreply.github.com."""
+    email = cfg(con, "noreply_email").strip()
+    if not email:
+        try:  # a plain read of the identity git itself would use (includeIf and global config included); runs no repo code
+            r = git_run(HOME, "config", "--get", "user.email", timeout=30)
+            email = r.stdout.strip() if r.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, OSError):
+            email = ""
+    return email if email.lower().endswith(NOREPLY_SUFFIX) else None
+
+
+def _email_problems(author, committer):
+    """Which of author/committer emails break the public-main rule. Committer may also be GitHub's web-flow address."""
+    bad = []
+    if not (author or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("author")
+    if (committer or "").strip().lower() not in (WEB_FLOW_EMAIL,) and not (committer or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("committer")
+    return bad
+
+
+def judge_merge_email_check(con, t, a, owner_repo, merged_sha):
+    """After a merge into a public repo: read the merge commit and fail loudly (event, message to the director, exit 6)
+    unless author and committer emails are noreply. Cannot read it = cannot verify = also loud. Returns normally if clean."""
+    slug = _repo_slug(owner_repo)
+    why = None
+    try:
+        sha = merged_sha
+        if not sha:
+            sha = ((gh_json("pr", "view", t["pr_url"], "--json", "mergeCommit").get("mergeCommit")) or {}).get("oid") or ""
+        if not sha:
+            why = "cannot find the merge commit of the PR, email not verified"
+        else:
+            c = gh_json("api", f"repos/{slug}/commits/{sha}")["commit"]
+            bad = _email_problems(c["author"]["email"], c["committer"]["email"])
+            if bad:
+                why = f"merge commit {sha[:8]} has a non-noreply {' and '.join(bad)} email (author {c['author']['email'][:3]}***, committer {c['committer']['email'][:3]}***)"
+    except (SystemExit, ValueError, KeyError, TypeError, subprocess.TimeoutExpired, OSError) as e:
+        why = f"cannot read the merge commit, email not verified: {type(e).__name__}: {str(e)[:120]}"
+    if why is None:
+        return
+    event(con, "task", a.task, "merge-email-leak", why)
+    send(con, "director", f"{a.task}: public merge email check FAILED", f"{why}. The change is on {slug} main. Rewrite or "
+         "verify the commit before anyone builds on it (G-021 T-0602).", "escalation", task=a.task, sender=actor())
+    con.commit()
+    die(f"{a.task} merged but the public-main email check failed: {why}; director notified", 6)
+
+
 def judge_requeue(con, task, proj, pr_url, new_head):
     """Local mode after a refresh: the new head needs its own gate run (a pass never carries across a head change).
     Enqueue it and exit without waiting; the tick launches the run and respawns a judge once it passes."""
@@ -3397,8 +3504,17 @@ def cmd_judge(a):
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
             die(refused, 4)
+        author_args = []
+        if _judge_is_public(con, t, owner_repo):  # G-021: the squash commit must not carry a real email
+            noreply = noreply_email(con)
+            if not noreply:
+                msg = ("merge refused: no noreply author email; set `factory config noreply_email <id>+<user>@users.noreply.github.com` "
+                       "or the repo-local git user.email; nothing merged")
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            author_args = ["--author-email", noreply]
         try:
-            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha],
+            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
         except subprocess.TimeoutExpired:  # outcome unknown, like a 5xx: the squash may have landed
             p = subprocess.CompletedProcess([], 124, "", "gh pr merge timed out")
@@ -3442,6 +3558,8 @@ def cmd_judge(a):
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
+    if _judge_is_public(con, t, owner_repo):
+        judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
 
 def cmd_refresh(a):
@@ -5036,8 +5154,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (name,))
         event(con, "agent", name, "flagless-cleared", {"via": "spawn"})
     if sandboxed and (sid or resume):  # the session's claude pid is known now: close an escape right away
-        for pid, _argv in claude_procs(sid or resume):
-            if sandbox_escape_close(con, name, pane, pid):
+        for pid, argv in claude_procs(sid or resume):
+            if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid):
                 break
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
           f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
@@ -6822,6 +6940,10 @@ def cmd_res(a):
     gr = con.execute("SELECT id,kind,task_id,project_id,pid FROM gate_runs WHERE status='running' ORDER BY id").fetchall()
     print(f"gate runs: {len(gr)} running (max {cfg(con, 'gate_max_parallel')})"
           + "".join(f" · #{r['id']} {r['task_id'] or r['kind'] + ':' + r['project_id']}" for r in gr))
+    if s.get("tmp") and s["tmp"]["pct"] >= float(cfg(con, "tmp_max_pct")):
+        cok, cwhy, _ = gate(con, role="cleaner")
+        print("cleaner gate: " + ("OPEN — exempt from the /tmp gate (tmp_max_pct) so it can free /tmp; every other cap still applies"
+                                  if cok else f"CLOSED — {cwhy}"))
     print(f"agents live {s['live']}/{s['cap']} · queued {q} · other claude panes {s['other']} (counted in host total)")
     lc = lead_counts(con)
     reserved = int(cfg(con, "reserved_worker_slots"))
@@ -7469,9 +7591,12 @@ def cmd_tick(a, locked=False):
     queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
                                 "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
+    held = False
     for q in queued:
-        if not gate(con)[0]:
-            break
+        if not held and not gate(con)[0]:
+            held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
+        if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
+            continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
@@ -7670,6 +7795,50 @@ def sync_pull(con, push_ok=True):
     return _sync_failed(con, err)
 
 
+PUBLIC_MAIN_SCAN_MAX = 200  # commits looked at when there is no usable watermark
+
+
+def public_main_email_check(con):
+    """Tick (G-021 T-0602): for the main checkout when its origin is in public_text_repos, look at the commits that are new
+    on origin/main since the last check; an author or committer email that is not noreply (web-flow committer allowed)
+    -> one escalation to the boss per sha. Never raises: the tick goes on."""
+    try:
+        public = _cfg_slugs(con, "public_text_repos")
+        if not public:
+            return
+        slug = next((s for s in (_repo_slug(u) for u in _origin_urls()) if s in public), None)
+        if not slug:
+            return
+        key = f"public_main_seen:{slug}"
+        row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+        rc, tip, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+        if rc != 0 or not tip:
+            return
+        seen = row["value"] if row else ""
+        rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
+        rc, out, err = _git_rc(["log", "--format=%H%x09%ae%x09%ce", *rng])
+        if rc != 0:
+            raise RuntimeError(err or f"git log exited {rc}")
+        for line in out.splitlines():
+            sha, ae, ce = (line.split("\t") + ["", ""])[:3]
+            bad = _email_problems(ae, ce)
+            tkey = f"email-alert:{sha}"
+            if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
+                continue
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (tkey, str(time.time())))
+            send(con, "boss", f"public main {slug}: non-noreply email on {sha[:8]}",
+                 f"Commit {sha} on {slug} origin/main has a non-noreply {' and '.join(bad)} email (author {ae[:3]}***, "
+                 f"committer {ce[:3]}***). Required: ...{NOREPLY_SUFFIX}. Rewrite the commit or confirm it is fine; "
+                 "alerted once for this sha (G-021 T-0602).", "escalation", sender="tick")
+            event(con, "system", slug, "public-main-email", sha)
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, tip))
+    except Exception as e:  # noqa: BLE001 — a failed alert check must not stop the tick
+        try:
+            event(con, "system", "tick", "public-main-email-failed", str(e)[:200])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def state_commit(msg):
     """Commit exports/ and state/ to refs/heads/state with plumbing and a private index: main's index, HEAD and
     branch are never touched. Returns True if a new commit was made."""
@@ -7703,6 +7872,7 @@ def export(con, push=None):
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
     sync_pull(con, push_ok and state_ok)  # first: merged code goes live and tracked generated files are restored before they are rewritten
+    public_main_email_check(con)
     banner = "<!-- generated by `factory export` from factory.db — edits here are overwritten -->\n"
     goals = con.execute("SELECT g.*,(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status='done') done,"
                         "(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status!='cancelled') total FROM goals g ORDER BY id").fetchall()
@@ -9222,6 +9392,7 @@ def main():
     x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close"])
     x.add_argument("id", nargs="?"); x.add_argument("status", nargs="?")
     x.add_argument("--ready", action="store_true"); x.add_argument("--gaps", action="store_true")
+    x.add_argument("--full", action="store_true")
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
@@ -9237,6 +9408,7 @@ def main():
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
     x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen"])
+    x.add_argument("--full", action="store_true")
     x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
     x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")
