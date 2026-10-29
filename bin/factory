@@ -64,6 +64,7 @@ from scout import sources as scoutsrc  # noqa: E402
 from scout import vendor as scoutvendor  # noqa: E402
 from scout import sandbox as scoutsandbox  # noqa: E402
 from scout import workerbox  # noqa: E402
+from scout import ghcred  # noqa: E402
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -145,6 +146,16 @@ DEFAULT_CONFIG = {
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
     # workerbox.SANDBOXABLE (reviewer, qa, coder). Empty = off = today's behaviour. Read fresh at every spawn.
     "sandbox_roles": "",
+    # worker GitHub credential (G-010 R-c): unsandboxed workers of these roles push and call gh with the worker token
+    # (scout/ghcred.py), never the owner's gh login. Comma list of coder, qa, reviewer, judge, cleaner, pm. Empty = off =
+    # today's behaviour. Read fresh at every spawn; a missing token file refuses the spawn (fail closed).
+    "worker_gh_roles": "",
+    "gh_rw_roles": "coder,judge,cleaner",  # the roles of worker_gh_roles that get the read-write token; the others get the read-only one
+    # token files (directly in ~/.config/factory); empty = ~/.config/factory/gh-worker-{ro,rw}-token. The default is not
+    # spelled out here: the config table is dumped into the no-leak test, which must find no token file name in it.
+    "gh_token_ro": "",
+    "gh_token_rw": "",
+    "worker_gh_repos": "",       # comma list OWNER/NAME the worker token is offered for; empty = the repository of factory_remote_url
     "serve_bind": "",            # `factory serve`: LAN address to listen on; empty = source address of the default route
     "serve_port": "8765",        # `factory serve`: TCP port
     "serve_hostnames": "",       # `factory serve`: extra Host names accepted besides the bind IP (comma-separated); empty = the bind IP only
@@ -1467,6 +1478,16 @@ def check_sandbox_roles(value):
     return ",".join(dict.fromkeys(names))
 
 
+def check_gh_roles(key, value):
+    """The normalised comma list, or exit 2: every name must be a worker role ghcred can serve ("" = none)."""
+    names = [x.strip() for x in value.split(",") if x.strip()]
+    bad = [n for n in names if n not in GH_CRED_ROLES]
+    if bad:
+        die(f"config {key}: {', '.join(repr(b) for b in bad)} is not a worker role; allowed: "
+            f"{', '.join(GH_CRED_ROLES)} (comma list, or empty to turn the worker gh credential off)", 2)
+    return ",".join(dict.fromkeys(names))
+
+
 def cmd_config(a):
     con = db()
     if a.key and a.value is not None:
@@ -1481,6 +1502,10 @@ def cmd_config(a):
             triage_per_run(a.value)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
+        if a.key in ("worker_gh_roles", "gh_rw_roles"):
+            a.value = check_gh_roles(a.key, a.value)
+        if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
+            die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
         if a.key == "task_clones":
             a.value = a.value.strip()
             if a.value not in ("0", "1"):
@@ -5469,22 +5494,26 @@ class SandboxRefused(SystemExit):
     reason = why = ""
 
 
+def _hourly_once(con, key, write):
+    """Run write() unless this throttle key fired within the last SANDBOX_THROTTLE_S."""
+    last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+    if not last or time.time() - float(last["ts"]) >= SANDBOX_THROTTLE_S:
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                    (key, str(time.time())))
+        write()
+
+
 def sandbox_refuse(con, role, name, reason, why):
     """Event (once an hour per agent and reason, so a queued row retried every tick does not flood), a director
     message at most once an hour per reason, then SandboxRefused (spawn() returns a queued row to the queue).
     Neither the event nor the message names a token path."""
-    for key, write in ((f"sandbox_refused_ev:{name}:{reason}",
-                        lambda: event(con, "agent", name, "sandbox-refused", {"role": role, "name": name, "reason": reason})),
-                       (f"sandbox_refused:{reason}",
-                        lambda: send(con, "director", f"sandbox refused a {role} spawn ({reason})",
-                                     f"{name} was not started: {why}. Fix it, or turn the sandbox off: "
-                                     "factory config sandbox_roles ''. Further refusals for this reason are silent for an hour.",
-                                     "alert", sender="factory"))):
-        last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
-        if not last or time.time() - float(last["ts"]) >= SANDBOX_THROTTLE_S:
-            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
-                        (key, str(time.time())))
-            write()
+    _hourly_once(con, f"sandbox_refused_ev:{name}:{reason}",
+               lambda: event(con, "agent", name, "sandbox-refused", {"role": role, "name": name, "reason": reason}))
+    _hourly_once(con, f"sandbox_refused:{reason}",
+               lambda: send(con, "director", f"sandbox refused a {role} spawn ({reason})",
+                            f"{name} was not started: {why}. Fix it, or turn the sandbox off: "
+                            "factory config sandbox_roles ''. Further refusals for this reason are silent for an hour.",
+                            "alert", sender="factory"))
     con.commit()  # the exit follows: the event and the message must survive
     print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
           "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
@@ -5495,12 +5524,14 @@ def sandbox_refuse(con, role, name, reason, why):
 
 def sandbox_drop_queued(con, row, s, e):
     """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
-    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path."""
-    if not cancel_queued(con, row["name"], "sandbox-preflight", f"{e.reason}: {e.why}"):
+    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path.
+    A worker gh credential refusal (GhCredRefused) is dropped the same way."""
+    what = "gh-cred" if isinstance(e, GhCredRefused) else "sandbox"
+    if not cancel_queued(con, row["name"], f"{what}-preflight", f"{e.reason}: {e.why}"):
         return
     team = s.get("team")
-    subject = f"sandbox refused queued spawn {row['name']}"
-    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: sandbox preflight refused it "
+    subject = f"{what} refused queued spawn {row['name']}"
+    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: {what} preflight refused it "
             f"({e.reason}: {e.why}). Fix it and spawn again.")
     try:
         send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
@@ -5522,12 +5553,97 @@ def sandbox_prepare(con, role, name, cwd):
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
 
 
+GH_CRED_ROLES = ("coder", "qa", "reviewer", "judge", "cleaner", "pm")
+# credential sources that git or gh consult from the env; a worker with the worker token must not fall back to them
+GH_SCRUB_ENV = ("GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "SSH_ASKPASS", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
+GIT_CONFIG_PAIR_RE = re.compile(r"GIT_CONFIG_(?:KEY|VALUE)_\d+")
+
+
+class GhCredRefused(SandboxRefused):
+    """A spawn whose worker gh credential preflight failed: exit 3, nothing started. reason is always gh-cred."""
+
+
+def _csv(value):
+    return [x.strip() for x in (value or "").split(",") if x.strip()]
+
+
+def gh_cred_wanted(con, role, sandboxed):
+    """True when this unsandboxed spawn gets the worker gh credential (config worker_gh_roles, read at each spawn)."""
+    return not sandboxed and role in _csv(cfg(con, "worker_gh_roles"))
+
+
+def gh_cred_inputs(con, role):
+    """(token config key, token path, slugs, real gh path) of this role. ValueError(why) on the first failed check:
+    pure, no token is read and nothing is created. why names the config key, never the token path."""
+    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) else "gh_token_ro"
+    home = Path(sandbox_home() or ghcred.real_home())
+    value = cfg(con, key).strip() or f"~/.config/factory/gh-worker-{key[-2:]}-token"
+    path = str(home / value[2:]) if value.startswith("~/") else value
+    if not path or not os.path.isabs(path) or not _token_file_ok(path):
+        raise ValueError(f"the worker gh token file named by config {key} is missing, not a regular 0600 file of ours, "
+                         "or empty (docs/worker-sandbox.md)")
+    slugs = _csv(cfg(con, "worker_gh_repos")) or [x for x in [_repo_slug(factory_remote_url())] if x]
+    if not slugs or not all(ghcred.SLUG_RE.fullmatch(x) for x in slugs):
+        raise ValueError("no repository for the worker token: set config worker_gh_repos (comma list of OWNER/NAME) "
+                         "or factory_remote_url")
+    root = os.path.realpath(home / ".local" / "state" / "factory" / "ghcred")
+    keep = [d for d in os.environ.get("PATH", "").split(os.pathsep)
+            if d and not os.path.realpath(d).startswith(root + os.sep)]
+    real_gh = shutil.which("gh", path=os.pathsep.join(keep))
+    if not real_gh or not os.path.isabs(real_gh):
+        raise ValueError("no gh on the PATH of the process that spawns workers; install gh or fix its PATH")
+    return key, path, slugs, real_gh
+
+
+def gh_cred_refuse(con, role, name, why):
+    """Event gh-cred-refused (once an hour per agent), a director alert at most once an hour, then GhCredRefused."""
+    reason = "gh-cred"
+    _hourly_once(con, f"gh_cred_refused_ev:{name}",
+               lambda: event(con, "agent", name, "gh-cred-refused", {"role": role, "name": name, "reason": reason}))
+    _hourly_once(con, "gh_cred_refused",
+               lambda: send(con, "director", f"worker gh credential refused a {role} spawn",
+                            f"{name} was not started: {why}. Fix it, or turn the worker gh credential off: "
+                            "factory config worker_gh_roles ''. Further refusals are silent for an hour.",
+                            "alert", sender="factory"))
+    con.commit()  # the exit follows: the event and the message must survive
+    print(f"factory: gh-cred refused for {name}: {why}; no pane was started. "
+          "Fix it or run: factory config worker_gh_roles ''", file=sys.stderr)
+    e = GhCredRefused(3)
+    e.reason, e.why = reason, why
+    raise e
+
+
+def gh_cred_preflight(con, role, name):
+    try:
+        gh_cred_inputs(con, role)
+    except ValueError as e:
+        gh_cred_refuse(con, role, name, str(e))
+
+
+def gh_cred_env(con, role, name):
+    """The env a worker pane adds for the worker gh credential: ghcred.pane_env (paths only, never a token) over a
+    scrub that blanks every credential source git or gh would try after ghcred fails. Refuses the spawn on any problem."""
+    try:
+        _, path, slugs, real_gh = gh_cred_inputs(con, role)
+        home = str(sandbox_home() or ghcred.real_home())
+        agent_dir = ghcred.prepare_dir(name, role, path, slugs, real_gh, home=home)
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
+        gh_cred_refuse(con, role, name, f"cannot prepare the worker gh credential: {e}")
+    scrub = {k: "" for k in GH_SCRUB_ENV}
+    scrub.update({k: "" for k in os.environ if GIT_CONFIG_PAIR_RE.fullmatch(k)})
+    scrub["GIT_CONFIG_COUNT"] = "0"  # git dies on an empty count
+    return {**scrub, **ghcred.pane_env(agent_dir, path)}
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
     model = model or MODELS[role]
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
     optin = args.get("sandbox_optin") is True
+    ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
+    if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
+        gh_cred_preflight(con, role, name)
     if not cwd and sandbox_wanted(con, role, optin):  # cwd-free refusals first: a refused spawn creates no legacy worktree
         bad = sandbox_preflight(role, None, name)
         if bad:
@@ -5541,6 +5657,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         agent_dir = sandbox_prepare(con, role, name, cwd)
         env["PATH"] = f"{agent_dir}/bin{os.pathsep}{sandbox_real_claude(sandbox_home())[1]}"
         args["sandbox"] = True
+    if ghcred_on:
+        env.update(gh_cred_env(con, role, name))
     # before place(): a render failure (bad template, LIVE_HOME pin refusal) leaves no pane and no live row
     settings = render_settings(role)  # every launch re-renders: a tampered rendered file never survives a relaunch
     found = find_pane(pane) if pane else None
@@ -8612,6 +8730,8 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             "cwd", "the agent row has no recorded cwd; spawn it again instead of relaunching")
         if bad:
             sandbox_refuse(con, r["role"], r["name"], *bad)
+    if gh_cred_wanted(con, r["role"], sandbox_wanted(con, r["role"], optin)):  # same: before the old pane is closed
+        gh_cred_preflight(con, r["role"], r["name"])
     steps = []
     if close:
         steps.append(f"herdr pane close {pane}  (`/exit` via `herdr agent prompt` is not a documented clean exit; "
