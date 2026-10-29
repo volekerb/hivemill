@@ -9,6 +9,7 @@ import collections
 import ctypes
 import fcntl
 import json
+import codecs
 import os
 import pwd
 import re
@@ -20,6 +21,7 @@ import struct
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 
 try:
@@ -30,6 +32,10 @@ except ImportError:  # run as a script by path (stage 1 setup, python -I): egres
 
 HIDE_DIRS = ("~/.claude", "~/.config", "~/.ssh", "~/.gnupg", "~/factory", "$XDG_RUNTIME_DIR")
 HIDE_FILES = ("~/.git-credentials", "~/.netrc")
+# allow mode masks all of /run (container-engine socket, ssh-unix-local/socket, the user bus); only these come back,
+# read-only: /etc/resolv.conf links to /run/systemd/resolve/stub-resolv.conf, so DNS in a net=True profile needs that dir
+RUN_MASK = "/run"
+RUN_KEEP_RO = ("/run/systemd/resolve",)
 TOKEN_FILE = "~/.config/factory/eval-oauth-token"
 NO_TOKEN_MSG = "owner decision D3 pending: no eval token"
 SCRUB_ENV = ("SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS")
@@ -88,13 +94,15 @@ def _expand(entry, home, runtime):
 
 def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs=HIDE_DIRS, hide_files=HIDE_FILES,
              vendor_dir=None, keep=(), net=False, forward=False, unshare="unshare", cwd=None, *,
-             mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None):
+             mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None,
+             run_mask=True):
     """Everything setup needs, as plain JSON-able data with absolute paths.
 
     The keyword-only args are the allow-list mode (docs/scout-nsbox.md#allow-list-mode). At their defaults the dict
     is exactly the deny-mode dict of old: the extra keys (mode, rw, ro, masks, pid, tmpfs_size, tmpfs_sizes) appear only
     when non-default. `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
-    (or mask) to its own size; tmpfs is memory-backed, so keep them small."""
+    (or mask) to its own size; tmpfs is memory-backed, so keep them small. In allow mode /run is masked too (see
+    RUN_MASK) unless `run_mask=False`."""
     if not _size_ok(tmpfs_size) or any(not _size_ok(v) for v in (tmpfs_sizes or {}).values()):
         raise ValueError(f"tmpfs size must be a positive number like 8m, 512k or 1g (0 means unlimited), at most 16g or 100%, "
                          f"got {tmpfs_size!r} / {tmpfs_sizes!r}")
@@ -138,6 +146,10 @@ def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs
         cfg["mode"] = "allow"
         cfg["rw"] = [os.path.abspath(p) for p in rw]
         cfg["ro"] = [os.path.abspath(p) for p in [*ro, *([claude, os.path.realpath(claude)] if claude else [])]]
+        if run_mask:  # `run_mask=False` is for tests that count mounts; no profile turns it off
+            if RUN_MASK not in cfg["hide_dirs"]:
+                cfg["hide_dirs"].append(RUN_MASK)
+            cfg["ro"] += [k for k in RUN_KEEP_RO if os.path.isdir(k) and k not in cfg["ro"]]
         for p in cfg["ro"][len(ro):]:  # the claude link may be a link itself, its parents may not
             bad = _symlink_parent(p)
             if bad:
@@ -525,18 +537,165 @@ def stop_proxy(trial_dir):
     pidfile.unlink(missing_ok=True)
 
 
+START_LOG_CAP = 64 * 1024
+_TOKEN_SHAPE = re.compile(r"sk-ant-[A-Za-z0-9_-]+")
+
+
+def redact(text, token=None, shape=True):
+    """Text with the whole OAuth token (when known) and, with `shape`, anything shaped like one replaced."""
+    if token:
+        text = text.replace(token, "[redacted-token]")
+    return _TOKEN_SHAPE.sub("[redacted-token]", text) if shape else text
+
+
+def open_log_dir(trial_dir, create=False):
+    """fd of <trial>/log opened without following a symlink at the trial dir or at log/ (claude can write both), or
+    None. The caller closes it."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        tfd = os.open(trial_dir, flags)
+    except OSError:
+        return None
+    try:
+        if create:
+            try:
+                os.mkdir("log", 0o700, dir_fd=tfd)
+            except FileExistsError:
+                pass
+        return os.open("log", flags, dir_fd=tfd)
+    except OSError:
+        return None
+    finally:
+        os.close(tfd)
+
+
+def start_log_append(trial_dir, text, token=None, limit=START_LOG_CAP):
+    """Append `text` (exact token redacted; shapes are redacted when the log is displayed) to <trial>/log/start.log, never growing it past `limit` bytes (what does not fit is
+    dropped: no trim, no rewrite). Returns False when something was dropped. Never raises: the log is a diagnostic
+    and must not turn a start into a different failure. Symlinks (planted by the sandboxed claude) are never
+    followed; anything but a regular file is refused."""
+    dfd = fd = None
+    try:
+        data = redact(text, token, shape=False).encode("utf-8", "replace")
+        dfd = open_log_dir(trial_dir, create=True)
+        if dfd is None:
+            return False
+        fd = os.open("start.log", os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=dfd)
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return False
+        room = max(0, limit - os.fstat(fd).st_size)
+        if room:
+            os.write(fd, data[:room])
+        return len(data) <= room
+    except OSError:
+        return False
+    finally:
+        for f in (fd, dfd):
+            if f is not None:
+                os.close(f)
+
+
+def _stamp():
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+TEE_READ = 4096
+TEE_RESERVE = 2048  # of the cap, kept for the records after stderr (the exit status) once stderr has filled its share
+
+
+def _tee_stderr(pipe, trial_dir, token):
+    """Copy the stage-1 stderr to our own stderr and (redacted) into start.log. Reads fixed-size chunks (the
+    sandbox controls this stream, newline-free or not): memory stays O(chunk + token). Only the exact token is redacted here
+    (no shape matching on this stream; token shapes are redacted when the log is displayed): the last len(token)-1
+    characters are held back so a token split across two reads is still redacted whole. Past its share of the cap the log gets one
+    marker and nothing more, but the stream is drained to EOF so claude never blocks on a full pipe."""
+    fd = pipe.fileno()
+    keep = len(token) - 1 if token else 0
+    dec = codecs.getincrementaldecoder("utf-8")("replace")
+    carry = ""
+    full = False
+
+    def to_log(data):
+        nonlocal full
+        if full or not data:
+            return
+        if not start_log_append(trial_dir, data, token, START_LOG_CAP - TEE_RESERVE):
+            full = True
+            start_log_append(trial_dir, f"\n{_stamp()} [truncated]\n", token)
+
+    while True:
+        try:
+            chunk = os.read(fd, TEE_READ)
+        except InterruptedError:
+            continue
+        except OSError:
+            break
+        if not chunk:
+            break
+        try:
+            os.write(2, chunk)
+        except OSError:
+            pass
+        buf = redact(carry + dec.decode(chunk), token, shape=False)  # a whole token is gone; a partial one is in the last keep chars
+        cut = max(len(buf) - keep, 0)
+        carry = buf[cut:]
+        to_log(buf[:cut])
+    to_log(carry + dec.decode(b"", final=True))
+
+
+class _StopBeforeStart(Exception):
+    def __init__(self, signo):
+        super().__init__(signo)
+        self.signo = signo
+
+
 def shim_main(shim_cfg, args):
-    """What bin/claude does: token, proxy outside, then exec stage 1. Never returns."""
+    """What bin/claude does: token, proxy outside, then stage 1 as a child (stdin/stdout inherited, stderr teed into
+    <trial>/log/start.log with its exit status). Never returns. Every failure on the way is logged there too."""
     cfg = shim_cfg["ns"]
-    token = read_token(shim_cfg["token_file"])
-    start_proxy(cfg["trial"], cfg, shim_cfg["proxy_allow"], shim_cfg["proxy_max_life"], shim_cfg["upstream"])
-    passed = ENV_PASS + CLAUDE_ENV_PASS + (EVAL_ENV_PASS if shim_cfg.get("eval_env") else ())
-    env = {k: v for k, v in os.environ.items() if k in passed or k.startswith("LC_")}
-    env["HOME"] = cfg["trial"]
-    env.update(shim_cfg.get("env_set") or {})
-    env["CLAUDE_CODE_OAUTH_TOKEN"] = token
-    argv = compose_stage1(cfg, args)
-    os.execve(argv[0], argv, env)
+    trial = cfg["trial"]
+    token = None
+    proc = None
+    # SIGINT already reaches stage 1 through the shared tty process group: forwarding it too would double it
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    pending = []  # a stop that arrives before stage 1 exists must still stop the start
+
+    def on_stop(n, _f):
+        if proc is not None:
+            if proc.poll() is None:
+                proc.send_signal(n)
+        else:
+            pending.append(n)
+
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, on_stop)
+    try:
+        token = read_token(shim_cfg["token_file"])
+        start_proxy(trial, cfg, shim_cfg["proxy_allow"], shim_cfg["proxy_max_life"], shim_cfg["upstream"])
+        passed = ENV_PASS + CLAUDE_ENV_PASS + (EVAL_ENV_PASS if shim_cfg.get("eval_env") else ())
+        env = {k: v for k, v in os.environ.items() if k in passed or k.startswith("LC_")}
+        env["HOME"] = cfg["trial"]
+        env.update(shim_cfg.get("env_set") or {})
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+        argv = compose_stage1(cfg, args)
+        if pending:
+            raise _StopBeforeStart(pending[0])
+        start_log_append(trial, f"{_stamp()} stage1 exec {argv[0]}\n", token)
+        proc = subprocess.Popen(argv, env=env, stderr=subprocess.PIPE,  # SIG_IGN would be inherited: undo it for the child
+                                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+        if pending:  # arrived between the check and Popen returning
+            proc.send_signal(pending[0])
+    except _StopBeforeStart as e:
+        stop_proxy(trial)
+        start_log_append(trial, f"{_stamp()} stopped by signal {e.signo} before stage 1 started\n", token)
+        sys.exit(128 + e.signo)
+    except BaseException as e:  # SystemExit from read_token/start_proxy too: record it, keep its exit status
+        start_log_append(trial, f"{_stamp()} start failed: {type(e).__name__}: {e}\n{traceback.format_exc()}", token)
+        raise
+    _tee_stderr(proc.stderr, trial, token)
+    rc = proc.wait()
+    start_log_append(trial, f"{_stamp()} stage1 exited rc={rc}\n", token)
+    sys.exit(128 - rc if rc < 0 else rc)
 
 
 SHIM = """#!{python} -I
@@ -571,7 +730,9 @@ def write_shim(trial_dir, real_claude, token_file=None, proxy_allow=egress.ALLOW
     shim.write_text(SHIM.format(python=sys.executable, repo=str(repo), cfg=json.dumps(shim_cfg)))
     shim.chmod(0o755)
     src = Path(factory_src) if factory_src else repo / "bin" / "factory"
-    shutil.copy2(src, bin_dir / "factory")  # bin/factory imports scout/ from <its dir>/..: snapshot that package and web/dbpath.py too
+    shutil.copy2(src, bin_dir / "factory")
+    shutil.copy2(src.resolve().parent / "factory_cli.py", bin_dir / "factory_cli.py")  # the stub imports it
+    # bin/factory_cli.py imports scout/ from <its dir>/..: snapshot that package and web/dbpath.py too
     shutil.copytree(src.resolve().parent.parent / "scout", trial / "scout", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__"))
     (trial / "web").mkdir(exist_ok=True)  # and the DB-path helper (web/dbpath.py, stdlib only), not the web UI
@@ -593,14 +754,32 @@ def _refuse_hidden_cwd(cwd, cfg):
                              f"{trial} or a path under it")
 
 
+def _contained_cfg(trial_dir, cwd, home, trials_root, hide_dirs, vendor_dir, net, unshare):
+    """The allow-list cfg of run_contained (docs/scout-nsbox.md#run_contained): tmpfs over the real home and the runtime
+    dir (plus any extra hide_dirs the caller names; /tmp stays as before), bound back only the trial dir (rw), the cwd
+    when it lies outside the trial (rw, as before) and the vendored plugin dir (ro). Siblings stay hidden even when
+    the trials root lies outside every hide tree."""
+    home = os.path.realpath(home or real_home())
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    extra = [] if hide_dirs == HIDE_DIRS else [_expand(d, home, runtime) for d in hide_dirs]
+    hide = [os.path.realpath(d) for d in (home, runtime, *extra) if os.path.isdir(d)]
+    trial = os.path.realpath(trial_dir)
+    root = os.path.realpath(trials_root) if trials_root else os.path.dirname(trial)
+    rw = [trial]
+    if cwd and not _under(os.path.realpath(cwd), trial):
+        rw.append(os.path.realpath(cwd))
+    masks = [] if any(_under(root, h) for h in hide) else [root]
+    return make_cfg(trial, None, home, root, mode="allow", hide_dirs=hide, hide_files=(), rw=rw,
+                    ro=[os.path.realpath(vendor_dir)] if vendor_dir else [], masks=masks, net=net, unshare=unshare,
+                    cwd=cwd)
+
+
 def run_contained(trial_dir, argv, cwd=None, env=None, timeout=60, net=False, home=None, trials_root=None,
                   hide_dirs=HIDE_DIRS, vendor_dir=None, unshare="unshare", env_extra=None):
     """Run argv inside the same hiding as the shim: no proxy, no forwarder, no token. net=True keeps the host
     network (off by default). env=None means an allow-list (ENV_PASS, LC_*, HOME=trial dir, env_extra), never the
     caller's whole environment. Returns Contained(returncode, output, timed_out); the tree dies on timeout."""
-    keep = [cwd] if cwd else []
-    cfg = make_cfg(trial_dir, None, home, trials_root, hide_dirs, vendor_dir=vendor_dir, keep=keep, net=net,
-                   unshare=unshare, cwd=cwd)
+    cfg = _contained_cfg(trial_dir, cwd, home, trials_root, hide_dirs, vendor_dir, net, unshare)
     if cwd:
         _refuse_hidden_cwd(cwd, cfg)
     if env is None:

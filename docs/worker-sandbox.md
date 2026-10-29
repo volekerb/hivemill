@@ -198,3 +198,5 @@ A worker also cannot be assumed to be honest about its own state: the spawn refu
 - Who may set it: only `factory spawn`, which is already refused to workers (`refuse_worker`) and limited to director, lead and boss. No config key, message or env var can set it.
 - Why a flag and not agent names in `sandbox_roles`: names there would turn the role-checked list into a mixed list, and `check_sandbox_roles` and every reader would have to tell roles from names. A flag keeps the decision on the one spawn, recorded in that spawn's own row.
 - Staged rollout: canary with `--sandbox` on a single agent, then `factory config sandbox_roles reviewer` for the role, then `reviewer,qa,coder`. Rollback of a canary: stop the agent and spawn it again without the flag (a running agent keeps its sandbox until then).
+
+See also: [ADR 0002, sandbox runtime v3](adr/0002-sandbox-runtime-v3.md).

@@ -315,6 +315,53 @@ def summary_line(cid, rows):
     return f"{cid} summary: " + "; ".join(parts)
 
 
+START_TAIL = 20
+_RC = re.compile(r"\brc=(-?\d+)")
+
+
+def needs_start_log(r):
+    """error / lost trials, and running ones that have burned no tokens yet (the stuck-start signature)."""
+    no_tokens = r["tokens_in"] is None and r["tokens_out"] is None
+    return r["status"] in ("error", "lost") or (r["status"] == "running" and no_tokens)
+
+
+_CTRL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f-\x9f]")  # ESC, C0 except \t, DEL and C1: the sandbox writes this log
+
+
+def start_log_lines(r, tail=START_TAIL):
+    """Indented last rc and <= `tail` lines of <trial>/log/start.log, token-shaped strings redacted. [] when the trial
+    needs none or has no regular-file log (symlinks are not followed)."""
+    if not needs_start_log(r) or not r["sandbox"]:
+        return []
+    dfd = fd = None
+    try:
+        dfd = nsbox.open_log_dir(r["sandbox"])
+        if dfd is None:
+            return []
+        fd = os.open("start.log", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return []
+        size = os.fstat(fd).st_size
+        raw = os.pread(fd, 64 * 1024, max(0, size - 64 * 1024))
+    except OSError:
+        return []
+    finally:
+        for f in (fd, dfd):
+            if f is not None:
+                os.close(f)
+    # split on \n only (str.splitlines also breaks on \x0b \x0c \x1c-\x1e \x85), strip controls, and only then redact
+    lines = [c for l in raw.decode("utf-8", "replace").split("\n") if (c := _CTRL.sub("", l)).strip()]
+    if not lines:
+        return []
+    shown = [nsbox._TOKEN_SHAPE.sub("[redacted-token]", l)[:300] for l in lines[-tail:]]
+    out = ["  start.log:"] + ["    " + l for l in shown]
+    if not any(_RC.search(l) for l in shown):
+        rcs = [m.group(1) for l in lines if (m := _RC.search(l))]
+        if rcs:
+            out.insert(1, f"    last rc={rcs[-1]}")
+    return out
+
+
 def list_lines(con, candidate=None):
     return result_lines(con, candidate)
 
@@ -327,7 +374,9 @@ def result_lines(con, candidate=None):
     out = []
     for cid in sorted({r["candidate_id"] for r in rows}):
         mine = [r for r in rows if r["candidate_id"] == cid]
-        out += [trial_line(r) for r in mine] + [summary_line(cid, mine)]
+        for r in mine:
+            out += [trial_line(r)] + start_log_lines(r)
+        out.append(summary_line(cid, mine))
     return out
 
 

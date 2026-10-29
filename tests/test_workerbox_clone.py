@@ -340,6 +340,7 @@ class FactoryDoneTests(FactoryTestCase):
         self.assertTrue((self.wt / ".git").is_dir(), "task_clones=1 did not make a standalone clone")
         (self.h / "bin").mkdir(exist_ok=True)  # the repo checkout is under the hidden home: the sandbox runs a copy
         shutil.copy2(FACTORY, self.h / "bin/factory")
+        shutil.copy2(FACTORY.parent / "factory_cli.py", self.h / "bin/factory_cli.py")  # the stub imports it from its own dir
         for pkg in ("scout", "web"):  # bin/factory imports both from the checkout root
             shutil.copytree(FACTORY.parent.parent / pkg, self.h / pkg, ignore=shutil.ignore_patterns("__pycache__"), dirs_exist_ok=True)
         self.box = Box(e.user_home, self.h, e.home / "run-hidden")

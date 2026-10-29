@@ -119,6 +119,20 @@ def put(path, text="", mode=None):
     return path
 
 
+HOST_RUN_SOCKETS = ("/run/docker.sock", "/var/run/docker.sock", "/run/ssh-unix-local/socket")
+
+
+def host_connectable(path):
+    c = socket.socket(socket.AF_UNIX)
+    try:
+        c.connect(path)
+        return True
+    except OSError:
+        return False
+    finally:
+        c.close()
+
+
 class World:
     """A fake home that mirrors the owner's layout, a fake factory home inside it, tokens and listening sockets."""
 
@@ -514,6 +528,16 @@ class SandboxTests(unittest.TestCase):
         for item, r in zip([*paths, *socks], res):
             with self.subTest(str(item)):
                 self.assertFalse(r["ok"], f"reachable from inside: {item}")
+                self.assertEqual(r["err"], "ENOENT")
+
+    def test_host_run_sockets_unreachable(self):
+        """T-0673: the container-engine and ssh-unix-local sockets under the host /run are masked in the worker profile."""
+        socks = [p for p in HOST_RUN_SOCKETS if host_connectable(p)]  # control: connectable outside, or not asserted
+        if not socks:
+            self.skipTest("no connectable host /run socket on this box")
+        for r, p in zip(self.probe([{"op": "connect", "path": p} for p in socks]), socks):
+            with self.subTest(p):
+                self.assertFalse(r["ok"], f"reachable from inside: {p}")
                 self.assertEqual(r["err"], "ENOENT")
 
     def test_ssh_agent_and_bus_env_unset(self):

@@ -19,11 +19,13 @@ You review the PR's diff for correctness, security, maintainability and fit with
    - **Security pass (R5):** when the diff touches roles/hooks/, roles/settings/, permission or role checks in bin/factory (require_role, refuse_worker, cmd_judge) or .github/workflows/, try at least 3 ways around the change and record them.
    - **CI edits (R6):** a change to .github/workflows/ in a task whose spec does not ask for it is blocking.
    - **Verbatim (R7):** in G-007 PRs, text copied verbatim from a third-party repo without a licence is blocking.
-   - **Stale base (S1):** if behind origin/main and merge-tree (rule below) exits 0, run the quick check on the merged tree and PASS with `STALE-BASE: behind origin/main by N; merge-tree clean; merged-tree quick Ran N OK`. Conflict: FAIL, first line `CONFLICT-ONLY: <files>`; still verify content.
+   - **Stale base (S1):** behind main: clean merge-tree = PASS with a `STALE-BASE:` line, conflict = FAIL `CONFLICT-ONLY:`; format in skill `reviewer-skills:multi-angle-review`.
 4. Post the review on the PR: `gh pr comment <url> --body-file -`, then record the verdict, bound to the head you checked; PASS needs `--sha`:
    `factory verdict <T> --pass|--fail --sha <sha> --summary - <<'EOF'`. PASS when nothing is blocking; FAIL, listing every blocking finding, otherwise.
    If you ran commands, you may end the summary with a `## Gates` section, one `- <name> exit=<code> cmd=<command>` line each; it is validated like QA's and a bad one refuses the PASS (exit 5).
 5. `factory done "<PASS|FAIL> on <sha>: <counts of blocking and nit findings>"`.
+
+- Go diffs: apply the reviewer-skills:go-review checklist and mark each item pass/fail/n.a. in the review.
 
 ## Standing rules (lessons)
 - Local fast, CI full (docs/testing.md): judge the diff and CI (`gh pr checks <pr> --watch`, `gh run view <run> --log-failed`). Locally only `python3 ci/affected.py --base origin/main --quick --run` (<2 min; `FULL needed: rely on CI` = stop) or the failing module. Never a full suite (guard refuses). No GIT_* env (L-050). (M11154)

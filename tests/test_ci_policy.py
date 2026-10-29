@@ -15,9 +15,39 @@ DEPENDABOT = next((p for p in (ROOT / "ci" / "public-overlay" / ".github" / "dep
 
 ALLOWED_RUNNERS = {"ubuntu-latest", "ubuntu-24.04", "ubuntu-22.04"}
 BANNED_TRIGGERS = {"pull_request_target", "workflow_run", "schedule"}
-FORK_TEXT = re.compile(r"\$\{\{[^}]*(github\.event\.pull_request\.|github\.event\.issue\.|github\.head_ref)")
+FORK_EXPR = re.compile(r"\$\{\{(.*)")  # to end of line: a literal } (format('{0}', ..)) must not hide the rest
+FORK_TEXT = re.compile(r"github\.event\.pull_request\.|github\.event\.issue\.|github\.head_ref")
+BRACKET = re.compile(r"""\[\s*['"]([\w-]+)['"]\s*\]""")
+ALLOWED_OWNERS = {"actions", "github", "volekerb"}
+USES_PINNED = re.compile(r"^(?:[0-9a-f]{40}|v\d+(?:\.\d+){0,2})$")
 SECRET_REF = re.compile(r"\bsecrets\b(?!\s*:)(?:\s*\.\s*(\w+))?")
 KEY = re.compile(r"""^(\s*)(?:-\s+)?["']?([A-Za-z_][\w-]*)["']?:\s*(.*)$""")
+
+
+def _fork_text(line):
+    """True if a ${{ }} expression on `line` reads fork-controlled text, in dot or bracket notation."""
+    m = FORK_EXPR.search(line)
+    if not m:
+        return False
+    expr = BRACKET.sub(r".\1", m.group(1))
+    expr = re.sub(r"\s*\.\s*", ".", expr)
+    return bool(FORK_TEXT.search(expr))
+
+
+def _uses_problem(ref):
+    """Why a step/reusable-workflow `uses:` value is not allowed, or None. Local ./ paths are fine."""
+    ref = re.sub(r"\s+#.*$", "", ref).strip("'\"")
+    if ref.startswith("./"):
+        return None
+    if "://" in ref or "@" not in ref:
+        return "'%s' must be OWNER/REPO[/path]@<tag or sha>" % ref
+    path, version = ref.rsplit("@", 1)
+    owner = path.split("/", 1)[0]
+    if owner not in ALLOWED_OWNERS:
+        return "'%s': owner '%s' is not allowed (%s)" % (ref, owner, ", ".join(sorted(ALLOWED_OWNERS)))
+    if not USES_PINNED.match(version):
+        return "'%s' is not pinned (use a version tag like v4 or a full commit sha, not '%s')" % (ref, version)
+    return None
 
 
 def _lines(text):
@@ -120,11 +150,15 @@ def _check_workflow(path, text):
                 end += 1
             body += [(rows[k][0], rows[k][1]) for k in range(i + 1, end)]
             for bn, braw in body:
-                if FORK_TEXT.search(braw):
+                if _fork_text(braw):
                     out.append("%s:%d: fork-controlled expression inside run: (move it to env:)" % (rel, bn))
         for sm in SECRET_REF.finditer(raw):
             if sm.group(1) != "GITHUB_TOKEN":
                 out.append("%s:%d: secret reference not allowed (only secrets.GITHUB_TOKEN or github.token)" % (rel, n))
+        if key == "uses":
+            why = _uses_problem(val)
+            if why:
+                out.append("%s:%d: uses %s" % (rel, n, why))
         if key == "secrets" and re.sub(r"\s+#.*$", "", val).strip("'\"") == "inherit":
             out.append("%s:%d: 'secrets: inherit' not allowed" % (rel, n))
         i += 1
@@ -290,7 +324,53 @@ class InjectionRule(PolicyBase):  # e
     def test_env_and_with_allowed(self):
         self.assertClean(GOOD.replace("- run: echo hi", "- env:\n          T: ${{ github.event.pull_request.title }}\n"
                                       "          H: ${{ github.head_ref }}\n        run: echo \"$T\""))
-        self.assertClean(GOOD.replace("- run: echo hi", "- uses: x/y@v1\n        with:\n          n: ${{ github.event.issue.number }}"))
+        self.assertClean(GOOD.replace("- run: echo hi", "- uses: actions/x@v1\n        with:\n          n: ${{ github.event.issue.number }}"))
+
+
+class InjectionGapsRule(PolicyBase):  # e (format/bracket gaps)
+    def test_format_with_literal_braces_blocked(self):
+        self.assertBlocked(GOOD.replace("echo hi", "echo ${{ format('{0}', github.head_ref) }}"), "run:", 12)
+
+    def test_bracket_notation_blocked(self):
+        for expr in ("github.event['pull_request'].title", "github['event']['pull_request']['title']",
+                     "github.event.pull_request[\"body\"]", "github['head_ref']", "github . head_ref"):
+            self.assertBlocked(GOOD.replace("echo hi", "echo ${{ %s }}" % expr), "run:", 12)
+
+    def test_format_and_bracket_in_env_allowed(self):
+        self.assertClean(GOOD.replace("- run: echo hi", "- env:\n          T: ${{ format('{0}', github.head_ref) }}\n"
+                                      "          U: ${{ github.event['pull_request'].title }}\n        run: echo \"$T\""))
+
+    def test_safe_bracket_and_format_allowed(self):
+        self.assertClean(GOOD.replace("echo hi", "echo ${{ format('{0}', github.run_id) }} ${{ github['run_id'] }}"))
+
+
+class UsesRule(PolicyBase):  # g (step and reusable-workflow uses:)
+    def step(self, ref):
+        return GOOD.replace("- run: echo hi", "- uses: %s" % ref)
+
+    def job(self, ref):
+        return GOOD.replace("    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n", "    uses: %s\n" % ref)
+
+    def test_step_unpinned_or_foreign_blocked(self):
+        self.assertBlocked(self.step("actions/checkout@main"), "not pinned", 12)
+        self.assertBlocked(self.step("actions/checkout"), "must be OWNER/REPO", 12)
+        self.assertBlocked(self.step("evil/tool@v1"), "owner 'evil'", 12)
+        self.assertBlocked(self.step("oci://alpine:3"), "must be OWNER/REPO", 12)
+
+    def test_step_pinned_allowed(self):
+        self.assertClean(self.step("actions/checkout@v4"))
+        self.assertClean(self.step("actions/checkout@v4 # note"))
+        self.assertClean(self.step("actions/checkout@" + "a" * 40))
+        self.assertClean(self.step("./.github/actions/local"))
+
+    def test_reusable_workflow_unpinned_or_foreign_blocked(self):
+        self.assertBlocked(self.job("evil/repo/.github/workflows/x.yml@v1"), "owner 'evil'", 10)
+        self.assertBlocked(self.job("volekerb/repo/.github/workflows/x.yml@main"), "not pinned", 10)
+        self.assertBlocked(self.job("volekerb/repo/.github/workflows/x.yml"), "must be OWNER/REPO", 10)
+
+    def test_reusable_workflow_pinned_allowed(self):
+        self.assertClean(self.job("volekerb/repo/.github/workflows/x.yml@v1"))
+        self.assertClean(self.job("./.github/workflows/x.yml"))
 
 
 class DependabotRule(PolicyBase):  # f

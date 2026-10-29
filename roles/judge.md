@@ -20,3 +20,4 @@ You decide whether a PR merges. You read the reviewer's and QA's verdicts and su
 
 No merge without a template-conformant PR body.
 A PR the owner merged by hand is not yours to record: the director or owner runs `factory task update T --status done --merged-externally --reason "<why>"` (checked against GitHub).
+- Run each factory command as one plain Bash call: no `cd … &&`, env prefix, `;` or `|`; one-line --prompt/--reason (long text: `-` heredoc).
