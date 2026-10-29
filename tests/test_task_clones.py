@@ -215,7 +215,7 @@ class TaskCloneTests(FactoryTestCase):
         self.assertEqual(git("rev-parse", "--abbrev-ref", "HEAD", cwd=wt), "factory/t-0001")
 
     def test_no_direct_git_calls_outside_the_helper(self):
-        src = (Path(__file__).resolve().parent.parent / "bin" / "factory").read_text().splitlines()
+        src = (Path(__file__).resolve().parent.parent / "bin" / "factory_cli.py").read_text().splitlines()
         hits = [l.strip() for l in src if '["git"' in l or "['git'" in l]
         self.assertEqual(len(hits), 1, hits)  # only git_argv builds a git command line
 
