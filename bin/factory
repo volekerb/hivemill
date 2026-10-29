@@ -124,6 +124,7 @@ DEFAULT_CONFIG = {
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
+    "risk_tiers": "off",         # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
@@ -237,7 +238,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal');
+  waits TEXT NOT NULL DEFAULT 'internal', tier TEXT);
 CREATE TABLE IF NOT EXISTS agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -325,6 +326,12 @@ def migrate(con):
             con.execute("ALTER TABLE tasks ADD COLUMN waits TEXT NOT NULL DEFAULT 'internal'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "waits" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
+    if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # risk tier T0..T3 of the task's PR, only ever raised (G-022 #1)
+            con.execute("ALTER TABLE tasks ADD COLUMN tier TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
     for col in ("parked_at", "resume_note"):
         if col not in {r["name"] for r in con.execute("PRAGMA table_info(teams)")}:
@@ -2049,6 +2056,66 @@ def warn_file_overlap(con, tid, goal_id, spec):
     event(con, "task", tid, "file-overlap", ",".join(ids))
 
 
+RISK_TIER_RAISERS = ("reviewer", "qa", "lead", "director", "boss", "judge")
+RISK_TIER_FILE = "ci/risk_tier.py"
+
+
+def _risk_tier_mod():
+    """ci/risk_tier.py of the MAIN checkout (HOME), never of the PR tree: a PR must not be able to edit its own tier."""
+    path = HOME / RISK_TIER_FILE
+    spec = importlib.util.spec_from_file_location("risk_tier_main", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def raise_task_tier(con, tid, new, why):
+    """Store max(old, new) on the task and record an event when it went up. Returns the stored tier."""
+    rt = _risk_tier_mod()
+    old = con.execute("SELECT tier FROM tasks WHERE id=?", (tid,)).fetchone()["tier"]
+    top = rt.max_tier(old, new)
+    if top != old:
+        con.execute("UPDATE tasks SET tier=?, updated=? WHERE id=?", (top, now(), tid))
+        event(con, "task", tid, "tier", f"{old or '-'} -> {top}: {why}")
+    return top
+
+
+def task_tier_cmd(con, a):
+    """factory task tier T [up] [T0..T3] [--classify [--base REF] [--head REF]]: show, raise or recompute the risk tier.
+    The tier never goes down: a lower value is refused, a recompute stores max(old, new)."""
+    t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
+    words = [w for w in (a.text, getattr(a, "extra", None)) if w]
+    if words and words[0] == "up":
+        words = words[1:]
+    if a.classify and words:
+        die("give a tier to raise to or --classify, not both", 2)
+    if not words and not a.classify:
+        print(t["tier"] or "-")
+        return
+    require_role(con, *RISK_TIER_RAISERS)
+    try:
+        rt = _risk_tier_mod()
+    except (OSError, ImportError, SyntaxError, AttributeError) as e:
+        die(f"cannot load {RISK_TIER_FILE} from {HOME}: {e}", 2)
+    if a.classify:
+        if cfg(con, "risk_tiers") != "on":
+            die("risk_tiers is off: the director enables it with `factory config risk_tiers on`", 2)
+        head = a.head or (f"origin/{t['branch']}" if t["branch"] else None) or die(f"{a.id} has no branch: give --head REF", 2)
+        try:
+            new, why = rt.classify_range(str(HOME), a.base, head, rt.load_rules(str(HOME / "ci" / rt.RULES_FILE)))
+        except rt.TierError as e:
+            die(str(e), 2)
+        why = "; ".join(why) or "no sensitive path or def"
+    else:
+        new, why = words[0].upper(), f"raised by {actor()}"
+        if new not in rt.TIERS:
+            die(f"tier must be one of {', '.join(rt.TIERS)}; got {words[0]!r}", 2)
+        if t["tier"] and rt.TIERS.index(new) < rt.TIERS.index(t["tier"]):
+            die(f"{a.id} is {t['tier']}: a tier is only ever raised, never lowered", 2)
+    top = raise_task_tier(con, a.id, new, why)
+    print(f"{a.id} tier {top}" + (f" (computed {new}, kept the higher)" if a.classify and top != new else ""))
+
+
 def cmd_task(a):
     con = db()
     if a.action == "add":
@@ -2240,6 +2307,8 @@ def cmd_task(a):
     elif a.action == "note":
         event(con, "task", a.id, "note", read_text(a.text))
         print("noted")
+    elif a.action == "tier":
+        task_tier_cmd(con, a)
 
 
 # ───────────────────────────── messages ─────────────────────────────
@@ -9386,9 +9455,11 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "tier"])
     x.add_argument("--full", action="store_true")
-    x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?")
+    x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
+    x.add_argument("--base", default="origin/main"); x.add_argument("--head")
+    x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?"); x.add_argument("extra", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
     x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")
     x.add_argument("--status"); x.add_argument("--pr"); x.add_argument("--branch"); x.add_argument("--assignee")
