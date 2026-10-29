@@ -2,7 +2,8 @@
 
 Group A needs no namespaces. Group B runs real namespaces and skips with the reason only where they are unavailable.
 Everything lives in temp dirs; the credentials, sockets and listener hidden from inside are fake ones made here.
-The temp dir is under /var/tmp, not /tmp, so the fake HOME is hidden by the profile's own HOME rule.
+The temp dir is under /var/tmp, not /tmp; /var/tmp is hidden by the profile too (T-0652), so the base fixture patches
+HIDE_TMP back to /tmp and /dev/shm and the fake HOME is hidden by the profile's own HOME rule. VarTmpTests uses the real list.
 """
 import json
 import os
@@ -35,6 +36,8 @@ def git(*args, cwd=None):
 
 
 class Fixture(unittest.TestCase):
+    fixture_hide_tmp = ("/tmp", "/dev/shm")  # the fixture root is under /var/tmp, see the module docstring
+
     def setUp(self):
         base = "/var/tmp" if os.access("/var/tmp", os.W_OK) else None
         self.root = Path(tempfile.mkdtemp(prefix="zz-test-gatebox-", dir=base)).resolve()
@@ -76,6 +79,10 @@ class Fixture(unittest.TestCase):
         penv = mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": str(self.runtime)})
         penv.start()
         self.addCleanup(penv.stop)
+        if self.fixture_hide_tmp:
+            ph = mock.patch.object(gatebox, "HIDE_TMP", self.fixture_hide_tmp)
+            ph.start()
+            self.addCleanup(ph.stop)
 
     def build(self, cmd="true", **kw):
         return gatebox.build(cmd, str(self.tree), str(self.main), str(self.wt), self.env, home=str(self.home), **kw)
@@ -103,6 +110,7 @@ class ProfileTests(Fixture):
         self.assertEqual(env["HOME"], str(self.home))
         self.assertEqual(env["TMPDIR"], f"{self.wt}/tmp")
         self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertEqual(env["PYTHONPYCACHEPREFIX"], f"{self.wt}/tmp/pycache")
         self.assertEqual(env["GATE_SHARDS"], "3")
         self.assertEqual(env["LC_ALL"], "C.UTF-8")
         self.assertEqual(env["FACTORY_HOME"], f"{self.wt}/factory-home")
@@ -117,7 +125,7 @@ class ProfileTests(Fixture):
         self.assertEqual(sorted(cfg["rw"]), sorted(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp")))
         self.assertEqual(sorted(cfg["ro"]), sorted([str(self.tree), str(self.main), str(self.repo / ".git")]))
         self.assertEqual(sorted(cfg["masks"]), sorted(f"{self.main}/{d}" for d in gatebox.MASKED))
-        self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm"]))
+        self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm"]))  # /var/tmp is patched out here
         self.assertEqual(argv[-3:], ["bash", "-c", "true"])
 
     def test_unavailable_userns_raises_and_never_runs(self):
@@ -132,6 +140,67 @@ class ProfileTests(Fixture):
     def test_bad_paths_raise(self):
         with self.assertRaisesRegex(gatebox.GateboxError, "gate tree .* is not a directory"):
             gatebox.build("true", str(self.root / "nope"), str(self.main), str(self.wt), self.env, home=str(self.home))
+
+
+class VarTmpProfileTests(Fixture):
+    fixture_hide_tmp = None  # the real HIDE_TMP
+
+    def test_var_tmp_is_hidden_with_the_other_tmp_dirs(self):
+        with mock.patch.object(nsbox, "userns_available", return_value=(True, "")):
+            argv, _ = self.build()
+        cfg = json.loads(argv[argv.index("--setup") + 1])
+        self.assertIn("/var/tmp", cfg["hide_dirs"])
+        self.assertEqual(cfg["tmpfs_sizes"].get("/var/tmp"), "16m")
+
+
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class VarTmpTests(Fixture):
+    fixture_hide_tmp = None  # the real HIDE_TMP: the fixture root (under /var/tmp) is itself hidden, rw dirs are bound back
+
+    def test_var_tmp_writes_do_not_persist(self):
+        n = self.root.name
+        r = self.run_in(f"echo x > /var/tmp/{n}-leak && cat /var/tmp/{n}-leak && echo ok > {self.wt}/reports/x")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertFalse(Path("/var/tmp", f"{n}-leak").exists())
+        self.assertEqual((self.wt / "reports/x").read_text(), "ok\n")  # the rw dirs under /var/tmp are bound back
+
+    def test_var_tmp_is_not_readable_from_the_gate(self):
+        (self.root / "secret.txt").write_text("SECRET")
+        r = self.run_in(f"cat {self.root}/secret.txt")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn("SECRET", r.output)
+
+
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class HomeLayoutTests(Fixture):
+    """The production layout (T-0652 c): FACTORY_MAIN, the gate trees and wt_root all live UNDER the hidden $HOME
+    (~/factory, ~/.cache/factory-gate/<id>),. Fake HOME, never the live one."""
+
+    def setUp(self):
+        super().setUp()
+        self.main = self.home / "factory"
+        shutil.move(str(self.root / "main"), str(self.main))
+        self.wt = self.home / ".cache/factory-gate/7"
+        self.tree = self.wt / "head"
+        self.tree.parent.mkdir(parents=True)
+        git("worktree", "add", "-q", "--detach", str(self.tree), self.sha, cwd=self.repo)
+
+    def test_gate_runs_with_everything_under_home(self):
+        r = self.run_in(f"cat {self.main}/tests/gate_shards.py; git rev-parse HEAD; echo hi > {self.wt}/reports/x; "
+                        f"touch {self.tree}/y; echo cred=[$(cat {self.home}/.config/gh/hosts.yml 2>&1)]")
+        self.assertIn("SHARDS = 1", r.output)
+        self.assertIn(self.sha, r.output)
+        self.assertIn("Read-only file system", r.output)
+        self.assertIn("No such file", r.output)
+        self.assertNotIn("FAKE-GH", r.output)
+        self.assertEqual((self.wt / "reports/x").read_text(), "hi\n")
+        self.assertFalse((self.tree / "y").exists())
+
+    def test_home_tmpfs_writes_stay_in_the_box(self):
+        r = self.run_in(f"echo x > {self.home}/stray; mkdir -p {self.home}/.cache/pip && echo y > {self.home}/.cache/pip/z")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertFalse((self.home / "stray").exists())
+        self.assertFalse((self.home / ".cache/pip").exists())
 
 
 @unittest.skipUnless(USERNS_OK, SKIP_MSG)
@@ -188,6 +257,13 @@ class RealNamespaceTests(Fixture):
         self.assertIn(self.sha, r.output)
         self.assertIn("home=[]", r.output)
         self.assertEqual((self.main / "db/factory.db").read_text(), "LIVE-DB")
+
+    def test_py_compile_works_in_the_read_only_tree(self):
+        (self.tree / "m.py").write_text("X = 1\n")  # a tracked-style file: the tree is checked out, then bound ro
+        r = self.run_in(f"{PY} -m py_compile m.py && ls {self.wt}/tmp/pycache >/dev/null && echo compiled")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertIn("compiled", r.output)
+        self.assertFalse((self.tree / "__pycache__").exists())
 
     def test_caller_secrets_unset_inside(self):
         r = self.run_in("env")

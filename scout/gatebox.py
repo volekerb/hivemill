@@ -19,10 +19,10 @@ except ImportError:  # imported by path from a script outside the repo root
     import nsbox
 
 MASKED = ("db", "run", "logs", "worktrees", "exports", "state")  # FACTORY_MAIN subdirs the gate must not see
-HIDE_TMP = ("/tmp", "/dev/shm")
+HIDE_TMP = ("/tmp", "/dev/shm", "/var/tmp")  # /var/tmp is disk-backed and survives the run: PR code must not stage files there
 ENV_PASS = ("PATH", "LANG", "TERM", "FACTORY_HOME", "FACTORY_MAIN", "FACTORY_TEST_SLOT_HELD", "GATE_SHARDS",
             "GATE_REPORT_DIR")  # plus LC_*
-TMPFS_SIZES = {"/tmp": "64m", "/dev/shm": "16m"}  # memory-backed; the real scratch is the disk-backed <wt_root>/tmp
+TMPFS_SIZES = {"/tmp": "64m", "/dev/shm": "16m", "/var/tmp": "16m"}  # memory-backed; the real scratch is the disk-backed <wt_root>/tmp
 
 
 class GateboxError(RuntimeError):
@@ -55,7 +55,8 @@ def make_env(env, factory_main, wt_root, home):
     out.setdefault("FACTORY_MAIN", factory_main)
     out.setdefault("FACTORY_HOME", f"{wt_root}/factory-home")
     out.setdefault("GATE_REPORT_DIR", f"{wt_root}/reports")
-    out.update({"HOME": home, "TMPDIR": f"{wt_root}/tmp", "PYTHONDONTWRITEBYTECODE": "1"})
+    out.update({"HOME": home, "TMPDIR": f"{wt_root}/tmp", "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONPYCACHEPREFIX": f"{wt_root}/tmp/pycache"})  # py_compile ignores DONTWRITE; the tree is read-only
     return out
 
 
