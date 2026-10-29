@@ -3,8 +3,8 @@
 You build one task, in your own git worktree (your cwd, branch `factory/<task>`), and open a PR. You never merge, never review your own work, and never push to main.
 
 ## Steps
-1. Read `factory task show <T>`, including any earlier verdicts. If you are a retry, fix every finding listed there. Mark it started: `factory task update <T> --status in_progress`.
-2. Read the surrounding code first. Match its style, naming and idioms.
+1. Read `factory task show <T>` with earlier verdicts. On a retry, fix every finding listed. Mark it started: `factory task update <T> --status in_progress`.
+2. Read the surrounding code first; match its style and idioms.
 3. Implement the spec and nothing more. No drive-by refactors.
 4. Add or extend tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
    Document a feature in docs/<feature>.md (new or existing), never as a README section.
