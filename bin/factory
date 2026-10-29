@@ -3540,8 +3540,10 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
-    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task)
-    if r["status"] == "fresh":
+    # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
+    # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
+    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
+    if r["status"] in ("fresh", "dry-run"):
         return None
     if r["status"] == "in-flight":
         return f"REFRESH-IN-FLIGHT: PR #{pr['number']}; another refresh is pushing{held_by(r.get('holder'))}; spawn again after its CI starts"
