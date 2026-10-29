@@ -142,6 +142,7 @@ DEFAULT_CONFIG = {
     "serve_bind": "",            # `factory serve`: LAN address to listen on; empty = source address of the default route
     "serve_port": "8765",        # `factory serve`: TCP port
     "serve_hostnames": "",       # `factory serve`: extra Host names accepted besides the bind IP (comma-separated); empty = the bind IP only
+    "task_clones": "0",          # 1 = a new coder task gets a standalone `git clone --shared` instead of a `git worktree add` (docs/git-hardening.md); 0 = off
     "factory_remote_url": "",    # the one origin URL the git guard allows for the factory checkout; empty = learned once from the live checkout (docs/git-hardening.md)
     # reasoning effort for Opus agents (`claude --effort`, owner M2741); "" = leave Claude's default. Sonnet is never touched.
     "opus_effort": "medium",
@@ -1467,6 +1468,10 @@ def cmd_config(a):
             triage_per_run(a.value)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
+        if a.key == "task_clones":
+            a.value = a.value.strip()
+            if a.value not in ("0", "1"):
+                die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
         if a.key == "skilleval_root":
             try:
                 scoutvendor.resolve_root(a.value, HOME)
@@ -4646,6 +4651,25 @@ _INCLUDE_KEY = re.compile(r"^include(if)?\.", re.I)  # also outside the allow-li
 _GH_REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # used with fullmatch: `$` would also match before a trailing newline
 
 
+def _clone_source(con, common):
+    """The repo a per-task clone may be judged by: the clone sits directly under worktrees/ as <goal>-<task>, the
+    DB names that task's project repo, and the clone's one alternates line is exactly <repo>/.git/objects. The
+    alternates file is worker-writable, so it is only compared, never trusted. None otherwise."""
+    try:
+        wt = common.parent
+        if wt.parent != WORKTREES.resolve():
+            return None
+        alt = (common / "objects" / "info" / "alternates").read_text().splitlines()
+    except OSError:
+        return None
+    row = con.execute("SELECT p.repo_path FROM tasks t JOIN goals g ON g.id=t.goal_id JOIN projects p ON p.id=g.project_id "
+                      "WHERE t.goal_id || '-' || t.id = ? AND p.repo_path IS NOT NULL", (wt.name,)).fetchone()
+    if not row or not isinstance(row["repo_path"], str) or not Path(row["repo_path"]).is_absolute():
+        return None
+    repo = Path(row["repo_path"]).resolve()
+    return repo if alt == [str(repo / ".git" / "objects")] else None
+
+
 def _project_remote_urls(common):
     """The https remote URLs (with and without .git) of the registered project whose repo_path, by realpath, is the
     main worktree of this clone (common-dir parent). Empty on any doubt: no DB, no match, a symlinked repo_path, a
@@ -4656,6 +4680,7 @@ def _project_remote_urls(common):
     try:
         con = db()
         try:
+            root = _clone_source(con, common) or common.parent  # a per-task clone is judged by its own task's project repo
             rows = con.execute("SELECT repo_path, gh_repo FROM projects WHERE repo_path IS NOT NULL AND gh_repo IS NOT NULL").fetchall()
         finally:
             con.close()
@@ -4669,7 +4694,7 @@ def _project_remote_urls(common):
                 continue
             if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
                 continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
-            if Path(rp).resolve() != common.parent or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
+            if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
                 continue
             urls |= {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
         return urls
@@ -4766,6 +4791,56 @@ def git_config_guard(con, repo, always_event=False):
     return False
 
 
+def make_task_clone(con, repo, wt, branch, base):
+    """Standalone clone of `repo` at `wt` (task_clones=1): objects borrowed through alternates, origin = the repo's
+    own origin URL, refs/remotes/origin/* copied from the repo (no network), `branch` checked out from origin/<base>.
+    Every git call goes through git_run; the guard runs on the clone before anything checks out."""
+    if wt.exists():
+        die(f"clone refused: {wt} already exists; remove it or fix tasks.worktree", 4)
+    u = git_run(repo, "remote", "get-url", "origin")
+    url = u.stdout.strip()
+    if u.returncode != 0 or not url:
+        die(f"clone refused: {repo} has no origin URL to give the clone: {u.stderr.strip()}", 4)
+
+    def fail(msg, code=1):
+        shutil.rmtree(wt, ignore_errors=True)
+        con.commit()
+        die(msg, code)
+
+    # the one place a local path is cloned: file transport is allowed for this call alone (the source passed the guard)
+    p = git_run(repo, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", str(repo), str(wt))
+    if p.returncode != 0:
+        fail(f"clone failed: {p.stderr.strip()}")
+    p = git_run(wt, "remote", "set-url", "origin", url)
+    if p.returncode != 0:
+        fail(f"clone setup failed (remote set-url): {p.stderr.strip()}")
+    old = git_run(wt, "for-each-ref", "--format=%(refname)", "refs/remotes/origin")
+    new = git_run(repo, "for-each-ref", "--format=%(objectname) %(refname)", "refs/remotes/origin")
+    if old.returncode != 0 or new.returncode != 0:
+        fail(f"clone setup failed (for-each-ref): {(old.stderr + new.stderr).strip()}")
+    want = {}
+    for line in new.stdout.splitlines():
+        sha, _, ref = line.partition(" ")
+        if re.fullmatch(r"[0-9a-f]{40,64}", sha) and ref.startswith("refs/remotes/origin/") and ref != "refs/remotes/origin/HEAD":
+            want[ref] = sha
+    # what clone fetched from the repo's local branches is replaced by the repo's own origin refs (one update per ref)
+    cmds = [f"delete {r}\n" for r in old.stdout.split() if r not in want and r != "refs/remotes/origin/HEAD"] + [f"update {r} {sha}\n" for r, sha in want.items()]
+    if "refs/remotes/origin/HEAD" in old.stdout.split():  # clone's symref would make the update below hit origin/<default> twice
+        p = git_run(wt, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+        if p.returncode != 0:
+            fail(f"clone setup failed (symbolic-ref): {p.stderr.strip()}")
+    p = git_run(wt, "update-ref", "--stdin", input="".join(cmds))
+    if p.returncode != 0:
+        fail(f"clone setup failed (update-ref): {p.stderr.strip()}")
+    if not git_config_guard(con, wt):  # before the first checkout: filters, fsmonitor and includes only act then
+        why = ", ".join(git_config_refusal(wt))
+        fail(f"spawn refused: git config in {wt} would run code: {why}", 4)
+    has_remote = git_run(wt, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{base}").returncode == 0
+    p = git_run(wt, "checkout", "-q", "-f", "-B", branch, f"origin/{base}" if has_remote else base)
+    if p.returncode != 0:
+        fail(f"clone checkout failed: {p.stderr.strip()}")
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -4793,6 +4868,10 @@ def prepare_worktree(con, task, role):
     git_run(repo, "fetch", "-q", "origin", text=False)
     has_remote = git_run(repo, "rev-parse", "--verify", "-q", f"origin/{base}", text=False).returncode == 0
     start = f"origin/{base}" if has_remote else base
+    if cfg(con, "task_clones") == "1":
+        make_task_clone(con, repo, wt, branch, base)
+        con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
+        return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
     if p.returncode != 0:
         die(f"worktree add failed: {p.stderr.strip()}")
@@ -6008,6 +6087,8 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             wt = p.resolve()
             if wt == root or root not in wt.parents:
                 return "outside worktrees/", None, tip is not None
+            if (wt / ".git").is_dir():
+                return "per-task clone (removal not supported yet)", None, tip is not None
             top = _git(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
                 return "not a git worktree", None, tip is not None
