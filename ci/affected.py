@@ -35,7 +35,7 @@ DEFAULT_SMOKE = "test_db_layout.py test_inbox.py test_judge.py"
 CAP = 0.40
 HUB_CALLS = 15
 FULL_DEFS = {"SCHEMA", "DEFAULT_CONFIG", "main", "db"}
-BIN = "bin/factory"
+BIN = "bin/factory_cli.py"
 
 
 class AffectedError(Exception):

@@ -38,7 +38,7 @@ def allow(role):
 
 
 def owner_cap_keys():
-    src = (Path(__file__).resolve().parent.parent / "bin" / "factory").read_text()
+    src = (Path(__file__).resolve().parent.parent / "bin" / "factory_cli.py").read_text()
     m = re.search(r"^OWNER_CAP_KEYS = \((.*?)\)", src, re.S | re.M)
     return re.findall(r'"(\w+)"', m.group(1))
 
