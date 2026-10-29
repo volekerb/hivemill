@@ -92,7 +92,7 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 |---|---|---|
 | `max_live_agents` | `6` | Cap on live factory agents that herdr also lists. |
 | `max_total_claude` | `10` | Cap on all `claude` processes on the host, yours included. The spawn gate closes at this number. |
-| `gate_max_load_ratio` | `1.25` | The gate closes while load1 is above this times the CPU count. |
+| `gate_max_load_ratio` | `1.25` | The gate closes while load1 is above this times the CPU count (HQ relaunches and judges are exempt). |
 | `test_slots` | `2` | Host-wide slots for full test-suite runs. |
 | `min_mem_available_mb` | `1024` | The gate closes below this much available RAM. |
 | `tmp_max_pct` | `90` | The gate closes when the filesystem holding `/tmp` is this full. The cleaner role is exempt from this check only (it frees `/tmp`); every other cap still applies to it. |
