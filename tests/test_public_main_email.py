@@ -62,7 +62,7 @@ class PublicMainEmailTests(FactoryTestCase):
 
     def test_non_noreply_coauthor_trailer_escalates(self):
         sha = self.push(CLEAN, "t", msg="t\n\nCo-authored-by: factory refresh <factory-refresh@localhost>")
-        self.push(CLEAN, "u", msg="u\n\nCo-authored-by: Dev <1+dev@users.noreply.github.com>\nCo-authored-by: C <noreply@anthropic.com>")
+        self.push(CLEAN, "u", msg="u\n\nCo-authored-by: volekerb <1+volekerb@users.noreply.github.com>\nCo-authored-by: C <noreply@anthropic.com>")
         self.ok("export")
         a = self.alerts()
         self.assertEqual(len(a), 1, a)

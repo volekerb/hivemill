@@ -40,9 +40,75 @@ class ScrubTest(unittest.TestCase):
         self.assertEqual(out["GIT_CONFIG_GLOBAL"], os.devnull)
         self.assertEqual(out["GIT_CONFIG_SYSTEM"], os.devnull)
 
-    def test_process_env_is_already_scrubbed(self):
-        for k in os.environ:
-            self.assertTrue(not k.startswith("GIT_") or k.startswith(_gitenv.KEEP_PREFIXES), k)
+    def test_process_env_has_no_repo_pointing_vars(self):
+        self.assertEqual(_gitenv.leaked(os.environ), [])
+
+    def test_leaked_names_repo_pointing_vars_not_identity_or_allowlist(self):
+        env = {"GIT_DIR": "/x", "GIT_INDEX_FILE": "/i", "GIT_AUTHOR_NAME": "a", "GIT_EDITOR": "true", "PATH": "/bin"}
+        self.assertEqual(_gitenv.leaked(env), ["GIT_DIR", "GIT_INDEX_FILE"])
+
+    def test_importing_with_git_dir_set_raises(self):
+        r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
+                           env=dict(os.environ, GIT_DIR="/x/.git"))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("GitEnvLeak", r.stderr)
+        self.assertIn("GIT_DIR", r.stderr)
+
+
+class RemoteGuardTest(unittest.TestCase):
+    """R-b (M11068): no test may reach a real or network remote."""
+
+    def test_network_and_foreign_remotes_are_refused(self):
+        for url in ("https://github.com/volekerb/hivemill.git", "git@github.com:volekerb/hivemill.git",
+                    "ssh://git@github.com/volekerb/hivemill", "/home/someone/factory", "relative/path", str(REPO)):
+            with self.assertRaises(_gitenv.RemoteRefused, msg=url):
+                _gitenv.assert_local_remote(url, root=tempfile.gettempdir())
+
+    def test_local_path_under_tmp_is_accepted(self):
+        with tempfile.TemporaryDirectory() as d:
+            _gitenv.assert_local_remote(str(Path(d) / "origin.git"))
+            _gitenv.assert_local_remote("file://" + d + "/origin.git")
+
+    def test_harness_git_refuses_push_clone_and_remote_add_to_network(self):
+        import harness
+        with tempfile.TemporaryDirectory() as d:
+            for args in (("clone", "https://github.com/volekerb/hivemill.git", d + "/c"),
+                         ("remote", "add", "origin", "git@github.com:volekerb/hivemill.git"),
+                         ("push", "https://github.com/volekerb/hivemill.git", "HEAD:main")):
+                with self.assertRaises(_gitenv.RemoteRefused, msg=str(args)):
+                    harness.git(*args, cwd=d)
+
+    def test_harness_git_refuses_push_when_origin_is_not_under_tmp(self):
+        import harness
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q", d], check=True)
+            subprocess.run(["git", "-C", d, "remote", "add", "origin", "https://github.com/volekerb/hivemill.git"], check=True)
+            with self.assertRaises(_gitenv.RemoteRefused):
+                harness.git("push", "origin", "HEAD:main", cwd=d)
+
+    def test_set_gh_refuses_a_real_repo_url(self):
+        import harness
+        env = harness.TestEnv() if hasattr(harness, "TestEnv") else None
+        with self.assertRaises(_gitenv.RemoteRefused):
+            harness.FactoryEnv.set_gh(env, repo_url="https://github.com/volekerb/hivemill.git")
+
+    def test_inert_remote_opt_in_only_in_the_url_parsing_modules(self):
+        users = sorted(p.name for p in TESTS.glob("test_*.py") if p.name != Path(__file__).name
+                       and "inert_remote=True" in p.read_text())
+        self.assertEqual(users, ["test_git_hardening.py", "test_project_remote.py", "test_remote_url_check.py"])
+
+    def test_inert_remote_does_not_excuse_a_network_push(self):
+        import harness
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q", d], check=True)
+            harness.git("remote", "add", "origin", "https://github.com/example-org/x.git", cwd=d, inert_remote=True)
+            with self.assertRaises(_gitenv.RemoteRefused):
+                harness.git("push", "origin", "HEAD:main", cwd=d, inert_remote=True)
+
+    def test_child_git_cannot_use_network_transports(self):
+        r = subprocess.run(["git", "ls-remote", "https://invalid.example.invalid/x.git"], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not allowed", r.stderr)
 
 
 class EveryGitModuleUsesTheHelperTest(unittest.TestCase):
@@ -71,10 +137,10 @@ class InheritedGitDirTest(unittest.TestCase):
         env = dict(os.environ, GIT_DIR=str(self.scratch), GIT_WORK_TREE=self.tmp.name)
         r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", name], cwd=REPO,
                            env=env, capture_output=True, text=True, timeout=600)
-        self.assertEqual(r.returncode, 0, name + ":\n" + r.stderr[-2000:])
-        self.assertRegex(r.stderr, r"Ran [1-9]\d* test", name)
+        self.assertNotEqual(r.returncode, 0, name + " ran with GIT_DIR set instead of refusing")
+        self.assertIn("GitEnvLeak", r.stderr, name)
 
-    def test_modules_leave_scratch_repo_untouched(self):
+    def test_modules_refuse_inherited_git_dir_and_leave_scratch_repo_untouched(self):
         before = snapshot(self.scratch)
         for name in RUN_WITH_GIT_DIR:
             self.run_module(name)

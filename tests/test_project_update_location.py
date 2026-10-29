@@ -3,7 +3,7 @@ import unittest
 from harness import FactoryTestCase, git
 
 DIRECTOR = "zz-test-director"
-NOREPLY = "11260070+someone@users.noreply.github.com"
+NOREPLY = "11260070+volekerb@users.noreply.github.com"
 
 
 class ProjectUpdateLocationTests(FactoryTestCase):
@@ -82,7 +82,7 @@ class GitConfigIdentityTests(FactoryTestCase):
 
     def test_other_email_is_refused(self):
         git("config", "user.name", "someone", cwd=self.h)
-        for bad in ("someone" + "@" + "example.invalid", "x" + "@users.noreply.github.com.evil.io", "noreply"):
+        for bad in ("someone" + "@" + "example.invalid", "volekerb" + "@users.noreply.github.com.evil.io", "noreply"):
             git("config", "user.email", bad, cwd=self.h)
             self.assertEqual(self.refusal(), ["user.email"], bad)
 

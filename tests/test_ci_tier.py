@@ -9,7 +9,7 @@ from pathlib import Path
 
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
-ROOT =Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ci"))
 
 import ci_tier  # noqa: E402

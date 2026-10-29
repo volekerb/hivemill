@@ -18,7 +18,7 @@ import time
 import unittest
 from pathlib import Path
 
-import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import _gitenv  # hermetic git: tests/_gitenv.py
 import _slot
 
 REPO = Path(__file__).resolve().parent.parent
@@ -69,7 +69,37 @@ def ancestor_pids(me, n=2, start=2001):
     return [x for x in range(start, start + n + 1) if x != me][:n]
 
 
-def git(*args, cwd):
+_OPTS_WITH_VALUE = {"-b", "--branch", "--depth", "-o", "--origin", "--reference", "-c", "--config", "-j", "--push-option"}
+_REMOTE_CMDS = {"push", "fetch", "pull", "ls-remote", "clone"}
+
+
+def _check_remotes(args, cwd):
+    """Refuse a git call whose remote is not a local path under the test tmp dir (R-b: fixtures once reached public main)."""
+    pos, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+        elif a in _OPTS_WITH_VALUE:
+            skip = True
+        elif not a.startswith("-"):
+            pos.append(a)
+    if not pos:
+        return
+    if pos[0] == "remote" and len(pos) >= 4 and pos[1] in ("add", "set-url"):
+        _gitenv.assert_local_remote(pos[3])
+    elif pos[0] in _REMOTE_CMDS:
+        target = pos[1] if len(pos) > 1 else "origin"
+        if pos[0] != "clone" and not (_gitenv.URL_LIKE.match(target) or "/" in target):
+            target = subprocess.run(["git", "remote", "get-url", target], cwd=cwd, capture_output=True, text=True,
+                                    check=True).stdout.strip()
+        _gitenv.assert_local_remote(target)
+
+
+def git(*args, cwd, inert_remote=False):
+    """Run git in cwd. `inert_remote=True` lets `remote add|set-url` record a fake network URL for tests that only parse
+    the configured URL; it never excuses a push/fetch/clone (those are refused, and GIT_ALLOW_PROTOCOL=file backs it)."""
+    if not (inert_remote and args[:2] in (("remote", "add"), ("remote", "set-url"))):
+        _check_remotes(args, cwd)
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
 
 
@@ -303,6 +333,8 @@ class FactoryEnv:
         self.gh_state.write_text(json.dumps(st))
 
     def set_gh(self, **kw):
+        if kw.get("repo_url"):
+            _gitenv.assert_local_remote(kw["repo_url"])
         st = json.loads(self.gh_state.read_text())
         st.update(kw)
         self.gh_state.write_text(json.dumps(st))
