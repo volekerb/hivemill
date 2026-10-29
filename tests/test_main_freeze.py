@@ -139,6 +139,14 @@ class MainFreeze(FactoryTestCase):
     def test_unfreeze_without_freeze_refuses(self):
         self.refused(1, "main-unfreeze", "--reason", "r", agent="zz-test-director")
 
+    def test_judge_reject_is_allowed_while_frozen(self):
+        self.push("leak.txt", "fixture commit", "x@example.com")
+        self.tick()
+        self.env.seed_pr()
+        p = self.env.run("judge", "T-0001", "--reject", "--reason", "r", agent="zz-test-judge")
+        self.assertNotIn("non-PR push on main", p.stderr)
+        self.assertIn("REJECTED", p.stdout)
+
     def test_origin_not_public_is_not_checked(self):
         self.ok("config", "public_text_repos", "")
         self.push("leak.txt", "fixture commit", "x@example.com")

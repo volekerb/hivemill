@@ -8071,6 +8071,8 @@ def _sync_target(con):
     whose commits all passed the PR check. None = do not sync (frozen, or nothing verified yet; fail closed)."""
     slug = _public_main_slug(con)
     if not slug:
+        if _cfg_slugs(con, "public_text_repos") and not any(_repo_slug(u) for u in _origin_urls()):
+            return None  # origin cannot be parsed while public_text_repos is set: fail closed, never sync unchecked
         return "refs/remotes/origin/main"
     row = con.execute("SELECT value FROM config WHERE key=?", (f"main_verified:{slug}",)).fetchone()
     return None if main_freeze_sha(con) or not row or not row["value"] else row["value"]
