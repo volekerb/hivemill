@@ -53,7 +53,8 @@ class ChangelogTest(unittest.TestCase):
         self.assertNotIn("T-0003", out)  # no (#N): not a merged PR
         self.assertNotIn("alice", out)  # scrub hit dropped
         self.assertIn("1 subject(s) dropped", r.stderr)
-        entries = [l for l in out.splitlines() if l.startswith("- ")]
+        generated = out[out.index("### Added"):]  # the curated release notes above it also use bullets
+        entries = [l for l in generated.splitlines() if l.startswith("- ")]
         self.assertEqual(len(entries), 3)
         for l in entries:
             self.assertNotIn("(#", l)
@@ -83,6 +84,62 @@ class ChangelogTest(unittest.TestCase):
         r = subprocess.run([sys.executable, TOOL, "--repo", self.repo, "--ref", "nosuchref"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
         self.assertIn("git log", r.stderr)
+
+    def test_release_notes_prints_curated_block(self):
+        r = changelog(self.repo, "--release-notes", "0.1.0")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, (ROOT / "ci" / "release-notes" / "0.1.0.md").read_text(encoding="utf-8"))
+        for heading in ("Highlights", "Features", "Known limits", "Install"):
+            self.assertIn(f"\n### {heading}\n", r.stdout)
+
+    def test_release_notes_missing_file_is_error(self):
+        r = changelog(self.repo, "--release-notes", "9.9.9")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("ci/release-notes/9.9.9.md", r.stderr)
+
+    def test_prerelease(self):
+        for version, expected in (("0.1.0", "true"), ("1.0.0", "false"), ("1.2.0-rc1", "true")):
+            r = changelog(self.repo, "--prerelease", version)
+            self.assertEqual((r.returncode, r.stdout.strip()), (0, expected), version)
+
+    def test_write_puts_curated_block_under_heading(self):
+        out = changelog(self.repo).stdout
+        notes = (ROOT / "ci" / "release-notes" / "0.1.0.md").read_text(encoding="utf-8").strip()
+        self.assertEqual(len(re.findall(r"^### Highlights$", out, re.M)), 1)
+        self.assertLess(out.index("## [0.1.0]"), out.index(notes))
+        self.assertLess(out.index(notes), out.index("### Added"))
+
+    def test_committed_changelog_has_curated_block_first(self):
+        text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 1)
+        self.assertLess(text.index("## [0.1.0]"), text.index("### Highlights"))
+
+    def test_release_notes_are_public_text(self):
+        text = (ROOT / "ci" / "release-notes" / "0.1.0.md").read_text(encoding="utf-8")
+        self.assertIsNone(re.search(r"\b[GT]-\d{3,4}\b", text))
+        self.assertGreaterEqual(len(re.findall(r"^- \*\*", text, re.M)), 6)
+        for needle in ("Hivemill v0.1.0", "Pre-release.", "SECURITY.md", "On-demand", "sandbox"):
+            self.assertIn(needle, text)
+
+
+class WorkflowTextTest(unittest.TestCase):
+    def read(self, name):
+        return (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+
+    def test_release_workflow(self):
+        text = self.read("release.yml")
+        self.assertRegex(text, r"(?m)^    tags:\n      - 'v\*'$")
+        self.assertEqual(text.count("contents: write"), 1)
+        self.assertGreaterEqual(text.count("--prerelease"), 2)
+        self.assertIn('--title "Hivemill $GITHUB_REF_NAME"', text)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", text)
+        run_lines = [l for l in text.splitlines() if "${{" in l]
+        self.assertEqual([l.strip() for l in run_lines], ["GH_TOKEN: ${{ github.token }}"])
+
+    def test_tests_workflow_stays_on_pull_request(self):
+        text = self.read("tests.yml")
+        self.assertIn("  pull_request:\n", text)
+        self.assertNotIn("  push:\n", text)
 
 
 if __name__ == "__main__":
