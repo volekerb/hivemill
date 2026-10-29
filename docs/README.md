@@ -34,9 +34,11 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [updating-persistent-agents.md](updating-persistent-agents.md): how role changes reach long-running agents.
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
+- [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
+- [freshness.md](freshness.md): the per-tick check that flags live agents running outdated role files, plugins or CLI.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
 - [verdict-gates.md](verdict-gates.md): machine-checked commands that a verdict summary must show passing.
