@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import envcheck
 from harness import REPO, ROLES, FactoryTestCase, git, rendered_settings_dir
 
 FACTORY = REPO / "bin" / "factory"
@@ -51,6 +52,7 @@ def deny(path):
 
 
 class TemplateFileTests(unittest.TestCase):
+    @envcheck.skip_without_git()
     def test_every_role_has_a_template_and_nothing_else_is_tracked(self):
         names = sorted(p.name for p in SETTINGS.glob("*.json.in"))
         self.assertEqual(names, sorted(f"{r}.json.in" for r in ROLES))
@@ -261,6 +263,7 @@ class SpawnRenderTests(FactoryTestCase):
         self.assertNotIn("may not do this", p.stderr)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
+    @envcheck.skip_without_git()
     def test_tick_renders_the_legacy_settings_path_rule_for_rule(self):
         legacy = REPO / "roles" / "settings"  # the temp home's roles dir is a symlink to this checkout
         for r in ROLES:

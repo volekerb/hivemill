@@ -21,6 +21,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "ci" / "demo_seed.py"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import envcheck  # noqa: E402
 FACTORY = ROOT / "bin" / "factory"
 NOW = "2026-10-25T12:00:00+00:00"
 PAGES = ["/", "/goals", "/goal/G-002", "/tasks", "/task/T-0004", "/agents", "/throughput", "/quality", "/resources",
@@ -132,6 +134,7 @@ class Guard(Base):
             self.assertIn("refusing to seed the live factory home", err)
         self.assertFalse((repo / "sub").exists())
 
+    @envcheck.skip_without_git()
     def test_live_home_refused_under_a_temp_home(self):
         """$HOME is a temp dir (the QA setup): the passwd home, main checkout and $FACTORY_HOME stay protected."""
         mod = load_seed_module()
