@@ -2766,6 +2766,35 @@ def terms_rec_dirflag(toks):
                or t == "-drecurse" for i, t in enumerate(toks))
 
 
+def terms_split(cmd):
+    """Split a command line on ; & | and newlines that sit outside quotes, so sh -c "cd d && grep -r x" stays one segment."""
+    segs, cur, quote, i = [], [], None, 0
+    while i < len(cmd):
+        c = cmd[i]
+        if quote:
+            if c == "\\" and quote == '"' and i + 1 < len(cmd):
+                cur.append(c)
+                i += 1
+                c = cmd[i]
+            elif c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c == "\\" and i + 1 < len(cmd):
+            cur.append(c)
+            i += 1
+            c = cmd[i]
+        elif c in ";&|\n":
+            segs.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
+    segs.append("".join(cur))
+    return segs
+
+
 def terms_bash(cmd, cwd, env=None, depth=0):
     paths = terms_paths(cwd)
     if not paths:
@@ -2777,7 +2806,7 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
     if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
-    for raw_seg in re.split(r"[;&|\n]+", re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
+    for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):
             raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
         seg = terms_expand(raw_seg, env)
@@ -2800,6 +2829,8 @@ def terms_bash(cmd, cwd, env=None, depth=0):
         core = list(toks)
         while core and (TERMS_ENV_ASSIGN.match(core[0]) or os.path.basename(core[0]) in TERMS_WRAPPERS - {"xargs"}):
             core.pop(0)
+        if core and core[0] == "eval" and depth < 4:
+            terms_bash(" ".join(core[1:]), cwd, dict(env), depth + 1)
         if core and os.path.basename(core[0]) in TERMS_SHELLS and depth < 4:  # bash -c 'payload' is its own script
             for i, t in enumerate(core[1:], 1):
                 if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", t) and i + 1 < len(core):

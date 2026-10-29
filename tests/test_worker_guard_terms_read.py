@@ -121,6 +121,23 @@ class TermsReadTests(unittest.TestCase):
             for cmd in shapes:
                 self.refused(self.bash(cmd, role=role), f"{role}: {cmd}")
 
+    def test_shell_payload_with_inner_cd_refused_from_a_cwd_that_is_not_an_ancestor(self):
+        d, par = self.secrets, self.tmp
+        work = tempfile.mkdtemp(prefix="work")
+        self.addCleanup(shutil.rmtree, work, True)
+        base = os.path.basename(d)
+        shapes = [f'sh -c "cd {d} && grep -r zebra"', f"sh -c 'cd {d} && grep -r zebra'", f"bash -c 'cd {d}; grep -r zebra'",
+                  f"bash -c 'cd {par} && grep -r zebra {base}'", f'eval "cd {d} && grep -r zebra"']
+        for role in ROLES:
+            for cmd in shapes:
+                p = self.hook({"cwd": work, "tool_name": "Bash", "tool_input": {"command": cmd}}, role=role)
+                self.refused(p, f"{role}: {cmd}")
+        other = os.path.join(work, "src")
+        os.makedirs(other)
+        for cmd in [f"sh -c 'cd {other} && grep -r x .'", f'echo "a; b | c"', f"bash -c 'cd {other}; ls'"]:
+            p = self.hook({"cwd": work, "tool_name": "Bash", "tool_input": {"command": cmd}})
+            self.assertEqual(p.returncode, 0, f"should allow: {cmd}\n{p.stderr}")
+
     def test_variable_home_and_shell_payloads_elsewhere_allowed(self):
         other = os.path.join(self.tmp, "src")
         os.makedirs(other)
