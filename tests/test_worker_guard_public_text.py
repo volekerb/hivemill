@@ -63,7 +63,7 @@ class PublicTextTests(unittest.TestCase):
     def public(self, **kv):
         self.config(public_text_repos="acme/pub", **kv)
 
-    def run_hook(self, cmd, mode="coder", terms=True, cwd=None):
+    def run_hook(self, cmd, mode="qa", terms=True, cwd=None):  # not coder: T-0689 pins a coder push to its own branch
         env = {k: v for k, v in os.environ.items() if k not in ("SCRUB_TERMS_FILE", "FACTORY_AGENT")}
         env.update(FACTORY_HOME=self.home, **GIT_ENV)
         if terms:
