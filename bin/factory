@@ -2689,7 +2689,7 @@ def cmd_pr(a):
     if not ghcred.SLUG_RE.fullmatch(repo):
         die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
     try:
-        g = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, timeout=30)
+        g = git_run(os.getcwd(), "branch", "--show-current", timeout=30)
     except (OSError, subprocess.TimeoutExpired) as e:
         die(f"cannot read the current git branch ({e}); run `factory pr` from your task worktree", 3)
     branch = g.stdout.strip() if g.returncode == 0 else ""
