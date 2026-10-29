@@ -159,7 +159,7 @@ class RealNamespaceTests(Fixture):
                 self.assertIn("Read-only file system", r.output)
                 self.assertFalse(p.exists())
 
-    def test_writes_land_only_in_the_rw_dirs(self):
+    def test_hidden_trees_do_not_leak_writes_and_rw_dirs_persist(self):
         n = self.root.name  # unique, so a leftover file of another run cannot confuse the outside check
         r = self.run_in(f"echo hi > {self.home}/x && echo ok > {self.wt}/reports/x && echo t > {self.wt}/tmp/x "
                         f"&& echo f > {self.wt}/factory-home/x && echo s > /tmp/{n} && echo d > /dev/shm/{n}")
@@ -191,9 +191,22 @@ class RealNamespaceTests(Fixture):
         self.assertIn(f"TMPDIR={self.wt}/tmp", r.output)
         self.assertIn(f"FACTORY_MAIN={self.main}", r.output)
 
+    def test_caps_dropped_and_own_pid_namespace(self):
+        r = self.run_in("grep -E '^(CapEff|CapBnd|NoNewPrivs)' /proc/self/status; echo pid=$$; ls /proc | grep -c '^[0-9]'")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertIn("CapEff:\t0000000000000000", r.output)
+        self.assertIn("CapBnd:\t0000000000000000", r.output)
+        self.assertIn("NoNewPrivs:\t1", r.output)
+        self.assertRegex(r.output, r"pid=\d\b")  # a fresh pid namespace: low pids only
+        self.assertLess(int(r.output.split()[-1]), 10)  # only this namespace's processes are visible
+
     def test_timeout_kills_the_tree(self):
-        r = self.run_in("sleep 60", timeout=1)
+        r = self.run_in(f"sleep 300 & echo $! > {self.wt}/tmp/child; wait", timeout=2)
         self.assertTrue(r.timed_out)
+        inner = int((self.wt / "tmp/child").read_text())  # pid inside the namespace: gone with its init
+        self.assertEqual(inner, 2)
+        sleepers = subprocess.run(["pgrep", "-f", "^sleep 300$", "-u", str(os.getuid())], capture_output=True, text=True)
+        self.assertEqual(sleepers.stdout.split(), [], "a gate child outlived the timeout")
 
 
 if __name__ == "__main__":

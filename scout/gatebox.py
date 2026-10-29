@@ -37,8 +37,9 @@ def _real(path, what):
 
 
 def _git_common_dir(tree):
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}  # a stray GIT_DIR must not pick the dir
     r = subprocess.run(["git", "-C", tree, "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                       capture_output=True, text=True, timeout=30)
+                       capture_output=True, text=True, timeout=30, env=env)
     if r.returncode != 0:
         raise GateboxError(f"gatebox: git rev-parse --git-common-dir failed in {tree}: {r.stderr.strip()}")
     return os.path.realpath(r.stdout.strip())
@@ -67,8 +68,11 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     home = str(home or nsbox.real_home())
     runtime = str(runtime or os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     rw = [f"{wt}/{d}" for d in ("reports", "factory-home", "tmp")]
-    for d in rw:
-        os.makedirs(d, exist_ok=True)
+    try:
+        for d in rw:
+            os.makedirs(d, exist_ok=True)
+    except OSError as e:
+        raise GateboxError(f"gatebox: cannot create {e.filename}: {e.strerror}; fix wt_root, the command was not run") from e
     rw = [os.path.realpath(d) for d in rw]
     ro = [tree, main]
     common = _git_common_dir(tree)
