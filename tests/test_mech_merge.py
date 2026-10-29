@@ -242,7 +242,7 @@ class MechMergeTests(FactoryTestCase):
 
     def test_public_text_guard_refuses_when_it_cannot_run(self):
         self.ok("config", "public_text_repos", "zz-test/repo")
-        self.ok("config", "noreply_email", "1+u@users.noreply.github.com")
+        self.ok("config", "noreply_email", "1+volekerb@users.noreply.github.com")
         self.mech("on")
         self.assertEqual(self.merges(), [])
         self.assertIn("public text", self.events("mech-blocked")[0])
