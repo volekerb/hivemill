@@ -144,15 +144,6 @@ def delegated_parent():
     if not all(c in avail for c in testcg.CONTROLLERS):
         d.rmdir()
         return None, f"cpu memory pids not available in {d} (have: {' '.join(avail)})"
-    # Moving a process needs write access to the common ancestor's cgroup.procs; a runner outside the user manager lacks it.
-    probe = d / "probe"
-    probe.mkdir()
-    r = subprocess.run([sys.executable, "-c", "import sys; open(sys.argv[1], 'w').write('0')", str(probe / "cgroup.procs")],
-                       capture_output=True, text=True)
-    probe.rmdir()
-    if r.returncode != 0:
-        d.rmdir()
-        return None, "this process cannot move itself into a cgroup below the user manager (runner not in the delegated tree)"
     return d, ""
 
 
@@ -167,6 +158,10 @@ class Enforced(Base):
         self.cfg("test_mem_max", "64M")
         self.assertEqual((parent / "cgroup.subtree_control").read_text().strip(), "")  # nothing pre-enabled
         ok = self.ftest(sys.executable, "-c", "x = bytearray(16 * 1024 * 1024); print('small ok')")
+        if ok.returncode == 127 and "cannot move the run into" in ok.stderr and "errno 13" in ok.stderr:
+            # e.g. a CI runner whose own cgroup is outside the user manager: the kernel refuses the move; factory test failed closed.
+            self.assertNotIn("small ok", ok.stdout)
+            self.skipTest(f"this process may not move into cgroups below the user manager: {ok.stderr.strip()}")
         self.assertEqual((ok.returncode, ok.stdout.strip()), (0, "small ok"), ok.stderr)
         big = self.ftest(sys.executable, "-c", "x = bytearray(400 * 1024 * 1024); print('survived')")
         self.assertEqual(big.returncode, 137, (big.stdout, big.stderr))  # SIGKILL from the cgroup OOM killer
