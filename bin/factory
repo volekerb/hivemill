@@ -8024,6 +8024,7 @@ def sync_pull(con, push_ok=True):
         _git_rc(["update-index", "-q", "--refresh"])  # restore leaves stale stat data: reset --keep / ff-merge would say "not uptodate"
     target = _sync_target(con)
     if target is None:
+        _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])  # later checks (email) read origin/main
         return False  # public main holds (or may hold) a non-PR commit: the freeze alert already went out (T-0639)
     err = _migrate_state_commits(con, push_ok, target)
     if err is None:
