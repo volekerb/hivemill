@@ -8778,10 +8778,29 @@ CI_WAKE_GH_TIMEOUT_S = 15  # one slow gh call must not stall the tick
 CI_WAKE_RECHECK_S = 600  # fallback only: when the remote head cannot be read, a mailed task's PR is not queried again for this long
 
 
-def _ci_remote_head(branch):
-    """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read."""
+def _ci_remote_heads():
+    """{branch: head sha} for every origin refs/heads/factory/* from ONE `git ls-remote`, or None when it cannot be read."""
+    rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", "refs/heads/factory/*"], timeout=CI_WAKE_GH_TIMEOUT_S)
+    if rc != 0:
+        return None
+    heads = {}
+    for l in out.splitlines():
+        row = l.split("\t")
+        if len(row) == 2 and row[1].startswith("refs/heads/") and re.fullmatch(r"[0-9a-f]{40}", row[0]):
+            heads[row[1][len("refs/heads/"):]] = row[0]
+    return heads
+
+
+def _ci_remote_head(branch, batch=None):
+    """Head sha of origin's refs/heads/<branch> by `git ls-remote` (no gh call), or None when it cannot be read.
+    `batch` is a one-item list holding the per-tick _ci_remote_heads() result (filled on first use): a factory/* branch is
+    looked up there, so a tick makes one ls-remote however many PRs it checks; any other branch gets its own call."""
     if not branch:
         return None
+    if batch is not None and branch.startswith("factory/"):
+        if not batch:
+            batch.append(_ci_remote_heads())
+        return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
     rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
@@ -8804,6 +8823,7 @@ def tick_ci_wake(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
+    batch = []  # one ls-remote per tick, made on first need
     for t in con.execute("SELECT * FROM teams WHERE status='active' AND parked_at IS NOT NULL ORDER BY id").fetchall():
         lead = t["lead_agent"]
         r = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone() if lead else None
@@ -8811,7 +8831,7 @@ def tick_ci_wake(con):
             continue
         for k in con.execute("SELECT id, pr_url, branch FROM tasks WHERE team_id=? AND status='in_review' AND pr_url IS NOT NULL "
                              "AND pr_url != '' ORDER BY id", (t["id"],)).fetchall():
-            head = _ci_remote_head(k["branch"]) if _throttled(con, f"ci-head:{k['id']}", clock, float("inf")) else None
+            head = _ci_remote_head(k["branch"], batch) if _throttled(con, f"ci-head:{k['id']}", clock, float("inf")) else None
             if head is not None and _throttled(con, f"ci-green:{k['id']}:{head}", clock, float("inf")):
                 continue  # this head's green was already mailed: nothing can change it
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
