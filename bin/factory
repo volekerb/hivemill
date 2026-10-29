@@ -685,6 +685,11 @@ def caller_is_worker():
     return _WORKER["role"]
 
 
+def compact_view(con, a):
+    """G-014: workers get the compact `task show` / `goal show` unless --full; HQ output never changes."""
+    return not a.full and bool(caller_is_worker() or actor_role(con) in WORKER_ROLES)
+
+
 def worker_stub_exempt():
     """The one exemption for workers: a tests/stubs herdr AND a non-live FACTORY_HOME (QA by hand). Either alone
     does not qualify. Used by both herdr_gate() and refuse_worker()."""
@@ -1354,8 +1359,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
-        return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
-                       " — clean finished tasks' scratchpads"), stats
+        # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
+        # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
+        if role != "cleaner":
+            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
+                           " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
@@ -1550,7 +1558,7 @@ def cmd_goal(a):
         table(con.execute(q + " ORDER BY g.priority, g.id").fetchall(),
               ["id", "status", "priority", "project_id", "done", "total", "title"])
     elif a.action == "show":
-        show_goal(con, a.id)
+        show_goal(con, a.id, compact=compact_view(con, a))
     elif a.action == "edit":
         require_role(con, "boss", "director")
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
@@ -1712,7 +1720,9 @@ def latest_audit(con, gid):
     return au, so
 
 
-def show_goal(con, gid):
+def show_goal(con, gid, compact=False):
+    """compact (workers without --full, G-014): intent and success criteria in full; plan, audit and tasks
+    shrink to pointer/summary lines and the teams table is left out."""
     g = con.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
     if not g:
         die(f"no goal {gid}")
@@ -1721,9 +1731,23 @@ def show_goal(con, gid):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
     p = con.execute("SELECT * FROM plans WHERE goal_id=? ORDER BY version DESC LIMIT 1", (gid,)).fetchone()
+    au, so = latest_audit(con, gid)
+    if compact:
+        if p:
+            print(f"\nplan v{p['version']} by {p['author']} {p['created']}, {len(p['body'].splitlines())} lines: "
+                  f"factory goal show {gid} --full")
+        if au:
+            print(f"audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})")
+            if so:
+                print(f"sign-off of audit v{au['version']} ({so['author']}, {so['created']})")
+        c = {r["status"]: r["n"] for r in con.execute(
+            "SELECT status, count(*) n FROM tasks WHERE goal_id=? GROUP BY status", (gid,))}
+        std = ("todo", "in_progress", "in_review", "done", "cancelled")
+        parts = ", ".join([f"{st} {c.get(st, 0)}" for st in std] + [f"{st} {n}" for st, n in sorted(c.items()) if st not in std])
+        print(f"tasks: {sum(c.values())} ({parts})")
+        return
     if p:
         print(f"\n## plan v{p['version']} ({p['author']}, {p['created']})\n{p['body']}")
-    au, so = latest_audit(con, gid)
     if au:
         print(f"\n## audit v{au['version']} {au['verdict']} ({au['author']}, {au['created']})\n{au['body']}")
         if so:
@@ -2092,8 +2116,17 @@ def cmd_task(a):
         notes = con.execute("SELECT ts,actor,action,detail FROM events WHERE entity='task' AND entity_id=? ORDER BY id",
                             (a.id,)).fetchall()
         print("\n## history")
+        if compact_view(con, a):
+            others = [i for i, n in enumerate(notes) if n["action"] != "note"]
+            keep = set(others[-5:])
+            dropped = len(others) - len(keep)
+            notes = [n for i, n in enumerate(notes) if n["action"] == "note" or i in keep]
+        else:
+            dropped = 0
         for n in notes:
             print(f"- {n['ts']} {n['actor']} {n['action']}" + (f": {n['detail']}" if n['detail'] else ""))
+        if dropped:
+            print(f"({dropped} earlier events: factory task show {a.id} --full)")
     elif a.action == "update":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         role = actor_role(con)
@@ -6926,6 +6959,10 @@ def cmd_res(a):
     gr = con.execute("SELECT id,kind,task_id,project_id,pid FROM gate_runs WHERE status='running' ORDER BY id").fetchall()
     print(f"gate runs: {len(gr)} running (max {cfg(con, 'gate_max_parallel')})"
           + "".join(f" · #{r['id']} {r['task_id'] or r['kind'] + ':' + r['project_id']}" for r in gr))
+    if s.get("tmp") and s["tmp"]["pct"] >= float(cfg(con, "tmp_max_pct")):
+        cok, cwhy, _ = gate(con, role="cleaner")
+        print("cleaner gate: " + ("OPEN — exempt from the /tmp gate (tmp_max_pct) so it can free /tmp; every other cap still applies"
+                                  if cok else f"CLOSED — {cwhy}"))
     print(f"agents live {s['live']}/{s['cap']} · queued {q} · other claude panes {s['other']} (counted in host total)")
     lc = lead_counts(con)
     reserved = int(cfg(con, "reserved_worker_slots"))
@@ -7573,9 +7610,12 @@ def cmd_tick(a, locked=False):
     queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
                                 "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
+    held = False
     for q in queued:
-        if not gate(con)[0]:
-            break
+        if not held and not gate(con)[0]:
+            held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
+        if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
+            continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
@@ -9375,6 +9415,7 @@ def main():
     x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close"])
     x.add_argument("id", nargs="?"); x.add_argument("status", nargs="?")
     x.add_argument("--ready", action="store_true"); x.add_argument("--gaps", action="store_true")
+    x.add_argument("--full", action="store_true")
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
@@ -9390,6 +9431,7 @@ def main():
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
     x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen"])
+    x.add_argument("--full", action="store_true")
     x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
     x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")
