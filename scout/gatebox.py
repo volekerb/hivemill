@@ -1,8 +1,8 @@
 """Gate sandbox profile (T-0632, GS1): run the merge gate's command under the nsbox allow-list mode.
 
 The local gate runs PR code as the owner uid. This module builds the argv (and the env) that confines it: $HOME,
-$XDG_RUNTIME_DIR, /tmp and /dev/shm are empty tmpfs, the gate tree, FACTORY_MAIN and the repo's git common dir are
-read-only, FACTORY_MAIN's state dirs are masked, and only <wt_root>/{reports,factory-home,tmp} are writable. Own net
+$XDG_RUNTIME_DIR, /tmp and /dev/shm are empty tmpfs, FACTORY_MAIN and the repo's git common dir are
+read-only, FACTORY_MAIN's state dirs are masked, and only the gate tree and <wt_root>/{reports,factory-home,tmp} are writable. Own net
 namespace (lo only), own pid namespace, capabilities dropped by nsbox. If user namespaces are unavailable this raises
 GateboxError: the caller must never fall back to running the command unsandboxed. Not wired into bin/factory yet.
 """
@@ -74,11 +74,11 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
             os.makedirs(d, exist_ok=True)
     except OSError as e:
         raise GateboxError(f"gatebox: cannot create {e.filename}: {e.strerror}; fix wt_root, the command was not run") from e
-    rw = [os.path.realpath(d) for d in rw]
-    ro = [tree, main]
+    rw = [tree, *(os.path.realpath(d) for d in rw)]  # the gate tree is a throwaway detached checkout: tests write into it
+    ro = [main]
     common = _git_common_dir(tree)
-    if not _under(common, main) and not _under(common, tree):
-        ro.append(common)
+    if not _under(common, main):
+        ro.append(common)  # hooks, config, refs, objects: read-only even when it sits inside the rw tree
     masks = [os.path.join(main, m) for m in MASKED if os.path.isdir(os.path.join(main, m))]
     hide = [home, runtime, *HIDE_TMP]
     try:

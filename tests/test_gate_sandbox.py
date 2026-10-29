@@ -62,7 +62,7 @@ class SandboxedRun(SandboxBase):
         self.assertRegex(self.log(), "refused|unreachable|Errno")
 
     def test_writes_outside_the_rw_dirs_fail(self):
-        for where in ("$PWD/stray", "$FACTORY_MAIN/stray"):
+        for where in ("$FACTORY_MAIN/stray", "$(git rev-parse --git-common-dir)/hooks/stray", "$(git rev-parse --git-common-dir)/config"):
             with self.subTest(where=where):
                 self.set_gate(f"echo x > {where}")
                 p = self.gate("run", "T-0001")
@@ -70,6 +70,12 @@ class SandboxedRun(SandboxBase):
                 self.assertIn("Read-only file system", self.log_of_last())
         self.assertFalse((REPO / "stray").exists())
         self.assertFalse((self.env.user_home / "stray").exists())
+
+    def test_gate_tree_is_writable_but_the_git_common_dir_is_not(self):
+        self.set_gate('echo x > "$PWD/inside" && mkdir -p "$PWD/newdir" && echo y > "$PWD/newdir/f" && test -f "$PWD/inside"')
+        p = self.gate("run", "T-0001")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr + self.log())
+        self.assertEqual(self.run_row()["status"], "pass")
 
     def test_var_tmp_write_fails_to_persist(self):
         leak = Path("/var/tmp") / f"zz-test-gate-sandbox-{os.getpid()}"
@@ -80,7 +86,7 @@ class SandboxedRun(SandboxBase):
         self.assertFalse(leak.exists())
 
     def test_count_cmd_runs_in_the_box_too(self):
-        self.set_gate("true", count="touch $PWD/x 2>/dev/null || echo 7")  # the tree is read-only inside the box
+        self.set_gate("true", count="touch $FACTORY_MAIN/x 2>/dev/null || echo 7")  # FACTORY_MAIN is read-only inside the box
         p = self.gate("run", "T-0001")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(self.run_row()["test_count"], 7)

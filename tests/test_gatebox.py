@@ -122,8 +122,8 @@ class ProfileTests(Fixture):
         self.assertEqual(cfg["mode"], "allow")
         self.assertFalse(cfg["net"])
         self.assertNotEqual(cfg.get("pid"), False)
-        self.assertEqual(sorted(cfg["rw"]), sorted(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp")))
-        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.tree), str(self.main), str(self.repo / ".git")]))
+        self.assertEqual(sorted(cfg["rw"]), sorted([str(self.tree), *(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp"))]))
+        self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git")]))
         self.assertEqual(sorted(cfg["masks"]), sorted(f"{self.main}/{d}" for d in gatebox.MASKED))
         self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm"]))  # /var/tmp is patched out here
         self.assertEqual(argv[-3:], ["bash", "-c", "true"])
@@ -187,14 +187,15 @@ class HomeLayoutTests(Fixture):
 
     def test_gate_runs_with_everything_under_home(self):
         r = self.run_in(f"cat {self.main}/tests/gate_shards.py; git rev-parse HEAD; echo hi > {self.wt}/reports/x; "
-                        f"touch {self.tree}/y; echo cred=[$(cat {self.home}/.config/gh/hosts.yml 2>&1)]")
+                        f"touch {self.tree}/y; echo z > {self.main}/z; echo cred=[$(cat {self.home}/.config/gh/hosts.yml 2>&1)]")
         self.assertIn("SHARDS = 1", r.output)
         self.assertIn(self.sha, r.output)
         self.assertIn("Read-only file system", r.output)
         self.assertIn("No such file", r.output)
         self.assertNotIn("FAKE-GH", r.output)
         self.assertEqual((self.wt / "reports/x").read_text(), "hi\n")
-        self.assertFalse((self.tree / "y").exists())
+        self.assertEqual((self.tree / "y").read_text(), "")  # the gate tree is rw
+        self.assertFalse((self.main / "z").exists())
 
     def test_home_tmpfs_writes_stay_in_the_box(self):
         r = self.run_in(f"echo x > {self.home}/stray; mkdir -p {self.home}/.cache/pip && echo y > {self.home}/.cache/pip/z")
@@ -227,13 +228,17 @@ class RealNamespaceTests(Fixture):
         self.assertNotEqual(r.returncode, 0)
         self.assertRegex(r.output, "refused|unreachable|Errno")
 
-    def test_tree_and_main_read_only(self):
-        for p in (self.tree / "x", self.main / "x"):
+    def test_main_and_git_common_dir_read_only_tree_writable(self):
+        for p in (self.main / "x", self.repo / ".git/hooks/x", self.repo / ".git/config"):
             with self.subTest(path=str(p)):
-                r = self.run_in(f"touch {p}")
+                before = p.read_bytes() if p.exists() else None
+                r = self.run_in(f"echo x >> {p}")
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn("Read-only file system", r.output)
-                self.assertFalse(p.exists())
+                self.assertEqual(p.read_bytes() if p.exists() else None, before)
+        r = self.run_in(f"echo ok > {self.tree}/x")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertEqual((self.tree / "x").read_text(), "ok\n")
 
     def test_hidden_trees_do_not_leak_writes_and_rw_dirs_persist(self):
         n = self.root.name  # unique, so a leftover file of another run cannot confuse the outside check
