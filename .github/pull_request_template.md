@@ -19,5 +19,3 @@
 ## Acceptance walk
 1. <how met> - <command> -> <key output>
 </details>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)

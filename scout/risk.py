@@ -16,9 +16,41 @@ MAX_JSON_READS = 3       # plugin.json blobs read per candidate
 MAX_DETAIL = 20          # offending paths recorded
 READ_CAP = 65536         # bytes of one blob that are scanned
 
+# Strict allowlist used by scout/vendor.py (what may be copied into the eval sandbox). It is NOT the 'scripts' test.
 ALLOWED_EXT = {".md", ".txt", ".csv"}
 ALLOWED_JSON_NAMES = {"plugin.json", "marketplace.json"}
 ALLOWED_BARE = ("LICENSE", "NOTICE", "README")
+MAX_README_READS = 3     # README.md blobs read per candidate (scanned for MCP setup only)
+MAX_SHEBANG_READS = 10   # blobs of unclassifiable type read to look for a shebang
+
+# File classes for the 'scripts' flag. Anything in neither list is neither inert nor known-executable:
+# it is read for a shebang when possible, else flagged 'unknown' (fail closed).
+SCRIPT_EXT = {
+    ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".py", ".pyw", ".js", ".cjs", ".mjs", ".jsx", ".ts", ".tsx",
+    ".rb", ".pl", ".pm", ".php", ".lua", ".r", ".ps1", ".psm1", ".bat", ".cmd", ".vbs", ".exe", ".dll", ".com",
+    ".msi", ".bin", ".so", ".dylib", ".a", ".o", ".jar", ".class", ".wasm", ".app", ".deb", ".rpm", ".apk",
+    ".whl", ".pyc", ".node", ".scpt", ".command", ".run", ".out", ".elf", ".awk", ".tcl", ".groovy", ".kts",
+}
+INERT_EXT = {
+    ".md", ".markdown", ".txt", ".rst", ".csv", ".tsv", ".json", ".jsonc", ".json5", ".yaml", ".yml", ".toml",
+    ".ini", ".cfg", ".xml", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".svg", ".avif",
+    ".woff", ".woff2", ".ttf", ".otf", ".eot", ".pdf", ".lock", ".html", ".htm", ".css", ".patch",
+}
+INERT_NAMES = {
+    ".gitignore", ".gitattributes", ".gitmodules", ".editorconfig", ".npmignore", ".dockerignore", ".prettierrc",
+    ".gitkeep", ".keep", "license", "licence", "notice", "readme", "copying", "authors", "changelog", "codeowners",
+}
+# data json that npm/pip run code for, so it stays a script
+SCRIPT_NAMES = {
+    "package.json", "makefile", "dockerfile", "justfile", "rakefile", "gemfile", "tasks.json", "devcontainer.json",
+    ".devcontainer.json", "composer.json", "pyproject.toml", "setup.cfg", "setup.py", "lefthook.yml", "lefthook.yaml",
+    ".pre-commit-config.yaml", ".lsp.json", "settings.json", "settings.local.json",
+}
+CONFIG_EXT = {".json", ".jsonc", ".json5", ".yaml", ".yml", ".toml"}  # inert only when their text has no hooks/MCP
+MAX_CONFIG_READS = 10
+# a config that names a command to start (MCP/LSP server entry, `"command": "gopls"`, toml `command = "x"`) runs code
+CFG_COMMAND = re.compile(r"(?m)[\"']command[\"']\s*:|^\s*command\s*=|[\"']lspServers[\"']\s*:")
+CFG_HOOKS = re.compile(r"(?m)[\"']hooks[\"']\s*[:=]|^\s*hooks\s*[:=]|^\s*\[+\s*hooks\b")
 
 # These are only words searched for in fetched markdown; this module never runs them.
 _NET_TOOLS = "curl|wget"
@@ -30,8 +62,13 @@ NET_BODY = re.compile(rf"\b(?:{_NET_TOOLS}|WebFetch)\b|(?i:\b(?:fetch|download|r
 # `mcpServers` key, or a URL whose host or path has "mcp" (https://mcp.asana.com/v2/mcp). Fail closed: prose that
 # only says "MCP" does not match, but an endpoint URL in prose does.
 MCP_ADD = re.compile(r"(?i)\bmcp\s+add(?:-json|-from-claude-desktop)?\b")
-MCP_KEY = re.compile(r"mcpServers")
-_URL = re.compile(r"(?i)\bhttps?://([^\s/?#)>\]\"'`]+)([^\s)>\]\"'`]*)")
+MCP_KEY = re.compile(r"mcpServers|mcp_servers")
+_URL = re.compile(r"(?i)\bhttps?://([^\s/?#)>\]\"'`]+)([^\s>\]\"'`]*)")  # ')' is legal inside a path
+# npx/uvx-style launchers running an MCP package (`npx -y mcp-remote https://x/sse`, `uvx foo-mcp`): fetches code
+MCP_LAUNCHER = re.compile(
+    r"(?i)\b(?:npx|bunx|uvx|pipx\s{1,8}run|pnpm\s{1,8}dlx|npm\s{1,8}exec|yarn\s{1,8}dlx)\b"
+    r"[^\n]{0,200}?(?:mcp|modelcontextprotocol)")  # bounded: backtracking stays linear on a 64 KiB hostile blob
+MCP_TOOL = re.compile(r"(?<![\w-])mcp__[\w-]")
 FM_NET = re.compile(r"\b(?:WebFetch|WebSearch)\b")
 FM_BASH_NET = re.compile(rf"Bash\([^)]*\b(?:{_SHELL_NET_TOOLS})\b")
 FM_HOOKS = re.compile(r"(?m)^hooks\s*:")
@@ -106,6 +143,19 @@ def _is_allowed(full):
     return ext == "" and base.upper().startswith(ALLOWED_BARE)
 
 
+def _file_class(base):
+    """'script', 'inert' or 'other' for a file name (mode and shebang are checked by the caller)."""
+    low = base.lower()
+    dot = low.rfind(".")
+    ext = low[dot:] if dot > 0 else ""
+    if low in SCRIPT_NAMES or ext in SCRIPT_EXT:
+        return "script"
+    stem = low.split(".", 1)[0] if ext == "" else low
+    if low in INERT_NAMES or (ext == "" and stem in INERT_NAMES) or ext in INERT_EXT:
+        return "inert"
+    return "other"
+
+
 def _unrestricted_bash(tools):
     """True for bare `Bash`, `Bash(*)`, `Bash()` and scopes on a shell or interpreter (`Bash(sh:*)`)."""
     if BASH_UNRESTRICTED.search(tools):
@@ -137,7 +187,10 @@ def _unrestricted_bash(tools):
 
 def _mcp_text(text):
     """(declares/instructs MCP, names a remote MCP endpoint URL) for fetched text."""
-    remote = any("mcp" in (m.group(1) + m.group(2)).lower() for m in _URL.finditer(text))
+    text = re.sub(r"\\\r?\n[ \t]*", " ", text)  # shell line continuation: `claude mcp \<newline> add`
+    text = text.replace("\\/", "/").replace("\\u002f", "/").replace("\\u002F", "/")  # JSON-escaped slashes
+    launcher = bool(MCP_LAUNCHER.search(text))
+    remote = launcher or any("mcp" in (m.group(1) + m.group(2)).lower() for m in _URL.finditer(text))
     return bool(MCP_ADD.search(text) or MCP_KEY.search(text)) or remote, remote
 
 
@@ -180,7 +233,7 @@ def classify(tree, prefix="", read=None, truncated=False):
     items = _scoped(tree, prefix)
     flags = {f: [] for f in FLAG_ORDER}
     rels = [rel for rel, e in items if e.get("type") != "tree"]
-    md_reads, json_reads = [], []
+    md_reads, json_reads, readme_reads, sniff, cfg_reads = [], [], [], [], []
     for rel, e in items:
         mode, typ = str(e.get("mode", "")), e.get("type")
         if typ == "tree":
@@ -198,15 +251,40 @@ def classify(tree, prefix="", read=None, truncated=False):
         if base.lower() == ".mcp.json":
             flags["mcp"].append(rel)
             continue
-        if mode == "100755" or not _is_allowed(e["path"]):
+        low = base.lower()
+        if mode == "100755" or _file_class(base) == "script":
             flags["scripts"].append(rel)
             continue
+        if ".mcp." in low and low.endswith(".json"):  # .mcp.example.json: not loaded by the harness, but declares servers
+            flags["mcp"].append(rel)
+            continue
+        if _file_class(base) == "other":
+            sniff.append((rel, e))  # unrecognised type: shebang decides, else 'unknown'
+            continue
+        is_readme = low in ("readme.md", "readme.markdown") and not ({"commands", "agents"} & set(lsegs))
+        if is_readme:
+            readme_reads.append((rel, e))
         if base.lower() == "plugin.json":
             json_reads.append((rel, e))
+        elif low[low.rfind("."):] in CONFIG_EXT and low != "marketplace.json":
+            cfg_reads.append((rel, e))
+        elif is_readme:
+            pass
         elif base.lower() == "skill.md" or (base.lower().endswith(".md") and ({"commands", "agents"} & set(lsegs))):
             md_reads.append((rel, e))
 
     unread = 0
+    for i, (rel, e) in enumerate(sniff):
+        text = None
+        if read is not None and i < MAX_SHEBANG_READS:
+            try:
+                text = read(e)
+            except ReadError:
+                text = None
+        if text is not None and text.startswith("#!"):
+            flags["scripts"].append(rel)
+        else:
+            flags["unknown"].append(f"unrecognised file type: {rel}")
     for rel, e in json_reads[:MAX_JSON_READS]:
         text = _read(read, e, flags, rel)
         if text is None:
@@ -222,12 +300,38 @@ def classify(tree, prefix="", read=None, truncated=False):
             flags["unknown"].append(f"unparseable json: {rel}")
         if "hooks" in keys:
             flags["hooks"].append(rel)
+        if "lspServers" in keys or '"lspServers"' in text:  # starts a language-server binary
+            flags["scripts"].append(rel)
         is_mcp, remote = _mcp_text(text)
         if "mcpServers" in keys or is_mcp:
             flags["mcp"].append(rel)
-        if remote:
+        if remote or ("mcpServers" in keys and _URL.search(text.replace("\\/", "/"))):  # remote server, host without "mcp"
             flags["network"].append(rel)
     unread += max(0, len(json_reads) - MAX_JSON_READS)
+    for rel, e in cfg_reads[:MAX_CONFIG_READS]:  # json/yaml/toml is inert unless it declares hooks or MCP servers
+        text = _read(read, e, flags, rel)
+        if text is None:
+            continue
+        if CFG_HOOKS.search(text):
+            flags["hooks"].append(rel)
+        if CFG_COMMAND.search(text):
+            flags["scripts"].append(rel)
+        is_mcp, remote = _mcp_text(text)
+        if is_mcp or ("mcp" in rel.rsplit("/", 1)[-1].lower() and CFG_COMMAND.search(text)):
+            flags["mcp"].append(rel)
+        if remote:
+            flags["network"].append(rel)
+    unread += max(0, len(cfg_reads) - MAX_CONFIG_READS)
+    for rel, e in readme_reads[:MAX_README_READS]:  # README is never run: only MCP setup text counts
+        text = _read(read, e, flags, rel)
+        if text is None:
+            continue
+        is_mcp, remote = _mcp_text(text)
+        if is_mcp:
+            flags["mcp"].append(rel)
+        if remote:
+            flags["network"].append(rel)
+    unread += max(0, len(readme_reads) - MAX_README_READS)
     md_reads.sort(key=lambda t: (t[0].rsplit("/", 1)[-1].lower() != "skill.md", t[0]))  # SKILL.md first
     for rel, e in md_reads[:MAX_MD_READS]:
         text = _read(read, e, flags, rel)
@@ -250,6 +354,8 @@ def classify(tree, prefix="", read=None, truncated=False):
         if FM_HOOKS.search(fm):
             flags["hooks"].append(rel)
         tools = "\n".join(FM_TOOL_KEY.findall(fm))
+        if MCP_TOOL.search(tools):
+            flags["mcp"].append(rel)
         open_bash = _unrestricted_bash(tools)
         if FM_NET.search(fm) or NET_BODY.search(body) or open_bash:
             flags["network"].append(rel)
