@@ -18,6 +18,7 @@ import unittest
 import unittest.mock
 import urllib.request
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import envcheck  # noqa: E402

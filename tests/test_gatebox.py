@@ -18,6 +18,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness import REPO  # noqa: E402
+import harness
 
 sys.path.insert(0, str(REPO))
 from scout import gatebox, nsbox  # noqa: E402
@@ -30,9 +31,7 @@ GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT
 
 
 def git(*args, cwd=None):
-    r = subprocess.run(["git", *args], cwd=cwd, env=GIT_ENV, capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
-    return r.stdout.strip()
+    return harness.git(*args, cwd=cwd, env=GIT_ENV)
 
 
 class Fixture(unittest.TestCase):

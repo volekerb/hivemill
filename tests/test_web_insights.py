@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
+import _gitenv  # noqa: F401,E402
 from test_web_queries import NOW, make_db, ts  # noqa: E402
 from test_web_server import ServerCase  # noqa: E402
 from web import db as wdb  # noqa: E402
