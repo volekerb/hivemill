@@ -18,6 +18,10 @@ Worker sandbox that uses this allow mode: [worker-sandbox.md](worker-sandbox.md)
 
 Anything else, for example `CLAUDE_CODE_MESSAGING_TOKEN` or `FOO_SECRET`, is absent inside claude. To let another variable through, add it to `CLAUDE_ENV_PASS`.
 
+## `run_contained` allow-list view
+
+`run_contained` (the checker runner, T-0158) uses the allow-list mode: an empty tmpfs over the real home, the runtime dir and any extra `hide_dirs` the caller names (`/tmp` is not hidden, as before). Bound back: the trial dir read-write, a cwd outside the trial read-write (as before), the `vendor_dir` plugin read-only. Anything else under `$HOME`, for example `~/notes`, is absent, not merely empty. When the trials root lies outside every hidden tree it is masked, so sibling trials stay hidden. A missing bind source exits non-zero before the command runs (fail closed). The evaluator spawn path (`scout/sandbox.py: eval_ns_cfg`) already uses the same mode.
+
 ## `run_contained` working directory
 
 `run_contained(cwd=X)` binds X back in full, so a cwd that is equal to, above or inside a hide dir (or a sibling trial) would expose hidden content, for example `cwd=~/factory` would show the live `factory.db`. Such a cwd raises `ValueError` unless it is the trial dir or under it. `cwd=None` is unchanged: a cwd inside a hidden dir lands in the trial dir.
