@@ -73,8 +73,27 @@ _OPTS_WITH_VALUE = {"-b", "--branch", "--depth", "-o", "--origin", "--reference"
 _REMOTE_CMDS = {"push", "fetch", "pull", "ls-remote", "clone"}
 
 
-def _check_remotes(args, cwd):
+def _remote_urls(name, cwd, env):
+    """Every URL git would use for remote `name`: fetch url(s), pushurl(s) and insteadOf rewrites (get-url applies them)."""
+    urls = []
+    for flags in (["--push", "--all"], ["--all"]):
+        out = subprocess.run(["git", "remote", "get-url", *flags, name], cwd=cwd, capture_output=True, text=True,
+                             check=True, env=env).stdout
+        urls += out.split()
+    return urls
+
+
+def _subcommand(args):
+    """args without leading `-c key=value` pairs."""
+    args = tuple(args)
+    while args[:1] == ("-c",):
+        args = args[2:]
+    return args
+
+
+def _check_remotes(args, cwd, env=None):
     """Refuse a git call whose remote is not a local path under the test tmp dir (R-b: fixtures once reached public main)."""
+    env = {**os.environ, **(env or {})}
     pos, skip = [], False
     for a in args:
         if skip:
@@ -87,20 +106,46 @@ def _check_remotes(args, cwd):
         return
     if pos[0] == "remote" and len(pos) >= 4 and pos[1] in ("add", "set-url"):
         _gitenv.assert_local_remote(pos[3])
+    elif pos[0] == "submodule":
+        urls = [pos[2]] if pos[1:2] == ["add"] and len(pos) > 2 else []
+        if (Path(cwd) / ".gitmodules").is_file():
+            out = subprocess.run(["git", "config", "-f", ".gitmodules", "--get-regexp", r"^submodule\..*\.url$"], cwd=cwd,
+                                 capture_output=True, text=True, env=env).stdout
+            urls += [line.split(None, 1)[1] for line in out.splitlines() if " " in line]
+        for url in urls:
+            _gitenv.assert_local_remote(url)
     elif pos[0] in _REMOTE_CMDS:
-        target = pos[1] if len(pos) > 1 else "origin"
-        if pos[0] != "clone" and not (_gitenv.URL_LIKE.match(target) or "/" in target):
-            target = subprocess.run(["git", "remote", "get-url", target], cwd=cwd, capture_output=True, text=True,
-                                    check=True).stdout.strip()
-        _gitenv.assert_local_remote(target)
+        if "--all" in args and pos[0] in ("fetch", "push"):
+            names = subprocess.run(["git", "remote"], cwd=cwd, capture_output=True, text=True, check=True,
+                                   env=env).stdout.split()
+            targets = [u for n in names for u in _remote_urls(n, cwd, env)]
+        else:
+            target = pos[1] if len(pos) > 1 else "origin"
+            if pos[0] == "clone" or _gitenv.URL_LIKE.match(target) or "/" in target:
+                targets = [target]
+            else:
+                targets = _remote_urls(target, cwd, env)
+        for url in targets:
+            _gitenv.assert_local_remote(url)
 
 
-def git(*args, cwd, inert_remote=False):
-    """Run git in cwd. `inert_remote=True` lets `remote add|set-url` record a fake network URL for tests that only parse
-    the configured URL; it never excuses a push/fetch/clone (those are refused)."""
-    if not (inert_remote and args[:2] in (("remote", "add"), ("remote", "set-url"))):
-        _check_remotes(args, cwd)
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
+def git(*args, cwd, env=None, inert_remote=False, local_clone_of=None, check=True):
+    """Run git in cwd. `env` is merged over the scrubbed process env (identity vars etc.); a repo-pointing GIT_* in it is
+    refused. `inert_remote=True` lets `remote add|set-url` record a fake network URL for tests that only parse
+    the configured URL; it never excuses a push/fetch/clone (those are refused). `local_clone_of=<dir>` lets `clone` read an
+    existing local directory outside the tmp dir (a read-only source, e.g. this checkout); it excuses nothing else."""
+    bad = [k for k in _gitenv.leaked(env or {}) if k not in _gitenv.CONFIG_ISOLATION]
+    if bad:
+        raise _gitenv.GitEnvLeak("harness.git env= must not set %s" % ", ".join(bad))
+    if local_clone_of is not None:
+        if args[:1] != ("clone",) or str(local_clone_of) not in args or not Path(local_clone_of).is_dir():
+            raise _gitenv.RemoteRefused("local_clone_of is only for `clone` of an existing local directory")
+    elif not (inert_remote and _subcommand(args)[:2] in (("remote", "add"), ("remote", "set-url"))):
+        _check_remotes(args, cwd, env)
+    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env={**os.environ, **(env or {})})
+    if check and p.returncode != 0:
+        raise AssertionError(f"git {args}: {p.stderr}")
+    return p.stdout.strip()
 
 
 _RENDERED = {}

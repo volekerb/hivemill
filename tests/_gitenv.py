@@ -18,6 +18,7 @@ from pathlib import Path
 KEEP_PREFIXES = ("GIT_AUTHOR_", "GIT_COMMITTER_")
 # Harmless non-repo-pointing variables some callers (the factory pane) export; everything else is refused at import.
 ALLOWED = frozenset({"GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "GIT_PAGER", "GIT_TERMINAL_PROMPT"})
+CONFIG_ISOLATION = frozenset({"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM"})  # harmless in a child env
 URL_LIKE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://|^[^/\s]+@[^/\s]+:")  # scheme://... or user@host:path
 
 
@@ -35,12 +36,14 @@ def leaked(environ):
 
 
 def assert_local_remote(url, root=None):
-    """Refuse a remote that is not a local path under the test tmp dir (network URLs, the real repo, anything else)."""
-    root = Path(root or tempfile.gettempdir()).resolve()
+    """Refuse a remote that is not a local path under the test tmp dir (network URLs, the real repo, anything else).
+    Without `root`, the two standard temp roots (tempfile.gettempdir() and /var/tmp) are accepted."""
+    roots = [Path(root).resolve()] if root else [Path(tempfile.gettempdir()).resolve(), Path("/var/tmp").resolve()]
+    root = roots[0]
     if URL_LIKE.match(url) and not url.startswith("file://"):
         raise RemoteRefused("test git remote %r is a network URL; use a bare repo under %s" % (url, root))
     path = Path(url[len("file://"):] if url.startswith("file://") else url)
-    if not path.is_absolute() or not (path.resolve() == root or root in path.resolve().parents):
+    if not path.is_absolute() or not any(path.resolve() == r or r in path.resolve().parents for r in roots):
         raise RemoteRefused("test git remote %r is not a path under %s; create it in the test's temp dir" % (url, root))
 
 

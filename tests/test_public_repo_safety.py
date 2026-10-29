@@ -3,7 +3,6 @@ pre-merge public text check (guard loaded from the main checkout), frozen repo r
 merge. Temp FACTORY_HOME, temp bare origins whose path ends acme/pub (public), acme/old (frozen), acme/priv (neither),
 the tests/stubs gh, a temp terms file holding `zebracorp`."""
 import json
-import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -20,8 +19,7 @@ CLEAN = {"GIT_AUTHOR_NAME": "volekerb", "GIT_AUTHOR_EMAIL": "volekerb@users.nore
 
 
 def run_git(cwd, *args, env=None):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True,
-                          env={**os.environ, **(env or CLEAN)}).stdout.strip()
+    return git(*args, cwd=cwd, env=env or CLEAN)
 
 
 class Base(FactoryTestCase):
@@ -85,7 +83,7 @@ class StateBranchTests(Base):
     def test_unparsable_origin_refused_when_public_list_set(self):
         bare = self.bare("acme/priv")
         (self.env.home / "lonely").symlink_to(bare)  # "../lonely" names no OWNER/NAME
-        run_git(self.env.home_dir, "remote", "add", "origin", "../lonely")
+        git("remote", "add", "origin", "../lonely", cwd=self.env.home_dir, inert_remote=True)  # parse-only; the factory refuses it
         run_git(self.env.home_dir, "commit", "-q", "--allow-empty", "-m", "base")
         before = self.refs(bare)
         self.ok("config", "public_text_repos", "acme/pub")

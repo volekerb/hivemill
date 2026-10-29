@@ -1,12 +1,12 @@
 import json
 import os
 import stat
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from harness import FactoryTestCase, PR_URL, gates_summary
+from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 BRANCH = "factory/t-0001"
@@ -33,10 +33,7 @@ else:
 
 
 def git(cwd, *args, check=True):
-    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    if check and p.returncode != 0:
-        raise AssertionError(f"git {args}: {p.stderr}")
-    return p.stdout.strip()
+    return harness_git(*args, cwd=cwd, check=check)
 
 
 class RefreshTests(FactoryTestCase):

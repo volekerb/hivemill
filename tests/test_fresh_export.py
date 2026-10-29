@@ -13,6 +13,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+from harness import git as harness_git
 
 REPO = Path(__file__).resolve().parent.parent
 TOOL = REPO / "ci" / "fresh_export.py"
@@ -33,9 +34,7 @@ def sha(text):
 def git(cwd, *args, env=None):
     e = {**os.environ, "GIT_AUTHOR_NAME": "Src", "GIT_AUTHOR_EMAIL": "src@example.com", "GIT_COMMITTER_NAME": "Src",
          "GIT_COMMITTER_EMAIL": "src@example.com", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", **(env or {})}
-    p = subprocess.run(["git", "-c", "commit.gpgsign=false", *args], cwd=str(cwd), capture_output=True, text=True, env=e)
-    assert p.returncode == 0, (args, p.stderr)
-    return p.stdout
+    return harness_git("-c", "commit.gpgsign=false", *args, cwd=str(cwd), env=e, inert_remote=True)
 
 
 def load_tool(name):
@@ -387,9 +386,9 @@ class RealRepo(unittest.TestCase):
             # This checkout's own origin may be the public repository (its text names that slug on purpose), so export a
             # clone of HEAD whose origin is a stand-in private slug (split below so this file does not name it); the private-slug check stays on.
             src = Path(tmp) / "src"
-            subprocess.run(["git", "clone", "-q", "--shared", str(REPO), str(src)], check=True, capture_output=True)
-            subprocess.run(["git", "-C", str(src), "remote", "set-url", "origin", "https://github.com/example-org/private" + "-source"],
-                           check=True, capture_output=True)
+            harness_git("clone", "-q", "--shared", str(REPO), str(src), cwd=tmp, local_clone_of=REPO)
+            harness_git("remote", "set-url", "origin", "https://github.com/example-org/private" + "-source", cwd=src,
+                        inert_remote=True)
             r = subprocess.run([sys.executable, str(TOOL), "--repo", str(src), "--out", str(Path(tmp) / "x"), "--author", AUTHOR,
                                 "--ref", "HEAD", "--date", DATE, "--public-repo", "example-org/factory"],
                                capture_output=True, text=True, env=env)  # the tree holds slug tokens since T-0411

@@ -1,5 +1,6 @@
 """T-0637: tests that spawn git must never reach the real repo through an inherited GIT_DIR (it once wrote
 core.bare=true and user.email=t@example.com into the shared .git/config)."""
+import ast
 import os
 import re
 import subprocess
@@ -89,14 +90,15 @@ class RemoteGuardTest(unittest.TestCase):
 
     def test_set_gh_refuses_a_real_repo_url(self):
         import harness
-        env = harness.TestEnv() if hasattr(harness, "TestEnv") else None
+        env = None
         with self.assertRaises(_gitenv.RemoteRefused):
             harness.FactoryEnv.set_gh(env, repo_url="https://github.com/volekerb/hivemill.git")
 
     def test_inert_remote_opt_in_only_in_the_url_parsing_modules(self):
         users = sorted(p.name for p in TESTS.glob("test_*.py") if p.name != Path(__file__).name
                        and "inert_remote=True" in p.read_text())
-        self.assertEqual(users, ["test_git_hardening.py", "test_project_remote.py", "test_remote_url_check.py"])
+        self.assertEqual(users, ["test_fresh_export.py", "test_git_hardening.py", "test_project_remote.py", "test_public_repo_safety.py",
+                         "test_remote_url_check.py"])
 
     def test_inert_remote_does_not_excuse_a_network_push(self):
         import harness
@@ -141,6 +143,120 @@ class EveryGitModuleUsesTheHelperTest(unittest.TestCase):
             if not re.search(r"^\s*(import harness|from harness|import _gitenv)", text, re.M):
                 missing.append(p.name)
         self.assertEqual(missing, [], "add `import _gitenv  # noqa: F401` to these test modules")
+
+
+SUBPROCESS_CALLS = {"run", "Popen", "check_output", "check_call", "call"}
+NETWORK_VERBS = {"push", "fetch", "pull", "clone", "ls-remote", "submodule"}
+# (file, reason): the only modules allowed to spawn network-verb git outside harness.git.
+RAW_GIT_ALLOWLIST = {
+    "test_git_env_hermetic.py": "negative control: shows an unguarded git does reach the remote/GIT_DIR",
+    "test_worker_guard_git.py": "string-only hook fakes; no process is spawned",
+    "test_worker_guard_git_data.py": "string-only hook fakes; no process is spawned",
+    "test_worker_guard_git_reads.py": "string-only hook fakes; no process is spawned",
+}
+
+
+def _git_argv(call):
+    """The argv list of a subprocess call when it starts with the literal "git", else None."""
+    f = call.func
+    name = f.attr if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "subprocess" else None
+    if name not in SUBPROCESS_CALLS or not call.args or not isinstance(call.args[0], (ast.List, ast.Tuple)):
+        return None
+    elts = call.args[0].elts
+    if elts and isinstance(elts[0], ast.Constant) and elts[0].value == "git":
+        return elts
+    return None
+
+
+def raw_git_violations(source):
+    """Static (AST) scan: network-verb git via raw subprocess, and defs that wrap subprocess with a forwarded git argv."""
+    out = []
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and (argv := _git_argv(node)):
+            words = [e.value for e in argv if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+            if NETWORK_VERBS & set(words) or ("remote" in words and {"add", "set-url"} & set(words)):
+                out.append("line %d: raw subprocess git %s; use harness.git" % (node.lineno, " ".join(words[1:])))
+    wrappers = {}
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            params = {a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs}
+            params |= {a.arg for a in (fn.args.vararg, fn.args.kwarg) if a}
+            for c in ast.walk(fn):
+                if isinstance(c, ast.Call) and (argv := _git_argv(c)):
+                    if any(isinstance(e, ast.Starred) and isinstance(e.value, ast.Name) and e.value.id in params
+                           for e in argv):
+                        wrappers[fn.name] = fn.lineno
+    # A wrapper that forwards its args to git is banned once the module hands it a network verb (it would push unchecked).
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in wrappers:
+            words = {a.value for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)}
+            if NETWORK_VERBS & words or ("remote" in words and {"add", "set-url"} & words):
+                out.append("line %d: def %s wraps subprocess git and is called with %s; use harness.git"
+                           % (wrappers[node.func.id], node.func.id, " ".join(sorted(words))))
+    return sorted(set(out))
+
+
+class RawGitRemoteGuardTest(unittest.TestCase):
+    """R-b 6(c): no test spawns network-verb git outside harness.git, which vets every remote URL."""
+
+    def test_no_test_module_runs_raw_network_git_or_wraps_subprocess_git(self):
+        bad = []
+        for p in sorted(TESTS.glob("*.py")):
+            if p.name in ("harness.py", "_gitenv.py") or p.name in RAW_GIT_ALLOWLIST:
+                continue
+            bad += ["%s %s" % (p.name, v) for v in raw_git_violations(p.read_text())]
+        self.assertEqual(bad, [], "route these through harness.git(*args, cwd=..., env=...)")
+
+    def test_planted_violations_are_flagged(self):
+        pushes = "import subprocess\nsubprocess.run(['git', '-C', 'x', 'push', 'origin', 'HEAD:main'])\n"
+        wrapper = ("import subprocess\ndef run_git(cwd, *a):\n    return subprocess.run(['git', *a], cwd=cwd)\n"
+                   "run_git('x', 'push', 'origin', 'HEAD:main')\n")
+        remote = "import subprocess\nsubprocess.check_output(('git', 'remote', 'add', 'o', 'https://x/y'))\n"
+        for src in (pushes, wrapper, remote):
+            self.assertTrue(raw_git_violations(src), src)
+
+    def test_local_non_network_git_is_not_flagged(self):
+        src = "import subprocess\nsubprocess.run(['git', 'rev-parse', 'HEAD'], cwd='x')\nsubprocess.run(['rm', '-rf', 'y'])\n"
+        self.assertEqual(raw_git_violations(src), [])
+        src = "import subprocess\ndef g(*a):\n    return subprocess.run(['git', *a])\ng('status')\n"
+        self.assertEqual(raw_git_violations(src), [])
+
+
+class RemoteUrlsPassthroughTest(unittest.TestCase):
+    def setUp(self):
+        import harness
+        self.h = harness
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.d = self.tmp.name
+        self.h.git("init", "-q", cwd=self.d)
+
+    def test_push_refused_when_only_the_pushurl_is_a_network_url(self):
+        self.h.git("remote", "add", "origin", self.d + "/o.git", cwd=self.d)
+        self.h.git("config", "remote.origin.pushurl", "https://github.com/volekerb/hivemill.git", cwd=self.d)
+        with self.assertRaises(_gitenv.RemoteRefused):
+            self.h.git("push", "origin", "HEAD:main", cwd=self.d)
+
+    def test_fetch_refused_when_insteadof_rewrites_a_local_url_to_network(self):
+        self.h.git("remote", "add", "origin", self.d + "/o.git", cwd=self.d)
+        self.h.git("config", "url.https://github.com/.insteadOf", self.d + "/", cwd=self.d)
+        with self.assertRaises(_gitenv.RemoteRefused):
+            self.h.git("fetch", "origin", cwd=self.d)
+
+    def test_local_clone_of_excuses_only_a_clone_of_a_local_directory(self):
+        with self.assertRaises(_gitenv.RemoteRefused):
+            self.h.git("push", "origin", "HEAD:main", cwd=self.d, local_clone_of=self.d)
+        with self.assertRaises(_gitenv.RemoteRefused):
+            self.h.git("clone", "https://github.com/volekerb/hivemill.git", self.d + "/c", cwd=self.d,
+                       local_clone_of=self.d)
+
+    def test_env_passthrough_reaches_git_and_refuses_repo_pointing_vars(self):
+        self.h.git("-c", "user.name=n", "commit", "-q", "--allow-empty", "-m", "m", cwd=self.d,
+                   env={"GIT_AUTHOR_EMAIL": "a@example.invalid", "GIT_COMMITTER_EMAIL": "a@example.invalid"})
+        self.assertEqual(self.h.git("log", "-1", "--format=%ae", cwd=self.d), "a@example.invalid")
+        with self.assertRaises(_gitenv.GitEnvLeak):
+            self.h.git("status", cwd=self.d, env={"GIT_DIR": "/x"})
 
 
 class InheritedGitDirTest(unittest.TestCase):

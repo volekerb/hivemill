@@ -20,6 +20,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness import FACTORY, FactoryTestCase  # noqa: E402
+from harness import git as harness_git  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scout import nsbox, workerbox  # noqa: E402
@@ -92,7 +93,7 @@ print("GH_TOKEN set" if os.environ.get("GH_TOKEN") else "GH_TOKEN unset")
 def git(*args, cwd):
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "t",
            "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}  # no owner-level git config
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True, env=env).stdout.strip()
+    return harness_git(*args, cwd=cwd, env={k: v for k, v in env.items() if k.startswith("GIT_")})
 
 
 def put(path, text="", mode=None):
