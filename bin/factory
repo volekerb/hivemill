@@ -7461,10 +7461,9 @@ def cmd_tick(a, locked=False):
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
     held = False
     for q in queued:
-        if held and q["role"] != "cleaner":
-            continue  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
-        if not gate(con, role=q["role"])[0]:
-            held = True
+        if not gate(con)[0]:
+            held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
+        if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
             continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
