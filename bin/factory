@@ -7727,8 +7727,17 @@ def cmd_test(a):
         if scratch:
             testbox.cleanup(scratch)
         die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
+    p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
+
+    def forward(sig, _frame):
+        try:
+            os.killpg(p.pid, sig)
+        except ProcessLookupError:
+            pass
+    for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(s, forward)
     try:
-        rc = subprocess.run(argv, cwd=tree, env=env).returncode
+        rc = p.wait()
     finally:
         testbox.cleanup(scratch)
     sys.exit(rc if rc >= 0 else 128 - rc)

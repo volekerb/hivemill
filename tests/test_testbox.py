@@ -84,6 +84,15 @@ class Sandboxed(Base):
         p = self.box('env | grep -E "^(GIT_|GH_TOKEN|GITHUB_TOKEN|CLAUDE_CODE_OAUTH_TOKEN|SSH_AUTH_SOCK|FACTORY_AGENT)" || echo clean')
         self.assertEqual(p.stdout.strip(), "clean", p.stderr)
 
+    def test_factory_home_is_the_scratch_not_the_real_one(self):
+        p = self.box('echo "$FACTORY_HOME"')
+        self.assertNotEqual(p.stdout.strip(), str(self.env.home_dir))
+        self.assertIn(".factory-test-", p.stdout)
+
+    def test_signal_death_and_nonzero_exit_clean_up(self):
+        self.assertEqual(self.box("sh -c 'kill -9 $$'").returncode, 137)
+        self.assertEqual(list(self.clone.glob(".factory-test-*")), [])
+
     def test_exit_code_propagates(self):
         self.assertEqual(self.box("exit 5").returncode, 5)
         self.assertEqual(self.box("true").returncode, 0)
