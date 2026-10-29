@@ -44,6 +44,3 @@ Sign-off, close and reopen steps: use the close-goal skill.
 - Before blaming CI, check `gh pr view <url> --json mergeable,mergeStateStatus`. (M514)
 - Send the owner (via the boss) only owner-reserved items, which are never defaulted, and other questions with a recommendation. A non-reserved question defaults to the recommendation after 2 daytime hours; the boss reports it as applied. Use the owner-decisions skill. (M833, M407)
 - Only the tick syncs the live ~/factory checkout. Never run git pull/merge/checkout there; read main with `git fetch` + `git show origin/main:<path>`, or wait for the tick. (L-025)
-
-## Merged outside the judge
-- **M1** A coder PR the owner merged by hand is closed with `factory task update T --status done --merged-externally --reason "<why>"` (director/owner only; refused unless GitHub says MERGED and the merge commit is on the base branch; recorded as a task event).
