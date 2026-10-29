@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from unittest import mock
 from concurrent.futures import ThreadPoolExecutor
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
 
@@ -43,8 +45,7 @@ STUB_SLOW = "import time\ntime.sleep(30)\n"
 
 
 def git(repo, *args):
-    subprocess.run(["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
-                   check=True, capture_output=True, text=True)
+    harness.git("-c", "user.name=t", "-c", "user.email=t@example.com", *args, cwd=repo)
 
 
 class GuardDiffCase(unittest.TestCase):

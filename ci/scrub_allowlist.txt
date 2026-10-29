@@ -19,7 +19,7 @@ tests/test_scrub_scan.py:email:assertNotIn\("alice@corp\.test", r\.stdout  # ass
 tests/test_scrub_scan.py:rfc1918:"see 192\.168\.9\.9 for details"  # fake LAN address in a history test commit message
 tests/test_scrub_scan.py:rfc1918:"-- host 192\.168\.4\.4\\n"  # fake LAN address in a history test fixture
 tests/test_scrub_scan.py:email:for addr in \("someone@github\.com\.evil\.test"  # lookalike domains that must still hit
-tests/test_scrub_scan.py:email:"someone@users\.noreply\.github\.com\.evil\.test"  # lookalike domain that must still hit
+tests/test_scrub_scan.py:email:"volekerb@users\.noreply\.github\.com\.evil\.test"  # lookalike domain that must still hit
 # Generic-scan hits on a clean tree (T-0392). Third-party attribution and guard-test data that must keep its shape.
 roles/plugins/staff-engineer/feature-dev/.claude-plugin/plugin.json:email:support@anthropic\.com  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
 roles/plugins/staff-engineer/feature-dev/README.md:email:sbidasaria@anthropic\.com  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
