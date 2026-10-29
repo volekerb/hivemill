@@ -15,7 +15,8 @@ and sets `GIT_TERMINAL_PROMPT=0` and `GIT_CONFIG_NOSYSTEM=1`. `gh pr merge`, whi
 Before every privileged git operation (tick sync and export, judge carry check and merge, `prepare_worktree`, `clean`'s fetch) `git_config_refusal(repo)` reads, **without includes**, `git config --file` on `<common-dir>/config`, every `<common-dir>/worktrees/*/config.worktree` and the target worktree's `config.worktree`. It refuses when:
 
 - any `include.*` or `includeIf.*` key is present;
-- any key is outside this list (names are case-insensitive): `core.repositoryformatversion`, `core.filemode`, `core.bare`, `core.logallrefupdates`, `remote.origin.url`, `remote.origin.fetch`, `branch.<name>.remote`, `branch.<name>.merge`, `extensions.worktreeConfig`;
+- any key is outside this list (names are case-insensitive): `core.repositoryformatversion`, `core.filemode`, `core.bare`, `core.logallrefupdates`, `remote.origin.url`, `remote.origin.fetch`, `branch.<name>.remote`, `branch.<name>.merge`, `extensions.worktreeConfig`, `user.name`, `user.email`;
+- `user.email` does not end in `@users.noreply.github.com` (a real address in repo config would be committed under, so only the noreply form is allowed; `user.name` has no such condition);
 - `remote.origin.url` is not the factory URL (config key `factory_remote_url`, see below) or, for a clone whose realpath main worktree is a registered project's `repo_path`, exactly that project's `https://github.com/<gh_repo>.git` (or without `.git`); under a temp home a plain absolute path, the tests' bare remote, is also accepted;
 - `extensions.worktreeConfig` is anything but false;
 - `<common-dir>/info/attributes` or `~/.config/git/attributes` is non-empty.

@@ -82,6 +82,7 @@ For the owner, in order, once the director has given the go. Replace `volekerb/h
    (`good first issue` may already exist as a GitHub default label; then skip it.)
 7. **Social preview**, by hand (GitHub has no REST endpoint for it): Settings > General > Social preview > upload `docs/images/social-preview.png`.
 8. **Tag and release v0.1.0** (pre-release; the release workflow, T-0419, creates the pre-release from the tag): `git -C <export> tag -a v0.1.0 -m v0.1.0 && git -C <export> push origin v0.1.0`.
+   The release workflow (`.github/workflows/release.yml`) marks 0.x and `-`suffixed tags as pre-releases and takes the notes from `ci/release-notes/<version>.md`.
 9. **Check the README on github.com** in light and dark mode: badges resolve, the screenshots and both mermaid diagrams render, and the herdr and phone-app links open.
 10. **File the starter issues** from `docs/STARTER_ISSUES.md`, with the `good first issue` label where it says so.
 11. **Confirm** Settings > General > Features: Discussions on, Wikis off, Projects off.
