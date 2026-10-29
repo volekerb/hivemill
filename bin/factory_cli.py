@@ -65,6 +65,7 @@ from scout import vendor as scoutvendor  # noqa: E402
 from scout import sandbox as scoutsandbox  # noqa: E402
 from scout import workerbox  # noqa: E402
 from scout import gatebox  # noqa: E402
+from scout import testbox  # noqa: E402
 from scout import ghcred  # noqa: E402
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
@@ -89,6 +90,8 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 # role never takes it. After a crash the claim stalls the queued row for at most this long (10 min). A fixed literal (tests
 # read it without importing); test_staff_engineer asserts the bound against a real spawn.
 CLAIM_TTL_S = 600
+# a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
+EVALUATOR_SPAWN_RETRY_MAX = 5
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -142,6 +145,7 @@ DEFAULT_CONFIG = {
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
+    "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -7864,6 +7868,45 @@ def gate_show_row(r):
     print(f"  actor  {r['actor']}  created {r['created']}  started {r['started'] or '-'}  finished {r['finished'] or '-'}")
 
 
+def cmd_test(a):
+    """T-0674: run a command in the cwd under the test sandbox when config test_sandbox is 1, directly when 0.
+    Fail closed: an unbuildable sandbox or a bad flag value exits non-zero and the command is not run."""
+    cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
+    if not cmd:
+        die("factory test needs a command: factory test [--] <cmd...>", 2)
+    v = cfg(db(), "test_sandbox").strip()
+    if v not in ("0", "1"):
+        die(f"config test_sandbox is {v!r}, not 0 or 1; fix it with `factory config test_sandbox 1`, the command was not run", 3)
+    if v == "0":
+        try:
+            os.execvp(cmd[0], cmd)
+        except OSError as e:
+            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+    tree, scratch = os.getcwd(), None
+    try:
+        scratch = testbox.new_scratch(tree)
+        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ,
+                                  runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    except testbox.TestboxError as e:
+        if scratch:
+            testbox.cleanup(scratch)
+        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
+    p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
+
+    def forward(sig, _frame):
+        try:
+            os.killpg(p.pid, sig)
+        except ProcessLookupError:
+            pass
+    for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(s, forward)
+    try:
+        rc = p.wait()
+    finally:
+        testbox.cleanup(scratch)
+    sys.exit(rc if rc >= 0 else 128 - rc)
+
+
 def cmd_gate(a):
     con = db()
     if a.action == "run":
@@ -8942,8 +8985,20 @@ def cmd_tick(a, locked=False):
         except SystemExit:
             if s["role"] != "evaluator":
                 raise
-            # a transient failure: spawn() left the row queued and the trial running; the next tick retries
-            event(con, "agent", q["name"], "evaluator-spawn-retry", "queued evaluator spawn failed; retried next tick")
+            # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
+            # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
+            fails = int(s.get("spawn_failures", 0)) + 1
+            if fails >= EVALUATOR_SPAWN_RETRY_MAX:
+                why = f"evaluator spawn failed {fails} times; giving up"
+                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
+                            "WHERE agent=? AND status='running'", (now(), why, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-failed", why)
+            else:
+                con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
+                            "WHERE name=? AND status='queued'", (fails, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-retry",
+                      f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
     _pt_lap("dequeue")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
@@ -10916,6 +10971,8 @@ def main():
     x.set_defaults(fn=cmd_init)
     x = sp.add_parser("redmain", help="director only: name the fix task that may merge while a repo's main is red")
     x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
+    x = sp.add_parser("test", help="run <cmd> in the cwd under the test sandbox (config test_sandbox)")
+    x.add_argument("cmd", nargs=argparse.REMAINDER); x.set_defaults(fn=cmd_test)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
