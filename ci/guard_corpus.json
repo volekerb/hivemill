@@ -1392,6 +1392,76 @@
     "worker",
     "hq"
    ]
+  },
+  {
+   "cmd": "let x=1<<EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "if true; then let x=1<<EOF; fi\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "time let x=1<<EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "builtin let x=1<<EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "command let x=1<<EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "! let x=1<<EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "(let x=1<<EOF\n'\nEOF\n); sudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "true | let x=1<<EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "let \"x=1\" <<-EOF\n'\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "cat <<EOF\n`\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
   }
  ],
  "must_allow": [

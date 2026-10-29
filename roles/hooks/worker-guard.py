@@ -531,6 +531,8 @@ def heredoc_delim(cmd, i):
 
 HEREDOC_UNPARSED = ("unquoted heredoc body has a $( ) the guard cannot parse; quote the delimiter (<<'EOF') or "
                     "compute the value before the heredoc")
+HEREDOC_BACKTICK = ("unquoted heredoc body has an unbalanced backtick the guard cannot parse; quote the delimiter "
+                    "(<<'EOF') or remove the stray backtick")
 CS_WORD = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./:=+%@,~*?^!-")
 CS_PLAIN = frozenset(" \t\n;|&[]")
 CS_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -631,7 +633,7 @@ def heredoc_subs(body):
             while j < n and body[j] != "`":
                 j += 2 if body[j] == "\\" else 1
             if j >= n:
-                raise Block("unbalanced backtick in heredoc body")
+                raise HeredocBlock(HEREDOC_BACKTICK)
             subs.append(body[i + 1:j].replace("\\`", "`"))
             i = j + 1
         elif body.startswith("$(", i):
@@ -670,13 +672,6 @@ def arith_closes(cmd, i):
             d -= 1
         i += 1
     return False
-
-
-def let_command(head):
-    """True when `let` is the command word of the simple command being read (not quoted, not an argument)."""
-    flat = re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", "X", head)
-    seg = re.split(r"[;&|(]", flat)[-1]
-    return re.match(r"\s*(?:(?:do|then|else|elif|time|builtin|command|!|\{)\s+)*let\s", seg) is not None
 
 
 def preprocess(cmd, fold_ticks=False, bodies=None):
@@ -760,8 +755,8 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
         elif c == ")" and par:
             par.pop()
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i) and (
-                par[-1:] == ["a"] or let_command("".join(out[line_start:]))):
-            out.append("<<")  # shift operator in arithmetic / let: never a heredoc
+                par[-1:] == ["a"]):
+            out.append("<<")  # shift operator in (( )) / $(( )): never a heredoc
             i += 2
             continue
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):

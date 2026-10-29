@@ -219,7 +219,7 @@ class SubstitutionGaps(unittest.TestCase):
 
     def test_g1_arithmetic_shift_then_guarded_line(self):
         for cmd in (f"echo $((1<<2))\n{SUDO}", f"x=$((1<<EOF))\n{SUDO}", f"(( x = 1<<2 ))\n{SUDO}",
-                    f"let x=1<<2\n{SUDO}", f"for ((i=0;i<1<<2;i++)); do :; done\n{SUDO}"):
+                    f"for ((i=0;i<1<<2;i++)); do :; done\n{SUDO}"):
             with self.subTest(cmd):
                 self.both(cmd, 2)
 
@@ -235,8 +235,8 @@ class SubstitutionGaps(unittest.TestCase):
 
     def test_self_review_shapes(self):
         # let / (( )) after a keyword, brace or wrapper; DELIM) after a case pattern or inside <( )
-        for cmd in (f"if true; then let x=1<<EOF; fi\n{SUDO}\nEOF", f"{{ let x=1<<EOF; }}\n{SUDO}\nEOF",
-                    f"{{ ((x=1<<EOF)); }}\n{SUDO}\nEOF", f"time let x=1<<EOF\n{SUDO}\nEOF",
+        for cmd in (f"if true; then ((x=1<<EOF)); fi\n{SUDO}\nEOF", f"{{ ((x=1<<EOF)); }}\n{SUDO}\nEOF",
+                    f"time ((x=1<<EOF))\n{SUDO}\nEOF",
                     f"echo $(case a in a) true;; esac; cat <<EOF\nx\nEOF)\n{SUDO}\nEOF",
                     f"cat <(cat <<EOF\nx\nEOF)\n{SUDO}\nEOF"):
             with self.subTest(cmd):
@@ -359,12 +359,30 @@ class SubstitutionGaps(unittest.TestCase):
 
     def test_b5_arithmetic_shifts_still_not_heredocs(self):
         s = "su" + "do id"
-        for cmd in ("echo $((1<<2))\n" + s, "x=$((1<<EOF))\n" + s, "let x=1<<2\n" + s,
-                    "((x = 1<<2))\n" + s, "true; let x=1<<2\n" + s):
+        for cmd in ("echo $((1<<2))\n" + s, "x=$((1<<EOF))\n" + s,
+                    "((x = 1<<2))\n" + s):
             with self.subTest(cmd):
                 self.both(cmd, 2)
-        self.both("let x=1<<2", 0)
         self.both("echo $((1<<2))", 0)
+
+
+    def test_b6_let_args_are_a_heredoc(self):
+        # bash parses << after let as a heredoc (let x=1<<EOF + body + EOF prints x=1); the code after it runs
+        heads = ("let x=1<<EOF", "let \"x=1\" <<-EOF", "if true; then let x=1<<EOF; fi", "time let x=1<<EOF",
+                 "builtin let x=1<<EOF", "command let x=1<<EOF", "! let x=1<<EOF", "(let x=1<<EOF)",
+                 "true | let x=1<<EOF", "{ let x=1<<EOF; }")
+        for head in heads:
+            with self.subTest(head):
+                self.both(f"{head}\n'\nEOF\n{SUDO}", 2)
+
+    def test_b7_unbalanced_backtick_in_unquoted_body_blocks(self):
+        for cmd in (f"cat <<EOF\n`\nEOF\n{SUDO}", f"cat <<-EOF\n\t`\n\tEOF\n{SUDO}",
+                    f"cat <<EOF\necho `date\nEOF\n{SUDO}"):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_b7_unbalanced_backtick_in_quoted_body_is_data(self):
+        self.assertEqual(hook("cat <<'EOF' > notes.txt\n`\nEOF"), 0)
 
 
 if __name__ == "__main__":
