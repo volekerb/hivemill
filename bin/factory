@@ -125,7 +125,7 @@ DEFAULT_CONFIG = {
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
-    "noreply_email": "",         # GitHub noreply address refresh merges on a public_text_repos repo are committed as (T-0604)
+    "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
     "push_interval_s": "600",    # tick exports commit every change but push at most this often (a manual `factory export` pushes now)
@@ -1441,7 +1441,7 @@ def cmd_config(a):
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
         if a.key in ("public_text_repos", "frozen_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
             die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
-        if a.key == "noreply_email" and a.value.strip() and not _is_noreply(a.value):
+        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
             die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
         if a.key == "opus_effort":
             check_effort_level(a.value.strip())
@@ -2810,17 +2810,11 @@ def judge_max_refreshes(con):
 
 REFRESH_IDENT = {"GIT_AUTHOR_NAME": "factory refresh", "GIT_AUTHOR_EMAIL": "factory-refresh@localhost",
                  "GIT_COMMITTER_NAME": "factory refresh", "GIT_COMMITTER_EMAIL": "factory-refresh@localhost"}
-NOREPLY_SUFFIX = "@users.noreply.github.com"
-
-
-def _is_noreply(email):
-    return email.strip().lower().endswith(NOREPLY_SUFFIX)
-
 
 def refresh_ident(con, repo, task, owner_repo):
     """Identity env of a refresh merge commit (T-0604). Private repo: REFRESH_IDENT. PR repo or the task's project
     gh_repo in public_text_repos (no slug at all while the list is set counts as public): author and committer email =
-    config noreply_email, else `git config user.email` in `repo` when it is a noreply address. Returns (env, None), or
+    noreply_email(con) (config, else git user.email). Returns (env, None), or
     (None, why) when no noreply address is known: the refresh is refused (fail closed)."""
     public = _cfg_slugs(con, "public_text_repos")
     if not public:
@@ -2830,13 +2824,10 @@ def refresh_ident(con, repo, task, owner_repo):
     slugs = [x for x in dict.fromkeys((_repo_slug(owner_repo), _repo_slug(proj["gh_repo"] if proj else ""))) if x]
     if slugs and not set(slugs) & public:
         return REFRESH_IDENT, None
-    email = cfg(con, "noreply_email").strip()
+    email = noreply_email(con)
     if not email:
-        rc, out, _ = _git_rc(["config", "--get", "user.email"], repo=repo)
-        email = out if rc == 0 else ""
-    if not _is_noreply(email):
         return None, (f"REFRESH-IDENT: {', '.join(slugs) or 'the repo'} is public (public_text_repos) and neither config "
-                      f"noreply_email nor git user.email in {repo} is a {NOREPLY_SUFFIX} address; set "
+                      f"noreply_email nor git user.email is a {NOREPLY_SUFFIX} address; set "
                       f"`factory config noreply_email <id+handle{NOREPLY_SUFFIX}>`")
     name = REFRESH_IDENT["GIT_AUTHOR_NAME"]
     return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}, None
@@ -3230,6 +3221,67 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
     return None
 
 
+NOREPLY_SUFFIX = "@users.noreply.github.com"
+WEB_FLOW_EMAIL = "noreply@github.com"  # GitHub's own committer on web/API merges
+
+
+def _judge_is_public(con, t, owner_repo):
+    """Does the public text rule apply to this PR's repo? Same scope as judge_public_text_refusal (unknown repo = public)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    slugs = _judge_slugs(con, t, owner_repo)
+    return bool(public) and (not slugs or bool(set(slugs) & public))
+
+
+def noreply_email(con):
+    """Author email for a judge merge into a public repo (G-021): config noreply_email, else the repo-local git
+    user.email of the main checkout. None unless it ends @users.noreply.github.com."""
+    email = cfg(con, "noreply_email").strip()
+    if not email:
+        try:  # a plain read of the identity git itself would use (includeIf and global config included); runs no repo code
+            r = git_run(HOME, "config", "--get", "user.email", timeout=30)
+            email = r.stdout.strip() if r.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, OSError):
+            email = ""
+    return email if email.lower().endswith(NOREPLY_SUFFIX) else None
+
+
+def _email_problems(author, committer):
+    """Which of author/committer emails break the public-main rule. Committer may also be GitHub's web-flow address."""
+    bad = []
+    if not (author or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("author")
+    if (committer or "").strip().lower() not in (WEB_FLOW_EMAIL,) and not (committer or "").strip().lower().endswith(NOREPLY_SUFFIX):
+        bad.append("committer")
+    return bad
+
+
+def judge_merge_email_check(con, t, a, owner_repo, merged_sha):
+    """After a merge into a public repo: read the merge commit and fail loudly (event, message to the director, exit 6)
+    unless author and committer emails are noreply. Cannot read it = cannot verify = also loud. Returns normally if clean."""
+    slug = _repo_slug(owner_repo)
+    why = None
+    try:
+        sha = merged_sha
+        if not sha:
+            sha = ((gh_json("pr", "view", t["pr_url"], "--json", "mergeCommit").get("mergeCommit")) or {}).get("oid") or ""
+        if not sha:
+            why = "cannot find the merge commit of the PR, email not verified"
+        else:
+            c = gh_json("api", f"repos/{slug}/commits/{sha}")["commit"]
+            bad = _email_problems(c["author"]["email"], c["committer"]["email"])
+            if bad:
+                why = f"merge commit {sha[:8]} has a non-noreply {' and '.join(bad)} email (author {c['author']['email'][:3]}***, committer {c['committer']['email'][:3]}***)"
+    except (SystemExit, ValueError, KeyError, TypeError, subprocess.TimeoutExpired, OSError) as e:
+        why = f"cannot read the merge commit, email not verified: {type(e).__name__}: {str(e)[:120]}"
+    if why is None:
+        return
+    event(con, "task", a.task, "merge-email-leak", why)
+    send(con, "director", f"{a.task}: public merge email check FAILED", f"{why}. The change is on {slug} main. Rewrite or "
+         "verify the commit before anyone builds on it (G-021 T-0602).", "escalation", task=a.task, sender=actor())
+    con.commit()
+    die(f"{a.task} merged but the public-main email check failed: {why}; director notified", 6)
+
+
 def judge_requeue(con, task, proj, pr_url, new_head):
     """Local mode after a refresh: the new head needs its own gate run (a pass never carries across a head change).
     Enqueue it and exit without waiting; the tick launches the run and respawns a judge once it passes."""
@@ -3433,8 +3485,17 @@ def cmd_judge(a):
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
             die(refused, 4)
+        author_args = []
+        if _judge_is_public(con, t, owner_repo):  # G-021: the squash commit must not carry a real email
+            noreply = noreply_email(con)
+            if not noreply:
+                msg = ("merge refused: no noreply author email; set `factory config noreply_email <id>+<user>@users.noreply.github.com` "
+                       "or the repo-local git user.email; nothing merged")
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            author_args = ["--author-email", noreply]
         try:
-            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha],
+            p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
         except subprocess.TimeoutExpired:  # outcome unknown, like a 5xx: the squash may have landed
             p = subprocess.CompletedProcess([], 124, "", "gh pr merge timed out")
@@ -3478,6 +3539,8 @@ def cmd_judge(a):
             err = close_landed_pr(t["pr_url"], landed, reason)
             post_err += f"; PR not closed: {err}" if err else ""
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
+    if _judge_is_public(con, t, owner_repo):
+        judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
 
 
 def cmd_refresh(a):
@@ -7685,6 +7748,50 @@ def sync_pull(con, push_ok=True):
     return _sync_failed(con, err)
 
 
+PUBLIC_MAIN_SCAN_MAX = 200  # commits looked at when there is no usable watermark
+
+
+def public_main_email_check(con):
+    """Tick (G-021 T-0602): for the main checkout when its origin is in public_text_repos, look at the commits that are new
+    on origin/main since the last check; an author or committer email that is not noreply (web-flow committer allowed)
+    -> one escalation to the boss per sha. Never raises: the tick goes on."""
+    try:
+        public = _cfg_slugs(con, "public_text_repos")
+        if not public:
+            return
+        slug = next((s for s in (_repo_slug(u) for u in _origin_urls()) if s in public), None)
+        if not slug:
+            return
+        key = f"public_main_seen:{slug}"
+        row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+        rc, tip, _ = _git_rc(["rev-parse", "-q", "--verify", "refs/remotes/origin/main^{commit}"])
+        if rc != 0 or not tip:
+            return
+        seen = row["value"] if row else ""
+        rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
+        rc, out, err = _git_rc(["log", "--format=%H%x09%ae%x09%ce", *rng])
+        if rc != 0:
+            raise RuntimeError(err or f"git log exited {rc}")
+        for line in out.splitlines():
+            sha, ae, ce = (line.split("\t") + ["", ""])[:3]
+            bad = _email_problems(ae, ce)
+            tkey = f"email-alert:{sha}"
+            if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
+                continue
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (tkey, str(time.time())))
+            send(con, "boss", f"public main {slug}: non-noreply email on {sha[:8]}",
+                 f"Commit {sha} on {slug} origin/main has a non-noreply {' and '.join(bad)} email (author {ae[:3]}***, "
+                 f"committer {ce[:3]}***). Required: ...{NOREPLY_SUFFIX}. Rewrite the commit or confirm it is fine; "
+                 "alerted once for this sha (G-021 T-0602).", "escalation", sender="tick")
+            event(con, "system", slug, "public-main-email", sha)
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, tip))
+    except Exception as e:  # noqa: BLE001 — a failed alert check must not stop the tick
+        try:
+            event(con, "system", "tick", "public-main-email-failed", str(e)[:200])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def state_commit(msg):
     """Commit exports/ and state/ to refs/heads/state with plumbing and a private index: main's index, HEAD and
     branch are never touched. Returns True if a new commit was made."""
@@ -7718,6 +7825,7 @@ def export(con, push=None):
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
     sync_pull(con, push_ok and state_ok)  # first: merged code goes live and tracked generated files are restored before they are rewritten
+    public_main_email_check(con)
     banner = "<!-- generated by `factory export` from factory.db — edits here are overwritten -->\n"
     goals = con.execute("SELECT g.*,(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status='done') done,"
                         "(SELECT count(*) FROM tasks WHERE goal_id=g.id AND status!='cancelled') total FROM goals g ORDER BY id").fetchall()

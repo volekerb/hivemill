@@ -234,12 +234,12 @@ class RefreshTests(FactoryTestCase):
 
     # -- T-0604: refresh identity on a public_text_repos repo -------------
     def public(self, noreply=None, wt_email=None):
-        """PR_URL's repo (zz-test/repo) is public; optional config noreply_email and repo-local user.email."""
+        """PR_URL's repo (zz-test/repo) is public; optional config noreply_email and user.email of the factory checkout (main's noreply_email(con))."""
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
         if noreply:
             self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('noreply_email',?)", (noreply,))
         if wt_email:
-            git(self.wt, "config", "user.email", wt_email)
+            git(self.env.home_dir, "config", "user.email", wt_email)
 
     def refreshed_ident(self):
         new = self.remote_ref(f"refs/heads/{BRANCH}")

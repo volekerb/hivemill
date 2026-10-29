@@ -195,7 +195,7 @@ class SpawnPrecheckTests(FactoryTestCase):
         # T-0604: on a public_text_repos repo the pre-check merge is committed as the repo's noreply user.email
         main = self.main_commit()
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
-        git(self.wt, "config", "user.email", "456+zz-test@users.noreply.github.com")
+        git(self.env.home_dir, "config", "user.email", "456+zz-test@users.noreply.github.com")
         p = self.spawn("qa")
         self.assertRefreshedSpawn(p, "qa", main)
         who = "factory refresh <456+zz-test@users.noreply.github.com>"
