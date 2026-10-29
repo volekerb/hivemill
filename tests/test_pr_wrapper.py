@@ -80,6 +80,20 @@ class PrWrapperTests(FactoryTestCase):
         self.assertNotIn(self.term, p.stderr)
         self.assertEqual(self.gh_calls(), [])
 
+    def test_public_guard_ignores_case_of_gh_repo(self):
+        extra = self.make_public()
+        self.env.sql("UPDATE projects SET gh_repo='ZZ-test/Repo' WHERE id='zz-test-proj'")
+        p = self.pr("create", "--title", f"T-0001 {self.term}", "--body", "-", stdin="clean\n", extra=extra)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_public_guard_ignores_case_of_config_slug(self):
+        extra = self.make_public()
+        self.env.sql("UPDATE config SET value='ZZ-Test/REPO' WHERE key='public_text_repos'")
+        p = self.pr("create", "--title", f"T-0001 {self.term}", "--body", "-", stdin="clean\n", extra=extra)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertEqual(self.gh_calls(), [])
+
     def test_public_repo_term_in_body_refused_before_gh(self):
         extra = self.make_public()
         p = self.pr("create", "--title", "T-0001 thing", "--body", "-", stdin=f"see {self.term}\n", extra=extra)
