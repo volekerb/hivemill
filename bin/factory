@@ -1359,8 +1359,11 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
-        return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
-                       " — clean finished tasks' scratchpads"), stats
+        # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
+        # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
+        if role != "cleaner":
+            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
+                           " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
@@ -6933,6 +6936,10 @@ def cmd_res(a):
     gr = con.execute("SELECT id,kind,task_id,project_id,pid FROM gate_runs WHERE status='running' ORDER BY id").fetchall()
     print(f"gate runs: {len(gr)} running (max {cfg(con, 'gate_max_parallel')})"
           + "".join(f" · #{r['id']} {r['task_id'] or r['kind'] + ':' + r['project_id']}" for r in gr))
+    if s.get("tmp") and s["tmp"]["pct"] >= float(cfg(con, "tmp_max_pct")):
+        cok, cwhy, _ = gate(con, role="cleaner")
+        print("cleaner gate: " + ("OPEN — exempt from the /tmp gate (tmp_max_pct) so it can free /tmp; every other cap still applies"
+                                  if cok else f"CLOSED — {cwhy}"))
     print(f"agents live {s['live']}/{s['cap']} · queued {q} · other claude panes {s['other']} (counted in host total)")
     lc = lead_counts(con)
     reserved = int(cfg(con, "reserved_worker_slots"))
@@ -7580,9 +7587,12 @@ def cmd_tick(a, locked=False):
     queued = sorted(con.execute("SELECT a.*, COALESCE(g.priority, 2) AS prio, t.priority AS task_prio FROM agents a "
                                 "LEFT JOIN goals g ON g.id=a.goal_id LEFT JOIN tasks t ON t.id=a.task_id "
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
+    held = False
     for q in queued:
-        if not gate(con)[0]:
-            break
+        if not held and not gate(con)[0]:
+            held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
+        if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
+            continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
         if not cur:
