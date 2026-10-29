@@ -4119,6 +4119,39 @@ def tmp_alert(con):
                     ("1" if over else "0",))
 
 
+def remote_url_mismatch(con, home=None):
+    """None when config `factory_remote_url` is empty (learned later) or equals the checkout's `origin` URL (git remote
+    get-url origin, compared exactly like the git guard does); else a message saying what to run. URLs are shown without
+    credentials."""
+    want = cfg(con, "factory_remote_url").strip()
+    if not want:
+        return None
+    p = git_run(Path(home or LIVE_HOME), "remote", "get-url", "origin", timeout=30)
+    got = p.stdout.strip() if p.returncode == 0 else ""
+    if got and got == want:
+        return None
+    show = lambda u: re.sub(r"(?<=://)[^/@\s]*@", "", u)  # noqa: E731 — never copy a token from a URL into the DB
+    return (f"config factory_remote_url is {show(want)!r} but `git remote get-url origin` of the factory checkout is "
+            f"{show(got) or '(none)'!r}: the git guard will refuse pushes. After a remote switch run "
+            "`factory config factory_remote_url <new origin url>`; otherwise restore the origin.")
+
+
+def remote_url_alert(con):
+    """Tick hook: one alert to the director per distinct mismatch (re-armed once it matches again)."""
+    try:
+        msg = remote_url_mismatch(con)
+    except (OSError, subprocess.SubprocessError) as e:
+        event(con, "tick", "remote-url", "remote-url-check-failed", str(e)[:300])
+        return
+    row = con.execute("SELECT value FROM config WHERE key='remote_url_alerted'").fetchone()
+    seen = row["value"] if row else ""
+    if msg and msg != seen:
+        send(con, "director", "factory_remote_url does not match origin", msg, "alert", sender="tick")
+    if (msg or "") != seen:
+        con.execute("INSERT INTO config(key,value) VALUES('remote_url_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (msg or "",))
+
+
 def _tree_bytes(path):
     total = 0
     for root, dirs, files in os.walk(path, followlinks=False):
@@ -7608,6 +7641,7 @@ def cmd_tick(a, locked=False):
     agents = herdr_agents()
     morning_digest(con)
     tmp_alert(con)
+    remote_url_alert(con)
     tmp_clean(con)
     reap_stray_serves(con)
     if agents is None:
