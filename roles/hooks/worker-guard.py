@@ -1858,8 +1858,11 @@ class Analyzer:
         runner = None
         if re.fullmatch(r"python[\d.]*", name):
             for i, tok in enumerate(rest):
-                mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
-                mod = rest[i + 1] if tok == "-m" and rest[i + 1:i + 2] else (mm.group(2) if mm and mm.group(2) else None)
+                if not tok.startswith("-"):
+                    break  # a script/positional arg: later -m belongs to the script
+                # short-flag cluster ending in m (-m, -Im, -IBm): module is the next arg, or glued (-Impytest)
+                mm = re.fullmatch(r"-[BEIOPRSUabdhiqsuvx]*m(.*)", tok)
+                mod = (mm.group(1) or (rest[i + 1] if rest[i + 1:i + 2] else None)) if mm else None
                 if mod is not None:
                     if mod.split(".")[0] in ("unittest", "pytest"):
                         runner = f"python3 -m {mod}"

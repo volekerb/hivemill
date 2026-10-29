@@ -46,6 +46,16 @@ class TestSandboxRoutingExtra(unittest.TestCase):
         self.seed("1")
         self.assertEqual(self.run_hook("python3 -mpytest tests").returncode, 2)
 
+    def test_dash_m_in_short_flag_cluster_denied(self):
+        self.seed("1")
+        for cmd in ("python3 -Im pytest x", "python3 -Bm unittest tests.test_x", "python3 -IBm pytest x",
+                    "python3 -Impytest x"):
+            self.assertEqual(self.run_hook(cmd).returncode, 2, cmd)
+
+    def test_dash_m_after_script_is_script_arg(self):
+        self.seed("1")
+        self.assertEqual(self.run_hook("python3 script.py -m pytest").returncode, 0)
+
     def test_other_go_and_python_commands_allowed(self):
         self.seed("1")
         for cmd in ("go build ./...", "go vet ./...", "python3 -m json.tool x.json", "python3 script.py"):
