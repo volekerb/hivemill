@@ -137,7 +137,9 @@ The sandbox is behind one config key, `sandbox_roles`: a comma list of roles who
 
 A role that is listed never starts unsandboxed. Before any pane is placed, the spawn checks: user namespaces work; the DB is at `<FACTORY_HOME>/db/factory.db`; the worker oauth token and the role's gh token are regular files, mode 0600, owned by the owner, not empty (only their metadata is read); a real `claude` is on the PATH; qa and coder run in a per-task clone (`.git` is a directory, G-010 T-G); the cwd is one the sandbox accepts (a reviewer with no task worktree is refused: reason `cwd`).
 
-When a check fails, no pane and no live row is created, an `sandbox-refused` event is logged with the reason, the director gets one message per reason per hour, and the spawn exits 3. A refused queued spawn stays `queued` and the tick retries it. Fix the cause, or roll back with the command above.
+When a check fails, no pane and no live row is created, an `sandbox-refused` event is logged with the reason, the director gets one message per reason per hour, and the spawn exits 3. Fix the cause, or roll back with the command above.
+
+A queued sandboxed spawn that preflight refuses is cancelled by the tick (agents row `cancelled`, event `dequeued` with `by=sandbox-preflight`), never started unsandboxed, and the spawning team's lead (the director when there is no team) gets one message, `sandbox refused queued spawn <name>`, with the reason. Every refusal reason needs a human fix, not time: fix it and spawn again.
 
 ### What a running agent does on rollback
 Nothing visible: it finishes inside its sandbox. The flag is read at spawn and at `factory relaunch` (which goes through spawn); a relaunch after the flag was cleared starts that agent unsandboxed with its old session (`--resume`). There is no restart step. To force the change now, relaunch it with `factory relaunch --when-idle`.
