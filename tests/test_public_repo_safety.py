@@ -311,12 +311,26 @@ class JudgeTextTests(Base):
     def test_title_and_body_and_branch_are_scanned(self):
         self.pr(self.terms_env, title="zebracorp rename")
         self.assert_text_refused(self.judge(), "owner-term")
-        self.pr(self.terms_env, body="see /home/zebracorp/notes")
+        self.pr(self.terms_env, body="see " + "/home/" + "zebracorp/notes")
         self.assert_text_refused(self.judge(), "owner-term")
 
     def test_commit_identity_email_refused(self):
-        self.pr(self.terms_env, author_email="alice@realmail.test")
+        self.pr(self.terms_env, author_email="alice" + chr(64) + "realmail.test")
         self.assert_text_refused(self.judge(), "email")
+
+    def test_refusal_names_source_and_category_not_text(self):
+        self.pr(self.terms_env, title="zebracorp rename", body="ok\nsee " + "/home/" + "zebracorp/notes\nmail bob" + chr(64) + "realmail.test",
+                comments=["fine", "x\nthanks zebracorp team"])
+        p = self.judge()
+        self.assert_text_refused(p, "owner-term@title:line 1", "owner-term@comment 2:line 2", "email@body:line 3")
+        for text in ("realmail", "bob" + chr(64), "/home/zebracorp", "rename"):
+            self.assertNotIn(text, p.stderr)
+
+    def test_refusal_names_commit_and_path_location(self):
+        self.pr(self.terms_env, author_email="alice" + chr(64) + "realmail.test")
+        p = self.judge()
+        self.assert_text_refused(p, "email@commit:")
+        self.assertNotIn("alice", p.stderr)
 
     def test_no_terms_refused(self):
         p = self.judge(extra={"SCRUB_TERMS_FILE": ""})
