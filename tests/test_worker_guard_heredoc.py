@@ -321,6 +321,14 @@ class SubstitutionGaps(unittest.TestCase):
             self.assertIn("unquoted heredoc body has a $( ) the guard cannot parse; quote the delimiter (<<'EOF') "
                           "or compute the value before the heredoc", r.stderr)
 
+    def test_v2_redirects_positional_params_and_unterminated_quote(self):
+        for inner in ("cat < f", "echo a > f", "echo a >> f", "echo $1 $? $$ $# $@", "echo a 2>&1"):
+            with self.subTest(inner):
+                self.both(f"cat <<EOF\n$({inner})\nEOF", 0)
+        for inner in ("cat << X", "cat <(ls)", "echo >(ls)", "echo 'a"):
+            with self.subTest(inner):
+                self.both(f"cat <<EOF\n$({inner})\nEOF", 2)
+
     def test_v2_arithmetic_shift_in_body_fails_closed(self):
         self.both("cat <<EOF\n$((1<<2))\nEOF", 2)
 
