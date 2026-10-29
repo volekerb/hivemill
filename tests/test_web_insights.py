@@ -91,8 +91,11 @@ class TestQualityPage(InsightServer):
         r = subprocess.run(["git", "show", "origin/main:web/views/quality.py"], cwd=ROOT, capture_output=True, text=True)
         if r.returncode != 0:
             self.skipTest("origin/main is not available in this checkout; DEFINITIONS above is the pinned copy")
-        found = {n.args[2].value for n in ast.walk(ast.parse(r.stdout)) if isinstance(n, ast.Call)
-                 and getattr(n.func, "id", "") in ("k", "kpi") and len(n.args) == 3 and isinstance(n.args[2], ast.Constant)}
+        calls = [n for n in ast.walk(ast.parse(r.stdout)) if isinstance(n, ast.Call)]
+        found = {n.args[2].value for n in calls if getattr(n.func, "id", "") in ("k", "kpi") and len(n.args) == 3
+                 and isinstance(n.args[2], ast.Constant)}
+        found |= {kw.value.value for n in calls if getattr(n.func, "id", "") == "tile" for kw in n.keywords
+                  if kw.arg == "definition" and isinstance(kw.value, ast.Constant)}
         self.assertTrue(found)
         self.assertEqual(found - set(DEFINITIONS), set(), "a definition on main is not in the pinned list")
         html = self.text("/quality")
