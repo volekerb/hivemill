@@ -41,10 +41,10 @@ Install and check (owner):
 ```
 systemctl --user daemon-reload
 systemctl --user enable --now factory-tests.service
-cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/factory-tests.slice/factory-tests.service/cgroup.subtree_control
+cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/factory-tests.slice/factory-tests.service/cgroup.controllers
 ```
 
-The last command must print `cpu memory pids`. Why a oneshot service: Delegate= is documented for services and scopes, not slices, and a cgroup that delegates controllers to children must hold no process itself (kernel no-internal-process rule), which `RemainAfterExit` with a no-op `ExecStart` gives. Agents cannot run `systemd-run` (M2108), so `factory test` makes the child cgroups by writing cgroupfs directly inside this delegated parent.
+The last command must list `cpu memory pids` (available controllers; `cgroup.subtree_control` stays empty until the first `factory test` run enables them, because systemd does not do that for a delegatee). Why a oneshot service: Delegate= is documented for services and scopes, not slices, and a cgroup that delegates controllers to children must hold no process itself (kernel no-internal-process rule), which `RemainAfterExit` with a no-op `ExecStart` gives. Agents cannot run `systemd-run` (M2108), so `factory test` makes the child cgroups by writing cgroupfs directly inside this delegated parent.
 
 Rollback: `factory config test_cgroup 0`, then `systemctl --user disable --now factory-tests.service` and remove the two files.
 
@@ -58,4 +58,4 @@ Rollback: `factory config test_cgroup 0`, then `systemctl --user disable --now f
 | `test_mem_max` | `3G` | `memory.max`; `memory.swap.max` is set to 0 so the cap is a real one. |
 | `test_tasks_max` | `512` | `pids.max`. |
 
-Behaviour with `test_cgroup=1`: the parent must exist, be writable, and have `cpu`, `memory` and `pids` in its `cgroup.subtree_control`; otherwise `factory test` exits 3 and the command is **not run** (never uncapped). The run's process tree is moved into the child before the command starts; when the command ends the child cgroup is killed (`cgroup.kill`) and removed. A kernel OOM kill inside the cap shows as exit 137. Works with `test_sandbox` 0 or 1.
+Behaviour with `test_cgroup=1`: the parent must exist, be writable, and list `cpu`, `memory` and `pids` in its `cgroup.controllers` (Delegate=); `factory test` then writes `+cpu +memory +pids` to the parent's `cgroup.subtree_control` itself, and refuses if that write fails; otherwise `factory test` exits 3 and the command is **not run** (never uncapped). The run's process tree is moved into the child before the command starts; when the command ends the child cgroup is killed (`cgroup.kill`) and removed. A kernel OOM kill inside the cap shows as exit 137. Works with `test_sandbox` 0 or 1.

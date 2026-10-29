@@ -38,7 +38,8 @@ class Base(FactoryTestCase):
     def fake_parent(self, controllers="cpu memory pids"):
         p = self.env.home / "cgparent"
         p.mkdir(exist_ok=True)
-        (p / "cgroup.subtree_control").write_text(controllers + "\n")
+        (p / "cgroup.controllers").write_text(controllers + "\n")  # what Delegate= makes available
+        (p / "cgroup.subtree_control").write_text("")  # systemd leaves it empty; check_parent must enable them
         self.cfg("test_cgroup", "1")
         self.cfg("test_cgroup_parent", str(p))
         return p
@@ -108,6 +109,7 @@ class Limits(Base):
         self.assertEqual((k / "memory.max").read_text(), "2G")
         self.assertEqual((k / "memory.swap.max").read_text(), "0")
         self.assertEqual((k / "pids.max").read_text(), "99")
+        self.assertEqual((parent / "cgroup.subtree_control").read_text(), "+cpu +memory +pids")  # enabled by check_parent
         self.assertEqual((k / "cgroup.procs").read_text(), "0")  # the run moved itself in before exec
 
     def test_defaults_are_400_percent_3g_512(self):
@@ -137,11 +139,11 @@ def delegated_parent():
         d.mkdir()
     except OSError as e:
         return None, f"cannot create a cgroup under {USER_CG}: {e.strerror}"
-    try:
-        (d / "cgroup.subtree_control").write_text("+cpu +memory +pids")
-    except OSError as e:
+    # Like systemd's Delegate=: controllers are available but subtree_control is left empty for factory test to fill.
+    avail = (d / "cgroup.controllers").read_text().split()
+    if not all(c in avail for c in testcg.CONTROLLERS):
         d.rmdir()
-        return None, f"cannot delegate controllers in {d}: {e.strerror}"
+        return None, f"cpu memory pids not available in {d} (have: {' '.join(avail)})"
     return d, ""
 
 
@@ -154,9 +156,10 @@ class Enforced(Base):
         self.cfg("test_cgroup", "1")
         self.cfg("test_cgroup_parent", str(parent))
         self.cfg("test_mem_max", "64M")
-        ok = self.ftest("python3", "-c", "x = bytearray(16 * 1024 * 1024); print('small ok')")
+        self.assertEqual((parent / "cgroup.subtree_control").read_text().strip(), "")  # nothing pre-enabled
+        ok = self.ftest(sys.executable, "-c", "x = bytearray(16 * 1024 * 1024); print('small ok')")
         self.assertEqual((ok.returncode, ok.stdout.strip()), (0, "small ok"), ok.stderr)
-        big = self.ftest("python3", "-c", "x = bytearray(400 * 1024 * 1024); print('survived')")
+        big = self.ftest(sys.executable, "-c", "x = bytearray(400 * 1024 * 1024); print('survived')")
         self.assertEqual(big.returncode, 137, (big.stdout, big.stderr))  # SIGKILL from the cgroup OOM killer
         self.assertNotIn("survived", big.stdout)
         self.assertEqual([d for d in parent.iterdir() if d.is_dir()], [], "child cgroups are removed after the run")

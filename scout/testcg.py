@@ -50,14 +50,21 @@ def check_parent(parent):
         raise CgroupError(f"test_cgroup=1: parent cgroup {parent} is not writable by this user (not delegated?); see docs/test-cgroups.md; "
                           "the command was not run uncapped (rollback: factory config test_cgroup 0)")
     try:
-        with open(os.path.join(parent, "cgroup.subtree_control")) as f:
-            have = f.read().split()
+        with open(os.path.join(parent, "cgroup.controllers")) as f:
+            avail = f.read().split()
     except OSError as e:
-        raise CgroupError(f"test_cgroup=1: cannot read {parent}/cgroup.subtree_control: {e.strerror}; the command was not run uncapped") from e
-    missing = [c for c in CONTROLLERS if c not in have]
+        raise CgroupError(f"test_cgroup=1: cannot read {parent}/cgroup.controllers: {e.strerror}; the command was not run uncapped") from e
+    missing = [c for c in CONTROLLERS if c not in avail]
     if missing:
         raise CgroupError(f"test_cgroup=1: parent cgroup {parent} does not delegate {' '.join(missing)}; check Delegate= in docs/test-cgroups.md; "
                           "the command was not run uncapped")
+    # Delegate= only makes the controllers available; systemd leaves the delegated cgroup's subtree_control empty, so enable them here.
+    try:
+        with open(os.path.join(parent, "cgroup.subtree_control"), "w") as f:
+            f.write(" ".join("+" + c for c in CONTROLLERS))
+    except OSError as e:
+        raise CgroupError(f"test_cgroup=1: cannot enable {' '.join(CONTROLLERS)} in {parent}/cgroup.subtree_control: {e.strerror}; "
+                          "the parent must hold no process (docs/test-cgroups.md); the command was not run uncapped") from e
 
 
 def create(parent, name, lim):
