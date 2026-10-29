@@ -67,6 +67,7 @@ import shlex
 import sqlite3
 import stat
 import sys
+import urllib.parse
 
 MAX_DEPTH = 6
 FACTORY_UNIT_CMDS = {"up", "tick", "relaunch", "spawn", "clean"}
@@ -295,8 +296,80 @@ class GitBlock(Block):
     pass
 
 
+class RepoProtBlock(PrivBlock):
+    """gh commands that change branch protection or repository settings (R-a, T-0638), every role."""
+
+
 class UnitBlock(PrivBlock):
     """Mutating systemctl (HQ mode) or systemd-run (every mode), T-0102 part D, director M2108."""
+
+
+GH_VALUE_OPTS = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-R", "--repo",
+                 "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method", "-p", "--preview"}
+GH_MUTATING = {"PUT", "PATCH", "POST", "DELETE"}
+GH_REPO_VERBS = {"edit", "rename", "archive", "unarchive", "delete"}
+GH_PROTECTED = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s]+/(?:branches/.+/protection(?:/|\?|$)|rulesets(?:/|\?|$)"
+                          r"|rules/branches)")
+GH_GRAPHQL_SETTINGS = re.compile(r"(?:update|create|delete)(?:BranchProtectionRule|Repository|RepositoryRuleset)\b"
+                                 r"|(?:un)?archiveRepository\b", re.I)
+GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
+
+
+def gh_repo_change(args):
+    """Why `gh <args>` changes branch protection or repository settings (R-a, T-0638), else None: `gh repo
+    edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body, which makes gh use POST)
+    on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine."""
+    pos, method, body, j = [], None, False, 0
+
+    def note(opt, val):
+        nonlocal method, body
+        if opt in ("-X", "--method"):
+            method = val.upper()
+        elif opt in ("-f", "--raw-field", "-F", "--field", "--input"):
+            body = True
+
+    while j < len(args):
+        x = args[j]
+        if x.startswith("--") and len(x) > 2:
+            opt, eq, val = x.partition("=")
+            if opt in GH_VALUE_OPTS:
+                if not eq:
+                    val = args[j + 1] if j + 1 < len(args) else ""
+                    j += 1
+                note(opt, val)
+        elif x.startswith("-") and len(x) > 1:  # a short-flag cluster as pflag reads it: -iX DELETE, -XPUT, -X=PUT
+            for k in range(1, len(x)):
+                opt = "-" + x[k]
+                if opt in GH_VALUE_OPTS:
+                    val = x[k + 1:]
+                    if val.startswith("="):
+                        val = val[1:]
+                    elif not val:
+                        val = args[j + 1] if j + 1 < len(args) else ""
+                        j += 1
+                    note(opt, val)
+                    break
+        else:
+            pos.append(x)
+        j += 1
+    if pos[:1] == ["repo"] and pos[1:2] and pos[1] in GH_REPO_VERBS:
+        return f"gh repo {pos[1]}"
+    if pos[:2] in (["alias", "set"], ["alias", "import"]):  # a stored alias would run the change later, unseen
+        return f"gh {pos[0]} {pos[1]}"
+    if pos[:1] != ["api"] or len(pos) < 2:
+        return None
+    endpoint = urllib.parse.unquote(re.sub(r"#.*", "", pos[1])).lower()
+    if endpoint == "graphql":  # mutations of protection or settings; a query read from a file cannot be inspected
+        if GH_GRAPHQL_SETTINGS.search(" ".join(args)) or any(re.search(r"=@|--input", a) for a in args):
+            return "gh api graphql (settings mutation or a query read from a file)"
+        return None
+    if method is None and not body:
+        return None
+    if method is not None and method not in GH_MUTATING:
+        return None
+    if GH_PROTECTED.search(endpoint) or GH_REPO_ROOT.search(endpoint):
+        return f"gh api {method or 'POST'} {endpoint}"
+    return None
 
 
 def priv_word(w, globs=False):
@@ -1014,6 +1087,10 @@ class Analyzer:
             self.soft(self.script, next((a for a in rest if not a.startswith("-")), ""), depth + 1)
         elif name == "git":
             self.git_priv(rest, depth)
+        elif name == "gh":
+            hit = gh_repo_change(rest)
+            if hit:
+                raise RepoProtBlock(hit)
         elif name == "sed":
             for a in rest:
                 m = SED_E.search(a)
@@ -1678,6 +1755,7 @@ class Analyzer:
             self.systemctl(rest)
         elif INTERPRETERS.match(name):
             self.interp_priv(name, rest)
+            self.unittest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
                 if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
                     raise Block("herdr in inline interpreter code")
@@ -1712,6 +1790,46 @@ class Analyzer:
             if name == "xargs":
                 self.xargs(rest)
             self.loose(rest, depth, assigns)
+
+    def unittest_full(self, name, rest):
+        """T-0642: coder, qa and reviewer run no full suite locally (CI is the full gate). Blocked: `python -m unittest`
+        with no test argument, `... discover` unless -p/--pattern names one module (no wildcard). Allowed:
+        `python -m unittest tests.test_x` and `unittest discover -s tests -p test_x.py`."""
+        if self.role not in ("coder", "qa", "reviewer") or not re.fullmatch(r"python[\d.]*", name):
+            return
+        args = None
+        for i, tok in enumerate(rest):
+            mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
+            if tok == "-m" and rest[i + 1:i + 2]:
+                mod, after = rest[i + 1], rest[i + 2:]
+            elif mm and mm.group(2):  # attached form: -munittest
+                mod, after = mm.group(2), rest[i + 1:]
+            else:
+                continue
+            if mod in ("unittest", "unittest.__main__"):
+                args = after
+                break
+        if args is None:
+            return
+        advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
+                  "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
+        if args[:1] == ["discover"]:
+            pats = [args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--pattern")]
+            pats += [a.split("=", 1)[1] for a in args if a.startswith("--pattern=")]
+            if pats and all(re.fullmatch(r"test_[\w]+\.py", x) for x in pats):  # the last pattern wins, so all must be single-module
+                return
+            raise Block("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
+        mods = []
+        skip = False
+        for a in args:
+            if skip:
+                skip = False
+            elif a in ("-k", "--start-directory", "-s", "-t", "-p"):
+                skip = True
+            elif not a.startswith("-"):
+                mods.append(a)
+        if not mods:
+            raise Block("`python3 -m unittest` with no test module runs the full suite" + advice)
 
     def kill(self, rest):
         """Worker mode (G-008 M1932): `kill` may only name the worker's own background job, `%<job>` or `$!`.
@@ -2545,6 +2663,11 @@ def main():
     except UnitBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): mutating systemctl/systemd-run is not allowed for "
                          "factory agents; the owner manages units (M2108)\n")
+        return 2
+    except RepoProtBlock as e:
+        sys.stderr.write(f"worker-guard: blocked (`{e}`): branch protection and repository settings are changed only by "
+                         "the owner (ci/publish_repo.py, rule R-a); agents may only read them with a plain GET. "
+                         "Tell your lead if this is wrong.\n")
         return 2
     except PrivBlock as e:
         sys.stderr.write(f"worker-guard: blocked: privilege escalation (`{e}`) is not allowed for factory agents "

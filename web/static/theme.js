@@ -30,7 +30,7 @@
   });
   mark();
   var details = [].slice.call(document.querySelectorAll("details")), here = location.pathname + location.search;
-  function did(d, i) { return d.id || "#" + i; }
+  function did(d, i) { return d.getAttribute("data-key") || d.id || "#" + i; }  // stable key; index only as a last resort
   try {
     var kept = JSON.parse(get("sessionStorage", KEEP));
     if (kept && kept.path === here && Date.now() - kept.at < 90000 && Array.isArray(kept.open)) {

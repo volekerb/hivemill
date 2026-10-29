@@ -86,3 +86,16 @@ attributed exactly as before. Files are keyed by full path, so the same basename
 Worker files are confined: each file's realpath must be a regular file inside that agent's own `claude/projects`;
 symlinks pointing elsewhere are skipped. `TokenIndex(root, extra_roots=[...], workers_root=...)` adds roots without
 changing the meaning of `root`.
+
+## Visual QA
+
+`python3 ci/visual_qa.py` captures every page (`/`, `/goals`, a goal, `/tasks`, a task, `/agents`, `/resources`, `/throughput`, `/quality`, `/changelog`, `/tokens`) in light and dark at 1280x860 and 390x844 (44 PNGs) and checks them. It is run by hand or by QA, not by unittest.
+
+- **Overflow**: the page must not scroll sideways, and no element may reach past the viewport unless a horizontally scrolling ancestor (`overflow-x: auto/scroll`) contains it. The report names the selector and its right edge.
+- **Blank**: on the overview at 1280 px, at most 35% of the content column (right of the sidebar) may be 8x8 px cells of one uniform colour equal to the page background. The share is printed with one decimal.
+- **Contrast**: every text pair of the design tokens in `web/static/app.css` must reach 4.5 and every non-text pair 3.0, in both themes (same pairs and formula as `tests/test_web_design.py`).
+- **Speed**: the median of 5 server-side renders (HTTP GET to the local server) per route must stay under 200 ms.
+
+The thresholds are constants in the script and no option changes them. Options: `--routes /a,/b` (subset), `--out DIR` (keep the PNGs; default is a temp dir that is removed), `--browser PATH` (an installed chrome-headless-shell instead of the pinned download), `--json FILE` (machine-readable result). The last output line is `visual-qa: PASS` (exit 0) or `visual-qa: FAIL (<n> problems)` (exit 1); exit 2 means setup failed (no browser, seed failed, live home refused).
+
+It never touches the live home: the demo DB is seeded into a temp `FACTORY_HOME`/`HOME`, served on 127.0.0.1 on a free port, and the server, browser and temp dir are removed when the run ends, also on Ctrl-C. The theme is chosen with the browser's emulated `prefers-color-scheme`; the server needs no QA route.
