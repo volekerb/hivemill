@@ -11,6 +11,8 @@ from unittest import mock
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "ci"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import envcheck  # noqa: E402
 
 import demo_cdp  # noqa: E402
 import demo_tour  # noqa: E402
@@ -148,9 +150,11 @@ class InterruptedStartup(unittest.TestCase):
         self.assertEqual(rc, 130)
         self.assertIsNotNone(sleeper.poll(), "child still running after interrupt")
 
+    @envcheck.skip_on_ram()
     def test_interrupt_during_serve_stops_the_server(self):
         self.run_interrupted("serve")
 
+    @envcheck.skip_on_ram()
     def test_interrupt_during_seed_stops_the_seed(self):
         self.run_interrupted("seed")
 
@@ -172,11 +176,13 @@ class Cli(unittest.TestCase):
         r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--demo-dir", "/tmp/d")
         self.assertEqual(r.returncode, 3, r.stderr)
 
+    @envcheck.skip_on_ram()
     def test_max_frames_below_page_count_is_usage_error(self):
         r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--pages", "/a,/b,/c", "--max-frames", "2")
         self.assertEqual(r.returncode, 2)
         self.assertIn("at least the number of pages", r.stderr)
 
+    @envcheck.skip_on_ram()
     def test_bad_pages_is_usage_error(self):
         r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--pages", "goals")
         self.assertEqual(r.returncode, 2, r.stderr)
