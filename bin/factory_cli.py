@@ -9597,11 +9597,16 @@ def _sync_failed(con, err):
     return False
 
 
-def _migrate_state_commits(con, push_ok=True, target="origin/main"):
+_FETCH_MAIN = ["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"]
+
+
+def _migrate_state_commits(con, push_ok=True, target="origin/main", fetched=False):
     """Old code committed "state:" commits on main. Drain them once by dropping them locally; they are never pushed
     (they carry factory.sql, T-0326). With git_push=0, state_push=0 or --no-push (push_ok False) the commits stay
-    where they are. Returns an error string when main holds anything else (nothing is touched then), else None."""
-    _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])
+    where they are. fetched=True: the caller just fetched origin/main, skip our own fetch.
+    Returns an error string when main holds anything else (nothing is touched then), else None."""
+    if not fetched:
+        _git_rc(_FETCH_MAIN)
     rc, out, _ = _git_rc(["log", "--format=%H%x00%P%x00%s", "origin/main..main"])
     if rc != 0 or not out:
         return None
@@ -9644,15 +9649,16 @@ def sync_pull(con, push_ok=True):
     if tracked:
         _git_rc(["restore", "--worktree", "--source=HEAD", "--pathspec-from-file=-", "--pathspec-file-nul"], input=tracked)
         _git_rc(["update-index", "-q", "--refresh"])  # restore leaves stale stat data: reset --keep / ff-merge would say "not uptodate"
+    # the one fetch of this call (_sync_target reads only config, so the order is free); later checks (email) read origin/main
+    frc, _, ferr = _git_rc(_FETCH_MAIN)
     target = _sync_target(con)
     if target is None:
-        _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])  # later checks (email) read origin/main
         return False  # public main holds (or may hold) a non-PR commit: the freeze alert already went out (T-0639)
-    err = _migrate_state_commits(con, push_ok, target)
+    if frc != 0:
+        return _sync_failed(con, f"git fetch origin main failed: {ferr or frc}")
+    err = _migrate_state_commits(con, push_ok, target, fetched=True)
     if err is None:
-        rc, _, err = _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])
-        if rc == 0:
-            rc, _, err = _git_rc(["merge", "-q", "--ff-only", target])
+        rc, _, err = _git_rc(["merge", "-q", "--ff-only", target])
         if rc == 0:
             render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2); the pull just deleted the tracked files
             try:
