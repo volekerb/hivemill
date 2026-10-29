@@ -295,8 +295,59 @@ class GitBlock(Block):
     pass
 
 
+class RepoProtBlock(PrivBlock):
+    """gh commands that change branch protection or repository settings (R-a, T-0638), every role."""
+
+
 class UnitBlock(PrivBlock):
     """Mutating systemctl (HQ mode) or systemd-run (every mode), T-0102 part D, director M2108."""
+
+
+GH_VALUE_OPTS = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-R", "--repo",
+                 "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method"}
+GH_MUTATING = {"PUT", "PATCH", "POST", "DELETE"}
+GH_REPO_VERBS = {"edit", "rename", "archive", "unarchive", "delete"}
+GH_PROTECTED = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s]+/(?:branches/.+/protection(?:/|\?|$)|rulesets(?:/|\?|$)"
+                          r"|rules/branches)")
+GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
+
+
+def gh_repo_change(args):
+    """Why `gh <args>` changes branch protection or repository settings (R-a, T-0638), else None: `gh repo
+    edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body, which makes gh use POST)
+    on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine."""
+    pos, method, body, j = [], None, False, 0
+    while j < len(args):
+        x = args[j]
+        if x in GH_VALUE_OPTS:
+            val = args[j + 1] if j + 1 < len(args) else ""
+            if x in ("-X", "--method"):
+                method = val.upper()
+            elif x in ("-f", "--raw-field", "-F", "--field", "--input"):
+                body = True
+            j += 2
+            continue
+        if x.startswith("--method="):
+            method = x.split("=", 1)[1].upper()
+        elif re.fullmatch(r"-X\S+", x):
+            method = x[2:].upper()
+        elif x.startswith(("--field=", "--raw-field=", "--input=")) or re.fullmatch(r"-[fF]\S+", x):
+            body = True
+        elif not x.startswith("-"):
+            pos.append(x)
+        j += 1
+    if pos[:1] == ["repo"] and pos[1:2] and pos[1] in GH_REPO_VERBS:
+        return f"gh repo {pos[1]}"
+    if pos[:1] != ["api"] or len(pos) < 2:
+        return None
+    endpoint = pos[1]
+    if method is None and not body:
+        return None
+    if method is not None and method not in GH_MUTATING:
+        return None
+    if GH_PROTECTED.search(endpoint) or GH_REPO_ROOT.search(endpoint):
+        return f"gh api {method or 'POST'} {endpoint}"
+    return None
 
 
 def priv_word(w, globs=False):
@@ -1014,6 +1065,10 @@ class Analyzer:
             self.soft(self.script, next((a for a in rest if not a.startswith("-")), ""), depth + 1)
         elif name == "git":
             self.git_priv(rest, depth)
+        elif name == "gh":
+            hit = gh_repo_change(rest)
+            if hit:
+                raise RepoProtBlock(hit)
         elif name == "sed":
             for a in rest:
                 m = SED_E.search(a)
@@ -2586,6 +2641,11 @@ def main():
     except UnitBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): mutating systemctl/systemd-run is not allowed for "
                          "factory agents; the owner manages units (M2108)\n")
+        return 2
+    except RepoProtBlock as e:
+        sys.stderr.write(f"worker-guard: blocked (`{e}`): branch protection and repository settings are changed only by "
+                         "the owner (ci/publish_repo.py, rule R-a); agents may only read them with a plain GET. "
+                         "Tell your lead if this is wrong.\n")
         return 2
     except PrivBlock as e:
         sys.stderr.write(f"worker-guard: blocked: privilege escalation (`{e}`) is not allowed for factory agents "
