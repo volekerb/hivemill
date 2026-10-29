@@ -97,6 +97,33 @@ class TermsReadTests(unittest.TestCase):
             for cmd in shapes:
                 self.refused(self.bash(cmd, role=role), f"{role}: {cmd}")
 
+    def test_recursive_and_archive_reads_of_the_dir_or_an_ancestor_refused(self):
+        d, par = self.secrets, self.tmp
+        base = os.path.basename(d)
+        shapes = [f"grep -r zebra {d}", f"grep -rn . {d}", f"grep -R . {d}", f"rg . {d}", f"cd {par} && grep -r . {base}",
+                  f"find {d} -type f -exec cat {{}} +", f"find {d} | xargs cat", f"find {d} -print0 | xargs -0 cat",
+                  f"tar cf - {d} | tar xOf -", f"zip -r /tmp/x.zip {d}", f"cp -r {d} /tmp/x", f"rsync -a {d}/ /tmp/x/",
+                  f"grep -r . {par}", f"cd {d} && grep -r .", f"cd {d} && rg zebra", f"grep --recursive . {d}"]
+        for role in ROLES:
+            for cmd in shapes:
+                self.refused(self.bash(cmd, role=role), f"{role}: {cmd}")
+
+    def test_recursive_reads_elsewhere_allowed(self):
+        other = os.path.join(self.tmp, "src")
+        os.makedirs(other)
+        for cmd in [f"grep -r x {other}", f"rg x {other}", f"find {other} -name x", f"cd {other} && grep -rn x .",
+                    f"cp -r {other} {other}2", "grep x README.md", f"cd {other} && rg x"]:
+            p = self.bash(cmd)
+            self.assertEqual(p.returncode, 0, f"should allow: {cmd}\n{p.stderr}")
+
+    def test_indirection_and_brace_expansion_next_to_the_terms_file_refused(self):
+        shapes = ['V=SCRUB_TERMS_FILE; cat "${!V}"', 'v=SCRUB; V=${v}_TERMS_FILE; cat "${!V}"',
+                  f"cat {self.secrets}/terms.{{txt,x}}", "cat $SCRUB_TERMS_FIL{E,}", f"cat {self.secrets}/{{terms,x}}.txt"]
+        for cmd in shapes:
+            self.refused(self.bash(cmd), cmd)
+        for cmd in ["echo ${!x}", "echo {a,b}", "x=1; echo ${!x}"]:
+            self.assertEqual(self.bash(cmd).returncode, 0, cmd)
+
     def test_symlink_and_hardlink_to_the_terms_file_refused(self):
         os.symlink(self.terms, os.path.join(self.tmp, "ln.txt"))
         os.link(self.terms, os.path.join(self.tmp, "hard.txt"))

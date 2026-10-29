@@ -61,3 +61,13 @@ Three config keys, all empty by default (nothing changes while they are empty). 
 | `scrub_terms_file` | path of the owner terms file, local only. The environment variable `SCRUB_TERMS_FILE` wins. Without terms the judge check fails closed. `factory spawn` exports it as `SCRUB_TERMS_FILE` to coder, reviewer, qa and judge. worker-guard refuses every direct read of the file by those roles (cat, grep, redirection, python open, Read and Grep tools); only `ci/scrub_scan.py` and `ci/public_text_guard.py` may load it. `factory config <key>` prints just that key's value. |
 
 The guard module is loaded from the main checkout (`$FACTORY_HOME/ci/public_text_guard.py`), never from the PR tree, so a PR cannot switch it off. See docs/public-text-guard.md.
+
+## Residual risk: owner-terms file (T-0600)
+
+worker-guard refuses direct reads of the terms file by any path form (compared by file identity), recursive or archive reads (`grep -r`, `rg`, `find`, `tar`, `zip`, `cp -r`, `rsync`) aimed at its directory or any ancestor, and `${!var}` indirection or brace expansion in a command that names the terms file. A command-text guard cannot stop every indirect read, so these remain:
+
+- discovering the path (`env`, `printenv`, `/proc/self/environ`), which discloses only the path;
+- computed variable names in scripts (a python string concatenation that builds `SCRUB_TERMS_FILE`), and other interpreters reading the environment;
+- a recursive read that reaches the directory through a command not listed above.
+
+Backstops: the public text guard refuses owner terms in every push, PR, comment and commit (fail closed), and G-010 sandboxing keeps the owner's config directory out of sandboxed workers. The guard stops accidents, not deliberate evasion.
