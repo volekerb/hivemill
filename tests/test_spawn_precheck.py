@@ -202,10 +202,23 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.events("precheck-skipped"), [])
         self.assertEqual(len(self.agent("judge")), 1)
 
-    def test_c_qa_clean_behind_is_refreshed_then_spawned(self):
-        main = self.main_commit()
-        p = self.spawn("qa")
-        self.assertRefreshedSpawn(p, "qa", main)
+    def assertSpawnedOnCurrentHead(self, p, role):
+        # T-0488: reviewer/qa on a clean-behind PR: no merge commit, no push, head unchanged, no refresh events
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.remote_head(), self.head)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.events("refreshed"), [])
+        self.assertEqual(self.events("spawn-bounced"), [])
+        self.assertEqual(self.events("precheck-skipped"), [])
+        self.assertEqual(len(self.agent(role)), 1)
+
+    def test_c_qa_clean_behind_spawns_on_current_head(self):
+        self.main_commit()
+        self.assertSpawnedOnCurrentHead(self.spawn("qa"), "qa")
+
+    def test_c2_reviewer_clean_behind_spawns_on_current_head(self):
+        self.main_commit()
+        self.assertSpawnedOnCurrentHead(self.spawn("reviewer"), "reviewer")
 
     def test_d_reviewer_conflict_refused_names_file(self):
         self.conflicting_main()
