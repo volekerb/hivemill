@@ -24,7 +24,7 @@ the judge's merge decision are unchanged and still required.
 
 ## Guard/sandbox/merge-gate diffs (3-angle)
 Step 6 of the skill replaces the single subagent with the Workflow tool on the one
-saved script `<factory-root>/roles/workflows/multi-angle-review.js`
+saved workflow `multi-angle-review` (`roles/workflows/multi-angle-review.js`, run by name)
 (`args.mode = "coder"`). It applies when the diff touches roles/hooks/, roles/settings/,
 ci/, .github/, scout/nsbox.py, scout/workerbox.py, has a `bin/factory` hunk in
 cmd_judge, refresh_branch, cmd_refresh, head_has_main or verdict_carries, or is over 500 lines.

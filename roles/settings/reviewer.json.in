@@ -60,7 +60,8 @@
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Workflow(multi-angle-review)"
     ]
   },
   "env": {
