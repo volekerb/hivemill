@@ -50,8 +50,8 @@ CONFIG_EXT = {".json", ".jsonc", ".json5", ".yaml", ".yml", ".toml"}  # inert on
 MAX_CONFIG_READS = 10
 # a config that names a command to start (MCP/LSP server entry, `"command": "gopls"`, toml `command = "x"`) runs code
 CFG_COMMAND = re.compile(r"(?m)[\"']command[\"']\s*:|^\s*command\s*=|[\"']lspServers[\"']\s*:")
-# toml: `command` as a key at line start or inside an inline table, bare or quoted
-CFG_COMMAND_TOML = re.compile(r"(?m)(?:^|[{,])[ \t]*[\"']?command[\"']?[ \t]*=")
+# toml: `command` as a key (dotted `x.command` too) at line start or inside an inline table, bare or quoted
+CFG_COMMAND_TOML = re.compile(r"(?m)(?:^|[{,])[ \t]*(?:[\w-]+\.)*[\"']?command[\"']?[ \t]*=")
 # yaml: `command` as a mapping key (block, `- ` list item or flow style), bare or quoted
 CFG_COMMAND_YAML = re.compile(r"(?m)(?:^[ \t]*(?:-[ \t]+)?|[{,][ \t]*)[\"']?command[\"']?[ \t]*:(?:\s|$)")
 _U_ESCAPE = re.compile(r"\\u([0-9a-fA-F]{4})")
@@ -248,14 +248,15 @@ def _json_keys(data):
 
 def _config_flags(rel, text):
     """(hooks, scripts, mcp_key) for a json/yaml/toml config: keys decide when the JSON parses, else text patterns."""
+    text = text.lstrip("\ufeff")
     if rel[rel.rfind("."):].lower() in JSON_CFG_EXT:
         try:
-            keys = _json_keys(json.loads(text.lstrip("\ufeff")))
+            keys = _json_keys(json.loads(text))
         except (ValueError, RecursionError):
             keys = None
         if keys is not None:
             return ("hooks" in keys, bool({"command", "lspServers"} & keys), bool({"mcpServers", "mcp_servers"} & keys))
-        text = _U_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+    text = _U_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)  # toml/yaml quoted keys take \uXXXX too
     hooks = bool(CFG_HOOKS.search(text))
     scripts = bool(CFG_COMMAND.search(text) or CFG_COMMAND_TOML.search(text) or CFG_COMMAND_YAML.search(text))
     return hooks, scripts, False

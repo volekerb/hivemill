@@ -828,6 +828,20 @@ class RiskTests(unittest.TestCase):
                 res = self.cls(["config.toml", "SKILL.md"], {"config.toml": text, "SKILL.md": SKILL_MD})
                 self.assertEqual(res.risk, "scripts")
 
+    def test_b_toml_yaml_dotted_escaped_and_bom_command_keys_are_scripts(self):
+        cases = {
+            "toml dotted": ("c.toml", 'x.command = "npx"'),
+            "toml inline dotted": ("c.toml", 'a = { b.command = "x" }'),
+            "toml escaped": ("c.toml", '"\\u0063ommand" = "x"'),
+            "toml bom": ("c.toml", '\ufeffcommand = "x"'),
+            "yaml escaped": ("c.yaml", '"\\u0063ommand": x'),
+            "yaml bom": ("c.yaml", "\ufeffcommand: x"),
+        }
+        for name, (path, text) in cases.items():
+            with self.subTest(name=name):
+                res = self.cls([path, "SKILL.md"], {path: text, "SKILL.md": SKILL_MD})
+                self.assertEqual(res.risk, "scripts")
+
     def test_b_yaml_command_key_block_list_or_flow_is_scripts(self):
         cases = {
             "block": ("mcp.yaml", "servers:\n  x:\n    command: npx\n    args: [y]", "scripts,mcp"),
