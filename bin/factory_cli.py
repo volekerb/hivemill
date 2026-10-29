@@ -2777,7 +2777,7 @@ def cmd_pr(a):
     tid = ag["task_id"] if ag else None
     if not tid:
         die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
-    row = con.execute("SELECT p.gh_repo, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
                       "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
     repo = ((row["gh_repo"] if row else "") or "").strip()
     if not ghcred.SLUG_RE.fullmatch(repo):
@@ -2788,8 +2788,12 @@ def cmd_pr(a):
         die(f"cannot read the current git branch ({e}); run `factory pr` from your task worktree", 3)
     branch = g.stdout.strip() if g.returncode == 0 else ""
     want = f"factory/{tid.lower()}"
-    if branch != want:
-        die(f"current branch is {branch or '(none)'!r}, not {want!r}: run `factory pr` from your own task worktree", 3)
+    # a rebuilt clean branch (no force-push) is factory/<id>-vN; accepted only when it is the DB branch of the own task
+    db_branch = (row["task_branch"] if row else "") or ""
+    db_ok = bool(db_branch) and branch == db_branch and re.fullmatch(rf"factory/{re.escape(tid)}(-v[0-9]+)?", branch, re.I)
+    if branch != want and not db_ok:
+        die(f"current branch is {branch or '(none)'!r}, not {want!r} or the task's recorded branch "
+            f"(factory/{tid.lower()}-vN, set in the task): run `factory pr` from your own task worktree", 3)
     env = {k: v for k, v in gh_git_env().items() if k not in ("GH_REPO", "GH_HOST")}
     body = None
     if a.action == "create":
