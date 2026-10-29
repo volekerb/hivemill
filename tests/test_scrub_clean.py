@@ -6,6 +6,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN = ROOT / "ci" / "scrub_scan.py"
@@ -29,8 +31,7 @@ class ScrubCleanTests(unittest.TestCase):
             repo = Path(d)
             env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
             def git(*a):
-                subprocess.run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@example.com", *a],
-                               check=True, capture_output=True, env=env)
+                harness.git("-c", "user.name=t", "-c", "user.email=t@example.com", *a, cwd=d, env=env)
             git("init", "-q")
             (repo / "ok.txt").write_text("fine\n")
             git("add", ".")
