@@ -144,6 +144,15 @@ def delegated_parent():
     if not all(c in avail for c in testcg.CONTROLLERS):
         d.rmdir()
         return None, f"cpu memory pids not available in {d} (have: {' '.join(avail)})"
+    # Moving a process needs write access to the common ancestor's cgroup.procs; a runner outside the user manager lacks it.
+    probe = d / "probe"
+    probe.mkdir()
+    r = subprocess.run([sys.executable, "-c", "import sys; open(sys.argv[1], 'w').write('0')", str(probe / "cgroup.procs")],
+                       capture_output=True, text=True)
+    probe.rmdir()
+    if r.returncode != 0:
+        d.rmdir()
+        return None, "this process cannot move itself into a cgroup below the user manager (runner not in the delegated tree)"
     return d, ""
 
 
