@@ -318,6 +318,38 @@ def _bare_host_bad(line, own_repo):
     return False
 
 
+# Narrow allowances for false positives on every real plugin (T-0728). Each is scoped by file kind AND exact pattern;
+# anything outside the scope keeps hitting.
+APACHE_URL = re.compile(r"https?://www\.apache\.org/licenses/(?:LICENSE-2\.0)?")  # Apache-2.0 boilerplate, exactly
+EMAIL = re.compile(r"[A-Za-z0-9._+-]+@([A-Za-z0-9.-]+)")
+PROSE_EXTS = {".md", ".txt"}
+LICENSE_NAME = re.compile(r"(?:license|notice)(?:[-_.][^/]*)?", re.I)  # LICENSE, LICENSE.txt, LICENSE-APACHE, NOTICE.md
+
+
+def _doc_email(addr):
+    m = EMAIL.fullmatch(addr) if isinstance(addr, str) else None
+    host = m.group(1).lower() if m else ""
+    return bool(m) and (host in DOC_HOSTS or (host.startswith("www.") and host[4:] in DOC_HOSTS))
+
+
+def _plugin_json_emails(text):
+    """Addresses a plugin.json may carry without a hit: the `author.email`, `support` or `support.email` value, at a
+    DOC_HOSTS host, written on one line and nowhere else in the file. Anything unparseable or ambiguous gives none."""
+    # ASCII + no backslash: raw == folded == parsed literals. `text` must be the raw file; never parse the folded text.
+    if not text.isascii() or "\\" in text:
+        return set()
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    author, support = data.get("author"), data.get("support")
+    cands = [author.get("email") if isinstance(author, dict) else None, support,
+             support.get("email") if isinstance(support, dict) else None]
+    return {a for a in cands if _doc_email(a) and text.count(a) == 1}
+
+
 def prescreen(path, own_repo=None):
     """Scan every text file under `path`. Returns hits [{file, line, pattern}] (file relative to `path`)."""
     root = Path(path)
@@ -335,16 +367,39 @@ def prescreen(path, own_repo=None):
                 if len(joined) >= 200 and len(set(joined)) > 8 and re.search(r"[0-9+/=]", joined):
                     wrapped.add(m.string.count("\n", 0, m.start()))
             wrapped |= _small_chunk_blobs(lines)
+            license_file = bool(LICENSE_NAME.fullmatch(n)) and full.suffix.lower() in ("", ".md", ".txt")
+            prose = full.suffix.lower() in PROSE_EXTS
+            emails = _plugin_json_emails(_read_text(full)) if n == "plugin.json" else set()
             for ln, line in enumerate(lines, 1):
-                found = [pid for pid, rx in PATTERNS if rx.search(line)]
+                found = [pid for pid, rx in PATTERNS if rx.search(line) and not (pid == "requests" and prose)]
                 if any(len(set(m.group())) > 8 for m in B64_RUN.finditer(line)) or ln - 1 in wrapped:
                     found.append("base64-run")  # not a rule of dashes/equals
-                if any(not _url_allowed(m.group().rstrip(".,;:"), own_repo) for m in URL.finditer(line)) or \
-                        _bare_host_bad(line, own_repo):
+                bare = line
+                for addr in emails:  # only the whole `"email": "addr"` / `"support": "addr"` line is exempt
+                    if re.fullmatch(r'\s*"(?:email|support)"\s*:\s*"' + re.escape(addr) + r'"\s*,?\s*', line):
+                        bare = ""
+                if any(not _url_allowed(m.group().rstrip(".,;:"), own_repo) and
+                       not (license_file and APACHE_URL.fullmatch(m.group().rstrip(".,;:")))
+                       for m in URL.finditer(line)) or _bare_host_bad(bare, own_repo):
                     found.append("url")
                 hits += [{"file": rel, "line": ln, "pattern": pid} for pid in found]
     hits.sort(key=lambda h: (h["file"], h["line"], h["pattern"]))
     return hits
+
+
+def rescreen(root, cand):
+    """Re-run the current prescreen on the kept copy of `cand` (same sha). Returns (meta, hits, copy dir); a missing or
+    invalid copy raises VendorError. Writes nothing: `clear_hits` records a clean result."""
+    meta = vendored(root, cand["id"], cand["head_sha"])
+    if not meta:
+        raise VendorError(f"{cand['id']}: no valid vendored copy at {cand['head_sha']}; run `factory skilleval vendor` first")
+    d = vendor_dir(root, cand["id"], cand["head_sha"])
+    return meta, prescreen(d / meta["plugin"], meta.get("repo")), d
+
+
+def clear_hits(d, meta):
+    """Record 0 pre-screen hits in VENDOR.json of the copy at `d`."""
+    _write(d / "VENDOR.json", (json.dumps({**meta, "prescreen_hits": []}, indent=2) + "\n").encode())
 
 
 # -- eval gate ------------------------------------------------------------------------------------
