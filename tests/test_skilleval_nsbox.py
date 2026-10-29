@@ -634,10 +634,10 @@ raise SystemExit(7)
         self.assertEqual(r.returncode, 7, r.output)
         self.assertFalse(r.timed_out)
         obs = json.loads(r.output.strip().splitlines()[-1])
-        self.assertEqual(obs["claude"], [])
-        self.assertEqual(obs["fac"], [])
+        self.assertEqual(obs["claude"], "ERR")  # allow-list: ~/.claude is not bound back, so it does not exist
+        self.assertEqual(obs["fac"], "ERR")
         self.assertFalse(obs["db"])
-        self.assertEqual(obs["sib"], [])
+        self.assertEqual(obs["sib"], "ERR")  # masked: the sibling dir does not exist
         self.assertEqual(obs["fetch"], "fail")
         self.assertEqual(obs["uid"], os.getuid())
         self.assertEqual(obs["env"], [None, None, None])
@@ -829,6 +829,66 @@ class CwdEscapeTests(unittest.TestCase):
         self.assertEqual(env["LC_ALL"], "C.UTF-8")
         self.assertEqual(env["EXTRA_OK"], "1")
         self.assertIn("PATH", env)
+
+
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class RunContainedAllowListTests(unittest.TestCase):
+    """run_contained uses the allow-list view: of $HOME only the trial (rw) and the vendored plugin (ro) are visible."""
+
+    def setUp(self):
+        self.tmp = tmpdir(self)
+        self.home = self.tmp / "home"
+        self.trials = self.home / "factory" / "trials"
+        self.trial = self.trials / "t1"
+        self.plugin = self.home / "vendor" / "plug"
+        for d in (self.trial / "work", self.plugin, self.home / "notes", self.trials / "t2"):
+            d.mkdir(parents=True)
+        (self.home / "notes" / "todo.txt").write_text("PRIVATE-NOTE")
+        (self.plugin / "SKILL.md").write_text("skill")
+        (self.trials / "t2" / "secret").write_text("x")
+
+    def run_probe(self, body, **kw):
+        probe = self.trial / "probe.py"
+        probe.write_text(body)
+        return nsbox.run_contained(self.trial, [sys.executable, str(probe)], cwd=self.trial / "work", timeout=30,
+                                   home=self.home, trials_root=self.trials, unshare=UNSHARE, **kw)
+
+    def test_unlisted_home_subdir_is_absent_trial_is_writable_plugin_is_read_only(self):
+        body = f"""
+import json, os
+def w(p):
+    try:
+        open(p, "w").write("x"); return "written"
+    except OSError as e:
+        return e.errno
+print(json.dumps(dict(notes=os.path.exists({str(self.home / 'notes')!r}),
+    home=sorted(os.listdir({str(self.home)!r})), sib=os.path.exists({str(self.trials / 't2')!r}),
+    trial=w({str(self.trial / 'work' / 'out.txt')!r}), plugin_read=os.path.exists({str(self.plugin / 'SKILL.md')!r}),
+    plugin_write=w({str(self.plugin / 'new.txt')!r}))))
+"""
+        r = self.run_probe(body, vendor_dir=str(self.plugin))
+        self.assertEqual(r.returncode, 0, r.output)
+        obs = json.loads(r.output.strip().splitlines()[-1])
+        self.assertFalse(obs["notes"])
+        self.assertEqual(obs["home"], ["factory", "vendor"])  # only the path prefixes of what is bound back
+        self.assertFalse(obs["sib"])
+        self.assertEqual(obs["trial"], "written")
+        self.assertTrue((self.trial / "work" / "out.txt").exists())
+        self.assertTrue(obs["plugin_read"])
+        self.assertEqual(obs["plugin_write"], 30)  # EROFS
+        self.assertFalse((self.plugin / "new.txt").exists())
+
+    def test_plugin_is_not_visible_when_not_listed(self):
+        r = self.run_probe(f"import os\nprint(os.path.exists({str(self.plugin)!r}))\n")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertEqual(r.output.strip(), "False")
+
+    def test_fail_closed_when_a_bind_source_is_missing(self):
+        marker = self.trial / "ran"
+        r = self.run_probe(f"open({str(marker)!r}, 'w').write('x')\n", vendor_dir=str(self.home / "vendor" / "gone"))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("gone", r.output)
+        self.assertFalse(marker.exists(), "the target must not run with a partial view")
 
 
 class EnvAllowListComposeTests(unittest.TestCase):
