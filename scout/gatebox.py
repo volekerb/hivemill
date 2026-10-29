@@ -1,8 +1,8 @@
 """Gate sandbox profile (T-0632, GS1): run the merge gate's command under the nsbox allow-list mode.
 
 The local gate runs PR code as the owner uid. This module builds the argv (and the env) that confines it: $HOME,
-$XDG_RUNTIME_DIR, /tmp and /dev/shm are empty tmpfs, the gate tree, FACTORY_MAIN and the repo's git common dir are
-read-only, FACTORY_MAIN's state dirs are masked, and only <wt_root>/{reports,factory-home,tmp} are writable. Own net
+$XDG_RUNTIME_DIR, /tmp and /dev/shm are empty tmpfs, FACTORY_MAIN and the repo's git common dir are
+read-only, FACTORY_MAIN's state dirs are masked, and only the gate tree and <wt_root>/{reports,factory-home,tmp} are writable. Own net
 namespace (lo only), own pid namespace, capabilities dropped by nsbox. If user namespaces are unavailable this raises
 GateboxError: the caller must never fall back to running the command unsandboxed. Not wired into bin/factory yet.
 """
@@ -19,10 +19,10 @@ except ImportError:  # imported by path from a script outside the repo root
     import nsbox
 
 MASKED = ("db", "run", "logs", "worktrees", "exports", "state")  # FACTORY_MAIN subdirs the gate must not see
-HIDE_TMP = ("/tmp", "/dev/shm")
+HIDE_TMP = ("/tmp", "/dev/shm", "/var/tmp")  # /var/tmp is disk-backed and survives the run: PR code must not stage files there
 ENV_PASS = ("PATH", "LANG", "TERM", "FACTORY_HOME", "FACTORY_MAIN", "FACTORY_TEST_SLOT_HELD", "GATE_SHARDS",
             "GATE_REPORT_DIR")  # plus LC_*
-TMPFS_SIZES = {"/tmp": "64m", "/dev/shm": "16m"}  # memory-backed; the real scratch is the disk-backed <wt_root>/tmp
+TMPFS_SIZES = {"/tmp": "64m", "/dev/shm": "16m", "/var/tmp": "16m"}  # memory-backed; the real scratch is the disk-backed <wt_root>/tmp
 
 
 class GateboxError(RuntimeError):
@@ -55,7 +55,8 @@ def make_env(env, factory_main, wt_root, home):
     out.setdefault("FACTORY_MAIN", factory_main)
     out.setdefault("FACTORY_HOME", f"{wt_root}/factory-home")
     out.setdefault("GATE_REPORT_DIR", f"{wt_root}/reports")
-    out.update({"HOME": home, "TMPDIR": f"{wt_root}/tmp", "PYTHONDONTWRITEBYTECODE": "1"})
+    out.update({"HOME": home, "TMPDIR": f"{wt_root}/tmp", "PYTHONDONTWRITEBYTECODE": "1", "FACTORY_GATEBOX": "1",  # marker: tests that need a nested userns skip on it
+                "PYTHONPYCACHEPREFIX": f"{wt_root}/tmp/pycache"})  # py_compile ignores DONTWRITE; the tree is read-only
     return out
 
 
@@ -73,11 +74,11 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
             os.makedirs(d, exist_ok=True)
     except OSError as e:
         raise GateboxError(f"gatebox: cannot create {e.filename}: {e.strerror}; fix wt_root, the command was not run") from e
-    rw = [os.path.realpath(d) for d in rw]
-    ro = [tree, main]
+    rw = [tree, *(os.path.realpath(d) for d in rw)]  # the gate tree is a throwaway detached checkout: tests write into it
+    ro = [main]
     common = _git_common_dir(tree)
-    if not _under(common, main) and not _under(common, tree):
-        ro.append(common)
+    if not _under(common, main):
+        ro.append(common)  # hooks, config, refs, objects: read-only even when it sits inside the rw tree
     masks = [os.path.join(main, m) for m in MASKED if os.path.isdir(os.path.join(main, m))]
     hide = [home, runtime, *HIDE_TMP]
     try:

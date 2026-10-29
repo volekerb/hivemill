@@ -48,4 +48,4 @@ Acceptance lines:
 
 Mandatory coder Rules line, verbatim:
 
-"merge origin/main before opening or updating the PR; test count >= main; renames must not strip test_ prefixes; a denied command stays denied in every form - stop and report; run the coder-skills:pre-pr-check skill before in_review; PR body needs `## Acceptance walk`; never call the 'advisor' tool."
+"merge origin/main before opening or updating the PR; the merge-tree test-count rule (worker-brief skill, item 3), verbatim; a denied command stays denied in every form - stop and report; run the coder-skills:pre-pr-check skill before in_review; PR body needs `## Acceptance walk`; never call the 'advisor' tool."

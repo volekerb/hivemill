@@ -20,7 +20,7 @@ RULES = {
     "lead.md": ["factory stop", "spec-change", "worker-brief", "read-only `goal show <own goal>`",
                 "merge origin/main", "mergeable", "pr-triage", "owner exception", "L-020", "L-025"],
     "coder.md": ["git merge origin/main", "Ran N", "`test_` prefixes"],
-    "reviewer.md": ["test count with origin/main", "def test_"],
+    "reviewer.md": ["Test count: count `def test_` on the tree of `git merge-tree --write-tree origin/main HEAD`", "def test_"],
 }
 
 
