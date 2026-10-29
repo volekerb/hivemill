@@ -317,3 +317,32 @@ $1.3204 (+35%) because the Sonnet 5.5 cache_read price was $0.20/M instead of $0
 `tests/test_web_perf.py` (about 2 s, no wall-clock assertions): every page and the stylesheet render under 300 KB on the fixture;
 a refresh with no changed files reads 0 bytes; the DB connection count returns to 0 after 20 requests (checked by wrapping
 `sqlite3.connect`; with `web/db.py` `reader()` no longer closing, the test fails with `20 != 0`).
+
+## Render time (G-019 SC4)
+
+Per-page server render time on the demo DB the README screenshots use (`ci/demo_seed.py` through `ci/screenshots.py seed`, fictional data),
+with `web.server` in-process on 127.0.0.1:0, one discarded warm-up request and 5 timed GETs per page. Exit 1 if any median is >= 200 ms.
+
+```
+python3 ci/web_render_bench.py [--runs 5] [--limit-ms 200]
+```
+
+Measured on your-box @ `712680ae` (load from other agents running):
+
+| route | median ms | p95 ms | bytes |
+|---|---|---|---|
+| / | 10.6 | 13.3 | 29090 |
+| /goals | 4.4 | 6.7 | 26753 |
+| /goal/G-001 | 3.5 | 5.0 | 18831 |
+| /tasks | 9.6 | 15.0 | 102151 |
+| /task/T-0001 | 3.2 | 4.6 | 12604 |
+| /agents | 5.8 | 6.0 | 38381 |
+| /resources | 6.5 | 10.3 | 35887 |
+| /throughput | 5.2 | 5.5 | 21518 |
+| /quality | 5.3 | 5.4 | 24099 |
+| /changelog | 5.7 | 6.7 | 62956 |
+| /tokens | 5.6 | 6.0 | 19054 |
+
+`tests/test_web_render_bench.py` runs the same code on the test DB with a 1000 ms bound (CI-safe), asserts it covers every page in
+`PAGES`, and asserts no page, `app.css` or `theme.js` references a non-localhost host in `src`, `href`, `url()` or `@import`
+(outbound GitHub PR links are the existing exception).

@@ -90,6 +90,8 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 # role never takes it. After a crash the claim stalls the queued row for at most this long (10 min). A fixed literal (tests
 # read it without importing); test_staff_engineer asserts the bound against a real spawn.
 CLAIM_TTL_S = 600
+# a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
+EVALUATOR_SPAWN_RETRY_MAX = 5
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -2672,6 +2674,68 @@ def cmd_report(a):
 
 
 # ───────────────────────────── verdicts & merge gate ─────────────────────────────
+
+def cmd_pr(a):
+    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
+    redirect it. The child env drops GH_REPO and GH_HOST."""
+    con = db()
+    role = actor_role(con)
+    if role != "coder":
+        die(f"role '{role}' ({actor()}) may not do this: `factory pr` is for coders; ask your lead", 3)
+    ag = con.execute("SELECT task_id FROM agents WHERE name=?", (actor(),)).fetchone()
+    tid = ag["task_id"] if ag else None
+    if not tid:
+        die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
+    row = con.execute("SELECT p.gh_repo, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    repo = ((row["gh_repo"] if row else "") or "").strip()
+    if not ghcred.SLUG_RE.fullmatch(repo):
+        die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
+    try:
+        g = git_run(os.getcwd(), "branch", "--show-current", timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"cannot read the current git branch ({e}); run `factory pr` from your task worktree", 3)
+    branch = g.stdout.strip() if g.returncode == 0 else ""
+    want = f"factory/{tid.lower()}"
+    if branch != want:
+        die(f"current branch is {branch or '(none)'!r}, not {want!r}: run `factory pr` from your own task worktree", 3)
+    env = {k: v for k, v in gh_git_env().items() if k not in ("GH_REPO", "GH_HOST")}
+    body = None
+    if a.action == "create":
+        if a.body != "-":
+            die("`factory pr create` takes the body on stdin only: --body - with a heredoc", 2)
+        body = read_text("-")
+        if not (a.title or "").strip() or not body:
+            die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
+                "--title", a.title, "--body-file", "-"]
+        if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
+            try:
+                guard = _public_guard()
+                terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
+                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+            except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
+                die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
+                    f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
+            if hits:
+                die(f"pr create refused (public text): {len(hits)} hits in the title, body or branch "
+                    f"({', '.join(sorted({h[0] for h in hits}))}); reword and retry", 3)
+    else:
+        if a.title is not None or a.body is not None:
+            die("`factory pr ready` takes no arguments: it targets the PR of your own branch", 2)
+        argv = ["gh", "pr", "ready", branch, "--repo", repo]
+    try:
+        p = subprocess.run(argv, input=body, capture_output=True, text=True, timeout=120, env=env)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"gh pr {a.action} failed to run: {e}", 1)
+    if p.returncode == 0:
+        event(con, "task", tid, f"pr-{a.action}", f"{repo} {branch}")
+    sys.stdout.write(p.stdout)
+    sys.stderr.write(p.stderr)
+    if p.returncode != 0:
+        sys.exit(p.returncode)
+
 
 def gh_json(*args, timeout=120):
     p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
@@ -8857,8 +8921,20 @@ def cmd_tick(a, locked=False):
         except SystemExit:
             if s["role"] != "evaluator":
                 raise
-            # a transient failure: spawn() left the row queued and the trial running; the next tick retries
-            event(con, "agent", q["name"], "evaluator-spawn-retry", "queued evaluator spawn failed; retried next tick")
+            # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
+            # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
+            fails = int(s.get("spawn_failures", 0)) + 1
+            if fails >= EVALUATOR_SPAWN_RETRY_MAX:
+                why = f"evaluator spawn failed {fails} times; giving up"
+                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
+                            "WHERE agent=? AND status='running'", (now(), why, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-failed", why)
+            else:
+                con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
+                            "WHERE name=? AND status='queued'", (fails, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-retry",
+                      f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
     try:
@@ -10927,6 +11003,10 @@ def main():
     x = sp.add_parser("done", help="worker: finish, send summary to lead, get reaped")
     x.add_argument("--force", action="store_true", help="close even with unread decision/request messages")
     x.add_argument("summary"); x.set_defaults(fn=cmd_done)
+    x = sp.add_parser("pr", help="coder: open (create) or mark ready the PR of your own task; repo and branch are fixed")
+    x.add_argument("action", choices=["create", "ready"])
+    x.add_argument("--title"); x.add_argument("--body", help="create: must be - (body on stdin)")
+    x.set_defaults(fn=cmd_pr)
     x = sp.add_parser("stop", help="owner/director/lead: STOP a busy worker (message + Esc + nudge, then a hard fallback)")
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")
