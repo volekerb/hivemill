@@ -2367,8 +2367,9 @@ def cmd_task(a):
             die("give --reason or --note, not both (--reason is the blocked reason)", 2)
         a.note = a.note or a.reason
         if a.merged_externally:
-            if role not in ("owner", "director"):
-                die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
+            # workers first: `role` trusts FACTORY_AGENT, a worker process could claim to be the director
+            if caller_is_worker() or role not in ("owner", "director"):
+                die(f"only the director or the owner may close a task with --merged-externally ({caller_is_worker() or role} may not)", 3)
             if a.status != "done" or not (a.note or "").strip():
                 die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
             extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
@@ -2386,6 +2387,8 @@ def cmd_task(a):
             con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.id))
             event(con, "task", a.id, "update",
                   f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
+            con.commit()
+            run_after_merge(con, t)
             print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
             return
         if role == "coder" and a.status == "in_review":
@@ -3283,15 +3286,7 @@ def record_merged(con, t, a, sha, shown, reason, carried=(), post_err=""):
     con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.task))
     event(con, "task", a.task, "merged", f"@{shown[:8]}")
     con.commit()
-    try:
-        after_merge(con, t, t["pr_url"])
-        con.commit()
-    except (Exception, SystemExit) as e:  # noqa: BLE001 — a failed hook must never change the merge result
-        try:  # autocommit connection: writes the hook made before it failed are kept (not atomic)
-            event(con, "task", a.task, "post-merge-hook-failed", str(e))
-            con.commit()
-        except Exception:  # noqa: BLE001
-            pass
+    run_after_merge(con, t)
     if post_err:
         event(con, "task", a.task, "merge-post-error", post_err)
     print(f"{a.task} MERGED @ {shown[:8]}")
@@ -4324,6 +4319,9 @@ def build_digest(con, goal=None, date=None, hours=24):
         out += ["### Team scores", md_table(teams, cols).rstrip("\n") if teams else "_nothing_", ""]
     if not shown:
         out += ["_no active goals_", ""]
+    if not fresh_shown:  # no goal block printed it: the line is factory-wide, so it still shows
+        stale = stale_agents(con)
+        out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
     if closed_earlier:
         out += ["## Closed earlier", "", *closed_earlier, ""]
     if not goal:
@@ -4474,11 +4472,17 @@ def _red_main_revert_task(con, slug, run, since_ts):
             if _repo_slug(r["gh_repo"]) == slug]
     g = con.execute(f"SELECT id FROM goals WHERE status='active' AND project_id IN ({','.join('?' * len(pids))}) "
                     "ORDER BY priority, id LIMIT 1", pids).fetchone() if pids else None
+    # T-0669: a goal can work in a repo its project row does not name (G-022 runs in hivemill under project factory): fall
+    # back to the active goal whose tasks carry PRs in that repo.
+    prs = f"https://github.com/{slug}/pull/%"
+    if not g:
+        g = con.execute("SELECT g.id FROM goals g JOIN tasks t ON t.goal_id=g.id WHERE g.status='active' AND t.pr_url LIKE ? "
+                        "ORDER BY g.priority, g.id LIMIT 1", (prs,)).fetchone()
     if not g:
         return None, []
-    ev = con.execute(f"SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
-                     f"WHERE e.entity='task' AND e.action='merged' AND g.project_id IN ({','.join('?' * len(pids))}) "
-                     "ORDER BY e.ts DESC", pids).fetchall()
+    ev = con.execute("SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
+                     f"WHERE e.entity='task' AND e.action='merged' AND (g.project_id IN ({','.join('?' * len(pids))}) OR t.pr_url LIKE ?) "
+                     "ORDER BY e.ts DESC", (*pids, prs)).fetchall()
     since = _red_main_when(since_ts)
     ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
@@ -4492,6 +4496,25 @@ def _red_main_revert_task(con, slug, run, since_ts):
                 (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
     event_as(con, "tick", "task", tid, "add", title)
     return tid, merged
+
+
+def cmd_redmain(a):
+    """`factory redmain fix <OWNER/NAME> <T-id>` (director): name the task that may merge while the repo's main is red."""
+    con = db()
+    require_role(con, "director")
+    slug = _repo_slug(a.repo)
+    if not slug:
+        die(f"{a.repo!r} is not an OWNER/NAME repo", 2)
+    st = red_main_state(con, slug)
+    if not st:
+        die(f"{slug} is not frozen (no red_main record): nothing to name a fix task for", 2)
+    if not con.execute("SELECT 1 FROM tasks WHERE id=?", (a.task,)).fetchone():
+        die(f"no task {a.task}: see `factory task show`", 2)
+    old = st.get("task") or ""
+    st["task"] = a.task
+    _red_main_set(con, slug, st)
+    event(con, "redmain", slug, "red-main-fix-task", f"{old or '-'} -> {a.task}")
+    print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
 def red_main_check(con):
@@ -6857,6 +6880,7 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
     elif status == "done":
         return "PR none", None, tip is not None
     wt = None
+    clone = False
     if t["worktree"]:
         p = Path(t["worktree"])
         if p.exists():
@@ -6864,8 +6888,15 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             wt = p.resolve()
             if wt == root or root not in wt.parents:
                 return "outside worktrees/", None, tip is not None
-            if (wt / ".git").is_dir():
-                return "per-task clone (removal not supported yet)", None, tip is not None
+            gitp = wt / ".git"
+            if gitp.is_symlink():
+                return "symlinked .git (left alone)", None, tip is not None
+            clone = gitp.is_dir()
+            if clone:  # a per-task clone (task_clones=1): same rules as a worktree, stricter path and config checks
+                if p.is_symlink() or wt.parent != root:
+                    return "outside worktrees/ (clone must be a direct, non-symlink child)", None, tip is not None
+                if not git_config_guard(con, wt, always_event=True):  # before any git call in the clone: its config is worker-writable
+                    return "git config refused", None, tip is not None
             top = _git(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
                 return "not a git worktree", None, tip is not None
@@ -6881,6 +6912,14 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
                 return why, None, tip is not None
     # everything that would be lost must already be on the PR head (or on base, for a cancelled task with no PR)
     tips = [x for x in (tip, _git(wt, "rev-parse", "HEAD").stdout.strip() if wt else None) if x]
+    if wt and clone and branch:  # the clone's own branch is lost with it too, whatever HEAD points at
+        r = _git(wt, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
+        if r.returncode == 0 and r.stdout.strip() not in tips:
+            tips.append(r.stdout.strip())
+        refs = _git(wt, "for-each-ref", "--format=%(objectname)", "refs/heads/", "refs/stash")  # any other branch or the stash dies with the clone too
+        if refs.returncode != 0:
+            return "unpushed commits", None, tip is not None
+        tips += [x for x in refs.stdout.split() if x not in tips]
     for sha in tips:
         if head:
             if not _is_ancestor(repo, sha, head):
@@ -6890,6 +6929,61 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             if r.returncode != 0 or r.stdout.strip() != "0":
                 return "unpushed commits", None, tip is not None
     return None, wt, tip is not None
+
+
+SANDBOX_ENDED = ("exited", "done", "cancelled", "lost", "stopped")  # agents.status values that never come back
+SANDBOX_KEEP_DAYS = 7
+
+
+def sandbox_workers_root():
+    """workerbox.WORKERS_ROOT for the live factory, the temp $HOME's equivalent under a temp FACTORY_HOME (tests)."""
+    return Path(workerbox.WORKERS_ROOT) if sandbox_home() is None else Path(workerbox._paths(sandbox_home())["workers"])
+
+
+def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
+    """Rows for <WORKERS_ROOT>/<agent> dirs: removed when the agent ended more than 7 days ago and no live pane sits in
+    it. Kept: live/queued/starting agents, unknown agents, ended NULL, symlinks, anything not a direct child of the root."""
+    root = Path(root) if root else sandbox_workers_root()
+    if not root.is_dir() or root.is_symlink():
+        return [], 0
+    real = _real(root)
+    rows = []
+    for d in sorted(root.iterdir()):
+        row = {"task": "-", "worktree": str(d), "branch": "", "action": "skip", "reason": ""}
+        rows.append(row)
+        if d.is_symlink() or not d.is_dir():
+            row["reason"] = "sandbox dir kept: not a plain directory"
+            continue
+        ag = con.execute("SELECT status, ended FROM agents WHERE name=?", (d.name,)).fetchone()
+        if not ag:
+            row["reason"] = "sandbox dir kept: unknown agent"
+            continue
+        if ag["status"] not in SANDBOX_ENDED:
+            row["reason"] = f"sandbox dir kept: agent {ag['status']}"
+            continue
+        try:
+            age = (dt.datetime.now().astimezone() - dt.datetime.fromisoformat(ag["ended"]).astimezone()).total_seconds()
+        except (TypeError, ValueError):
+            row["reason"] = "sandbox dir kept: no usable ended time"
+            continue
+        if age <= SANDBOX_KEEP_DAYS * 86400:
+            row["reason"] = f"sandbox dir kept: ended less than {SANDBOX_KEEP_DAYS} days ago"
+            continue
+        if _real(d).parent != real or any(_within(c, _real(d)) for c in pane_cwds):
+            row["reason"] = "sandbox dir kept: live pane inside or path escapes the root"
+            continue
+        if dry_run:
+            row["action"], row["reason"] = "would remove", "sandbox dir of an ended agent"
+            continue
+        try:
+            shutil.rmtree(d)
+        except OSError as e:
+            row["reason"] = f"sandbox dir remove failed: {str(e)[:80]}"
+            continue
+        row["action"], row["reason"] = "removed", "sandbox dir of an ended agent"
+        event(con, "agent", d.name, "sandbox-cleaned", {"dir": str(d)})
+    kept = [r for r in rows if r["reason"].startswith("sandbox dir kept")]
+    return [r for r in rows if r not in kept], len(kept)  # kept dirs are counted, not listed, so a quiet run stays quiet
 
 
 def cmd_clean(a):
@@ -6934,7 +7028,15 @@ def cmd_clean(a):
             continue
         gone = []
         err = None
-        if wt:
+        if wt and (wt / ".git").is_dir() and not (wt / ".git").is_symlink():  # per-task clone: no `git worktree`, its branch goes with it
+            try:
+                if wt.parent != WORKTREES.resolve() or os.path.realpath(wt) != str(wt):
+                    raise OSError("not a direct child of worktrees/")
+                shutil.rmtree(wt)
+                gone.append("clone")
+            except OSError as e:
+                err = "clone remove failed: " + str(e)[:80]
+        elif wt:
             r = _git(repo, "worktree", "remove", "--force", str(wt))
             if r.returncode == 0:
                 gone.append("worktree")
@@ -6951,11 +7053,13 @@ def cmd_clean(a):
             continue
         row["action"] = "removed"
         row["reason"] = f"removed {' + '.join(gone)}; {err}" if err else "merged and clean"
-        event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if "worktree" in gone else None,
+        event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if ("worktree" in gone or "clone" in gone) else None,
                                                 "branch": t["branch"] if "branch" in gone else None})
     if not a.dry_run:
         for repo in repos:
             _git(repo, "worktree", "prune")
+    sandbox_rows, sandbox_kept = clean_sandbox_dirs(con, pane_cwds, a.dry_run)
+    rows += sandbox_rows
     orphans = []
     if WORKTREES.is_dir():
         orphans = sorted(d for d in WORKTREES.iterdir() if d.is_dir() and d.resolve() not in known)
@@ -6963,7 +7067,7 @@ def cmd_clean(a):
     table(rows, ["task", "worktree", "branch", "action", "reason"])
     n = lambda act: sum(1 for r in rows if r["action"] == act and r["reason"] != "orphan (left alone)")
     print(f"total: {n('removed')} removed, {n('would remove')} would remove, "
-          f"{n('skip')} skipped, {len(orphans)} orphan(s)" + (" [dry run]" if a.dry_run else ""))
+          f"{n('skip')} skipped, {len(orphans)} orphan(s), {sandbox_kept} sandbox dir(s) kept" + (" [dry run]" if a.dry_run else ""))
 
 
 REMOTE_BRANCH_RE = re.compile(r"^factory/[A-Za-z0-9._/-]+$")
@@ -8422,7 +8526,7 @@ def tick_freshness(con):
     Reasons: prompt, settings, plugins, checkout. Hooks are not a reason (they run from disk on every call). Writes
     `stale-agent` when an agent's reason set changes, `fresh-agent` when it clears (dedupe: throttle key fresh:<name>),
     and tells the director (boss, for the director) once per new reason set of a persistent agent that has no relaunch
-    queued. Workers get the event and the digest line only. Raises on an unreadable file: the caller wraps it."""
+    queued. Workers get the event and the digest line only. A bad prompt file is reason `unreadable` for that agent only; any other failure raises and the caller wraps it."""
     checkout = freshness_checkout_stale()
     seen = set()
     for r in con.execute("SELECT * FROM agents WHERE status='live' AND role!='evaluator' ORDER BY name").fetchall():
@@ -8436,6 +8540,8 @@ def tick_freshness(con):
                 reasons.append("prompt")
         except FileNotFoundError:
             pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare
+        except (OSError, UnicodeDecodeError):
+            reasons.append("unreadable")  # this agent only: the others in the tick are still checked
         if t0 is not None:
             sdir = ROLES_DIR / "settings"
             if _newest_mtime(sdir / f"{role}.json", sdir / f"{role}.json.in") > t0:
@@ -8691,8 +8797,14 @@ def cmd_tick(a, locked=False):
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
+        if con.execute("DELETE FROM throttle WHERE key='fresh-failed'").rowcount:
+            event(con, "tick", "freshness", "freshness-recovered", "freshness check ran again")
     except Exception as e:  # noqa: BLE001 — the check must never stop the tick
-        event(con, "tick", "freshness", "freshness-failed", str(e)[:300])
+        err = str(e)[:300]
+        old = con.execute("SELECT ts FROM throttle WHERE key='fresh-failed'").fetchone()
+        if not old or old["ts"] != err:  # one event per new error text, not one per tick
+            con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
+            event(con, "tick", "freshness", "freshness-failed", err)
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
@@ -9962,6 +10074,19 @@ def _collapse_notice(con, to, subject, prs, files, cmds, tail, task):
         send(con, to, subject, body, "request", task=task, sender="factory")
 
 
+def run_after_merge(con, t):
+    """after_merge() for a task whose merge is already recorded; a failed hook never changes the merge result."""
+    try:
+        after_merge(con, t, t["pr_url"])
+        con.commit()
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — a failed hook must never change the merge result
+        try:  # autocommit connection: writes the hook made before it failed are kept (not atomic)
+            event(con, "task", t["id"], "post-merge-hook-failed", str(e))
+            con.commit()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def after_merge(con, t, pr_url):
     """Judge post-merge hook: stamp the lesson links of task `t`, auto-apply the lessons they complete, and tell the
     live persistent agents whose role files the PR changed. The caller wraps this; it must never fail a merge."""
@@ -10569,6 +10694,8 @@ def main():
 
     x = sp.add_parser("init"); x.add_argument("--live-home", metavar="ABS_PATH", help="also record ABS_PATH as an extra live home (owner only)")
     x.set_defaults(fn=cmd_init)
+    x = sp.add_parser("redmain", help="director only: name the fix task that may merge while a repo's main is red")
+    x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
