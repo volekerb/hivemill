@@ -73,6 +73,42 @@ class Blank(unittest.TestCase):
         self.assertIn("50.0%", vq.blank_problem(0.5)[0])
 
 
+class BlankMeasure(unittest.TestCase):
+    """Blank = plain page background (--surface-0); card interiors (--surface-1) are content (M13076)."""
+    SHOTS = ROOT / "docs" / "design" / "g-019" / "shots"
+
+    @staticmethod
+    def tokens(theme):
+        from tests import test_web_design as twd  # surface tokens as parsed from web/static/app.css
+        return vq.hex_rgb(twd.THEMES[theme]["surface-0"]), vq.hex_rgb(twd.THEMES[theme]["surface-1"])
+
+    def solid_share(self, left, right, bgs):
+        """1280x860 capture: x < 640 is colour `left`, x >= 640 colour `right`."""
+        w, h = 1280, 860
+        row = bytes(left) * 640 + bytes(right) * 640
+        return vq.blank_share(w, 3, [row] * h, bgs, vq.SIDEBAR_PX)
+
+    def test_approved_mock_passes_in_both_themes(self):
+        for theme in ("light", "dark"):
+            s0, _ = self.tokens(theme)
+            w, ch, rows = vq.demo_cdp.screenshots.decode_png(self.SHOTS / ("overview-%s-1280.png" % theme), max_rows=100000)
+            share = vq.blank_share(w, ch, rows, [s0], vq.SIDEBAR_PX)
+            self.assertEqual(vq.blank_problem(share), [], "%s mock blank share %.3f" % (theme, share))
+
+    def test_half_empty_page_fails(self):
+        s0, s1 = self.tokens("light")
+        share = self.solid_share(s1, s0, [s0])
+        problems = vq.blank_problem(share)
+        self.assertEqual(len(problems), 1)
+        self.assertTrue(problems[0].startswith("blank share"))
+
+    def test_card_interior_is_not_blank(self):
+        s0, s1 = self.tokens("light")
+        share = self.solid_share(s1, s1, [s0])
+        self.assertEqual(share, 0.0)
+        self.assertEqual(vq.blank_problem(share), [])
+
+
 class Contrast(unittest.TestCase):
     def test_low_contrast_text_fails(self):
         self.assertTrue(vq.pair_problems([("t", "#999999", "#FFFFFF")], vq.AA_TEXT, "light"))

@@ -13,9 +13,14 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
 - [images/README.md](images/README.md): light and dark screenshots of the dashboard, built from fictional data.
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
+- [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
+- [design/g-023/README.md](design/g-023/README.md): three draft README layouts for owner preview.
+- [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
+- [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
+- [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
 
 ## Operate it
 
@@ -59,6 +64,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
 - [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
+- [test-cgroups.md](test-cgroups.md): per-run cgroup caps for `factory test` and the user unit the owner installs.
 - [cli-layout.md](cli-layout.md): why `bin/factory` is a stub and the CLI code lives in `bin/factory_cli.py`.
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
 - [review-rules.md](review-rules.md): rules that keep reviewer, QA and judge verdicts evidence-based.

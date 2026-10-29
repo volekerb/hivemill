@@ -346,7 +346,8 @@ class CleanerBranchDeleteTests(Base):
                     self.allowed(cmd, role=role)
         for cmd in ("git push -u origin HEAD", "git push origin factory/t-1", "git push"):
             with self.subTest(cmd=cmd):
-                self.allowed(cmd, role="coder")
+                self.allowed(cmd, role="qa")
+        self.allowed("git push origin HEAD:factory/t-1", role="coder", env={**os.environ, "FACTORY_AGENT": "coder-t-1"})
 
     def test_hq_unaffected(self):
         self.allowed("git branch -D main", mode="hq")

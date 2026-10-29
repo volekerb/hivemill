@@ -1,0 +1,14 @@
+[Unit]
+Description=Delegated cgroup for factory test runs
+Documentation=file:%h/factory/docs/test-cgroups.md
+
+[Service]
+# Holds no process: an empty, delegated cgroup that `factory test` makes per-run children in.
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+Slice=factory-tests.slice
+Delegate=cpu memory pids
+
+[Install]
+WantedBy=default.target
