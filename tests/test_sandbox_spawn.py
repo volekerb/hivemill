@@ -341,20 +341,52 @@ class PreflightAllowedTests(SandboxCase):
 
 
 class QueueTests(SandboxCase):
-    def test_a_refused_queued_spawn_stays_queued(self):
+    def queue_reviewer(self):
         self.env.set_herdr(fail=True)
         self.assertIn("QUEUED", self.ok(*spawn_args(self.env, "reviewer")).stdout)
         self.env.set_herdr(fail=False)
         self.set_roles("reviewer")
+
+    def test_a_refused_queued_spawn_is_cancelled_once_and_the_lead_told(self):
+        self.queue_reviewer()
+        probes = self.env.stub_bin.parent / "unshare-probes"  # the userns probe runs once per preflight
+        (self.env.stub_bin / "unshare").write_text(f"#!/bin/sh\necho probe >> {probes}\nexit 0\n")
+        (self.env.user_home / ".config" / "factory" / "worker-oauth-token").unlink()
+        starts_before = len(self.mux("agent", "start"))
+        for _ in range(3):
+            self.ok("tick")
+        self.assertEqual(len(probes.read_text().split()), 1)  # no retry loop: preflight ran on the first pass only
+        self.assertEqual(self.agents("zz-reviewer")[0]["status"], "cancelled")
+        self.assertEqual(len(self.mux("agent", "start")), starts_before)  # fail closed: no pane for the refused row
+        self.assertEqual([r for r in self.agents("zz-reviewer") if r["status"] == "live"], [])
+        msgs = self.env.sql("SELECT recipient, subject, body FROM messages WHERE subject LIKE 'sandbox refused queued spawn%'")
+        self.assertEqual([(m["recipient"], m["subject"]) for m in msgs],
+                         [("zz-lead", "sandbox refused queued spawn zz-reviewer")])
+        self.assertIn("token", msgs[0]["body"])
+        self.assertIn("spawn again", msgs[0]["body"])
+        for bad in ("worker-oauth-token", "gh-worker"):
+            self.assertNotIn(bad, msgs[0]["body"])
+        ev = [json.loads(r["detail"]) for r in self.events("dequeued") if r["entity_id"] == "zz-reviewer"]
+        self.assertEqual([e["by"] for e in ev], ["sandbox-preflight"])
+        self.assertEqual([json.loads(r["detail"])["reason"] for r in self.events()], ["token"])
+
+    def test_a_cancelled_refused_row_is_not_started_after_the_fix(self):
+        self.queue_reviewer()
         (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 1\n")
         self.ok("tick")
-        self.assertEqual(self.agents("zz-reviewer")[0]["status"], "queued")
-        self.assertEqual([json.loads(r["detail"])["reason"] for r in self.events()], ["userns"])
-        self.assertEqual(self.mux("agent", "start"), [])
-        (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 0\n")  # fixed: the next tick starts it
+        (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 0\n")  # fixed: too late, the row is gone
         self.ok("tick")
+        self.assertEqual(self.agents("zz-reviewer")[0]["status"], "cancelled")
+        self.assertEqual(self.mux("agent", "start"), [])
+        self.ok(*spawn_args(self.env, "reviewer"))  # the lead spawns again: it starts
         self.assertEqual(self.agents("zz-reviewer")[0]["status"], "live")
-        self.assertTrue(json.loads(self.agents("zz-reviewer")[0]["spawn_args"])["sandbox"])
+
+    def test_a_direct_sandboxed_spawn_that_is_refused_exits_3_and_queues_nothing(self):
+        (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 1\n")
+        p = self.env.run(*spawn_args(self.env, "reviewer"), "--sandbox")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertEqual(self.agents("zz-reviewer"), [])
+        self.assertEqual(self.mux("agent", "start"), [])
 
 
 class PerSpawnOptInTests(SandboxCase):

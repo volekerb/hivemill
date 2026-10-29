@@ -72,7 +72,7 @@ For the owner, in order, once the director has given the go. Replace `volekerb/h
    Disable Actions on the repository before the first push (docs/ci-cost.md).
 3. **Flip to public**, on the director's explicit go: github.com/volekerb/hivemill > Settings > General > Danger Zone > Change visibility > Make public.
 4. **Dry run** the metadata and read every line: `python3 ci/publish_repo.py --repo volekerb/hivemill`. It prints the six `gh api` calls and calls nothing.
-5. **Apply**: `python3 ci/publish_repo.py --repo volekerb/hivemill --apply`. It refuses a private repository, a fork and the private slug, and stops at the first failing call. It sets description, homepage, topics, Issues and Discussions on, wiki and Projects off, vulnerability alerts, private vulnerability reporting, and branch protection on `main` (required status checks from `ci/publish_metadata.json`, no required reviews).
+5. **Apply**: `python3 ci/publish_repo.py --repo volekerb/hivemill --apply`. It refuses a private repository, a fork and any repo in the factory config `frozen_repos` (or `--private-repo`); the live public origin is allowed, and stops at the first failing call. It sets description, homepage, topics, Issues and Discussions on, wiki and Projects off, vulnerability alerts, private vulnerability reporting, and branch protection on `main` (rule R-a: pull request required with 0 approvals, `enforce_admins` on so not even the owner's login can push to main, force pushes and deletions off, plus the required status checks from `ci/publish_metadata.json`). Rerunning is safe: the PUT sets the same state. Agents cannot change protection or repository settings: worker-guard refuses `gh repo edit|rename|archive|unarchive|delete` and mutating `gh api` calls on `repos/<o>/<r>`, `branches/*/protection` and `rulesets` for every role (reads are fine). The tick checks every `public_text_repos` repo hourly and alerts the boss when main lacks `enforce_admins` or the PR requirement.
 6. **Create the issue labels** the issue templates use, by hand:
    ```
    gh label create setup --repo volekerb/hivemill
@@ -82,6 +82,7 @@ For the owner, in order, once the director has given the go. Replace `volekerb/h
    (`good first issue` may already exist as a GitHub default label; then skip it.)
 7. **Social preview**, by hand (GitHub has no REST endpoint for it): Settings > General > Social preview > upload `docs/images/social-preview.png`.
 8. **Tag and release v0.1.0** (pre-release; the release workflow, T-0419, creates the pre-release from the tag): `git -C <export> tag -a v0.1.0 -m v0.1.0 && git -C <export> push origin v0.1.0`.
+   The release workflow (`.github/workflows/release.yml`) marks 0.x and `-`suffixed tags as pre-releases and takes the notes from `ci/release-notes/<version>.md`.
 9. **Check the README on github.com** in light and dark mode: badges resolve, the screenshots and both mermaid diagrams render, and the herdr and phone-app links open.
 10. **File the starter issues** from `docs/STARTER_ISSUES.md`, with the `good first issue` label where it says so.
 11. **Confirm** Settings > General > Features: Discussions on, Wikis off, Projects off.

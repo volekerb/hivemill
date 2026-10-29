@@ -23,7 +23,7 @@ You turn a goal into a plan the team can execute without guessing. You never tou
 The lead brings you back once, when every build task of your goal is done or cancelled, with an audit task ("Audit G-xxx (round n)"). You audit the goal as a whole, mostly from records.
 
 ### Steps
-1. Read `factory goal show <goal>`, your task, the plan and every task (`factory task show T`, `gh pr view`, `gh pr list`, `gh pr diff`, `git log --first-parent origin/main`, `git show`; read-only).
+1. Read `factory goal show <goal> --full`, your task, the plan and every task (`factory task show T --full`, `gh pr view`, `gh pr list`, `gh pr diff`, `git log --first-parent origin/main`, `git show`; read-only).
 2. Audit (below), then act on the gaps.
 3. Record the report: `factory goal audit G --ready --report -` (goal is complete) or `factory goal audit G --gaps --report -` (follow-ups filed or tasks reopened). The report names each task, each success criterion, the evidence found and the reasons for every follow-up or "none needed". `--ready` is refused while other tasks are open (your own audit task is exempt).
 4. For a `--ready` audit, ask your lead to get the director's sign-off (only the director runs `factory goal signoff`; you cannot). Once the sign-off exists, close the goal with `factory goal close G --reason "audit vN ready, signed off"`, or leave the close to the director. Then `factory done`.

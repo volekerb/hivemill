@@ -1,0 +1,21 @@
+{
+  "docs_globs": ["docs/**", "*.md"],
+  "docs_excluded_prefixes": ["roles/", "ci/", ".github/", "bin/"],
+  "tests_globs": ["tests/test_*.py", "tests/fixtures/**"],
+  "sensitive_paths": [
+    ".github/**",
+    "ci/public_text_guard.py", "ci/publish_repo.py", "ci/scrub_*", "ci/guard_*", "ci/test_count_gate.py",
+    "ci/affected.py", "ci/risk_tier.py", "ci/tier_rules.json",
+    "roles/settings/**", "roles/hooks/**",
+    "scout/nsbox.py", "scout/sandbox.py", "scout/workerbox.py", "scout/egress.py"
+  ],
+  "sensitive_defs": {
+    "bin/factory": [
+      "cmd_judge", "judge_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
+      "git_config_guard", "noreply_email", "_push_policy", "require_role", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA",
+      "<stmt>"
+    ]
+  },
+  "small_lines": 150,
+  "large_lines": 600
+}
