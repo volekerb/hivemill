@@ -6271,6 +6271,62 @@ def util_alerts(con):
                 pass
 
 
+OWNER_ONLY_GATE_PREFIXES = ("/tmp ",)  # gate() reasons only the owner can clear (the cleaner cannot free /tmp)
+
+
+def is_night(con, t):
+    """True when local datetime t is outside [day_start_hour, day_end_hour)."""
+    ds, de = day_hours(con)
+    return not ds <= t.hour < de
+
+
+def owner_blockers(con):
+    """Open owner-only blockers: [{key, since (ISO), age_min, text}]. Two sources: unread escalations to the boss whose subject
+    says "owner action", and a spawn gate closed on an OWNER_ONLY_GATE_PREFIXES cause (first-seen time kept in the throttle table)."""
+    clock = digest_clock()
+    out = []
+    for m in con.execute("SELECT id,created,subject FROM messages WHERE recipient='boss' AND kind='escalation' AND sender<>'tick' AND read_at IS NULL "
+                         "AND lower(subject) LIKE '%owner action%' ORDER BY id"):
+        out.append({"key": f"owner-blocker:M{m['id']}", "since": m["created"], "text": f"M{m['id']} {m['subject']}"})
+    ok, why, _ = gate(con)
+    if not ok and why.startswith(OWNER_ONLY_GATE_PREFIXES):
+        row = con.execute("SELECT ts FROM throttle WHERE key='owner-blocker:gate'").fetchone()
+        since = row["ts"] if row else clock.isoformat(timespec="seconds")
+        if not row:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('owner-blocker:gate',?)", (since,))
+        out.append({"key": f"owner-blocker:gate:{since}", "since": since, "text": f"spawn gate closed: {why}"})
+    else:
+        con.execute("DELETE FROM throttle WHERE key='owner-blocker:gate'")
+    for b in out:
+        try:
+            b["age_min"] = max(0, int((clock - dt.datetime.fromisoformat(b["since"]).astimezone()).total_seconds() // 60))
+        except ValueError:
+            b["age_min"] = 0
+    return out
+
+
+def owner_blocker_alerts(con):
+    """Tick hook: an owner-only blocker raised between day_end_hour and day_start_hour pings the boss once, at once. Never raises."""
+    try:
+        for b in owner_blockers(con):
+            if not is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone()):
+                continue
+            key = "alerted:" + b["key"]
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            ds, de = day_hours(con)
+            send(con, "boss", f"OWNER-ONLY BLOCKER (night): {b['text']}"[:200],
+                 f"Raised {b['since']}, outside daytime ({ds}-{de} h). Tell the owner now by the owner channel; "
+                 "tell again at day_start_hour if still open.", "escalation", sender="tick")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-blocker-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-blocker-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
 # ───────────────────────────── local merge gate (T-0515) ─────────────────────────────
 # `factory gate run <task>|--main <project>` runs projects.gate_cmd (from the DB, never from the PR tree) in a detached
 # worktree at the exact head sha, holding a tests/_slot.py slot, and records the outcome in gate_runs. Not yet read
@@ -6812,6 +6868,8 @@ def cmd_res(a):
     print(u2["line"])
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
+    ob = owner_blockers(con)
+    print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     bt = {r["waits"]: r["n"] for r in con.execute("SELECT waits, count(*) n FROM tasks WHERE status='blocked' GROUP BY waits")}
     print(f"blocked tasks: {bt.get('owner', 0)} owner-blocked · {bt.get('internal', 0)} internal-blocked")
     print(f"mem available {s['mem_mb']} MB (floor {cfg(con, 'min_mem_available_mb')}) · swap used "
@@ -7541,6 +7599,7 @@ def cmd_tick(a, locked=False):
     tick_relaunches(con)
     util_sample(con)
     util_alerts(con)
+    owner_blocker_alerts(con)
 
 
 # ───────────────────────────── export & backup ─────────────────────────────

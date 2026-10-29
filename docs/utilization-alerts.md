@@ -32,3 +32,7 @@ Breaches are the `config set` events from `cap_breaches()` (see utilization.md).
 ## Failures
 
 The hook never breaks the tick. A failure logs the event `util-alert-failed` at most once per hour.
+
+## Owner-only blockers at night (T-0609)
+
+`owner_blocker_alerts()` (tick) sends the boss one `escalation` ("OWNER-ONLY BLOCKER (night): ...") for each owner-only blocker raised outside `[day_start_hour, day_end_hour)`. Sources: an unread escalation to the boss whose subject contains "owner action" (case-insensitive; the tick's own messages are ignored), and a spawn gate closed on `/tmp` usage. One alert per blocker (throttle key `alerted:owner-blocker:...`). `factory res` prints `owner-only blockers: N` with each blocker's age. The boss tells the owner at once and again at `day_start_hour` (roles/boss.md).
