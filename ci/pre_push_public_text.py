@@ -29,7 +29,7 @@ def repo_slug(url):
     """OWNER/NAME (lower case) of a remote URL or local path ending OWNER/NAME(.git); None when it holds no two-part name."""
     u = re.sub(r"[?#].*$", "", (url or "").strip())
     u = re.sub(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/]*/", "", u)
-    u = re.sub(r"^[^/@:]*@[^/:]*:", "", u)
+    u = re.sub(r"^(?:[^/@:]*@)?[^/@:]+:", "", u)  # scp-style [user@]host:path
     parts = [x for x in u.rstrip("/").split("/") if x]
     if len(parts) < 2:
         return None

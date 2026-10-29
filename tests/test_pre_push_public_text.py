@@ -92,6 +92,45 @@ class PrePushTests(FactoryTestCase):
         self.assertIn("pre-push: refused (cannot read terms file", p.stderr)
         self.assertEqual(self.pushed(), "")
 
+    def hook_run(self, url, line=None):
+        """The installed hook as git runs it: REMOTE URL args and one ref line on stdin."""
+        head = git("rev-parse", "HEAD", cwd=self.wt)
+        line = line or f"refs/heads/b {head} refs/heads/factory/b {'0' * 40}\n"
+        env = {k: v for k, v in os.environ.items() if k not in ("SCRUB_TERMS_FILE", "FACTORY_AGENT")}
+        return subprocess.run([str(self.h / ".git" / "hooks" / "pre-push"), "origin", url], cwd=self.wt, input=line,
+                              capture_output=True, text=True, env=env, timeout=60)
+
+    def test_userless_scp_url_of_a_public_repo_is_checked(self):
+        self.commit(f"add {TERM} notes")
+        p = self.hook_run("github.com:acme/pub")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("owner-term", p.stderr)
+        self.assertNotIn(TERM, p.stderr)
+        self.assertEqual(self.hook_run("git@github.com:other/repo.git").returncode, 0)
+
+    def test_unparsable_remote_url_is_checked_not_skipped(self):
+        self.commit(f"add {TERM} notes")
+        self.assertEqual(self.hook_run("weird").returncode, 1)
+
+    def test_no_base_fails_closed(self):
+        self.commit("clean")
+        git("update-ref", "-d", "refs/remotes/origin/main", cwd=self.wt)
+        p = self.hook_run("acme/pub")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("no base to check the push against", p.stderr)
+
+    def test_unreadable_factory_db_fails_closed(self):
+        (self.h / "db" / "factory.db").rename(self.h / "db" / "gone.db")
+        p = self.hook_run("acme/pub")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("factory config unreadable", p.stderr)
+
+    def test_delete_push_is_not_scanned_and_empty_list_is_a_no_op(self):
+        self.commit(f"add {TERM} notes")
+        self.assertEqual(self.hook_run("acme/pub", line=f"(delete) {'0' * 40} refs/heads/factory/b {'1' * 40}\n").returncode, 0)
+        self.set_public("")
+        self.assertEqual(self.hook_run("acme/pub").returncode, 0)
+
     def test_a_reused_worktree_gets_the_hook_back(self):
         hook = self.h / ".git" / "hooks" / "pre-push"
         hook.unlink()
