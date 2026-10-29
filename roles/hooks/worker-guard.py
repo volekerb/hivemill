@@ -2478,6 +2478,8 @@ def check(cmd, cwd=None, role=None, hq=False):
                 raise PublicBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
     if hq:
         return
+    if role in TERMS_ROLES:
+        terms_bash(cmd, cwd)
     if role == "evaluator":
         evaluator_home_text(cmd)
     # layer 2: raw text, independent of the parser
@@ -2499,6 +2501,71 @@ def check(cmd, cwd=None, role=None, hq=False):
         raise
     if an.scrub_with_factory and an.ran_factory:
         raise Block(f"{an.scrub_with_factory} in a command line that runs factory (hides the worker from detection)")
+
+
+# T-0600: spawn exports SCRUB_TERMS_FILE to workers so the scanners can load the owner terms; nobody but those scanners
+# may read the file, or one `cat` would put the terms into the transcript.
+TERMS_ROLES = {"coder", "qa", "reviewer", "judge", "pm"}
+TERMS_VAR = "SCRUB_TERMS_FILE"
+TERMS_SCANNER = re.compile(r"(?:^|/)ci/(?:scrub_scan|public_text_guard)\.py$")
+TERMS_ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
+TERMS_WHY = ("the owner-terms file may only be read by ci/scrub_scan.py and ci/public_text_guard.py (run them with "
+             "SCRUB_TERMS_FILE as spawn exported it); ask your lead if you need a scan")
+
+
+def terms_paths(cwd):
+    """Every spelling of the configured/exported terms path; empty when none is set."""
+    out = set()
+    try:
+        cfg = PublicText(cwd, Analyzer(cwd).db_path()).cfg
+    except (OSError, sqlite3.Error):
+        cfg = {}
+    for v in (cfg.get("scrub_terms_file"), os.environ.get(TERMS_VAR)):
+        if v and v.strip():
+            v = os.path.expanduser(v.strip())
+            out |= {v, os.path.normpath(v), os.path.realpath(v)}
+    return out
+
+
+def terms_segment_ok(seg):
+    """A command segment that names the terms file is fine only when it runs one of the two scanners."""
+    if re.search(r"`|\$\(|<|>\(", seg):
+        return False
+    try:
+        toks = shlex.split(seg)
+    except ValueError:
+        return False
+    while toks and (TERMS_ENV_ASSIGN.match(toks[0]) or toks[0] == "env"):
+        toks.pop(0)
+    if toks and re.fullmatch(r"(?:.*/)?python3?", toks[0]):
+        toks.pop(0)
+    return bool(toks) and bool(TERMS_SCANNER.search(toks[0]))
+
+
+def terms_bash(cmd, cwd):
+    paths = terms_paths(cwd)
+    for seg in re.split(r"[;&|\n]+", cmd):
+        if (TERMS_VAR in seg or any(p in seg for p in paths)) and not terms_segment_ok(seg):
+            raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
+
+
+def terms_tool(data):
+    """Read/Grep tool call that would read the terms file (Grep over a directory holding it counts)."""
+    ti = data.get("tool_input")
+    ti = ti if isinstance(ti, dict) else {}
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    paths = terms_paths(cwd)
+    if not paths:
+        return 0
+    raw = ti.get("file_path") if data.get("tool_name") == "Read" else (ti.get("path") or cwd)
+    if not isinstance(raw, str) or not raw:
+        sys.stderr.write("worker-guard: blocked (tool call without a readable path, failing closed)\n")
+        return 2
+    p = os.path.realpath(os.path.join(cwd, os.path.expanduser(raw.replace("${SCRUB_TERMS_FILE}", "$SCRUB_TERMS_FILE"))))
+    if TERMS_VAR in raw or p in paths or any(t.startswith(p.rstrip("/") + "/") for t in paths):
+        sys.stderr.write(f"worker-guard: blocked ({TERMS_WHY})\n")
+        return 2
+    return 0
 
 
 def persist_edit(data):
@@ -2533,6 +2600,8 @@ def main():
             raise ValueError("not an object")
         if data.get("tool_name") in PERSIST_EDIT_TOOLS and not hq:
             return persist_edit(data)
+        if data.get("tool_name") in ("Read", "Grep") and not hq:
+            return terms_tool(data) if role in TERMS_ROLES else 0
         if data.get("tool_name") != "Bash":
             return 0
         cmd = (data.get("tool_input") or {}).get("command")
