@@ -143,6 +143,18 @@ class OwnerBlockers(AlertCase):
         self.assertEqual(self.nudge_events(), [])
         self.assertEqual(len(self.nudge_tick("2026-10-29T00:14:00")), 1)
 
+    def test_failed_herdr_prompt_is_retried_next_tick(self):
+        self.esc("owner action: a", "2026-10-29T00:12:00+01:00")
+        self.con.execute("INSERT OR IGNORE INTO agents(name,role,status,pane_id) VALUES('boss','boss','live','p1')")
+        with mock.patch.object(self.mod, "herdr_agents", return_value=[{"name": "boss", "pane_id": "p1", "agent_status": "idle"}]), \
+                mock.patch.object(self.mod, "herdr", return_value=None) as h:
+            self.tick("2026-10-29T00:13:00")
+        self.assertEqual(h.call_count, 1)
+        self.assertEqual(self.nudge_events(), [])
+        self.assertIsNone(self.con.execute("SELECT 1 FROM throttle WHERE key LIKE 'nudged:%'").fetchone())
+        self.assertEqual(len(self.nudge_tick("2026-10-29T00:14:00")), 1)  # herdr back: delivered
+        self.assertEqual(len(self.nudge_events()), 1)
+
     def test_day_blocker_not_nudged(self):
         self.esc("owner action: a", "2026-10-29T12:00:00+01:00")
         self.assertEqual(self.nudge_tick("2026-10-29T12:01:00"), [])
