@@ -4100,11 +4100,36 @@ def _red_main_latest(slug):
     """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
     or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
     p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
-                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url"],
+                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
                        capture_output=True, text=True, timeout=30, env=gh_git_env())
     if p.returncode != 0:
         raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
     return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+
+
+def _red_main_green_mark(value):
+    try:
+        m = json.loads(value)
+    except ValueError:
+        return {}
+    return m if isinstance(m, dict) else {}
+
+
+def _red_main_green_run(value):
+    return str(_red_main_green_mark(value).get("run", ""))
+
+
+def _red_main_green_at(value):
+    return _red_main_green_mark(value).get("created") or ""
+
+
+def _red_main_when(ts):
+    """Aware datetime of an ISO timestamp (GitHub's 'Z' form or the DB's offset form), None when empty or unreadable."""
+    try:
+        d = dt.datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.astimezone()
 
 
 def _red_main_revert_task(con, slug, run, since_ts):
@@ -4118,7 +4143,8 @@ def _red_main_revert_task(con, slug, run, since_ts):
     ev = con.execute(f"SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
                      f"WHERE e.entity='task' AND e.action='merged' AND g.project_id IN ({','.join('?' * len(pids))}) "
                      "ORDER BY e.ts DESC", pids).fetchall()
-    ev = [r for r in ev if r["ts"] >= since_ts] if since_ts else ev[:3]
+    since = _red_main_when(since_ts)
+    ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
     tid = next_id(con, "tasks", "T", 4)
     title = f"Red main: revert or fix {slug} run {run['databaseId']}"
@@ -4161,7 +4187,7 @@ def red_main_check(con):
                 tid, merged = (None, [])
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
-                    tid, merged = _red_main_revert_task(con, slug, run, gr["value"] if gr else "")
+                    tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
                                           "task": tid or (old or {}).get("task") or "",
                                           "since": (old or {}).get("since") or now()})
@@ -4173,8 +4199,10 @@ def red_main_check(con):
                         if tid else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
-                con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                            (f"red_main_green:{slug}", now()))
+                mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
+                if not mark or _red_main_green_run(mark["value"]) != str(run["databaseId"]):  # the mark is the green run's own start
+                    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                                (f"red_main_green:{slug}", json.dumps({"run": run["databaseId"], "created": run.get("createdAt") or ""})))
                 if old:
                     _red_main_set(con, slug, None)
                     event_as(con, "tick", "redmain", slug, "red-main-clear", f"run {run['databaseId']} green")

@@ -6,8 +6,8 @@ import unittest
 from harness import REPO, FactoryTestCase
 import test_public_repo_safety as base
 
-RED = {"databaseId": 901, "status": "completed", "conclusion": "failure", "headSha": "b" * 40, "url": "https://github.com/acme/priv/actions/runs/901"}
-GOOD = {"databaseId": 902, "status": "completed", "conclusion": "success", "headSha": "c" * 40, "url": "https://github.com/acme/priv/actions/runs/902"}
+RED = {"databaseId": 901, "status": "completed", "conclusion": "failure", "createdAt": "2026-10-29T10:00:00Z", "headSha": "b" * 40, "url": "https://github.com/acme/priv/actions/runs/901"}
+GOOD = {"databaseId": 902, "status": "completed", "conclusion": "success", "createdAt": "2026-01-01T00:00:00Z", "headSha": "c" * 40, "url": "https://github.com/acme/priv/actions/runs/902"}
 RUNNING = {"databaseId": 903, "status": "in_progress", "conclusion": None, "headSha": "d" * 40, "url": ""}
 URL = "https://github.com/acme/priv/pull/1"
 
@@ -130,6 +130,20 @@ class RedMainTests(FactoryTestCase):
         self.runs(RED)
         self.tick()
         self.assertEqual(self.env.sql("SELECT goal_id FROM tasks WHERE title LIKE 'Red main:%'")[0]["goal_id"], "G-001")
+
+    def test_revert_task_names_pr_merged_while_green_poll_was_running(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(GOOD)
+        self.tick()
+        self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES('2026-06-01T12:00:00+00:00','judge','task','T-0001','merged','@abc')")
+        self.runs(RUNNING, GOOD)
+        self.tick()
+        self.runs(RED, GOOD)
+        self.tick()
+        spec = self.env.sql("SELECT spec FROM tasks WHERE title LIKE 'Red main:%'")[0]["spec"]
+        self.assertIn("T-0001", spec)
+        self.assertNotIn("unknown", spec)
 
     def test_flag_off_after_red_lifts_refusal(self):
         self.ok("config", "red_main_freeze", "1")

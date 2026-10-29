@@ -9,3 +9,5 @@ With the flag on, the tick (at most every `red_main_interval_s`, default 120 s) 
 - Cancelled, skipped, still-running runs and `gh` errors leave the state unchanged; a failed read is logged as `red-main-unknown`.
 
 State is kept in `config` rows `red_main:<owner/name>` and `red_main_green:<owner/name>`. The refusal is `red_main_refusal(con, slugs)`; the mechanical merger (G-022 #4) calls it before merging.
+
+The revert/fix task the check files may itself merge during the freeze (matched by its task id); every other task is refused. "Merged since the last green main" counts from the start of the last green push run.
