@@ -45,6 +45,9 @@ def prep(env, fake_unshare=True):
     for name in ("worker-oauth-token", "gh-worker-ro-token", "gh-worker-rw-token"):
         (tdir / name).write_text(MARKER + "\n")
         (tdir / name).chmod(0o600)
+    # the repo the helper is scoped to is set here, not read from the checkout's origin (a CI checkout has another URL shape)
+    env.sql("INSERT INTO config(key,value) VALUES('worker_gh_repos','volekerb/hivemill') "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
     env.seed_goal()
     env.seed_team(lead="zz-lead")
     for role in ("reviewer", "qa", "coder"):
