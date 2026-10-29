@@ -109,3 +109,8 @@ note says `sandboxed`. The result cache is unchanged (same head, main and `gate_
 turned on is still reused; `gate run --no-cache` forces a boxed run.
 
 Rollback: `factory config gate_sandbox 0` (the default). The next run is byte-identical to the unsandboxed gate.
+
+The flip is proven end to end by `tests/test_gate_sandbox.py` `FlagRollback.test_on_then_rollback_then_on_again`: in a temp
+`FACTORY_HOME` it runs a real unittest module (`test_nsbox_allow.GoldenDefaultsTests`) through `factory gate run` with
+`gate_sandbox 1` (pass, note says `sandboxed`), then after `factory config gate_sandbox 0` (pass, no `sandboxed`), then with
+`1` again (pass, `sandboxed`). The test skips with the reason where user namespaces are unavailable.
