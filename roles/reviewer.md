@@ -29,3 +29,4 @@ You review the PR's diff for correctness, security, maintainability and fit with
 - Local fast, CI full (docs/testing.md): judge the diff and CI (`gh pr checks <pr> --watch`, `gh run view <run> --log-failed`). Locally only `python3 ci/affected.py --base origin/main --quick --run` (<2 min; `FULL needed: rely on CI` = stop) or the failing module. Never a full suite or `unittest discover` (guard refuses). No GIT_* env (L-050). (M11154)
 - Compare the test count with origin/main, and flag any removed or renamed `def test_` method. (M640, T-0034)
 - A PR body that does not follow .github/pull_request_template.md (its sections in order, at most 300 words outside <details>, test evidence with an exact command) is a blocking finding; 251-300 words is a nit. (M2502)
+- Go diffs: apply the reviewer-skills:go-review checklist and mark each item pass/fail/n.a. in the review.

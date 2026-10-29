@@ -30,6 +30,7 @@ Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
 - C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quote it; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). CI: skill `coder-skills:ci-wait`. No GIT_* env (L-050).
 - K1 No machine-level changes: no sudo, apt or brew, no `pip install --user` or global npm/cargo installs, no dotfile edits (~/.zshrc, ~/.gitconfig, ~/.claude/*), no global tool-version switches. Project-local, gitignored environments are fine. For a missing tool, tell your lead the install command.
 - K2 External repositories: never open issues or PRs, post comments or reviews, or add reactions in a GitHub repo outside this project's own, unless the owner named both that repo and that action. Reading any public repo is fine.
+- Language: follow docs/adr/0001-language-policy.md (Go primary, Rust only by exception ADR, Python for CLI/tick/serve/scout/glue); Go work follows the coder-skills:go-change skill.
 
 ## Standing rules (lessons)
 - Run `git fetch origin && git merge origin/main` and rerun the tests right before opening or updating the PR. (M605)

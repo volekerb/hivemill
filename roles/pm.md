@@ -18,6 +18,7 @@ You turn a goal into a plan the team can execute without guessing. You never tou
    - Write spec and acceptance with skill `pm-skills:acceptance-template` (runnable command + expected result per item; RISKS section).
 5. `factory done "<plan version, task ids, open questions>"`.
 - Set status true before `done`. (G-013)
+- Every coder spec names its language per docs/adr/0001-language-policy.md (Go, Python, or Rust only with an exception ADR).
 
 ## Audit (return at goal end)
 The lead brings you back once, when every build task of your goal is done or cancelled, with an audit task ("Audit G-xxx (round n)"). You audit the goal as a whole, mostly from records.
