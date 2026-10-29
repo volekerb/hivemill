@@ -16,6 +16,23 @@ import test_skilleval_startlog as base  # noqa: E402  (module import: its test c
 sys.path.insert(0, str(REPO))
 from scout import nsbox, skilleval  # noqa: E402
 
+def kill_group(p):
+    """Kill the process group of a Popen started with start_new_session=True (shim + fake unshare + sleep)."""
+    try:
+        os.killpg(p.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    p.wait()
+    if p.stderr:
+        p.stderr.close()
+
+
+def left_in_group(pgid, base):
+    """ps lines of processes in process group `pgid` whose args mention the test dir `base` (zz-test-startlog-*)."""
+    r = subprocess.run(["ps", "-eo", "pgid,args"], capture_output=True, text=True, timeout=20)
+    return [ln for ln in r.stdout.splitlines() if str(base) in ln and ln.split()[0] == str(pgid)]
+
+
 VICTIM = b"VICTIM-BYTES-" * 8000  # 104 kB: larger than the 64 KiB cap
 
 
@@ -143,23 +160,49 @@ class ForwardedSignalTests(base.ShimBase):
                 ready = self.base / f"ready-{sig.name}"
                 self.fake_unshare.write_text(  # stage 1 is whatever unshare runs
                     f"#!/bin/sh\ntrap 'touch {got}; exit 0' {sig.name[3:]}\ntouch {ready}\n"
-                    "while :; do sleep 0.05; done\n")
+                    "i=0; while [ $i -lt 400 ] && kill -0 " + str(os.getpid()) + " 2>/dev/null; do sleep 0.05; i=$((i+1)); done\n")
                 cfg = self.shim_cfg()
                 code = (f"import sys; sys.path.insert(0, {str(REPO)!r}); from scout import nsbox\n"
                         "nsbox.start_proxy = lambda *a: 0\n"
                         f"nsbox.shim_main({cfg!r}, [])\n")
                 p = subprocess.Popen([sys.executable, "-I", "-c", code], stderr=subprocess.PIPE,
-                                     env={"PATH": os.environ["PATH"], "HOME": str(self.home)})
+                                     env={"PATH": os.environ["PATH"], "HOME": str(self.home)},
+                                     start_new_session=True)  # own pgid: cleanup kills only this test's tree
+                self.addCleanup(kill_group, p)
                 for _ in range(200):
                     if ready.exists():
                         break
                     __import__("time").sleep(0.05)
                 else:
-                    p.kill()
                     self.fail("stage 1 never started")
                 p.send_signal(sig)
                 p.wait(timeout=20)
                 self.assertTrue(got.exists(), f"{sig.name} did not reach stage 1")
+                kill_group(p)
+                self.assertEqual(left_in_group(p.pid, self.base), [], "processes left in the test's process group")
+
+
+class NoLeftoverProcessTests(base.ShimBase):
+    def test_a_killed_shim_leaves_no_looping_fake_unshare_behind(self):
+        ready = self.base / "ready"
+        self.fake_unshare.write_text(
+            f"#!/bin/sh\ntouch {ready}\n"
+            "i=0; while [ $i -lt 400 ] && kill -0 " + str(os.getpid()) + " 2>/dev/null; do sleep 0.05; i=$((i+1)); done\n")
+        cfg = self.shim_cfg()
+        code = (f"import sys; sys.path.insert(0, {str(REPO)!r}); from scout import nsbox\n"
+                "nsbox.start_proxy = lambda *a: 0\n"
+                f"nsbox.shim_main({cfg!r}, [])\n")
+        p = subprocess.Popen([sys.executable, "-I", "-c", code], stderr=subprocess.PIPE, start_new_session=True,
+                             env={"PATH": os.environ["PATH"], "HOME": str(self.home)})
+        for _ in range(200):
+            if ready.exists():
+                break
+            __import__("time").sleep(0.05)
+        else:
+            kill_group(p)
+            self.fail("stage 1 never started")
+        kill_group(p)
+        self.assertEqual(left_in_group(p.pid, self.base), [], "processes left in the test's process group")
 
 
 class TeeBoundedTests(unittest.TestCase):

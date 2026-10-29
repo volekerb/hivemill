@@ -40,3 +40,15 @@ Verify: `systemd-analyze --user verify systemd/*.service systemd/*.timer`, `syst
 `factory` takes the caller from `FACTORY_AGENT`. Fail closed: inside an agent context (`CLAUDECODE` or `HERDR_PANE_ID` set) an unset `FACTORY_AGENT` never means owner. The pane id may recover the live agent (a warning goes to stderr); otherwise the identity is `unknown`: read-only commands run, `inbox` prints nothing and marks nothing read, every write exits 3. `FACTORY_AGENT=owner` is honoured anywhere, except in a pane registered to an agent with status `live` or `done` (exit 3 for every command, reads included, plus an `identity-spoof` event attributed to `pane:<id>`). Outside an agent context the caller is the owner, as before.
 
 This guards against accidental loss of the environment, not against an adversary: identity is still self-asserted through env vars (for example `env -u CLAUDECODE -u HERDR_PANE_ID` or a forged `FACTORY_AGENT` bypasses it).
+
+## Tick phase timers
+
+`factory config tick_phase_timers 1` makes every tick time its phases (default `0`, off: no output, no event, only a few integer counter increments). Log-only: it changes no behaviour, and a timer failure is swallowed.
+
+With it on, each tick prints one line to stdout (so it lands in journald) and records one event row (`action` `tick-phases`, same text), also on the "herdr unreachable" early return:
+
+    tick-phases total=<s> <phase>=<s> <phase>=<s> ... dequeue_spawns=<n> dequeue_spawn_s=<s> ci_wake_ls_remote=<n> ci_wake_gh=<n> export_git=<n>
+
+Seconds have 2 decimals and phases come in run order (`migrate_db`, `render_settings`, `herdr_list`, `digest`, `tmp_alert`, `remote_url_alert`, `main_protection`, `tmp_clean`, `red_main`, `reap_serves`, `scout`, `skilleval`, `pending_nudges`, `reap_loop`, `drift`, `flagless`, `claude_audit`, `stop_fallback`, `gate`, `ci_wake`, `wake_leads`, `dequeue`, `dispatch`, `nudge`, `sidebar`, `export`, `freshness`, `recycle`, `relaunches`, `util`). A phase's time runs from the end of the previous one. Counters: `ci_wake_ls_remote` and `ci_wake_gh` (calls made by the CI-wake step), `export_git` (git subprocesses in `export`), `dequeue_spawns` and `dequeue_spawn_s` (spawns started by the dequeue loop and their summed wall time).
+
+Read it with `journalctl --user -u factory-tick.service | grep tick-phases`. About 1440 lines a day while on; turn it off with `factory config tick_phase_timers 0` after a sample.

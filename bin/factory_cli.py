@@ -210,6 +210,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
@@ -632,6 +633,36 @@ def settings_text(role, tokens=None, template=None):
     if "@FACTORY_" in text:
         die(f"settings template {template} has an unknown @FACTORY_ token; known: {', '.join(settings_tokens())}", 3)
     return text
+
+
+def evaluator_settings(rdir):
+    """(settings text, guard path) for the evaluator: nsbox hides ~/factory in the sandbox, so worker-guard.py is
+    copied (stdlib-only, 0555, regular file, replaced atomically on every launch) into <trial>/role/roles/hooks and
+    every hook command is pointed at that copy. A hook command left under the live home would fail closed on every
+    tool call. The depth matters: the guard counts dirname^3 of its own path as a live home, so <trial>/role/ (which
+    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`."""
+    rdir = Path(rdir)
+    src = ROLES_DIR / "hooks" / "worker-guard.py"
+    try:
+        body = src.read_text()
+    except OSError as e:
+        die(f"cannot read {src}: {e}; restore it with git checkout", 3)
+    guard = rdir / "roles" / "hooks" / "worker-guard.py"
+    write_atomic(guard, body, 0o555)
+    cfg = json.loads(settings_text("evaluator"))
+    n = 0
+    for groups in cfg.get("hooks", {}).values():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                cmd = hook.get("command", "")
+                tail = cmd.partition("worker-guard.py")[2]
+                if "worker-guard.py" not in cmd:
+                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
+                n += 1
+    if not n:
+        die("roles/settings/evaluator.json.in has no hook commands; the evaluator must not start without its guard", 3)
+    return json.dumps(cfg, indent=2) + "\n", guard
 
 
 def write_atomic(path, text, mode=0o644):
@@ -2250,11 +2281,15 @@ def task_sandbox_required(con, task):
     return bool(r and r["sandbox_required"])
 
 
+# same pattern as web/queries.py _TAG_RE, so a title is tagged exactly when the goal page counts it
+SC_TAG_RE = r"\[(SC\d+(?:\s*,\s*SC\d+)*)\]"
+
+
 def cmd_task(a):
     con = db()
     if a.action == "add":
         require_role(con, "pm", "lead", "director")
-        g = con.execute("SELECT id FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
+        g = con.execute("SELECT id,success_criteria FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
         if a.follow_up_of:
             pm_own_goal(con, g["id"], "the follow-up")
             par = con.execute("SELECT status FROM tasks WHERE id=? AND goal_id=?", (a.follow_up_of, g["id"])).fetchone()
@@ -2281,6 +2316,9 @@ def cmd_task(a):
         if a.follow_up_of:
             event(con, "task", tid, "follow-up", f"follow-up of {a.follow_up_of}")
         warn_file_overlap(con, tid, g["id"], spec)
+        if (g["success_criteria"] or "").strip() and not re.search(SC_TAG_RE, a.title or ""):
+            print(f"warning: {tid} title has no [SCn] tag but {g['id']} has success criteria; the goal page shows "
+                  f"them untracked. Retitle: factory task update {tid} --title '<title> [SCn]'", file=sys.stderr)
         print(tid)
     elif a.action == "reopen":
         role = actor_role(con)
@@ -3785,7 +3823,6 @@ def cmd_judge(a):
     reason = read_text(a.reason)
     waited = 0
     proj = gate_project_for(con, t["pr_url"])  # local merge gate mode (T-0516) iff the project has a gate_cmd
-    gate_waited = False
     if not a.reject:
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
@@ -3798,6 +3835,13 @@ def cmd_judge(a):
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
+    return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
+
+
+def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
+    """The merge gate of `factory judge` (pure extraction from cmd_judge): verdicts + carry, freshness, CI, refresh,
+    push-policy, public-text, noreply, then `gh pr merge` and the post-merge records. Dies (exit 4/5/6) on any refusal."""
+    gate_waited = False
     wt = t["worktree"]
     git_repo = wt if wt and Path(wt).is_dir() else HOME
     for r in dict.fromkeys([str(git_repo), os.getcwd()]):  # the carry check runs in git_repo, `gh pr merge` in the cwd
@@ -5238,6 +5282,31 @@ def reap_orphans(con):
             pass
 
 
+# tick phase timers (T-0664, log-only; see _pt_lap below): state, and a decorator for phases whose call line is pinned by tests
+_PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
+
+
+def _pt_phase(name):
+    """Time a whole call as tick phase `name` (only while the tick timers are on; otherwise a plain call)."""
+    def deco(fn):
+        def wrapper(*a, **k):
+            if not _PT["on"]:
+                return fn(*a, **k)
+            try:
+                return fn(*a, **k)
+            finally:
+                try:
+                    t = time.perf_counter()
+                    _PT["phases"].append((name, t - _PT["last"]))
+                    _PT["last"] = t
+                except Exception:  # noqa: BLE001 — a timer must never stop the tick
+                    _PT["on"] = False
+        wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
+        return wrapper
+    return deco
+
+
+@_pt_phase("scout")
 def scout_tick(con):
     """Tick hook: start the skill scout at its slot and keep its run within budget (scout/schedule.py). Never breaks the tick."""
     try:
@@ -5257,6 +5326,7 @@ def scout_tick(con):
             pass
 
 
+@_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
     try:
@@ -5503,6 +5573,7 @@ def git_argv(repo, *args):
 
 def git_run(repo, *args, env=None, text=True, **kw):
     """subprocess.run of git in `repo` with hooks, fsmonitor, non-https transports and the system config off, and no prompts."""
+    _PT["git_n"] += 1  # tick phase timers: export_git counts these
     return subprocess.run(git_argv(repo, *args), capture_output=True, text=text,
                           env={**(os.environ if env is None else env), "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}, **kw)
 
@@ -5742,6 +5813,31 @@ def make_task_clone(con, repo, wt, branch, base):
         fail(f"clone checkout failed: {p.stderr.strip()}")
 
 
+PRE_PUSH_MARK = "# factory pre-push public-text guard (G-021 T-0696)"
+
+
+def install_pre_push_hook(repo):
+    """<git-common-dir>/hooks/pre-push runs ci/pre_push_public_text.py of the factory home, so every worktree of `repo`
+    (and a task clone's own repo) refuses a push to a public_text_repos remote that carries private text. A hook file,
+    not core.hooksPath: git_config_refusal allows no such key. Dies (spawn refused) when it cannot be written."""
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the pre-push guard: {p.stderr.strip()}", 4)
+    hooks = Path(repo, p.stdout.strip()).resolve() / "hooks"
+    script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+    body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+            f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+    dst = hooks / "pre-push"
+    try:
+        hooks.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -5757,6 +5853,7 @@ def prepare_worktree(con, task, role):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
+        install_pre_push_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -5771,6 +5868,7 @@ def prepare_worktree(con, task, role):
     start = f"origin/{base}" if has_remote else base
     if cfg(con, "task_clones") == "1":
         make_task_clone(con, repo, wt, branch, base)
+        install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
@@ -5784,6 +5882,7 @@ def prepare_worktree(con, task, role):
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
         die(f"worktree checkout failed: {p.stderr.strip()}")
+    install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -6272,7 +6371,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
         rdir = Path(env["FACTORY_HOME"]).parent / "role"
         settings, sysprompt = rdir / "settings.json", rdir / "prompt.md"
-        settings.write_text(settings_text("evaluator"))
+        settings_body, _guard = evaluator_settings(rdir)
+        settings.write_text(settings_body)
     # resumed agents run with --system-prompt-snapshot off and read this file on every request: write it only right
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
@@ -9084,26 +9184,115 @@ def stale_agents(con):
             con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'fresh:%' ORDER BY key").fetchall()]
 
 
+# ── tick phase timers (T-0664): log-only, behind config tick_phase_timers; nothing here may stop the tick ──
+
+
+def _pt_reset(con):
+    """Tick start: reset the counters and say whether the timers are on."""
+    try:
+        _PT.update(on=cfg(con, "tick_phase_timers") == "1", phases=[], counters={}, git_n=0, git_mark=0)
+        _PT["t0"] = _PT["last"] = time.perf_counter()
+    except Exception:  # noqa: BLE001 — a timer must never stop the tick
+        _PT["on"] = False
+
+
+def _pt_lap(name):
+    """Close the phase that just ran: its wall time is the time since the previous lap."""
+    if not _PT["on"]:
+        return
+    try:
+        t = time.perf_counter()
+        _PT["phases"].append((name, t - _PT["last"]))
+        _PT["last"] = t
+    except Exception:  # noqa: BLE001
+        _PT["on"] = False
+
+
+def _pt_count(name, n=1):
+    try:
+        _PT["counters"][name] = _PT["counters"].get(name, 0) + n
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _pt_git(start):
+    """Bracket export(): export_git = git subprocesses (git_run calls) made in between."""
+    try:
+        if start:
+            _PT["git_mark"] = _PT["git_n"]
+        else:
+            _PT["counters"]["export_git"] = _PT["git_n"] - _PT["git_mark"]
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _timed_spawn(*a, **k):
+    """spawn() for the dequeue loop; with the timers on it also counts the calls and their wall time."""
+    if not _PT["on"]:
+        return spawn(*a, **k)
+    t = time.perf_counter()
+    try:
+        return spawn(*a, **k)
+    finally:
+        _pt_count("dequeue_spawns")
+        _pt_count("dequeue_spawn_s", time.perf_counter() - t)
+
+
+def _pt_emit(con):
+    """One `tick-phases` stdout line and one event row at the end of the tick (also on the herdr-unreachable return)."""
+    if not _PT["on"]:
+        return
+    try:
+        c = _PT["counters"]
+        for k, v in (("dequeue_spawns", 0), ("dequeue_spawn_s", 0.0), ("ci_wake_ls_remote", 0), ("ci_wake_gh", 0), ("export_git", 0)):
+            c.setdefault(k, v)
+        line = "tick-phases total=%.2f" % (time.perf_counter() - _PT["t0"])
+        line += "".join(" %s=%.2f" % (n, d) for n, d in _PT["phases"])
+        line += "".join(" %s=%s" % (k, v if isinstance(v, int) else "%.2f" % v) for k, v in c.items())
+        print(line, flush=True)
+        event(con, "tick", "phases", "tick-phases", line)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
+    t_mig = time.perf_counter()
     migrate_db_layout()
     con = db()
+    _pt_reset(con)
+    _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
+    _pt_lap("migrate_db")
     render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
+    _pt_lap("render_settings")
     agents = herdr_agents()
+    _pt_lap("herdr_list")
     morning_digest(con)
+    _pt_lap("digest")
     tmp_alert(con)
+    _pt_lap("tmp_alert")
     remote_url_alert(con)
+    _pt_lap("remote_url_alert")
     main_protection_alert(con)
+    _pt_lap("main_protection")
     tmp_clean(con)
+    _pt_lap("tmp_clean")
     red_main_check(con)
+    _pt_lap("red_main")
     reap_stray_serves(con)
+    _pt_lap("reap_serves")
     reap_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
+        _pt_lap("drift")
         print("herdr unreachable; exporting only")
+        _pt_git(True)
         export(con)
+        _pt_git(False)
+        _pt_lap("export")
+        _pt_emit(con)
         return
     scout_tick(con)
     skilleval_tick(con)
@@ -9111,6 +9300,7 @@ def cmd_tick(a, locked=False):
     by_pane = {x["pane_id"]: x for x in agents}
     t = time.time()
     finish_pending_nudges(con, by_name, t)
+    _pt_lap("pending_nudges")
 
     # 1. reap finished workers; detect lost agents; record session ids for resume
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
@@ -9157,17 +9347,21 @@ def cmd_tick(a, locked=False):
         elif r["blocked_since"]:
             con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
 
+    _pt_lap("reap_loop")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
+    _pt_lap("drift")
 
     # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
     notify_flagless(con, [f for f in flagless_scan(
         con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
         throttle=True) if f["new"]])
+    _pt_lap("flagless")
 
     try:  # 1b'. a Claude process under an agent that factory spawn did not start
         claude_outside_spawn(con)
     except Exception as e:  # noqa: BLE001 — the audit must never stop the tick
         event(con, "tick", "claude-audit", "claude-audit-failed", str(e))
+    _pt_lap("claude_audit")
 
     # 1c. stop fallback BEFORE the dequeue, so a freed slot is seen by it
     stop_timeout = int(cfg(con, "stop_timeout_s"))
@@ -9179,24 +9373,28 @@ def cmd_tick(a, locked=False):
         if att is not None and (nowdt - att).total_seconds() < stop_timeout:
             continue  # retry at most once per stop_timeout_s
         _res, _note = force_stop(con, r["name"], "timeout", attempt_seen=r["stop_attempt_at"])  # the tick needs neither
+    _pt_lap("stop_fallback")
 
     # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
     try:
         tick_gate(con)
     except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
         event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
+    _pt_lap("gate")
 
     # 1c'. CI result of a parked team's in_review PR -> mail to its lead, so 1d wakes it in this tick
     try:
         tick_ci_wake(con)
     except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
         event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+    _pt_lap("ci_wake")
 
     # 1d. wake parked leads (unread mail), BEFORE the dequeue so a queued wake can start in this tick
     try:
         tick_wake_leads(con)
     except Exception as e:  # noqa: BLE001 — a bad team row must never stop the tick
         event(con, "tick", "wake-leads", "wake-error", str(e)[:300])
+    _pt_lap("wake_leads")
 
     # 2. dequeue spawns while the gate is open. Drain before build: role class first (director, lead, judge, reviewer, qa,
     # then coder/pm/cleaner/staff-engineer). Inside the coder/pm/... class a merge-only refresh coder (its spawn prompt
@@ -9231,7 +9429,7 @@ def cmd_tick(a, locked=False):
         if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
             continue  # judge cap reached or PR CI not green: the rows behind it may start
         try:
-            spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
+            _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
@@ -9261,12 +9459,14 @@ def cmd_tick(a, locked=False):
                             "WHERE name=? AND status='queued'", (fails, q["name"]))
                 event(con, "agent", q["name"], "evaluator-spawn-retry",
                       f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
+    _pt_lap("dequeue")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
     try:
         dispatch_tick(con)
     except Exception as e:  # noqa: BLE001 — dispatch must never stop the tick
         event(con, "tick", "dispatch", "dispatch-error", str(e)[:300])
+    _pt_lap("dispatch")
 
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
@@ -9291,6 +9491,7 @@ def cmd_tick(a, locked=False):
         if text:
             herdr("agent", "prompt", h.get("name") or r["name"], text, check=False)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
+    _pt_lap("nudge")
 
     # 4. sidebar: goal progress on each goal workspace, capacity on HQ
     _, why, s = gate(con)
@@ -9311,7 +9512,11 @@ def cmd_tick(a, locked=False):
                 label = label[:28 - len(f" 📬{n}")] + f" 📬{n}"
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
+    _pt_lap("sidebar")
+    _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
+    _pt_git(False)
+    _pt_lap("export")
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
@@ -9323,16 +9528,20 @@ def cmd_tick(a, locked=False):
         if not old or old["ts"] != err:  # one event per new error text, not one per tick
             con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
             event(con, "tick", "freshness", "freshness-failed", err)
+    _pt_lap("freshness")
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
         tick_recycle(con)
     except Exception as e:  # noqa: BLE001 — one bad agent row or log must not stop the relaunches
         event(con, "agent", "tick", "recycle-error", str(e)[:300])
+    _pt_lap("recycle")
     tick_relaunches(con)
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
+    _pt_lap("util")
+    _pt_emit(con)
 
 
 # ───────────────────────────── export & backup ─────────────────────────────
@@ -10360,9 +10569,11 @@ def _ci_remote_head(branch, batch=None):
         return None
     if batch is not None and branch.startswith("factory/"):
         if not batch:
+            _pt_count("ci_wake_ls_remote")
             batch.append(_ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    _pt_count("ci_wake_ls_remote")
     rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
@@ -10398,6 +10609,7 @@ def tick_ci_wake(con):
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
+            _pt_count("ci_wake_gh")
             try:
                 pr = gh_json("pr", "view", k["pr_url"], "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup",
                              timeout=float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S))
@@ -10448,6 +10660,7 @@ def _stale_park_alert(con, t, clock):
          "alert", t["goal_id"], sender="tick")
 
 
+@_pt_phase("relaunches")
 def tick_relaunches(con):
     """Run the queued `relaunch --when-idle` requests of agents that are idle now (tick step 5, after export)."""
     rows = con.execute("SELECT * FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL").fetchall()
