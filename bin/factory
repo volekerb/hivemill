@@ -6868,8 +6868,6 @@ def cmd_res(a):
     print(u2["line"])
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
-    ob = owner_blockers(con)
-    print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     bt = {r["waits"]: r["n"] for r in con.execute("SELECT waits, count(*) n FROM tasks WHERE status='blocked' GROUP BY waits")}
     print(f"blocked tasks: {bt.get('owner', 0)} owner-blocked · {bt.get('internal', 0)} internal-blocked")
     print(f"mem available {s['mem_mb']} MB (floor {cfg(con, 'min_mem_available_mb')}) · swap used "
@@ -6895,6 +6893,8 @@ def cmd_res(a):
         n = {k: con.execute("SELECT count(*) c FROM events WHERE action=? AND ts >= ?", (k, cut)).fetchone()["c"]
              for k in ("dispatch", "dispatch-shadow")}
         print(f"lead-less dispatch: {mode}; last hour: {n['dispatch']} spawned, {n['dispatch-shadow']} shadow")
+    ob = owner_blockers(con)
+    print(f"owner-only blockers: {len(ob)}" + "".join(f"\n  {b['text']} (open {b['age_min']} min)" for b in ob))
     top = subprocess.run(["ps", "-eo", "rss,args", "--sort=-rss"], capture_output=True, text=True).stdout.splitlines()[1:6]
     print("top memory:")
     for line in top:
