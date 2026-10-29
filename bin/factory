@@ -6604,6 +6604,10 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
         r = _git(wt, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
         if r.returncode == 0 and r.stdout.strip() not in tips:
             tips.append(r.stdout.strip())
+        refs = _git(wt, "for-each-ref", "--format=%(objectname)", "refs/heads/", "refs/stash")  # any other branch or the stash dies with the clone too
+        if refs.returncode != 0:
+            return "unpushed commits", None, tip is not None
+        tips += [x for x in refs.stdout.split() if x not in tips]
     for sha in tips:
         if head:
             if not _is_ancestor(repo, sha, head):
@@ -6629,7 +6633,7 @@ def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
     it. Kept: live/queued/starting agents, unknown agents, ended NULL, symlinks, anything not a direct child of the root."""
     root = Path(root) if root else sandbox_workers_root()
     if not root.is_dir() or root.is_symlink():
-        return []
+        return [], 0
     real = _real(root)
     rows = []
     for d in sorted(root.iterdir()):
@@ -6666,7 +6670,8 @@ def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
             continue
         row["action"], row["reason"] = "removed", "sandbox dir of an ended agent"
         event(con, "agent", d.name, "sandbox-cleaned", {"dir": str(d)})
-    return rows
+    kept = [r for r in rows if r["reason"].startswith("sandbox dir kept")]
+    return [r for r in rows if r not in kept], len(kept)  # kept dirs are counted, not listed, so a quiet run stays quiet
 
 
 def cmd_clean(a):
@@ -6741,7 +6746,8 @@ def cmd_clean(a):
     if not a.dry_run:
         for repo in repos:
             _git(repo, "worktree", "prune")
-    rows += clean_sandbox_dirs(con, pane_cwds, a.dry_run)
+    sandbox_rows, sandbox_kept = clean_sandbox_dirs(con, pane_cwds, a.dry_run)
+    rows += sandbox_rows
     orphans = []
     if WORKTREES.is_dir():
         orphans = sorted(d for d in WORKTREES.iterdir() if d.is_dir() and d.resolve() not in known)
@@ -6749,7 +6755,7 @@ def cmd_clean(a):
     table(rows, ["task", "worktree", "branch", "action", "reason"])
     n = lambda act: sum(1 for r in rows if r["action"] == act and r["reason"] != "orphan (left alone)")
     print(f"total: {n('removed')} removed, {n('would remove')} would remove, "
-          f"{n('skip')} skipped, {len(orphans)} orphan(s)" + (" [dry run]" if a.dry_run else ""))
+          f"{n('skip')} skipped, {len(orphans)} orphan(s), {sandbox_kept} sandbox dir(s) kept" + (" [dry run]" if a.dry_run else ""))
 
 
 REMOTE_BRANCH_RE = re.compile(r"^factory/[A-Za-z0-9._/-]+$")

@@ -100,6 +100,25 @@ class CloneCleanTests(CloneCleanBase):
         self.assertIn("unpushed commits", self.clean().stdout)
         self.assertTrue(wt.exists())
 
+    def test_clone_blocked_unpushed_commit_on_other_branch(self):
+        wt, _ = self.clone_task()
+        git("checkout", "-q", "-b", "wip", cwd=wt)
+        (wt / "extra").write_text("more\n")
+        git("add", "extra", cwd=wt)
+        git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "commit", "-q", "-m", "wip only", cwd=wt)
+        git("checkout", "-q", "factory/t-0001", cwd=wt)
+        p = self.clean()
+        self.assertIn("unpushed commits", p.stdout)
+        self.assertTrue(wt.exists())
+
+    def test_clone_blocked_stash_only_in_clone(self):
+        wt, _ = self.clone_task()
+        (wt / "f1").write_text("stashed\n")
+        git("-c", "user.name=zz", "-c", "user.email=zz@example.invalid", "stash", "push", "-q", cwd=wt)
+        p = self.clean()
+        self.assertIn("unpushed commits", p.stdout)
+        self.assertTrue(wt.exists())
+
     def test_clone_blocked_live_pane_cwd_inside(self):
         wt, _ = self.clone_task()
         pane = {"pane_id": "p9", "tab_id": "t9", "workspace_id": "w9"}
