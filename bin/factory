@@ -2264,9 +2264,10 @@ def cmd_task(a):
             if dependents:
                 die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
         elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
-                                             a.team, a.priority, a.after, a.waits, a.note, a.reason)):
+                                             a.team, a.priority, a.after, a.waits, a.note, a.reason,
+                                             a.sandbox_required)):
             die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
-                "--acceptance --team --priority --after --waits --note --goal", 2)
+                "--acceptance --team --priority --after --waits --note --goal --sandbox-required", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
