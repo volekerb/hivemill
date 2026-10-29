@@ -1353,13 +1353,10 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if mem < int(cfg(con, "min_mem_available_mb")):
         return False, f"MemAvailable {mem}MB < floor {cfg(con, 'min_mem_available_mb')}MB", stats
     tmp = stats["tmp"]
-    stats["tmp_exempt"] = False
     if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
         # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
         # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
-        if role == "cleaner":
-            stats["tmp_exempt"] = True
-        else:
+        if role != "cleaner":
             return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
                            " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
@@ -7534,7 +7531,7 @@ def cmd_tick(a, locked=False):
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
     held = False
     for q in queued:
-        if not gate(con)[0]:
+        if not held and not gate(con)[0]:
             held = True  # a closed gate stops the queue, except for a cleaner behind it (exempt from the tmp gate only)
         if held and (q["role"] != "cleaner" or not gate(con, role="cleaner")[0]):
             continue

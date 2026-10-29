@@ -120,6 +120,21 @@ class CleanerExempt(TmpBase):
         self.assertEqual(self.status("zz-test-c1"), ["queued"])
         self.assertNotEqual(self.status("zz-test-cl1"), ["queued"])
 
+    def test_tick_does_not_regate_every_row_once_held(self):
+        # each gate() lists agents; a held queue must not pay that per queued row (it runs under the tick lock)
+        def list_calls(n_coders):
+            for i in range(n_coders):
+                self.spawn("coder", f"zz-test-c{n_coders}-{i}")
+            self.spawn("cleaner", f"zz-test-cl{n_coders}")
+            self.env.sql("UPDATE agents SET status='queued', pane_id=NULL WHERE name=?", (f"zz-test-cl{n_coders}",))
+            before = len(self.env.calls("herdr"))
+            self.tick(statvfs=self.F91)
+            self.assertEqual(self.status(f"zz-test-c{n_coders}-0"), ["queued"])
+            self.assertNotEqual(self.status(f"zz-test-cl{n_coders}"), ["queued"])  # cleaner behind the held queue starts
+            return len([c for c in self.env.calls("herdr")[before:] if c["argv"][:2] == ["agent", "list"]])
+        few = list_calls(1)
+        self.assertEqual(list_calls(5), few)  # 5 more queued coders behind the held gate add no agent-list calls
+
 
 class Alert(TmpBase):
     def alerts(self):
