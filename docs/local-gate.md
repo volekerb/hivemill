@@ -47,7 +47,7 @@ verifies that every module ran once, sums the test count and prints wall and CPU
 which the runner copies into the row's note and into `test_count` when there is no `gate_count_cmd`). Use it in the gate command
 from the main checkout, so a PR cannot edit it: `python3 $FACTORY_MAIN/tests/gate_shards.py`. N is `gate_shards` (default 4)
 capped by the CPU the load gate leaves free; the runner passes it as `$GATE_SHARDS`. Example for factory:
-`python3 -m py_compile bin/factory && python3 $FACTORY_MAIN/tests/gate_shards.py && <go vet/test/build>`.
+`python3 -m py_compile bin/factory bin/factory_cli.py && python3 $FACTORY_MAIN/tests/gate_shards.py && <go vet/test/build>`.
 
 Known limit: the shards run the PR tree's own `ci/shard.py` (only the wrapper and the command are fixed), so the gate trusts the
 PR's test runner, as CI did. The cache key is (project, head sha, main sha, `gate_cmd`).
