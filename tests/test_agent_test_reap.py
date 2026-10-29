@@ -319,6 +319,12 @@ class ExitingClaude(Base):
                 self.drop(901)
                 self.drop(900)
 
+    def test_never_runner_below_another_live_claude_under_the_own_claude(self):
+        self.own_claude()
+        self.fake(902, argv=("claude", "x"), agent="coder-t-8", cwd=self.tmp, ppid=900)
+        self.fake(901, ppid=902)
+        self.assertUntouched(self.reap())
+
     def test_never_own_claude_under_a_pane_multiplexer(self):
         self.fake(899, argv=("her" + "dr", "x"), agent=None, cwd=self.tmp)
         self.own_claude(ppid=899)
