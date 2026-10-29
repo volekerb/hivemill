@@ -4,9 +4,13 @@ Group A needs no namespaces: spawn writes <trial>/role/roles/hooks/worker-guard.
 inside a real allow-list sandbox with the "home" (and the factory checkout in it) hidden, and skips with the reason where
 user namespaces are restricted. The old path shows "can't open file" there, which proves the test sees the bug.
 """
+import contextlib
+import importlib.util
+import io
 import json
 import os
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -15,6 +19,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harness  # noqa: E402
 from harness import REPO  # noqa: E402
 from test_skilleval_sandbox import SandboxBase  # noqa: E402
 
@@ -25,6 +30,7 @@ UNSHARE = os.environ.get("NSBOX_TEST_UNSHARE", "unshare")
 USERNS_OK, USERNS_WHY = nsbox.userns_available(UNSHARE)
 SKIP_MSG = f"user namespaces unavailable: {USERNS_WHY}"
 GUARD_SRC = REPO / "roles" / "hooks" / "worker-guard.py"
+CI_FILES = ("public_text_guard.py", "scrub_scan.py")  # the guard loads the first by path; it loads the second by path
 
 
 def hook_commands(settings):
@@ -66,6 +72,97 @@ class GuardCopyTests(SandboxBase):
             f.evaluator_settings(rdir)
         self.assertEqual(guard.read_bytes(), GUARD_SRC.read_bytes())
         self.assertEqual(stat.S_IMODE(guard.stat().st_mode), 0o555)
+
+    def test_spawn_copies_the_ci_files_the_public_text_check_loads(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+            self.spawn_eval(f, info)
+        rdir = Path(info["dir"]).resolve() / "role"
+        for name in CI_FILES:
+            dst = rdir / "ci" / name
+            st = dst.lstat()
+            self.assertTrue(stat.S_ISREG(st.st_mode))  # regular file, not a symlink
+            self.assertEqual(stat.S_IMODE(st.st_mode), 0o555)
+            self.assertEqual(dst.read_bytes(), (REPO / "ci" / name).read_bytes())
+
+    def test_relaunch_recopies_tampered_ci_files(self):
+        with self.env.load_factory() as f:
+            rdir = Path(self.build(f.db())["dir"]).resolve() / "role"
+            f.evaluator_settings(rdir)
+            for name in CI_FILES:
+                os.chmod(rdir / "ci" / name, 0o755)
+                (rdir / "ci" / name).write_text("raise SystemExit(0)\n")
+            f.evaluator_settings(rdir)
+        for name in CI_FILES:
+            self.assertEqual((rdir / "ci" / name).read_bytes(), (REPO / "ci" / name).read_bytes())
+            self.assertEqual(stat.S_IMODE((rdir / "ci" / name).stat().st_mode), 0o555)
+
+    def test_missing_ci_source_dies_naming_the_file(self):
+        for missing in CI_FILES:
+            with self.subTest(missing=missing):
+                fake = Path(tempfile.mkdtemp(prefix="zz-test-fakerepo-")).resolve()
+                self.addCleanup(shutil.rmtree, fake, True)
+                shutil.copytree(REPO / "roles", fake / "roles", symlinks=True)
+                (fake / "ci").mkdir()
+                for name in CI_FILES:
+                    if name != missing:
+                        shutil.copy(REPO / "ci" / name, fake / "ci" / name)
+                rdir = fake / "trial" / "role"
+                with self.env.load_factory() as f:
+                    f.ROLES_DIR = fake / "roles"
+                    err = io.StringIO()
+                    with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+                        f.evaluator_settings(rdir)
+                self.assertEqual(cm.exception.code, 3)
+                self.assertIn(str(fake / "ci" / missing), err.getvalue())
+
+    def public_text_hook(self, rdir, tmp):
+        """Run the copied guard as a qa hook on a git push in a repo whose origin is configured as public."""
+        home = tmp / "home"
+        (home / "db").mkdir(parents=True)
+        con = sqlite3.connect(home / "db" / "factory.db")
+        con.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        con.execute("INSERT INTO config VALUES ('public_text_repos', 'acme/pub')")
+        con.commit()
+        con.close()
+        repo = tmp / "repo"
+        harness.git("init", "-q", "-b", "main", str(repo), cwd=tmp)
+        harness.git("remote", "add", "origin", "https://github.com/acme/pub.git", cwd=repo, inert_remote=True)
+        env = {k: v for k, v in os.environ.items() if not k.startswith("SCRUB_") and k != "FACTORY_AGENT"}
+        env["FACTORY_HOME"] = str(home)
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create --title t --body b"}, "cwd": str(repo)}
+        return subprocess.run([sys.executable, str(rdir / "roles" / "hooks" / "worker-guard.py"), "--role", "qa"],
+                              input=json.dumps(payload), capture_output=True, text=True, timeout=60, env=env)
+
+    def test_copied_guard_loads_the_public_text_checker(self):
+        with self.env.load_factory() as f:
+            rdir = Path(self.build(f.db())["dir"]).resolve() / "role"
+            f.evaluator_settings(rdir)
+        tmp = Path(tempfile.mkdtemp(prefix="zz-test-pubcopy-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        (tmp / "with").mkdir()
+        (tmp / "without").mkdir()
+        p = self.public_text_hook(rdir, tmp / "with")
+        self.assertNotIn("cannot be loaded", p.stderr)
+        self.assertIn("no owner terms loaded", p.stderr)  # the loaded checker ran and refused
+        shutil.rmtree(rdir / "ci")  # control: without the ci copy the same payload fails closed
+        p = self.public_text_hook(rdir, tmp / "without")
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("public-text-guard cannot be loaded", p.stderr)
+
+    def test_live_homes_of_the_copy_is_the_trial_role_dir_not_trials(self):
+        with self.env.load_factory() as f:
+            rdir = Path(self.build(f.db())["dir"]).resolve() / "role"
+            f.evaluator_settings(rdir)
+            doc = f.evaluator_settings.__doc__
+        spec = importlib.util.spec_from_file_location("guard_copy_mod", rdir / "roles" / "hooks" / "worker-guard.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        homes = mod.Analyzer(str(rdir), "evaluator").live_homes()
+        self.assertIn(str(rdir), homes)
+        self.assertNotIn(str(rdir.parent), homes)  # the trial dir
+        self.assertNotIn(str(rdir.parent.parent), homes)  # the trials dir
+        self.assertIn("mirrors the repo", doc)
 
 
 @unittest.skipUnless(USERNS_OK, SKIP_MSG)
