@@ -71,6 +71,10 @@ C-0001 summary: with: passed 1/2 tasks, median tokens 382, median wall_s 450; wi
 
 `tokens` is `tokens_in + tokens_out`; `-` means not recorded. Only trials in a terminal status count in the with/without figures; open trials are added as `; pending N` and `; running N`.
 
+### Start log
+
+When a trial's `claude` never reaches a session, read `<trial>/log/start.log`; `factory skilleval list|results` print its last rc and last 20 lines under every `error` or `lost` trial and every `running` trial with no tokens yet. The shim (`<trial>/bin/claude`) writes it: a timestamped traceback for any failure before stage 1 starts (token, proxy), a `stage1 exec` line (argv[0] only, never env), then the stage-1 stderr (teed, so the pane still shows it) and `stage1 exited rc=N`. The shim stays the parent of stage 1 so it can record the exit status. The log stays inside the trial dir, stops appending at 64 KiB (one `[truncated]` marker; stderr is still drained), strips control characters when printing, and redacts the OAuth token and anything shaped like `sk-ant-...`.
+
 Tests: `tests/test_skilleval_collect.py` (fixtures in `tests/fixtures/skilleval/`). The contained-checker integration test needs user namespaces and skips with the reason elsewhere.
 
 ## Queue and the tick scheduler: `factory skilleval queue|cancel`
