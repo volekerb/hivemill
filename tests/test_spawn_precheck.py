@@ -211,23 +211,23 @@ class SpawnPrecheckTests(FactoryTestCase):
     def test_g2_behind_ok_dirty_is_still_refreshed(self):
         main = self.main_commit()
         self.write_state(strict=False, mergeable="UNKNOWN")
-        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+        self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_g3_strict_true_unreadable_or_policy_strict_still_refresh(self):
         main = self.main_commit()
         self.write_state(strict=True)  # strict=true on GitHub
-        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+        self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_g4_protection_unreadable_refreshes(self):
         main = self.main_commit()
         self.write_state()  # the stub answers 404 for the protection read
-        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+        self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_g5_policy_strict_refreshes_even_if_github_strict_false(self):
         main = self.main_commit()
         self.write_state(strict=False)
         self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy','strict')")
-        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+        self.assertRefreshedSpawn(self.spawn("judge"), "judge", main)
 
     def test_b_head_contains_main_no_push(self):
         git(self.wt, "fetch", "-q", "origin", "main")
@@ -240,10 +240,21 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.events("precheck-skipped"), [])
         self.assertEqual(len(self.agent("judge")), 1)
 
-    def test_c_qa_clean_behind_is_refreshed_then_spawned(self):
-        main = self.main_commit()
-        p = self.spawn("qa")
-        self.assertRefreshedSpawn(p, "qa", main)
+    def assertNotRefreshedSpawn(self, role):
+        p = self.spawn(role)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.remote_head(), self.head)
+        self.assertEqual(self.events("refreshed"), [])
+        self.assertEqual(len(self.agent(role)), 1)
+
+    def test_c_qa_clean_behind_is_not_refreshed(self):  # T-0488
+        self.main_commit()
+        self.assertNotRefreshedSpawn("qa")
+
+    def test_c2_reviewer_clean_behind_is_not_refreshed(self):  # T-0488
+        self.main_commit()
+        self.assertNotRefreshedSpawn("reviewer")
 
     def test_d_reviewer_conflict_refused_names_file(self):
         self.conflicting_main()

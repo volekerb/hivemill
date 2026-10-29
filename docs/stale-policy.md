@@ -18,3 +18,9 @@ Effects:
 - `judge_pr_ready` treats BEHIND as ready.
 
 Backstop: push CI on main, the red-main freeze (T-0623, not yet wired: TODO in `cmd_judge`) and the fix-or-revert task.
+
+## Reviewer and qa spawn (T-0488)
+
+Independent of `stale_policy`: the reviewer/qa spawn pre-check never refreshes. It runs `refresh_branch(dry_run=True)`; a clean
+BEHIND head spawns on its current head, a conflict is still refused (`CONFLICT-ONLY`). Only the judge spawn refreshes
+(unless `behind_ok` applies).

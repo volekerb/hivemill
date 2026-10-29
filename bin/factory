@@ -3749,9 +3749,13 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
-    if pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
+    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
         return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
-    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task)
+    # T-0488: a reviewer/qa runs on the current head when main merges cleanly (the judge's own gate handles staleness);
+    # the dry run pushes nothing and still reports a conflict
+    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role != "judge")
+    if r["status"] == "dry-run":
+        return None
     if r["status"] == "fresh":
         return None
     if r["status"] == "in-flight":
