@@ -88,10 +88,15 @@ run under `scout/gatebox.py` (the nsbox allow-list mode) instead of plain `bash 
 
 - `$HOME`, `$XDG_RUNTIME_DIR`, `/tmp`, `/var/tmp` and `/dev/shm` are empty tmpfs (credentials, the user bus, ssh-agent are not
   there). `/var/tmp` is disk-backed on the host, so it is hidden too: a PR must not leave files there for a later run.
-- The gate tree, the checkout running `bin/factory` (`$FACTORY_MAIN`) and the repo's git dir are read-only; `$FACTORY_MAIN`'s
-  `db`, `run`, `logs`, `worktrees`, `exports`, `state` are masked.
-- Writable: `<wt_root>/reports` (`$GATE_REPORT_DIR`), `<wt_root>/factory-home` (scratch `$FACTORY_HOME`) and `<wt_root>/tmp`
-  (`$TMPDIR`, disk-backed; `$PYTHONPYCACHEPREFIX` points into it because the tree is read-only).
+- The checkout running `bin/factory` (`$FACTORY_MAIN`) and the repo's git common dir (hooks, config, refs, objects) are
+  read-only; `$FACTORY_MAIN`'s `db`, `run`, `logs`, `worktrees`, `exports`, `state` are masked.
+- Writable: the gate tree itself, `<wt_root>/reports` (`$GATE_REPORT_DIR`), `<wt_root>/factory-home` (scratch `$FACTORY_HOME`)
+  and `<wt_root>/tmp` (`$TMPDIR`, disk-backed). The gate tree is rw because the suite writes into its own tree (`docs/demo/out`,
+  rendered settings); that is acceptable because it is a throwaway detached checkout: every run makes a fresh
+  `<gate_dir>/<run id>/head` with `git worktree add --detach` and removes it afterwards, so a write never reaches a later run
+  or the result cache. The git common dir stays read-only even though the tree's `.git` file points into it.
+- The box sets `FACTORY_GATEBOX=1`. The two nested-user-namespace tests that cannot observe what they assert inside the outer
+  box (`test_skilleval_nsbox`: own pid namespace, hiding `.claude`) skip on it with the reason; unboxed runs and CI run them.
 - No network (own net namespace, loopback only), own pid namespace, capabilities dropped. Only an allow-list of environment
   variables passes (no `GH_TOKEN`, no agent identity). The scratch `$FACTORY_HOME` is always the run's own; a caller's
   `FACTORY_HOME` never overrides it.
