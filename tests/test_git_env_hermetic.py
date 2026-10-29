@@ -98,7 +98,8 @@ class RemoteGuardTest(unittest.TestCase):
         users = sorted(p.name for p in TESTS.glob("test_*.py") if p.name != Path(__file__).name
                        and "inert_remote=True" in p.read_text())
         self.assertEqual(users, ["test_fresh_export.py", "test_git_hardening.py", "test_project_remote.py", "test_public_repo_safety.py",
-                         "test_remote_url_check.py", "test_worker_guard_public_text.py"])
+                         "test_remote_url_check.py", "test_skilleval_guard_copy.py",
+                         "test_worker_guard_public_text.py"])  # skilleval_guard_copy: the copied public-text guard only matches github URLs
 
     def test_inert_remote_does_not_excuse_a_network_push(self):
         import harness
