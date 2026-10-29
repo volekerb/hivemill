@@ -9,6 +9,7 @@ resource gate on spawning, and the head-SHA-bound merge gate.
 Markdown under exports/ is generated FROM the DB. Editing it changes nothing.
 """
 import argparse
+import concurrent.futures
 import contextlib
 import fcntl
 import glob
@@ -94,6 +95,7 @@ scoutsandbox = _LazyScout("sandbox")
 workerbox = _LazyScout("workerbox")
 gatebox = _LazyScout("gatebox")
 testbox = _LazyScout("testbox")
+testcg = _LazyScout("testcg")
 ghcred = _LazyScout("ghcred")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
@@ -141,6 +143,7 @@ DEFAULT_CONFIG = {
     "affected_smoke": "test_db_layout.py test_inbox.py test_judge.py",  # ci/affected.py always-run smoke modules (T-0519)
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
+    "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -174,6 +177,11 @@ DEFAULT_CONFIG = {
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
     "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
+    "test_cgroup": "0",         # 1 = each `factory test` run gets a child cgroup with the caps below; parent = the delegated factory-tests unit, missing = exit 3, never uncapped (T-0681, docs/test-cgroups.md)
+    "test_cgroup_parent": "",    # absolute cgroupfs dir of the delegated parent; '' = derived from the uid
+    "test_cpu_quota": "400",     # percent of one CPU per run (cpu.max)
+    "test_mem_max": "3G",        # memory.max per run (swap 0)
+    "test_tasks_max": "512",     # pids.max per run
     "test_sandbox_subuid": "0",  # 1 (with test_sandbox 1) = the test box runs as a subordinate host uid via newuidmap, not the owner uid; no newuidmap/subuid range = exit 3, never as the owner (T-0682)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
@@ -627,6 +635,42 @@ def settings_text(role, tokens=None, template=None):
     if "@FACTORY_" in text:
         die(f"settings template {template} has an unknown @FACTORY_ token; known: {', '.join(settings_tokens())}", 3)
     return text
+
+
+def evaluator_settings(rdir):
+    """(settings text, guard path) for the evaluator: nsbox hides ~/factory in the sandbox, so worker-guard.py is
+    copied (stdlib-only, 0555, regular file, replaced atomically on every launch) into <trial>/role/roles/hooks and
+    every hook command is pointed at that copy. A hook command left under the live home would fail closed on every
+    tool call. The depth matters: the guard counts dirname^3 of its own path as a live home, so <trial>/role/ (which
+    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`.
+    The copy layout mirrors the repo (roles/hooks/, ci/) under <trial>/role/, because the guard resolves its sibling
+    files (ci/public_text_guard.py, which loads ci/scrub_scan.py by path) and its live home via dirname^3 of its own
+    path. Those two ci files are copied the same way (0555, atomic, every launch)."""
+    rdir = Path(rdir)
+    copies = [(ROLES_DIR / "hooks" / "worker-guard.py", rdir / "roles" / "hooks" / "worker-guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "public_text_guard.py", rdir / "ci" / "public_text_guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "scrub_scan.py", rdir / "ci" / "scrub_scan.py")]
+    for src, dst in copies:
+        try:
+            body = src.read_text()
+        except OSError as e:
+            die(f"cannot read {src}: {e}; restore it with git checkout", 3)
+        write_atomic(dst, body, 0o555)
+    guard = copies[0][1]
+    cfg = json.loads(settings_text("evaluator"))
+    n = 0
+    for groups in cfg.get("hooks", {}).values():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                cmd = hook.get("command", "")
+                tail = cmd.partition("worker-guard.py")[2]
+                if "worker-guard.py" not in cmd:
+                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
+                n += 1
+    if not n:
+        die("roles/settings/evaluator.json.in has no hook commands; the evaluator must not start without its guard", 3)
+    return json.dumps(cfg, indent=2) + "\n", guard
 
 
 def write_atomic(path, text, mode=0o644):
@@ -3631,16 +3675,18 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
         if p.returncode != 0:
             return why(f"cannot read the PR text: gh pr view failed: {p.stderr.strip()[:120]}")
         pr = json.loads(p.stdout)
-        texts = [pr.get("title") or "", pr.get("body") or ""] + [(c or {}).get("body") or "" for c in pr.get("comments") or []] \
-            + [(r or {}).get("body") or "" for r in pr.get("reviews") or []]
-        hits = [h for x in texts for h in guard.check_text(x, terms)] + guard.check_ref(pr.get("headRefName") or "", terms) \
-            + guard.check_push(git_repo, base, head, terms)
+        texts = [("title", pr.get("title") or ""), ("body", pr.get("body") or "")] \
+            + [(f"comment {i}", (c or {}).get("body") or "") for i, c in enumerate(pr.get("comments") or [], 1)] \
+            + [(f"review {i}", (r or {}).get("body") or "") for i, r in enumerate(pr.get("reviews") or [], 1)]
+        hits = [h for lbl, x in texts for h in guard.locate_text(x, terms, lbl)] \
+            + [(h[0], "branch") for h in guard.check_ref(pr.get("headRefName") or "", terms)] \
+            + [(h[0], h[1]) for h in guard.check_push(git_repo, base, head, terms)]
     except guard.NoTermsError:
         return why("no owner terms loaded; set SCRUB_TERMS_FILE or `factory config scrub_terms_file <path>`")
     except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses the merge, never crashes past the event
         return why(f"cannot check: {type(e).__name__}: {str(e)[:200]}")
     if hits:
-        return why(f"{len(hits)} hits: {', '.join(sorted({h[0] for h in hits}))}")
+        return why(f"{len(hits)} hits: {guard.format_locations(hits, terms)}")
     return None
 
 
@@ -6335,7 +6381,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
         rdir = Path(env["FACTORY_HOME"]).parent / "role"
         settings, sysprompt = rdir / "settings.json", rdir / "prompt.md"
-        settings.write_text(settings_text("evaluator"))
+        settings_body, _guard = evaluator_settings(rdir)
+        settings.write_text(settings_body)
     # resumed agents run with --system-prompt-snapshot off and read this file on every request: write it only right
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
@@ -8254,25 +8301,64 @@ def cmd_test(a):
     v = cfg(db(), "test_sandbox").strip()
     if v not in ("0", "1"):
         die(f"config test_sandbox is {v!r}, not 0 or 1; fix it with `factory config test_sandbox 1`, the command was not run", 3)
-    if v == "0":
+    cg = cfg(db(), "test_cgroup").strip()
+    if cg not in ("0", "1"):
+        die(f"config test_cgroup is {cg!r}, not 0 or 1; fix it with `factory config test_cgroup 0`, the command was not run", 3)
+    cgpath = cgfd = None
+    if cg == "1":  # T-0681: per-run child cgroup with caps; fail closed, never run uncapped
         try:
-            os.execvp(cmd[0], cmd)
-        except OSError as e:
-            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+            lim = testcg.limits(cfg(db(), "test_cpu_quota"), cfg(db(), "test_mem_max"), cfg(db(), "test_tasks_max"))
+            parent = cfg(db(), "test_cgroup_parent").strip() or testcg.default_parent(os.getuid())
+            cgpath = testcg.create(parent, f"run-{os.getpid()}", lim)
+            cgfd = testcg.enter_fd(cgpath)
+        except testcg.CgroupError as e:
+            die(str(e), 3)
+
+    def into_cgroup():
+        if cgfd is not None:
+            try:
+                os.write(cgfd, b"0")  # moves this forked child into the run's cgroup before exec
+            except OSError as e:  # preexec_fn exceptions lose their cause; say it, and never exec the command uncapped
+                os.write(2, f"factory test: cannot move the run into {cgpath}: {e.strerror} (errno {e.errno}); the command was not run uncapped\n".encode())
+                os._exit(127)
+
+    def end():
+        if cgfd is not None:
+            os.close(cgfd)
+            testcg.destroy(cgpath)
     sv = cfg(db(), "test_sandbox_subuid").strip()
     if sv not in ("0", "1"):
         die(f"config test_sandbox_subuid is {sv!r}, not 0 or 1; fix it with `factory config test_sandbox_subuid 1`, the command was not run", 3)
     subuid = sv == "1"
     tree, scratch = os.getcwd(), None
-    try:
-        scratch = testbox.new_scratch(tree)
-        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
-                                  runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
-    except testbox.TestboxError as e:
-        if scratch:
+    if v == "0":
+        if cg == "0":
+            try:
+                os.execvp(cmd[0], cmd)
+            except OSError as e:
+                die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+        try:
+            p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, start_new_session=True, preexec_fn=into_cgroup)
+        except (OSError, subprocess.SubprocessError) as e:  # SubprocessError: preexec_fn could not enter the cgroup
+            end()
+            die(f"factory test: cannot run {cmd[0]}: {getattr(e, 'strerror', None) or e}", 127)
+    else:
+        try:
+            scratch = testbox.new_scratch(tree)
+            argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
+                                      runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+        except testbox.TestboxError as e:
+            if scratch:
+                testbox.cleanup(scratch)
+            end()
+            die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0, or test_sandbox_subuid 0)", 3)
+        try:
+            p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True,  # no tty: no TIOCSTI into the caller's shell
+                                 preexec_fn=into_cgroup)
+        except (OSError, subprocess.SubprocessError) as e:
             testbox.cleanup(scratch)
-        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0, or test_sandbox_subuid 0)", 3)
-    p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
+            end()
+            die(f"factory test: cannot start the sandboxed run: {getattr(e, 'strerror', None) or e}", 127)
 
     def forward(sig, _frame):
         try:
@@ -8284,7 +8370,9 @@ def cmd_test(a):
     try:
         rc = p.wait()
     finally:
-        testbox.cleanup(scratch)
+        if scratch:
+            testbox.cleanup(scratch)
+        end()
     sys.exit(rc if rc >= 0 else 128 - rc)
 
 
@@ -10502,6 +10590,16 @@ def _ci_remote_head(branch, batch=None):
     return rows[0][0] if len(rows) == 1 else None
 
 
+def _ci_wake_probe(pr_url, timeout):
+    """One `gh pr view` probe, run in a pool thread: no DB, cfg, event or send in here. Returns the PR dict or the error."""
+    try:
+        pr = gh_json("pr", "view", pr_url, "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup", timeout=timeout)
+        pr["headRefOid"]  # noqa: B018 — a PR json without a head sha is an error, as before
+        return pr
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
+        return e
+
+
 def tick_ci_wake(con):
     """Tick step 1c': message the lead of a parked team when an in_review PR of the team is CLEAN with all checks green
     (or all checks done and one failed), once per (task, head sha); tick_wake_leads then wakes it on the unread mail.
@@ -10518,6 +10616,7 @@ def tick_ci_wake(con):
     except FactoryNowError:
         clock = time.time()
     batch = []  # one ls-remote per tick, made on first need
+    todo = []  # (team, task) rows that need a gh call, in team then task order
     for t in con.execute("SELECT * FROM teams WHERE status='active' AND parked_at IS NOT NULL ORDER BY id").fetchall():
         lead = t["lead_agent"]
         r = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone() if lead else None
@@ -10532,38 +10631,54 @@ def tick_ci_wake(con):
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
             _pt_count("ci_wake_gh")
-            try:
-                pr = gh_json("pr", "view", k["pr_url"], "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup",
-                             timeout=float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S))
-                sha = pr["headRefOid"]
-            except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
-                event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {e}"[:300])
-                continue
-            if pr.get("state", "OPEN") != "OPEN":
-                continue  # merged or closed: nothing to wait for
-            verdict, names = ci_verdict(pr.get("statusCheckRollup"))
-            if verdict == "green" and pr.get("mergeStateStatus") == "CLEAN":
-                kind = "green"
-            elif verdict == "red":
-                kind = "red"
-            else:
-                continue
-            key = f"ci-{kind}:{k['id']}:{sha}"
-            if _throttled(con, key, clock, float("inf")):
-                _throttle_set(con, f"ci-head:{k['id']}", clock)  # same head, already mailed: back off (fallback window)
-                continue
-            _throttle_set(con, key, clock)
-            _throttle_set(con, f"ci-head:{k['id']}", clock)
-            label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
-            if kind == "green":
-                send(con, lead, f"CI green: {label}",
-                     f"head {sha}; checks: {', '.join(names)}; mergeStateStatus CLEAN. ready for judge per M6364.",
-                     "report", t["goal_id"], k["id"], sender="tick")
-            else:
-                send(con, lead, f"CI red: {label}: {', '.join(names)}",
-                     f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
-                     sender="tick")
-            event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
+            todo.append((t, k))
+    if not todo:
+        return
+    try:
+        timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
+    except ValueError:
+        timeout = float(CI_WAKE_GH_TIMEOUT_S)  # a bad override must not stop every probe
+    try:
+        workers = int(cfg(con, "ci_wake_workers"))
+    except (TypeError, ValueError):
+        workers = 1
+    urls = [k["pr_url"] for _, k in todo]
+    if workers < 2 or len(urls) < 2:
+        results = [_ci_wake_probe(u, timeout) for u in urls]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
+    for (t, k), pr in zip(todo, results):
+        lead = t["lead_agent"]
+        if isinstance(pr, BaseException):
+            event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
+            continue
+        sha = pr["headRefOid"]
+        if pr.get("state", "OPEN") != "OPEN":
+            continue  # merged or closed: nothing to wait for
+        verdict, names = ci_verdict(pr.get("statusCheckRollup"))
+        if verdict == "green" and pr.get("mergeStateStatus") == "CLEAN":
+            kind = "green"
+        elif verdict == "red":
+            kind = "red"
+        else:
+            continue
+        key = f"ci-{kind}:{k['id']}:{sha}"
+        if _throttled(con, key, clock, float("inf")):
+            _throttle_set(con, f"ci-head:{k['id']}", clock)  # same head, already mailed: back off (fallback window)
+            continue
+        _throttle_set(con, key, clock)
+        _throttle_set(con, f"ci-head:{k['id']}", clock)
+        label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
+        if kind == "green":
+            send(con, lead, f"CI green: {label}",
+                 f"head {sha}; checks: {', '.join(names)}; mergeStateStatus CLEAN. ready for judge per M6364.",
+                 "report", t["goal_id"], k["id"], sender="tick")
+        else:
+            send(con, lead, f"CI red: {label}: {', '.join(names)}",
+                 f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
+                 sender="tick")
+        event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
 
 
 def _stale_park_alert(con, t, clock):
