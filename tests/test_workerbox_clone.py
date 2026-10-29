@@ -30,6 +30,7 @@ PY = sys.executable
 OAUTH = "oauth-" + "A1b2" * 8
 GH_RO = "ghro-" + "C3d4" * 8
 GH_RW = "ghrw-" + "E5f6" * 8
+SLUGS = ["volekerb/hivemill"]
 IDENT = ("Test Owner", "owner@example.invalid")
 TASK = "G-001-T-0001"
 BRANCH = "factory/T-0001"
@@ -67,10 +68,10 @@ def do(o):
         return hashlib.sha256(os.environ["GH_TOKEN"].encode()).hexdigest()
     if k == "credential":
         r = subprocess.run(["git", "credential", "fill"], capture_output=True, text=True,
-                           input="protocol=https\\nhost=github.com\\n\\n", env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+                           input="protocol=https\\nhost=github.com\\npath=" + o.get("path", "volekerb/hivemill") + "\\n\\n", env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
         kv = dict(l.split("=", 1) for l in r.stdout.splitlines() if "=" in l)
         return {{"rc": r.returncode, "username": kv.get("username"),
-                "password_is_gh_token": kv.get("password") == os.environ["GH_TOKEN"]}}
+                "password_is_gh_token": kv.get("password") == os.environ["GH_TOKEN"], "has_password": "password" in kv}}
     raise SystemExit("bad op " + k)
 
 out = []
@@ -116,10 +117,12 @@ class Box:
         self.claude.symlink_to(self.claude_real)
         for name, tok in (("worker-oauth-token", OAUTH), ("gh-worker-ro-token", GH_RO), ("gh-worker-rw-token", GH_RW)):
             put(self.home / ".config/factory" / name, tok + "\n", 0o600)
+        shutil.copytree(Path(workerbox.__file__).parent, self.fh / "scout", ignore=shutil.ignore_patterns("__pycache__"), dirs_exist_ok=True)  # the code the shim and the helper run, as in a real factory home
 
-    def prepare(self, agent, role, cwd, rw_cwd=True):
+    def prepare(self, agent, role, cwd, rw_cwd=True, **kw):
         return workerbox.prepare_agent(agent, role, cwd, self.fh, self.fh / "db", self.claude, rw_cwd, home=self.home,
-                                       runtime=self.runtime, identity=IDENT)
+                                       runtime=self.runtime, identity=IDENT, gh_slugs=SLUGS, repo=self.fh,
+                                       **kw)
 
     def caller_env(self, agent, role):
         return {"PATH": f"{self.home}/.local/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "TERM": "xterm", "LC_ALL": "C.UTF-8",
@@ -235,10 +238,19 @@ class CloneProfileTests(unittest.TestCase):
     @NEEDS_USERNS
     def test_credential_helper_returns_x_access_token_and_the_gh_token(self):
         self.assertEqual(self.ok("git", "config", "--global", "--get", "credential.https://github.com.helper").strip(),
-                         workerbox.GH_HELPER)
+                         workerbox.gh_helper(self.fh, SLUGS))
         cred, gh_sha = self.probe([{"op": "credential"}, {"op": "gh_sha"}])
-        self.assertEqual(cred["val"], {"rc": 0, "username": "x-access-token", "password_is_gh_token": True})
+        self.assertEqual(cred["val"], {"rc": 0, "username": "x-access-token", "password_is_gh_token": True,
+                                       "has_password": True})
         self.assertTrue(gh_sha["val"] == hashlib.sha256(GH_RW.encode()).hexdigest(), "GH_TOKEN is not the coder rw token")
+
+    @NEEDS_USERNS
+    def test_credential_helper_gives_no_password_for_another_repo(self):
+        for path in ("other/repo", "volekerb/hivemill-evil", "other/repo.git"):
+            with self.subTest(path):
+                (cred,) = self.probe([{"op": "credential", "path": path}])
+                self.assertNotEqual(cred["val"]["rc"], 0, cred)
+                self.assertFalse(cred["val"]["has_password"], cred)
 
     @NEEDS_USERNS
     def test_objects_only_in_the_factory_git_dir_are_readable_through_alternates(self):
@@ -329,7 +341,7 @@ class FactoryDoneTests(FactoryTestCase):
         (self.h / "bin").mkdir(exist_ok=True)  # the repo checkout is under the hidden home: the sandbox runs a copy
         shutil.copy2(FACTORY, self.h / "bin/factory")
         for pkg in ("scout", "web"):  # bin/factory imports both from the checkout root
-            shutil.copytree(FACTORY.parent.parent / pkg, self.h / pkg, ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(FACTORY.parent.parent / pkg, self.h / pkg, ignore=shutil.ignore_patterns("__pycache__"), dirs_exist_ok=True)
         self.box = Box(e.user_home, self.h, e.home / "run-hidden")
         self.d = self.box.prepare("zz-test-coder", "coder", self.wt)
 

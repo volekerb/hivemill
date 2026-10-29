@@ -34,6 +34,7 @@ PY = sys.executable
 OAUTH = "oauth-" + "A1b2" * 8
 GH_RO = "ghro-" + "C3d4" * 8
 GH_RW = "ghrw-" + "E5f6" * 8
+SLUGS = ["volekerb/hivemill"]
 IDENT = ("Test Owner", "owner@example.invalid")
 CONTROL_REL = _literal("DEFAULT_CONFIG")["herdr_socket"][2:]  # ".config/herdr/herdr.sock", same relative path as live
 AGENT_REL = CONTROL_REL + ".agent"  # the SSH_AUTH_SOCK convention of the owner's panes
@@ -162,7 +163,7 @@ class World:
         return path
 
     def prepare(self, agent="coder-t-1", role="coder", cwd=None, rw_cwd=True, **kw):
-        kw = {"home": self.home, "runtime": self.runtime, "identity": IDENT, **kw}
+        kw = {"home": self.home, "runtime": self.runtime, "identity": IDENT, "gh_slugs": SLUGS, **kw}
         return workerbox.prepare_agent(agent, role, cwd or self.own, self.fh, self.fh / "db", self.claude, rw_cwd, **kw)
 
     def caller_env(self, **extra):
@@ -252,10 +253,11 @@ class AgentDirTests(unittest.TestCase):
         out = subprocess.run(["git", "config", "-f", str(d / "gitconfig"), "--list"], capture_output=True, text=True,
                              check=True).stdout.splitlines()
         self.assertEqual([l.split("=", 1)[0] for l in out],
-                         ["user.name", "user.email", "credential.https://github.com.helper"])
+                         ["user.name", "user.email", "credential.usehttppath", "credential.https://github.com.helper"])
         self.assertEqual(out[0], "user.name=Test Owner")
-        self.assertEqual(out[2].split("=", 1)[1], workerbox.GH_HELPER)
-        r = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", text=True,
+        self.assertEqual(out[2], "credential.usehttppath=true")
+        self.assertEqual(out[3].split("=", 1)[1], workerbox.gh_helper(Path(workerbox.__file__).resolve().parent.parent, SLUGS))
+        r = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\npath=volekerb/hivemill\n\n", text=True,
                            capture_output=True, env={"PATH": os.environ["PATH"], "HOME": "/nonexistent",
                                                      "GIT_CONFIG_GLOBAL": str(d / "gitconfig"), "GH_TOKEN": "tok-x",
                                                      "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0"})
@@ -266,7 +268,7 @@ class AgentDirTests(unittest.TestCase):
         d = self.w.prepare(identity=(None, None))
         out = subprocess.run(["git", "config", "-f", str(d / "gitconfig"), "--list"], capture_output=True, text=True,
                              check=True).stdout.splitlines()
-        self.assertEqual([l.split("=", 1)[0] for l in out], ["credential.https://github.com.helper"])
+        self.assertEqual([l.split("=", 1)[0] for l in out], ["credential.usehttppath", "credential.https://github.com.helper"])
 
     def test_claude_json_seeded_once_and_cwd_entry_added(self):
         d = self.w.prepare()
@@ -710,7 +712,7 @@ class RealPathTests(unittest.TestCase):
         (w / "fh/worktrees/own").mkdir(parents=True)
         d = workerbox.prepare_agent("realpath-t", "coder", w / "fh/worktrees/own", w / "fh", w / "fh/db",
                                     w / "claude-bin/claude", False, token_dir=w / "tokens", workers_root=w / "workers",
-                                    identity=IDENT)
+                                    identity=IDENT, gh_slugs=SLUGS)
         ops = [{"op": "open", "path": str(cls.paths["creds"])}] + [
             {"op": "connect", "path": str(cls.paths[k])} for k in ("bus", "control", "agent")] + [
             {"op": "environ_of", "pid": os.getpid()}, {"op": "environ_of", "pid": os.getppid()}]
