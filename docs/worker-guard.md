@@ -117,4 +117,6 @@ The hook is the one place every agent-written public text passes before it leave
 - **Output:** exit 2 and `worker-guard: blocked (public text: <N> hits: <pattern ids>)`. The matched value is never printed.
 - **HQ mode:** it allows on parse trouble everywhere else; for this rule only, a write command that cannot be parsed and targets a public repo is blocked.
 
+Merge email (T-0602): the hook does not see merges that `factory judge` makes. The judge passes `--author-email <noreply>` and verifies the merge commit, and the tick alerts the boss about any non-noreply author/committer email on public `origin/main`; see docs/CUTOVER.md ("What the guards enforce").
+
 Known limits: split or encoded terms (as in PUBLISHING.md); text produced by a program the command pipes in; a `$` in a flag value is treated as dynamic even if it was single-quoted (put the text in a file); wrappers such as `xargs` are not followed for text that arrives on stdin; `GIT_DIR=` env prefixes are not read (`--git-dir`, `-C` and `cd` are, and every directory a `cd` names counts, so a subshell cannot hide the repo); `git -c alias.*` is refused when the rule applies. Tests: `tests/test_worker_guard_public_text.py`.
