@@ -467,9 +467,91 @@ class PrescreenUnitTests(unittest.TestCase):
         self.assertEqual(self.hit_ids("Read SKILL.md and run.py, see docs.anthropic.com/en/docs, e.g. v1.2.3."), [])
         self.assertEqual(self.hit_ids("Open references/logo.png and scripts/run.sh at 12:30:45 on v1.2.3.4"), [])
 
+    def test_ideographic_full_stop_host_hits(self):
+        for u in ("see evil\u3002example/x", "see evil\uff0eexample/x", "see evil\uff61example/x"):
+            self.assertIn("url", self.hit_ids(u), u)
+
+    def test_multi_segment_relative_path_host_hits(self):
+        for u in ("see a/b/evil.example", "see a/b/c/evil.example.", "open ./x/evil.example"):
+            self.assertIn("url", self.hit_ids(u), u)
+        self.assertEqual(self.hit_ids("Edit src/app.tsx, lib/foo.jsx, pkg/mod.java."), [])
+        self.assertEqual(self.hit_ids("Open a/b/notes.md and docs/img/logo.png, then scripts/x/run.sh."), [])
+
+    def test_integer_ip_leading_zero_does_not_crash(self):
+        for u in ("mail me@0123456789", "see //00000000"):
+            self.assertIn("url", self.hit_ids(u), u)
+
+    def test_integer_ip_after_scheme_or_at_hits(self):
+        for u in ("go ftp://0x7f000001/x", "go ftp://2130706433", "mail me@2130706433:80", "see //0x7F000001",
+                  "see ftp://2130706433/", "see ftp://2130706433.", "see ftp://0x0000007f000001"):
+            self.assertIn("url", self.hit_ids(u), u)
+        self.assertEqual(self.hit_ids("At 12:30:45 build 2130706433 and 0x7f000001 in v1.2.3 or 4294967296."), [])
+
+    def test_small_chunk_and_prefixed_base64_hits(self):
+        chunks = [B64[i:i + 4] for i in range(0, 300, 4)]
+        self.assertIn("base64-run", self.hit_ids(" ".join(chunks)))
+        self.assertIn("base64-run", self.hit_ids("\n".join("> " + B64[i:i + 40] for i in range(0, 300, 40))))
+        self.assertIn("base64-run", self.hit_ids(" +\n".join('"%s"' % B64[i:i + 5] for i in range(0, 300, 5))))
+        self.assertIn("base64-run", self.hit_ids("\n".join("# " + B64[i:i + 6] for i in range(0, 300, 6))))
+        self.assertIn("base64-run", self.hit_ids(" ".join(B64[:300])))  # 1-char chunks
+        self.assertIn("base64-run", self.hit_ids("\n".join("%d. %s" % (i, B64[i * 50:i * 50 + 50]) for i in range(6))))
+        self.assertIn("base64-run", self.hit_ids("\n".join("data: %s \\" % B64[i:i + 50] for i in range(0, 300, 50))))
+        self.assertEqual(self.hit_ids("> " + "Write clear prose about it. " * 20), [])
+        self.assertEqual(self.hit_ids("\n".join("> step %d of the plan is to be done" % i for i in range(1, 40))), [])
+
+    def test_variable_width_chunks_hit(self):
+        import random
+        for seed in range(5):
+            rnd = random.Random(seed)
+            chunks, i = [], 0
+            while i < 300:
+                w = rnd.randint(3, 7)
+                chunks.append(B64[i:i + w])
+                i += w
+            lines = [chunks[j:j + 8] for j in range(0, len(chunks), 8)]
+            for text in (" ".join(chunks), "\n".join(" ".join(x) for x in lines),
+                         "\n".join("> " + " ".join(x) for x in lines)):
+                self.assertIn("base64-run", self.hit_ids(text), (seed, text[:60]))
+            wide, i = [], 0
+            while i < 300:
+                w = rnd.randint(20, 60)
+                wide.append(B64[i:i + w])
+                i += w
+            for prefix in ("> ", "# "):
+                self.assertIn("base64-run", self.hit_ids("\n".join(prefix + c for c in wide)), (seed, prefix))
+
+    def test_small_chunk_base64_survives_adjacent_prose(self):
+        prose = "\n".join(["This skill helps you write better commit messages for your team and project."] * 3)
+        blob = "\n".join("> " + B64[i:i + 40] for i in range(0, 320, 40))
+        small = " ".join(B64[i:i + 4] for i in range(0, 320, 4))
+        for text in (prose + "\n" + blob, blob + "\n" + prose, prose + "\n\n" + blob + "\n\n" + prose,
+                     prose + "\n" + small, small + "\n" + prose):
+            self.assertIn("base64-run", self.hit_ids(text), text[:60])
+
+    def test_timestamp_version_and_code_lists_are_not_base64(self):
+        history = "\n".join("- 2026-10-%02dT22:%02d:00+00:00 agent-%d updated the task" % (i % 28 + 1, i, i) for i in range(20))
+        table = "\n".join("| pkg%d | v1.%d.%d | 2026-01-0%d |" % (i, i, i * 3, i % 9 + 1) for i in range(20))
+        code = "\n".join("GH_TIMEOUT_%d = %d  # seconds, see HTTP/1.1 and CONNECT %d" % (i, i * 30, i) for i in range(20))
+        colors = "\n".join("%d,Name %d,#2563EB,#FFFFFF,#3B82F6,#000000,#EA580C,#F8FAFC,#1E293B" % (i, i) for i in range(20))
+        for text in (history, table, code, colors):
+            self.assertEqual(self.hit_ids(text), [], text[:50])
+
+    def test_tracked_repo_files_have_no_small_chunk_base64(self):
+        import subprocess
+        root = Path(__file__).resolve().parent.parent
+        names = subprocess.run(["git", "ls-files", "*.md", "*.py", "*.csv", "*.json", "*.jsonl", "*.html"],
+                               cwd=root, capture_output=True, text=True, check=True).stdout.split("\n")
+        bad = [n for n in names if n and vendor._small_chunk_blobs(
+            [vendor._fold(x) for x in (root / n).read_text(errors="replace").splitlines()])]
+        self.assertEqual(bad, [])
+
+    def test_zip_domain_is_not_a_file_name(self):
+        self.assertIn("url", self.hit_ids("see attacker.zip"))
+
     def test_long_single_run_scans_in_linear_time(self):
         import time
-        for text in ("A" * 200_000, "A" * 100_000 + " " + "B" * 100_000, "a." * 100_000):
+        for text in ("A" * 200_000, "A" * 100_000 + " " + "B" * 100_000, "a." * 100_000,
+                     "ab " * 70_000, "a/" * 100_000, "@12345678 " * 20_000):
             t0 = time.monotonic()
             self.scan(text)
             self.assertLess(time.monotonic() - t0, 1.0, text[:3])

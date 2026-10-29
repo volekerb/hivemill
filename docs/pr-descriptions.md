@@ -6,7 +6,7 @@ Source: owner request M2502; G-007, our own wording.
 
 A PR body is short, concrete and checkable. Template: `.github/pull_request_template.md`. Coder skill: `pr-description`.
 
-- The template's five sections, in this order: `## Summary`, `## Why`, `## Changes`, `## Test evidence`, `## Risk / rollback`. Then a collapsed `<details>` block with the `## Acceptance walk` line required by pre-pr-check, then the footer `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- The template's five sections, in this order: `## Summary`, `## Why`, `## Changes`, `## Test evidence`, `## Risk / rollback`. Then a collapsed `<details>` block with the `## Acceptance walk` line required by pre-pr-check. No "Generated with Claude Code" footer (owner M11175; the settings templates set `attribution.pr` to empty).
 - 150-250 words in the five sections. Text inside `<details>` blocks (acceptance walk, audit tables, long evidence) is outside the count.
 - Summary: what changed and the effect. Why: task id and one line. Changes: 3-6 bullets of behaviour, not a restatement of the diff.
 - Test evidence: exact command plus key output line; test count on main and on the branch.
@@ -39,8 +39,6 @@ After:
 > ## Risk / rollback
 > A reader holding the old file delays the exclusive lock up to 30 s; the tick retries. Rollback: stop tick and serve, checkpoint, move `db/factory.db` back, delete `-wal`/`-shm`, revert the PR (steps in `docs/db-layout.md`). Settings apply after relaunch.
 >
-> 🤖 Generated with [Claude Code](https://claude.com/claude-code)
->
 > (Per-criterion lines, round history and the consumer list go in a collapsed `<details>` block, or in the QA and reviewer verdicts.)
 
 ## Example 2: a typical body (#113, T-0181, 306 words)
@@ -66,5 +64,3 @@ After:
 >
 > ## Risk / rollback
 > A wrong level string would break every Opus spawn; it is validated before anything is created. Rollback: revert the PR. Persistent roles pick it up at their next relaunch.
->
-> 🤖 Generated with [Claude Code](https://claude.com/claude-code)
