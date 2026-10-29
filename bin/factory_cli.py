@@ -1554,6 +1554,11 @@ def cmd_config(a):
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (a.key, a.value))
         event(con, "config", a.key, "set", a.value)
+    elif a.key:
+        if a.key not in DEFAULT_CONFIG:
+            die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}", 2)
+        print(cfg(con, a.key))
+        return
     for k in DEFAULT_CONFIG:
         print(f"{k} = {cfg(con, k)}")
 
@@ -5760,6 +5765,8 @@ def sandbox_prepare(con, role, name, cwd):
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
 
 
+SCRUB_TERMS_ROLES = ("coder", "reviewer", "qa", "judge")  # roles that run owner-term scans (ci/public_text_guard.py)
+
 GH_CRED_ROLES = ("coder", "qa", "reviewer", "judge", "cleaner", "pm")
 # credential sources that git or gh consult from the env; a worker with the worker token must not fall back to them
 GH_SCRUB_ENV = ("GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "SSH_ASKPASS", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
@@ -5863,6 +5870,9 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             sandbox_refuse(con, role, name, *bad)
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
+    terms = (cfg(con, "scrub_terms_file") or "").strip()
+    if terms and role in SCRUB_TERMS_ROLES:  # a path only: worker-guard still refuses to read the file itself
+        env["SCRUB_TERMS_FILE"] = terms
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
     sandboxed = sandbox_wanted(con, role, optin)
