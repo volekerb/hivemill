@@ -1,5 +1,6 @@
 """Tests for ci/affected.py: affected-test selection from a git diff, in temp git repos."""
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -242,6 +243,52 @@ class AffectedTest(unittest.TestCase):
         r = self.affected("--run")
         self.assertEqual(r.returncode, 1)
         self.assertIn("FAILED", r.stdout)
+
+    def test_quick_runs_affected_in_one_process_and_prints_elapsed(self):
+        self.write("tests/test_gamma.py",
+                   "import os\nimport unittest\nclass T(unittest.TestCase):\n    def test_pid(self):\n"
+                   "        print('PID', os.getpid())\n")
+        self.write("tests/test_beta.py",
+                   "import os\nimport unittest\nclass T(unittest.TestCase):\n    def test_pid(self):\n"
+                   "        print('PID', os.getpid())\n")
+        self.commit()
+        r = self.affected("--quick", "--run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("affected: Ran 2 tests in 5 modules: OK", r.stdout)
+        self.assertRegex(r.stdout, r"affected: elapsed [\d.]+ s of 120 s budget")
+        pids = set(re.findall(r"PID (\d+)", r.stdout + r.stderr))
+        self.assertEqual(len(pids), 1, "quick mode must stay in one process")
+
+    def test_quick_refuses_full_and_runs_nothing(self):
+        self.write("tests/harness.py", "raise SystemExit('must not be imported')\n")
+        self.commit()
+        for extra in (("--quick",), ("--quick", "--run"), ("--budget", "30", "--run")):
+            with self.subTest(extra=extra):
+                r = self.affected(*extra)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("FULL needed: rely on CI", r.stdout)
+                self.assertNotIn("Ran ", r.stdout)
+
+    def test_without_quick_full_still_runs_everything(self):
+        self.write("tests/harness.py", "# edited\n")
+        self.commit()
+        r = self.affected("--run")
+        self.assertIn("FULL (", r.stdout)
+
+    def test_budget_stops_starting_modules_and_says_rely_on_ci(self):
+        self.write("tests/test_gamma.py",
+                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(1.3)\n")
+        self.commit()
+        r = self.affected("--budget", "1", "--run")
+        self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
+        self.assertIn("Ran 1 tests in 2 modules: OK", r.stdout)
+        self.assertIn("elapsed", r.stdout)
+        self.assertIn("rely on CI", r.stderr)
+        self.assertIn("test_inbox.py", r.stderr)
+
+    def test_budget_must_be_positive(self):
+        r = self.affected("--budget", "0")
+        self.assertEqual(r.returncode, 2)
 
 
 if __name__ == "__main__":
