@@ -57,6 +57,9 @@ allows (no false positives); worker mode keeps failing closed.
 Cleaner branch deletion (T-0057): `git branch -d/-D/--delete` and `git push <remote> --delete|-d|:<ref>` are blocked
 for every worker role; --role cleaner may do them only when every target matches ^factory/[A-Za-z0-9._/-]+$, and a
 cleaner's other `git push` forms are blocked (the settings no longer deny `git push:*` for it).
+Coder push pin (T-0689): --role coder may run only `git push origin HEAD:factory/<own task id>` (id from FACTORY_AGENT=
+coder-t-NNNN; optional `git -C <dir>`); any other refspec, remote, URL, force form, --all/--mirror/--tags/--delete,
+option, -c override or GIT_CONFIG_* assignment is blocked, as is a push when the task id is unknown.
 """
 import fnmatch
 import glob
@@ -1686,6 +1689,29 @@ class Analyzer:
         raise Block("branch deletion is refused (the cleaner may delete only factory/<x> branches, every target "
                     "must match; other roles never)")
 
+    def git_push_pin(self, rest, assigns=()):
+        """T-0689: a coder's only allowed push is `git push origin HEAD:factory/<own task id>`; the task id comes from
+        FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
+        no -c / --git-dir overrides (push.default, remote URLs); an unknown own task id refuses."""
+        if self.role != "coder":
+            return
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            if rest[i] != "-C" and "push" in rest[i + 1:]:
+                raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i >= len(rest) or rest[i] != "push":
+            return
+        args = rest[i + 1:]
+        m = re.fullmatch(r"coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
+        if not m:
+            raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
+        if any(a.split("=", 1)[0].startswith("GIT_CONFIG") for a in assigns):
+            raise Block("git push with GIT_CONFIG_* overrides is refused")
+        if args != ["origin", f"HEAD:factory/{m.group(1)}"]:
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` (no other remote, refspec, "
+                        "force, --all/--mirror/--tags/--delete or option)")
+
     def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
         words = list(words)
         assigns = list(env_assigns)
@@ -1699,6 +1725,8 @@ class Analyzer:
             if not self.hq:
                 self.check_identity(assigns)
             return
+        if os.path.basename(words[0]) == "git":
+            self.git_push_pin(words[1:], assigns)  # before the public-text push check: names the one allowed push
         if self.pt:
             self.pt.command(words, self.hq)
         if not in_loose:
