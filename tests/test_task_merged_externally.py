@@ -79,6 +79,22 @@ class MergedExternallyTests(FactoryTestCase):
         self.assertIn("only the director or the owner", p.stderr)
         self.assertEqual(self.status(), "in_progress")
 
+    def test_other_flags_refused(self):
+        self.merged()
+        p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally", "--reason", "x",
+                         "--priority", "1", agent="zz-test-director")
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertEqual(self.status(), "in_progress")
+
+    def test_already_done_and_no_pr_refused(self):
+        self.merged()
+        self.env.sql("UPDATE tasks SET status='done' WHERE id='T-0001'")
+        self.assertEqual(self.close().returncode, 2)
+        p = self.env.run("task", "update", "T-0002", "--status", "done", "--merged-externally", "--reason", "x",
+                         agent="zz-test-director")
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("not a coder task with a PR", p.stderr)
+
     def test_needs_reason(self):
         self.merged()
         p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally", agent="zz-test-director")

@@ -2140,6 +2140,11 @@ def cmd_task(a):
                 die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
             if a.status != "done" or not (a.note or "").strip():
                 die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
+            extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
+                                    ("--priority", a.priority), ("--after", a.after), ("--branch", a.branch),
+                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits)) if v is not None]
+            if extra:
+                die(f"--merged-externally only closes the task; do not combine it with {', '.join(extra)}", 2)
             if t["role"] != "coder" or not t["pr_url"]:
                 die(f"{a.id} is not a coder task with a PR; close it with a plain --status done", 2)
             if t["status"] == "done":
@@ -2432,14 +2437,14 @@ def verify_merged_externally(pr_url):
         return None, f"PR url {pr_url!r} is not a https://github.com/OWNER/REPO/pull/N url"
     try:
         pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName")
-    except SystemExit:
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
         return None, f"gh pr view {pr_url} failed: cannot verify the merge, so nothing is closed; retry when gh works"
     sha = (pr.get("mergeCommit") or {}).get("oid") or ""
     if pr.get("state") != "MERGED" or not sha:
         return None, f"{pr_url} is {pr.get('state')}, not MERGED on GitHub; merge it through `factory judge` instead"
     try:
         cmp = gh_json("api", f"repos/{m.group(1)}/compare/{pr.get('baseRefName')}...{sha}")
-    except SystemExit:
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
         return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
     if cmp.get("status") not in ("identical", "behind"):
         return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
