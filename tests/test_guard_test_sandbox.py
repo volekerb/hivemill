@@ -93,10 +93,6 @@ class TestSandboxRoutingExtra(unittest.TestCase):
             self.seed(v)
             self.assertEqual(self.run_hook("pytest -q").returncode, 0, v)
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     # T-0735
     DENY = ("python3 -W error -m unittest", "python3 -X dev -m unittest", "python3 -Im unittest",
             "python3 -Werror -m unittest", "python3 --check-hash-based-pycs always -m unittest",
@@ -135,3 +131,7 @@ if __name__ == "__main__":
             self.assertIn("full suite", p.stderr, cmd)
         for cmd in ("python3 -W error -m unittest tests.test_x", "python3 -X dev -m unittest discover -s tests -p test_x.py"):
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+
+if __name__ == "__main__":
+    unittest.main()
