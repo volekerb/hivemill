@@ -519,7 +519,7 @@ class WorkerGuardTests(unittest.TestCase):
         for cmd in (
             "FACTORY_AGENT=coder-t-0036 factory done x", "env FACTORY_AGENT=coder-t-0036 factory done x",
             "FACTORY_HOME=/tmp/x ./bin/factory up", "grep setsid README.md", "echo setsid",
-            "env -i PATH=tests/stubs:/usr/bin python3 -m unittest discover -s tests", "factory inbox",
+            "env -i PATH=tests/stubs:/usr/bin python3 -m unittest discover -s tests -p test_x.py", "factory inbox",
             "factory msg lead:g-001-a s b", "factory task show T-0036", "factory verdict T-1 pass ok",
             "factory report G-001 h -", "factory done 'unset FACTORY_ROLE setsid'",
         ):
