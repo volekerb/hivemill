@@ -377,5 +377,37 @@ class ProjectGateColumns(GateBase):
         self.assertEqual(tuple(self.env.sql("SELECT gate_cmd,gate_timeout_s FROM projects")[0]), ("", 3600))
 
 
+class GateFastMode(GateBase):
+    """T-0642: gate_fast_projects swaps the project's gate_cmd for lint + ci/affected.py --quick (CI is the full gate)."""
+
+    def test_default_config_is_fast_for_the_factory_project_only(self):
+        p = self.env.run("config", "gate_fast_projects", agent=DIRECTOR)
+        self.assertIn("factory", p.stdout.split())
+        self.assertNotIn("zz-test-proj", p.stdout.split())
+
+    def test_off_runs_the_gate_cmd(self):
+        self.set_gate("echo full-gate > \"$GATE_OUT\"")
+        self.ok("config", "gate_fast_projects", "factory", agent=DIRECTOR)
+        p = self.gate("run", "T-0001")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.out.read_text().strip(), "full-gate")
+        self.assertNotIn("affected.py", self.run_row()["cmd"])
+
+    def test_on_runs_lint_and_affected_quick_instead_of_the_gate_cmd(self):
+        self.set_gate("echo full-gate > \"$GATE_OUT\"")
+        self.ok("config", "gate_fast_projects", "zz-test-proj", agent=DIRECTOR)
+        p = self.gate("run", "T-0001")
+        r = self.run_row()
+        self.assertFalse(self.out.exists(), "the project gate_cmd must not run in fast mode")
+        self.assertIn("py_compile bin/factory", r["cmd"])
+        self.assertIn("ci/affected.py --base", r["cmd"])
+        self.assertIn("--quick", r["cmd"])
+        self.assertNotIn("{main_sha}", Path(r["log_path"]).read_text())
+        self.assertIn("fast mode", r["note"])
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)  # the temp repo has no bin/factory: lint fails, so does the gate
+        self.assertEqual(r["status"], "fail")
+        self.assertClean()
+
+
 if __name__ == "__main__":
     unittest.main()

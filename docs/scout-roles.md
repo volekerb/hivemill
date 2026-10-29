@@ -15,4 +15,6 @@ The boundary is the T-0118 sandbox, which hides `~/factory` so the live DB is no
 - `python3 -c` (or any interpreter) that sets or unsets environment variables before calling `factory`;
 - string-built variable names such as `export ${X}HOME=...`;
 - unsetting or changing `FACTORY_ROLE` / `FACTORY_AGENT`;
-- invoking `bin/factory` by path, which skips the `factory` word match.
+- invoking `bin/factory` by path, which skips the `factory` word match;
+- evaluator Edit/Write denies are tool-level only (Bash redirects not covered; boundary = T-0118 sandbox);
+- `python3 -c` sqlite3 on the live DB passes the hook for every worker (pre-existing, not G-009 scope).

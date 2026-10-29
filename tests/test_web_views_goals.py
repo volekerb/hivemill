@@ -59,11 +59,11 @@ class TestGoalsList(ViewCase):
         g1 = next(g for g in d["goals"] if g["id"] == "G-1")
         self.assertEqual((g1["tasks_done"], g1["tasks_total"]), (1, 5))
         self.assertIn("1/5", html)
-        self.assertIn("bar bar--20", html)
+        self.assertIn('aria-label="1 of 5 tasks done"', html)
         self.assertRegex(html, r'href="/goal/G-1"')
-        self.assertIn("<details>", html)   # done goals sit under a collapsed card
-        self.assertLess(html.index("Goal one"), html.index("<details>"))
-        self.assertGreater(html.index("Goal two"), html.index("<details>"))
+        self.assertIn('<details class="disc" data-key="goals-done">', html)   # done goals sit under a collapsed disclosure
+        self.assertLess(html.index("Goal one"), html.index('data-key="goals-done"'))
+        self.assertGreater(html.index("Goal two"), html.index('data-key="goals-done"'))
 
     def test_priority_zero_sorts_first_within_a_status(self):
         self.w.execute("INSERT INTO goals VALUES('G-8','p1','Goal eight',NULL,NULL,'active',0,'owner',NULL,?,?)", (ts(8, 0), ts(9, 0)))
@@ -74,10 +74,10 @@ class TestGoalsList(ViewCase):
         self.w.execute("UPDATE tasks SET waits='owner' WHERE id='T-4'")
         self.w.execute("INSERT INTO tasks(id,goal_id,title,status,created,updated) VALUES('T-8','G-1','queued job','blocked','a','b')")
         d, html = self.page(goals)
-        owner = html[html.index("Waiting on owner"):html.index("Blocked (internal)")]
+        owner = html[html.index("Needs you"):html.index("Blocked (internal)")]
         self.assertIn("T-4", owner)
         self.assertNotIn("T-8", owner)                       # internal-blocked is not an owner item
-        self.assertIn('<span class="badge badge--bad">blocked: owner</span>', html)
+        self.assertIn("Blocked task", owner)                  # owner-blocked: a Needs-you row, red kind
         internal = html[html.index("Blocked (internal)"):html.index("Open goals")]
         self.assertIn("T-8", internal)
         self.assertIn('<span class="badge badge--muted">queued/deferred</span>', internal)
@@ -96,8 +96,8 @@ class TestGoalsList(ViewCase):
     def test_waiting_on_owner_card_first_subjects_only(self):
         self.w.execute("UPDATE tasks SET waits='owner' WHERE id='T-4'")
         d, html = self.page(goals)
-        self.assertLess(html.index("Waiting on owner"), html.index("Open goals"))
-        for needle in ("G-3", "G-4", "T-4", "T-3", "boss one", "auto-merge off"):
+        self.assertLess(html.index("Needs you"), html.index("Open goals"))
+        for needle in ("G-3", "G-4", "T-4", "T-3", "boss one", "Merge needs OK"):
             self.assertIn(needle, html)
         self.assertNotIn(CANARY, html)
 
@@ -119,7 +119,7 @@ class TestGoalDetail(ViewCase):
     def test_header_criteria_teams_tasks_plan(self):
         d, html = self.page(goals.detail, id="G-1")
         self.assertEqual([c["state"] for c in d["criteria"]], ["met", "in_progress", "in_progress", "untracked"])
-        for needle in ("Goal one", "met", "in progress", "untracked", "scope A", "lead-a", "T-1", "T-6", "Version 1"):
+        for needle in ("Met", "Open", "scope A", "lead-a", "T-1", "T-6", "v1"):
             self.assertIn(needle, html)
         self.assertRegex(html, r'href="/task/T-3"')
         self.assertRegex(html, r'href="https://github.com/o/r/pull/3"')
@@ -130,7 +130,7 @@ class TestGoalDetail(ViewCase):
         d, html = self.page(goals.detail, id="G-9")
         st = {c["n"]: c["state"] for c in d["criteria"]}
         self.assertEqual(st, {1: "in_progress", 2: "in_progress", 3: "met", 4: "untracked"})   # T-92 done but never merged
-        self.assertIn("untracked", html)
+        self.assertIn("Open", html)
 
     def test_plan_body_never_shown(self):
         d, html = self.page(goals.detail, id="G-1")
@@ -138,7 +138,8 @@ class TestGoalDetail(ViewCase):
 
     def test_unknown_goal(self):
         d, html = self.page(goals.detail, id="G-404")
-        self.assertIn("No goal G-404.", html)
+        self.assertIn("No goal G-404", html)
+        self.assertIn('href="/goals"', html)
 
 
 class TestHostileText(ViewCase):
@@ -168,8 +169,9 @@ class TestTasksList(ViewCase):
         self.assertEqual(by["T-3"]["rejections"], 1)       # judge reject verdict + judge-reject event = one rejection
         self.assertEqual(by["T-2"]["rejections"], 1)       # judge-reject event without a verdict row
         self.assertIsNone(by["T-4"]["ci"])
-        self.assertIn("green at merge", html)
-        self.assertIn("1 rej / 2 try", html)
+        self.assertEqual(by["T-1"]["ci"], "green at merge")   # the JSON keeps the raw word; the page says "CI passed" (B3 copy map)
+        self.assertIn("CI passed", html)
+        self.assertIn("1 rejection · 2 tries", html)
 
     def test_open_pr_ci_comes_from_the_cache_and_misses_show_unknown(self):
         pr = "https://github.com/o/r/pull/3"
@@ -250,7 +252,7 @@ class TestTaskDetail(ViewCase):
         d, html = self.page(tasks.detail, id="T-1")
         self.assertEqual((d["rejections"], d["retries"], d["ci"], d["merged"]), (1, 1, "green at merge", True))
         self.assertEqual(d["total_s"], 3 * 3600 + 20 * 60)   # created 08:00 -> merged 11:20
-        for needle in ("Total time", "Rejections", "Retries", "CI", "green at merge", "PR cycle"):
+        for needle in ("Total time", "Rejections", "Attempts", "CI passed", "PR cycle"):
             self.assertIn(needle, html)
 
     def test_follow_ups_linked(self):
@@ -282,7 +284,8 @@ class TestTaskDetail(ViewCase):
 
     def test_unknown_task(self):
         d, html = self.page(tasks.detail, id="T-404")
-        self.assertIn("No task T-404.", html)
+        self.assertIn("No task T-404", html)
+        self.assertIn('href="/tasks"', html)
 
 
 class TestPerformance(ViewCase):

@@ -20,6 +20,16 @@ CLASSES = frozenset({
     "app", "skip", "topbar", "topbar-right", "wordmark", "main", "shellbar", "titlebar", "crumbs", "sep", "cluster",
     "updated", "pill", "pill-dot", "hide-phone", "count", "count--bad", "navgroup", "themebox", "seg", "seg-fill",
     "tabbar", "tab", "is-current", "more", "sr-only", "g", "st", "st--pill",
+    "dt", "dt-wrap", "grp", "grp-n", "sortlink", "c-st", "c-id", "c-title", "c-who", "c-age", "chips", "chip", "chip--zero", "chip-n",
+    "facet", "facet-label", "seg-links", "disc", "disc--i", "disc-n", "sect", "sect-n", "sect-box", "emptybox", "summary", "summary-line",
+    "summary-line--warn", "lrow", "lrow-id", "lrow-meta", "feed", "feed-row", "feed-title", "feed-goal", "feed-sha", "feed-when",
+    "agent-who", "agent-role", "agent-task",
+    "ov", "ov-sect", "ov-trend", "ov-bounce", "sect-head", "sect-link", "more-link", "lrow-list", "needs", "nkind", "nsub", "nid", "nage",
+    "goalrow", "gm", "gtitle", "chip-p", "gprs", "gact", "agentrow", "system", "gauge", "gauge-row", "gauge-stack", "gl", "gv", "gz", "tick",
+    "meter", "meter-svg", "lbl", "track", "fill-data1", "fill-success", "fill-warning", "fill-danger", "fill-neutral", "spark", "spark-wrap",
+    "spark-cap", "spark-last", "cols", "cols-wrap", "col", "col--zero", "col-val", "col-x", "tiles", "tile", "tile-label", "tile-def",
+    "metric", "delta",
+    "gchips", "gblk", "crit-text", "crit-tasks", "intent", "gd", "gd-main", "rail", "rail-list", "rail-dl", "metarow", "attempt",
     *(f"{p}-{t}" for p in ("fg", "gs", "tone") for t in _TONES),
     *(f"status--{s}" for s in _STATUSES),
     *(f"bar--{n}" for n in range(0, 101, 5)),
@@ -273,7 +283,8 @@ def _item_link(path, label, icon, active, shell, cls, size=16):
     here = path == active
     main_nav = cls == "nav-item"
     classes = " ".join(c for c in (cls, "nav-item--active" if here and main_nav else "is-current" if here else "") if c)
-    return el("a", _svg(_SVG16[icon], size), el("span", label), _nav_count(path, shell),
+    count = None if cls == "tab" and path == "/" else _nav_count(path, shell)   # phone: the top bar badge is the one Needs-you count
+    return el("a", _svg(_SVG16[icon], size), el("span", label), count,
               href=path, class_=classes or None, aria_current="page" if here and main_nav else None)
 
 

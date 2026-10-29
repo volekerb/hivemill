@@ -73,6 +73,7 @@ class TemplateFileTests(unittest.TestCase):
                 self.assertIn(f"Edit(/{tmp}/live/run/settings/**)", data["permissions"]["deny"], r)
                 self.assertNotIn("@FACTORY_", json.dumps(data))
                 self.assertNotIn(PW_DIR + "/factory", json.dumps(data), r)
+                self.assertEqual(data.get("attribution", {}).get("pr"), "", r)  # no PR-body footer (M11175)
 
     def test_rendered_rules_equal_the_substituted_template_rule_for_rule(self):
         for r in ROLES:
@@ -119,7 +120,7 @@ class TemplateFileTests(unittest.TestCase):
             guard = [c for c in cmds if "worker-guard.py" in c]
             self.assertEqual(len(guard), 1, r)
             edit = [h["command"] for g in groups if g.get("matcher") != "Bash" for h in g["hooks"]]  # T-0334: workers only
-            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 1, r)
+            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 2 if r in ("coder", "qa", "reviewer", "judge", "pm", "staff-engineer") else 1, r)  # T-0600: + Read|Grep
             self.assertTrue(all(f"{LIVE_HOME}/roles/hooks/worker-guard.py" in c for c in edit), r)
             self.assertTrue(guard[0].startswith(f"python3 {LIVE_HOME}/roles/hooks/worker-guard.py"), guard[0])
 

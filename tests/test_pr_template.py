@@ -30,10 +30,10 @@ class TemplateTests(unittest.TestCase):
         self.assertIn("\n" + WALK + "\n", text)
         self.assertGreater(text.index(WALK), text.index("<details>"))
         self.assertLess(text.index(WALK), text.index("</details>"))
-        self.assertLess(text.index("</details>"), text.index(FOOTER))
 
-    def test_footer_is_last_line(self):
-        self.assertEqual(self.template().rstrip().splitlines()[-1], FOOTER)
+    def test_footer_is_absent(self):
+        self.assertNotIn("Generated with", self.template())
+        self.assertEqual(self.template().rstrip().splitlines()[-1], "</details>")
 
     def test_word_target_stated_outside_details(self):
         text = self.template()
@@ -44,7 +44,6 @@ class TemplateTests(unittest.TestCase):
         for part in (HEADINGS[2], WALK):
             mutated = text.replace(part, "")
             self.assertNotEqual(headings(mutated), HEADINGS + [WALK], part)
-        self.assertNotEqual(text.replace(FOOTER, "").rstrip().splitlines()[-1], FOOTER)
 
     def test_template_rejects_a_body_with_gates_heading(self):
         body = self.template() + "\n## Gates\n"
@@ -63,7 +62,8 @@ class SkillTests(unittest.TestCase):
 
     def test_skill_states_the_standard(self):
         text = read(SKILL)
-        for needle in HEADINGS + ["150-250 words", "## Gates", "factory verdict", "Co-Authored-By", "marketing tone", FOOTER]:
+        self.assertNotIn(FOOTER, text)
+        for needle in HEADINGS + ["150-250 words", "## Gates", "factory verdict", "Co-Authored-By", "marketing tone"]:
             self.assertIn(needle, text)
 
 

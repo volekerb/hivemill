@@ -59,6 +59,7 @@ for every worker role; --role cleaner may do them only when every target matches
 cleaner's other `git push` forms are blocked (the settings no longer deny `git push:*` for it).
 """
 import fnmatch
+import glob
 import json
 import os
 import pwd
@@ -67,6 +68,7 @@ import shlex
 import sqlite3
 import stat
 import sys
+import urllib.parse
 
 MAX_DEPTH = 6
 FACTORY_UNIT_CMDS = {"up", "tick", "relaunch", "spawn", "clean"}
@@ -295,8 +297,80 @@ class GitBlock(Block):
     pass
 
 
+class RepoProtBlock(PrivBlock):
+    """gh commands that change branch protection or repository settings (R-a, T-0638), every role."""
+
+
 class UnitBlock(PrivBlock):
     """Mutating systemctl (HQ mode) or systemd-run (every mode), T-0102 part D, director M2108."""
+
+
+GH_VALUE_OPTS = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-R", "--repo",
+                 "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method", "-p", "--preview"}
+GH_MUTATING = {"PUT", "PATCH", "POST", "DELETE"}
+GH_REPO_VERBS = {"edit", "rename", "archive", "unarchive", "delete"}
+GH_PROTECTED = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s]+/(?:branches/.+/protection(?:/|\?|$)|rulesets(?:/|\?|$)"
+                          r"|rules/branches)")
+GH_GRAPHQL_SETTINGS = re.compile(r"(?:update|create|delete)(?:BranchProtectionRule|Repository|RepositoryRuleset)\b"
+                                 r"|(?:un)?archiveRepository\b", re.I)
+GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
+
+
+def gh_repo_change(args):
+    """Why `gh <args>` changes branch protection or repository settings (R-a, T-0638), else None: `gh repo
+    edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body, which makes gh use POST)
+    on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine."""
+    pos, method, body, j = [], None, False, 0
+
+    def note(opt, val):
+        nonlocal method, body
+        if opt in ("-X", "--method"):
+            method = val.upper()
+        elif opt in ("-f", "--raw-field", "-F", "--field", "--input"):
+            body = True
+
+    while j < len(args):
+        x = args[j]
+        if x.startswith("--") and len(x) > 2:
+            opt, eq, val = x.partition("=")
+            if opt in GH_VALUE_OPTS:
+                if not eq:
+                    val = args[j + 1] if j + 1 < len(args) else ""
+                    j += 1
+                note(opt, val)
+        elif x.startswith("-") and len(x) > 1:  # a short-flag cluster as pflag reads it: -iX DELETE, -XPUT, -X=PUT
+            for k in range(1, len(x)):
+                opt = "-" + x[k]
+                if opt in GH_VALUE_OPTS:
+                    val = x[k + 1:]
+                    if val.startswith("="):
+                        val = val[1:]
+                    elif not val:
+                        val = args[j + 1] if j + 1 < len(args) else ""
+                        j += 1
+                    note(opt, val)
+                    break
+        else:
+            pos.append(x)
+        j += 1
+    if pos[:1] == ["repo"] and pos[1:2] and pos[1] in GH_REPO_VERBS:
+        return f"gh repo {pos[1]}"
+    if pos[:2] in (["alias", "set"], ["alias", "import"]):  # a stored alias would run the change later, unseen
+        return f"gh {pos[0]} {pos[1]}"
+    if pos[:1] != ["api"] or len(pos) < 2:
+        return None
+    endpoint = urllib.parse.unquote(re.sub(r"#.*", "", pos[1])).lower()
+    if endpoint == "graphql":  # mutations of protection or settings; a query read from a file cannot be inspected
+        if GH_GRAPHQL_SETTINGS.search(" ".join(args)) or any(re.search(r"=@|--input", a) for a in args):
+            return "gh api graphql (settings mutation or a query read from a file)"
+        return None
+    if method is None and not body:
+        return None
+    if method is not None and method not in GH_MUTATING:
+        return None
+    if GH_PROTECTED.search(endpoint) or GH_REPO_ROOT.search(endpoint):
+        return f"gh api {method or 'POST'} {endpoint}"
+    return None
 
 
 def priv_word(w, globs=False):
@@ -1014,6 +1088,10 @@ class Analyzer:
             self.soft(self.script, next((a for a in rest if not a.startswith("-")), ""), depth + 1)
         elif name == "git":
             self.git_priv(rest, depth)
+        elif name == "gh":
+            hit = gh_repo_change(rest)
+            if hit:
+                raise RepoProtBlock(hit)
         elif name == "sed":
             for a in rest:
                 m = SED_E.search(a)
@@ -1678,6 +1756,7 @@ class Analyzer:
             self.systemctl(rest)
         elif INTERPRETERS.match(name):
             self.interp_priv(name, rest)
+            self.unittest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
                 if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
                     raise Block("herdr in inline interpreter code")
@@ -1712,6 +1791,46 @@ class Analyzer:
             if name == "xargs":
                 self.xargs(rest)
             self.loose(rest, depth, assigns)
+
+    def unittest_full(self, name, rest):
+        """T-0642: coder, qa and reviewer run no full suite locally (CI is the full gate). Blocked: `python -m unittest`
+        with no test argument, `... discover` unless -p/--pattern names one module (no wildcard). Allowed:
+        `python -m unittest tests.test_x` and `unittest discover -s tests -p test_x.py`."""
+        if self.role not in ("coder", "qa", "reviewer") or not re.fullmatch(r"python[\d.]*", name):
+            return
+        args = None
+        for i, tok in enumerate(rest):
+            mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
+            if tok == "-m" and rest[i + 1:i + 2]:
+                mod, after = rest[i + 1], rest[i + 2:]
+            elif mm and mm.group(2):  # attached form: -munittest
+                mod, after = mm.group(2), rest[i + 1:]
+            else:
+                continue
+            if mod in ("unittest", "unittest.__main__"):
+                args = after
+                break
+        if args is None:
+            return
+        advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
+                  "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
+        if args[:1] == ["discover"]:
+            pats = [args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--pattern")]
+            pats += [a.split("=", 1)[1] for a in args if a.startswith("--pattern=")]
+            if pats and all(re.fullmatch(r"test_[\w]+\.py", x) for x in pats):  # the last pattern wins, so all must be single-module
+                return
+            raise Block("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
+        mods = []
+        skip = False
+        for a in args:
+            if skip:
+                skip = False
+            elif a in ("-k", "--start-directory", "-s", "-t", "-p"):
+                skip = True
+            elif not a.startswith("-"):
+                mods.append(a)
+        if not mods:
+            raise Block("`python3 -m unittest` with no test module runs the full suite" + advice)
 
     def kill(self, rest):
         """Worker mode (G-008 M1932): `kill` may only name the worker's own background job, `%<job>` or `$!`.
@@ -2478,6 +2597,8 @@ def check(cmd, cwd=None, role=None, hq=False):
                 raise PublicBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
     if hq:
         return
+    if role in TERMS_ROLES:
+        terms_bash(cmd, cwd)
     if role == "evaluator":
         evaluator_home_text(cmd)
     # layer 2: raw text, independent of the parser
@@ -2499,6 +2620,245 @@ def check(cmd, cwd=None, role=None, hq=False):
         raise
     if an.scrub_with_factory and an.ran_factory:
         raise Block(f"{an.scrub_with_factory} in a command line that runs factory (hides the worker from detection)")
+
+
+# T-0600: spawn exports SCRUB_TERMS_FILE to workers so the scanners can load the owner terms; nobody but those scanners
+# may read the file, or one `cat` would put the terms into the transcript.
+TERMS_ROLES = {"coder", "qa", "reviewer", "judge", "pm"}
+TERMS_VAR = "SCRUB_TERMS_FILE"
+TERMS_SCANNER = re.compile(r"(?:^|/)ci/(?:scrub_scan|public_text_guard)\.py$")
+TERMS_ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
+TERMS_WHY = ("the owner-terms file may only be read by ci/scrub_scan.py and ci/public_text_guard.py (run them with "
+             "SCRUB_TERMS_FILE as spawn exported it); ask your lead if you need a scan")
+
+
+def terms_paths(cwd):
+    """Every spelling of the configured/exported terms path; empty when none is set."""
+    out = set()
+    try:
+        cfg = PublicText(cwd, Analyzer(cwd).db_path()).cfg
+    except (OSError, sqlite3.Error):
+        cfg = {}
+    for v in (cfg.get("scrub_terms_file"), os.environ.get(TERMS_VAR)):
+        if v and v.strip():
+            v = os.path.expanduser(v.strip())
+            out |= {v, os.path.normpath(v), os.path.realpath(v)}
+    return out
+
+
+def terms_segment_ok(seg):
+    """A command segment that names the terms file is fine only when it runs one of the two scanners."""
+    if re.search(r"`|\$\(|<", seg):
+        return False
+    try:
+        toks = shlex.split(seg)
+    except ValueError:
+        return False
+    while toks and (TERMS_ENV_ASSIGN.match(toks[0]) or toks[0] == "env" or (toks[0].startswith("-") and len(toks) > 1)):
+        toks.pop(0)
+    if toks and re.fullmatch(r"(?:.*/)?python3?", toks[0]):
+        toks.pop(0)
+    return bool(toks) and bool(TERMS_SCANNER.search(toks[0]))
+
+
+def terms_ids(paths):
+    """(st_dev, st_ino) of the terms file under every spelling; None when a spelling cannot be stat'ed (fail closed)."""
+    ids = set()
+    for p in paths:
+        try:
+            st = os.stat(p)
+        except OSError:
+            return None
+        ids.add((st.st_dev, st.st_ino))
+    return ids
+
+
+def terms_token_hits(tok, cwd, paths, ids):
+    """True when a shell token (after quote removal) names the terms file: same inode after realpath and glob expansion,
+    or, when the file cannot be stat'ed, the same basename or a glob next to it."""
+    names = {os.path.basename(p) for p in paths}
+    cands = {tok}
+    if "=" in tok:
+        cands.add(tok.split("=", 1)[1])
+    for c in cands:
+        c = c.lstrip("<>(")
+        if not c:
+            continue
+        full = os.path.join(cwd, os.path.expanduser(c))
+        try:
+            found = glob.glob(full) or [full]
+        except (OSError, re.error):
+            found = [full]
+        for f in found:
+            real = os.path.realpath(f)
+            if real in paths or os.path.basename(real) in names:
+                return True
+            try:
+                st = os.stat(real)
+            except OSError:
+                continue
+            if ids is not None and (st.st_dev, st.st_ino) in ids:
+                return True
+        if ids is None and glob.has_magic(c) and any(
+                fnmatch.fnmatch(os.path.basename(p), os.path.basename(c)) for p in paths):
+            return True
+    return False
+
+
+TERMS_RECURSIVE = {"rg", "find", "tar", "bsdtar", "zip", "rsync", "ag", "ack"}
+TERMS_GREPS = {"grep", "egrep", "fgrep", "cp", "scp"}
+TERMS_REC_FLAG = re.compile(r"^(?:-[A-Za-z]*[rRa][A-Za-z]*|--recursive|--dereference-recursive|--archive)$")
+TERMS_WRAPPERS = {"env", "command", "nice", "time", "nohup", "xargs"}
+TERMS_BRACE = re.compile(r"\{[^{}\s]*,[^{}\s]*\}|\{\w+\.\.\w+\}")
+
+
+def terms_recursive_hits(toks, cwd, paths, home=None):
+    """True when a recursive/archive command (grep -r, rg, find, tar, zip, cp -r, rsync) targets the terms file's directory
+    or any ancestor of it; without a path argument the target is cwd."""
+    toks = list(toks)
+    xargs = False
+    while toks and (TERMS_ENV_ASSIGN.match(toks[0]) or os.path.basename(toks[0]) in TERMS_WRAPPERS):
+        xargs = xargs or os.path.basename(toks[0]) == "xargs"
+        toks.pop(0)
+    if not toks:
+        return False
+    name = os.path.basename(toks[0])
+    if not (name in TERMS_RECURSIVE or (name in TERMS_GREPS and (any(TERMS_REC_FLAG.match(t) for t in toks[1:])
+                                                                 or terms_rec_dirflag(toks[1:])))):
+        return False
+    if xargs:  # the paths arrive on stdin, so the target cannot be judged: fail closed
+        return True
+    reals = {os.path.realpath(p) for p in paths}
+    targets, any_path = [], False
+    for t in toks[1:]:
+        if t.startswith("-") and name != "tar":
+            continue
+        for c in {t, t.split("=", 1)[-1]}:
+            full = os.path.join(cwd, os.path.expanduser(c))
+            try:
+                found = glob.glob(full) or [full]
+            except (OSError, re.error):
+                found = [full]
+            for f in found:
+                if os.path.lexists(f):
+                    any_path = True
+                    targets.append(os.path.realpath(f))
+    if not any_path:
+        targets.append(os.path.realpath(cwd))
+    return any(r.startswith(t.rstrip("/") + "/") for t in targets for r in reals)
+
+
+TERMS_SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
+TERMS_VARREF = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
+
+
+def terms_expand(text, env):
+    """Expand $VAR/${VAR} from same-command assignments and $HOME; ~ is expanded by the callers. Unknown names stay."""
+    def sub(m):
+        name = m.group(1) or m.group(2)
+        return env.get(name, os.environ.get(name, m.group(0)) if name == "HOME" else m.group(0))
+    return TERMS_VARREF.sub(sub, text)
+
+
+def terms_rec_dirflag(toks):
+    """grep -d recurse / --directories=recurse is -r in another spelling."""
+    return any(t in ("--directories=recurse",) or (t == "recurse" and i and toks[i - 1] in ("-d", "--directories"))
+               or t == "-drecurse" for i, t in enumerate(toks))
+
+
+def terms_split(cmd):
+    """Split a command line on ; & | and newlines that sit outside quotes, so sh -c "cd d && grep -r x" stays one segment."""
+    segs, cur, quote, i = [], [], None, 0
+    while i < len(cmd):
+        c = cmd[i]
+        if quote:
+            if c == "\\" and quote == '"' and i + 1 < len(cmd):
+                cur.append(c)
+                i += 1
+                c = cmd[i]
+            elif c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c == "\\" and i + 1 < len(cmd):
+            cur.append(c)
+            i += 1
+            c = cmd[i]
+        elif c in ";&|\n":
+            segs.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
+    segs.append("".join(cur))
+    return segs
+
+
+def terms_bash(cmd, cwd, env=None, depth=0):
+    paths = terms_paths(cwd)
+    if not paths:
+        return
+    ids = terms_ids(paths)
+    cwd = cwd or os.getcwd()
+    env = {} if env is None else env
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
+    if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
+        raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
+    for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
+        if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):
+            raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
+        seg = terms_expand(raw_seg, env)
+        try:
+            toks = shlex.split(re.sub(r"\$\(|[`()]", " ", seg))
+        except ValueError:  # unbalanced quote from a split inside quotes: judge the raw words instead
+            toks = re.sub(r"\$\(|[`()'\"\\]", " ", seg).split()
+        while toks and toks[0] == "export" and len(toks) > 1:
+            toks.pop(0)
+        for t in toks:  # VAR=value (also as a command prefix) feeds later expansion
+            if not TERMS_ENV_ASSIGN.match(t):
+                break
+            k, v = t.split("=", 1)
+            env[k] = os.path.expanduser(v)
+        if toks and toks[0] in ("cd", "pushd"):
+            cwd = os.path.realpath(os.path.join(cwd, os.path.expanduser(toks[1]) if len(toks) > 1 else home))
+            continue
+        if terms_segment_ok(seg):
+            continue
+        core = list(toks)
+        while core and (TERMS_ENV_ASSIGN.match(core[0]) or os.path.basename(core[0]) in TERMS_WRAPPERS - {"xargs"}):
+            core.pop(0)
+        if core and core[0] == "eval" and depth < 4:
+            terms_bash(" ".join(core[1:]), cwd, dict(env), depth + 1)
+        if core and os.path.basename(core[0]) in TERMS_SHELLS and depth < 4:  # bash -c 'payload' is its own script
+            for i, t in enumerate(core[1:], 1):
+                if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", t) and i + 1 < len(core):
+                    terms_bash(core[i + 1], cwd, dict(env), depth + 1)
+                    break
+        if terms_recursive_hits(toks, cwd, paths, home):
+            raise PublicBlock(f"recursive or archive reads of the directory holding the owner-terms file are refused: {TERMS_WHY}")
+        if any(terms_token_hits(t, cwd, paths, ids) for t in toks):
+            raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
+
+
+def terms_tool(data):
+    """Read/Grep tool call that would read the terms file (Grep over a directory holding it counts)."""
+    ti = data.get("tool_input")
+    ti = ti if isinstance(ti, dict) else {}
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    paths = terms_paths(cwd)
+    if not paths:
+        return 0
+    raw = ti.get("file_path") if data.get("tool_name") == "Read" else (ti.get("path") or cwd)
+    if not isinstance(raw, str) or not raw:
+        sys.stderr.write("worker-guard: blocked (tool call without a readable path, failing closed)\n")
+        return 2
+    p = os.path.realpath(os.path.join(cwd, os.path.expanduser(raw.replace("${SCRUB_TERMS_FILE}", "$SCRUB_TERMS_FILE"))))
+    if TERMS_VAR in raw or p in paths or any(t.startswith(p.rstrip("/") + "/") for t in paths):
+        sys.stderr.write(f"worker-guard: blocked ({TERMS_WHY})\n")
+        return 2
+    return 0
 
 
 def persist_edit(data):
@@ -2533,6 +2893,8 @@ def main():
             raise ValueError("not an object")
         if data.get("tool_name") in PERSIST_EDIT_TOOLS and not hq:
             return persist_edit(data)
+        if data.get("tool_name") in ("Read", "Grep") and not hq:
+            return terms_tool(data) if role in TERMS_ROLES else 0
         if data.get("tool_name") != "Bash":
             return 0
         cmd = (data.get("tool_input") or {}).get("command")
@@ -2545,6 +2907,11 @@ def main():
     except UnitBlock as e:
         sys.stderr.write(f"worker-guard: blocked (`{e}`): mutating systemctl/systemd-run is not allowed for "
                          "factory agents; the owner manages units (M2108)\n")
+        return 2
+    except RepoProtBlock as e:
+        sys.stderr.write(f"worker-guard: blocked (`{e}`): branch protection and repository settings are changed only by "
+                         "the owner (ci/publish_repo.py, rule R-a); agents may only read them with a plain GET. "
+                         "Tell your lead if this is wrong.\n")
         return 2
     except PrivBlock as e:
         sys.stderr.write(f"worker-guard: blocked: privilege escalation (`{e}`) is not allowed for factory agents "

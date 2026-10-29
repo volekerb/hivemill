@@ -15,7 +15,8 @@ and sets `GIT_TERMINAL_PROMPT=0` and `GIT_CONFIG_NOSYSTEM=1`. `gh pr merge`, whi
 Before every privileged git operation (tick sync and export, judge carry check and merge, `prepare_worktree`, `clean`'s fetch) `git_config_refusal(repo)` reads, **without includes**, `git config --file` on `<common-dir>/config`, every `<common-dir>/worktrees/*/config.worktree` and the target worktree's `config.worktree`. It refuses when:
 
 - any `include.*` or `includeIf.*` key is present;
-- any key is outside this list (names are case-insensitive): `core.repositoryformatversion`, `core.filemode`, `core.bare`, `core.logallrefupdates`, `remote.origin.url`, `remote.origin.fetch`, `branch.<name>.remote`, `branch.<name>.merge`, `extensions.worktreeConfig`;
+- any key is outside this list (names are case-insensitive): `core.repositoryformatversion`, `core.filemode`, `core.bare`, `core.logallrefupdates`, `remote.origin.url`, `remote.origin.fetch`, `branch.<name>.remote`, `branch.<name>.merge`, `extensions.worktreeConfig`, `user.name`, `user.email`;
+- `user.email` does not end in `@users.noreply.github.com` (a real address in repo config would be committed under, so only the noreply form is allowed; `user.name` has no such condition);
 - `remote.origin.url` is not the factory URL (config key `factory_remote_url`, see below) or, for a clone whose realpath main worktree is a registered project's `repo_path`, exactly that project's `https://github.com/<gh_repo>.git` (or without `.git`); under a temp home a plain absolute path, the tests' bare remote, is also accepted;
 - `extensions.worktreeConfig` is anything but false;
 - `<common-dir>/info/attributes` or `~/.config/git/attributes` is non-empty.
@@ -29,6 +30,18 @@ On refusal there is no git action: the tick skips sync, state commit and push; t
 ## (c) Worktree creation and the retry switch
 `prepare_worktree` runs the guard on the project repo, then `git worktree add --no-checkout`, then the guard again on the **new worktree** (an `includeIf gitdir:.../worktrees/**` only applies once the worktree exists), and only then `git checkout`. If the second guard refuses, the half-made worktree is removed. The retry path (`git switch` in an existing worktree, which also checks out) is guarded first.
 
+## Per-task clones
+Config `task_clones` (`0` or `1`, default `0`; anything else is refused with exit 2). With `0`, `prepare_worktree` runs `git worktree add` exactly as before. With `1`, a coder task that has no worktree yet gets `worktrees/<goal>-<task>` as a standalone clone: `git clone --shared --no-checkout <repo>`, so objects are borrowed through `.git/objects/info/alternates` from `<repo>/.git/objects`; `origin` is set to the repo's own origin URL (not the local path); `refs/remotes/origin/*` are copied from the repo's own (no network); the guard runs on the clone; only then `git checkout -B factory/<task> origin/<base>`. If the guard refuses, the clone is removed and spawn exits 4 with a `git-config-refused` event. The clone's `.git` is a directory, not listed by `git worktree list`; its allowed `remote.origin.url` is derived from the DB, not from the clone: the guard takes the clone's common dir, finds the registered project whose `repo_path` is that clone's realpath main worktree (`_project_remote_urls`), and accepts exactly that project's `https://github.com/<gh_repo>.git` (or without `.git`); the worker-writable `alternates` file is never read for this.
+
+Existing tasks keep whatever `tasks.worktree` points to, including a legacy worktree when the flag is on; QA and reviewers reuse it. The retry `git switch` runs through the hardened helper after the guard, for both layouts, as do the done guard and `clean`.
+
+`factory clean` treats a clone like a worktree: same task status, PR-merged, dirty, untracked, unpushed-commit and live-pane checks, and it never removes more than a worktree would. Extra rules for a directory whose `.git` is a real directory: the guard runs on the clone first (on refusal the dir is skipped with reason `git config refused` and a `git-config-refused` event, and no git runs there); all git calls in it go through the hardened helper; the dir must be a direct, non-symlink child of `worktrees/` (otherwise `outside worktrees/`, nothing removed); a `.git` symlink is left alone. Removal is `shutil.rmtree` after re-checking that path; there is no `git worktree` call, and the branch lives only in the clone, so it goes with it. Every ref in the clone (`refs/heads/*` and `refs/stash`) must also be on the PR head (or `origin/<base>`), not only HEAD; an unpushed extra branch or a stash keeps the dir (`unpushed commits`).
+
+`clean` also removes `<workers root>/<agent>` (`workerbox.WORKERS_ROOT`; under a temp `FACTORY_HOME`, the temp `$HOME`'s equivalent) when the agent row is `exited`, `done`, `cancelled`, `lost` or `stopped`, `ended` is more than 7 days ago and no live pane cwd is inside it. It keeps the dir for live, queued or starting agents, unknown agents (no row), a NULL or unreadable `ended`, a symlink entry (never followed) and any path whose realpath parent is not the root. A removal records an `agent` `sandbox-cleaned` event. Kept sandbox dirs are not listed per run; the `total:` line counts them (`N sandbox dir(s) kept`).
+
+- gc caveat: clones borrow objects from `~/factory/.git`. Do not run `git gc --prune=now` (or `git prune`) there while clones exist; the default expiry is fine.
+- Never run plain git in a worker clone from HQ or a script: its config and hooks belong to the worker. Use `git_run` (hooks, fsmonitor and non-https transports off) after `git_config_guard`.
+
 ## Carry check
 `verdict_carries` additionally runs with `core.commitGraph=false`, `core.attributesFile=/dev/null`, `GIT_ATTR_NOSYSTEM=1` and `GIT_ATTR_SOURCE` set to the empty tree (git >= 2.40), so not even the worktree's own `.gitattributes` can pick a driver. A `gh api` timeout (`GH_API_TIMEOUT`, 60 s) is a refusal ("cannot verify, gh api for main timed out"), not a traceback.
 
@@ -39,7 +52,7 @@ This guard rule is accident prevention, not a security boundary: a text check ca
 
 Since T-0226 the hook also refuses a worker's repo-config writes (`git config <key> <value>`, `git remote add|set-url|...`, Edit/Write/redirects to `<gitdir>/config*` and `info/attributes`) except `--file` inside the scratchpad or a clone inside it; see "Repo git config writes" in `docs/worker-guard.md`. Known gaps (tracked in T-0337, not chased in T-0226): path globs and shell-built paths for redirects (`echo x > ~/factory/.git/conf*`), non-listed writers (`python -c`, `git init --template`, `git worktree add` with `-c` keys, `git update-index`, `curl -o`), an alias defined in config rather than `-c`, `GIT_CONFIG_COUNT` env injection beyond the `GIT_CONFIG*=` text check, and a `git clone` inside the scratchpad whose later `cd` is built at run time (refused, not allowed).
 
-Tests: `tests/test_git_hardening.py` (tick, spawn, protocol/proxy, worktree add, retry switch) and `tests/test_verdict_carry.py` (judge).
+Tests: `tests/test_task_clones.py` (clones), `tests/test_git_hardening.py` (tick, spawn, protocol/proxy, worktree add, retry switch) and `tests/test_verdict_carry.py` (judge).
 
 ## Public and frozen repos (G-021)
 
@@ -49,6 +62,16 @@ Three config keys, all empty by default (nothing changes while they are empty). 
 |---|---|
 | `public_text_repos` | comma list of `OWNER/NAME` whose text is public. `factory judge --merge` on a PR in such a repo (the PR URL's repo or the project's `gh_repo`) first runs the public text guard on the PR title, body, branch, comments, reviews and the commits since the verified `origin/main` (messages, identities, paths, added lines). Any hit, or no owner terms, refuses the merge with `judge: refused (public text: N hits: <pattern ids>)` and a `judge-blocked` event. The state branch is never pushed to such an `origin` (docs/state-branch.md). |
 | `frozen_repos` | comma list of `OWNER/NAME` that bin/factory never pushes to or merges into: the state push, the judge's refresh push, `factory clean --remote-branch` and `gh pr merge` refuse with `repo <slug> is frozen (G-021)`. |
-| `scrub_terms_file` | path of the owner terms file, local only. The environment variable `SCRUB_TERMS_FILE` wins. Without terms the judge check fails closed. |
+| `scrub_terms_file` | path of the owner terms file, local only. The environment variable `SCRUB_TERMS_FILE` wins. Without terms the judge check fails closed. `factory spawn` exports it as `SCRUB_TERMS_FILE` to coder, reviewer, qa and judge. worker-guard refuses every direct read of the file by those roles (cat, grep, redirection, python open, Read and Grep tools); only `ci/scrub_scan.py` and `ci/public_text_guard.py` may load it. `factory config <key>` prints just that key's value. |
 
 The guard module is loaded from the main checkout (`$FACTORY_HOME/ci/public_text_guard.py`), never from the PR tree, so a PR cannot switch it off. See docs/public-text-guard.md.
+
+## Residual risk: owner-terms file (T-0600)
+
+worker-guard refuses direct reads of the terms file by any path form (compared by file identity), recursive or archive reads (`grep -r`, `rg`, `find`, `tar`, `zip`, `cp -r`, `rsync`) aimed at its directory or any ancestor, `$HOME`/simple `VAR=` expansion, a bare `cd`, `bash -c` payloads, `xargs` with a recursive command and `grep -d recurse` in those checks, and `${!var}` indirection or brace expansion in a command that names the terms file. A command-text guard cannot stop every indirect read, so these remain:
+
+- discovering the path (`env`, `printenv`, `/proc/self/environ`), which discloses only the path;
+- computed variable names in scripts (a python string concatenation that builds `SCRUB_TERMS_FILE`), and other interpreters reading the environment;
+- a recursive read that reaches the directory through a command or shell form not listed above (accepted as documented residual by the director).
+
+Backstops: the public text guard refuses owner terms in every push, PR, comment and commit (fail closed), and G-010 sandboxing keeps the owner's config directory out of sandboxed workers. The guard stops accidents, not deliberate evasion.
