@@ -134,6 +134,32 @@ class PrWrapperTests(FactoryTestCase):
         self.assertEqual(self.pr("create", "--title", "t", "--body", "-", stdin="b").returncode, 3)
         self.assertEqual(self.gh_calls(), [])
 
+    def checkout_v(self, name, db_branch):
+        git("checkout", "-q", "-b", name, cwd=self.wt)
+        self.env.sql("UPDATE tasks SET branch=? WHERE id='T-0001'", (db_branch,))
+
+    def test_vn_branch_of_own_task_accepted(self):
+        self.checkout_v("factory/t-0001-v2", "factory/t-0001-v2")
+        p = self.pr("create", "--title", "T-0001 thing", "--body", "-", stdin="b\n")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.gh_calls()[0]["argv"][7], "factory/t-0001-v2")
+        p = self.pr("ready")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.gh_calls()[1]["argv"], ["pr", "ready", "factory/t-0001-v2", "--repo", REPO_SLUG])
+
+    def test_vn_branch_not_recorded_in_db_refused(self):
+        self.checkout_v("factory/t-0001-v2", None)
+        self.assertEqual(self.pr("ready").returncode, 3)
+        self.assertEqual(self.gh_calls(), [])
+
+    def test_db_branch_not_matching_own_task_pattern_refused(self):
+        for name in ("factory/t-0002-v2", "factory/t-0001-x", "factory/t-0001-v2-extra", "other/t-0001-v2", "factory/t-00011"):
+            self.checkout_v(name, name)
+            p = self.pr("create", "--title", "t", "--body", "-", stdin="b")
+            self.assertEqual(p.returncode, 3, name)
+            self.assertEqual(self.pr("ready").returncode, 3, name)
+        self.assertEqual(self.gh_calls(), [])
+
     def test_project_without_gh_repo_refused(self):
         self.env.sql("UPDATE projects SET gh_repo=NULL")
         p = self.pr("ready")

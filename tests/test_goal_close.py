@@ -8,6 +8,7 @@ GATE_ROLES = ("coder", "qa", "reviewer", "judge", "lead", "boss")
 
 
 class GoalCloseTests(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
