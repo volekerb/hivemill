@@ -11,3 +11,4 @@ A Proposed ADR becomes Accepted only with the approving message id recorded in i
 | number | title | status | date |
 |---|---|---|---|
 | [0001](0001-language-policy.md) | Language policy: Go for hot and security-sensitive components, Python for glue | Proposed | 2026-10-27 |
+| [0002](0002-sandbox-runtime-v3.md) | Sandbox runtime v3: hardened nsbox testbox (A+), no microVMs for tests | Accepted | 2026-10-29 |
