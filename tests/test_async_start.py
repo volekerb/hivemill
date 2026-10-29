@@ -137,6 +137,38 @@ class Confirm(AsyncStartBase):
         self.assertEqual(len(self.events("flagless-cleared")), 1)
         self.assertEqual(len(self.prompts()), 1)
 
+    def test_fresh_relaunch_event_only_at_confirm(self):
+        self.go_async()
+        self.spawn()
+        r = self.row()
+        self.ready()
+        self.ok("tick")  # the first start is confirmed
+        self.env.sql("UPDATE agents SET session_id='old-sid' WHERE name=?", (NAME,))
+        self.env.set_herdr(agents=[{"name": NAME, "agent": "claude", "pane_id": r["pane_id"], "agent_status": "idle",
+                                    "agent_session": {"value": "old-sid"}}])
+        p = self.env.run("relaunch", NAME, "--fresh", "--force", agent="zz-director")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIsNotNone(self.row()["start_pending"])
+        self.assertEqual(self.events("relaunched-fresh"), [])  # not before the confirm
+        self.ready()
+        self.ok("tick")
+        ev = self.events("relaunched-fresh")
+        self.assertEqual(len(ev), 1)
+        d = json.loads(ev[0]["detail"])
+        self.assertEqual(d["old_sid"], "old-sid")
+        self.assertNotEqual(d["new_sid"], "old-sid")
+        self.ok("tick")
+        self.assertEqual(len(self.events("relaunched-fresh")), 1)
+
+    def test_nudge_skips_start_pending_agent_in_confirm_tick(self):
+        self.go_async()
+        self.ok("config", "nudge_cooldown_s", "-60")  # last_nudge is set mid-tick, so t - last_nudge < 0: only a negative cooldown leaves the skip guard as the sole stop
+        self.spawn()  # the kickoff message sits unread in its inbox: the nudge step would prompt an idle agent
+        self.ready()
+        self.ok("tick")
+        self.assertEqual(len(self.prompts()), 1)
+        self.assertNotIn("unread factory message", self.prompts()[0][3])
+
 
 if __name__ == "__main__":
     unittest.main()
