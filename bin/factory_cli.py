@@ -1046,11 +1046,15 @@ def pane_at_shell(pane_id):
     return bool(names) and all(n in ("zsh", "bash", "sh", "dash", "fish") for n in names)
 
 
+def _relaunch_poll_s():
+    return float(os.environ.get("FACTORY_RELAUNCH_POLL_S") or 0.5)  # tests set a tiny value
+
+
 def export_in_shell(pane, env, cwd):
     """An idle shell lacks the agent's env: export it before the agent launches."""
     herdr("pane", "run", pane, "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
           + f" && cd {shlex.quote(cwd)} && clear")
-    time.sleep(1)
+    time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
 
 
 # ───────────────────────────── flagless detection ─────────────────────────────
@@ -8060,12 +8064,31 @@ def owner_blockers(con):
     return out
 
 
+def owner_blocker_nudge(con, blockers):
+    """The one night exception to "the tick never prompts the boss pane": prompt it once per alerted night blocker, like
+    step 3 does for other agents (idle/done only, never into a running turn; retried each tick until delivered)."""
+    agents = herdr_agents() or []
+    for b in blockers:
+        key = "nudged:" + b["key"]
+        if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone() or \
+                not con.execute("SELECT 1 FROM throttle WHERE key=?", ("alerted:" + b["key"],)).fetchone():
+            continue
+        r = con.execute("SELECT name,pane_id FROM agents WHERE role='boss' AND status='live' ORDER BY rowid DESC LIMIT 1").fetchone()
+        h = next((x for x in agents if r and (x.get("name") == r["name"] or x.get("pane_id") == r["pane_id"])), None)
+        if not h or h.get("agent_status") not in ("idle", "done"):
+            continue
+        if herdr("agent", "prompt", h.get("name") or r["name"],
+                 "📬 OWNER-ONLY BLOCKER (night): run `factory inbox` and tell the owner now.", check=False) is None:
+            continue  # herdr failed: no throttle row, no event; retried next tick
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+        event_as(con, "tick", "agent", r["name"], "owner-blocker-nudge", b["text"][:200])
+
+
 def owner_blocker_alerts(con):
     """Tick hook: an owner-only blocker raised between day_end_hour and day_start_hour pings the boss once, at once. Never raises."""
     try:
-        for b in owner_blockers(con):
-            if not is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone()):
-                continue
+        night = [b for b in owner_blockers(con) if is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone())]
+        for b in night:
             key = "alerted:" + b["key"]
             if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
                 continue
@@ -8074,6 +8097,7 @@ def owner_blocker_alerts(con):
                  f"Raised {b['since']}, outside daytime ({ds}-{de} h). Tell the owner now by the owner channel; "
                  "tell again at day_start_hour if still open.", "escalation", sender="tick")
             con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+        owner_blocker_nudge(con, night)
     except Exception as e:  # noqa: BLE001 — alerting must never break the tick
         try:
             if not _util_throttled(con, "owner-blocker-failed", 3600, digest_clock().timestamp()):
@@ -10359,12 +10383,12 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         for _ in range(20):
             if not find_pane(pane):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
             if not claude_procs(r["session_id"]):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         else:
             die(f"a claude process still runs session {r['session_id']} after its pane closed; not restarting", 3)
     event(con, "agent", r["name"], "relaunch", {"pane": r["pane_id"], "session": r["session_id"]})

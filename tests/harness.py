@@ -5,6 +5,7 @@ dir, and `herdr` / `gh` on PATH are the stubs from tests/stubs. The live DB is n
 """
 import ast
 import contextlib
+import io
 import importlib.machinery
 import importlib.util
 import io
@@ -16,6 +17,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
+import warnings
 import unittest
 from pathlib import Path
 
@@ -230,8 +233,12 @@ def assert_hermetic(home_dir, stub_bin):
                            "Put the harness stub_bin first on PATH.")
 
 
+_FACTORY_CODE = None  # bin/factory_cli.py compiled once per process, for FactoryEnv.run_inproc
+
+
 class FactoryEnv:
     def __init__(self, _build_template=False):
+        self.inproc = False  # FactoryTestCase.INPROC: route run() through run_inproc
         self.home = Path(tempfile.mkdtemp(prefix="zz-test-factory-")).resolve()
         live = Path("~/factory").expanduser().resolve()
         for bad in (live, REPO):
@@ -304,6 +311,9 @@ class FactoryEnv:
             "FACTORY_TMP_DIR": str(self.home / "faketmp"),
             "FACTORY_LOADAVG": "0",  # the box's real load must not decide whether a spawn test passes
             "FACTORY_KICKOFF_DELAY_S": "0",  # spawn() waits 2 s for the TUI; no test needs to
+            "FACTORY_SHELL_SETTLE_S": "0.01",  # export_in_shell waits 1 s for the shell
+            "FACTORY_RELAUNCH_POLL_S": "0.02",  # relaunch polls 0.5 s for the closed pane / dead process
+            "FACTORY_STOP_CONFIRM_S": "0.2",  # force_stop polls the host up to 10 s for the pane/process to go
         }
         if "TZ" in os.environ:  # a TZ override in the parent must reach the CLI (clock-independence tests)
             env["TZ"] = os.environ["TZ"]
@@ -312,11 +322,54 @@ class FactoryEnv:
         env.update(extra or {})
         return env
 
-    def run(self, *args, agent=None, stdin=None, extra_env=None):
+    def run(self, *args, agent=None, stdin=None, extra_env=None, inproc=None):
         if self.auto_sha and args[:1] == ("verdict",) and "--pass" in args and "--sha" not in args:
             args += self.pr_head_args(agent, extra_env)
+        if self.inproc if inproc is None else inproc:
+            return self.run_inproc(*args, agent=agent, stdin=stdin, extra_env=extra_env)
         return subprocess.run([sys.executable, str(FACTORY), *args], input=stdin, capture_output=True,
                               text=True, env=self.env(agent, extra_env), cwd=self.home, timeout=60)
+
+    def run_inproc(self, *args, agent=None, stdin=None, extra_env=None):
+        """`run` without the interpreter start-up: bin/factory main() runs in this process, in a fresh module namespace
+        (compiled once), with os.environ, cwd, argv and stdio swapped for this env and restored afterwards. For tests that
+        make many CLI calls and do not test process-level behaviour: pid/ppid identity (ancestor lookup), signals, the
+        real exit status of the interpreter. Those stay on subprocess (`inproc=False`)."""
+        global _FACTORY_CODE
+        if _FACTORY_CODE is None:
+            _FACTORY_CODE = compile(FACTORY_SRC.read_text(), str(FACTORY_SRC), "exec")
+        env = self.env(agent, extra_env)
+        saved = (dict(os.environ), os.getcwd(), sys.argv, sys.stdin, sys.path[:])
+        out, err, rc = io.StringIO(), io.StringIO(), 0
+        try:
+            os.environ.clear()
+            os.environ.update(env)
+            time.tzset()  # the CLI's TZ, not the test runner's
+            os.chdir(self.home)
+            sys.argv = [str(FACTORY), *args]
+            sys.stdin = io.StringIO(stdin or "")
+            ns = {"__name__": "factory_inproc", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), warnings.catch_warnings():
+                warnings.simplefilter("ignore", ResourceWarning)  # a fresh interpreter hides them; unittest shows them
+                try:
+                    exec(_FACTORY_CODE, ns)
+                    ns["main"]()
+                except SystemExit as e:
+                    if e.code is None or isinstance(e.code, int):
+                        rc = e.code or 0
+                    else:
+                        print(e.code, file=sys.stderr)
+                        rc = 1
+                except Exception:
+                    traceback.print_exc()
+                    rc = 1
+        finally:
+            os.environ.clear()
+            os.environ.update(saved[0])
+            time.tzset()
+            os.chdir(saved[1])
+            sys.argv, sys.stdin, sys.path[:] = saved[2], saved[3], saved[4]
+        return subprocess.CompletedProcess([sys.executable, str(FACTORY), *args], rc, out.getvalue(), err.getvalue())
 
     def pr_head_args(self, agent, extra_env):
         """`--sha <PR head>` read through whatever gh the test put on PATH (some tests bring their own stub)."""
@@ -463,8 +516,11 @@ class FactoryTestCase(unittest.TestCase):
         super().__init_subclass__(**kw)
         _slot.note_module(cls.__module__)  # a full-suite run waits here, at load time, for a host-wide test slot
 
+    INPROC = False  # True: env.run() calls bin/factory in-process (see FactoryEnv.run_inproc); inproc=False opts one call out
+
     def setUp(self):
         self.env = FactoryEnv()
+        self.env.inproc = self.INPROC
         self.addCleanup(self.env.cleanup)
 
     def ok(self, *args, **kw):
