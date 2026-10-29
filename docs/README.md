@@ -50,6 +50,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 ## Contribute
 
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): how to propose and land a change.
+- [contributor-flow.md](contributor-flow.md): how external pull requests are gated, and why fork code never runs before a read pass.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
