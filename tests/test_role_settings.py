@@ -79,39 +79,15 @@ class AllowListTests(unittest.TestCase):
                     self.assertNotIn(f"factory config {k}", rule, (p.name, rule))
                 self.assertNotEqual(rule, "Bash(factory config *)", p.name)
 
-    def test_coder_push_and_pr_rules_are_narrow(self):
-        rules = [r for r in allow("coder") if re.match(r"Bash\((git push|gh pr (create|ready))", r)]
-        self.assertEqual(sorted(rules), sorted([
-            "Bash(git push origin HEAD:factory/*)",
-            "Bash(gh pr create --repo volekerb/hivemill *)",
-            "Bash(gh pr ready --repo volekerb/hivemill *)",
-            "Bash(gh pr ready * --repo volekerb/hivemill)"]))
-        self.assertEqual([r for r in allow("coder") if re.match(r"Bash\((git push|gh pr (merge|close|edit|comment))", r)
-                          and not r.startswith(("Bash(git push origin HEAD:factory/", "Bash(gh pr create", "Bash(gh pr ready"))], [])
+    def test_coder_push_rule_is_narrow_and_no_gh_pr_allow(self):
+        # glob rules cannot pin gh's target repo (--repo=X, -RX, last flag wins, PR URL): no gh pr allow at all (M11988)
+        self.assertEqual([r for r in allow("coder") if r.startswith("Bash(gh pr") and not re.match(r"Bash\(gh pr (view|diff|checks):", r)], [])
+        self.assertEqual([r for r in allow("coder") if r.startswith("Bash(git push")], ["Bash(git push origin HEAD:factory/*)"])
 
     def test_coder_push_denies_extra_args_after_the_factory_refspec(self):
         # allow globs span spaces: the deny must catch a second refspec or flag after HEAD:factory/<x>
         self.assertIn("Bash(git push origin HEAD:factory/* *)", load("coder")["permissions"]["deny"])
         self.assertNotIn("Bash(git push origin HEAD:factory/* *)", allow("coder"))
-
-    def test_coder_gh_pr_doubled_repo_flag_resolves_to_deny(self):
-        # allow globs span spaces and gh takes the last flag: a second --repo/-R must hit a deny (deny beats allow)
-        import fnmatch
-
-        def verdict(cmd):
-            def hit(rules):
-                return any(fnmatch.fnmatchcase(cmd, r[5:-1]) for r in rules if r.startswith("Bash(") and ":" not in r)
-            perms = load("coder")["permissions"]
-            return "deny" if hit(perms["deny"]) else "allow" if hit(perms["allow"]) else "none"
-
-        ok = "volekerb/hivemill"
-        self.assertEqual(verdict(f"gh pr create --repo {ok} --title x"), "allow")
-        self.assertEqual(verdict(f"gh pr ready --repo {ok} 85"), "allow")
-        self.assertEqual(verdict(f"gh pr ready 85 --repo {ok}"), "allow")
-        for first, second in (("--repo", "--repo"), ("--repo", "-R"), ("-R", "--repo"), ("-R", "-R")):
-            for sub in ("create", "ready"):
-                self.assertEqual(verdict(f"gh pr {sub} {first} {ok} {second} other/x"), "deny", (sub, first, second))
-                self.assertEqual(verdict(f"gh pr {sub} 85 {first} other/x {second} {ok}"), "deny", (sub, first, second))
 
     def test_other_worker_roles_gain_no_push_or_pr_create_rule(self):
         for role in ("pm", "qa", "reviewer", "judge", "director", "lead"):

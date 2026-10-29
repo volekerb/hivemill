@@ -34,7 +34,7 @@ K_MARKERS = {
 }
 KEPT_COMMANDS = [
     "factory task update <T> --status in_progress",
-    "git push -u origin HEAD",
+    "git push origin HEAD:factory/<task-id>",
     "gh pr create",
     "factory task update <T> --status in_review --pr",
     "factory done",
