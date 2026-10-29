@@ -124,7 +124,7 @@ class Confirm(AsyncStartBase):
         self.assertIsNone(r["start_pending"])
         self.assertEqual(r["flagless"], 1)
 
-    def test_fresh_spawn_event_and_flagless_cleared_only_on_confirm(self):
+    def test_flagless_cleared_only_on_confirm(self):
         self.go_async()
         self.env.seed_agent(NAME, "pm", goal="G-001", team="g-001-a", status="exited")
         self.env.sql("UPDATE agents SET flagless=1, flagless_since='x' WHERE name=?", (NAME,))
