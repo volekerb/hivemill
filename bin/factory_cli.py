@@ -5562,6 +5562,17 @@ def _orphan_signal(sig, targets, group):
     return True
 
 
+def _orphan_term_kill(pid, ident, targets, group, grace):
+    """SIGTERM was sent: wait up to `grace` seconds for `pid` to go, then SIGKILL it if it still has its scanned
+    identity. Returns "KILL" when the SIGKILL was sent, else "TERM"."""
+    deadline = time.time() + grace
+    while _orphan_ident(pid) == ident and time.time() < deadline:
+        time.sleep(0.2)
+    if _orphan_ident(pid) == ident and _orphan_signal(signal.SIGKILL, targets, group):
+        return "KILL"
+    return "TERM"
+
+
 def _orphan_payload(j, how):
     """The event body of a would-reap / reap event: exactly these keys."""
     return {"pid": j["pid"], "start_time": j["ident"][1], "argv0": j["argv"][0],
@@ -5617,11 +5628,7 @@ def reap_orphans(con):
                     targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
             if not _orphan_signal(signal.SIGTERM, targets, group):
                 continue
-            how, deadline = "TERM", time.time() + grace
-            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
-                time.sleep(0.2)
-            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
-                how = "KILL"
+            how = _orphan_term_kill(pid, j["ident"], targets, group, grace)
             event_as(con, "tick", "agent", j["agent"], "orphan-reaped", _orphan_payload(j, how))
             reaped.append(j)
             if _is_factory_serve(j["argv"]) and j["home"]:
@@ -5657,6 +5664,25 @@ def _is_test_runner(argv):
             or (os.path.basename(argv[1]) in ("factory", "factory_cli.py") and argv[2:3] == ["test"]))
 
 
+def _own_ended_claude(pid, row):
+    """True when claude `pid` is the ended agent `row`'s own, still exiting: its FACTORY_AGENT is the agent's name and
+    it started inside the agent's started..ended window (a later claude with the same name, or a reused pid, started
+    outside it). Anything unreadable or unparseable is False: the runner then stays untouched."""
+    try:
+        if (_orphan_env(pid) or {}).get("FACTORY_AGENT", "") != row["name"] or not row["started"] or not row["ended"]:
+            return False
+        raw = (_serve_proc_root() / "stat").read_text()
+        btime = next(int(x.split()[1]) for x in raw.splitlines() if x.startswith("btime "))
+        st = _orphan_stat(pid)
+        if st is None:
+            return False
+        began = btime + st[2] / os.sysconf("SC_CLK_TCK")
+        lo, hi = (dt.datetime.fromisoformat(row[k]).timestamp() for k in ("started", "ended"))
+        return lo - 5 <= began <= hi + 5
+    except (OSError, ValueError, StopIteration, IndexError):
+        return False
+
+
 def _test_judge(con, pid, skip, row):
     """The facts about `pid` when it is a test runner of the ended agent `row`'s own task, else None."""
     if pid in skip:
@@ -5682,7 +5708,8 @@ def _test_judge(con, pid, skip, row):
             return None
         a = _serve_argv(cur)
         if a and os.path.basename(a[0]) in ("claude", "herdr"):
-            return None
+            if os.path.basename(a[0]) != "claude" or not _own_ended_claude(cur, row):
+                return None
         cur = (_orphan_stat(cur) or (None,))[0]
     (goal, task), by = att
     return {"pid": pid, "agent": row["name"], "task": task, "argv": ident[0], "ident": ident, "cwd": cwd,
@@ -5708,7 +5735,7 @@ def reap_agent_tests(con, name, trigger):
         mode = mode if mode in ORPHAN_MODES else "dry-run"
         if mode == "off":
             return
-        row = con.execute("SELECT name,role,status,task_id FROM agents WHERE name=?", (name,)).fetchone()
+        row = con.execute("SELECT name,role,status,task_id,started,ended FROM agents WHERE name=?", (name,)).fetchone()
         if (not row or row["status"] != {"done": "exited", "stop": "stopped"}.get(trigger)
                 or row["role"] in ORPHAN_HQ_ROLES or not row["task_id"]):
             return
@@ -5737,11 +5764,7 @@ def reap_agent_tests(con, name, trigger):
                     targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
             if not _orphan_signal(signal.SIGTERM, targets, group):
                 continue
-            how, deadline = "TERM", time.time() + grace
-            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
-                time.sleep(0.2)
-            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
-                how = "KILL"
+            how = _orphan_term_kill(pid, j["ident"], targets, group, grace)
             event_as(con, "tick", "agent", name, "agent-tests-reaped", {**_orphan_payload(j, how), "trigger": trigger})
     except Exception as e:  # noqa: BLE001 — must never break the tick or force_stop
         _agent_tests_failed(con, name, e)
