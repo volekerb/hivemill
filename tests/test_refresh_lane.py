@@ -2,6 +2,7 @@
 row) gets its judge started, and so refreshed; the other BEHIND rows stay queued as 'lane: position N'. Off: unchanged.
 Real CLI as a subprocess (the tick), gh stub from the harness."""
 import json
+import time
 
 from harness import FactoryTestCase  # noqa: F401  (DequeueBase builds on it)
 from test_dequeue import DequeueBase, at
@@ -78,3 +79,17 @@ class RefreshLane(DequeueBase):
         self.assertEqual(self.prechecks(), ["T-0002"])
         self.assertEqual(self.events("lane-hold"), {"T-0003": "lane: position 2"})
         self.assertEqual(self.status("zz-jd4"), "live")  # up to date: nothing to refresh, so no lane
+
+    def test_on_an_owner_that_makes_no_progress_loses_the_lane_after_the_ttl(self):
+        self.ok("config", "refresh_lane", "on")
+        red = [{"__typename": "CheckRun", "name": "unit", "status": "COMPLETED", "conclusion": "FAILURE"}]
+        self.env.seed_pr(url=URL % 2, checks=red)  # the owner's CI went red after its refresh; its judge stays queued
+        self.set_state(URL % 2, "BEHIND")
+        self.env.sql("INSERT INTO config(key,value) VALUES('refresh_lane_owner','T-0002|%f')" % (time.time() - 10))
+        self.tick()
+        self.assertEqual(self.prechecks(), [])  # inside the TTL the lane stays with T-0002
+        self.assertEqual(self.events("lane-hold"), {"T-0003": "lane: position 2", "T-0004": "lane: position 3"})
+        self.env.sql("UPDATE config SET value='T-0002|0' WHERE key='refresh_lane_owner'")
+        self.tick()
+        self.assertEqual(self.prechecks(), ["T-0003"])
+        self.assertEqual(self.events("lane-hold")["T-0004"], "lane: position 2")

@@ -9235,7 +9235,8 @@ def judge_hold(con, task, cap=True, behind_ok=False):
     return None
 
 
-LANE_OWNER_KEY = "refresh_lane_owner"  # config key: the task whose judge holds the refresh lane
+LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the task whose judge holds the refresh lane
+LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
 
 
 def refresh_lane_hold(con, task, queued):
@@ -9259,7 +9260,12 @@ def refresh_lane_hold(con, task, queued):
         return bool(ready) and why == "PR is BEHIND"
 
     row = con.execute("SELECT value FROM config WHERE key=?", (LANE_OWNER_KEY,)).fetchone()
-    owner = row["value"] if row else None
+    owner, _, since = (row["value"] if row else "").partition("|")
+    try:
+        if owner and time.time() - float(since) > LANE_OWNER_TTL_S:
+            owner = ""  # the owner made no progress for an hour (CI red, DIRTY, judge parked): the next head takes over
+    except ValueError:
+        owner = ""  # an unreadable value is a released lane
     if owner:
         t = con.execute("SELECT status FROM tasks WHERE id=?", (owner,)).fetchone()
         live = con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('queued','starting','live')",
@@ -9270,9 +9276,11 @@ def refresh_lane_hold(con, task, queued):
         return None
     line = [x for x in dict.fromkeys(q["task_id"] for q in queued if q["role"] == "judge" and q["task_id"])
             if x != owner and (x == task or behind(x))]
+    if task not in line:
+        return None
     if not owner and line[0] == task:
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                    (LANE_OWNER_KEY, task))
+                    (LANE_OWNER_KEY, f"{task}|{time.time()}"))
         event(con, "task", task, "lane-head", "refresh lane: this task is the queue head and is refreshed first")
         return None
     why = f"lane: position {line.index(task) + 1 + (1 if owner else 0)}"

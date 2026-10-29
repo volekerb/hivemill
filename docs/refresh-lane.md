@@ -16,3 +16,5 @@ written when the position changes; the head gets `lane-head`).
 - Nothing is held when `stale_policy=behind_ok` applies (strict=false on GitHub): no refresh happens then.
 - Only the tick's dequeue is gated; `factory judge --merge` and its gate are unchanged. No security change, no verdict
   or merge rule is touched.
+- An owner that has held the lane for 3600 s (`LANE_OWNER_TTL_S`) without merging loses it, so a red-CI, DIRTY or parked
+  head cannot block the queue; the owner value is `<task>|<epoch>`.
