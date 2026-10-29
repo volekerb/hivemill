@@ -62,7 +62,7 @@ class FastPath(AsyncStartBase):
         p = self.spawn()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         start = [a for a in self.herdr_calls() if a[:2] == ["agent", "start"]][0]
-        self.assertEqual(start[start.index("--timeout") + 1], "1")
+        self.assertEqual(start[start.index("--timeout") + 1], "3001")
         self.assertEqual(self.prompts(), [])
         r = self.row()
         self.assertEqual(r["status"], "live")
@@ -85,6 +85,33 @@ class FastPath(AsyncStartBase):
         r = self.row()
         self.assertIsNone(r["start_pending"])
         self.assertIn('"sandbox": true', r["spawn_args"])
+
+
+class StartErrors(AsyncStartBase):
+    def test_not_ready_error_stays_pending(self):
+        self.go_async(start_fail=True)
+        self.assertEqual(self.spawn().returncode, 0)
+        self.assertIsNotNone(self.row()["start_pending"])
+        self.assertEqual(self.events("start-failed"), [])
+
+    def test_other_error_fails_at_once(self):
+        self.go_async(start_fail="no_such_pane: pane gone")
+        self.assertEqual(self.spawn().returncode, 0)
+        self.assertIsNone(self.row()["start_pending"])
+        self.assertEqual(len(self.events("start-failed")), 1)
+        self.assertIn("no_such_pane", self.events("start-failed")[0]["detail"])
+        self.assertEqual(self.events("start-uncertain"), [])
+
+    def test_stub_rejects_out_of_range_timeout(self):
+        import os
+        import subprocess
+        stub = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stubs", "herdr")
+        env = {**os.environ, "FAKE_HERDR_STATE": str(self.env.herdr_state), "FAKE_CALLS": str(self.env.calls_file)}
+        for t, rc in (("1", 1), ("3000", 1), ("300001", 1), ("3001", 0), ("300000", 0)):
+            p = subprocess.run([stub, "agent", "start", "x", "--timeout", t], env=env, capture_output=True, text=True)
+            self.assertEqual(p.returncode, rc, (t, p.stderr))
+            if rc:
+                self.assertIn("invalid_agent_timeout", p.stderr)
 
 
 class Confirm(AsyncStartBase):
