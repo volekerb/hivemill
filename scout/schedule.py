@@ -66,7 +66,9 @@ def _count(con, run_id):
     """Store the counts of candidates first seen and triage rows created in the run's [started, ended] window.
     The bounds are made explicit-UTC here (a naive stamp is local time) and julianday() compares across offsets;
     the window opens at the earlier of the run's and the agent's started (a run queued and dequeued in one tick is
-    stamped late). A skipped run, and a failed run that was never spawned, keep NULL."""
+    stamped late). scout_runs has no created/claimed column, so a superseded run that never got its own start ignores
+    the agent's started: the agents row is shared by every scout run and may be an earlier run's start. A skipped run,
+    and a failed run that was never spawned, keep NULL."""
     run = con.execute("SELECT started, ended, stop_reason FROM scout_runs WHERE id=? AND status IN ('done','stopped','failed') "
                       "AND new_candidates IS NULL", (run_id,)).fetchone()
     end = _ts(run["ended"]) if run else None
@@ -74,7 +76,8 @@ def _count(con, run_id):
         return
     if run["started"] is None and (run["stop_reason"] or "").startswith(NEVER_SPAWNED):
         return
-    agent = con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
+    superseded = run["started"] is None and (run["stop_reason"] or "").startswith("superseded")
+    agent = None if superseded else con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
     starts = [t for t in (_ts(run["started"]), _ts(agent["started"]) if agent else None) if t is not None and t <= end]
     start = min(starts, default=end)
     lo, hi = (x.astimezone(dt.timezone.utc).isoformat() for x in (start, end))

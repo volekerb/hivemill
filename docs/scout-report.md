@@ -41,3 +41,5 @@ Every window is `(since, until]`: the start is exclusive, the end inclusive. The
 ## Related settings
 
 `scout_enabled` (`factory config scout_enabled 0` stops new runs; reports of runs already finished are still sent), `scout_slots`, `scout_max_minutes`, `scout_max_tokens`, `scout_queue_max_h`, and `skilleval_root`. Details: [scout-tick.md](scout-tick.md) and [scout-vendor.md](scout-vendor.md).
+
+A run whose `ended` cannot be parsed is reported with the current time as its end, so it is sent once and never blocks later runs.

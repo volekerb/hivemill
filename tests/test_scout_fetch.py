@@ -807,6 +807,73 @@ class RiskTests(unittest.TestCase):
                 self.assertEqual(res.risk, "prompt-only")
         self.assertIn("mcp", self.cls(["SKILL.md"], {"SKILL.md": "npx -y mcp-remote https://x/sse"}).risk)
 
+    def test_b_escaped_json_command_key_is_scripts(self):
+        cases = {
+            "vscode": (".vscode/mcp.json", '{"servers": {"x": {"\\u0063ommand": "npx", "args": ["y"]}}}', "scripts,mcp"),
+            "plain": ("conf/servers.json", '{"servers": {"x": {"\\u0063ommand": "gopls"}}}', "scripts"),
+            "in list": ("conf/list.json", '{"a": [{"\\u0063ommand": "x"}]}', "scripts"),
+            "jsonc comment": ("conf/c.jsonc", '// c\n{"x": {"\\u0063ommand": "x"}}', "scripts"),
+        }
+        for name, (path, text, want) in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(self.cls([path, "SKILL.md"], {path: text, "SKILL.md": SKILL_MD}).risk, want)
+
+    def test_b_toml_command_key_inline_or_quoted_is_scripts(self):
+        cases = {
+            "inline": 'servers = { x = { command = "npx" } }',
+            "quoted key": '[servers.x]\n"command" = "npx"',
+        }
+        for name, text in cases.items():
+            with self.subTest(name=name):
+                res = self.cls(["config.toml", "SKILL.md"], {"config.toml": text, "SKILL.md": SKILL_MD})
+                self.assertEqual(res.risk, "scripts")
+
+    def test_b_toml_yaml_dotted_escaped_and_bom_command_keys_are_scripts(self):
+        cases = {
+            "toml dotted": ("c.toml", 'x.command = "npx"'),
+            "toml inline dotted": ("c.toml", 'a = { b.command = "x" }'),
+            "toml escaped": ("c.toml", '"\\u0063ommand" = "x"'),
+            "toml bom": ("c.toml", '\ufeffcommand = "x"'),
+            "yaml escaped": ("c.yaml", '"\\u0063ommand": x'),
+            "yaml bom": ("c.yaml", "\ufeffcommand: x"),
+        }
+        for name, (path, text) in cases.items():
+            with self.subTest(name=name):
+                res = self.cls([path, "SKILL.md"], {path: text, "SKILL.md": SKILL_MD})
+                self.assertEqual(res.risk, "scripts")
+
+    def test_b_yaml_command_key_block_list_or_flow_is_scripts(self):
+        cases = {
+            "block": ("mcp.yaml", "servers:\n  x:\n    command: npx\n    args: [y]", "scripts,mcp"),
+            "list item": ("servers.yml", "servers:\n  - name: x\n    command: npx", "scripts"),
+            "flow": ("servers.yml", "servers: {x: {command: npx}}", "scripts"),
+        }
+        for name, (path, text, want) in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(self.cls([path, "SKILL.md"], {path: text, "SKILL.md": SKILL_MD}).risk, want)
+
+    def test_b_config_without_a_command_key_stays_prompt_only(self):
+        cases = {
+            "skills/a/data.json": '{"items": [1,2], "note": "run the command later"}',
+            "skills/a/meta.yaml": "name: a\ndescription: explains the command line\n",
+            "skills/a/meta.toml": 'name = "a"\ncommands = ["x"]\n',
+        }
+        for path, text in cases.items():
+            with self.subTest(path=path):
+                res = self.cls(["skills/a/SKILL.md", path], {"skills/a/SKILL.md": SKILL_MD, path: text})
+                self.assertEqual(res.risk, "prompt-only")
+
+    def test_b_command_key_scan_is_linear_on_hostile_configs(self):
+        import time
+        blobs = ("{command" * 8192, "- " * 32768, "\\u0063" * 10922, "[" * 60000)
+        for ext in (".json", ".yaml", ".toml"):
+            for blob in blobs:
+                with self.subTest(ext=ext, blob=blob[:8]):
+                    path = "skills/a/c" + ext
+                    start = time.monotonic()
+                    self.cls(["skills/a/SKILL.md", path], {"skills/a/SKILL.md": SKILL_MD, path: blob})
+                    self.assertLess(time.monotonic() - start, 1.0)
+
     def test_b_unrecognised_type_is_unknown(self):
         res = self.cls(["SKILL.md", "thing.xyz", "bin/tool"], {"SKILL.md": SKILL_MD, "thing.xyz": "data", "bin/tool": "plain"})
         self.assertEqual(res.risk, "unknown")
