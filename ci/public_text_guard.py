@@ -11,8 +11,10 @@ import functools
 import importlib.util
 import os
 import re
+import struct
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 SCAN = Path(__file__).resolve().parent / "scrub_scan.py"
@@ -107,6 +109,166 @@ def _git(repo, *args):
                          "Pass --repo DIR inside a git repository and BASE/HEAD that exist there.")
 
 
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+# PNG chunks that carry no free text. tEXt, iTXt, zTXt, eXIf, iCCP and sPLT are scanned (see PNG_TEXT); any other chunk
+# (unknown or private) makes the file unverified, so it is scanned as text like any other binary.
+PNG_PLAIN = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS", b"gAMA", b"cHRM", b"sRGB", b"sBIT", b"bKGD", b"hIST",
+             b"pHYs", b"tIME", b"cICP", b"mDCV", b"cLLI", b"acTL", b"fcTL", b"fdAT", b"oFFs"}
+PNG_TEXT = {b"tEXt", b"iTXt", b"zTXt", b"eXIf", b"iCCP", b"sPLT"}
+WEBP_PLAIN = {b"VP8 ", b"VP8L", b"VP8X", b"ALPH", b"ANIM", b"ANMF"}
+
+
+def _inflate(data):
+    d = zlib.decompressobj()
+    out = d.decompress(data, 1 << 24)
+    if d.unconsumed_tail or not d.eof:
+        raise ValueError("too large or truncated")
+    return out
+
+
+def _png_payloads(blob):
+    """Text-bearing payloads of a well-formed PNG as [(chunk name, bytes)], or None when the file is not a PNG made
+    only of known chunks (CRC ok, IHDR first, IEND last, nothing after it)."""
+    pos, out, first = len(PNG_MAGIC), [], True
+    while pos + 12 <= len(blob):
+        (n,) = struct.unpack(">I", blob[pos:pos + 4])
+        name, end = blob[pos + 4:pos + 8], pos + 12 + n
+        if end > len(blob) or zlib.crc32(blob[pos + 4:pos + 8 + n]) != struct.unpack(">I", blob[end - 4:end])[0]:
+            return None
+        data = blob[pos + 8:pos + 8 + n]
+        if first != (name == b"IHDR"):
+            return None
+        first = False
+        label = name.decode("ascii", "replace")
+        if name in PNG_TEXT:
+            out.append((label, data))
+            try:
+                if name in (b"zTXt", b"iCCP"):
+                    out.append((label, _inflate(data.split(b"\0", 1)[1][1:])))
+                elif name == b"iTXt":
+                    rest = data.split(b"\0", 1)[1]
+                    if rest[0]:
+                        out.append((label, _inflate(rest[2:].split(b"\0", 2)[2])))
+            except (ValueError, IndexError, zlib.error):
+                return None
+        elif name not in PNG_PLAIN:
+            return None
+        pos = end
+        if name == b"IEND":
+            return out if pos == len(blob) else None
+    return None
+
+
+def _webp_payloads(blob):
+    if len(blob) < 12 or blob[8:12] != b"WEBP" or struct.unpack("<I", blob[4:8])[0] + 8 != len(blob):
+        return None
+    pos, out = 12, []
+    while pos + 8 <= len(blob):
+        name, (n,) = blob[pos:pos + 4], struct.unpack("<I", blob[pos + 4:pos + 8])
+        if pos + 8 + n > len(blob):
+            return None
+        if name not in WEBP_PLAIN:
+            out.append((name.decode("latin-1"), blob[pos + 8:pos + 8 + n]))
+        pos += 8 + n + (n & 1)
+    return out if pos >= len(blob) else None
+
+
+def _gif_sub_blocks(blob, p):
+    data = b""
+    while p < len(blob):
+        n = blob[p]
+        if n == 0:
+            return p + 1, data
+        data += blob[p + 1:p + 1 + n]
+        p += 1 + n
+    return None, data
+
+
+def _gif_payloads(blob):
+    if blob[:6] not in (b"GIF87a", b"GIF89a") or len(blob) < 13:
+        return None
+    pos, out = 13, []
+    if blob[10] & 0x80:
+        pos += 3 * (2 << (blob[10] & 7))
+    while pos < len(blob):
+        kind = blob[pos]
+        if kind == 0x3B:
+            return out if pos + 1 == len(blob) else None
+        if kind == 0x21:
+            end, data = _gif_sub_blocks(blob, pos + 2)
+            if end is None:
+                return None
+            if not (blob[pos + 1] == 0xF9 and len(data) == 4):  # all but a 4-byte graphic control is scanned
+                out.append(("extension", data))
+            pos = end
+        elif kind == 0x2C:
+            if pos + 10 > len(blob):
+                return None
+            flags = blob[pos + 9]
+            pos += 10
+            if flags & 0x80:
+                pos += 3 * (2 << (flags & 7))
+            end, _ = _gif_sub_blocks(blob, pos + 1)
+            if end is None:
+                return None
+            pos = end
+        else:
+            return None
+    return None
+
+
+def _jpeg_payloads(blob):
+    if blob[:3] != b"\xff\xd8\xff":
+        return None
+    standalone = bytes([0x01, *range(0xD0, 0xD8)])
+    pos, out = 2, []
+    while pos + 2 <= len(blob):
+        if blob[pos] != 0xFF:
+            return None
+        marker = blob[pos + 1]
+        if marker == 0xFF:
+            pos += 1
+            continue
+        if marker == 0xD9:  # EOI must be the last thing in the file
+            return out if pos + 2 == len(blob) else None
+        if marker in standalone:
+            pos += 2
+            continue
+        if pos + 4 > len(blob):
+            return None
+        (n,) = struct.unpack(">H", blob[pos + 2:pos + 4])
+        if n < 2 or pos + 2 + n > len(blob):
+            return None
+        if marker == 0xFE or 0xE1 <= marker <= 0xEF:  # comment and APP1..APP15 (EXIF, XMP, ...) carry text
+            out.append((f"segment {marker:02x}", blob[pos + 4:pos + 2 + n]))
+        pos += 2 + n
+        if marker == 0xDA:  # entropy-coded data: skip to the next real marker (not stuffing, RSTn or fill)
+            while pos + 1 < len(blob) and not (blob[pos] == 0xFF and blob[pos + 1] not in b"\x00\xff" + standalone[1:]):
+                pos += 1
+    return None
+
+
+def image_payloads(blob):
+    """[(where, bytes)] still to scan for a blob that is a verified image, or None when it is not one (scan it all)."""
+    if blob.startswith(PNG_MAGIC):
+        return _png_payloads(blob)
+    if blob.startswith(b"RIFF"):
+        return _webp_payloads(blob)
+    if blob.startswith(b"GIF8"):
+        return _gif_payloads(blob)
+    if blob.startswith(b"\xff\xd8"):
+        return _jpeg_payloads(blob)
+    return None
+
+
+def _blob(repo, commit, path):
+    """Bytes of path at commit, or None when it cannot be read (deleted, submodule, odd path): then its lines are scanned."""
+    try:
+        return _git(repo, "cat-file", "blob", f"{commit}:{path.decode('utf-8', 'surrogateescape')}")
+    except (UsageError, UnicodeError):
+        return None
+
+
 HUNK_RE = re.compile(rb"@@ -\d+(?:,\d+)? \+(\d+)")
 CC_HUNK_RE = re.compile(rb"(@@@+)(?: -\d+(?:,\d+)?)+ \+(\d+)")
 
@@ -128,11 +290,13 @@ def check_push(repo, base, head, terms, allowlist=None):
     flags = [f for f in scrub.LOG_FLAGS if f not in ("--all", "-m")]
     out = _git(repo, "log", "--cc", *flags, f"{base}..{head}", fmt, "--")
     hits = []
-    commit, state, path, newline, in_header, width = "", "msg", b"", 0, False, 1
+    commit, full, state, path, newline, in_header, width = "", "", "msg", b"", 0, False, 1
+    skip = None  # None: not decided for this file yet; True: verified image, its added lines are not text
     for raw in out.split(b"\n"):
         line = raw.decode("utf-8", "replace")
         if line.startswith(mark + "H"):
-            commit, state, path, in_header = line[len(mark) + 1:][:8], "head", b"", False
+            full, state, path, in_header, skip = line[len(mark) + 1:], "head", b"", False, None
+            commit = full[:8]
             continue
         if state == "head" and line.startswith((mark + "A", mark + "C")):
             who = "author" if line.startswith(mark + "A") else "committer"
@@ -153,7 +317,7 @@ def check_push(repo, base, head, terms, allowlist=None):
                 path = scrub.c_unquote(rest) if rest.startswith(b'"') else rest
             else:
                 path = scrub.diff_header_path(raw)
-            in_header = True
+            in_header, skip = True, None
             hits += [(pid, f"commit:{commit}:path", m) for pid, m in sc.scan_line(path.decode("utf-8", "replace"))]
             continue
         cc = CC_HUNK_RE.match(raw) if raw.startswith(b"@@@") else None
@@ -166,6 +330,18 @@ def check_push(repo, base, head, terms, allowlist=None):
             width = len(cc.group(1)) - 1 if cc else 1
             continue
         if raw[:width] == b"+" * width:
+            if skip is None:
+                skip = False
+                blob = _blob(repo, full, path)
+                payloads = image_payloads(blob) if blob is not None else None
+                if payloads is not None:
+                    skip = True
+                    where = scrub.shown(sc, path)
+                    for part, data in payloads:
+                        hits += [(pid, f"{where}:{part}", m) for ln in data.decode("utf-8", "replace").splitlines()
+                                 for pid, m in sc.scan_line(ln)]
+            if skip:
+                continue
             content = raw[width:].decode("utf-8", "replace")
             names = {path.decode("utf-8", "surrogateescape")}
             for pid, m in sc.scan_line(content):

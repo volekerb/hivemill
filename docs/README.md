@@ -34,12 +34,14 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [updating-persistent-agents.md](updating-persistent-agents.md): how role changes reach long-running agents.
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
+- [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
 - [verdict-gates.md](verdict-gates.md): machine-checked commands that a verdict summary must show passing.
 - [spawn-queue.md](spawn-queue.md): the order in which queued spawns start once the gate opens.
+- [stale-policy.md](stale-policy.md): `stale_policy=behind_ok`, when judge and spawn pre-check skip refreshing a BEHIND PR.
 - [finishing-coders.md](finishing-coders.md): what `factory done` checks in a coder's worktree.
 - [goal-lifecycle.md](goal-lifecycle.md): how a goal's tickets are owned from creation to done.
 - [lifecycle.md](lifecycle.md): the mechanical status transitions of goals and tasks.
@@ -53,6 +55,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): how to propose and land a change.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
+- [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
 - [review-rules.md](review-rules.md): rules that keep reviewer, QA and judge verdicts evidence-based.
 - [review-workflow.md](review-workflow.md): the multi-angle review used on risky PRs.
@@ -68,7 +71,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 ## Internals
 
 - [worker-guard.md](worker-guard.md): the hook that blocks bypasses of prefix-matched deny rules.
-- [worker-sandbox.md](worker-sandbox.md): the sandbox around workers (status: stub).
+- [worker-sandbox.md](worker-sandbox.md): the sandbox around workers: design, owner steps, rollout per role, rollback, residual risk.
 - [git-hardening.md](git-hardening.md): how `bin/factory` defuses malicious settings in shared git config.
 - [settings-templates.md](settings-templates.md): per-role settings that need absolute paths.
 - [per-role-plugins.md](per-role-plugins.md): each role loads only its own skills.

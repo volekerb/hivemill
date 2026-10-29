@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -30,15 +32,41 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Tier (rules from the base commit)
+        id: tier
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
+          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/base"
+          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
+            full "base commit has no ci/ci_tier.py"; exit 0
+          fi
+          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+            --only-file "$RUNNER_TEMP/only.txt" --github-output
+      # docs mode: the aggregator runs the docs check; the shards report success without the suite.
       - run: python -m py_compile bin/factory
+        if: steps.tier.outputs.mode != 'docs'
       - run: python bin/factory --help >/dev/null
+        if: steps.tier.outputs.mode != 'docs'
       - name: Run shard
-        run: python ci/shard.py run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json"
+        if: steps.tier.outputs.mode != 'docs'
+        run: |
+          only=()
+          if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
+          python ci/shard.py run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.tier.outputs.mode != 'docs'
         with:
           name: shard-${{ matrix.shard }}
           path: ${{ runner.temp }}/shard-${{ matrix.shard }}.json
@@ -55,11 +83,36 @@ jobs:
         working-directory: go
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tier (rules from the base commit)
+        id: tier
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
+          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/base"
+          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
+            full "base commit has no ci/ci_tier.py"; exit 0
+          fi
+          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+            --only-file "$RUNNER_TEMP/only.txt" --github-output
+      # No go/** change (and not a full run): the job reports success without building.
       - uses: actions/setup-go@v5
+        if: steps.tier.outputs.go == 'true'
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
       - name: gofmt
+        if: steps.tier.outputs.go == 'true'
         run: |
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
@@ -68,8 +121,11 @@ jobs:
             exit 1
           fi
       - run: go vet ./...
+        if: steps.tier.outputs.go == 'true'
       - run: go test -race -count=1 ./...
+        if: steps.tier.outputs.go == 'true'
       - run: go build ./...
+        if: steps.tier.outputs.go == 'true'
 
   # Required check: the name must stay exactly "unittest".
   unittest:
@@ -95,17 +151,48 @@ jobs:
           fi
           exit $fail
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Tier (rules from the base commit)
+        id: tier
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
+          if [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/base"
+          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
+            full "base commit has no ci/ci_tier.py"; exit 0
+          fi
+          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+            --only-file "$RUNNER_TEMP/only.txt" --github-output
+      - name: Docs check (docs-only PR)
+        if: steps.tier.outputs.mode == 'docs'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
+          python -m unittest discover -s tests -p test_docs_index.py
+          echo '### docs-only PR: suite skipped (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/download-artifact@v4
+        if: steps.tier.outputs.mode != 'docs'
         with:
           pattern: shard-*
           path: ${{ runner.temp }}/reports
           merge-multiple: true
       - name: Every module ran exactly once
+        if: steps.tier.outputs.mode != 'docs'
         run: |
-          python ci/shard.py verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" | tee "$RUNNER_TEMP/summary.txt"
+          only=()
+          if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
+          python ci/shard.py verify --total "$SHARDS" --dir "$RUNNER_TEMP/reports" "${only[@]}" | tee "$RUNNER_TEMP/summary.txt"
           { echo '### unittest shards'; cat "$RUNNER_TEMP/summary.txt"; } >> "$GITHUB_STEP_SUMMARY"
 
       # Test-count gate (ci/test_count_gate.py): discovery counts, PR merge ref vs base sha.
