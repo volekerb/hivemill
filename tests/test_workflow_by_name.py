@@ -67,7 +67,7 @@ class WorkflowByNameTests(unittest.TestCase):
             self.assertEqual(os.path.realpath(link), str(SCRIPT), role)
 
     def test_plugin_dirs_come_from_the_main_checkout(self):
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         self.assertIn('pdir = ROLES_DIR / "plugins" / role', src)
         self.assertRegex(src, r"(?m)^ROLES_DIR = HOME / \"roles\"")
         self.assertIn('claude_args += ["--plugin-dir", plugin]', src)
