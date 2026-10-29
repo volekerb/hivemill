@@ -3675,16 +3675,18 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
         if p.returncode != 0:
             return why(f"cannot read the PR text: gh pr view failed: {p.stderr.strip()[:120]}")
         pr = json.loads(p.stdout)
-        texts = [pr.get("title") or "", pr.get("body") or ""] + [(c or {}).get("body") or "" for c in pr.get("comments") or []] \
-            + [(r or {}).get("body") or "" for r in pr.get("reviews") or []]
-        hits = [h for x in texts for h in guard.check_text(x, terms)] + guard.check_ref(pr.get("headRefName") or "", terms) \
-            + guard.check_push(git_repo, base, head, terms)
+        texts = [("title", pr.get("title") or ""), ("body", pr.get("body") or "")] \
+            + [(f"comment {i}", (c or {}).get("body") or "") for i, c in enumerate(pr.get("comments") or [], 1)] \
+            + [(f"review {i}", (r or {}).get("body") or "") for i, r in enumerate(pr.get("reviews") or [], 1)]
+        hits = [h for lbl, x in texts for h in guard.locate_text(x, terms, lbl)] \
+            + [(h[0], "branch") for h in guard.check_ref(pr.get("headRefName") or "", terms)] \
+            + [(h[0], h[1]) for h in guard.check_push(git_repo, base, head, terms)]
     except guard.NoTermsError:
         return why("no owner terms loaded; set SCRUB_TERMS_FILE or `factory config scrub_terms_file <path>`")
     except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses the merge, never crashes past the event
         return why(f"cannot check: {type(e).__name__}: {str(e)[:200]}")
     if hits:
-        return why(f"{len(hits)} hits: {', '.join(sorted({h[0] for h in hits}))}")
+        return why(f"{len(hits)} hits: {guard.format_locations(hits, terms)}")
     return None
 
 
