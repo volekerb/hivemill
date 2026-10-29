@@ -21,14 +21,15 @@ from pathlib import Path
 import _slot
 
 REPO = Path(__file__).resolve().parent.parent
-FACTORY = REPO / "bin" / "factory"
+FACTORY = REPO / "bin" / "factory"  # the stub: run it
+FACTORY_SRC = REPO / "bin" / "factory_cli.py"  # the code: read or import it
 STUBS = Path(__file__).resolve().parent / "stubs"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def _literal(name):
     """Read a module-level literal from bin/factory without importing it (no side effects)."""
-    for node in ast.parse(FACTORY.read_text()).body:
+    for node in ast.parse(FACTORY_SRC.read_text()).body:
         if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == name for t in node.targets):
             return ast.literal_eval(node.value)
     raise KeyError(name)
@@ -84,7 +85,7 @@ def rendered_settings_dir():
         atexit.register(shutil.rmtree, d, True)
         old, os.environ["FACTORY_HOME"] = os.environ.get("FACTORY_HOME"), str(REPO)
         try:
-            loader = importlib.machinery.SourceFileLoader("factory_render_settings", str(FACTORY))
+            loader = importlib.machinery.SourceFileLoader("factory_render_settings", str(FACTORY_SRC))
             mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
             loader.exec_module(mod)
         finally:
@@ -334,7 +335,7 @@ class FactoryEnv:
             os.environ.pop(k, None)
         os.environ.update(self.env())
         try:
-            loader = importlib.machinery.SourceFileLoader("factory_under_test", str(FACTORY))
+            loader = importlib.machinery.SourceFileLoader("factory_under_test", str(FACTORY_SRC))
             spec = importlib.util.spec_from_loader(loader.name, loader)
             mod = importlib.util.module_from_spec(spec)
             loader.exec_module(mod)
