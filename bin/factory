@@ -64,6 +64,7 @@ from scout import sources as scoutsrc  # noqa: E402
 from scout import vendor as scoutvendor  # noqa: E402
 from scout import sandbox as scoutsandbox  # noqa: E402
 from scout import workerbox  # noqa: E402
+from scout import ghcred  # noqa: E402
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -127,6 +128,7 @@ DEFAULT_CONFIG = {
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
+    "risk_tiers": "off",         # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
@@ -145,6 +147,16 @@ DEFAULT_CONFIG = {
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
     # workerbox.SANDBOXABLE (reviewer, qa, coder). Empty = off = today's behaviour. Read fresh at every spawn.
     "sandbox_roles": "",
+    # worker GitHub credential (G-010 R-c): unsandboxed workers of these roles push and call gh with the worker token
+    # (scout/ghcred.py), never the owner's gh login. Comma list of coder, qa, reviewer, judge, cleaner, pm. Empty = off =
+    # today's behaviour. Read fresh at every spawn; a missing token file refuses the spawn (fail closed).
+    "worker_gh_roles": "",
+    "gh_rw_roles": "coder,judge,cleaner",  # the roles of worker_gh_roles that get the read-write token; the others get the read-only one
+    # token files (directly in ~/.config/factory); empty = ~/.config/factory/gh-worker-{ro,rw}-token. The default is not
+    # spelled out here: the config table is dumped into the no-leak test, which must find no token file name in it.
+    "gh_token_ro": "",
+    "gh_token_rw": "",
+    "worker_gh_repos": "",       # comma list OWNER/NAME the worker token is offered for; empty = the repository of factory_remote_url
     "serve_bind": "",            # `factory serve`: LAN address to listen on; empty = source address of the default route
     "serve_port": "8765",        # `factory serve`: TCP port
     "serve_hostnames": "",       # `factory serve`: extra Host names accepted besides the bind IP (comma-separated); empty = the bind IP only
@@ -244,7 +256,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'todo', assignee TEXT, depends_on TEXT NOT NULL DEFAULT '[]',
   branch TEXT, worktree TEXT, pr_url TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   created TEXT NOT NULL, updated TEXT NOT NULL, follow_up_of TEXT, priority INTEGER,
-  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0);
+  waits TEXT NOT NULL DEFAULT 'internal', sandbox_required INTEGER NOT NULL DEFAULT 0, tier TEXT);
 CREATE TABLE IF NOT EXISTS agents (
   name TEXT PRIMARY KEY, role TEXT NOT NULL, goal_id TEXT, team_id TEXT, task_id TEXT,
   status TEXT NOT NULL,            -- queued | starting | live | done | exited | lost | stopped | cancelled
@@ -332,6 +344,12 @@ def migrate(con):
             con.execute("ALTER TABLE tasks ADD COLUMN waits TEXT NOT NULL DEFAULT 'internal'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "waits" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
+    if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # risk tier T0..T3 of the task's PR, only ever raised (G-022 #1)
+            con.execute("ALTER TABLE tasks ADD COLUMN tier TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "tier" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
     if "sandbox_required" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
         try:  # 1 = the task must run in the worker sandbox (spawn refuses it without --sandbox, the tick forces it)
@@ -1494,6 +1512,16 @@ def check_sandbox_roles(value):
     return ",".join(dict.fromkeys(names))
 
 
+def check_gh_roles(key, value):
+    """The normalised comma list, or exit 2: every name must be a worker role ghcred can serve ("" = none)."""
+    names = [x.strip() for x in value.split(",") if x.strip()]
+    bad = [n for n in names if n not in GH_CRED_ROLES]
+    if bad:
+        die(f"config {key}: {', '.join(repr(b) for b in bad)} is not a worker role; allowed: "
+            f"{', '.join(GH_CRED_ROLES)} (comma list, or empty to turn the worker gh credential off)", 2)
+    return ",".join(dict.fromkeys(names))
+
+
 def cmd_config(a):
     con = db()
     if a.key and a.value is not None:
@@ -1508,6 +1536,10 @@ def cmd_config(a):
             triage_per_run(a.value)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
+        if a.key in ("worker_gh_roles", "gh_rw_roles"):
+            a.value = check_gh_roles(a.key, a.value)
+        if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
+            die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
         if a.key == "task_clones":
             a.value = a.value.strip()
             if a.value not in ("0", "1"):
@@ -2094,6 +2126,66 @@ def warn_file_overlap(con, tid, goal_id, spec):
     event(con, "task", tid, "file-overlap", ",".join(ids))
 
 
+RISK_TIER_RAISERS = ("reviewer", "qa", "lead", "director", "boss", "judge")
+RISK_TIER_FILE = "ci/risk_tier.py"
+
+
+def _risk_tier_mod():
+    """ci/risk_tier.py of the MAIN checkout (HOME), never of the PR tree: a PR must not be able to edit its own tier."""
+    path = HOME / RISK_TIER_FILE
+    spec = importlib.util.spec_from_file_location("risk_tier_main", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def raise_task_tier(con, tid, new, why):
+    """Store max(old, new) on the task and record an event when it went up. Returns the stored tier."""
+    rt = _risk_tier_mod()
+    old = con.execute("SELECT tier FROM tasks WHERE id=?", (tid,)).fetchone()["tier"]
+    top = rt.max_tier(old, new)
+    if top != old:
+        con.execute("UPDATE tasks SET tier=?, updated=? WHERE id=?", (top, now(), tid))
+        event(con, "task", tid, "tier", f"{old or '-'} -> {top}: {why}")
+    return top
+
+
+def task_tier_cmd(con, a):
+    """factory task tier T [up] [T0..T3] [--classify [--base REF] [--head REF]]: show, raise or recompute the risk tier.
+    The tier never goes down: a lower value is refused, a recompute stores max(old, new)."""
+    t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
+    words = [w for w in (a.text, getattr(a, "extra", None)) if w]
+    if words and words[0] == "up":
+        words = words[1:]
+    if a.classify and words:
+        die("give a tier to raise to or --classify, not both", 2)
+    if not words and not a.classify:
+        print(t["tier"] or "-")
+        return
+    require_role(con, *RISK_TIER_RAISERS)
+    try:
+        rt = _risk_tier_mod()
+    except (OSError, ImportError, SyntaxError, AttributeError) as e:
+        die(f"cannot load {RISK_TIER_FILE} from {HOME}: {e}", 2)
+    if a.classify:
+        if cfg(con, "risk_tiers") != "on":
+            die("risk_tiers is off: the director enables it with `factory config risk_tiers on`", 2)
+        head = a.head or (f"origin/{t['branch']}" if t["branch"] else None) or die(f"{a.id} has no branch: give --head REF", 2)
+        try:
+            new, why = rt.classify_range(str(HOME), a.base, head, rt.load_rules(str(HOME / "ci" / rt.RULES_FILE)))
+        except rt.TierError as e:
+            die(str(e), 2)
+        why = "; ".join(why) or "no sensitive path or def"
+    else:
+        new, why = words[0].upper(), f"raised by {actor()}"
+        if new not in rt.TIERS:
+            die(f"tier must be one of {', '.join(rt.TIERS)}; got {words[0]!r}", 2)
+        if t["tier"] and rt.TIERS.index(new) < rt.TIERS.index(t["tier"]):
+            die(f"{a.id} is {t['tier']}: a tier is only ever raised, never lowered", 2)
+    top = raise_task_tier(con, a.id, new, why)
+    print(f"{a.id} tier {top}" + (f" (computed {new}, kept the higher)" if a.classify and top != new else ""))
+
+
 def check_sandbox_required_role(role):
     if role not in workerbox.SANDBOXABLE:
         die(f"--sandbox-required: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
@@ -2264,17 +2356,19 @@ def cmd_task(a):
             if dependents:
                 die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
         elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
-                                             a.team, a.priority, a.after, a.waits, a.note, a.reason)):
+                                             a.team, a.priority, a.after, a.waits, a.note, a.reason,
+                                             a.sandbox_required)):
             die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
-                "--acceptance --team --priority --after --waits --note --goal", 2)
+                "--acceptance --team --priority --after --waits --note --goal --sandbox-required", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
             die("give --reason or --note, not both (--reason is the blocked reason)", 2)
         a.note = a.note or a.reason
         if a.merged_externally:
-            if role not in ("owner", "director"):
-                die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
+            # workers first: `role` trusts FACTORY_AGENT, a worker process could claim to be the director
+            if caller_is_worker() or role not in ("owner", "director"):
+                die(f"only the director or the owner may close a task with --merged-externally ({caller_is_worker() or role} may not)", 3)
             if a.status != "done" or not (a.note or "").strip():
                 die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
             extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
@@ -2292,6 +2386,8 @@ def cmd_task(a):
             con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.id))
             event(con, "task", a.id, "update",
                   f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
+            con.commit()
+            run_after_merge(con, t)
             print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
             return
         if role == "coder" and a.status == "in_review":
@@ -2361,6 +2457,8 @@ def cmd_task(a):
     elif a.action == "note":
         event(con, "task", a.id, "note", read_text(a.text))
         print("noted")
+    elif a.action == "tier":
+        task_tier_cmd(con, a)
 
 
 # ───────────────────────────── messages ─────────────────────────────
@@ -3187,15 +3285,7 @@ def record_merged(con, t, a, sha, shown, reason, carried=(), post_err=""):
     con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.task))
     event(con, "task", a.task, "merged", f"@{shown[:8]}")
     con.commit()
-    try:
-        after_merge(con, t, t["pr_url"])
-        con.commit()
-    except (Exception, SystemExit) as e:  # noqa: BLE001 — a failed hook must never change the merge result
-        try:  # autocommit connection: writes the hook made before it failed are kept (not atomic)
-            event(con, "task", a.task, "post-merge-hook-failed", str(e))
-            con.commit()
-        except Exception:  # noqa: BLE001
-            pass
+    run_after_merge(con, t)
     if post_err:
         event(con, "task", a.task, "merge-post-error", post_err)
     print(f"{a.task} MERGED @ {shown[:8]}")
@@ -5581,22 +5671,26 @@ class SandboxRefused(SystemExit):
     reason = why = ""
 
 
+def _hourly_once(con, key, write):
+    """Run write() unless this throttle key fired within the last SANDBOX_THROTTLE_S."""
+    last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+    if not last or time.time() - float(last["ts"]) >= SANDBOX_THROTTLE_S:
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                    (key, str(time.time())))
+        write()
+
+
 def sandbox_refuse(con, role, name, reason, why):
     """Event (once an hour per agent and reason, so a queued row retried every tick does not flood), a director
     message at most once an hour per reason, then SandboxRefused (spawn() returns a queued row to the queue).
     Neither the event nor the message names a token path."""
-    for key, write in ((f"sandbox_refused_ev:{name}:{reason}",
-                        lambda: event(con, "agent", name, "sandbox-refused", {"role": role, "name": name, "reason": reason})),
-                       (f"sandbox_refused:{reason}",
-                        lambda: send(con, "director", f"sandbox refused a {role} spawn ({reason})",
-                                     f"{name} was not started: {why}. Fix it, or turn the sandbox off: "
-                                     "factory config sandbox_roles ''. Further refusals for this reason are silent for an hour.",
-                                     "alert", sender="factory"))):
-        last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
-        if not last or time.time() - float(last["ts"]) >= SANDBOX_THROTTLE_S:
-            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
-                        (key, str(time.time())))
-            write()
+    _hourly_once(con, f"sandbox_refused_ev:{name}:{reason}",
+               lambda: event(con, "agent", name, "sandbox-refused", {"role": role, "name": name, "reason": reason}))
+    _hourly_once(con, f"sandbox_refused:{reason}",
+               lambda: send(con, "director", f"sandbox refused a {role} spawn ({reason})",
+                            f"{name} was not started: {why}. Fix it, or turn the sandbox off: "
+                            "factory config sandbox_roles ''. Further refusals for this reason are silent for an hour.",
+                            "alert", sender="factory"))
     con.commit()  # the exit follows: the event and the message must survive
     print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
           "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
@@ -5607,12 +5701,14 @@ def sandbox_refuse(con, role, name, reason, why):
 
 def sandbox_drop_queued(con, row, s, e):
     """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
-    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path."""
-    if not cancel_queued(con, row["name"], "sandbox-preflight", f"{e.reason}: {e.why}"):
+    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path.
+    A worker gh credential refusal (GhCredRefused) is dropped the same way."""
+    what = "gh-cred" if isinstance(e, GhCredRefused) else "sandbox"
+    if not cancel_queued(con, row["name"], f"{what}-preflight", f"{e.reason}: {e.why}"):
         return
     team = s.get("team")
-    subject = f"sandbox refused queued spawn {row['name']}"
-    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: sandbox preflight refused it "
+    subject = f"{what} refused queued spawn {row['name']}"
+    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: {what} preflight refused it "
             f"({e.reason}: {e.why}). Fix it and spawn again.")
     try:
         send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
@@ -5634,12 +5730,103 @@ def sandbox_prepare(con, role, name, cwd):
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
 
 
+GH_CRED_ROLES = ("coder", "qa", "reviewer", "judge", "cleaner", "pm")
+# credential sources that git or gh consult from the env; a worker with the worker token must not fall back to them
+GH_SCRUB_ENV = ("GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "SSH_ASKPASS", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
+GIT_CONFIG_PAIR_RE = re.compile(r"GIT_CONFIG_(?:KEY|VALUE)_\d+")
+
+
+class GhCredRefused(SandboxRefused):
+    """A spawn whose worker gh credential preflight failed: exit 3, nothing started. reason is always gh-cred."""
+
+
+def _csv(value):
+    return [x.strip() for x in (value or "").split(",") if x.strip()]
+
+
+def gh_cred_wanted(con, role, sandboxed):
+    """True when this unsandboxed spawn gets the worker gh credential (config worker_gh_roles, read at each spawn)."""
+    return not sandboxed and role in _csv(cfg(con, "worker_gh_roles"))
+
+
+def gh_cred_inputs(con, role):
+    """(token config key, token path, slugs, real gh path) of this role. ValueError(why) on the first failed check:
+    pure, no token is read and nothing is created. why names the config key, never the token path."""
+    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) else "gh_token_ro"
+    home = Path(sandbox_home() or ghcred.real_home())
+    value = cfg(con, key).strip() or f"~/.config/factory/gh-worker-{key[-2:]}-token"
+    path = str(home / value[2:]) if value.startswith("~/") else value
+    try:
+        located = bool(path) and os.path.isabs(path) and _token_file_ok(path) and bool(ghcred.check_token_path(path, str(home)))
+    except ValueError:  # its text names the path: say the config key instead
+        located = False
+    if not located:
+        raise ValueError(f"the worker gh token file named by config {key} is missing, not a regular 0600 file of ours "
+                         "directly in ~/.config/factory, or empty (docs/worker-sandbox.md)")
+    slugs = _csv(cfg(con, "worker_gh_repos")) or [x for x in [_repo_slug(factory_remote_url())] if x]
+    if not slugs or not all(ghcred.SLUG_RE.fullmatch(x) for x in slugs):
+        raise ValueError("no repository for the worker token: set config worker_gh_repos (comma list of OWNER/NAME) "
+                         "or factory_remote_url")
+    root = os.path.realpath(home / ".local" / "state" / "factory" / "ghcred")
+    keep = [d for d in os.environ.get("PATH", "").split(os.pathsep)
+            if d and not os.path.realpath(d).startswith(root + os.sep)]
+    real_gh = shutil.which("gh", path=os.pathsep.join(keep))
+    if not real_gh or not os.path.isabs(real_gh):
+        raise ValueError("no gh on the PATH of the process that spawns workers; install gh or fix its PATH")
+    return key, path, slugs, real_gh
+
+
+def gh_cred_refuse(con, role, name, why):
+    """Event gh-cred-refused (once an hour per agent), a director alert at most once an hour, then GhCredRefused."""
+    reason = "gh-cred"
+    _hourly_once(con, f"gh_cred_refused_ev:{name}",
+               lambda: event(con, "agent", name, "gh-cred-refused", {"role": role, "name": name, "reason": reason}))
+    _hourly_once(con, "gh_cred_refused",
+               lambda: send(con, "director", f"worker gh credential refused a {role} spawn",
+                            f"{name} was not started: {why}. Fix it, or turn the worker gh credential off: "
+                            "factory config worker_gh_roles ''. Further refusals are silent for an hour.",
+                            "alert", sender="factory"))
+    con.commit()  # the exit follows: the event and the message must survive
+    print(f"factory: gh-cred refused for {name}: {why}; no pane was started. "
+          "Fix it or run: factory config worker_gh_roles ''", file=sys.stderr)
+    e = GhCredRefused(3)
+    e.reason, e.why = reason, why
+    raise e
+
+
+def gh_cred_preflight(con, role, name):
+    try:
+        gh_cred_inputs(con, role)
+    except ValueError as e:
+        gh_cred_refuse(con, role, name, str(e))
+
+
+def gh_cred_env(con, role, name):
+    """The env a worker pane adds for the worker gh credential: ghcred.pane_env (paths only, never a token) over a
+    scrub that blanks every credential source git or gh would try after ghcred fails. Refuses the spawn on any problem."""
+    try:
+        _, path, slugs, real_gh = gh_cred_inputs(con, role)
+        home = str(sandbox_home() or ghcred.real_home())
+        agent_dir = ghcred.prepare_dir(name, role, path, slugs, real_gh, home=home)
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
+        # e can name paths (the token's among them for ValueError): the refusal says only what failed
+        gh_cred_refuse(con, role, name, f"cannot prepare the worker gh credential ({type(e).__name__}); "
+                       "check config worker_gh_repos and the worker token files")
+    scrub = {k: "" for k in GH_SCRUB_ENV}
+    scrub.update({k: "" for k in os.environ if GIT_CONFIG_PAIR_RE.fullmatch(k)})
+    scrub["GIT_CONFIG_COUNT"] = "0"  # git dies on an empty count
+    return {**scrub, **ghcred.pane_env(agent_dir, path)}
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
     model = model or MODELS[role]
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
     optin = args.get("sandbox_optin") is True
+    ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
+    if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
+        gh_cred_preflight(con, role, name)
     if not cwd and sandbox_wanted(con, role, optin):  # cwd-free refusals first: a refused spawn creates no legacy worktree
         bad = sandbox_preflight(role, None, name)
         if bad:
@@ -5653,6 +5840,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         agent_dir = sandbox_prepare(con, role, name, cwd)
         env["PATH"] = f"{agent_dir}/bin{os.pathsep}{sandbox_real_claude(sandbox_home())[1]}"
         args["sandbox"] = True
+    if ghcred_on:
+        env.update(gh_cred_env(con, role, name))
     # before place(): a render failure (bad template, LIVE_HOME pin refusal) leaves no pane and no live row
     settings = render_settings(role)  # every launch re-renders: a tampered rendered file never survives a relaunch
     found = find_pane(pane) if pane else None
@@ -8999,6 +9188,8 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
             "cwd", "the agent row has no recorded cwd; spawn it again instead of relaunching")
         if bad:
             sandbox_refuse(con, r["role"], r["name"], *bad)
+    if gh_cred_wanted(con, r["role"], sandbox_wanted(con, r["role"], optin)):  # same: before the old pane is closed
+        gh_cred_preflight(con, r["role"], r["name"])
     steps = []
     if close:
         steps.append(f"herdr pane close {pane}  (`/exit` via `herdr agent prompt` is not a documented clean exit; "
@@ -9667,6 +9858,19 @@ def _collapse_notice(con, to, subject, prs, files, cmds, tail, task):
         send(con, to, subject, body, "request", task=task, sender="factory")
 
 
+def run_after_merge(con, t):
+    """after_merge() for a task whose merge is already recorded; a failed hook never changes the merge result."""
+    try:
+        after_merge(con, t, t["pr_url"])
+        con.commit()
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — a failed hook must never change the merge result
+        try:  # autocommit connection: writes the hook made before it failed are kept (not atomic)
+            event(con, "task", t["id"], "post-merge-hook-failed", str(e))
+            con.commit()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def after_merge(con, t, pr_url):
     """Judge post-merge hook: stamp the lesson links of task `t`, auto-apply the lessons they complete, and tell the
     live persistent agents whose role files the PR changed. The caller wraps this; it must never fail a merge."""
@@ -10305,9 +10509,11 @@ def main():
     x = sp.add_parser("team"); x.add_argument("action", choices=["new", "list", "close", "reopen", "wake"]); x.add_argument("id", nargs="?")
     x.add_argument("--goal"); x.add_argument("--scope"); x.add_argument("--no-lead", action="store_true"); x.set_defaults(fn=cmd_team)
 
-    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen"])
+    x = sp.add_parser("task"); x.add_argument("action", choices=["add", "list", "ready", "show", "update", "note", "reopen", "tier"])
     x.add_argument("--full", action="store_true")
-    x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?")
+    x.add_argument("--classify", action="store_true", help="tier: compute the tier from the task's PR branch (needs risk_tiers=on)")
+    x.add_argument("--base", default="origin/main"); x.add_argument("--head")
+    x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?"); x.add_argument("extra", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
     x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")
     x.add_argument("--status"); x.add_argument("--pr"); x.add_argument("--branch"); x.add_argument("--assignee")
