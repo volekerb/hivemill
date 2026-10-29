@@ -164,6 +164,10 @@ class FactoryEnv:
         self.calls_file.touch()
         self.herdr_state.write_text("{}")
         self.gh_state.write_text("{}")
+        # the CLI launcher the tick's freshness check expects: ~/.local/bin/factory -> <home>/bin/factory
+        # (user_home is outside the template copy, so it is created for every env)
+        (self.user_home / ".local" / "bin").mkdir(parents=True)
+        (self.user_home / ".local" / "bin" / "factory").symlink_to(self.home_dir / "bin" / "factory")
 
         try:
             if _build_template or os.environ.get("FACTORY_TEST_NO_TEMPLATE"):
