@@ -11,6 +11,12 @@ import unittest
 from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
 from test_judge_wait import GH_STUB, GREEN, FAILED, git
 
+# st["race_sql"] = [db, sql] runs when the gate reads origin/main: the other run's merge, landing mid-gate
+GH_RACE = GH_STUB.replace(
+    'print(subprocess.run(["git", "-C"',
+    'if st.get("race_sql"):\n        import sqlite3\n        c = sqlite3.connect(st["race_sql"][0]); c.execute(st["race_sql"][1]); c.commit()\n    '
+    'print(subprocess.run(["git", "-C"')
+
 
 class MechMergeTests(FactoryTestCase):
     def setUp(self):
@@ -287,6 +293,59 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.events("merged"), [])
         self.assertEqual(self.status(), "in_review")
         self.assertIn("another judge or mechanical merger is merging T-0001", "; ".join(self.events("mech-blocked")))
+
+    # -- late loser: the other run merged and released the lock before this one took it ---
+    GATE_VIEWS = {"mech": 2, "judge": 1}  # PR reads the gate makes before it takes the per-task lock; the next is the recheck's
+
+    def race(self, via, **effect):
+        """The other run merged and released the lock before this one took it: either the task is already done (set while
+        the gate's last PR read is served) or the recheck's PR read answers MERGED."""
+        (self.gh_dir / "gh").write_text(GH_RACE)
+        views = [self.pr(self.x, GREEN)] * self.GATE_VIEWS[via]
+        views.append(self.pr(self.x, GREEN, state="MERGED" if effect.get("pr_merged") else "OPEN"))
+        self.stub(views=views)
+        if effect.get("task_done"):
+            st = json.loads(self.jw_state.read_text())
+            st["race_sql"] = [str(self.env.db_path), "UPDATE tasks SET status='done' WHERE id='T-0001'"]
+            self.jw_state.write_text(json.dumps(st))
+        return self.mech("on") if via == "mech" else self.cli(
+            "judge", "T-0001", "--merge", "--reason", "zz-test", agent="zz-test-judge")
+
+    def assert_late_loser_did_nothing(self, p, text):
+        self.assertIn(text, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("merged"), [])
+        self.assertEqual(self.env.sql("SELECT COUNT(*) AS n FROM verdicts WHERE role='judge'")[0]["n"], 0)
+
+    def late_loser_cases(self):
+        self.env.seed_agent("zz-test-judge", "judge")
+        for via in ("mech", "judge"):
+            for effect, text in (({"pr_merged": True}, "no longer OPEN"), ({"task_done": True}, "no longer in_review")):
+                yield via, effect, text
+
+    def test_late_loser_sees_the_merge_under_the_lock_and_does_nothing(self):
+        for via, effect, text in self.late_loser_cases():
+            with self.subTest(via=via, effect=effect):
+                self.env.sql("UPDATE tasks SET status='in_review' WHERE id='T-0001'")
+                self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+                p = self.race(via, **effect)
+                if via == "mech":  # the merger records a refusal, it does not die
+                    self.assertIn(text, "; ".join(self.events("mech-blocked")))
+                else:
+                    self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+                self.assert_late_loser_did_nothing(p, "" if via == "mech" else text)
+
+    def test_late_loser_on_the_landed_path_records_nothing(self):
+        self.env.seed_agent("zz-test-judge", "judge")
+        git(self.wt, "fetch", "-q", "origin", "main")  # the squash landed on main (this run's merge answer was lost)
+        sq = git(self.wt, "commit-tree", "HEAD^{tree}", "-p", "origin/main", "-m", "feature work (#1)")
+        git(self.wt, "push", "-q", "origin", f"{sq}:refs/heads/main")
+        for effect, text in (({"pr_merged": True}, "no longer OPEN"), ({"task_done": True}, "no longer in_review")):
+            with self.subTest(effect=effect):
+                p = self.race("judge", **effect)
+                self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+                self.assert_late_loser_did_nothing(p, text)
+                self.assertEqual([l for l in self.jw_calls.read_text().splitlines() if '"close"' in l], [])
 
     def test_lock_is_released_after_a_merge(self):
         import fcntl

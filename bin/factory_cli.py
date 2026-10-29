@@ -3880,6 +3880,16 @@ def task_merge_lock(stack, task):
         die(f"merge refused: another judge or mechanical merger is merging {task} right now (run/merge-{task}.lock); nothing merged", 4)
 
 
+def lock_and_recheck(stack, con, t, task):
+    """Take the per-task merge lock, then recheck under it that nobody merged this task meanwhile (task still in_review, PR
+    still OPEN): the late loser of a race must do nothing, not record a second merge. Dies 4 otherwise."""
+    task_merge_lock(stack, task)
+    if con.execute("SELECT status FROM tasks WHERE id=?", (task,)).fetchone()["status"] != "in_review":
+        die(f"merge refused: {task} is no longer in_review (merged or moved by another run); nothing merged", 4)
+    if pr_state(t["pr_url"])["state"] != "OPEN":
+        die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
+
+
 def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
     with contextlib.ExitStack() as stack:
         return _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack)
@@ -3974,6 +3984,9 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             if landed and dry_run:
                 die(f"already squashed onto main as {landed[:8]}; the judge records it", 4)
             if landed:
+                if not locked:
+                    lock_and_recheck(stack, con, t, a.task)
+                    locked = True
                 err = close_landed_pr(t["pr_url"], landed, reason)
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
@@ -4081,12 +4094,8 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if dry_run:  # every refusal above ran; nothing is merged, the caller records the would-merge
             return "would-merge"
         if not locked:
-            task_merge_lock(stack, a.task)
+            lock_and_recheck(stack, con, t, a.task)
             locked = True
-            if con.execute("SELECT status FROM tasks WHERE id=?", (a.task,)).fetchone()["status"] != "in_review":
-                die(f"merge refused: {a.task} is no longer in_review (merged or moved by another run); nothing merged", 4)
-            if pr_state(t["pr_url"])["state"] != "OPEN":
-                die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
