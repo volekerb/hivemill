@@ -106,6 +106,7 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 | `herdr_socket` | `~/.config/herdr/herdr.sock` | The herdr socket every `herdr` call is pinned to. |
 | `stop_timeout_s` | `300` | `factory stop`: after this long the tick force-closes the pane of a stopped agent that is still live. |
 | `sandbox_roles` | empty | Comma list of roles (from `reviewer`, `qa`, `coder`) whose Claude runs in the namespace sandbox. Empty = off. Read at every spawn. |
+| `task_clones` | `0` | `1` = a new coder task gets a standalone `git clone --shared` instead of a worktree (docs/git-hardening.md, "Per-task clones"). Only `0` or `1`. |
 | `serve_bind` | empty | `factory serve` listen address. Empty = the source address of the default route. |
 | `serve_port` | `8765` | `factory serve` TCP port. |
 | `serve_hostnames` | empty | Extra `Host` names `factory serve` accepts besides its bind address, comma separated. For example a LAN name such as `factory.example`. |
