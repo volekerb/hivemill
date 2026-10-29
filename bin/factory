@@ -110,6 +110,9 @@ DEFAULT_CONFIG = {
     "min_mem_available_mb": "1024",
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
+    # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
+    # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
+    "stale_policy": "behind_ok",
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
@@ -126,6 +129,8 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
+    "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
     "push_interval_s": "600",    # tick exports commit every change but push at most this often (a manual `factory export` pushes now)
@@ -2822,6 +2827,38 @@ def _judge_wait_limit(con):
         die(f"config judge_ci_wait_s must be an integer number of seconds, got {cfg(con, 'judge_ci_wait_s')!r}")
 
 
+STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub)"
+
+
+def stale_behind_ok(con, owner_repo):
+    """G-022 stale_policy: True when a clean BEHIND head may be merged/spawned on without a refresh. Needs config
+    stale_policy=behind_ok (default; `factory config stale_policy strict` is the rollback) AND GitHub's branch
+    protection of main reading required_status_checks.strict == false, read live via `gh api` (cached STRICT_TTL_S).
+    strict true, no protection, or any read failure -> False (behave as strict)."""
+    if (cfg(con, "stale_policy") or "strict").strip().lower() != "behind_ok":
+        return False
+    key, t = "stale_strict:" + owner_repo, time.time()
+    row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    try:
+        c = json.loads(row["value"]) if row else None
+        if c and 0 <= t - float(c["at"]) < STRICT_TTL_S:
+            return c["strict"] is False
+    except (ValueError, KeyError, TypeError):
+        pass  # an unreadable cache entry is just a miss
+    try:
+        p = subprocess.run(["gh", "api", f"repos/{owner_repo}/branches/main/protection", "--jq",
+                            ".required_status_checks.strict"], capture_output=True, text=True, timeout=GH_API_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    out = p.stdout.strip()
+    if p.returncode != 0 or out not in ("true", "false"):
+        return False  # unreadable or not required at all: cannot confirm strict=false
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, json.dumps({"at": t, "strict": out == "true"})))
+    return out == "false"
+
+
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
     """Is origin/main an ancestor of the PR head `sha`? Same verified fetch as verdict_carries (private refs, replace
     refs ignored, main compared with GitHub's own answer). Returns (ok, why, main_sha): main_sha is the VERIFIED main
@@ -3480,7 +3517,12 @@ def cmd_judge(a):
             stale = (False, f"gh repo view failed: {e}", None)
         else:
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
-        if not stale[0]:
+        # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
+        behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+        if behind_clean:
+            if BEHIND_OK_NOTE not in reason:
+                reason += "; " + BEHIND_OK_NOTE
+        elif not stale[0]:
             problems.insert(0, "STALE-ONLY: head does not contain origin/main" if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
@@ -3494,7 +3536,7 @@ def cmd_judge(a):
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
             run = gate_run_for_head(con, t["pr_url"], sha)
-            if stale[0] and not gate_waited and (not run or run["status"] in ("queued", "running")):
+            if (stale[0] or behind_clean) and not gate_waited and (not run or run["status"] in ("queued", "running")):
                 # no verdict yet on this head: queue it for the tick, wait for it, then run the whole gate again
                 gate_enqueue(con, proj, t["pr_url"], sha)
                 con.commit()
@@ -3502,9 +3544,9 @@ def cmd_judge(a):
                 pr = pr_state(t["pr_url"])
                 sha = pr["headRefOid"]
                 continue
-            if stale[1] != "STALE":  # a stale head is refreshed below and gated again on the new head
+            if stale[1] != "STALE" or behind_clean:  # a stale head is refreshed below and gated again on the new head
                 problems += local_gate_problems(
-                    con, proj, t["pr_url"], sha, stale[2], stale[0],
+                    con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
         else:
             problems += missing_checks(con, pr, t["pr_url"])
@@ -3522,7 +3564,9 @@ def cmd_judge(a):
                 err = close_landed_pr(t["pr_url"], landed, reason)
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
-        if stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
+        if behind_clean:
+            pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
             if pr.get("baseRefName") != "main":
@@ -3596,6 +3640,10 @@ def cmd_judge(a):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
+        if red:
+            event(con, "task", a.task, "judge-blocked", red)
+            die(f"merge refused: {red}; nothing merged", 4)
         refused = judge_public_text_refusal(con, t, owner_repo, git_repo, stale[2], sha)
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
@@ -3760,6 +3808,8 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
+    if role == "judge" and pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
+        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
     # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
     # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
     r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
@@ -4147,6 +4197,161 @@ def morning_digest(con):
             event(con, "digest", "-", "digest-failed", str(e))
             con.execute("INSERT INTO config(key,value) VALUES('last_digest_fail_date',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                         (today,))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+RED_MAIN_WORKFLOW = "tests.yml"
+RED_MAIN_BAD = ("failure", "timed_out", "startup_failure")
+
+
+def red_main_state(con, slug):
+    """The stored red-main record of repo `slug` ({run, sha, url, since}) or None while its main is not known red."""
+    r = con.execute("SELECT value FROM config WHERE key=?", (f"red_main:{slug}",)).fetchone()
+    try:
+        st = json.loads(r["value"]) if r and r["value"] else None
+    except ValueError:
+        st = ""
+    if st is None:
+        return None
+    return st if isinstance(st, dict) else {"run": "?", "sha": "", "url": "", "since": ""}  # an unreadable record keeps the freeze (fail closed)
+
+
+def red_main_refusal(con, slugs, task_id=None):
+    """Why a merge into one of `slugs` (OWNER/NAME) must wait: the latest completed push run of tests.yml on main is red
+    (T-0614 signal, kept by red_main_check). None with red_main_freeze off, or when none of the repos is red. The revert/fix
+    task the check filed (`task_id` equals the stored "task") may merge: it is what lifts the freeze."""
+    if cfg(con, "red_main_freeze") != "1":
+        return None
+    for slug in slugs:
+        st = red_main_state(con, slug)
+        if st and not (task_id and st.get("task") == task_id):
+            return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
+    return None
+
+
+def _red_main_set(con, slug, st):
+    key = f"red_main:{slug}"
+    if st is None:
+        con.execute("DELETE FROM config WHERE key=?", (key,))
+    else:
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, json.dumps(st)))
+
+
+def _red_main_latest(slug):
+    """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
+    or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
+    p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                       capture_output=True, text=True, timeout=30, env=gh_git_env())
+    if p.returncode != 0:
+        raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
+    return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+
+
+def _red_main_green_mark(value):
+    try:
+        m = json.loads(value)
+    except ValueError:
+        return {}
+    return m if isinstance(m, dict) else {}
+
+
+def _red_main_green_run(value):
+    return str(_red_main_green_mark(value).get("run", ""))
+
+
+def _red_main_green_at(value):
+    return _red_main_green_mark(value).get("created") or ""
+
+
+def _red_main_when(ts):
+    """Aware datetime of an ISO timestamp (GitHub's 'Z' form or the DB's offset form), None when empty or unreadable."""
+    try:
+        d = dt.datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.astimezone()
+
+
+def _red_main_revert_task(con, slug, run, since_ts):
+    """File a coder task to revert or fix the PRs merged since the last green main; returns its id or None (no goal)."""
+    pids = [r["id"] for r in con.execute("SELECT id, gh_repo FROM projects WHERE gh_repo IS NOT NULL AND gh_repo!=''")
+            if _repo_slug(r["gh_repo"]) == slug]
+    g = con.execute(f"SELECT id FROM goals WHERE status='active' AND project_id IN ({','.join('?' * len(pids))}) "
+                    "ORDER BY priority, id LIMIT 1", pids).fetchone() if pids else None
+    if not g:
+        return None, []
+    ev = con.execute(f"SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
+                     f"WHERE e.entity='task' AND e.action='merged' AND g.project_id IN ({','.join('?' * len(pids))}) "
+                     "ORDER BY e.ts DESC", pids).fetchall()
+    since = _red_main_when(since_ts)
+    ev = [r for r in ev if since <= _red_main_when(r["ts"])] if since else ev[:3]
+    merged = list(dict.fromkeys(r["entity_id"] for r in ev))
+    tid = next_id(con, "tasks", "T", 4)
+    title = f"Red main: revert or fix {slug} run {run['databaseId']}"
+    spec = (f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main failed ({run.get('url') or 'no url'}, "
+            f"head {str(run.get('headSha') or '')[:8]}). The red-main freeze holds every merge until a green push run. Merged since "
+            f"the last green main: {', '.join(merged) or 'unknown'}. Find the cause in the run log and open a PR that reverts or "
+            "fixes it; the freeze lifts by itself on the next green push run.")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+                (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
+    event_as(con, "tick", "task", tid, "add", title)
+    return tid, merged
+
+
+def red_main_check(con):
+    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
+    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
+    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    if cfg(con, "red_main_freeze") != "1":
+        return
+    try:
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
+        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
+                                           con.execute("SELECT gh_repo FROM projects WHERE gh_repo IS NOT NULL AND gh_repo!=''")) if s]
+        for slug in slugs:
+            try:
+                run = _red_main_latest(slug)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+                event(con, "redmain", slug, "red-main-unknown", str(e)[:300])
+                continue
+            if run is None:
+                continue
+            old = red_main_state(con, slug)
+            if run["conclusion"] in RED_MAIN_BAD:
+                if old and str(old.get("run")) == str(run["databaseId"]):
+                    continue
+                tid, merged = (None, [])
+                if not old:
+                    gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
+                    tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
+                                          "task": tid or (old or {}).get("task") or "",
+                                          "since": (old or {}).get("since") or now()})
+                event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
+                send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
+                     f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
+                     f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
+                     + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
+                        if tid else "No active goal for the project: file the revert task by hand.")
+                     + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
+            elif run["conclusion"] == "success":
+                mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
+                if not mark or _red_main_green_run(mark["value"]) != str(run["databaseId"]):  # the mark is the green run's own start
+                    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                                (f"red_main_green:{slug}", json.dumps({"run": run["databaseId"], "created": run.get("createdAt") or ""})))
+                if old:
+                    _red_main_set(con, slug, None)
+                    event_as(con, "tick", "redmain", slug, "red-main-clear", f"run {run['databaseId']} green")
+    except Exception as e:  # noqa: BLE001 — the tick must go on
+        try:
+            event(con, "redmain", "-", "red-main-failed", str(e)[:300])
         except Exception:  # noqa: BLE001
             pass
 
@@ -7649,6 +7854,8 @@ def judge_pr_ready(con, pr_url, behind_ok=False):
     behind_ok: a BEHIND head is accepted (the spawn pre-check refreshes it, and the ready check runs again after
     that); the cached answer then says 'behind' in `why` instead of not-ready.
     Local mode (the project has a gate_cmd, T-0516): decided from gate_runs, see gate_pr_ready; no GitHub checks."""
+    if not behind_ok and pr_url.startswith("https://github.com/"):  # G-022 stale_policy=behind_ok with strict=false
+        behind_ok = stale_behind_ok(con, "/".join(pr_url.split("/")[3:5]))
     proj = gate_project_for(con, pr_url)
     if proj:
         return gate_pr_ready(con, proj, pr_url, behind_ok)
@@ -7763,6 +7970,7 @@ def cmd_tick(a, locked=False):
     remote_url_alert(con)
     main_protection_alert(con)
     tmp_clean(con)
+    red_main_check(con)
     reap_stray_serves(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
