@@ -87,7 +87,7 @@ Steps 3 to 11 of the public-repository checklist in [PUBLISHING.md](PUBLISHING.m
 
 ## Phase 5: port and archive
 
-- **P5** DIRECTOR: for each PR marked "port" in F2, file a follow-up task in hivemill whose spec says: `gh pr diff <N> -R <private-repo> > <scratch>/p.diff`, `git apply` in the hivemill worktree, and the public text guard must pass. Then OWNER or DIRECTOR closes the old PR with the note "moved to volekerb/hivemill#<M>". PRs marked "close" are closed with "superseded by volekerb/hivemill".
+- **P5** DIRECTOR: for each PR marked "port" in F2, file a follow-up task in hivemill whose spec says: `gh pr diff <N> -R <private-repo> > <scratch>/p.diff`, `git apply` in the hivemill worktree, and the public text guard must pass (the port worker gets `SCRUB_TERMS_FILE` from spawn; no env prefix needed). Then OWNER or DIRECTOR closes the old PR with the note "moved to volekerb/hivemill#<M>". PRs marked "close" are closed with "superseded by volekerb/hivemill".
 - **P6** BOSS to OWNER: cutover report (C6 output, C9 PR URL). The OWNER confirms the cutover (SC7) and OKs the archive. The OWNER archives `<private-repo>` (Settings > Danger Zone > Archive).
 
 ## Local-only config (SC5)
@@ -98,7 +98,7 @@ Every owner-specific setting stays on this machine. None of it is in the reposit
 |---|---|---|
 | `public_text_repos` | DB config (`factory config`) | repos where the public text rule applies; never committed |
 | `frozen_repos` | DB config (`factory config`) | repos nothing may push to or merge into; never committed |
-| `scrub_terms_file` | DB config (`factory config`) | path of the owner terms file; the env var `SCRUB_TERMS_FILE` wins; never committed |
+| `scrub_terms_file` | DB config (`factory config`) | path of the owner terms file; the env var `SCRUB_TERMS_FILE` wins; never committed. `factory spawn` exports the path as `SCRUB_TERMS_FILE` to coder, reviewer, qa and judge (also for queued starts), so workers need no env prefix; they still may not read the file |
 | other DB config (`state_push`, `git_push`, caps) | the live database under `db/` | gitignored; never committed |
 | owner terms file | a path outside the repository | holds names, handle, hostnames, private project names; never committed |
 | git identity | repo-local `git config user.name` / `user.email` in `~/factory` | set at C3 to the handle and the noreply address; never committed |

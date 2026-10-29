@@ -49,6 +49,6 @@ Three config keys, all empty by default (nothing changes while they are empty). 
 |---|---|
 | `public_text_repos` | comma list of `OWNER/NAME` whose text is public. `factory judge --merge` on a PR in such a repo (the PR URL's repo or the project's `gh_repo`) first runs the public text guard on the PR title, body, branch, comments, reviews and the commits since the verified `origin/main` (messages, identities, paths, added lines). Any hit, or no owner terms, refuses the merge with `judge: refused (public text: N hits: <pattern ids>)` and a `judge-blocked` event. The state branch is never pushed to such an `origin` (docs/state-branch.md). |
 | `frozen_repos` | comma list of `OWNER/NAME` that bin/factory never pushes to or merges into: the state push, the judge's refresh push, `factory clean --remote-branch` and `gh pr merge` refuse with `repo <slug> is frozen (G-021)`. |
-| `scrub_terms_file` | path of the owner terms file, local only. The environment variable `SCRUB_TERMS_FILE` wins. Without terms the judge check fails closed. |
+| `scrub_terms_file` | path of the owner terms file, local only. The environment variable `SCRUB_TERMS_FILE` wins. Without terms the judge check fails closed. `factory spawn` exports it as `SCRUB_TERMS_FILE` to coder, reviewer, qa and judge. `factory config <key>` prints just that key's value. |
 
 The guard module is loaded from the main checkout (`$FACTORY_HOME/ci/public_text_guard.py`), never from the PR tree, so a PR cannot switch it off. See docs/public-text-guard.md.

@@ -139,7 +139,7 @@ class SandboxCase(FactoryTestCase):
 
 class ConfigGuardTests(FactoryTestCase):
     def value(self):
-        out = self.ok("config", "sandbox_roles").stdout
+        out = self.ok("config").stdout
         return re.search(r"^sandbox_roles = (.*)$", out, re.M).group(1)
 
     def test_blocked_roles_exit_2_value_unchanged(self):
