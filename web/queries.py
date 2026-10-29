@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import re
 import sqlite3
+import statistics
 
 from web.db import has_column
 
@@ -707,4 +708,74 @@ def criteria_by_goal(con):
         nums = {n for n, _ in parse_criteria(text.get(gid))} | set(by_n)
         met = sum(1 for n in by_n if (live := [s for s in by_n[n] if s != "cancelled"]) and all(s == "done" for s in live))
         out[gid] = (met, len(nums))
+    return out
+
+
+# ───────────────────────────── insights pages (G-019 B6) ─────────────────────────────
+
+def table_sort(query, columns, default):
+    """Effective (column key, "asc"|"desc") for a sortable table from ?sort= and ?dir=.
+
+    `columns` maps each sortable column key to its default direction; a `sort` that is not a key of `columns` (and a `dir`
+    that is not asc or desc) is ignored, so the value is never used as SQL or as markup. `default` is the (key, dir) pair
+    used when `sort` is missing or unknown."""
+    q = query if isinstance(query, dict) else {}
+    key = q.get("sort")
+    if not isinstance(key, str) or key not in columns:
+        return default
+    d = q.get("dir")
+    return key, d if d in ("asc", "desc") else columns[key]
+
+
+def sort_rows(rows, key, direction, getters):
+    """`rows` ordered by getters[key](row); rows whose value is None go last in either direction (stable)."""
+    get = getters[key]
+    have = [r for r in rows if get(r) is not None]
+    miss = [r for r in rows if get(r) is None]
+    return sorted(have, key=get, reverse=direction == "desc") + miss
+
+
+def quality_windows(con, days=14, now=None):
+    """Quality numbers for the last `days` days and the `days` before them, for the deltas on /quality.
+
+    {"days", "all": {median_attempts}, "current": w, "previous": w}; w = {merged, rejections, rejections_per_merged, first_try_pct, ci_blocked,
+    median_attempts}. A task is in a window by its last merge event; a rejection or CI block by its own timestamp (the
+    quality() rules: fail/reject verdict rows, plus judge-reject events without a verdict row). first_try_pct = merged
+    tasks that were never rejected / merged; median_attempts = median tasks.attempts of the merged tasks. A ratio or median
+    with nothing to divide by is None."""
+    end = _now(now).timestamp()
+    wins = {"current": (end - days * 86400, end + 1), "previous": (end - 2 * days * 86400, end - days * 86400)}
+    merged = {}
+    for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' ORDER BY id"):
+        e = _epoch(r["ts"])
+        if e is not None:
+            merged[r["entity_id"]] = e
+    rej, judge_rows = [], {}
+    for r in con.execute("SELECT task_id, role, created FROM verdicts WHERE verdict IN ('fail','reject')"):
+        e = _epoch(r["created"])
+        rej.append((r["task_id"], e))
+        if r["role"] == "judge":
+            judge_rows[r["task_id"]] = judge_rows.get(r["task_id"], 0) + 1
+    by_task = {}
+    for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='judge-reject' ORDER BY id"):
+        by_task.setdefault(r["entity_id"], []).append(_epoch(r["ts"]))
+    for tid, es in by_task.items():
+        extra = max(0, len(es) - judge_rows.get(tid, 0))
+        rej += [(tid, e) for e in es[len(es) - extra:]]
+    rejected = {t for t, _ in rej}
+    ci = [_epoch(r["ts"]) for r in con.execute("SELECT ts FROM events WHERE entity='task' AND action='judge-blocked' "
+                                              "AND detail LIKE '%checks not green%'")]
+    attempts = {r["id"]: r["attempts"] or 0 for r in con.execute("SELECT id, attempts FROM tasks")}
+    every = [attempts[t] for t in merged if t in attempts]
+    out = {"days": days, "all": {"median_attempts": statistics.median(every) if every else None}}
+    for name, (lo, hi) in wins.items():
+        ids = [t for t, e in merged.items() if lo <= e < hi]
+        n_rej = sum(1 for _, e in rej if e is not None and lo <= e < hi)
+        first = sum(1 for t in ids if t not in rejected)
+        att = [attempts[t] for t in ids if t in attempts]
+        out[name] = {"merged": len(ids), "rejections": n_rej,
+                     "rejections_per_merged": round(n_rej / len(ids), 2) if ids else None,
+                     "first_try_pct": round(100 * first / len(ids)) if ids else None,
+                     "ci_blocked": sum(1 for e in ci if e is not None and lo <= e < hi),
+                     "median_attempts": statistics.median(att) if att else None}
     return out
