@@ -10635,7 +10635,7 @@ def scout_report(con, a):
             or die(f"no scout run for slot {a.slot}; see `factory scout runs` (slot looks like 2026-10-25T09)", 2)
         if not run["ended"]:
             die(f"scout run {a.slot} is {run['status']}, not finished; try again when it ends", 2)
-        since, until = scoutreport.run_window(con, run)
+        since, until = scoutreport.run_window(con, run, clock)
         slot = a.slot
     else:
         until = clock
@@ -10645,7 +10645,7 @@ def scout_report(con, a):
             last = con.execute("SELECT * FROM scout_runs WHERE status IN ('done','stopped','failed') AND ended IS NOT NULL "
                                "ORDER BY id DESC LIMIT 1").fetchone()
             if last:
-                since = scoutreport.run_window(con, last)[0]
+                since = scoutreport.run_window(con, last, clock)[0]
             else:
                 since = until - dt.timedelta(hours=scoutreport.DEFAULT_HOURS)
         slot = clock.strftime("%Y-%m-%dT%H")
