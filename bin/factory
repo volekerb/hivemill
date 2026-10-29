@@ -3507,7 +3507,7 @@ def cmd_judge(a):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
-        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo))
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
         if red:
             event(con, "task", a.task, "judge-blocked", red)
             die(f"merge refused: {red}; nothing merged", 4)
@@ -4066,19 +4066,23 @@ def red_main_state(con, slug):
     """The stored red-main record of repo `slug` ({run, sha, url, since}) or None while its main is not known red."""
     r = con.execute("SELECT value FROM config WHERE key=?", (f"red_main:{slug}",)).fetchone()
     try:
-        return json.loads(r["value"]) if r and r["value"] else None
+        st = json.loads(r["value"]) if r and r["value"] else None
     except ValueError:
-        return {"run": "?", "sha": "", "url": "", "since": ""}  # an unreadable record keeps the freeze (fail closed)
+        st = ""
+    if st is None:
+        return None
+    return st if isinstance(st, dict) else {"run": "?", "sha": "", "url": "", "since": ""}  # an unreadable record keeps the freeze (fail closed)
 
 
-def red_main_refusal(con, slugs):
+def red_main_refusal(con, slugs, task_id=None):
     """Why a merge into one of `slugs` (OWNER/NAME) must wait: the latest completed push run of tests.yml on main is red
-    (T-0614 signal, kept by red_main_check). None with red_main_freeze off, or when none of the repos is red."""
+    (T-0614 signal, kept by red_main_check). None with red_main_freeze off, or when none of the repos is red. The revert/fix
+    task the check filed (`task_id` equals the stored "task") may merge: it is what lifts the freeze."""
     if cfg(con, "red_main_freeze") != "1":
         return None
     for slug in slugs:
         st = red_main_state(con, slug)
-        if st:
+        if st and not (task_id and st.get("task") == task_id):
             return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
     return None
 
@@ -4105,13 +4109,16 @@ def _red_main_latest(slug):
 
 def _red_main_revert_task(con, slug, run, since_ts):
     """File a coder task to revert or fix the PRs merged since the last green main; returns its id or None (no goal)."""
-    g = con.execute("SELECT g.id, g.project_id FROM goals g JOIN projects p ON p.id=g.project_id WHERE lower(p.gh_repo) LIKE ? "
-                    "AND g.status='active' ORDER BY g.priority, g.id LIMIT 1", (f"%{slug}%",)).fetchone()
+    pids = [r["id"] for r in con.execute("SELECT id, gh_repo FROM projects WHERE gh_repo IS NOT NULL AND gh_repo!=''")
+            if _repo_slug(r["gh_repo"]) == slug]
+    g = con.execute(f"SELECT id FROM goals WHERE status='active' AND project_id IN ({','.join('?' * len(pids))}) "
+                    "ORDER BY priority, id LIMIT 1", pids).fetchone() if pids else None
     if not g:
         return None, []
-    ev = con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' AND ts>=? ORDER BY ts DESC",
-                     (since_ts or "",)).fetchall() if since_ts else \
-        con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' ORDER BY ts DESC LIMIT 3").fetchall()
+    ev = con.execute(f"SELECT e.entity_id, e.ts FROM events e JOIN tasks t ON t.id=e.entity_id JOIN goals g ON g.id=t.goal_id "
+                     f"WHERE e.entity='task' AND e.action='merged' AND g.project_id IN ({','.join('?' * len(pids))}) "
+                     "ORDER BY e.ts DESC", pids).fetchall()
+    ev = [r for r in ev if r["ts"] >= since_ts] if since_ts else ev[:3]
     merged = list(dict.fromkeys(r["entity_id"] for r in ev))
     tid = next_id(con, "tasks", "T", 4)
     title = f"Red main: revert or fix {slug} run {run['databaseId']}"
@@ -4156,6 +4163,7 @@ def red_main_check(con):
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, gr["value"] if gr else "")
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
+                                          "task": tid or (old or {}).get("task") or "",
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",

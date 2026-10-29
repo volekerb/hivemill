@@ -104,6 +104,33 @@ class RedMainTests(FactoryTestCase):
         p = self.merge()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
+    def test_revert_task_may_merge_during_freeze(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.runs(RED)
+        self.tick()
+        tid = self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'")[0]["id"]
+        with self.env.load_factory() as f:
+            con = f.db()
+            self.assertIsNone(f.red_main_refusal(con, ["acme/priv"], tid))
+            self.assertIn("run 901", f.red_main_refusal(con, ["acme/priv"], "T-0001"))
+            self.assertIn("run 901", f.red_main_refusal(con, ["acme/priv"]))
+
+    def test_corrupt_state_keeps_freeze(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.env.sql("INSERT INTO config(key,value) VALUES('red_main:acme/priv','[]')")
+        p = self.merge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("red main", p.stderr)
+
+    def test_revert_task_goes_to_the_exact_repo_project(self):
+        self.env.seed_project("zz-other")
+        self.env.sql("UPDATE projects SET gh_repo='acme/private' WHERE id='zz-other'")
+        self.env.seed_goal("G-002", project="zz-other")
+        self.ok("config", "red_main_freeze", "1")
+        self.runs(RED)
+        self.tick()
+        self.assertEqual(self.env.sql("SELECT goal_id FROM tasks WHERE title LIKE 'Red main:%'")[0]["goal_id"], "G-001")
+
     def test_flag_off_after_red_lifts_refusal(self):
         self.ok("config", "red_main_freeze", "1")
         self.runs(RED)
