@@ -105,6 +105,7 @@ Every owner-specific setting stays on this machine. None of it is in the reposit
 |---|---|---|
 | `public_text_repos` | DB config (`factory config`) | repos where the public text rule applies; never committed |
 | `frozen_repos` | DB config (`factory config`) | repos nothing may push to or merge into; never committed |
+| `noreply_email` | DB config (`factory config`) | author email for judge merges into a public repo; empty = the git `user.email` of `~/factory`; must end `@users.noreply.github.com`; never committed |
 | `scrub_terms_file` | DB config (`factory config`) | path of the owner terms file; the env var `SCRUB_TERMS_FILE` wins; never committed |
 | other DB config (`state_push`, `git_push`, caps) | the live database under `db/` | gitignored; never committed |
 | owner terms file | a path outside the repository | holds names, handle, hostnames, private project names; never committed |
@@ -121,3 +122,6 @@ The public slug `volekerb/hivemill` and the noreply identity are not private and
 - [worker-guard.md](worker-guard.md) ("Public text (G-021)"): the hook that runs it on every agent `git` and `gh` write and refuses pushes and writes to a frozen repository.
 - [state-branch.md](state-branch.md): the `state` branch is never pushed to a public or frozen origin, whatever `state_push` says.
 - [ci-cost.md](ci-cost.md): free hosted runners only, a `$0` Actions budget, fork pull requests without secrets, and the kill switch.
+- Merge email guard (T-0602), two layers so no real email lands on public `main` again (a web merge once created a merge commit with the owner's real email):
+  - Layer 1, `factory judge --merge` into a `public_text_repos` repo: the squash is made with `gh pr merge --author-email <noreply>` (`-A`; checked on gh 2.103.0). The address is config `noreply_email`, else the git `user.email` of `~/factory`, and must end `@users.noreply.github.com`; with none the judge refuses to merge (exit 4, nothing merged). After the merge it reads the merge commit with `gh api repos/<repo>/commits/<sha>`; an author or committer email that is not noreply (GitHub's own `noreply@github.com` committer is allowed) or a commit it cannot read gives an event `merge-email-leak`, an escalation to the director and exit 6. The task is already `done` then: the change is on `main`.
+  - Layer 2, tick: for the `origin` of `~/factory` when it is in `public_text_repos`, each tick checks the commits new on `origin/main` (up to the last 200 when there is no earlier check) and sends the boss one escalation per sha whose author or committer email is not noreply. It also catches commits made outside the factory (web UI, owner pushes). The message masks the address.
