@@ -321,7 +321,7 @@ class JudgeTextTests(Base):
         self.assert_text_refused(self.judge(), "email")
 
     def test_refusal_names_source_and_category_not_text(self):
-        self.pr(self.terms_env, title="zebracorp rename", body="ok\nsee /home/zebracorp/notes\nmail bob@realmail.test",
+        self.pr(self.terms_env, title="zebracorp rename", body="ok\nsee /home/zebracorp/notes\nmail bob" + "@realmail.test",
                 comments=["fine", "x\nthanks zebracorp team"])
         p = self.judge()
         self.assert_text_refused(p, "owner-term@title:line 1", "owner-term@comment 2:line 2", "email@body:line 3")
