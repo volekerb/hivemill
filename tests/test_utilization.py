@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from harness import FACTORY, FactoryTestCase  # noqa: E402
+from harness import FACTORY_SRC, FactoryTestCase  # noqa: E402
 from web import db as wdb  # noqa: E402
 from web.views import home  # noqa: E402
 
@@ -35,7 +35,7 @@ class Base(FactoryTestCase):
         old = os.environ.get("FACTORY_HOME")
         os.environ["FACTORY_HOME"] = str(self.env.home_dir)
         self.addCleanup(lambda: os.environ.pop("FACTORY_HOME") if old is None else os.environ.update(FACTORY_HOME=old))
-        loader = importlib.machinery.SourceFileLoader("factory_util_under_test", str(FACTORY))
+        loader = importlib.machinery.SourceFileLoader("factory_util_under_test", str(FACTORY_SRC))
         mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
         loader.exec_module(mod)
         self.mod = mod
@@ -184,7 +184,7 @@ class UtilCase(Base):
         self.assertEqual(len(left), 2)
 
     def test_tick_wiring(self):
-        src = FACTORY.read_text().splitlines()
+        src = FACTORY_SRC.read_text().splitlines()
         hits = [i for i, l in enumerate(src) if "util_sample(con)" in l and not l.lstrip().startswith(("def ", "#"))]
         self.assertEqual(len(hits), 1)
         self.assertEqual(src[hits[0] - 1].strip(), "tick_relaunches(con)")
