@@ -41,10 +41,13 @@ class PrePushTests(FactoryTestCase):
         git("commit", "-q", "--allow-empty", "-m", msg, cwd=self.wt)
 
     def push(self, ref="factory/t-0001"):
-        env = {k: v for k, v in os.environ.items() if k not in ("SCRUB_TERMS_FILE", "FACTORY_AGENT")}
-        env["FACTORY_HOME"] = str(self.h)
-        return subprocess.run(["git", "push", "origin", f"HEAD:{ref}"], cwd=self.wt, capture_output=True, text=True,
-                              env=env, timeout=60)
+        """git push through harness.git; a refusal comes back as returncode 1 with git's stderr (harness.git raises it)."""
+        env = {"SCRUB_TERMS_FILE": "", "FACTORY_AGENT": "", "FACTORY_HOME": str(self.h)}
+        try:
+            out = git("push", "origin", f"HEAD:{ref}", cwd=self.wt, env=env)
+        except AssertionError as e:
+            return subprocess.CompletedProcess([], 1, "", str(e).split("): ", 1)[-1])
+        return subprocess.CompletedProcess([], 0, out, "")
 
     def pushed(self):
         return subprocess.run(["git", "-C", str(self.bare), "branch", "--list", "factory/*"], capture_output=True,
