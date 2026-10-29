@@ -168,8 +168,9 @@ class TestTasksList(ViewCase):
         self.assertEqual(by["T-3"]["rejections"], 1)       # judge reject verdict + judge-reject event = one rejection
         self.assertEqual(by["T-2"]["rejections"], 1)       # judge-reject event without a verdict row
         self.assertIsNone(by["T-4"]["ci"])
-        self.assertIn("green at merge", html)
-        self.assertIn("1 rej / 2 try", html)
+        self.assertEqual(by["T-1"]["ci"], "green at merge")   # the JSON keeps the raw word; the page says "CI passed" (B3 copy map)
+        self.assertIn("CI passed", html)
+        self.assertIn("1 rejection · 2 tries", html)
 
     def test_open_pr_ci_comes_from_the_cache_and_misses_show_unknown(self):
         pr = "https://github.com/o/r/pull/3"
