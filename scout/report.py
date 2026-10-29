@@ -156,7 +156,7 @@ def build_skill_scout_section(con, since, until):
 def run_window(con, run, now=None):
     """(since, until] of a finished run: from the end of the previous reported run (else 24 h before) to its own end.
     A run whose `ended` is unparsable ends `now` (the caller's clock, else the current UTC time), so it is reported once."""
-    until = ts(run["ended"]) or now or dt.datetime.now(dt.timezone.utc)
+    until = ts(run["ended"]) or (ts(now) if now else dt.datetime.now(dt.timezone.utc))
     prev = con.execute("SELECT ended FROM scout_runs WHERE id<? AND reported_msg IS NOT NULL AND ended IS NOT NULL "
                        "ORDER BY id DESC LIMIT 1", (run["id"],)).fetchone()
     since = ts(prev["ended"]) if prev else None
