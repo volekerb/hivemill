@@ -238,5 +238,107 @@ class TestHelpers(unittest.TestCase):
         self.assertIn("Needs you 4", wh.page("T", "", "/", shell={**SHELL, "needs": 4}))
 
 
+
+def block(text, pattern):
+    m = re.search(pattern, text, re.S)
+    assert m, f"no block {pattern}"
+    return m.group(0)
+
+
+class TestPhoneNeedsOnce(ShellDb):
+    def seed_needs(self):
+        self.con.execute("INSERT INTO projects(id,name,created) VALUES('p','P','x')")
+        self.con.execute("INSERT INTO goals(id,project_id,title,status,priority,created,updated) "
+                         "VALUES('G-1','p','g','blocked',1,'x','x')")
+        for n in (1, 2):
+            self.con.execute("INSERT INTO tasks(id,goal_id,title,status,waits,created,updated) VALUES(?,?,?,?,?,?,?)",
+                             (f"T-{n}", "G-1", "t", "blocked", "owner", "x", "x"))
+
+    def test_tab_bar_has_no_needs_you_count_but_topbar_has_one(self):
+        self.seed_needs()
+        self.agents(2, "queued", "q")
+        text = self.get("/")
+        tabs = block(text, r'<nav aria-label="Primary tabs".*?</nav>')
+        self.assertNotIn("items need you", tabs)
+        self.assertNotIn("count--bad", tabs)
+        top = block(text, r'<header class="topbar".*?</header>')
+        self.assertEqual(top.count('aria-label="3 items need you"'), 1)
+
+    def test_other_counts_are_kept(self):
+        self.seed_needs()
+        self.agents(2, "queued", "q")
+        text = self.get("/")
+        tabs = block(text, r'<nav aria-label="Primary tabs".*?</nav>')
+        self.assertRegex(tabs, r'<span class="count" aria-label="2 agents queued or blocked">2</span>')
+        self.assertRegex(nav_item(text, "/"), r'class="count count--bad" aria-label="3 items need you">3<')
+        self.assertIn('aria-label="3 items need you"', block(text, r'<header class="shellbar".*?</header>'))
+
+
+class TestMemoryLow(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.con = make_db(Path(self.tmp.name) / "factory.db", seed=False)
+        self.con.row_factory = sqlite3.Row
+        self.addCleanup(self.con.close)
+        self.fresh = {"five_hour": 10.0, "seven_day": 20.0, "fresh": True, "age_min": 1}
+        self.dflt = {"max_live_agents": "2", "max_five_hour_pct": "92"}
+
+    def health(self, usage):
+        return queries.shell_status(self.con, usage, self.dflt)["health"]
+
+    def agents(self, n, status):
+        for i in range(n):
+            self.con.execute("INSERT INTO agents(name,role,status,started) VALUES(?,?,?,?)", (f"{status}{i}", "coder", status, "x"))
+
+    def mem_health(self, mem, usage=None, defaults=None):
+        return queries.shell_status(self.con, usage or self.fresh, defaults or {**self.dflt, "min_mem_available_mb": "1024"},
+                                    mem=mem)["health"]
+
+    def test_below_floor_is_danger(self):
+        self.assertEqual(self.mem_health(500), {"tone": "danger", "text": "Memory low"})
+
+    def test_floor_itself_is_not_low(self):
+        self.assertNotEqual(self.mem_health(1024)["text"], "Memory low")
+
+    def test_unknown_mem_changes_nothing(self):
+        self.assertEqual(self.mem_health(None), self.health(self.fresh))
+
+    def test_memory_low_is_worse_than_usage_cap(self):
+        self.assertEqual(self.mem_health(500, {**self.fresh, "five_hour": 95.0})["text"], "Memory low")
+
+    def test_plenty_of_memory_leaves_gate_closed(self):
+        self.agents(2, "live")
+        self.assertTrue(self.mem_health(4000)["text"].startswith("Gate closed"))
+
+    def test_floor_falls_back_to_1024_and_follows_config(self):
+        self.assertEqual(queries.shell_status(self.con, self.fresh, None, mem=1000)["health"]["text"], "Memory low")
+        self.assertEqual(self.mem_health(1000, defaults={"min_mem_available_mb": "512"})["text"], "All normal")
+
+
+class TestMemoryLowServed(unittest.TestCase):
+    def page(self, mem):
+        with tempfile.TemporaryDirectory() as tmp:
+            make_db(Path(tmp) / "factory.db").close()
+            httpd = server.make_server(Path(tmp) / "factory.db", "127.0.0.1", 0, (), tokens=lambda: {"rows": []},
+                                       usage_fn=lambda: {"five_hour": 10.0, "seven_day": 20.0, "fresh": True, "age_min": 1},
+                                       mem_fn=lambda: mem, defaults={"max_live_agents": "99"})
+            threading.Thread(target=httpd.serve_forever, daemon=True).start()
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    return get(httpd, "/tasks")[2].decode()
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
+    def test_low_memory_shows_danger_pill(self):
+        text = self.page(100)
+        self.assertIn("Memory low", text)
+        self.assertIn("tone-danger", text)
+
+    def test_plenty_of_memory_does_not(self):
+        self.assertNotIn("Memory low", self.page(999999))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -23,24 +23,24 @@ Hivemill v0.1.0 is a pre-release: the first public cut of an AI factory that run
 
 ### Features
 
-- **Setup and operations.** Install, boot units and reboot recovery are described in [docs/SETUP.md](docs/SETUP.md) and [docs/operations.md](docs/operations.md).
-- **Verdict gates.** The rules for reviewer, QA and judge verdicts are in [docs/verdict-gates.md](docs/verdict-gates.md).
-- **Goal lifecycle.** A request becomes a goal with a plan and success criteria, see [docs/goal-lifecycle.md](docs/goal-lifecycle.md).
-- **Worker guard.** Hooks block actions outside a role's job, see [docs/worker-guard.md](docs/worker-guard.md).
-- **Web UI.** Pages for goals, tasks and agents are covered in [docs/web-ui.md](docs/web-ui.md).
-- **State branch.** Markdown exports and a database dump are pushed to a state branch, see [docs/state-branch.md](docs/state-branch.md).
+- **Setup and operations.** Install, boot units and reboot recovery are described in [docs/SETUP.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/SETUP.md) and [docs/operations.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/operations.md).
+- **Verdict gates.** The rules for reviewer, QA and judge verdicts are in [docs/verdict-gates.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/verdict-gates.md).
+- **Goal lifecycle.** A request becomes a goal with a plan and success criteria, see [docs/goal-lifecycle.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/goal-lifecycle.md).
+- **Worker guard.** Hooks block actions outside a role's job, see [docs/worker-guard.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/worker-guard.md).
+- **Web UI.** Pages for goals, tasks and agents are covered in [docs/web-ui.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/web-ui.md).
+- **State branch.** Markdown exports and a database dump are pushed to a state branch, see [docs/state-branch.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/state-branch.md).
 
 ### Known limits
 
 - **Pre-release.** Interfaces and behaviour may change before 1.0.
-- **Worker sandbox.** The per-agent worker sandbox is unfinished. Agent isolation is a tripwire, not a sandbox: it stops honest mistakes and makes bypasses visible, but it does not contain a determined adversary. Read [SECURITY.md](SECURITY.md) first.
+- **Worker sandbox.** The per-agent worker sandbox is unfinished. Agent isolation is a tripwire, not a sandbox: it stops honest mistakes and makes bypasses visible, but it does not contain a determined adversary. Read [SECURITY.md](https://github.com/__PUBLIC_REPO__/blob/main/SECURITY.md) first.
 - **On-demand agents.** Starting agents on demand is not done yet.
 - **Single box.** It is built for one machine, and it needs herdr and Claude Code.
 
 ### Install
 
 - **Requirements.** Python 3.11+, git, gh, herdr and Claude Code.
-- **Steps.** Follow [docs/SETUP.md](docs/SETUP.md) and the quickstart in the [README](README.md). The command line tool is `factory`.
+- **Steps.** Follow [docs/SETUP.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/SETUP.md) and the quickstart in the [README](https://github.com/__PUBLIC_REPO__/blob/main/README.md). The command line tool is `factory`.
 
 ### Fixed
 
