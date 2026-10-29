@@ -354,6 +354,40 @@ class SpawnTests(SandboxBase):
         self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "live")
         self.assertEqual(self.trial_state()["status"], "running")
 
+    def fail_tick(self):
+        with self.env.load_factory() as f:
+            with mock.patch.object(f, "_spawn_start", side_effect=SystemExit(1)):
+                f.cmd_tick(mock.Mock(), locked=True)
+
+    def test_persistent_spawn_failure_ends_the_trial_after_the_cap(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+            cap = f.EVALUATOR_SPAWN_RETRY_MAX
+        self.queue_running_trial(info)
+        for _ in range(cap - 1):
+            self.fail_tick()
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "queued")
+        self.assertEqual(self.trial_state()["status"], "running")
+        self.fail_tick()
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "cancelled")
+        t = self.trial_state()
+        self.assertEqual((t["status"], t["passed"]), ("error", 0))
+        self.assertTrue(t["ended"])
+        self.assertIn("giving up", t["check_output"])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='evaluator-spawn-failed'",
+                                          (info["agent"],))), 1)
+
+    def test_transient_failures_below_the_cap_then_success_keeps_the_trial_running(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+            cap = f.EVALUATOR_SPAWN_RETRY_MAX
+        self.queue_running_trial(info)
+        for _ in range(cap - 1):
+            self.fail_tick()
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "live")
+        self.assertEqual(self.trial_state()["status"], "running")
+
     def test_shim_must_be_executable(self):
         with self.env.load_factory() as f:
             info = self.build(f.db())
