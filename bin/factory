@@ -6784,6 +6784,7 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
     elif status == "done":
         return "PR none", None, tip is not None
     wt = None
+    clone = False
     if t["worktree"]:
         p = Path(t["worktree"])
         if p.exists():
@@ -6791,8 +6792,15 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             wt = p.resolve()
             if wt == root or root not in wt.parents:
                 return "outside worktrees/", None, tip is not None
-            if (wt / ".git").is_dir():
-                return "per-task clone (removal not supported yet)", None, tip is not None
+            gitp = wt / ".git"
+            if gitp.is_symlink():
+                return "symlinked .git (left alone)", None, tip is not None
+            clone = gitp.is_dir()
+            if clone:  # a per-task clone (task_clones=1): same rules as a worktree, stricter path and config checks
+                if p.is_symlink() or wt.parent != root:
+                    return "outside worktrees/ (clone must be a direct, non-symlink child)", None, tip is not None
+                if not git_config_guard(con, wt, always_event=True):  # before any git call in the clone: its config is worker-writable
+                    return "git config refused", None, tip is not None
             top = _git(wt, "rev-parse", "--show-toplevel")
             if top.returncode != 0 or Path(top.stdout.strip()).resolve() != wt:
                 return "not a git worktree", None, tip is not None
@@ -6808,6 +6816,14 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
                 return why, None, tip is not None
     # everything that would be lost must already be on the PR head (or on base, for a cancelled task with no PR)
     tips = [x for x in (tip, _git(wt, "rev-parse", "HEAD").stdout.strip() if wt else None) if x]
+    if wt and clone and branch:  # the clone's own branch is lost with it too, whatever HEAD points at
+        r = _git(wt, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")
+        if r.returncode == 0 and r.stdout.strip() not in tips:
+            tips.append(r.stdout.strip())
+        refs = _git(wt, "for-each-ref", "--format=%(objectname)", "refs/heads/", "refs/stash")  # any other branch or the stash dies with the clone too
+        if refs.returncode != 0:
+            return "unpushed commits", None, tip is not None
+        tips += [x for x in refs.stdout.split() if x not in tips]
     for sha in tips:
         if head:
             if not _is_ancestor(repo, sha, head):
@@ -6817,6 +6833,61 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             if r.returncode != 0 or r.stdout.strip() != "0":
                 return "unpushed commits", None, tip is not None
     return None, wt, tip is not None
+
+
+SANDBOX_ENDED = ("exited", "done", "cancelled", "lost", "stopped")  # agents.status values that never come back
+SANDBOX_KEEP_DAYS = 7
+
+
+def sandbox_workers_root():
+    """workerbox.WORKERS_ROOT for the live factory, the temp $HOME's equivalent under a temp FACTORY_HOME (tests)."""
+    return Path(workerbox.WORKERS_ROOT) if sandbox_home() is None else Path(workerbox._paths(sandbox_home())["workers"])
+
+
+def clean_sandbox_dirs(con, pane_cwds, dry_run, root=None):
+    """Rows for <WORKERS_ROOT>/<agent> dirs: removed when the agent ended more than 7 days ago and no live pane sits in
+    it. Kept: live/queued/starting agents, unknown agents, ended NULL, symlinks, anything not a direct child of the root."""
+    root = Path(root) if root else sandbox_workers_root()
+    if not root.is_dir() or root.is_symlink():
+        return [], 0
+    real = _real(root)
+    rows = []
+    for d in sorted(root.iterdir()):
+        row = {"task": "-", "worktree": str(d), "branch": "", "action": "skip", "reason": ""}
+        rows.append(row)
+        if d.is_symlink() or not d.is_dir():
+            row["reason"] = "sandbox dir kept: not a plain directory"
+            continue
+        ag = con.execute("SELECT status, ended FROM agents WHERE name=?", (d.name,)).fetchone()
+        if not ag:
+            row["reason"] = "sandbox dir kept: unknown agent"
+            continue
+        if ag["status"] not in SANDBOX_ENDED:
+            row["reason"] = f"sandbox dir kept: agent {ag['status']}"
+            continue
+        try:
+            age = (dt.datetime.now().astimezone() - dt.datetime.fromisoformat(ag["ended"]).astimezone()).total_seconds()
+        except (TypeError, ValueError):
+            row["reason"] = "sandbox dir kept: no usable ended time"
+            continue
+        if age <= SANDBOX_KEEP_DAYS * 86400:
+            row["reason"] = f"sandbox dir kept: ended less than {SANDBOX_KEEP_DAYS} days ago"
+            continue
+        if _real(d).parent != real or any(_within(c, _real(d)) for c in pane_cwds):
+            row["reason"] = "sandbox dir kept: live pane inside or path escapes the root"
+            continue
+        if dry_run:
+            row["action"], row["reason"] = "would remove", "sandbox dir of an ended agent"
+            continue
+        try:
+            shutil.rmtree(d)
+        except OSError as e:
+            row["reason"] = f"sandbox dir remove failed: {str(e)[:80]}"
+            continue
+        row["action"], row["reason"] = "removed", "sandbox dir of an ended agent"
+        event(con, "agent", d.name, "sandbox-cleaned", {"dir": str(d)})
+    kept = [r for r in rows if r["reason"].startswith("sandbox dir kept")]
+    return [r for r in rows if r not in kept], len(kept)  # kept dirs are counted, not listed, so a quiet run stays quiet
 
 
 def cmd_clean(a):
@@ -6861,7 +6932,15 @@ def cmd_clean(a):
             continue
         gone = []
         err = None
-        if wt:
+        if wt and (wt / ".git").is_dir() and not (wt / ".git").is_symlink():  # per-task clone: no `git worktree`, its branch goes with it
+            try:
+                if wt.parent != WORKTREES.resolve() or os.path.realpath(wt) != str(wt):
+                    raise OSError("not a direct child of worktrees/")
+                shutil.rmtree(wt)
+                gone.append("clone")
+            except OSError as e:
+                err = "clone remove failed: " + str(e)[:80]
+        elif wt:
             r = _git(repo, "worktree", "remove", "--force", str(wt))
             if r.returncode == 0:
                 gone.append("worktree")
@@ -6878,11 +6957,13 @@ def cmd_clean(a):
             continue
         row["action"] = "removed"
         row["reason"] = f"removed {' + '.join(gone)}; {err}" if err else "merged and clean"
-        event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if "worktree" in gone else None,
+        event(con, "task", t["id"], "cleaned", {"worktree": str(wt) if ("worktree" in gone or "clone" in gone) else None,
                                                 "branch": t["branch"] if "branch" in gone else None})
     if not a.dry_run:
         for repo in repos:
             _git(repo, "worktree", "prune")
+    sandbox_rows, sandbox_kept = clean_sandbox_dirs(con, pane_cwds, a.dry_run)
+    rows += sandbox_rows
     orphans = []
     if WORKTREES.is_dir():
         orphans = sorted(d for d in WORKTREES.iterdir() if d.is_dir() and d.resolve() not in known)
@@ -6890,7 +6971,7 @@ def cmd_clean(a):
     table(rows, ["task", "worktree", "branch", "action", "reason"])
     n = lambda act: sum(1 for r in rows if r["action"] == act and r["reason"] != "orphan (left alone)")
     print(f"total: {n('removed')} removed, {n('would remove')} would remove, "
-          f"{n('skip')} skipped, {len(orphans)} orphan(s)" + (" [dry run]" if a.dry_run else ""))
+          f"{n('skip')} skipped, {len(orphans)} orphan(s), {sandbox_kept} sandbox dir(s) kept" + (" [dry run]" if a.dry_run else ""))
 
 
 REMOTE_BRANCH_RE = re.compile(r"^factory/[A-Za-z0-9._/-]+$")
