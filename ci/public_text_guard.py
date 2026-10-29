@@ -110,12 +110,12 @@ def _git(repo, *args):
 
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-# PNG chunks that carry no free text. tEXt, iTXt, zTXt, eXIf and iCCP are scanned (see PNG_TEXT); any other chunk
+# PNG chunks that carry no free text. tEXt, iTXt, zTXt, eXIf, iCCP and sPLT are scanned (see PNG_TEXT); any other chunk
 # (unknown or private) makes the file unverified, so it is scanned as text like any other binary.
 PNG_PLAIN = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS", b"gAMA", b"cHRM", b"sRGB", b"sBIT", b"bKGD", b"hIST",
-             b"pHYs", b"sPLT", b"tIME", b"cICP", b"mDCV", b"cLLI", b"acTL", b"fcTL", b"fdAT", b"oFFs"}
-PNG_TEXT = {b"tEXt", b"iTXt", b"zTXt", b"eXIf", b"iCCP"}
-WEBP_PLAIN = {b"VP8 ", b"VP8L", b"VP8X", b"ALPH", b"ANIM", b"ANMF", b"ICCP"}
+             b"pHYs", b"tIME", b"cICP", b"mDCV", b"cLLI", b"acTL", b"fcTL", b"fdAT", b"oFFs"}
+PNG_TEXT = {b"tEXt", b"iTXt", b"zTXt", b"eXIf", b"iCCP", b"sPLT"}
+WEBP_PLAIN = {b"VP8 ", b"VP8L", b"VP8X", b"ALPH", b"ANIM", b"ANMF"}
 
 
 def _inflate(data):
@@ -198,7 +198,7 @@ def _gif_payloads(blob):
             end, data = _gif_sub_blocks(blob, pos + 2)
             if end is None:
                 return None
-            if blob[pos + 1] != 0xF9:  # all but graphic control (comment, application, plain text) is scanned
+            if not (blob[pos + 1] == 0xF9 and len(data) == 4):  # all but a 4-byte graphic control is scanned
                 out.append(("extension", data))
             pos = end
         elif kind == 0x2C:
@@ -220,22 +220,31 @@ def _gif_payloads(blob):
 def _jpeg_payloads(blob):
     if blob[:3] != b"\xff\xd8\xff":
         return None
+    standalone = bytes([0x01, *range(0xD0, 0xD8)])
     pos, out = 2, []
-    while pos + 4 <= len(blob):
+    while pos + 2 <= len(blob):
         if blob[pos] != 0xFF:
             return None
         marker = blob[pos + 1]
         if marker == 0xFF:
             pos += 1
             continue
+        if marker == 0xD9:  # EOI must be the last thing in the file
+            return out if pos + 2 == len(blob) else None
+        if marker in standalone:
+            pos += 2
+            continue
+        if pos + 4 > len(blob):
+            return None
         (n,) = struct.unpack(">H", blob[pos + 2:pos + 4])
         if n < 2 or pos + 2 + n > len(blob):
             return None
         if marker == 0xFE or 0xE1 <= marker <= 0xEF:  # comment and APP1..APP15 (EXIF, XMP, ...) carry text
             out.append((f"segment {marker:02x}", blob[pos + 4:pos + 2 + n]))
         pos += 2 + n
-        if marker == 0xDA:  # entropy-coded data up to the final EOI
-            return out if blob.endswith(b"\xff\xd9") else None
+        if marker == 0xDA:  # entropy-coded data: skip to the next real marker (not stuffing, RSTn or fill)
+            while pos + 1 < len(blob) and not (blob[pos] == 0xFF and blob[pos + 1] not in b"\x00\xff" + standalone[1:]):
+                pos += 1
     return None
 
 

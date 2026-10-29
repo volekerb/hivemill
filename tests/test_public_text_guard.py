@@ -442,13 +442,13 @@ class ImageBlobTests(PushBase):
     def test_png_with_unknown_chunk_or_trailing_data_is_scanned(self):
         self.add_bin("a.png", png(IHDR, (b"prVt", b"x"), (b"IDAT", TERM.encode()), IEND))
         self.assertEqual(self.push_check().returncode, 1)
+        self.base = git(self.repo, "rev-parse", "HEAD")
         self.add_bin("b.png", png(IHDR, (b"IDAT", b"x"), IEND) + TERM.encode(), msg="trailing")
         self.assertEqual(self.push_check().returncode, 1)
 
     def test_png_with_bad_crc_is_scanned(self):
         data = bytearray(png(IHDR, (b"IDAT", TERM.encode()), IEND))
-        data[data.index(b"IDAT") + 4] ^= 0xFF  # still contains the term bytes elsewhere
-        data += b"\n" + TERM.encode()
+        data[data.index(b"IDAT") + 4 + len(TERM)] ^= 0xFF  # corrupts the chunk CRC only; term bytes stay intact
         self.add_bin("c.png", bytes(data))
         self.assertEqual(self.push_check().returncode, 1)
 
@@ -458,8 +458,10 @@ class ImageBlobTests(PushBase):
         r = self.push_check()
         self.assertEqual(r.returncode, 1)
         self.assertIn(f"commit:{sha[:8]}:message", r.stdout)
+        self.base = sha
         self.add_bin(TERM + ".png", img, msg="named")
         self.assertIn(":path", self.push_check().stdout)
+        self.base = git(self.repo, "rev-parse", "HEAD")
         self.write("x.txt", "a\n")
         sha = self.commit("by", env={"GIT_AUTHOR_NAME": TERM})
         self.assertIn(f"commit:{sha[:8]}:author", self.push_check().stdout)
@@ -493,6 +495,36 @@ class ImageBlobTests(PushBase):
         webp2 = b"RIFF" + struct.pack("<I", 4 + len(exif)) + b"WEBP" + exif
         self.add_bin("e.webp", webp2, msg="webp2")
         self.assertIn("e.webp:EXIF", self.push_check().stdout)
+
+
+    def refused(self, name, data, part):
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.add_bin(name, data, msg=name)
+        r = self.push_check()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn(f"{name}:{part}", r.stdout)
+        self.assertNotIn(TERM, r.stdout)
+
+    def test_hiding_places_are_scanned(self):
+        t = TERM.encode()
+        self.refused("splt.png", png(IHDR, (b"sPLT", b"pal\0\x08" + t), (b"IDAT", b"x"), IEND), "sPLT")
+        itxt = b"Comment\0\1\0\0\0" + zlib.compress(t)
+        self.refused("itxt.png", png(IHDR, (b"iTXt", itxt), (b"IDAT", b"x"), IEND), "iTXt")
+        self.refused("exif.png", png(IHDR, (b"eXIf", b"II*\0" + t), (b"IDAT", b"x"), IEND), "eXIf")
+        bad = png(IHDR, (b"zTXt", b"k\0\0notzlib" + t), (b"IDAT", b"x"), IEND)
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.add_bin("bad.png", bad)
+        self.assertEqual(self.push_check().returncode, 1)  # malformed compressed text: whole file scanned
+        gif = (b"GIF89a" + struct.pack("<HHBBB", 1, 1, 0, 0, 0) + b"\x21\xf9" + bytes([len(t)]) + t + b"\x00"
+               + b"\x2c" + b"\0" * 8 + b"\x00" + b"\x02\x01\x01\x00" + b"\x3b")
+        self.refused("gc.gif", gif, "extension")
+        jpg = (b"\xff\xd8\xff\xda\x00\x02ab\xff\x00" + b"\xff\xfe" + struct.pack(">H", 2 + len(t)) + t
+               + b"\xff\xda\x00\x02cd\xff\xd9")
+        self.refused("late.jpg", jpg, "segment fe")
+        app1 = b"\xff\xd8\xff\xe1" + struct.pack(">H", 2 + len(t)) + t + b"\xff\xda\x00\x02ab\xff\xd9"
+        self.refused("app1.jpg", app1, "segment e1")
+        icc = b"ICCP" + struct.pack("<I", len(t) + len(t) % 2) + t + b"\0" * (len(t) % 2)
+        self.refused("icc.webp", b"RIFF" + struct.pack("<I", 4 + len(icc)) + b"WEBP" + icc, "ICCP")
 
 
 if __name__ == "__main__":
