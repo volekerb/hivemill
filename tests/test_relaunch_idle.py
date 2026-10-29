@@ -12,6 +12,7 @@ PANE = "px9"
 
 
 class RelaunchIdleCase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
