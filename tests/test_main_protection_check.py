@@ -78,6 +78,12 @@ class MainProtectionCheckTests(FactoryTestCase):
         self.tick_at(0)
         self.assertEqual(self.alerts(), [])
 
+    def test_a_frozen_repo_is_not_checked(self):
+        self.env.sql("INSERT INTO config(key,value) VALUES('frozen_repos',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (SLUG,))
+        self.gh_answers(NO_ADMINS)
+        self.tick_at(0)
+        self.assertEqual(self.alerts(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

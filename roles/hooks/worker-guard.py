@@ -304,11 +304,13 @@ class UnitBlock(PrivBlock):
 
 
 GH_VALUE_OPTS = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "--cache", "-R", "--repo",
-                 "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method"}
+                 "-f", "--raw-field", "-F", "--field", "--input", "-X", "--method", "-p", "--preview"}
 GH_MUTATING = {"PUT", "PATCH", "POST", "DELETE"}
 GH_REPO_VERBS = {"edit", "rename", "archive", "unarchive", "delete"}
 GH_PROTECTED = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s]+/(?:branches/.+/protection(?:/|\?|$)|rulesets(?:/|\?|$)"
                           r"|rules/branches)")
+GH_GRAPHQL_SETTINGS = re.compile(r"(?:update|create|delete)(?:BranchProtectionRule|Repository|RepositoryRuleset)\b"
+                                 r"|(?:un)?archiveRepository\b", re.I)
 GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
 
 
@@ -338,9 +340,15 @@ def gh_repo_change(args):
         j += 1
     if pos[:1] == ["repo"] and pos[1:2] and pos[1] in GH_REPO_VERBS:
         return f"gh repo {pos[1]}"
+    if pos[:2] in (["alias", "set"], ["alias", "import"]):  # a stored alias would run the change later, unseen
+        return f"gh {pos[0]} {pos[1]}"
     if pos[:1] != ["api"] or len(pos) < 2:
         return None
-    endpoint = pos[1]
+    endpoint = re.sub(r"#.*", "", pos[1])
+    if endpoint == "graphql":  # mutations of protection or settings; a query read from a file cannot be inspected
+        if GH_GRAPHQL_SETTINGS.search(" ".join(args)) or any(re.search(r"=@|--input", a) for a in args):
+            return "gh api graphql (settings mutation or a query read from a file)"
+        return None
     if method is None and not body:
         return None
     if method is not None and method not in GH_MUTATING:
