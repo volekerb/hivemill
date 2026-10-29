@@ -2273,8 +2273,9 @@ def cmd_task(a):
             die("give --reason or --note, not both (--reason is the blocked reason)", 2)
         a.note = a.note or a.reason
         if a.merged_externally:
-            if role not in ("owner", "director"):
-                die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
+            # workers first: `role` trusts FACTORY_AGENT, a worker process could claim to be the director
+            if caller_is_worker() or role not in ("owner", "director"):
+                die(f"only the director or the owner may close a task with --merged-externally ({caller_is_worker() or role} may not)", 3)
             if a.status != "done" or not (a.note or "").strip():
                 die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
             extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
@@ -2292,6 +2293,8 @@ def cmd_task(a):
             con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.id))
             event(con, "task", a.id, "update",
                   f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
+            con.commit()
+            run_after_merge(con, t)
             print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
             return
         if role == "coder" and a.status == "in_review":
@@ -3187,15 +3190,7 @@ def record_merged(con, t, a, sha, shown, reason, carried=(), post_err=""):
     con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.task))
     event(con, "task", a.task, "merged", f"@{shown[:8]}")
     con.commit()
-    try:
-        after_merge(con, t, t["pr_url"])
-        con.commit()
-    except (Exception, SystemExit) as e:  # noqa: BLE001 — a failed hook must never change the merge result
-        try:  # autocommit connection: writes the hook made before it failed are kept (not atomic)
-            event(con, "task", a.task, "post-merge-hook-failed", str(e))
-            con.commit()
-        except Exception:  # noqa: BLE001
-            pass
+    run_after_merge(con, t)
     if post_err:
         event(con, "task", a.task, "merge-post-error", post_err)
     print(f"{a.task} MERGED @ {shown[:8]}")
@@ -9665,6 +9660,19 @@ def _collapse_notice(con, to, subject, prs, files, cmds, tail, task):
         con.execute("UPDATE messages SET body=?, task_id=?, created=? WHERE id=?", (body, task, now(), old["id"]))
     else:
         send(con, to, subject, body, "request", task=task, sender="factory")
+
+
+def run_after_merge(con, t):
+    """after_merge() for a task whose merge is already recorded; a failed hook never changes the merge result."""
+    try:
+        after_merge(con, t, t["pr_url"])
+        con.commit()
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — a failed hook must never change the merge result
+        try:  # autocommit connection: writes the hook made before it failed are kept (not atomic)
+            event(con, "task", t["id"], "post-merge-hook-failed", str(e))
+            con.commit()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def after_merge(con, t, pr_url):
