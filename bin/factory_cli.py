@@ -5671,9 +5671,34 @@ def sandbox_real_claude(home):
     return shutil.which("claude", path=path), path
 
 
-def sandbox_preflight(role, cwd, name):
+def sandbox_gh_token(con, role):
+    """(token path, slugs) a sandboxed `role` gets: the same config as an unsandboxed worker (gh_token_ro/gh_token_rw by
+    gh_rw_roles, worker_gh_repos). Pure; ValueError(why) names the config key, never the token path. con None: the
+    default token file of the role and no slug check (callers without a DB)."""
+    home = Path(sandbox_home() or workerbox.nsbox.real_home())
+    if con is None:
+        return workerbox._paths(str(home))[workerbox._GH_KEY[role]], []
+    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) else "gh_token_ro"
+    value = cfg(con, key).strip() or f"~/.config/factory/gh-worker-{key[-2:]}-token"
+    path = str(home / value[2:]) if value.startswith("~/") else value
+    try:
+        ok = os.path.isabs(path) and bool(ghcred.check_token_path(path, str(home)))
+    except ValueError:  # its text names the path: say the config key instead
+        ok = False
+    if not ok:
+        raise ValueError(f"the gh token file named by config {key} is not an absolute path to a regular file directly in "
+                         "~/.config/factory (docs/worker-sandbox.md)")
+    slugs = _csv(cfg(con, "worker_gh_repos")) or [x for x in [_repo_slug(factory_remote_url())] if x]
+    if not slugs or not all(ghcred.SLUG_RE.fullmatch(x) for x in slugs):
+        raise ValueError("no repository for the worker token: set config worker_gh_repos (comma list of OWNER/NAME) "
+                         "or factory_remote_url")
+    return path, slugs
+
+
+def sandbox_preflight(role, cwd, name, con=None):
     """(reason, why) of the first failed check, or None. Pure checks: nothing is created, no token is read.
-    cwd None: only the checks that do not depend on the cwd (run before a worktree is prepared)."""
+    cwd None: only the checks that do not depend on the cwd (run before a worktree is prepared).
+    con: the DB whose config names the gh token file and repos; without it the role's default token file is checked."""
     if role not in workerbox.SANDBOXABLE:
         return "role", f"{role} cannot be sandboxed"
     if sandbox_home() is None and not Path(workerbox.__file__).resolve().is_relative_to(HOME.resolve()):
@@ -5685,8 +5710,12 @@ def sandbox_preflight(role, cwd, name):
         return "db-layout", "the DB is not at <FACTORY_HOME>/db/factory.db yet (T-0159 layout); let the tick migrate it"
     home = sandbox_home()
     tokens = workerbox._paths(home or workerbox.nsbox.real_home())
-    for label, key in (("worker oauth token", "oauth"), ("gh token", workerbox._GH_KEY[role])):
-        if not _token_file_ok(tokens[key]):
+    try:
+        gh_path = sandbox_gh_token(con, role)[0]
+    except ValueError as e:
+        return "token", str(e)
+    for label, path in (("worker oauth token", tokens["oauth"]), ("gh token", gh_path)):
+        if not _token_file_ok(path):
             return "token", f"the {label} for {role} is missing, not a regular 0600 file of ours, or empty (docs/worker-sandbox.md)"
     if not sandbox_real_claude(home)[0]:
         return "claude", "no claude on the pane PATH"
@@ -5756,13 +5785,15 @@ def sandbox_drop_queued(con, row, s, e):
 
 def sandbox_prepare(con, role, name, cwd):
     """Preflight, then workerbox.prepare_agent; returns the agent dir. Fails closed: any problem refuses the spawn."""
-    bad = sandbox_preflight(role, cwd, name)
+    bad = sandbox_preflight(role, cwd, name, con)
     if bad:
         sandbox_refuse(con, role, name, *bad)
     home = sandbox_home()
+    gh_path, slugs = sandbox_gh_token(con, role)  # preflight passed, so this cannot raise
     try:  # repo=HOME pins the shim's imports to the factory checkout, never to wherever this bin/factory was run from
         return workerbox.prepare_agent(name, role, cwd, str(HOME), str(DB.parent), sandbox_real_claude(home)[0],
-                                       role in ("qa", "coder"), home=home, repo=str(HOME))
+                                       role in ("qa", "coder"), home=home, repo=str(HOME),
+                                       gh_token_path=gh_path, gh_slugs=slugs)
     except (ValueError, OSError) as e:
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
 
@@ -5867,7 +5898,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
         gh_cred_preflight(con, role, name)
     if not cwd and sandbox_wanted(con, role, optin):  # cwd-free refusals first: a refused spawn creates no legacy worktree
-        bad = sandbox_preflight(role, None, name)
+        bad = sandbox_preflight(role, None, name, con)
         if bad:
             sandbox_refuse(con, role, name, *bad)
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
@@ -9153,13 +9184,15 @@ def public_main_email_check(con):
         rc, out, err = _git_rc(["log", "--format=%x00%H%x09%ae%x09%ce%x09%B", *rng])
         if rc != 0:
             raise RuntimeError(err or f"git log exited {rc}")
+        owner_noreply = noreply_email(con)
         for rec in out.split("\x00"):
             if not rec.strip():
                 continue
             sha, ae, ce, msg = (rec.split("\t", 3) + ["", "", ""])[:4]
             sha = sha.strip()
             bad = _email_problems(ae, ce)
-            if squash_body([{"messageBody": msg}], noreply_email(con)) != msg.strip():
+            msg = "\n".join(msg.splitlines()).strip()  # CRLF / CR / other separators: squash_body joins with \n
+            if squash_body([{"messageBody": msg}], owner_noreply) != msg:
                 bad.append("Co-authored-by trailer")
             tkey = f"email-alert:{sha}"
             if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
@@ -9459,7 +9492,7 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         pane = None
     optin = optin_of(r) or (r["role"] in workerbox.SANDBOXABLE and task_sandbox_required(con, r["task_id"]))
     if sandbox_wanted(con, r["role"], optin):  # refuse before the old pane is closed: a refused restart must not kill a running agent
-        bad = sandbox_preflight(r["role"], r["cwd"], r["name"]) if r["cwd"] else (
+        bad = sandbox_preflight(r["role"], r["cwd"], r["name"], con) if r["cwd"] else (
             "cwd", "the agent row has no recorded cwd; spawn it again instead of relaunching")
         if bad:
             sandbox_refuse(con, r["role"], r["name"], *bad)
