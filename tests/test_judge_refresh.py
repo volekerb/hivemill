@@ -73,6 +73,11 @@ elif argv[:2] == ["pr", "merge"]:
     st.setdefault("merges", []).append({"argv": argv, "last_view": st["last_view"]})
     st["pr"]["state"] = "MERGED"
     save()
+elif argv[:1] == ["api"] and argv[1].endswith("/branches/main/protection"):
+    if st.get("strict") is None:
+        print("gh: Branch not protected (HTTP 404)", file=sys.stderr)
+        sys.exit(1)
+    print("true" if st["strict"] else "false")
 elif argv[:2] == ["repo", "view"]:
     print(json.dumps({"url": st["repo_url"]}))
 elif argv[:1] == ["api"] and argv[1].endswith("/commits/main"):
@@ -269,6 +274,66 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertEqual(self.remote_ref(f"refs/heads/{BRANCH}"), self.head)
         self.assertTrue(any("REFRESH-IDENT" in r["detail"] for r in self.events("judge-blocked")))
         self.assertNoMerge()
+
+    def test_g_behind_ok_merges_clean_behind_head_without_refresh(self):
+        # G-022 acceptance 2: strict=false on GitHub, BEHIND but MERGEABLE, green checks, PASS verdicts
+        self.main_commit()
+        self.write_state(strict=False)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.events("refreshed"), [])
+        m = self.merges()
+        self.assertEqual(len(m), 1)
+        self.assertEqual(m[0]["argv"][m[0]["argv"].index("--match-head-commit") + 1], self.head)
+        self.assertEqual(self.remote_ref(f"refs/heads/{BRANCH}"), self.head)
+        reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE task_id='T-0001' AND role='judge'")]
+        self.assertTrue(any("merged behind main by stale_policy=behind_ok (strict=false on GitHub)" in d for d in reasons), reasons)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+
+    def _strict_refreshes(self, strict):
+        self.main_commit()
+        self.write_state(strict=strict)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.events("refreshed")), 1)
+        self.assertEqual(len(self.pushes()), 1)
+        self.assertMergedPinned(self.remote_ref(f"refs/heads/{BRANCH}"))
+        self.assertFalse(any("behind_ok" in r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE role='judge'")))
+
+    def test_g2_strict_true_is_stale_only_as_before(self):  # acceptance 3
+        self._strict_refreshes(True)
+
+    def test_g2b_unreadable_protection_is_stale_only_as_before(self):  # acceptance 3
+        self._strict_refreshes(None)
+
+    def test_g3_policy_strict_refreshes_even_if_github_strict_false(self):
+        self.main_commit()
+        self.write_state(strict=False)
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy','strict')")
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.pushes()), 1)
+        self.assertFalse(any("behind_ok" in r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE role='judge'")))
+
+    def test_g4_behind_ok_does_not_merge_a_conflicting_pr(self):
+        # acceptance 4: GitHub says CONFLICTING (DIRTY): refreshed as today, here the refresh finds a real conflict
+        git(self.wt, "checkout", "-q", BRANCH)
+        self.commit(self.wt, "base.txt", "line1\nPR\nline3\n", "pr edits base")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.main_commit("base.txt", "line1\nMAIN\nline3\n")
+        self.ok_verdicts()
+        self.write_state(strict=False)
+        st = self.gh_state()
+        st["pr"]["mergeable"] = "CONFLICTING"
+        self.state.write_text(json.dumps(st))
+        p = self.judge()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("CONFLICT-ONLY", p.stderr + p.stdout)
+        self.assertNoMerge()
+        self.assertEqual(self.pushes(), [])
 
     def test_a2_fresh_head_merges_without_refresh(self):
         git(self.wt, "fetch", "-q", "origin", "main")
