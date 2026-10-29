@@ -5,8 +5,6 @@
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg"><img src="docs/images/wordmark-light.svg" alt="Hivemill" height="72"></picture></p>
 
-<h1 align="center">The agent that writes the code never merges it.</h1>
-
 <h3 align="center">Hivemill is a self-hosted software factory of Claude Code agents,<br>with separate review, QA and a judge that decides the merge.</h3>
 
 <p align="center">
