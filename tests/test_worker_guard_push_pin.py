@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 
+from harness import git
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 TASK = "t-0689"
@@ -24,14 +26,14 @@ class PushPinTests(unittest.TestCase):
         os.makedirs(os.path.join(self.home, "roles"))
         # a real clone under worktrees/ (own .git dir, not the live home) with a local bare origin
         origin = os.path.join(self.tmp, "origin.git")
-        git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
-        subprocess.run(git + ["init", "-q", "--bare", origin], check=True)
-        subprocess.run(git + ["init", "-q", "-b", "main", self.wt], check=True)
-        subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", "i"], cwd=self.wt, check=True)
-        subprocess.run(git + ["remote", "add", "origin", origin], cwd=self.wt, check=True)
-        subprocess.run(git + ["push", "-q", "origin", "main"], cwd=self.wt, check=True)
-        subprocess.run(git + ["fetch", "-q", "origin"], cwd=self.wt, check=True)
-        subprocess.run(git + ["checkout", "-q", "-b", f"factory/{TASK}"], cwd=self.wt, check=True)
+        ident = ("-c", "user.email=t@t", "-c", "user.name=t")
+        git(*ident, "init", "-q", "--bare", origin, cwd=self.tmp)
+        git(*ident, "init", "-q", "-b", "main", self.wt, cwd=self.tmp)
+        git(*ident, "commit", "-q", "--allow-empty", "-m", "i", cwd=self.wt)
+        git(*ident, "remote", "add", "origin", origin, cwd=self.wt)
+        git(*ident, "push", "-q", "origin", "main", cwd=self.wt)
+        git(*ident, "fetch", "-q", "origin", cwd=self.wt)
+        git(*ident, "checkout", "-q", "-b", f"factory/{TASK}", cwd=self.wt)
 
     def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}"):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
