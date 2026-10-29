@@ -10880,6 +10880,7 @@ def tick_wake_leads(con):
             wake_lead(con, t, trigger)
         except SystemExit as e:  # a refused spawn (sandbox, bad effort) must not stop the tick; the next one retries
             event(con, "team", t["id"], "wake-error", f"spawn refused (exit {e.code})")
+            con.execute("DELETE FROM throttle WHERE key=?", (f"wakedb:{t['id']}",))  # no wake happened: no debounce window
 
 
 DISPATCH_ROLES = ("pm", "coder", "qa", "reviewer", "cleaner")  # never judge (the merge queue and leads own judges)
