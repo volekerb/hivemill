@@ -116,7 +116,9 @@ class StopDuringTokenReadTests(base.ShimBase):
                 f"real = nsbox.read_token\n"
                 f"def rt(path):\n    t = real(path)\n    os.kill(os.getpid(), {int(sig)})\n    return t\n"
                 f"nsbox.read_token = rt\n"
-                f"nsbox.start_proxy = lambda *a: open({str(proxy_marker)!r}, 'w').close()\n"
+                f"rp = nsbox.start_proxy\n"
+                f"def sp(*a):\n    open({str(proxy_marker)!r}, 'w').close()\n    return rp(*a)\n"
+                f"nsbox.start_proxy = sp\n"
                 f"nsbox.shim_main({cfg!r}, [])\n")
         p = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60,
                            env={"PATH": os.environ["PATH"], "HOME": str(self.home)})
@@ -124,6 +126,7 @@ class StopDuringTokenReadTests(base.ShimBase):
 
     def test_sigterm_during_read_token_never_starts_the_proxy(self):
         p, marker, proxy_marker = self.run_driver(signal.SIGTERM)
+        self.addCleanup(nsbox.stop_proxy, str(self.trial))
         self.assertEqual(p.returncode, 128 + signal.SIGTERM, p.stderr)
         self.assertFalse(proxy_marker.exists(), "proxy started after a stop signal")
         self.assertFalse(marker.exists())
