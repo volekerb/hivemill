@@ -1728,11 +1728,14 @@ class Analyzer:
         if not w:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
                         "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
-        # T-0719: -C may only name this pane's own worktree (the hook cwd), never a scratch clone
+        # T-0719: -C may only name this pane's own worktree (the dir under worktrees/ holding the hook cwd); a cwd outside
+        # any worktrees/ dir resolves to the filesystem root, which no -C target can equal
         if w.group(1):
             own = os.path.realpath(self.cwd)
+            while own != os.path.dirname(own) and os.path.basename(os.path.dirname(own)) != "worktrees":
+                own = os.path.dirname(own)  # a cwd in a subdirectory: the worktree root is the dir under worktrees/
             tgt = os.path.realpath(w.group(1) if os.path.isabs(w.group(1)) else os.path.join(self.cwd, w.group(1)))
-            if tgt != own:
+            if os.path.basename(os.path.dirname(own)) != "worktrees" or tgt != own:
                 raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this pane's own "
                             f"worktree (your cwd), not {w.group(1)}; drop -C or fix the path")
 

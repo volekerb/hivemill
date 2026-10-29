@@ -33,12 +33,12 @@ class PushPinTests(unittest.TestCase):
         subprocess.run(git + ["fetch", "-q", "origin"], cwd=self.wt, check=True)
         subprocess.run(git + ["checkout", "-q", "-b", f"factory/{TASK}"], cwd=self.wt, check=True)
 
-    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}"):
+    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
         env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home)
         if agent:
             env["FACTORY_AGENT"] = agent
-        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.wt})
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
         return subprocess.run([sys.executable, HOOK, "--role", role], input=payload, capture_output=True,
                               text=True, timeout=30, env=env)
 
@@ -120,6 +120,12 @@ class PushPinTests(unittest.TestCase):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 2, p.stderr)
                 self.assertIn("own worktree", p.stderr)
+        # cwd in a scratch clone: even `-C .` is refused; cwd in a worktree subdir: -C <worktree root> passes
+        for tgt in (".", scratch):
+            self.assertEqual(self.run_hook(f"git -C {tgt} push origin {OWN}", cwd=scratch).returncode, 2)
+        sub = os.path.join(self.wt, "sub")
+        os.makedirs(sub)
+        self.assertEqual(self.run_hook(f"git -C {self.wt} push origin {OWN}", cwd=sub).returncode, 0)
         link_own = os.path.join(self.tmp, "ownlink")
         os.symlink(self.wt, link_own)
         self.assertEqual(self.run_hook(f"git -C {link_own} push origin {OWN}").returncode, 0)
