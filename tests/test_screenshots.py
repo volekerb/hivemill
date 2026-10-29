@@ -668,7 +668,7 @@ class TestFullRun(ScreenshotsBase):
                          (307200, 716800, 8388608))
 
     def test_tasks_is_captured_lower_than_hmax_and_the_caps_and_hmax_are_unchanged(self):
-        self.assertEqual(screenshots.PAGE_HEIGHT, {"tasks": 960})  # HMAX itself is patched to 250 in setUp
+        self.assertEqual(screenshots.PAGE_HEIGHT, {"tasks": 936})  # HMAX itself is patched to 250 in setUp
         self.assertEqual((screenshots.WARN_PNG_BYTES, screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES),
                          (307200, 716800, 8388608))
         calls = []
@@ -1122,8 +1122,23 @@ class TestImageProcessing(unittest.TestCase):
         x0 = screenshots.main_x0(w)
         out, truncated = screenshots.crop_to_content(rows, x0, card)
         self.assertTrue(truncated)
-        self.assertEqual(len(out), 900 + screenshots.MARGIN_CSS * screenshots.SCALE)
+        self.assertEqual(len(out), 900 + gap // 2)   # half the gap: never into the next heading
         self.assertEqual(bytes(out[-1][:3]), bytes(bg))   # ends in the gap, below the first section
+
+    def test_capture_ending_in_a_gap_above_the_next_section_is_cut_before_its_heading(self):
+        w, bg, card = 2560, (240, 240, 240), (255, 255, 255)
+        def band(colour, n):
+            r = bytearray(solid(w, bg))
+            r[600 * 3:(w - 100) * 3] = bytes(colour) * (w - 700)
+            return [bytearray(r) for _ in range(n)]
+        blank = lambda n: [bytearray(solid(w, bg)) for _ in range(n)]  # noqa: E731
+        rows = band(card, 900) + blank(40) + band((90, 90, 90), 12) + blank(10)   # card, gap, heading text, window end
+        out, truncated = screenshots.crop_to_content(rows, screenshots.main_x0(w), bg, window=len(rows))
+        self.assertTrue(truncated)
+        self.assertEqual(len(out), 920)   # half of the 40-row gap, so the heading rows are not in the image
+        out, truncated = screenshots.crop_to_content(rows, screenshots.main_x0(w), bg)   # no window: a page that ends there
+        self.assertFalse(truncated)
+        self.assertGreater(len(out), 920)
 
     def test_taller_page_without_a_gap_is_kept_whole(self):
         w, bg = 2560, (240, 240, 240)

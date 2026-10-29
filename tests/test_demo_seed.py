@@ -327,6 +327,8 @@ class Seeded(unittest.TestCase):
         self.assertEqual(rows(db, "SELECT COUNT(*) FROM events WHERE detail LIKE '%gate closed%'"), [(0,)])
         sample = rows(db, "SELECT ts, live, cap FROM util_samples")
         self.assertEqual(sample, [(NOW, live, cap)])
+        usage = json.loads((self.a / "home" / ".claude" / "usage-limits.json").read_text())
+        self.assertGreaterEqual(usage["updated_at"], int(dt.datetime.fromisoformat(NOW).timestamp()), "usage is fresh when served hours after --now")
 
     def test_minimum_counts(self):
         """The same numbers the acceptance walk checks through the CLI: goals, live agents, tasks, merges in 21 days."""

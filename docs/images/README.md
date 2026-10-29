@@ -33,18 +33,23 @@ file name. In order, it:
    keeping a 32 CSS px (64 px) bottom margin and a minimum height of 400 CSS px. The background is the most frequent
    colour of the capture's last row, and the crop is measured on the main column only (right of the 232 px sidebar and
    its hairline, `SIDEBAR_CSS_PX`, checked against `web/static/app.css` by a test); the PNG keeps the full width.
-   Long lists show the top `HMAX` CSS px: a page whose content reaches the last row is kept whole, uncropped, and the
-   script prints `INFO <file>: truncated at HMAX (1600 CSS px)`;
+   Long lists show the top `HMAX` CSS px: a page whose content reaches the window, or ends in a short background tail
+   (`WINDOW_TAIL`), is cut in the last gap between sections (`SECTION_GAP_MIN` background rows, half the gap kept), not
+   through a card or a heading, and the script prints `INFO <file>: truncated at HMAX (1600 CSS px)`. `/tasks` is a flat
+   table with no section gaps: it is cut by its fixed `PAGE_HEIGHT`, chosen just above the "To do" group heading.
+   Every browser run sets `--virtual-time-budget` so the web fonts (Inter) are loaded before the screenshot, and the
+   demo server runs with a pinned load and free memory (`DEMO_MACHINE`), so the System card reads the same on any host;
 8. decodes each PNG (stdlib only) and checks the top 400 px: at least 200 distinct colours (anti-aliased text; a page
    without text has a few dozen), and each page's light image has a mean luminance at least 40 above its dark image;
    then rejects mostly empty images: a row is blank when 99% of its main-column pixels are background, and only runs
    of at least 48 blank rows (24 CSS px) count, so line spacing does not. More than 35% blank rows exits 3 with
    `<file>: <pct>% blank rows (limit 35%)`;
-9. builds `hero.png` (home light left half | home dark right half, a 2 px neutral divider, the smaller of the two
-   heights) and `social-preview.png` (exactly 1280x640, at most 1 MB, GitHub's limit): a 160 px top band with the
-   wordmark (`wordmark-light.svg`, cropped to its ink) and a one-line tagline over the hero downscaled by 2. The
-   browser screenshots a small local HTML page for it (the wordmark inline, the hero as a `data:` image, no external
-   URL) at 1280x640, DPR 1;
+9. builds `hero.png` (the light home page | a 2 px neutral divider | the dark home page, each downscaled by 2 so the
+   divider sits in the gutter and never crosses text; the smaller of the two heights) and `social-preview.png`
+   (exactly 1280x640, at most 1 MB, GitHub's limit): a 160 px top band with the wordmark (`wordmark-light.svg`,
+   cropped to its ink) and a one-line tagline in Inter (the SemiBold woff2 is inlined) over the hero downscaled by 2.
+   The browser screenshots a small local HTML page for it (the wordmark inline, the hero as a `data:` image, no
+   external URL) at 1280x640, DPR 1;
 10. checks the sizes: it prints `WARN` above 307200 bytes per PNG, and exits 3 above 716800 bytes for one PNG or
     8388608 bytes for all together (director M6655), listing every file's size. Nothing is written to `docs/images/`
     on any failure above (everything is built in the temp dir first);
@@ -63,28 +68,28 @@ Chrome for Testing headless shell, the only thing the script downloads:
 
 ## Images
 
-Committed from one owner `python3 ci/screenshots.py` run (T-0480, Inter at 2x). Page images are 2560 px wide (1280 CSS px at 2x). `/tasks` is captured at 960 CSS px (`PAGE_HEIGHT`) to stay under the
+Committed from one `python3 ci/screenshots.py` run (T-0480; T-0727 regenerated home, tasks, agents, hero and the social preview; Inter at 2x). Page images are 2560 px wide (1280 CSS px at 2x). `/tasks` is captured at 936 CSS px (`PAGE_HEIGHT`) to stay under the
 per-PNG cap; the other pages use `HMAX` (1600).
 
 | File | Page | Theme | Pixels (w x h) | Bytes |
 |---|---|---|---|---|
-| home-light.png | Home | light | 2560 x 1949 | 420142 |
-| home-dark.png | Home | dark | 2560 x 1950 | 420202 |
+| home-light.png | Home | light | 2560 x 1949 | 418753 |
+| home-dark.png | Home | dark | 2560 x 1950 | 418685 |
 | goals-light.png | Goals | light | 2560 x 2672 | 366556 |
 | goals-dark.png | Goals | dark | 2560 x 2672 | 367537 |
 | goal-light.png | Goal | light | 2560 x 2043 | 241866 |
 | goal-dark.png | Goal | dark | 2560 x 2044 | 243659 |
-| tasks-light.png | Tasks | light | 2560 x 1920 | 322701 |
-| tasks-dark.png | Tasks | dark | 2560 x 1920 | 323397 |
-| agents-light.png | Agents | light | 2560 x 3200 | 400881 |
-| agents-dark.png | Agents | dark | 2560 x 3200 | 400984 |
-| throughput-light.png | Throughput | light | 2560 x 3110 | 359042 |
-| throughput-dark.png | Throughput | dark | 2560 x 3111 | 361979 |
+| tasks-light.png | Tasks | light | 2560 x 1872 | 317956 |
+| tasks-dark.png | Tasks | dark | 2560 x 1872 | 319042 |
+| agents-light.png | Agents | light | 2560 x 3009 | 378136 |
+| agents-dark.png | Agents | dark | 2560 x 3009 | 377803 |
+| throughput-light.png | Throughput | light | 2560 x 3110 | 356615 |
+| throughput-dark.png | Throughput | dark | 2560 x 3111 | 358938 |
 | quality-light.png | Quality | light | 2560 x 2549 | 220236 |
 | quality-dark.png | Quality | dark | 2560 x 2549 | 222533 |
-| hero.png | Home (light left, dark right) | both | 2560 x 1949 | 427883 |
-| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 124706 |
-| **Total** | | | | 5224304 |
+| hero.png | Home (light left, dark right) | both | 2562 x 974 | 386011 |
+| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 173073 |
+| **Total** | | | | 5167399 |
 
 | Page | Light | Dark | What it shows |
 |---|---|---|---|

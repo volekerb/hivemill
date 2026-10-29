@@ -68,7 +68,7 @@ WIDTH = 1280  # CSS px
 SCALE = 2  # device pixel ratio: a PNG is WIDTH * SCALE px wide
 DPR_FLAG = "--force-device-scale-factor=%d" % SCALE
 HMAX = 1600  # CSS px: the capture window height; a page taller than this is truncated here (see crop_to_content)
-PAGE_HEIGHT = {"tasks": 960}  # CSS px: a page-specific capture height below HMAX; /tasks at HMAX is over MAX_PNG_BYTES
+PAGE_HEIGHT = {"tasks": 936}  # CSS px: a page-specific capture height below HMAX (tasks: just under the 'To do' group heading, a table has no gaps to cut in); /tasks at HMAX is over MAX_PNG_BYTES
 MARGIN_CSS = 32  # CSS px of page background kept below the last content row
 MIN_HEIGHT_CSS = 400  # a cropped image is never shorter than this
 CROP_TOL = 8  # per channel: a pixel within this of the page background counts as background
@@ -79,6 +79,8 @@ SIDEBAR_CSS_PX = 232
 SIDEBAR_BREAKPOINT_CSS_PX = 1024
 BLANK_PIXEL_FRAC = 0.99  # a row is blank when this share of its (main column) pixels is background
 BLANK_LIMIT_PCT = 35  # abort when more than this share of an image's rows are blank
+WINDOW_TAIL = 160  # rows (80 CSS px): a capture whose background tail is shorter than this did not end on its own, the window cut it
+SECTION_GAP_MIN = 32  # rows (16 CSS px at 2x): the gap between a card and the next section heading (about 40); a heading sits closer (about 20) to its own card
 # Text and line spacing leave single blank rows between lines; only a run of at least this many consecutive blank rows
 # (24 CSS px at 2x) is empty space that counts.
 BLANK_RUN_MIN = 48
@@ -533,7 +535,7 @@ def row_bad(row, x0, x1, bg):
 
 def section_end(rows, x0, bg):
     """Row count to keep for a page taller than the capture: cut in the last gap between sections (a run of at least
-    BLANK_RUN_MIN background rows on the main column, kept with a MARGIN_CSS bottom margin), not through a section.
+    SECTION_GAP_MIN background rows on the main column, kept with a bottom margin of at most MARGIN_CSS and half the gap), not through a section.
     Everything is kept when no gap leaves at least MIN_HEIGHT_CSS above it."""
     width = len(rows[0]) // 3
     # the last row is inside a section here, so `bg` is not trusted: the page background is what the main column's left
@@ -547,24 +549,25 @@ def section_end(rows, x0, bg):
             end = y
             while end > 0 and row_bad(rows[end - 1], x0, width, bg) == 0:
                 end -= 1
-            if y - end + 1 >= BLANK_RUN_MIN and end >= MIN_HEIGHT_CSS * SCALE:
-                return min(len(rows), end + MARGIN_CSS * SCALE)
+            if y - end + 1 >= SECTION_GAP_MIN and end >= MIN_HEIGHT_CSS * SCALE:
+                return min(len(rows), end + min(MARGIN_CSS * SCALE, (y - end + 1) // 2))   # never into the next heading
             y = end - 1
         else:
             y -= 1
     return len(rows)
 
 
-def crop_to_content(rows, x0, bg):
+def crop_to_content(rows, x0, bg, window=None, sections=True):
     """(rows, truncated). Drops the trailing rows that are background on the main column, keeping a MARGIN_CSS bottom
     margin and at least MIN_HEIGHT_CSS. When content reaches the last row of the capture (a page taller than HMAX) all
-    rows are kept and truncated is True."""
+    rows are kept and truncated is True. A capture as tall as the `window` (rows) whose trailing background is shorter than WINDOW_TAIL rows is cut at a
+    section boundary too (`sections`; off for a flat table, whose rows have blank gaps of their own): its last rows are a gap above a section the window did not reach."""
     width = len(rows[0]) // 3
     y = len(rows) - 1
     while y >= 0 and row_bad(rows[y], x0, width, bg) == 0:
         y -= 1
-    if y == len(rows) - 1:
-        return rows[:section_end(rows, x0, bg)], True
+    if y == len(rows) - 1 or (window and len(rows) >= window and len(rows) - 1 - y < WINDOW_TAIL):
+        return (rows[:section_end(rows, x0, bg)] if sections else rows), True
     return rows[:min(len(rows), max(y + 1 + MARGIN_CSS * SCALE, MIN_HEIGHT_CSS * SCALE))], False
 
 
@@ -744,7 +747,8 @@ def capture_all(binary, tmp, port, pages):
             width, rows = read_rows(shots / fname)
             x0 = main_x0(width)
             bg = background(rows, x0)
-            rows, truncated = crop_to_content(rows, x0, bg)
+            rows, truncated = crop_to_content(rows, x0, bg, window=min(HMAX, PAGE_HEIGHT.get(name, HMAX)) * SCALE,
+                                              sections=name not in PAGE_HEIGHT)   # a fixed-height page is a flat table: no section gaps
             if truncated:
                 print("INFO %s: truncated at HMAX (%d CSS px)" % (fname, min(HMAX, PAGE_HEIGHT.get(name, HMAX))))
             write_png(outdir / fname, rows)

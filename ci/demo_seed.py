@@ -28,6 +28,7 @@ SCAN = ROOT / "ci" / "scrub_scan.py"
 REFUSE = "refusing to seed the live factory home"
 DUMP_NAME = ".scrub-dump.sql"
 SEED = 20261025
+USAGE_FRESH_AHEAD_S = 12 * 3600   # usage-limits.json is stamped this far ahead of --now: the demo is served later and must not read "Stale"
 HEADROOM = 5   # max_live_agents = live agents + HEADROOM
 
 
@@ -938,7 +939,7 @@ def write_logs(home, now, sessions):
                 "message": {"id": f"msg_demo_{s['log_sid'][:8]}_{k}", "model": s["model"], "usage": usage}}))
         (d / f"{s['log_sid']}.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (claude / "usage-limits.json").write_text(json.dumps({
-        "updated_at": int(now.timestamp()), "five_hour_pct": 38, "seven_day_pct": 54,
+        "updated_at": int(now.timestamp()) + USAGE_FRESH_AHEAD_S, "five_hour_pct": 38, "seven_day_pct": 54,
         "five_hour_resets_at": int(now.timestamp()) + 3 * 3600, "seven_day_resets_at": int(now.timestamp()) + 3 * 86400}) + "\n",
         encoding="utf-8")
 
