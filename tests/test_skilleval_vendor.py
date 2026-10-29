@@ -477,6 +477,10 @@ class PrescreenUnitTests(unittest.TestCase):
         self.assertEqual(self.hit_ids("Edit src/app.tsx, lib/foo.jsx, pkg/mod.java."), [])
         self.assertEqual(self.hit_ids("Open a/b/notes.md and docs/img/logo.png, then scripts/x/run.sh."), [])
 
+    def test_integer_ip_leading_zero_does_not_crash(self):
+        for u in ("mail me@0123456789", "see //00000000"):
+            self.assertIn("url", self.hit_ids(u), u)
+
     def test_integer_ip_after_scheme_or_at_hits(self):
         for u in ("go ftp://0x7f000001/x", "go ftp://2130706433", "mail me@2130706433:80", "see //0x7F000001",
                   "see ftp://2130706433/", "see ftp://2130706433.", "see ftp://0x0000007f000001"):

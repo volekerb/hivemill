@@ -301,7 +301,8 @@ def _bare_host_bad(line, own_repo):
         if m.group(1).count(":") >= 2 and _is_ip(m.group(1)):
             return True
     for m in INT_IP.finditer(line):
-        if int(m.group(1), 0) <= 0xFFFFFFFF:
+        tok = m.group(1)
+        if int(tok, 16 if tok[:2].lower() == "0x" else 10) <= 0xFFFFFFFF:
             return True
     for m in BARE_HOST.finditer(line):
         tok = m.group(1).rstrip(".,;:")
