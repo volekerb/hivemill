@@ -37,7 +37,7 @@ def read_token_file(path):
     if not path:
         return None
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError:
         return None
     with os.fdopen(fd) as f:
@@ -45,15 +45,19 @@ def read_token_file(path):
         if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_uid != os.getuid():
             return None
         try:
-            return f.read().strip() or None
+            tok = f.read().strip()
         except (OSError, UnicodeDecodeError):
             return None
+        return tok if tok and tok.isprintable() and not any(c.isspace() for c in tok) else None
 
 
 def worker_token(env=None):
     """$GH_TOKEN when set (the sandbox case), else the file named by $FACTORY_GH_TOKEN_FILE; None when neither works."""
     env = os.environ if env is None else env
-    return env.get("GH_TOKEN", "").strip() or read_token_file(env.get("FACTORY_GH_TOKEN_FILE"))
+    tok = env.get("GH_TOKEN", "").strip()
+    if tok:
+        return tok if tok.isprintable() and not any(c.isspace() for c in tok) else None
+    return read_token_file(env.get("FACTORY_GH_TOKEN_FILE"))
 
 
 def _parse_slugs(arg):
@@ -107,15 +111,18 @@ def gh_shim(real_gh, config_dir, args):
         return SHIM_EXIT
     env = {k: v for k, v in os.environ.items() if k not in ("GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")}
     env.update(GH_TOKEN=token, GH_CONFIG_DIR=config_dir, GH_PROMPT_DISABLED="1")
-    os.execve(real_gh, [real_gh, *args], env)
-    return SHIM_EXIT  # not reached
+    try:
+        os.execve(real_gh, [real_gh, *args], env)
+    except OSError as e:
+        print(f"ghcred: cannot run the real gh ({e.strerror}); re-run the worker gh setup", file=sys.stderr)
+    return SHIM_EXIT
 
 
 def check_token_path(token_path, home):
     """The resolved token path; ValueError unless it is a regular file directly in <home>/.config/factory."""
     cfg_dir = os.path.realpath(os.path.join(home, ".config", "factory"))
     real = os.path.realpath(token_path)
-    if os.path.dirname(real) != cfg_dir or not os.path.isfile(real):
+    if os.path.dirname(real) != cfg_dir or not os.path.isfile(real) or os.path.islink(token_path):
         raise ValueError(f"worker gh token must be a regular file directly in {cfg_dir}, not {token_path}")
     return real
 

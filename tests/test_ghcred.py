@@ -137,6 +137,17 @@ class HelperTests(Base):
         self.assertIn("worker gh token unavailable", err.getvalue())
         self.assertNotIn(TOKEN, err.getvalue())
 
+    def test_token_with_embedded_newline(self):
+        d = self.prepare()
+        self.write_token("abc\nhost=evil")
+        self.assert_unavailable(d)
+
+    def test_token_fifo_does_not_hang(self):
+        d = self.prepare()
+        self.token.unlink()
+        os.mkfifo(self.token, 0o600)
+        self.assert_unavailable(d)
+
     def test_gh_token_env_used(self):
         d = self.prepare()
         self.token.unlink()
@@ -222,6 +233,12 @@ class ShimTests(Base):
         self.assertIn("worker gh token unavailable", r.stderr)
         self.assertFalse((self.tmp / "gh-ran").exists())
 
+    def test_shim_missing_real_gh_exits_4(self):
+        d = self.prepare()
+        r = self.run_shim(d)
+        self.assertEqual(r.returncode, 4)
+        self.assertIn("cannot run the real gh", r.stderr)
+
     def test_shim_uses_fixed_real_gh_not_path(self):
         self.stub_gh()
         d = self.prepare()
@@ -286,6 +303,13 @@ class PrepareDirTests(Base):
         hosts.write_text("x")
         link = self.home / ".config" / "factory" / "link"
         link.symlink_to(hosts)
+        with self.assertRaises(ValueError):
+            ghcred.prepare_dir("a", "coder", str(link), [SLUG], "/usr/bin/gh", home=str(self.home),
+                               root=str(self.root))
+
+    def test_token_symlink_inside_config_dir_refused(self):
+        link = self.home / ".config" / "factory" / "alias"
+        link.symlink_to(self.token)
         with self.assertRaises(ValueError):
             ghcred.prepare_dir("a", "coder", str(link), [SLUG], "/usr/bin/gh", home=str(self.home),
                                root=str(self.root))
