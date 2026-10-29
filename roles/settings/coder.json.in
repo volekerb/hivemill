@@ -173,7 +173,11 @@
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git push origin HEAD:factory/*)",
+      "Bash(gh pr create --repo volekerb/hivemill *)",
+      "Bash(gh pr ready --repo volekerb/hivemill *)",
+      "Bash(gh pr ready * --repo volekerb/hivemill)"
     ]
   },
   "env": {

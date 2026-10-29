@@ -57,7 +57,28 @@
       "Bash(git log:*)",
       "Bash(git diff:*)",
       "Bash(git branch -D factory/*)",
-      "Bash(git push origin --delete factory/*)"
+      "Bash(git push origin --delete factory/*)",
+      "Bash(factory clean)",
+      "Bash(factory clean --dry-run)",
+      "Bash(factory clean --remote-branch factory/*)",
+      "Bash(factory agents)",
+      "Bash(factory agents *)",
+      "Bash(factory task show *)",
+      "Bash(factory done *)",
+      "Bash(git worktree list)",
+      "Bash(df -h *)",
+      "Bash(du -sh *)"
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Organization: single-owner AI agent factory on one Proxmox VM; agents run unattended overnight while the owner sleeps.",
+      "Org-specific CLIs: `factory` (~/factory/bin/factory) is the factory's trusted orchestration CLI. It enforces role permissions, owner caps, the resource spawn gate and the head-SHA merge gate itself. `factory spawn` is the only sanctioned way to start agents."
+    ],
+    "allow": [
+      "$defaults",
+      "Factory housekeeping: the cleaner running `factory clean` and deleting /tmp/qa-* directories and /tmp/claude-<uid>/ scratchpads of agents that `factory agents` shows as exited or lost is routine and allowed. Anything under ~/factory other than through `factory clean` is NOT covered."
     ]
   },
   "env": {
