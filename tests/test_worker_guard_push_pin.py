@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 
-import _gitenv  # noqa: F401
+from harness import git
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -26,14 +26,14 @@ class PushPinTests(unittest.TestCase):
         os.makedirs(os.path.join(self.home, "roles"))
         # a real clone under worktrees/ (own .git dir, not the live home) with a local bare origin
         origin = os.path.join(self.tmp, "origin.git")
-        git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
-        subprocess.run(git + ["init", "-q", "--bare", origin], check=True)
-        subprocess.run(git + ["init", "-q", "-b", "main", self.wt], check=True)
-        subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", "i"], cwd=self.wt, check=True)
-        subprocess.run(git + ["remote", "add", "origin", origin], cwd=self.wt, check=True)
-        subprocess.run(git + ["push", "-q", "origin", "main"], cwd=self.wt, check=True)
-        subprocess.run(git + ["fetch", "-q", "origin"], cwd=self.wt, check=True)
-        subprocess.run(git + ["checkout", "-q", "-b", f"factory/{TASK}"], cwd=self.wt, check=True)
+        ident = ("-c", "user.email=t@t", "-c", "user.name=t")
+        git(*ident, "init", "-q", "--bare", origin, cwd=self.tmp)
+        git(*ident, "init", "-q", "-b", "main", self.wt, cwd=self.tmp)
+        git(*ident, "commit", "-q", "--allow-empty", "-m", "i", cwd=self.wt)
+        git(*ident, "remote", "add", "origin", origin, cwd=self.wt)
+        git(*ident, "push", "-q", "origin", "main", cwd=self.wt)
+        git(*ident, "fetch", "-q", "origin", cwd=self.wt)
+        git(*ident, "checkout", "-q", "-b", f"factory/{TASK}", cwd=self.wt)
 
     def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
@@ -113,7 +113,7 @@ class PushPinTests(unittest.TestCase):
     def test_dash_c_must_be_own_worktree(self):
         """T-0719: -C into a scratch clone (another origin) is refused, also via a symlink to it; a symlink to the own one passes."""
         scratch = os.path.join(self.tmp, "scratch")
-        subprocess.run(["git", "init", "-q", "-b", "main", scratch], check=True)
+        git("init", "-q", "-b", "main", scratch, cwd=self.tmp)
         link = os.path.join(self.tmp, "link")
         os.symlink(scratch, link)
         for tgt in (scratch, link, "..", os.path.join(self.home, "worktrees", "G-018-T-0001")):
