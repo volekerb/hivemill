@@ -86,7 +86,7 @@ class ClassifyTest(unittest.TestCase):
     def test_every_risky_path(self):
         paths = ["ci/public_text_guard.py", "ci/publish_repo.py", "ci/scrub_scan.py", "ci/guard_diff.py",
                  "ci/ci_tier.py", "ci/affected.py", "ci/shard.py", "roles/hooks/guard.sh",
-                 "roles/settings/coder.json.in", "scout/nsbox.py", "scout/gatebox.py", "scout/ghcred.py",
+                 "roles/settings/coder.json.in", "scout/nsbox.py", "scout/gatebox.py", "scout/ghcred.py", "scout/egress.py", "scout/sandbox.py", "scout/workerbox.py", "systemd/factory-tick.timer",
                  ".github/workflows/tests.yml", ".github/CODEOWNERS"]
         for p in paths:
             with self.subTest(path=p):
@@ -95,7 +95,7 @@ class ClassifyTest(unittest.TestCase):
 
     def test_every_risky_def_in_bin_factory(self):
         defs = ["cmd_judge", "judge_pick", "gate_x", "verdict_carries", "head_has_main", "refresh_branch",
-                "git_config_guard", "noreply_email", "_push_policy", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA"]
+                "git_config_guard", "noreply_email", "refuse_worker", "sandbox_preflight", "_public_guard", "_push_policy", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA"]
         for name in defs:
             with self.subTest(name=name):
                 repo = Repo(tempfile.mkdtemp(dir=self._tmp.name))
@@ -138,6 +138,14 @@ class PlanTest(unittest.TestCase):
     def test_docs_mode_skips_suite_and_go(self):
         p = self.plan({"README.md": "c\n"})
         self.assertEqual((p["tier"], p["mode"], p["go"], p["modules"]), ("docs", "docs", "false", ""))
+
+    def test_docs_file_that_a_test_reads_runs_that_test(self):
+        self.repo.write("tests/test_readme.py", "x = 'README.md'\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "more")
+        self.repo.base = self.repo.rev()
+        p = self.plan({"README.md": "c\n"})
+        self.assertEqual((p["tier"], p["mode"], p["modules"]), ("docs", "affected", "test_readme.py"))
 
     def test_normal_mode_lists_affected_modules(self):
         p = self.plan({"tests/test_alpha.py": "import unittest\n"})

@@ -28,12 +28,17 @@ RISKY_PATHS = [
     "ci/public_text_guard.py", "ci/publish_repo.py", "ci/scrub_*", "ci/guard_*",
     "ci/ci_tier.py", "ci/affected.py", "ci/shard.py", "ci/test_count_gate.py",  # the CI gates themselves
     "roles/hooks/*", "roles/*settings*",
-    "scout/nsbox.py", "scout/gatebox.py", "scout/ghcred.py",
+    "scout/nsbox.py", "scout/gatebox.py", "scout/ghcred.py", "scout/egress.py", "scout/sandbox.py", "scout/workerbox.py",
+    "systemd/*",
     ".github/*",
 ]
 RISKY_DEFS = {"cmd_judge", "verdict_carries", "head_has_main", "refresh_branch", "git_config_guard", "noreply_email",
-              "_push_policy", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA"}
-RISKY_DEF_PREFIXES = ("judge_", "gate")
+              "_push_policy", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA",
+              # guards and refusals no test module names, so ci/affected.py would not select a test for them
+              "_identity", "_state_push_refusal", "refuse_worker", "refuse_on_demand", "check_sandbox_roles",
+              "_token_file_ok", "settings_tokens", "git_config_refusal", "_public_guard", "evaluator_home_guard",
+              "verify_merged_externally"}
+RISKY_DEF_PREFIXES = ("judge_", "gate", "sandbox_")
 
 
 class TierError(Exception):
@@ -102,6 +107,17 @@ def plan(root, base, head):
     out = {"tier": tier, "reason": reason, "modules": ""}
     if tier == "docs":
         out["mode"] = "docs"
+        # tests that read a changed file (CHANGELOG.md, README.md, docs assets...) still run, as an affected selection
+        hit = set()
+        mods = affected.all_modules(os.path.join(root, "tests"))
+        for p, exists in affected.changed_files(root, base, head):
+            if p == "docs/README.md":
+                continue  # the docs index test runs in docs mode anyway
+            for needle in {p, os.path.basename(p)}:
+                hit |= affected.mentions(os.path.join(root, "tests"), mods, needle)
+        if hit:
+            out["mode"], out["modules"] = "affected", " ".join(sorted(hit))
+            out["reason"] += "; tests mention the changed files"
     elif tier == "risky":
         out["mode"] = "full"
     else:
