@@ -182,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
             if as_json:
                 body, ctype = json.dumps(data, default=str), "application/json"
             else:
-                shell = {**queries.shell_status(con, app.usage_fn() if app.usage_fn else None, app.defaults), "now": ctx.now}
+                shell = {**queries.shell_status(con, app.usage_fn() if app.usage_fn else None, app.defaults, mem=app.mem_fn() if app.mem_fn else None), "now": ctx.now}
                 body, ctype = page(getattr(view, "TITLE", active), view.render(ctx, data), active, shell=shell), "text/html; charset=utf-8"
         self._send(200, body, ctype)  # reader is closed before the response is written
 

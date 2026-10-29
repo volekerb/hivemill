@@ -383,6 +383,7 @@ Not affiliated with Anthropic. Claude and Claude Code are products of Anthropic.
 - [docs/examples/](docs/examples/README.md): three walkthroughs with real output.
 - [docs/README.md](docs/README.md): index of every docs page. [docs/SETUP.md](docs/SETUP.md): install and troubleshooting.
 - [docs/finishing-coders.md](docs/finishing-coders.md): how coders finish. [Known gaps](docs/worker-guard.md) of the worker guard.
+- [docs/worker-sandbox.md](docs/worker-sandbox.md): worker sandbox design, owner steps, rollout, rollback.
 - [docs/adopt/ADOPT.md](docs/adopt/ADOPT.md): let your own Claude Code set it up.
 - [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), [THIRD_PARTY.md](THIRD_PARTY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
