@@ -604,3 +604,107 @@ def shell_status(con, usage, defaults, mem=None):
     else:
         health = {"tone": "success", "text": "All normal"}
     return {"needs": needs, "agents_attention": queued + n.get("blocked", 0), "health": health}
+
+
+# ───────────────────────────── overview (G-019 B4) ─────────────────────────────
+
+def last_event_by_agent(con):
+    """{agent name: ts of its newest event} for the live and queued agents, one query. Events name the acting agent in `actor`."""
+    return dict(tuple(r) for r in con.execute(
+        "SELECT actor, MAX(ts) FROM events WHERE actor IN (SELECT name FROM agents WHERE status IN ('live','queued')) GROUP BY actor"))
+
+
+def last_activity_by_goal(con):
+    """{goal id: ts of the newest event on the goal or on one of its tasks}, two queries."""
+    out = {}
+    rows = list(con.execute("SELECT t.goal_id, MAX(e.ts) FROM events e JOIN tasks t ON t.id=e.entity_id "
+                            "WHERE e.entity='task' GROUP BY t.goal_id"))
+    rows += list(con.execute("SELECT entity_id, MAX(ts) FROM events WHERE entity='goal' GROUP BY entity_id"))
+    for gid, ts_ in rows:
+        if gid and ts_ and (_epoch(ts_) or 0) >= (_epoch(out.get(gid)) or 0):
+            out[gid] = ts_
+    return out
+
+
+def recent_merges(con, limit=5):
+    """The newest `limit` merged tasks, newest first: [{task_id, goal_id, title, pr_url, merged, sha}]. A task merged
+    twice counts once, at its last merge."""
+    seen, out = set(), []
+    for r in con.execute("SELECT e.entity_id, e.ts, e.detail, t.goal_id, t.title, t.pr_url FROM events e "
+                         "LEFT JOIN tasks t ON t.id=e.entity_id WHERE e.entity='task' AND e.action='merged' ORDER BY e.id DESC"):
+        if r["entity_id"] in seen:
+            continue
+        seen.add(r["entity_id"])
+        out.append({"task_id": r["entity_id"], "goal_id": r["goal_id"], "title": _strip_tags(r["title"] or r["entity_id"]),
+                    "pr_url": r["pr_url"], "merged": r["ts"], "sha": (r["detail"] or "").lstrip("@").strip() or None})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def merges_per_day(con, days=14, now=None):
+    """Merges per local day for the last `days` days, oldest first: [{day: "YYYY-MM-DD", merges}]. Every day is
+    listed; a task counts once, on the day of its last merge."""
+    first = _now(now).astimezone().date() - dt.timedelta(days=days - 1)
+    per = {first + dt.timedelta(days=i): 0 for i in range(days)}
+    last = {}
+    for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' ORDER BY id"):
+        e = _epoch(r["ts"])
+        if e is not None:
+            last[r["entity_id"]] = e
+    for e in last.values():
+        d = dt.datetime.fromtimestamp(e).astimezone().date()
+        if d in per:
+            per[d] += 1
+    return [{"day": d.isoformat(), "merges": n} for d, n in per.items()]
+
+
+def bouncing_tasks(con, limit=5):
+    """Open tasks (not done or cancelled) with at least one rejection, most rejections first:
+    [{task_id, goal_id, title, status, attempts, rejections}]. A rejection is a fail/reject verdict row, or a
+    judge-reject event with no such judge verdict row (the quality() rule)."""
+    rej = {}
+    for r in con.execute("SELECT v.task_id, v.role FROM verdicts v JOIN tasks t ON t.id=v.task_id "
+                         "WHERE v.verdict IN ('fail','reject') AND t.status NOT IN ('done','cancelled')"):
+        d = rej.setdefault(r["task_id"], {})
+        d[r["role"]] = d.get(r["role"], 0) + 1
+    for r in con.execute("SELECT e.entity_id, COUNT(*) n FROM events e JOIN tasks t ON t.id=e.entity_id "
+                         "WHERE e.entity='task' AND e.action='judge-reject' AND t.status NOT IN ('done','cancelled') "
+                         "GROUP BY e.entity_id"):
+        d = rej.setdefault(r["entity_id"], {})
+        d["judge"] = d.get("judge", 0) + max(0, r["n"] - d.get("judge", 0))
+    counts = {tid: sum(d.values()) for tid, d in rej.items() if sum(d.values()) > 0}
+    meta = {r["id"]: r for r in _in(con, "SELECT id, goal_id, title, status, attempts FROM tasks WHERE id IN ({in})", counts)}
+    out = [{"task_id": tid, "goal_id": meta[tid]["goal_id"], "title": _strip_tags(meta[tid]["title"]), "status": meta[tid]["status"],
+            "attempts": meta[tid]["attempts"] or 0, "rejections": n} for tid, n in counts.items() if tid in meta]
+    out.sort(key=lambda x: (-x["rejections"], x["task_id"]))
+    return out[:limit]
+
+
+def message_refs(con, ids):
+    """{message id: (goal_id, task_id)} for the given messages; ids and refs only, never a subject or body."""
+    return {r["id"]: (r["goal_id"], r["task_id"]) for r in _in(con, "SELECT id, goal_id, task_id FROM messages WHERE id IN ({in})", ids)}
+
+
+def task_titles(con, ids, width=80):
+    """{task id: title truncated to `width` characters, [SCn] tags removed} for the given tasks, one query."""
+    return {r["id"]: _t(_strip_tags(r["title"]), width) for r in _in(con, "SELECT id, title FROM tasks WHERE id IN ({in})", ids)}
+
+
+# ───────────────────────────── goal criteria (G-019 B5) ─────────────────────────────
+
+def criteria_by_goal(con):
+    """{goal id: (met, total)} for the goals that have [SCn]-tagged tasks; untagged goals are absent (no invented counts).
+    total = the goal's parsed criteria plus any tag with no criterion text; met = a criterion whose non-cancelled tagged
+    tasks are all done (at least one). Two queries."""
+    text = {r["id"]: r["success_criteria"] for r in con.execute("SELECT id, success_criteria FROM goals")}
+    tagged = {}
+    for r in con.execute("SELECT goal_id, title, status FROM tasks WHERE title LIKE '%[SC%'"):
+        for n in _tags(r["title"]):
+            tagged.setdefault(r["goal_id"], {}).setdefault(n, []).append(r["status"])
+    out = {}
+    for gid, by_n in tagged.items():
+        nums = {n for n, _ in parse_criteria(text.get(gid))} | set(by_n)
+        met = sum(1 for n in by_n if (live := [s for s in by_n[n] if s != "cancelled"]) and all(s == "done" for s in live))
+        out[gid] = (met, len(nums))
+    return out

@@ -79,6 +79,39 @@ class MergedExternallyTests(FactoryTestCase):
         self.assertIn("only the director or the owner", p.stderr)
         self.assertEqual(self.status(), "in_progress")
 
+    def test_worker_claiming_director_refused(self):
+        self.merged()
+        p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally", "--reason", "x",
+                         agent="zz-test-director", extra_env={"FACTORY_ROLE": "coder"})
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("only the director or the owner", p.stderr)
+        self.assertEqual(self.status(), "in_progress")
+
+    def test_runs_after_merge_like_a_judge_merge(self):
+        self.merged()
+        e = self.env
+        e.sql("INSERT INTO lessons(id,title,roles,rule,created,updated) VALUES('L-001','x','all','r','t','t')")
+        e.sql("INSERT INTO lesson_links(lesson_id,task_id,created) VALUES('L-001','T-0001','t')")
+        e.seed_agent("zz-test-lead", "lead", goal="G-001")
+        st = json.loads(e.gh_state.read_text())
+        st["prs"][PR_URL]["files"] = [{"path": "roles/lead.md"}]
+        e.gh_state.write_text(json.dumps(st))
+        p = self.close()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue(e.sql("SELECT merged_at FROM lesson_links")[0]["merged_at"])
+        self.assertEqual(e.sql("SELECT status FROM lessons")[0]["status"], "applied")
+        self.assertTrue(e.sql("SELECT * FROM events WHERE action='roles-changed'"))
+
+    def test_failing_hook_does_not_undo_close(self):
+        self.merged()
+        st = json.loads(self.env.gh_state.read_text())
+        st["files_fail"] = True
+        self.env.gh_state.write_text(json.dumps(st))
+        p = self.close()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.status(), "done")
+        self.assertTrue(self.env.sql("SELECT * FROM events WHERE action='post-merge-hook-failed'"))
+
     def test_other_flags_refused(self):
         self.merged()
         p = self.env.run("task", "update", "T-0001", "--status", "done", "--merged-externally", "--reason", "x",

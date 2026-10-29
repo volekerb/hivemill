@@ -36,6 +36,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
+- [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
 - [freshness.md](freshness.md): the per-tick check that flags live agents running outdated role files, plugins or CLI.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
@@ -68,6 +69,8 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [profiling.md](profiling.md): the baseline script for per-call cost measurements.
+- [adr/README.md](adr/README.md): index of architecture decision records.
+- [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
 
 ## Internals
 
@@ -79,6 +82,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [context-policy.md](context-policy.md): keeping persistent sessions' context from growing unbounded.
 - [opus-effort.md](opus-effort.md): the reasoning effort given to agents on Opus.
 - [public-text-guard.md](public-text-guard.md): refuses private data in text that becomes public (commit/PR text, refs, pushed diffs).
+- [main-freeze.md](main-freeze.md): the tick freezes merging and syncing when public main gets a non-PR commit; only director/boss clears it.
 - [spawn-context.md](spawn-context.md): what a spawned agent carries, including the advisor tool.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.
 - [web-perf.md](web-perf.md): measured cost of the web UI in time, memory and tick impact.

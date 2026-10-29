@@ -176,8 +176,34 @@ class TestApply(Base):
         self.assertEqual(rec[3]["stdin"], "")
         self.assertEqual(rec[4]["stdin"], "")
         self.assertEqual(json.loads(rec[5]["stdin"]), {"required_status_checks": {"strict": True, "contexts": meta["required_checks"]},
-                                                       "enforce_admins": False, "required_pull_request_reviews": None, "restrictions": None})
+                                                       "enforce_admins": True, "required_pull_request_reviews": {"required_approving_review_count": 0},
+                                                       "restrictions": None, "allow_force_pushes": False, "allow_deletions": False})
         self.assertIn("Upload docs/images/social-preview.png by hand", out)
+
+    def test_main_protection_requires_prs_for_admins_and_is_idempotent(self):
+        self.make_stub(private=False)
+        first = self.main_protection_body(["--apply", "--gh", str(self.stub)])
+        second = self.main_protection_body(["--apply", "--gh", str(self.stub)])
+        self.assertEqual(first, second)  # a rerun sends the same PUT, so it converges instead of piling up
+        self.assertIs(first["enforce_admins"], True)
+        self.assertEqual(first["required_pull_request_reviews"], {"required_approving_review_count": 0})
+        self.assertIs(first["allow_force_pushes"], False)
+        self.assertIs(first["allow_deletions"], False)
+
+    def test_dry_run_prints_the_protection_call_and_runs_nothing(self):
+        self.make_stub(private=False)
+        rc, out, err = self.main("--repo", PUBLIC, "--metadata", self.tokenized_meta(), "--gh", str(self.stub))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("gh api -X PUT repos/acme/public/branches/main/protection", out)
+        self.assertIn('"enforce_admins": true', out)
+        self.assertIn('"required_approving_review_count": 0', out)
+        self.assertEqual(self.recorded(), [])
+
+    def main_protection_body(self, extra):
+        self.calls.unlink(missing_ok=True)
+        rc, _, err = self.main("--repo", PUBLIC, "--metadata", self.tokenized_meta(), *extra)
+        self.assertEqual(rc, 0, err)
+        return json.loads(self.recorded()[5]["stdin"])
 
     def test_private_repository_is_refused_after_the_get_only(self):
         self.make_stub(private=True)
