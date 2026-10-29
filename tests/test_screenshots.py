@@ -6,6 +6,7 @@ import contextlib
 import hashlib
 import io
 import os
+import re
 import shutil
 import signal
 import struct
@@ -68,13 +69,17 @@ import sys
 from pathlib import Path
 here = Path(__file__).resolve().parent
 w = h = scheme = dest = None
+scale = 1
 for a in sys.argv[1:]:
     if a.startswith("--window-size="):
         w, h = map(int, a.split("=", 1)[1].split(","))
+    elif a.startswith("--force-device-scale-factor="):
+        scale = int(a.split("=", 1)[1])
     elif a.startswith("--blink-settings=preferredColorScheme="):
         scheme = a.rsplit("=", 1)[1]
     elif a.startswith("--screenshot="):
         dest = a.split("=", 1)[1]
+w, h = w * scale, h * scale
 mode = (here / "mode").read_text().strip()
 light = scheme == "1"  # Blink: 1 is light, 0 is dark
 if mode == "swapped":
@@ -82,12 +87,15 @@ if mode == "swapped":
 bg, fg = (245, 20) if light else (20, 235)
 if mode == "same":
     bg, fg = 245, 20
-pad = 400000 if mode == "always-big" or mode == "big-at-860" and h == 860 else 0
+# the "page": text-like rows over the top 70% of the capture, flat background below (so it crops)
+content = h * 7 // 10
 if mode == "blank":
     fn = lambda y: bytes((bg, bg, bg)) * w
+elif mode == "tall":  # content on every row, the last one included
+    fn = lambda y: text_like_row(w, bg, fg, 0 if y % 8 == 0 or y == h - 1 else 1)
 else:
-    fn = lambda y: text_like_row(w, bg, fg, y)
-Path(dest).write_bytes(make_png(w, h, fn, pad=pad))
+    fn = lambda y: text_like_row(w, bg, fg, y) if y < content else bytes((bg, bg, bg)) * w
+Path(dest).write_bytes(make_png(w, h, fn))
 '''
 LDD_OK = "#!/bin/sh\necho '\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f)'\n"
 LDD_MISSING = "#!/bin/sh\necho '\tlibnss3.so => not found'\necho '\tlibc.so.6 => /lib/libc.so.6 (0x00007f)'\n"
@@ -175,6 +183,11 @@ class ScreenshotsBase(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
         self.fonts()
+        # small captures keep the stub browser and the pure-Python PNG codec fast
+        for attr, val in (("HMAX", 250), ("MIN_HEIGHT_CSS", 100)):
+            p = unittest.mock.patch.object(screenshots, attr, val)
+            p.start()
+            self.addCleanup(p.stop)
         real_mkdtemp, real_spawn = tempfile.mkdtemp, screenshots.spawn
 
         def mkdtemp(*a, **kw):
@@ -500,10 +513,13 @@ class TestFullRun(ScreenshotsBase):
         code, out, err = self.run_main("--out", str(self.images), "--pages", "home,goals")
         self.assertEqual(code, 0, out + err)
         self.assertEqual(sorted(p.name for p in self.images.iterdir()),
-                         ["goals-dark.png", "goals-light.png", "home-dark.png", "home-light.png"])
+                         ["goals-dark.png", "goals-light.png", "hero.png", "home-dark.png", "home-light.png",
+                          "social-preview.png"])
         for p in self.images.iterdir():
             data = p.read_bytes()
-            self.assertEqual(struct.unpack(">I", data[16:20])[0], 1280)
+            want = 1280 if p.name == "social-preview.png" else 2560  # 1280 CSS px at 2x
+            self.assertEqual(struct.unpack(">I", data[16:20])[0], want, p.name)
+        self.assertIn("files: home-light.png home-dark.png goals-light.png goals-dark.png hero.png social-preview.png", out)
         self.assertNotEqual((self.images / "home-light.png").read_bytes(), (self.images / "home-dark.png").read_bytes())
         self.assertIn("scrub home: exit 0", out)
         self.assertIn("scrub goals: exit 0", out)
@@ -600,27 +616,73 @@ class TestFullRun(ScreenshotsBase):
         self.assertFalse(self.images.exists())
         self.assert_clean()
 
-    def test_oversize_png_retries_once_with_a_shorter_window(self):
-        self.use_zip(mode="big-at-860")
-        code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+    def test_png_over_the_warn_size_prints_warn_and_is_kept(self):
+        self.use_zip()
+        with unittest.mock.patch.object(screenshots, "WARN_PNG_BYTES", 1000):
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("retrying once with a 640 px window", out)
-        self.assertLessEqual((self.images / "home-light.png").stat().st_size, 307200)
+        self.assertIn("WARN home-light.png:", out)
+        self.assertTrue((self.images / "home-light.png").is_file())
         self.assert_clean()
 
-    def test_oversize_png_after_retry_aborts_without_writing(self):
-        self.use_zip(mode="always-big")
-        code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
-        self.assertEqual(code, 1, out + err)
-        self.assertIn("over 307200 bytes", err)
+    def test_per_png_cap_breach_aborts_with_exit_3_and_writes_nothing(self):
+        self.use_zip()
+        with unittest.mock.patch.object(screenshots, "MAX_PNG_BYTES", 20000):  # the stub hero is ~27 KB
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 3, out + err)
+        self.assertIn("over the per-PNG cap: hero.png", err)
+        for name in ("home-light.png", "home-dark.png", "hero.png", "social-preview.png"):
+            self.assertRegex(err, r"  %s: \d+ bytes" % name)  # every file's size is listed
+        self.assertFalse(self.images.exists())
+        self.assert_clean()  # this run's PNGs lived in the temp dir, which is gone
+
+    def test_total_cap_breach_aborts_with_exit_3_and_writes_nothing(self):
+        self.use_zip()
+        with unittest.mock.patch.object(screenshots, "MAX_TOTAL_BYTES", 50000):
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 3, out + err)
+        self.assertIn("total over the cap", err)
         self.assertFalse(self.images.exists())
         self.assert_clean()
+
+    def test_social_preview_over_the_github_limit_aborts_with_exit_3_and_writes_nothing(self):
+        self.use_zip()
+        with unittest.mock.patch.object(screenshots, "SOCIAL_MAX_BYTES", 1000):
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 3, out + err)
+        self.assertIn("social-preview.png is", err)
+        self.assertFalse(self.images.exists())
+        self.assert_clean()
+
+    def test_the_documented_caps_are_director_m6655(self):
+        self.assertEqual((screenshots.WARN_PNG_BYTES, screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES),
+                         (307200, 716800, 8388608))
+
+    def test_browser_runs_with_the_dpr_flag_for_pages_but_not_for_the_social_page(self):
+        self.use_zip()
+        code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 0, out + err)
+        shots = [c for c, _e in self.spawned if any(str(a).startswith("--screenshot=") for a in c)]
+        self.assertEqual(len(shots), 3)  # home light, home dark, social page
+        self.assertEqual([screenshots.DPR_FLAG in c for c in shots], [True, True, False])
+        self.assertEqual(screenshots.DPR_FLAG, "--force-device-scale-factor=2")
+        self.assertIn("--window-size=1280,640", shots[2])
+        self.assertTrue(shots[2][-1].startswith("file://"))
 
     def test_identical_light_and_dark_aborts(self):
         self.use_zip(mode="same")
         code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
         self.assertEqual(code, 1, out + err)
         self.assertIn("light and dark images are identical", err)
+        self.assert_clean()
+
+    def test_mostly_empty_pages_abort_with_exit_3_and_write_nothing(self):
+        self.use_zip()
+        with unittest.mock.patch.object(screenshots, "BLANK_LIMIT_PCT", 5):  # the stub page has ~17% blank margin
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 3, out + err)
+        self.assertRegex(err, r"home-(light|dark)\.png: \d+% blank rows \(limit 5%\)")
+        self.assertFalse(self.images.exists())
         self.assert_clean()
 
 
@@ -800,6 +862,243 @@ class TestRenderedChecksThroughMain(ScreenshotsBase):
         self.assertEqual(code, 3, out + err)
         self.assertEqual(old.read_bytes(), b"old image")
         self.assertEqual([p.name for p in self.images.iterdir()], ["home-light.png"])
+
+
+# ───────────────────────────── image processing (synthetic PNGs, no browser) ─────────────────────────────
+
+LIGHT = {"bg": (255, 255, 255), "side": (245, 245, 247), "hair": (0xE0, 0xE0, 0xE5), "head": (250, 250, 252),
+         "ink": (20, 20, 20)}
+DARK = {"bg": (0x0b, 0x11, 0x20), "side": (0x1c, 0x1c, 0x1e), "hair": (0x38, 0x38, 0x3a), "head": (0x11, 0x1a, 0x2e),
+        "ink": (235, 235, 235)}
+
+
+def solid(w, colour):
+    return bytearray(bytes(colour) * w)
+
+
+def page_rows(theme, w, content, total, sidebar=True):
+    """A captured page: `content` rows of header + text lines, then background to `total` rows. With the sidebar (w >=
+    2048) there is a sidebar strip, a 1 px hairline (2 px at 2x) and a themebox pinned to the bottom row."""
+    side_px = (screenshots.SIDEBAR_CSS_PX * screenshots.SCALE) if sidebar else 0
+    rows = []
+    for y in range(total):
+        row = solid(w, theme["bg"])
+        if y < 112 and y < content:
+            row[side_px * 3:] = bytes(theme["head"]) * (w - side_px)  # nav bar --card, differs from --bg by >8
+        elif y < content and y % 6 < 2:  # lines of "text": 1/3 of the rows, a block of ink in the main column
+            x = side_px + 200
+            row[x * 3:(x + 600) * 3] = bytes(theme["ink"]) * 600
+        if sidebar:
+            row[:side_px * 3] = bytes(theme["side"]) * side_px
+            row[side_px * 3:(side_px + 2) * 3] = bytes(theme["hair"]) * 2
+            if y >= total - 60:  # themebox pinned to the bottom of the viewport
+                row[40 * 3:200 * 3] = bytes(theme["ink"]) * 160
+        rows.append(row)
+    return rows
+
+
+class TestImageProcessing(unittest.TestCase):
+    W = 2560
+    MARGIN = 32 * 2
+
+    def crop(self, rows):
+        x0 = screenshots.main_x0(len(rows[0]) // 3)
+        bg = screenshots.background(rows, x0)
+        return screenshots.crop_to_content(rows, x0, bg), bg
+
+    def test_encoder_round_trips_every_filter(self):
+        rows = [bytearray((x * y + y) % 256 for x in range(30)) for y in range(12)]  # 10 px wide, noisy
+        rows += [bytearray(bytes((x // 3 * 5) % 256 for x in range(30))) for _ in range(3)]  # smooth, repeated
+        rows += [bytearray(bytes(range(30))) for _ in range(2)]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "x.png"
+            screenshots.write_png(path, rows)
+            w, ch, back = screenshots.decode_png(path, max_rows=100)
+            head = path.read_bytes()[16:29]
+        self.assertEqual((w, ch), (10, 3))
+        self.assertEqual(struct.unpack(">IIBBBBB", head), (10, len(rows), 8, 2, 0, 0, 0))  # 8-bit RGB, no interlace
+        self.assertEqual([bytes(r) for r in back], [bytes(r) for r in rows])
+
+    def test_filter_choice_uses_the_smallest_sum(self):
+        prev = bytes(range(30))
+        self.assertEqual(screenshots.filter_row(prev, prev)[0], 2)  # identical row: Up, all zeros
+        ramp = bytes((x // 3) * 7 % 256 for x in range(30))
+        self.assertEqual(screenshots.filter_row(ramp, bytes(30))[0], 1)  # horizontal ramp over a blank row: Sub
+        self.assertEqual(screenshots.filter_row(bytes(prev), bytes(30))[0], 1)
+        shifted = bytes((b + 1) % 256 for b in prev)
+        self.assertEqual(screenshots.filter_row(shifted, prev)[0], 2)  # same shape one step off the row above: Up
+
+    def test_crop_keeps_content_and_margin_in_both_themes(self):
+        for theme in (LIGHT, DARK):
+            rows = page_rows(theme, self.W, content=1600, total=3200)
+            (cropped, truncated), bg = self.crop(rows)
+            self.assertEqual(bg, theme["bg"])  # from the last row, not the nav bar
+            self.assertFalse(truncated)
+            # content ends at row 1599 (a text line at y % 6 < 2: the last one is rows 1596-1597); + 64 px margin
+            self.assertEqual(len(cropped), 1598 + self.MARGIN)
+            self.assertEqual(bytes(cropped[-1][screenshots.main_x0(self.W) * 3:]),
+                             bytes(bg) * (self.W - screenshots.main_x0(self.W)))
+
+    def test_cropped_sidebar_page_passes_the_blank_check_in_both_themes(self):
+        for theme in (LIGHT, DARK):
+            (cropped, _t), bg = self.crop(page_rows(theme, self.W, content=1600, total=3200))
+            x0 = screenshots.main_x0(self.W)
+            pct = screenshots.blank_percent(cropped, [(x0, self.W, bg)])
+            self.assertLessEqual(pct, screenshots.BLANK_LIMIT_PCT)
+            screenshots.check_blank("x.png", pct)
+
+    def test_sidebar_strip_is_ignored_but_stays_in_the_image(self):
+        (cropped, _t), _bg = self.crop(page_rows(LIGHT, self.W, content=1600, total=3200))
+        self.assertEqual(len(cropped[0]) // 3, self.W)  # full width kept
+        self.assertEqual(bytes(cropped[10][:3]), bytes(LIGHT["side"]))
+
+    def test_page_without_a_sidebar_still_crops(self):
+        w = 1280  # 640 CSS px: below the 1024 px breakpoint
+        self.assertEqual(screenshots.main_x0(w), 0)
+        (cropped, truncated), _bg = self.crop(page_rows(LIGHT, w, content=1000, total=2000, sidebar=False))
+        self.assertFalse(truncated)
+        self.assertEqual(len(cropped), 998 + self.MARGIN)
+
+    def test_main_column_offset_is_the_sidebar_width_plus_the_hairline(self):
+        self.assertEqual(screenshots.main_x0(2560), (screenshots.SIDEBAR_CSS_PX + 1) * 2)
+
+    def test_sidebar_width_constant_matches_app_css(self):
+        css = (ROOT / "web" / "static" / "app.css").read_text()
+        block = css[css.index("@media (min-width: %dpx)" % screenshots.SIDEBAR_BREAKPOINT_CSS_PX):]
+        cols = re.search(r"\.app\s*\{[^}]*grid-template-columns:\s*(\d+)px", block).group(1)
+        self.assertEqual(int(cols), screenshots.SIDEBAR_CSS_PX)
+
+    def test_short_page_is_padded_to_the_minimum_height(self):
+        (cropped, _t), _bg = self.crop(page_rows(LIGHT, self.W, content=300, total=3200))
+        self.assertEqual(len(cropped), screenshots.MIN_HEIGHT_CSS * 2)
+
+    def test_tall_page_is_kept_whole_and_flagged_truncated(self):
+        rows = page_rows(LIGHT, self.W, content=3200, total=3200)
+        rows[-1][2000 * 3:2100 * 3] = bytes(LIGHT["ink"]) * 100  # content touches the last row
+        (cropped, truncated), _bg = self.crop(rows)
+        self.assertTrue(truncated)
+        self.assertEqual(len(cropped), 3200)
+
+    def blank_image(self, blank_pct, runs=1, total=1000):
+        """total rows, `blank_pct` of them blank in `runs` equal bands, the rest ink on every row."""
+        bg, ink = (255, 255, 255), (0, 0, 0)
+        blank = total * blank_pct // 100
+        rows = [solid(100, ink) for _ in range(total)]
+        per, gap = blank // runs, total // runs
+        for r in range(runs):
+            for y in range(r * gap, r * gap + per):
+                rows[y] = solid(100, bg)
+        return rows
+
+    def test_forty_percent_blank_is_refused_with_the_message(self):
+        pct = screenshots.blank_percent(self.blank_image(40), [(0, 100, (255, 255, 255))])
+        self.assertAlmostEqual(pct, 40.0)
+        with self.assertRaises(screenshots.Refused) as cm:
+            screenshots.check_blank("home-light.png", pct)
+        self.assertIn("home-light.png: 40% blank rows (limit 35%)", str(cm.exception))
+
+    def test_the_limit_is_inclusive_at_35_and_refuses_36(self):
+        for pct, ok in ((35, True), (36, False)):
+            value = screenshots.blank_percent(self.blank_image(pct), [(0, 100, (255, 255, 255))])
+            if ok:
+                screenshots.check_blank("x.png", value)
+            else:
+                with self.assertRaises(screenshots.Refused):
+                    screenshots.check_blank("x.png", value)
+
+    def test_thirty_percent_blank_is_kept(self):
+        pct = screenshots.blank_percent(self.blank_image(30), [(0, 100, (255, 255, 255))])
+        self.assertAlmostEqual(pct, 30.0)
+        screenshots.check_blank("x.png", pct)
+
+    def test_text_line_gaps_shorter_than_the_run_minimum_do_not_count(self):
+        self.assertEqual(screenshots.BLANK_RUN_MIN, 48)
+        rows = self.blank_image(60, runs=60)  # 60 bands of 10 blank rows: 60% blank, but no band reaches 48
+        self.assertEqual(screenshots.blank_percent(rows, [(0, 100, (255, 255, 255))]), 0.0)
+        screenshots.check_blank("x.png", 0.0)
+
+    def test_a_row_with_one_percent_ink_is_blank_but_one_and_a_half_percent_is_not(self):
+        row = solid(200, (255, 255, 255))
+        one, two = bytearray(row), bytearray(row)
+        one[0:3] = bytes(3)  # 1 of 200 px
+        two[0:9] = bytes(9)  # 3 of 200 px
+        self.assertEqual(screenshots.blank_percent([one] * 60, [(0, 200, (255, 255, 255))]), 100.0)
+        self.assertEqual(screenshots.blank_percent([two] * 60, [(0, 200, (255, 255, 255))]), 0.0)
+
+    def test_hero_is_the_left_and_right_halves_with_a_divider(self):
+        w, h1, h2 = 2560, 600, 500
+        left = [solid(w, (250, 250, 250)) for _ in range(h1)]
+        right = [solid(w, (10, 20, 30)) for _ in range(h2)]
+        for y in range(h1):
+            left[y][0:3] = bytes((1, 2, 3))
+            left[y][1279 * 3:1280 * 3] = bytes((7, 7, 7))
+        hero = screenshots.compose_hero(left, right)
+        self.assertEqual((len(hero), len(hero[0]) // 3), (h2, w))  # the smaller height
+        d0 = 1280 - screenshots.HERO_DIVIDER_PX // 2
+        for y in (0, 250, h2 - 1):
+            row = bytes(hero[y])
+            self.assertEqual(row[:d0 * 3], bytes(left[y][:d0 * 3]))
+            self.assertEqual(row[(d0 + 2) * 3:], bytes(right[y][(d0 + 2) * 3:]))
+            self.assertEqual(row[d0 * 3:(d0 + 2) * 3], bytes(screenshots.HERO_DIVIDER_RGB) * 2)
+
+    def test_hero_blank_rows_use_each_halfs_own_background(self):
+        w, h = 2560, 900
+        light = page_rows(LIGHT, w, content=800, total=h)
+        dark = page_rows(DARK, w, content=800, total=h)
+        hero = screenshots.compose_hero(light, dark)
+        x0 = screenshots.main_x0(w)
+        regions = [(x0, 1279, LIGHT["bg"]), (1281, w, DARK["bg"])]
+        right = screenshots.blank_percent(hero, regions)
+        wrong = screenshots.blank_percent(hero, [(x0, w, LIGHT["bg"])])  # one colour for both halves
+        self.assertLess(right, screenshots.BLANK_LIMIT_PCT + 1)
+        self.assertEqual(wrong, 0.0)  # the dark half is never "blank" against the light background
+
+    def test_downscale_averages_2x2_boxes(self):
+        rows = [bytearray([0, 0, 0, 4, 4, 4]), bytearray([8, 8, 8, 10, 11, 12])]
+        self.assertEqual([bytes(r) for r in screenshots.downscale2(rows)], [bytes([6, 6, 6])])  # (0+4+8+10+2)>>2, (0+4+8+11+2)>>2, (0+4+8+12+2)>>2
+
+    def test_hero_small_crops_from_the_top_and_pads_with_the_background(self):
+        bg = (200, 210, 220)
+        short = [solid(8, (0, 0, 0)) for _ in range(100)]
+        small = screenshots.hero_small(short, bg)
+        self.assertEqual((len(small), len(small[0]) // 3), (480, 4))
+        self.assertEqual(bytes(small[0][:3]), bytes(3))
+        self.assertEqual(bytes(small[-1][:3]), bytes(bg))
+        tall = [solid(8, (9, 9, 9)) for _ in range(3000)]
+        self.assertEqual(len(screenshots.hero_small(tall, bg)), 480)
+
+    def test_social_page_inlines_the_wordmark_and_tagline_and_has_no_url(self):
+        page = screenshots.social_html(b"\x89PNG fake", (255, 255, 255))
+        wordmark = (ROOT / "docs" / "images" / "wordmark-light.svg").read_text()
+        self.assertIn("<svg", page)
+        self.assertIn('viewBox="0 0 275 80"', page)
+        self.assertIn("M74.5 24L82.8 24L82.8 36.2", page)
+        self.assertIn("M74.5 24L82.8 24L82.8 36.2", wordmark)
+        self.assertIn(screenshots.SOCIAL_TAGLINE, page)
+        self.assertNotRegex(page, r"https?://")
+        self.assertIn("data:image/png;base64,", page)
+
+    def test_social_tagline_is_escaped(self):
+        self.assertIn("a &lt;b&gt; &amp; c", screenshots.social_html(b"x", (0, 0, 0), tagline="a <b> & c"))
+
+    def test_png_size_reads_the_header(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "x.png"
+            screenshots.write_png(path, [solid(1280, (1, 2, 3)) for _ in range(640)])
+            self.assertEqual(screenshots.png_size(path), (1280, 640))
+            self.assertLessEqual(path.stat().st_size, screenshots.SOCIAL_MAX_BYTES)
+
+
+class TestTallPageThroughMain(ScreenshotsBase):
+    def test_page_taller_than_hmax_is_kept_at_hmax_with_an_info_line(self):
+        self.use_zip(mode="tall")
+        code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("Refused", out + err)
+        self.assertIn("INFO home-light.png: truncated at HMAX (250 CSS px)", out)
+        data = (self.images / "home-light.png").read_bytes()
+        self.assertEqual(struct.unpack(">II", data[16:24]), (2560, 500))  # HMAX 250 CSS px * 2
+        self.assert_clean()
 
 
 if __name__ == "__main__":
