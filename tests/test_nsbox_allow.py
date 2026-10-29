@@ -207,7 +207,7 @@ class GoldenDefaultsTests(unittest.TestCase):
     def test_allow_mode_masks_run_and_keeps_only_resolve_ro(self):
         cfg = nsbox.make_cfg(self.trial, None, "/h", mode="allow", hide_dirs=["/h"])
         self.assertEqual(cfg["hide_dirs"], ["/h", "/run"])
-        want = ["/run/systemd/resolve"] if os.path.isdir("/run/systemd/resolve") else []
+        want = [d for d in nsbox.run_keep_ro() if os.path.isdir(d)]
         self.assertEqual(cfg["ro"], want)
         off = nsbox.make_cfg(self.trial, None, "/h", mode="allow", hide_dirs=["/h"], run_mask=False)
         self.assertEqual((off["hide_dirs"], off["ro"]), (["/h"], []))
@@ -616,7 +616,7 @@ print(json.dumps(out))
         out = json.loads(r.stdout)
         for p in self.SOCKS:
             self.assertEqual(out[p], "blocked", p)
-        self.assertEqual(out["ls"], ["systemd"] if os.path.isdir("/run/systemd/resolve") else [])
+        self.assertEqual(out["ls"], sorted({d.split("/")[2] for d in nsbox.run_keep_ro() if os.path.isdir(d)}))
 
     @unittest.skipUnless(os.path.exists("/run/docker.sock"), "no /run/docker.sock on this host to compare against")
     def test_without_the_mask_the_host_socket_is_reachable(self):
