@@ -274,6 +274,27 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("another mechanical merger run", p.stderr)
         self.assertEqual(self.merges(), [])
 
+    def test_a_held_per_task_merge_lock_stops_the_merge(self):
+        import fcntl
+        self.ok("config", "mech_merge", "on")
+        run = self.env.home_dir / "run"
+        run.mkdir(exist_ok=True)
+        with open(run / "merge-T-0001.lock", "w") as f:  # a judge is merging this task right now
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.events("merged"), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("another judge or mechanical merger is merging T-0001", "; ".join(self.events("mech-blocked")))
+
+    def test_lock_is_released_after_a_merge(self):
+        import fcntl
+        self.assertEqual(self.mech("on").returncode, 0)
+        with open(self.env.home_dir / "run" / "merge-T-0001.lock", "w") as f:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if the merger still held it
+        self.assertEqual(len(self.events("merged")), 1)
+
     def test_only_owner_or_director_may_run_it(self):
         self.ok("config", "mech_merge", "on")
         p = self.cli("mech-merge", agent="zz-test-qa")

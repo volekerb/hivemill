@@ -3852,7 +3852,23 @@ def cmd_judge(a):
     return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
 
 
+def task_merge_lock(stack, task):
+    """Per-task merge lock shared by the judge and the mechanical merger: held (flock, released when `stack` closes) from the
+    final recheck to the end of record_merged, so two mergers of one task never both record it. Dies 4 if held."""
+    RUN.mkdir(exist_ok=True)
+    f = stack.enter_context(open(RUN / f"merge-{task}.lock", "w"))
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        die(f"merge refused: another judge or mechanical merger is merging {task} right now (run/merge-{task}.lock); nothing merged", 4)
+
+
 def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
+    with contextlib.ExitStack() as stack:
+        return _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack)
+
+
+def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
     """The merge gate of `factory judge` (pure extraction from cmd_judge): verdicts + carry, freshness, CI, refresh,
     push-policy, public-text, noreply, then `gh pr merge` and the post-merge records. Dies (exit 4/5/6) on any refusal."""
     gate_waited = False
@@ -3864,7 +3880,7 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
             con.commit()
             die(f"merge refused: git config in {r} would run code (repo config outside the allow-list): "
                 f"{', '.join(git_config_refusal(r))}; nothing merged", 4)
-    retried, refreshes = False, 0
+    retried, refreshes, locked = False, 0, False
     while True:
         # Gate: both verdicts must be PASS on this exact head, CI green, PR open & mergeable.
         problems, carry, carried = [], {}, []
@@ -4047,6 +4063,13 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
             author_args = ["--author-email", noreply, "--body", body]
         if dry_run:  # every refusal above ran; nothing is merged, the caller records the would-merge
             return "would-merge"
+        if not locked:
+            task_merge_lock(stack, a.task)
+            locked = True
+            if con.execute("SELECT status FROM tasks WHERE id=?", (a.task,)).fetchone()["status"] != "in_review":
+                die(f"merge refused: {a.task} is no longer in_review (merged or moved by another run); nothing merged", 4)
+            if pr_state(t["pr_url"])["state"] != "OPEN":
+                die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
