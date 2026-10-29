@@ -53,16 +53,19 @@ The factory keeps running in `~/factory`; the database, `state/`, `exports/`, `r
   git config --file ~/.gitconfig-factory user.name volekerb
   git config --file ~/.gitconfig-factory user.email 11260070+volekerb@users.noreply.github.com
   ```
+  The git config guard allows these two keys only because the email ends in `@users.noreply.github.com`; a real address in repo config is refused and blocks every record, train, merge and gate (docs/git-hardening.md). The previous repo-local identity may hold the owner's real name and email. The guard checks commit identities on push, so this must be done before any push.
   A repo-local `user.name` / `user.email` may still hold the owner's real name and email and would win over the include: unset them (`git -C ~/factory config --local --unset user.name`, same for `user.email`). The guard checks commit identities on push, so this must be done before any push. Check with `git -C ~/factory config user.email` (the noreply address).
 - **C4** OWNER:
   ```
   git -C ~/factory branch -m main private-main
   git -C ~/factory remote set-url origin https://github.com/volekerb/hivemill.git
+  factory config factory_remote_url https://github.com/volekerb/hivemill.git
   git -C ~/factory fetch --prune origin
   git -C ~/factory switch -c main --track origin/main
   ```
+  The `factory_remote_url` line is what the git config guard compares `remote.origin.url` with; without it every record, train, merge and gate is refused after the `set-url`.
   Ignored directories (`db/`, `state/`, `exports/`, `run/`, `worktrees/`) are untouched. `private-main` and the local `state` branch stay local only.
-  Then **C4b** DIRECTOR: `factory config factory_remote_url https://github.com/volekerb/hivemill.git`. The git guard allows only this one origin URL for the factory checkout, so without it pushes from `~/factory` are refused. The tick alerts the director while `factory_remote_url` and `git remote get-url origin` differ, so a forgotten C4b shows up within a minute.
+  Then **C4b** DIRECTOR: confirm `factory config factory_remote_url` prints `https://github.com/volekerb/hivemill.git`, and set it with that value if the C4 line was skipped. The tick alerts the director while `factory_remote_url` and `git remote get-url origin` differ, so a forgotten C4b shows up within a minute.
 - **C5** DIRECTOR: `factory project update factory --gh volekerb/hivemill`.
 - **C6** DIRECTOR, verify:
   - `git -C ~/factory remote -v` shows hivemill only.
