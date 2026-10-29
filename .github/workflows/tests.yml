@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: python -m py_compile bin/factory
+      - run: python -m py_compile bin/factory bin/factory_cli.py
       - run: python bin/factory --help >/dev/null
       - name: Run shard
         run: python ci/shard.py run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json"

@@ -3,7 +3,7 @@
 The suite is offline: it runs `bin/factory` as a subprocess against a throwaway `FACTORY_HOME` with `herdr` and `gh` stubbed (`tests/stubs/`), and never touches the live DB.
 
 ```
-python3 -m py_compile bin/factory
+python3 -m py_compile bin/factory bin/factory_cli.py
 python3 -m unittest discover -s tests -v
 ```
 

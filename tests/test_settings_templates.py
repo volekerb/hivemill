@@ -15,7 +15,7 @@ from pathlib import Path
 
 from harness import REPO, ROLES, FactoryTestCase, git, rendered_settings_dir
 
-FACTORY = REPO / "bin" / "factory"
+FACTORY = REPO / "bin" / "factory_cli.py"
 HOOK = REPO / "roles" / "hooks" / "worker-guard.py"
 SETTINGS = REPO / "roles" / "settings"
 PW_DIR = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)

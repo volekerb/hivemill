@@ -571,7 +571,9 @@ def write_shim(trial_dir, real_claude, token_file=None, proxy_allow=egress.ALLOW
     shim.write_text(SHIM.format(python=sys.executable, repo=str(repo), cfg=json.dumps(shim_cfg)))
     shim.chmod(0o755)
     src = Path(factory_src) if factory_src else repo / "bin" / "factory"
-    shutil.copy2(src, bin_dir / "factory")  # bin/factory imports scout/ from <its dir>/..: snapshot that package and web/dbpath.py too
+    shutil.copy2(src, bin_dir / "factory")
+    shutil.copy2(src.resolve().parent / "factory_cli.py", bin_dir / "factory_cli.py")  # the stub imports it
+    # bin/factory_cli.py imports scout/ from <its dir>/..: snapshot that package and web/dbpath.py too
     shutil.copytree(src.resolve().parent.parent / "scout", trial / "scout", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__"))
     (trial / "web").mkdir(exist_ok=True)  # and the DB-path helper (web/dbpath.py, stdlib only), not the web UI

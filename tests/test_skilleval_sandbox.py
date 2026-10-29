@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import FactoryTestCase, FACTORY, REPO  # noqa: E402
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC, REPO  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 from scout import nsbox, sandbox  # noqa: E402
@@ -385,7 +385,7 @@ class SpawnTests(SandboxBase):
             self.assertEqual(cm.exception.code, 3)
 
     def test_skilleval_try_resolves_the_root_once(self):
-        src = FACTORY.read_text()
+        src = FACTORY_SRC.read_text()
         fn = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == "skilleval_try")
         self.assertEqual(ast.get_source_segment(src, fn).count("resolve_root("), 1)
 
@@ -427,8 +427,8 @@ class SpawnTests(SandboxBase):
             con.close()
         self.assertNotIn(TOKEN, dump)
         self.assertIn(info["agent"], dump)  # the dump does contain the agent: the grep is meaningful
-        tree = ast.parse(FACTORY.read_text())
-        spawn_src = [ast.get_source_segment(FACTORY.read_text(), n) for n in tree.body
+        tree = ast.parse(FACTORY_SRC.read_text())
+        spawn_src = [ast.get_source_segment(FACTORY_SRC.read_text(), n) for n in tree.body
                      if isinstance(n, ast.FunctionDef) and n.name in ("spawn", "_spawn_start", "check_evaluator_spawn")]
         self.assertEqual(len(spawn_src), 3)
         for src in spawn_src:

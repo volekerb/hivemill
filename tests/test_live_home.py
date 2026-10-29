@@ -17,7 +17,7 @@ import unittest
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FACTORY = os.path.join(ROOT, "bin", "factory")
+FACTORY = os.path.join(ROOT, "bin", "factory_cli.py")
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 
 # runs the hook (or any script) as __main__ with pwd.getpwuid patched, the way a test imports it in-process
