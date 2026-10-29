@@ -5449,7 +5449,10 @@ def prcheck_tier(wt, base):
     fn = globals().get("risk_tier")
     if fn is None:
         return True, "tier: unavailable (no risk classifier in this build)"
-    return True, f"tier: {fn(wt, f'origin/{base}', 'HEAD')}"
+    try:
+        return True, f"tier: {fn(wt, f'origin/{base}', 'HEAD')}"
+    except (TypeError, ValueError, OSError) as e:  # informational only: a classifier with another signature must not break prcheck
+        return True, f"tier: unavailable ({type(e).__name__}: {str(e)[:80]})"
 
 
 def cmd_prcheck(a):

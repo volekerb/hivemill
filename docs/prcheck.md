@@ -8,7 +8,7 @@ It prints one `PASS`/`FAIL` line per check and exits 0 only when all pass.
 |---|---|---|
 | 1 | fresh | `origin/<base>` cannot be fetched, or merging it into HEAD conflicts. Behind but clean passes (the refresh lane brings the branch up to date) |
 | 2 | identity | any commit in `origin/<base>..HEAD` has a non-noreply author or committer, or there are no commits |
-| 3 | body | the PR body departs from `.github/pull_request_template.md` (same rules as `in_review`), `## Test evidence` has no backticked command, or the `def test_` count under `tests/` is lower than on `origin/<base>` and the body has no `Tests removed: <what and why>` line outside `<details>` |
+| 3 | body | the PR body departs from `.github/pull_request_template.md` (same rules as `in_review`), `## Test evidence` has no backticked command, or the `def test_` count under `tests/` is lower than at the merge base with `origin/<base>` and the body has no `Tests removed: <what and why>` line outside `<details>` |
 | 4 | public-text | the repo is in `public_text_repos` and the G-021 guard (same code as the judge) finds a hit or cannot decide. `n/a` for other repos |
 | 5 | affected | `ci/affected.py --base origin/<base> --run` exits non-zero or reports no tests run |
 | 6 | tier | informational: the risk tier of the diff, once the classifier (G-022 item 1) is in the build; otherwise `unavailable` |
