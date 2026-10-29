@@ -136,10 +136,11 @@ class WorkflowTextTest(unittest.TestCase):
         run_lines = [l for l in text.splitlines() if "${{" in l]
         self.assertEqual([l.strip() for l in run_lines], ["GH_TOKEN: ${{ github.token }}"])
 
-    def test_tests_workflow_stays_on_pull_request(self):
+    def test_tests_workflow_runs_on_pull_request_and_main_push(self):
         text = self.read("tests.yml")
         self.assertIn("  pull_request:\n", text)
-        self.assertNotIn("  push:\n", text)
+        self.assertIn("  push:\n", text)
+        self.assertIn("  push:\n    branches: [main]\n", text)
 
 
 if __name__ == "__main__":
