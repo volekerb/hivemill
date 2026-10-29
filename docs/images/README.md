@@ -63,14 +63,32 @@ Chrome for Testing headless shell, the only thing the script downloads:
 
 ## Images
 
-The table is filled in after the first reviewed run (the images are committed in a later change); until then no PNG
-listed here is claimed to be current. Page images are 2560 px wide (1280 CSS px at 2x).
+Committed from one `python3 ci/screenshots.py` run (T-0555). Page images are 2560 px wide (1280 CSS px at 2x). `/tasks` is captured at 960 CSS px (`PAGE_HEIGHT`) to stay under the
+per-PNG cap; the other pages use `HMAX` (1600).
+
+| File | Page | Theme | Pixels (w x h) | Bytes |
+|---|---|---|---|---|
+| home-light.png | Home | light | 2560 x 800 | 118898 |
+| home-dark.png | Home | dark | 2560 x 800 | 119936 |
+| goals-light.png | Goals | light | 2560 x 2425 | 409246 |
+| goals-dark.png | Goals | dark | 2560 x 2426 | 413579 |
+| tasks-light.png | Tasks | light | 2560 x 1920 | 580169 |
+| tasks-dark.png | Tasks | dark | 2560 x 1920 | 584898 |
+| agents-light.png | Agents | light | 2560 x 2981 | 598691 |
+| agents-dark.png | Agents | dark | 2560 x 2982 | 604276 |
+| throughput-light.png | Throughput | light | 2560 x 3200 | 496592 |
+| throughput-dark.png | Throughput | dark | 2560 x 3200 | 499435 |
+| quality-light.png | Quality | light | 2560 x 2934 | 528718 |
+| quality-dark.png | Quality | dark | 2560 x 2935 | 533370 |
+| hero.png | Home (light left, dark right) | both | 2560 x 800 | 122340 |
+| social-preview.png | Social preview (wordmark + tagline over hero) | light | 1280 x 640 | 77104 |
+| **Total** | | | | 5687252 |
 
 | Page | Light | Dark | What it shows |
 |---|---|---|---|
 | Home | ![Home light](home-light.png) | ![Home dark](home-dark.png) | Overview cards: live agents, open PRs, goals by status, waiting on owner, usage. |
 | Goals | ![Goals light](goals-light.png) | ![Goals dark](goals-dark.png) | Waiting-on-owner items, open goals with progress bars, done goals. |
-| Tasks | (dark only) | ![Tasks dark](tasks-dark.png) | Task list with goal, status, PR and CI state, rejections and tries. |
+| Tasks | ![Tasks light](tasks-light.png) | ![Tasks dark](tasks-dark.png) | Task list with goal, status, PR and CI state, rejections and tries. |
 | Agents | ![Agents light](agents-light.png) | ![Agents dark](agents-dark.png) | Status, role and goal filters, teams, live agents with model and uptime. |
 | Throughput | ![Throughput light](throughput-light.png) | ![Throughput dark](throughput-dark.png) | Merges per day, median and p90 spawn-to-merge, open tasks, live workers. |
 | Quality | ![Quality light](quality-light.png) | ![Quality dark](quality-dark.png) | Merge, rejection, retry and CI pass-rate cards; per-team scores. |
