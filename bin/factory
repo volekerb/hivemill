@@ -126,6 +126,8 @@ DEFAULT_CONFIG = {
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
+    "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
     "frozen_repos": "",          # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
     "push_interval_s": "600",    # tick exports commit every change but push at most this often (a manual `factory export` pushes now)
@@ -3500,6 +3502,10 @@ def cmd_judge(a):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo))
+        if red:
+            event(con, "task", a.task, "judge-blocked", red)
+            die(f"merge refused: {red}; nothing merged", 4)
         refused = judge_public_text_refusal(con, t, owner_repo, git_repo, stale[2], sha)
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
@@ -4043,6 +4049,125 @@ def morning_digest(con):
             event(con, "digest", "-", "digest-failed", str(e))
             con.execute("INSERT INTO config(key,value) VALUES('last_digest_fail_date',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                         (today,))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+RED_MAIN_WORKFLOW = "tests.yml"
+RED_MAIN_BAD = ("failure", "timed_out", "startup_failure")
+
+
+def red_main_state(con, slug):
+    """The stored red-main record of repo `slug` ({run, sha, url, since}) or None while its main is not known red."""
+    r = con.execute("SELECT value FROM config WHERE key=?", (f"red_main:{slug}",)).fetchone()
+    try:
+        return json.loads(r["value"]) if r and r["value"] else None
+    except ValueError:
+        return {"run": "?", "sha": "", "url": "", "since": ""}  # an unreadable record keeps the freeze (fail closed)
+
+
+def red_main_refusal(con, slugs):
+    """Why a merge into one of `slugs` (OWNER/NAME) must wait: the latest completed push run of tests.yml on main is red
+    (T-0614 signal, kept by red_main_check). None with red_main_freeze off, or when none of the repos is red."""
+    if cfg(con, "red_main_freeze") != "1":
+        return None
+    for slug in slugs:
+        st = red_main_state(con, slug)
+        if st:
+            return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
+    return None
+
+
+def _red_main_set(con, slug, st):
+    key = f"red_main:{slug}"
+    if st is None:
+        con.execute("DELETE FROM config WHERE key=?", (key,))
+    else:
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, json.dumps(st)))
+
+
+def _red_main_latest(slug):
+    """Latest completed tests.yml push run on main of `slug` as a dict, None when there is none. Raises OSError, ValueError
+    or subprocess.TimeoutExpired when gh cannot tell (the caller keeps the old state)."""
+    p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                        "--limit", "5", "--json", "databaseId,status,conclusion,headSha,url"],
+                       capture_output=True, text=True, timeout=30, env=gh_git_env())
+    if p.returncode != 0:
+        raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
+    return next((r for r in json.loads(p.stdout) if r.get("status") == "completed" and r.get("conclusion") not in (None, "", "cancelled", "skipped")), None)
+
+
+def _red_main_revert_task(con, slug, run, since_ts):
+    """File a coder task to revert or fix the PRs merged since the last green main; returns its id or None (no goal)."""
+    g = con.execute("SELECT g.id, g.project_id FROM goals g JOIN projects p ON p.id=g.project_id WHERE lower(p.gh_repo) LIKE ? "
+                    "AND g.status='active' ORDER BY g.priority, g.id LIMIT 1", (f"%{slug}%",)).fetchone()
+    if not g:
+        return None, []
+    ev = con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' AND ts>=? ORDER BY ts DESC",
+                     (since_ts or "",)).fetchall() if since_ts else \
+        con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' ORDER BY ts DESC LIMIT 3").fetchall()
+    merged = list(dict.fromkeys(r["entity_id"] for r in ev))
+    tid = next_id(con, "tasks", "T", 4)
+    title = f"Red main: revert or fix {slug} run {run['databaseId']}"
+    spec = (f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main failed ({run.get('url') or 'no url'}, "
+            f"head {str(run.get('headSha') or '')[:8]}). The red-main freeze holds every merge until a green push run. Merged since "
+            f"the last green main: {', '.join(merged) or 'unknown'}. Find the cause in the run log and open a PR that reverts or "
+            "fixes it; the freeze lifts by itself on the next green push run.")
+    con.execute("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,depends_on,created,updated) VALUES(?,?,?,?,?,'coder','[]',?,?)",
+                (tid, g["id"], title, spec, "main's push run of tests.yml is green again", now(), now()))
+    event_as(con, "tick", "task", tid, "add", title)
+    return tid, merged
+
+
+def red_main_check(con):
+    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
+    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
+    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    if cfg(con, "red_main_freeze") != "1":
+        return
+    try:
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
+        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
+                                           con.execute("SELECT gh_repo FROM projects WHERE gh_repo IS NOT NULL AND gh_repo!=''")) if s]
+        for slug in slugs:
+            try:
+                run = _red_main_latest(slug)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+                event(con, "redmain", slug, "red-main-unknown", str(e)[:300])
+                continue
+            if run is None:
+                continue
+            old = red_main_state(con, slug)
+            if run["conclusion"] in RED_MAIN_BAD:
+                if old and str(old.get("run")) == str(run["databaseId"]):
+                    continue
+                tid, merged = (None, [])
+                if not old:
+                    gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
+                    tid, merged = _red_main_revert_task(con, slug, run, gr["value"] if gr else "")
+                _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
+                                          "since": (old or {}).get("since") or now()})
+                event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
+                send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
+                     f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
+                     f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
+                     + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
+                        if tid else "No active goal for the project: file the revert task by hand.")
+                     + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
+            elif run["conclusion"] == "success":
+                con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                            (f"red_main_green:{slug}", now()))
+                if old:
+                    _red_main_set(con, slug, None)
+                    event_as(con, "tick", "redmain", slug, "red-main-clear", f"run {run['databaseId']} green")
+    except Exception as e:  # noqa: BLE001 — the tick must go on
+        try:
+            event(con, "redmain", "-", "red-main-failed", str(e)[:300])
         except Exception:  # noqa: BLE001
             pass
 
@@ -7462,6 +7587,7 @@ def cmd_tick(a, locked=False):
     morning_digest(con)
     tmp_alert(con)
     tmp_clean(con)
+    red_main_check(con)
     reap_stray_serves(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server

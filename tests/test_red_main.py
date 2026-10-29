@@ -1,0 +1,117 @@
+"""G-022 T-0623: red-main monitor and merge freeze. The tick reads the latest completed tests.yml push run on main
+(stub gh `run list`); red freezes cmd_judge merges with the run id, messages the director once and files a revert task;
+green clears; red_main_freeze=0 (the default) changes nothing. Temp FACTORY_HOME, the tests/stubs gh."""
+import unittest
+
+from harness import REPO, FactoryTestCase
+import test_public_repo_safety as base
+
+RED = {"databaseId": 901, "status": "completed", "conclusion": "failure", "headSha": "b" * 40, "url": "https://github.com/acme/priv/actions/runs/901"}
+GOOD = {"databaseId": 902, "status": "completed", "conclusion": "success", "headSha": "c" * 40, "url": "https://github.com/acme/priv/actions/runs/902"}
+RUNNING = {"databaseId": 903, "status": "in_progress", "conclusion": None, "headSha": "d" * 40, "url": ""}
+URL = "https://github.com/acme/priv/pull/1"
+
+
+class RedMainTests(FactoryTestCase):
+    judge_setup = base.FrozenTests.judge_setup
+    pr_repo = base.FrozenTests.pr_repo
+    bare = base.Base.bare
+    refs = base.Base.refs
+
+    def setUp(self):
+        super().setUp()
+        (self.env.home_dir / "ci").symlink_to(REPO / "ci")
+        self.ok("config", "git_push", "1")
+        self.judge_setup(URL, "acme/priv")
+        self.env.sql("UPDATE projects SET gh_repo='acme/priv' WHERE id='zz-test-proj'")
+        self.env.seed_agent("zz-test-director", "director")
+
+    def runs(self, *runs):
+        self.env.set_gh(runs={"acme/priv": list(runs)})
+
+    def tick(self):
+        return self.ok("tick")
+
+    def merge(self):
+        return self.env.run("judge", "T-0001", "--merge", "--reason", "zz-test", agent="zz-test-judge")
+
+    def merges(self):
+        return [c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "merge"]]
+
+    def director_mail(self):
+        return self.env.sql("SELECT subject, body FROM messages WHERE recipient='zz-test-director' AND subject LIKE 'RED MAIN%'")
+
+    def test_default_off_ignores_red_main(self):
+        self.runs(RED)
+        self.tick()
+        self.assertEqual(self.director_mail(), [])
+        self.assertEqual([c for c in self.env.calls("gh") if c["argv"][:2] == ["run", "list"]], [])
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_red_run_refuses_merge_with_run_id(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.runs(RED)
+        self.tick()
+        p = self.merge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("red main: run 901", p.stderr)
+        self.assertEqual(self.merges(), [])
+
+    def test_one_director_message_and_revert_task_per_red_run(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RED)
+        self.tick()
+        self.tick()
+        mail = self.director_mail()
+        self.assertEqual(len(mail), 1, mail)
+        self.assertIn("901", mail[0]["subject"])
+        tasks = self.env.sql("SELECT id, title, goal_id FROM tasks WHERE title LIKE 'Red main:%'")
+        self.assertEqual(len(tasks), 1, tasks)
+        self.assertIn("run 901", tasks[0]["title"])
+
+    def test_green_run_clears_freeze(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RED)
+        self.tick()
+        self.runs(GOOD, RED)
+        self.tick()
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_running_or_unreadable_run_keeps_state(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RED)
+        self.tick()
+        self.runs(RUNNING, RED)  # the newest completed run is still the red one
+        self.tick()
+        self.env.set_gh(run_list_exit=1)  # gh trouble: the freeze stays
+        self.tick()
+        p = self.merge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("red main: run 901", p.stderr)
+        self.assertEqual(len(self.director_mail()), 1)
+
+    def test_other_repo_red_does_not_block(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.env.set_gh(runs={"acme/other": [RED]})
+        self.tick()
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_flag_off_after_red_lifts_refusal(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.runs(RED)
+        self.tick()
+        self.ok("config", "red_main_freeze", "0")
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()
