@@ -8,7 +8,7 @@ Fork, branch, open a normal pull request against `main` ([CONTRIBUTING.md](../CO
 
 ## 1. Intake: read pass before anything runs
 
-The local gate ([local-gate.md](local-gate.md)) executes PR code on the devbox, so nothing from a fork may reach it before a human-grade read.
+The local gate ([local-gate.md](local-gate.md)) executes PR code on the factory machine, so nothing from a fork may reach it before a human-grade read.
 
 1. The director sees the external PR.
 2. A reviewer does a **read pass** first: it reads the diff and nothing else. No checkout that is run, no tests, no gate, no scripts from the PR.
