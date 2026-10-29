@@ -174,7 +174,7 @@ class VarTmpTests(Fixture):
 @unittest.skipUnless(USERNS_OK, SKIP_MSG)
 class HomeLayoutTests(Fixture):
     """The production layout (T-0652 c): FACTORY_MAIN, the gate trees and wt_root all live UNDER the hidden $HOME
-    (~/factory, ~/.cache/factory-gate/<id>),. Fake HOME, never the live one."""
+    (~/factory, ~/.cache/factory-gate/<id>). Fake HOME, never the live one."""
 
     def setUp(self):
         super().setUp()

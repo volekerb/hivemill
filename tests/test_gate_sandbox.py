@@ -6,6 +6,7 @@ import stat
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness import REPO
 from test_gate_run import GateBase
@@ -144,11 +145,17 @@ class FlagOff(GateBase):
 
 class Wiring(unittest.TestCase):
     def test_runtime_is_passed_explicitly(self):
-        src = (REPO / "bin" / "factory").read_text()
-        self.assertIn("runtime=os.environ.get(\"XDG_RUNTIME_DIR\")", src)
-
-    def test_gatebox_runtime_default_is_still_there_for_other_callers(self):
-        self.assertIn("runtime", gatebox.build.__code__.co_varnames)
+        sys.path.insert(0, str(REPO / "bin"))
+        import importlib.machinery, importlib.util
+        loader = importlib.machinery.SourceFileLoader("factory_cli_t0652", str(REPO / "bin" / "factory"))
+        spec = importlib.util.spec_from_loader("factory_cli_t0652", loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+        box = {"factory_main": "/m", "wt_root": "/w"}
+        with mock.patch.object(gatebox, "build", return_value=(["x"], {})) as b, \
+                mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/xyz"}):
+            mod.gate_argv("true", "/t", {}, box)
+        self.assertEqual(b.call_args.kwargs["runtime"], "/run/user/xyz")
 
 
 if __name__ == "__main__":
