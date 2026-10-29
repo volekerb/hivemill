@@ -36,7 +36,8 @@ class ReloadCase(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.co = self.tmp / "checkout"
         (self.co / "bin").mkdir(parents=True)
-        shutil.copy(ROOT / "bin" / "factory", self.co / "bin" / "factory")
+        for n in ("factory", "factory_cli.py"):
+            shutil.copy(ROOT / "bin" / n, self.co / "bin" / n)
         for d in ("web", "scout"):
             shutil.copytree(ROOT / d, self.co / d, ignore=shutil.ignore_patterns("__pycache__"))
         self.home = self.tmp / "home"
@@ -99,7 +100,7 @@ class ReloadCase(unittest.TestCase):
         """The T-0159 incident: the DB path moved in bin/factory; the running server must follow it."""
         shutil.move(str(self.home / "db" / "factory.db"), str(self.home / "moved.db"))
         self.assertEqual(_healthz(self.port)[0], 503)
-        self._edit("bin/factory", "    return dbpath.resolve(HOME)\n", '    return HOME / "moved.db"\n')
+        self._edit("bin/factory_cli.py", "    return dbpath.resolve(HOME)\n", '    return HOME / "moved.db"\n')
         self._wait(lambda: _healthz(self.port)[0] == 200, "bin/factory change")
 
     def test_broken_change_keeps_old_code_and_logs_once(self):
@@ -134,11 +135,11 @@ class SignatureCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             co = Path(d)
             (co / "bin").mkdir()
-            shutil.copy(ROOT / "bin" / "factory", co / "bin" / "factory")
+            shutil.copy(ROOT / "bin" / "factory_cli.py", co / "bin" / "factory_cli.py")
             for d in ("web", "scout"):
                 shutil.copytree(ROOT / d, co / d, ignore=shutil.ignore_patterns("__pycache__"))
             self.assertIsNone(server.import_check(co))
-            (co / "bin" / "factory").write_text("def (:\n")
+            (co / "bin" / "factory_cli.py").write_text("def (:\n")
             self.assertIn("SyntaxError", server.import_check(co))
 
     def test_signature_changes_with_edit(self):
@@ -146,7 +147,7 @@ class SignatureCase(unittest.TestCase):
             co = Path(d)
             (co / "bin").mkdir()
             (co / "web").mkdir()
-            (co / "bin" / "factory").write_text("x")
+            (co / "bin" / "factory_cli.py").write_text("x")
             (co / "web" / "a.py").write_text("x")
             a = server.code_signature(co)
             (co / "web" / "a.py").write_text("xy")
