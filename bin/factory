@@ -1085,18 +1085,30 @@ def _userns_link(pid):
         return None
 
 
+def _proc_start(pid):
+    """Start time (clock ticks since boot, field 22 of <proc>/<pid>/stat), None when unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        stat = (root / str(pid) / "stat").read_text(errors="replace")
+        return stat[stat.rindex(")") + 1:].split()[19]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def sandbox_escape_close(con, name, pane, pid):
     """G-010 T-C2 (fail closed): a sandboxed agent's claude whose user ns equals the host's ran outside the
     sandbox (a shell rc reordered PATH, a multiplexer resumed a bare claude). Close its pane (the call force_stop
-    and reap use), event `sandbox-escaped` and one director alert per pid. An unreadable link decides nothing.
+    and reap use), event `sandbox-escaped` and one director alert per process (pid + start time,
+    read before the close). An unreadable link decides nothing.
     The host reference is <proc>/1, or this process's own ns when pid 1 is unreadable. Returns True when closed."""
     mine = _userns_link(pid)
     host = _userns_link(1) or _userns_link("self")
     if mine is None or host is None or mine != host:
         return False
+    start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
     if pane:
         herdr("pane", "close", pane, check=False)
-    key = f"sandbox-escaped:{pid}"
+    key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
@@ -5201,8 +5213,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (name,))
         event(con, "agent", name, "flagless-cleared", {"via": "spawn"})
     if sandboxed and (sid or resume):  # the session's claude pid is known now: close an escape right away
-        for pid, _argv in claude_procs(sid or resume):
-            if sandbox_escape_close(con, name, pane, pid):
+        for pid, argv in claude_procs(sid or resume):
+            if _is_claude_cmd(argv) and sandbox_escape_close(con, name, pane, pid):
                 break
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
           f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
