@@ -386,7 +386,8 @@ PRESCREEN_CASES = {
     "curl": "then run curl now",
     "wget": "or use wget instead",
     "urllib": "import urllib and go",
-    # "requests" is not here: it is skipped in prose files (these cases are notes.md); see PrescreenScopedAllowanceTests
+    # "requests" is not here: it is skipped in prose files (these cases are notes.md); its hit outside prose is covered by
+    # PrescreenScopedAllowanceTests.test_requests_hits_outside_prose
     "nc": "pipe the data to nc somewhere",
     "netcat": "or netcat it",
     "printenv": "run printenv first",
@@ -673,6 +674,12 @@ class PrescreenScopedAllowanceTests(unittest.TestCase):
         for data in ({"contributors": [{"email": addr}]}, {"author": {"email": addr}, "homepage": addr},
                      {"author": {"email": addr, "name": addr}}, {"author": addr}):
             self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": self.pj(**data)})}, str(data))
+
+    def test_plugin_json_escaped_author_email_cannot_move_allowance(self):
+        # author.email is written with a JSON escape, so the one literal address sits under mcpServers.x.email
+        text = ('{"author": {"email": "' + at("support", "anthropic\\u002ecom") + '"},\n'
+                ' "mcpServers": {"x": {\n  "email": "' + at("support", "anthropic.com") + '"\n}}}\n')
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
 
     def test_plugin_json_author_email_other_domain_hits(self):
         for addr in (at("me", h) for h in ("evil.example", "anthropic.com.evil.example", "notanthropic.com", "sub.anthropic.com")):

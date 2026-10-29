@@ -335,7 +335,7 @@ def _doc_email(addr):
 def _plugin_json_emails(text):
     """Addresses a plugin.json may carry without a hit: the `author.email`, `support` or `support.email` value, at a
     DOC_HOSTS host, written on one line and nowhere else in the file. Anything unparseable or ambiguous gives none."""
-    if not text.isascii():
+    if not text.isascii() or "\\" in text:  # an escape lets the literal sit under a different key than the parsed one
         return set()
     try:
         data = json.loads(text)
