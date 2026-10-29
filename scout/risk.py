@@ -50,6 +50,12 @@ CONFIG_EXT = {".json", ".jsonc", ".json5", ".yaml", ".yml", ".toml"}  # inert on
 MAX_CONFIG_READS = 10
 # a config that names a command to start (MCP/LSP server entry, `"command": "gopls"`, toml `command = "x"`) runs code
 CFG_COMMAND = re.compile(r"(?m)[\"']command[\"']\s*:|^\s*command\s*=|[\"']lspServers[\"']\s*:")
+# toml: `command` as a key at line start or inside an inline table, bare or quoted
+CFG_COMMAND_TOML = re.compile(r"(?m)(?:^|[{,])[ \t]*[\"']?command[\"']?[ \t]*=")
+# yaml: `command` as a mapping key (block, `- ` list item or flow style), bare or quoted
+CFG_COMMAND_YAML = re.compile(r"(?m)(?:^[ \t]*(?:-[ \t]+)?|[{,][ \t]*)[\"']?command[\"']?[ \t]*:(?:\s|$)")
+_U_ESCAPE = re.compile(r"\\u([0-9a-fA-F]{4})")
+JSON_CFG_EXT = {".json", ".jsonc", ".json5"}
 CFG_HOOKS = re.compile(r"(?m)[\"']hooks[\"']\s*[:=]|^\s*hooks\s*[:=]|^\s*\[+\s*hooks\b")
 
 # These are only words searched for in fetched markdown; this module never runs them.
@@ -227,6 +233,34 @@ def detect_kind(rels):
     return "unknown"
 
 
+def _json_keys(data):
+    """Every dict key in parsed JSON, dicts inside lists included; iterative so deep nesting cannot recurse."""
+    keys, stack = set(), [data]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            keys.update(k for k in node if isinstance(k, str))
+            stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
+        elif isinstance(node, list):
+            stack.extend(v for v in node if isinstance(v, (dict, list)))
+    return keys
+
+
+def _config_flags(rel, text):
+    """(hooks, scripts, mcp_key) for a json/yaml/toml config: keys decide when the JSON parses, else text patterns."""
+    if rel[rel.rfind("."):].lower() in JSON_CFG_EXT:
+        try:
+            keys = _json_keys(json.loads(text.lstrip("\ufeff")))
+        except (ValueError, RecursionError):
+            keys = None
+        if keys is not None:
+            return ("hooks" in keys, bool({"command", "lspServers"} & keys), bool({"mcpServers", "mcp_servers"} & keys))
+        text = _U_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+    hooks = bool(CFG_HOOKS.search(text))
+    scripts = bool(CFG_COMMAND.search(text) or CFG_COMMAND_TOML.search(text) or CFG_COMMAND_YAML.search(text))
+    return hooks, scripts, False
+
+
 def classify(tree, prefix="", read=None, truncated=False):
     """Install risk of the files under `prefix` in `tree`. `read(entry) -> str` supplies blob text
     (it may raise ReadError); without it markdown is not inspected and the result says so."""
@@ -312,12 +346,13 @@ def classify(tree, prefix="", read=None, truncated=False):
         text = _read(read, e, flags, rel)
         if text is None:
             continue
-        if CFG_HOOKS.search(text):
+        has_hooks, has_command, mcp_key = _config_flags(rel, text)
+        if has_hooks:
             flags["hooks"].append(rel)
-        if CFG_COMMAND.search(text):
+        if has_command:
             flags["scripts"].append(rel)
         is_mcp, remote = _mcp_text(text)
-        if is_mcp or ("mcp" in rel.rsplit("/", 1)[-1].lower() and CFG_COMMAND.search(text)):
+        if is_mcp or mcp_key or ("mcp" in rel.rsplit("/", 1)[-1].lower() and has_command):
             flags["mcp"].append(rel)
         if remote:
             flags["network"].append(rel)
