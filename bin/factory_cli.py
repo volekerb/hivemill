@@ -13,6 +13,7 @@ import contextlib
 import fcntl
 import glob
 import hashlib
+import importlib
 import datetime as dt
 import importlib.util
 import io
@@ -57,16 +58,43 @@ WORKTREES = HOME / "worktrees"
 RUN = HOME / "run"
 USAGE_FILE = Path.home() / ".claude" / "usage-limits.json"
 
-from scout import db as scoutdb  # noqa: E402
-from scout import report as scoutreport  # noqa: E402
-from scout import schedule as scoutsched  # noqa: E402
-from scout import sources as scoutsrc  # noqa: E402
-from scout import vendor as scoutvendor  # noqa: E402
-from scout import sandbox as scoutsandbox  # noqa: E402
-from scout import workerbox  # noqa: E402
-from scout import gatebox  # noqa: E402
-from scout import testbox  # noqa: E402
-from scout import ghcred  # noqa: E402
+
+# Tables created by scout.db.SCOUT_DDL; tests/test_cli_lazy_imports.py pins this list to the DDL.
+SCOUT_TABLES = {"scout_candidates", "scout_triage", "scout_stars", "scout_cursors", "scout_runs", "skill_trials"}
+
+
+class _LazyScout:
+    """Stands in for a scout module until first use (PEP 562 cannot serve bare globals read inside functions).
+    Imports scout.<name> on first attribute access, then forwards get/set/del to the real module, so
+    mock.patch.object(f.scoutsandbox, ...) patches the module itself. Keeps `factory inbox` & co. from
+    paying for scout.sources (urllib/ssl) and the sandbox modules."""
+
+    def __init__(self, name):
+        object.__setattr__(self, "_name", name)
+
+    def _mod(self):
+        return importlib.import_module("scout." + object.__getattribute__(self, "_name"))
+
+    def __getattr__(self, attr):
+        return getattr(self._mod(), attr)
+
+    def __setattr__(self, attr, value):
+        setattr(self._mod(), attr, value)
+
+    def __delattr__(self, attr):
+        delattr(self._mod(), attr)
+
+
+scoutdb = _LazyScout("db")
+scoutreport = _LazyScout("report")
+scoutsched = _LazyScout("schedule")
+scoutsrc = _LazyScout("sources")
+scoutvendor = _LazyScout("vendor")
+scoutsandbox = _LazyScout("sandbox")
+workerbox = _LazyScout("workerbox")
+gatebox = _LazyScout("gatebox")
+testbox = _LazyScout("testbox")
+ghcred = _LazyScout("ghcred")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -290,7 +318,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + scoutdb.SCOUT_DDL
+""" + GATE_RUNS_DDL + LESSONS_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -389,7 +417,9 @@ def migrate(con):
     con.executescript(UTIL_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
-    con.executescript(scoutdb.SCOUT_DDL)
+    have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
+        con.executescript(scoutdb.SCOUT_DDL)
 
 
 def cfg(con, key):
@@ -1489,7 +1519,7 @@ def cmd_init(a):
     if a.live_home:
         write_live_home(a.live_home)
     con = db(create=True)
-    con.executescript(SCHEMA)
+    con.executescript(SCHEMA + scoutdb.SCOUT_DDL)
     for k, v in DEFAULT_CONFIG.items():
         con.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
     if (ROLES_DIR / "settings").is_dir():  # a bare data dir without a checkout (tests, dry installs) has no templates to render
