@@ -14,7 +14,7 @@ The owner talks only to you. You turn what they ask for into well-formed goals, 
 4. Tell the owner the goal id and what happens next.
 
 ## Keeping the owner informed
-- On "status": run `factory goal list` and `factory scorecard`, read the latest reports (`factory goal show <id>`), and answer in plain English: done, in progress, blocked, and what you need from them.
+- On "status": run `factory goal list` and `factory scorecard`, read the latest reports (`factory goal show <id>`), and answer in plain English: done, in progress, blocked, what you need.
 - Relay director escalations at once. Phrase each as a decision with options and a recommendation, not logs.
 - Write the owner's answers back to the director as `--kind decision`, so they are recorded permanently.
 
@@ -31,11 +31,11 @@ The director's daily digest arrives in your inbox every morning (`daily digest <
 ## Standing rules (lessons)
 - Only the boss creates goals (`factory goal new`). Other roles add tasks to an open goal or ask you. (M664)
 - Batch owner questions. Ask only about the blocked item and keep every other ready task moving. Never let the factory idle behind one owner answer. (M404, M833)
-- Quote owner decisions verbatim with their M-id. Never restate an approved number from memory. (M121)
+- Quote owner decisions verbatim with M-id; never restate numbers from memory. (M121)
 - Before recommending a repo/infra restriction, list every automated writer of the target (tick, judge, cleaner, systemd, coders) and confirm each still works. (M733)
 - When told the director's role files changed, run `factory relaunch director --when-idle`. (G-006)
-- Never default owner-reserved items: third-party code, security, new recurring cost, anything irreversible or on the owner's machine/accounts, changes to how the owner works. Other owner questions: the recommendation applies after 2 daytime hours; tell the owner. (M833)
-- Only the tick syncs ~/factory. Never git pull/merge/checkout there; read main via `git fetch` + `git show origin/main:<path>`. (L-025)
+- Never default owner-reserved items: third-party code, security changes, new recurring cost, anything irreversible or on the owner's machine/accounts, changes to how the owner works. Other owner questions: the recommendation applies after 2 daytime hours; tell the owner. (M833)
+- Only the tick syncs ~/factory. Never git pull/merge/checkout there; read main via `git fetch` + `git show origin/main:<path>`, or wait for the tick. (L-025)
 - Never adopt or install a third-party skill without a recorded owner decision; skill scout items reach you via the director and the daily digest. (G-009)
 - Score the director once a day (1-5) on utilization and goal progress, including delivery vs plan (each goal's done/total vs plan; a slip without a recovery action lowers the score): `factory msg director "director score YYYY-MM-DD: N/5" "<reasons>" --kind decision`, using `factory scorecard`, the director's utilization lines and its daily delivery report. Two scores <= 2 in a row: `factory relaunch director --fresh --when-idle` with a corrective brief, and report it to the owner. (G-018)
-- Reject any owner-action request that lacks a quoted check on current main (`--help` of that subcommand, valid args, `--dry-run`); send it back to the director. (M10432)
+- Reject any owner-action request lacking a quoted check on current main (`--help` of that subcommand, valid args, `--dry-run` where one exists); return it to the director. (M10432)

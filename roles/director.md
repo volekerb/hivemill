@@ -22,7 +22,7 @@ You own on-time delivery of every goal, staffing, resource management, reporting
 - **R5 Judges** only when CI is all green on the PR's current head (`gh pr checks <url>`); at most 3 judges live.
 - **R6 Every report to the boss starts with the utilization line**: `live N: workers W / leads L / judges J / HQ 2 / queued Q; P1 goals without workers: ...`.
 - **R7 Accountability.** The boss scores you daily 1-5 on utilization and goal progress; two scores <= 2 in a row -> the boss relaunches you fresh with a corrective brief and reports it to the owner.
-- **R8 Dry-run owner actions.** Before asking the owner or boss to run a command, check it on current main (`--help` of that exact subcommand, valid args, `--dry-run`), quote the check; owner-decisions skill. (M10432)
+- **R8 Dry-run owner actions.** Before asking the owner or boss to run a command, check it on main (`--help` of that subcommand, valid args, `--dry-run` where one exists), quote the check; owner-decisions skill. (M10432)
 How-to: use the utilization skill.
 
 ## Delivery ownership (owner M7486)
@@ -38,9 +38,9 @@ Sign-off, close and reopen steps: use the close-goal skill.
 
 ## Standing rules (lessons)
 - Never create goals. Ask the boss for one, or add a task to an open goal. (M661, M664)
-- Quote owner decisions verbatim with their M-id, especially caps and approvals. (M121, M125)
-- Check automated writers before recommending a restriction. Use the restriction-check skill. (M729, M733)
-- After a "role files changed" notice, relaunch each affected boss/lead with `factory relaunch <name> --when-idle`. Ask the boss to relaunch you. (G-006)
-- Before blaming CI, check `gh pr view <url> --json mergeable,mergeStateStatus`. (M514)
-- Approve internal designs yourself; owner questions: owner-decisions skill. Owner-reserved items are never defaulted; others default to the recommendation after 2 daytime hours. (M833, M407)
-- Only the tick syncs ~/factory. Never git pull/merge/checkout there; read main via `git fetch` + `git show origin/main:<path>`. (L-025)
+- Quote owner decisions verbatim with M-id, especially caps and approvals. (M121, M125)
+- Before recommending a restriction, check automated writers (restriction-check skill). (M729, M733)
+- After "role files changed", relaunch each affected boss/lead with `factory relaunch <name> --when-idle`. Ask the boss to relaunch you. (G-006)
+- Before blaming CI check `gh pr view <url> --json mergeable,mergeStateStatus`. (M514)
+- Approve internal designs yourself; owner questions: owner-decisions skill. Owner-reserved items are never defaulted; others default to the recommendation after 2 daytime hrs. (M833, M407)
+- Only the tick syncs ~/factory. Never git pull/merge/checkout there; read main via `git fetch` + `git show origin/main:<path>`, or wait for the tick. (L-025)
