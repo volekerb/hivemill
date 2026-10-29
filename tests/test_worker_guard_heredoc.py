@@ -342,6 +342,30 @@ class SubstitutionGaps(unittest.TestCase):
         self.assertEqual(hook("cat <<EOF\n$(date\nEOF"), 2)
         self.assertEqual(hook("cat <<EOF\n`date\nEOF"), 2)
 
+    def test_b5_let_and_nested_subshell_heredocs_blocked(self):
+        s = "su" + "do id"
+        for cmd in (
+            "echo \"let us go\"; cat <<'EOF'\nit's here\nEOF\n" + s,
+            "((echo a) ; cat <<'EOF'\n'\nEOF\n) ; " + s,
+            "echo let ; cat <<EOF\n'\n$(" + s + ")\nEOF",
+            "((echo a) ; cat <<EOF\n\"\n`" + s + "`\nEOF\n)",
+            "echo let; cat <<EOF\n$(" + s + ")\nEOF",
+        ):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+
+    def test_b5_quoted_let_heredoc_is_data_in_worker(self):
+        self.assertEqual(hook("echo \"let us go\"; cat <<'EOF' > notes.txt\nit's here\nEOF"), 0)
+
+    def test_b5_arithmetic_shifts_still_not_heredocs(self):
+        s = "su" + "do id"
+        for cmd in ("echo $((1<<2))\n" + s, "x=$((1<<EOF))\n" + s, "let x=1<<2\n" + s,
+                    "((x = 1<<2))\n" + s, "true; let x=1<<2\n" + s):
+            with self.subTest(cmd):
+                self.both(cmd, 2)
+        self.both("let x=1<<2", 0)
+        self.both("echo $((1<<2))", 0)
+
 
 if __name__ == "__main__":
     unittest.main()

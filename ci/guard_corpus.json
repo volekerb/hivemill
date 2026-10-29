@@ -1364,6 +1364,34 @@
     "worker",
     "hq"
    ]
+  },
+  {
+   "cmd": "echo \"let us go\"; cat <<'EOF'\nit's here\nEOF\nsudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "((echo a) ; cat <<'EOF'\n'\nEOF\n) ; sudo id",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "echo let ; cat <<EOF\n'\n$(sudo id)\nEOF",
+   "modes": [
+    "worker",
+    "hq"
+   ]
+  },
+  {
+   "cmd": "((echo a) ; cat <<EOF\n\"\n`sudo id`\nEOF\n)",
+   "modes": [
+    "worker",
+    "hq"
+   ]
   }
  ],
  "must_allow": [

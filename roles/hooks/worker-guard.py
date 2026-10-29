@@ -643,6 +643,42 @@ def heredoc_subs(body):
     return subs
 
 
+HEREDOC_DELIM_UNRESOLVED = ("a heredoc delimiter has a form the guard cannot resolve; use a plain word or a quoted "
+                            "delimiter (<<'EOF')")
+
+
+def arith_closes(cmd, i):
+    """True when the `((` / `$((` whose opener ends just before cmd[i] closes as `))`; false when bash would
+    re-parse it as nested ( ) groups (or the text ends first), so a `<<` inside it is a heredoc."""
+    d, n, q = 0, len(cmd), None
+    while i < n:
+        c = cmd[i]
+        if q:
+            if c == "\\" and q == '"':
+                i += 1
+            elif c == q:
+                q = None
+        elif c == "\\":
+            i += 1
+        elif c in "'\"":
+            q = c
+        elif c == "(":
+            d += 1
+        elif c == ")":
+            if d == 0:
+                return cmd.startswith(")", i + 1)
+            d -= 1
+        i += 1
+    return False
+
+
+def let_command(head):
+    """True when `let` is the command word of the simple command being read (not quoted, not an argument)."""
+    flat = re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", "X", head)
+    seg = re.split(r"[;&|(]", flat)[-1]
+    return re.match(r"\s*(?:(?:do|then|else|elif|time|builtin|command|!|\{)\s+)*let\s", seg) is not None
+
+
 def preprocess(cmd, fold_ticks=False, bodies=None):
     """Make newlines separators, drop comments and non-shell heredoc bodies.
 
@@ -697,7 +733,10 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                 i += 1
             continue
         if c == "$" and cmd.startswith("$((", i):
-            par += ["a", "a"]
+            if arith_closes(cmd, i + 3):
+                par += ["a", "a"]
+            else:  # bash re-parses an unclosed $(( as $( ( : nested substitution and subshell
+                par += ["c", "s"]
             out.append("$((")
             i += 3
             continue
@@ -710,7 +749,9 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             if par[-1:] == ["a"]:
                 par.append("a")
             elif cmd.startswith("((", i):
-                par += ["a", "a"]  # (( )) command or for (( ; ; )), after any keyword or `{`: arithmetic
+                # (( )) command or for (( ; ; )), after any keyword or `{`: arithmetic, but only when the
+                # parens really close as `))`; otherwise bash re-parses them as nested subshells
+                par += ["a", "a"] if arith_closes(cmd, i + 2) else ["s", "s"]
                 out.append("((")
                 i += 2
                 continue
@@ -719,7 +760,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
         elif c == ")" and par:
             par.pop()
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i) and (
-                par[-1:] == ["a"] or re.search(r"(^|[^\w$-])let\s", "".join(out[line_start:]))):
+                par[-1:] == ["a"] or let_command("".join(out[line_start:]))):
             out.append("<<")  # shift operator in arithmetic / let: never a heredoc
             i += 2
             continue
@@ -729,7 +770,9 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                 pending.append((r[0], r[1], r[3], par.count("c")))
                 out.append(cmd[i:r[2]])
                 i = r[2]
-            else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
+            else:  # unresolved delimiter: never scan a possible body as code
+                if "\n" in cmd[i:]:
+                    raise HeredocBlock(HEREDOC_DELIM_UNRESOLVED)
                 out.append("<<")
                 i += 2
             continue
