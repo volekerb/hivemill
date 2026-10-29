@@ -34,8 +34,13 @@ if argv[:2] == ["pr", "view"]:
     real = git("-C", st["origin"], "rev-parse", br)
     git("-C", st["origin"], "update-ref", "refs/pull/1/head", real)
     print(json.dumps({"number": 1, "state": "OPEN", "headRefName": st["branch"], "baseRefName": "main",
-                      "headRefOid": real, "mergeable": "MERGEABLE", "isDraft": False, "statusCheckRollup": [],
+                      "headRefOid": real, "mergeable": st.get("mergeable", "MERGEABLE"), "isDraft": False, "statusCheckRollup": [],
                       "url": st["url"]}))
+elif argv[:1] == ["api"] and argv[1].endswith("/branches/main/protection"):
+    if st.get("strict") is None:
+        print("gh: Branch not protected (HTTP 404)", file=sys.stderr)
+        sys.exit(1)
+    print("true" if st["strict"] else "false")
 elif argv[:2] == ["repo", "view"]:
     print(json.dumps({"url": repo}))
 elif argv[:1] == ["api"] and argv[1].endswith("/commits/main"):
@@ -190,6 +195,39 @@ class SpawnPrecheckTests(FactoryTestCase):
         self.assertEqual(self.agent("judge")[0]["status"], "queued")
         starts = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
         self.assertEqual(starts, [])
+
+    def test_g_behind_ok_clean_behind_is_not_refreshed(self):
+        # G-022: strict=false on GitHub + stale_policy=behind_ok -> reviewer, qa and judge spawn on a clean BEHIND head
+        self.main_commit()
+        self.write_state(strict=False)
+        for role in ("reviewer", "qa", "judge"):
+            p = self.spawn(role)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.remote_head(), self.head)
+        self.assertEqual(self.events("refreshed"), [])
+        self.assertEqual(self.events("spawn-bounced"), [])
+
+    def test_g2_behind_ok_dirty_is_still_refreshed(self):
+        main = self.main_commit()
+        self.write_state(strict=False, mergeable="UNKNOWN")
+        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+
+    def test_g3_strict_true_unreadable_or_policy_strict_still_refresh(self):
+        main = self.main_commit()
+        self.write_state(strict=True)  # strict=true on GitHub
+        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+
+    def test_g4_protection_unreadable_refreshes(self):
+        main = self.main_commit()
+        self.write_state()  # the stub answers 404 for the protection read
+        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
+
+    def test_g5_policy_strict_refreshes_even_if_github_strict_false(self):
+        main = self.main_commit()
+        self.write_state(strict=False)
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_policy','strict')")
+        self.assertRefreshedSpawn(self.spawn("qa"), "qa", main)
 
     def test_b_head_contains_main_no_push(self):
         git(self.wt, "fetch", "-q", "origin", "main")

@@ -110,6 +110,9 @@ DEFAULT_CONFIG = {
     "min_mem_available_mb": "1024",
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
+    # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
+    # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
+    "stale_policy": "behind_ok",
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
@@ -2820,6 +2823,38 @@ def _judge_wait_limit(con):
         die(f"config judge_ci_wait_s must be an integer number of seconds, got {cfg(con, 'judge_ci_wait_s')!r}")
 
 
+STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub)"
+
+
+def stale_behind_ok(con, owner_repo):
+    """G-022 stale_policy: True when a clean BEHIND head may be merged/spawned on without a refresh. Needs config
+    stale_policy=behind_ok (default; `factory config stale_policy strict` is the rollback) AND GitHub's branch
+    protection of main reading required_status_checks.strict == false, read live via `gh api` (cached STRICT_TTL_S).
+    strict true, no protection, or any read failure -> False (behave as strict)."""
+    if (cfg(con, "stale_policy") or "strict").strip().lower() != "behind_ok":
+        return False
+    key, t = "stale_strict:" + owner_repo, time.time()
+    row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    try:
+        c = json.loads(row["value"]) if row else None
+        if c and 0 <= t - float(c["at"]) < STRICT_TTL_S:
+            return c["strict"] is False
+    except (ValueError, KeyError, TypeError):
+        pass  # an unreadable cache entry is just a miss
+    try:
+        p = subprocess.run(["gh", "api", f"repos/{owner_repo}/branches/main/protection", "--jq",
+                            ".required_status_checks.strict"], capture_output=True, text=True, timeout=GH_API_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    out = p.stdout.strip()
+    if p.returncode != 0 or out not in ("true", "false"):
+        return False  # unreadable or not required at all: cannot confirm strict=false
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, json.dumps({"at": t, "strict": out == "true"})))
+    return out == "false"
+
+
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
     """Is origin/main an ancestor of the PR head `sha`? Same verified fetch as verdict_carries (private refs, replace
     refs ignored, main compared with GitHub's own answer). Returns (ok, why, main_sha): main_sha is the VERIFIED main
@@ -3433,7 +3468,12 @@ def cmd_judge(a):
             stale = (False, f"gh repo view failed: {e}", None)
         else:
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
-        if not stale[0]:
+        # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
+        behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+        if behind_clean:
+            if BEHIND_OK_NOTE not in reason:
+                reason += "; " + BEHIND_OK_NOTE
+        elif not stale[0]:
             problems.insert(0, "STALE-ONLY: head does not contain origin/main" if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
@@ -3447,7 +3487,7 @@ def cmd_judge(a):
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
             run = gate_run_for_head(con, t["pr_url"], sha)
-            if stale[0] and not gate_waited and (not run or run["status"] in ("queued", "running")):
+            if (stale[0] or behind_clean) and not gate_waited and (not run or run["status"] in ("queued", "running")):
                 # no verdict yet on this head: queue it for the tick, wait for it, then run the whole gate again
                 gate_enqueue(con, proj, t["pr_url"], sha)
                 con.commit()
@@ -3455,9 +3495,9 @@ def cmd_judge(a):
                 pr = pr_state(t["pr_url"])
                 sha = pr["headRefOid"]
                 continue
-            if stale[1] != "STALE":  # a stale head is refreshed below and gated again on the new head
+            if stale[1] != "STALE" or behind_clean:  # a stale head is refreshed below and gated again on the new head
                 problems += local_gate_problems(
-                    con, proj, t["pr_url"], sha, stale[2], stale[0],
+                    con, proj, t["pr_url"], sha, stale[2], stale[0], behind_ok=behind_clean,
                     body=lambda: gh_json("pr", "view", t["pr_url"], "--json", "body").get("body") or "")
         else:
             problems += missing_checks(con, pr, t["pr_url"])
@@ -3475,7 +3515,9 @@ def cmd_judge(a):
                 err = close_landed_pr(t["pr_url"], landed, reason)
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
-        if stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
+        if behind_clean:
+            pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
             if pr.get("baseRefName") != "main":
@@ -3707,6 +3749,8 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
+    if pr.get("mergeable") == "MERGEABLE" and stale_behind_ok(con, owner_repo):
+        return None  # G-022 stale_policy=behind_ok: a clean BEHIND head is not refreshed; only DIRTY/unknown is
     r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task)
     if r["status"] == "fresh":
         return None
@@ -7495,6 +7539,8 @@ def judge_pr_ready(con, pr_url, behind_ok=False):
     behind_ok: a BEHIND head is accepted (the spawn pre-check refreshes it, and the ready check runs again after
     that); the cached answer then says 'behind' in `why` instead of not-ready.
     Local mode (the project has a gate_cmd, T-0516): decided from gate_runs, see gate_pr_ready; no GitHub checks."""
+    if not behind_ok and pr_url.startswith("https://github.com/"):  # G-022 stale_policy=behind_ok with strict=false
+        behind_ok = stale_behind_ok(con, "/".join(pr_url.split("/")[3:5]))
     proj = gate_project_for(con, pr_url)
     if proj:
         return gate_pr_ready(con, proj, pr_url, behind_ok)
