@@ -181,7 +181,7 @@ jobs:
           python "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
           python -m unittest discover -s tests -p test_docs_index.py
           echo '### docs-only PR: suite skipped (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: steps.tier.outputs.mode != 'docs'
         with:
           pattern: shard-*
