@@ -40,6 +40,22 @@ class JudgeLoadExempt(DequeueBase):
         self.ok("tick", extra_env={"FACTORY_LOADAVG": HIGH})
         self.assertEqual((self.status("zz-jd"), self.status("zz-c")), ("live", "queued"))
 
+    def test_tick_judge_starts_behind_queued_lead_and_director_under_load_only(self):
+        self.queue_judge()
+        self.queue("zz-l", "lead", "G-003", at(1))
+        self.queue("zz-d", "director", "G-003", at(0))
+        self.ok("config", "max_live_agents", "10")
+        self.ok("tick", extra_env={"FACTORY_LOADAVG": HIGH})
+        self.assertEqual((self.status("zz-jd"), self.status("zz-l"), self.status("zz-d")), ("live", "queued", "queued"))
+
+    def test_tick_judge_stays_queued_behind_lead_when_another_cap_is_closed(self):
+        self.queue_judge()
+        self.queue("zz-l", "lead", "G-003", at(1))
+        self.ok("config", "max_live_agents", "10")
+        self.ok("config", "min_mem_available_mb", "999999999")
+        self.ok("tick", extra_env={"FACTORY_LOADAVG": HIGH})
+        self.assertEqual((self.status("zz-jd"), self.status("zz-l")), ("queued", "queued"))
+
     def test_judge_still_held_by_max_live_judges(self):
         self.seed_live_judges(3)
         self.queue_judge()

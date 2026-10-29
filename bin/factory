@@ -7525,6 +7525,8 @@ def cmd_tick(a, locked=False):
                                 "WHERE a.status='queued'").fetchall(), key=queue_order_key)
     for q in queued:
         if not gate(con, load_exempt=q["role"] == "judge")[0]:  # judges ignore the load cap, as in spawn()
+            if q["role"] != "judge" and gate(con, load_exempt=True)[0]:
+                continue  # only the load cap holds this row: a judge queued behind it may still start
             break
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
         cur = con.execute("SELECT spawn_args FROM agents WHERE name=? AND status='queued'", (q["name"],)).fetchone()
