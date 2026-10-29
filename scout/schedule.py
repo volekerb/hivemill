@@ -59,6 +59,7 @@ def _finish(con, api, run_id, status, reason=None, session=None):
         _count(con, run_id)
 
 
+SUPERSEDED = "superseded by a newer run"
 NEVER_SPAWNED = ("spawn failed", "claimed but never spawned", "scout agent row missing")
 
 
@@ -66,16 +67,27 @@ def _count(con, run_id):
     """Store the counts of candidates first seen and triage rows created in the run's [started, ended] window.
     The bounds are made explicit-UTC here (a naive stamp is local time) and julianday() compares across offsets;
     the window opens at the earlier of the run's and the agent's started (a run queued and dequeued in one tick is
-    stamped late). A skipped run, and a failed run that was never spawned, keep NULL."""
-    run = con.execute("SELECT started, ended, stop_reason FROM scout_runs WHERE id=? AND status IN ('done','stopped','failed') "
+    stamped late). scout_runs has no created/claimed column, so a superseded run that never got its own start ignores
+    the agent's started: the agents row is shared by every scout run and may be an earlier run's start. Any other run
+    ignores the agent's started when it is earlier than the run's latest scout-slot event (ts <= ended; slots repeat
+    daily), which is the same earlier-run signature; with no such event the agent's started is used. A skipped run,
+    and a failed run that was never spawned, keep NULL."""
+    run = con.execute("SELECT slot, started, ended, stop_reason FROM scout_runs WHERE id=? AND status IN ('done','stopped','failed') "
                       "AND new_candidates IS NULL", (run_id,)).fetchone()
     end = _ts(run["ended"]) if run else None
     if end is None:
         return
     if run["started"] is None and (run["stop_reason"] or "").startswith(NEVER_SPAWNED):
         return
-    agent = con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
-    starts = [t for t in (_ts(run["started"]), _ts(agent["started"]) if agent else None) if t is not None and t <= end]
+    superseded = run["started"] is None and (run["stop_reason"] or "").startswith(SUPERSEDED)
+    agent = None if superseded else con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
+    astart = _ts(agent["started"]) if agent else None
+    if astart is not None:
+        evs = [t for e in con.execute("SELECT ts FROM events WHERE entity='scout' AND entity_id=? AND action='scout-slot'",
+                                      (run["slot"],)) if (t := _ts(e["ts"])) is not None and t <= end]
+        if evs and astart < max(evs):
+            astart = None  # an earlier run's start
+    starts = [t for t in (_ts(run["started"]), astart) if t is not None and t <= end]
     start = min(starts, default=end)
     lo, hi = (x.astimezone(dt.timezone.utc).isoformat() for x in (start, end))
     n = con.execute("SELECT COUNT(*) FROM scout_candidates WHERE julianday(first_seen) BETWEEN julianday(?) AND julianday(?)",
@@ -118,7 +130,7 @@ def sync(con, api, clock):
     runs = con.execute("SELECT * FROM scout_runs WHERE status NOT IN ('done','stopped','failed','skipped') "
                        "ORDER BY id").fetchall()
     for old in runs[:-1]:
-        _finish(con, api, old["id"], "failed", "superseded by a newer run")
+        _finish(con, api, old["id"], "failed", SUPERSEDED)
     if not runs:
         return
     run = runs[-1]

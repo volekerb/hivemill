@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FACTORY = ROOT / "bin" / "factory"
+FACTORY_CLI = ROOT / "bin" / "factory_cli.py"  # the code lives here; bin/factory is a stub that calls main()
 SCOUT_LINE = re.compile(r"\| +(scout|workerbox)(\.|\s*$)", re.M)
 
 
@@ -47,7 +48,7 @@ class LazyScoutImports(unittest.TestCase):
         code = ("import importlib.machinery, importlib.util\n"
                 "l = importlib.machinery.SourceFileLoader('fc', %r)\n"
                 "m = importlib.util.module_from_spec(importlib.util.spec_from_loader('fc', l))\n"
-                "l.exec_module(m)\nprint(sorted(m.SCOUT_TABLES))\n" % str(FACTORY))
+                "l.exec_module(m)\nprint(sorted(m.SCOUT_TABLES))\n" % str(FACTORY_CLI))
         with tempfile.TemporaryDirectory() as home:
             r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                                env={**os.environ, "FACTORY_HOME": home, "PYTHONPATH": str(ROOT)}, timeout=60)
@@ -70,7 +71,7 @@ class LazyScoutImports(unittest.TestCase):
             "m.scoutsandbox.preflight = 'patched'\n"
             "assert sys.modules['scout.sandbox'].preflight == 'patched'\n"
             "assert m.workerbox.SANDBOXABLE and m.scoutdb.SCOUT_DDL\n"
-            "print('ok')\n" % (str(ROOT), str(FACTORY)))
+            "print('ok')\n" % (str(ROOT), str(FACTORY_CLI)))
         with tempfile.TemporaryDirectory() as home:
             r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                                env={**os.environ, "FACTORY_HOME": home}, timeout=60)
