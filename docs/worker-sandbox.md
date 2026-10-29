@@ -4,7 +4,7 @@ Goal G-010. Workers of the listed roles run `claude` inside an unprivileged user
 
 Code: `scout/nsbox.py` (allow mode, see [scout-nsbox.md](scout-nsbox.md)), `scout/workerbox.py` (the worker profile and shim), `bin/factory` (`sandbox_roles`, preflight, spawn wiring). Tests: `tests/test_nsbox_allow.py`, `tests/test_workerbox.py`, `tests/test_sandbox_spawn.py`.
 
-Status at the time of writing (checked against the code on main): present are T-0159 (DB in its own dir), T-0160 (nsbox allow mode), T-0161 (worker profile), T-0162 (flag, preflight, golden test), T-0225 (workerbox nits), T-0209 (tmpfs sizes) and T-0174 (sandbox escape detection). Still **pending**, and marked where it matters below: T-0165 (per-task `git clone --shared`) and T-0167 (qa/coder profile on clones).
+Status at the time of writing (checked against the code on main): present are T-0159 (DB in its own dir), T-0160 (nsbox allow mode), T-0161 (worker profile), T-0162 (flag, preflight, golden test), T-0225 (workerbox nits), T-0209 (tmpfs sizes) and T-0174 (sandbox escape detection). Still **pending**, and marked where it matters below: T-0165 (per-task `git clone --shared`) and T-0167 (qa and coder rw on clones).
 
 ## 1. What it is
 
@@ -30,6 +30,18 @@ Why no pid namespace: a non-init user namespace already denies `/proc/<pid>/envi
 **tmpfs sizes** (T-0209, merged). `/tmp` is 512m and home 64m (runtime dir and `/dev/shm` stay 8m; other hide tmpfs default to 8m); memory-backed, only what is written is used, worst case about 576 MB per worker on this box.
 
 **DB.** The live DB is `~/factory/db/factory.db` ([db-layout.md](db-layout.md)). Inside, `~/factory` is read-only and `~/factory/db/` read-write, so the worker's `factory` commands (`inbox`, `msg`, `task`, `done`) work, and `bin/` and `roles/hooks` (code HQ runs) are not writable. The hidden control socket breaks nothing: no worker-callable command needs it. Plan said a `FACTORY_DB` override; the merged code has none (only `FACTORY_HOME` picks the DB, see db-layout.md).
+
+### qa/coder profile (T-0167)
+
+qa and coder run with `rw_cwd=True` on a per-task clone (`git clone --shared`, objects borrowed from `<factory>/.git` through alternates, `origin` = the real remote). `tests/test_workerbox_clone.py` proves it from inside a real sandbox: `git status/log/diff/commit`, `git fetch origin` and `git merge origin/main`, `git push -u origin HEAD`, a qa fetch of `refs/pull/<n>/head` checked out detached, the `GH_TOKEN` credential helper, and `factory done` (refused with an unpushed commit, accepted after the push). No change to `scout/workerbox.py` was needed.
+
+| | inside the sandbox |
+|---|---|
+| Read-write | the task's own clone (its `.git` included: commits, branches, `FETCH_HEAD`), `~/factory/db/`, the agent's `claude/` config dir, the private `$HOME` and `/tmp` tmpfs |
+| Read-only | `~/factory` including `~/factory/.git` (`config`, `hooks/`, `info/attributes`, `refs/`, `objects/`: every write fails with EROFS), the claude install, the agent's `bin/` and `gitconfig` |
+| Not visible | other tasks' clones (`~/factory/worktrees/` is masked; only the own clone is bound back), the owner's home, the user bus, the ssh-agent and multiplexer sockets (these are tested in `tests/test_workerbox.py`) |
+
+The clone reads the shared objects through `<clone>/.git/objects/info/alternates`, so `git cat-file` of an object that exists only in `~/factory/.git/objects` works. New objects are written to the clone, never to `~/factory/.git`. `git push` and `git fetch` authenticate with the `credential.https://github.com.helper` of the agent's `gitconfig` (`username=x-access-token`, `password=$GH_TOKEN`: the rw token for coder, the read-only one for qa). The reviewer profile is unchanged: its cwd is read-only.
 
 ## 2. Credentials
 
@@ -104,7 +116,7 @@ Every step: before it, the event log shows no `sandbox-refused` or `start-uncert
 - Hold: at least 24 h and 3 reviews with none of those events.
 
 ### Step 2: qa (T-0170)
-- Preconditions: step 1 held; T-0165, T-0166 (clean for clones) and T-0167 (qa/coder profile on clones) merged: **pending**. Until then the preflight refuses qa and coder with reason `clone`. A task whose cwd is a per-task clone (`.git` is a directory).
+- Preconditions: step 1 held; T-0165, T-0166 (clean for clones) and T-0167 (qa and coder rw on clones) merged: **pending**. Until then the preflight refuses qa and coder with reason `clone`. A task whose cwd is a per-task clone (`.git` is a directory).
 - Command: `factory config sandbox_roles reviewer,qa`.
 - Checks: QA checks out the PR head, runs the tests and records PASS or FAIL; no write outside the clone; the test count equals an unsandboxed run of the same PR; `factory clean` removes the clone after the merge.
 - Hold: 24 h and 3 QA runs with no refused or escape events.
