@@ -178,6 +178,8 @@ class SubuidFailClosed(Base):
         self.flag("1")
         self.ok("config", "test_sandbox_subuid", "1", agent="zz-test-director")
 
+    @unittest.skipUnless(USERNS_OK, SKIP_MSG)  # without user namespaces the userns refusal comes first
+    @unittest.skipIf(NESTED, "needs a nested user namespace; skipped inside the boxed gate")
     def test_missing_newuidmap_refuses_and_does_not_run(self):
         bare = self.env.home / "bin"
         bare.mkdir()
@@ -298,6 +300,7 @@ class SubuidBox(Base):
         self.addCleanup(lambda: (victim.kill(), victim.wait()))
         r = self._contained(f"kill -9 {victim.pid}")
         self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not permitted", r.stderr.lower())
         self.assertIsNone(victim.poll())  # still alive
 
 
