@@ -12,6 +12,10 @@ import threading
 import time
 
 ALLOW = "api.anthropic.com:443"
+# worker panes (ADR M11673): inference, git over https, package installs. Eval trials keep the single-host ALLOW.
+WORKER_ALLOW = tuple(f"{h}:443" for h in (
+    "api.anthropic.com", "github.com", "api.github.com", "codeload.githubusercontent.com",
+    "objects.githubusercontent.com", "pypi.org", "files.pythonhosted.org"))
 MAX_LIFE = 20 * 60
 DENIED = b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
 OK = b"HTTP/1.1 200 Connection Established\r\n\r\n"
@@ -76,14 +80,16 @@ def _read_head(conn):
 
 
 def allowed_target(request_line, allow):
-    """host:port of an allowed CONNECT request line, else None. Exact match, host case-insensitive."""
+    """host:port of an allowed CONNECT request line, else None. `allow` is one "host:port" or a collection of them.
+    Exact match, host case-insensitive."""
     parts = request_line.split()
     if len(parts) != 3 or parts[0] != "CONNECT" or not parts[2].startswith("HTTP/"):
         return None
     host, _, port = parts[1].rpartition(":")
-    want_host, _, want_port = allow.rpartition(":")
-    if host.lower() == want_host.lower() and port == want_port:
-        return host, int(port)
+    for entry in [allow] if isinstance(allow, str) else allow:
+        want_host, _, want_port = entry.rpartition(":")
+        if host.lower() == want_host.lower() and port == want_port:
+            return host, int(port)
     return None
 
 

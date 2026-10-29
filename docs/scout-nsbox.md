@@ -18,6 +18,10 @@ Worker sandbox that uses this allow mode: [worker-sandbox.md](worker-sandbox.md)
 
 Anything else, for example `CLAUDE_CODE_MESSAGING_TOKEN` or `FOO_SECRET`, is absent inside claude. To let another variable through, add it to `CLAUDE_ENV_PASS`.
 
+## `run_contained` allow-list view
+
+`run_contained` (the checker runner, T-0158) uses the allow-list mode: an empty tmpfs over the real home, the runtime dir and any extra `hide_dirs` the caller names (`/tmp` is not hidden, as before). Bound back: the trial dir read-write, a cwd outside the trial read-write (as before), the `vendor_dir` plugin read-only. Anything else under `$HOME`, for example `~/notes`, is absent, not merely empty. When the trials root lies outside every hidden tree it is masked, so sibling trials stay hidden. A missing bind source exits non-zero before the command runs (fail closed). The evaluator spawn path (`scout/sandbox.py: eval_ns_cfg`) already uses the same mode.
+
 ## `run_contained` working directory
 
 `run_contained(cwd=X)` binds X back in full, so a cwd that is equal to, above or inside a hide dir (or a sibling trial) would expose hidden content, for example `cwd=~/factory` would show the live `factory.db`. Such a cwd raises `ValueError` unless it is the trial dir or under it. `cwd=None` is unchanged: a cwd inside a hidden dir lands in the trial dir.
@@ -72,3 +76,9 @@ Everything else is absent, in particular `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDR
 **The shim is trusted code and the worker cannot influence it.** `agent_dir/bin` and `agent_dir/gitconfig` are read-only binds (a rename of `bin` fails with EBUSY), `trial_dir` is only `agent_dir/claude`, and every outside write into the agent dir is a temp file plus rename (`O_EXCL`), so a symlink planted in `claude/.claude.json` is replaced, never followed, and a directory there is refused.
 
 Tests: `tests/test_workerbox.py` runs the real chain against a fake home (credentials, ssh key, gh config, listening sockets for the user bus, the multiplexer control socket and the agent proxy), a pty test, and read-only probes of the owner's real paths (each skipped if the path is absent; userns tests skip with the reason from `userns_available()`).
+
+## Egress host set and the pid-death spike (T-0676, ADR M11673 T-e)
+
+`egress.ALLOW` stays the single host `api.anthropic.com:443` (eval trials). `egress.WORKER_ALLOW` is the host set for worker panes: api.anthropic.com, github.com, api.github.com, codeload.githubusercontent.com, objects.githubusercontent.com, pypi.org, files.pythonhosted.org, all port 443, exact host match. `allow` in `egress.serve` and `allowed_target` takes one `host:port` string or a collection; the `serve` JSON config accepts a list. Nothing selects `WORKER_ALLOW` yet: the worker profile has to pass it as `proxy_allow`.
+
+Spike, `pid=False` with `forward=True` (the refusal in `make_cfg` is unchanged): a child started with `prctl(PR_SET_PDEATHSIG, SIGKILL)` in `preexec_fn`, even through `setpriv --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all`, is killed when its parent exits, inside `unshare -r -n -m` with no pid namespace. The same child without PDEATHSIG survives the parent. So the reaping problem is solvable without `--kill-child`. Caveat: the signal fires when the parent thread that forked it dies, so fork from the main thread of a process that lives for the whole run (stage 1 chains by exec, so its pid persists). The multiplexer's pid/session detection under a pid namespace was not tested (workers may not run it); it needs a live check by the lead.
