@@ -210,3 +210,5 @@ Config flag `test_sandbox` (director only, default `0`):
 - anything else: config error, exit 3, the command is not run.
 
 Rollback: `factory config test_sandbox 0`. Nested use: tests that need a user namespace skip inside the boxed gate (`FACTORY_GATEBOX=1`).
+
+The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A`.
