@@ -102,6 +102,18 @@ class AutospawnTests(Base):
         self.assertEqual([(c["role"], c["name"]) for c in calls], [("reviewer", "combined-t-0001")])
         self.assertIn("--as qa", calls[0]["prompt"])
 
+    def test_low_tier_with_plain_reviewer_gets_qa_and_one_fyi(self):
+        self.on(risk_tiers="on")
+        self.task()
+        self.env.sql("UPDATE tasks SET tier='T1' WHERE id='T-0001'")
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001")
+        calls = [self.tick_step() for _ in range(3)]
+        self.assertEqual([[(c["role"], c["name"]) for c in cs] for cs in calls], [[("qa", "qa-t-0001")], [], []])
+        fyi = self.env.sql("SELECT body FROM messages WHERE kind='fyi'")
+        self.assertEqual(len(fyi), 1)
+        self.assertIn("qa-t-0001", fyi[0]["body"])
+        self.assertNotIn("reviewer-t-0001", fyi[0]["body"])
+
     def test_tier_ignored_when_risk_tiers_off(self):
         self.on()
         self.task()

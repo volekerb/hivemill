@@ -9806,11 +9806,14 @@ def review_autospawn_tick(con):
     combined_ok = cfg(con, "risk_tiers") == "on"
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
-        low = combined_ok and t["tier"] in ("T0", "T1")
+        has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
+        # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
+        low = combined_ok and t["tier"] in ("T0", "T1") and not has_reviewer
+        started = []
         plan = [("reviewer", combined_name(tid))] if low else [("reviewer", slug(f"reviewer-{tid}")), ("qa", slug(f"qa-{tid}"))]
         for role, name in plan:
             if role == "reviewer":  # any reviewer row (the lead's own included) means the reviewer half is done or in flight
-                if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone():
+                if has_reviewer:
                     continue
             elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
@@ -9827,11 +9830,14 @@ def review_autospawn_tick(con):
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
             event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status})
+            started.append(name)
             if status == "queued":
                 return
         else:
+            if not started:
+                continue
             send(con, f"lead:{team}", f"review autospawn: {'combined ' if low else ''}review started on {tid}",
-                 f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(n for _, n in plan)} when the PR opened. "
+                 f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} when the PR opened. "
                  "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
 
 
