@@ -63,8 +63,22 @@ func TestGolden(t *testing.T) {
 	if err := json.Unmarshal(craw, &corpus); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(corpus.MustBlock) + len(corpus.MustAllow); g.CorpusCommands > n || g.CorpusCommands < n/2 {
-		t.Fatalf("golden covers %d corpus commands, corpus has %d entries: regenerate with python3 ci/shlex_golden.py", g.CorpusCommands, n)
+	cmds := map[string]bool{}
+	for _, raw := range append(corpus.MustBlock, corpus.MustAllow...) {
+		var obj struct {
+			Cmd string `json:"cmd"`
+		}
+		var str string
+		if json.Unmarshal(raw, &str) == nil {
+			cmds[str] = true
+		} else if err := json.Unmarshal(raw, &obj); err == nil {
+			cmds[obj.Cmd] = true
+		} else {
+			t.Fatalf("corpus entry %s is neither a string nor an object", raw)
+		}
+	}
+	if g.CorpusCommands != len(cmds) {
+		t.Fatalf("golden covers %d corpus commands, corpus has %d: regenerate with python3 ci/shlex_golden.py", g.CorpusCommands, len(cmds))
 	}
 	compared := 0
 	for _, c := range g.Cases {

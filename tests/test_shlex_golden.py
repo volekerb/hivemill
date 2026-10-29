@@ -1,10 +1,14 @@
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "ci", "shlex_golden.py")
@@ -57,16 +61,27 @@ class GoldenFileTests(unittest.TestCase):
         r = subprocess.run([sys.executable, TOOL, "--check"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    def run_main(self, *argv):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            return shlex_golden.main(list(argv)), err.getvalue()
+
     @unittest.skipUnless(ON_REFERENCE, "golden is built by CPython " + shlex_golden.PYTHON)
     def test_check_mode_rejects_stale_golden(self):
-        doc = shlex_golden.build()
-        doc["cases"][0]["input"] += "x"
-        self.assertNotEqual(shlex_golden.render(doc), open(GOLDEN, encoding="utf-8").read())
+        with tempfile.TemporaryDirectory() as d:
+            stale = os.path.join(d, "golden.json")
+            with open(stale, "w", encoding="utf-8") as f:
+                f.write(shlex_golden.render(shlex_golden.build()).replace('"python": "3.13"', '"python": "3.12"'))
+            with mock.patch.object(shlex_golden, "GOLDEN", stale):
+                rc, err = self.run_main("--check")
+        self.assertEqual(rc, 1)
+        self.assertIn("stale", err)
 
-    @unittest.skipIf(ON_REFERENCE, "only the wrong-version refusal is tested here")
     def test_other_python_is_refused(self):
-        r = subprocess.run([sys.executable, TOOL, "--check"], capture_output=True, text=True)
-        self.assertEqual(r.returncode, 2)
+        with mock.patch.object(shlex_golden, "PYTHON", "2.7"):
+            rc, err = self.run_main("--check")
+        self.assertEqual(rc, 2)
+        self.assertIn("needs CPython 2.7", err)
 
 
 if __name__ == "__main__":
