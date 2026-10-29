@@ -1,8 +1,9 @@
 """Evaluator trial sandbox (G-009 T8a): the on-disk layout of one skill trial and the fail-closed checks around it.
 
 SECURITY CODE. `build_sandbox` creates <skilleval_root>/trials/<trial-id>/ with work/ (the task repo, a fresh git
-repo), fh/ (a temp FACTORY_HOME with its own DB), home/ (HOME holding only a comment-only rc file), cfg/ (CLAUDE_CONFIG_DIR), role/ (read-only
-claude settings + system prompt, written by spawn), bin/claude (the nsbox shim) and a read-only factory CLI snapshot.
+repo), fh/ (a temp FACTORY_HOME with its own DB), home/ (HOME holding only a comment-only rc file),
+cfg/ (CLAUDE_CONFIG_DIR), role/ (read-only claude settings + system prompt, written by spawn), bin/claude (the
+nsbox shim) and a read-only factory CLI snapshot.
 The evaluator only ever runs through that shim (nsbox allow-list view: the real home, the runtime dir, /tmp and
 /dev/shm are hidden; only the trial dir, the one vendored plugin and the claude install are bound back).
 

@@ -8,6 +8,7 @@ import ast
 import builtins
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -606,6 +607,11 @@ class TrialHomeZshTests(SandboxBase):
                            env={"PATH": os.environ["PATH"], "HOME": str(home), "LC_ALL": "C.UTF-8", "TERM": "dumb"})
         return r.stdout
 
+    @staticmethod
+    def launch_ok(out):
+        """MARKER as its own output line (not the echoed keystrokes) and no shell error."""
+        return bool(re.search(r"(?m)^MARKER\r?$", out)) and "command not found" not in out
+
     def setUp(self):
         super().setUp()
         if not shutil.which("zsh") or not shutil.which("script"):
@@ -624,7 +630,7 @@ class TrialHomeZshTests(SandboxBase):
         with self.env.load_factory() as f:
             info = self.build(f.db())
         out = self.run_zsh(Path(info["dir"]) / "home")
-        self.assertIn("MARKER", out)
+        self.assertTrue(self.launch_ok(out), out)
         self.assertNotIn("zsh-newuser-install", out)
 
     def test_empty_home_is_detected(self):
@@ -632,7 +638,7 @@ class TrialHomeZshTests(SandboxBase):
         self.addCleanup(shutil.rmtree, d, True)
         out = self.run_zsh(d)
         self.assertIn("zsh-newuser-install", out)
-        self.assertNotIn("\nMARKER", out.replace("echo MARKER", ""))
+        self.assertFalse(self.launch_ok(out), out)
 
 
 if __name__ == "__main__":
