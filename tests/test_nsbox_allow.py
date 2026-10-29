@@ -496,6 +496,56 @@ class NoFollowTargetTests(unittest.TestCase):
 
 
 @unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class NoFollowHideTests(unittest.TestCase):
+    """T-0462: hide-dir tmpfs mounts and hide_files binds are no-follow fd mounts too."""
+
+    def setUp(self):
+        self.root = tmpdir(self)
+        self.trial = self.root / "trials" / "t1"
+        self.trial.mkdir(parents=True)
+        self.parent, self.decoy = self.root / "swap", self.root / "decoy"
+        for d in (self.parent, self.decoy):
+            (d / "sub").mkdir(parents=True)
+            (d / "f").write_text("S")
+        self.marker = self.root / "ran"
+
+    def run_swapped(self, **kw):
+        cfg = nsbox.make_cfg(self.trial, None, self.root / "home", self.root / "trials", mode="allow", unshare=UNSHARE,
+                             rw=[self.root / "trials"], **kw)
+        shutil.rmtree(self.parent)
+        self.parent.symlink_to(self.decoy)  # the swap, after make_cfg
+        return run_cfg(cfg, probe(f"open('{self.marker}', 'w').close()"))
+
+    def test_hide_dir_parent_swapped_after_make_cfg_is_refused(self):
+        r_ = self.run_swapped(hide_dirs=[str(self.parent / "sub")], hide_files=())
+        self.assertNotEqual(r_.returncode, 0)
+        self.assertIn(str(self.parent), r_.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_hide_dir_leaf_symlink_is_refused(self):
+        (self.root / "link").symlink_to(self.decoy)
+        cfg = nsbox.make_cfg(self.trial, None, self.root / "home", self.root / "trials", mode="allow", unshare=UNSHARE,
+                             rw=[self.root / "trials"], hide_dirs=[str(self.root / "link")], hide_files=())
+        r_ = run_cfg(cfg, probe(f"open('{self.marker}', 'w').close()"))
+        self.assertNotEqual(r_.returncode, 0)
+        self.assertIn(str(self.root / "link"), r_.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_hide_file_parent_swapped_after_make_cfg_is_refused(self):
+        r_ = self.run_swapped(hide_dirs=(), hide_files=[str(self.parent / "f")])
+        self.assertNotEqual(r_.returncode, 0)
+        self.assertIn(str(self.parent), r_.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_plain_hide_dir_and_file_are_still_hidden(self):
+        cfg = nsbox.make_cfg(self.trial, None, self.root / "home", self.root / "trials", mode="allow", unshare=UNSHARE,
+                             rw=[self.root / "trials"], hide_dirs=[str(self.parent / "sub")],
+                             hide_files=[str(self.decoy / "f")])
+        r_ = run_cfg(cfg, probe(f"import os; print(repr(open('{self.decoy}/f').read()), os.listdir('{self.parent}/sub'))"))
+        self.assertEqual((r_.returncode, r_.stdout.strip()), (0, "'' []"), r_.stderr)
+
+
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
 class PidAndEnvNamespaceTests(unittest.TestCase):
     def setUp(self):
         self.root = tmpdir(self)

@@ -93,7 +93,7 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 | `test_slots` | `2` | Host-wide slots for full test-suite runs. |
 | `min_mem_available_mb` | `1024` | The gate closes below this much available RAM. |
 | `tmp_sweep_pct` | `80` | Over this, the tick deletes `/tmp` scratch dirs and `/tmp/qa-*` homes of agents that all finished (done/stopped/lost/exited) 30+ min ago; unknown dirs stay. One `tmp-swept` event per sweep, shown in `factory res`; if `/tmp` is still over `tmp_max_pct` the director is alerted once. |
-| `tmp_max_pct` | `90` | The gate closes when the filesystem holding `/tmp` is this full. |
+| `tmp_max_pct` | `90` | The gate closes when the filesystem holding `/tmp` is this full. The cleaner role is exempt from this check only (it frees `/tmp`); every other cap still applies to it. |
 | `max_five_hour_pct` | `92` | The gate closes above this share of the five-hour Claude usage window. |
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
