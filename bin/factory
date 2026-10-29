@@ -5394,11 +5394,14 @@ def prcheck_body(wt, base, pr_url):
     sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
     if not re.search(r"`[^`\n]+`", sec):
         problems.append("`## Test evidence` has no command in backticks (e.g. `python3 -m unittest discover -s tests -v`)")
-    n_head, n_base = prcheck_test_count(wt, "HEAD"), prcheck_test_count(wt, f"origin/{base}")
+    # count against the merge-base, so tests main gained since the branch point do not look like removals
+    mb = _git_out(wt, "merge-base", "HEAD", f"origin/{base}")
+    n_head = prcheck_test_count(wt, "HEAD")
+    n_base = prcheck_test_count(wt, mb[1]) if mb[0] == 0 and mb[1] else None
     if n_head is None or n_base is None:
         problems.append("cannot count the tests (git grep failed)")
     elif n_head < n_base and not _TESTS_REMOVED.search(outside):
-        problems.append(f"the test count drops ({n_base} on origin/{base}, {n_head} on HEAD): add a line "
+        problems.append(f"the test count drops ({n_base} at the merge base with origin/{base}, {n_head} on HEAD): add a line "
                         "`Tests removed: <which and why>` outside <details>")
     if problems:
         return False, f"PR body of {pr_url}:\n" + "\n".join(f"      - {x}" for x in problems)

@@ -125,8 +125,13 @@ class PrcheckTests(FactoryTestCase):
         git("rm", "-q", "tests/test_x.py", cwd=self.wt)
         commit(self.wt, "tests/test_y.py", "import unittest\n\nclass T(unittest.TestCase):\n    def test_a(self):\n        pass\n")
         p = self.prcheck(1)
-        self.assertIn("the test count drops (2 on origin/main, 1 on HEAD)", p.stdout)
+        self.assertIn("the test count drops (2 at the merge base with origin/main, 1 on HEAD)", p.stdout)
         self.env.seed_pr(url=PR_URL, body=pr_body().replace("## Why", "Tests removed: test_b duplicated test_a\n\n## Why"))
+        p = self.prcheck(0)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_tests_added_on_main_are_not_a_drop(self):
+        self.advance_main("tests/test_z.py", TESTS_FILE)
         p = self.prcheck(0)
         self.assertIn("PASS body:", p.stdout)
 
