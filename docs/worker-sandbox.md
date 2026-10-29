@@ -51,7 +51,7 @@ All three files are owner-created, regular files, mode 0600, owned by the owner,
 |---|---|---|---|---|
 | `~/.config/factory/worker-oauth-token` | Claude setup-token (`claude setup-token`), inference only | every sandboxed role | inference only; revoke at claude.ai settings | long-lived; revoke and recreate to rotate |
 | `~/.config/factory/gh-worker-ro-token` | fine-grained PAT, repo `volekerb/hivemill` only | reviewer, qa | Contents: Read; Pull requests: Read and write; Actions: Read; Commit statuses: Read; Metadata: Read (implicit). Cannot push or merge | 90 days at most |
-| `~/.config/factory/gh-worker-rw-token` | fine-grained PAT, repo `volekerb/hivemill` only | coder | Contents: Read and write; Pull requests: Read and write; Actions: Read; Commit statuses: Read; Metadata: Read (implicit). **No Workflows permission** | 90 days at most |
+| `~/.config/factory/gh-worker-rw-token` | fine-grained PAT, repo `volekerb/hivemill` only | coder, judge, cleaner | Contents: Read and write; Pull requests: Read and write; Actions: Read; Commit statuses: Read; Metadata: Read (implicit). **No Workflows permission** | 90 days at most |
 
 Because the rw PAT has no Workflows permission, a push that changes `.github/workflows` is rejected. Tasks that edit CI files run unsandboxed or are done by the owner.
 
@@ -198,6 +198,62 @@ A worker also cannot be assumed to be honest about its own state: the spawn refu
 - Who may set it: only `factory spawn`, which is already refused to workers (`refuse_worker`) and limited to director, lead and boss. No config key, message or env var can set it.
 - Why a flag and not agent names in `sandbox_roles`: names there would turn the role-checked list into a mixed list, and `check_sandbox_roles` and every reader would have to tell roles from names. A flag keeps the decision on the one spawn, recorded in that spawn's own row.
 - Staged rollout: canary with `--sandbox` on a single agent, then `factory config sandbox_roles reviewer` for the role, then `reviewer,qa,coder`. Rollback of a canary: stop the agent and spawn it again without the flag (a running agent keeps its sandbox until then).
+
+## Worker GitHub credential (R-c)
+
+Owner rule R-c: a worker's `git push` and `gh` calls use a worker token file, never the owner's `~/.config/gh/hosts.yml` or the owner's git credential helper. The sandbox (sections 1-2) already does this for sandboxed roles. This section covers the same credential for roles that run **unsandboxed**, and the config that selects the token for both. Code: `scout/ghcred.py` (the scoped git credential helper and the `gh` shim) and `bin/factory` (`gh_cred_*`, wired into the spawn). It is off by default.
+
+**Who needs GitHub (inventory, from the T-0648 plan).**
+
+| role | calls | access |
+|---|---|---|
+| coder | `git push`, `gh pr create` | write (Contents, Pull requests) |
+| judge | `gh pr view/checks`, and inside `factory judge`: `git push --force-with-lease` (branch refresh), `gh pr merge --squash --delete-branch`, `gh pr close` | read and write |
+| cleaner | `gh pr view`, `git push --delete` (`factory clean --remote-branch`) | read and write |
+| reviewer, qa | `gh pr view/diff`, `gh pr comment` | read (the read-only PAT includes Pull requests: Read and write for the comment) |
+| pm | `gh pr view/list/diff` | read |
+
+Calls that `bin/factory` makes inside a worker's process (`gh_json`, `pr_state`, the judge merge path, `clean`) inherit the worker's env, so they use the worker credential with no per-call change. Lead, director, boss and tick calls (`refresh`, gate status posts, state export pushes) are not worker calls and stay on the owner login.
+
+**How it works.** At spawn, for an unsandboxed worker whose role is in `worker_gh_roles`, the spawn writes `~/.local/state/factory/ghcred/<agent>/` (no secret in it): a `gitconfig` whose only credential helper is `ghcred.py git-credential`, an empty `gh/` config dir and a `bin/gh` shim. The pane env gets paths only: `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0`, `GH_CONFIG_DIR`, `FACTORY_GH_TOKEN_FILE` and a `PATH` that starts with `<agent dir>/bin`. The helper and the shim read the token file at call time, so a token swap is a file change. The helper answers only for `https://github.com/<slug>` of the configured repositories and prints nothing on stdout, writes a one-line reason to stderr and exits 1 when the token is unavailable. A sandboxed role keeps its `GH_TOKEN` in env (it must, `~/.config` is hidden inside) and takes the token path and repository list from the same config.
+
+**Config keys** (`factory config`; all are read fresh at every spawn):
+
+| key | default | meaning |
+|---|---|---|
+| `worker_gh_roles` | empty (off) | comma list of roles that get the worker credential when they are not sandboxed |
+| `gh_rw_roles` | `coder,judge,cleaner` | the roles of `worker_gh_roles` that get the read-write token; every other listed role gets the read-only one |
+| `gh_token_ro` | empty = `~/.config/factory/gh-worker-ro-token` | read-only token file; must be a regular 0600 file directly in `~/.config/factory` |
+| `gh_token_rw` | empty = `~/.config/factory/gh-worker-rw-token` | read-write token file, same rules |
+| `worker_gh_repos` | empty = the repository of `factory_remote_url` | comma list of `OWNER/NAME` the token is offered for |
+
+`worker_gh_roles` and `gh_rw_roles` accept only `coder`, `qa`, `reviewer`, `judge`, `cleaner` and `pm` (so `lead` and `director` are refused); `worker_gh_repos` accepts `OWNER/NAME` entries only. Anything else is refused by `factory config` with exit 2. The functions are `gh_cred_*` in `bin/factory_cli.py`, behind the `bin/factory` wrapper.
+
+Related notes for the other sections: `pm` also uses the read-only token (the table in section 2 lists the sandboxed users); with R-c the `judge` role gets the rw PAT even though it is not sandboxed (the last paragraph of section 2 is about the sandbox only);
+the rw PAT has no Workflows permission, so a coder listed in `worker_gh_roles` cannot push a change to `.github/workflows`, sandboxed or not.
+Such a task is done by the owner, or the coder is left out of `worker_gh_roles` for it.
+At renewal (section 3), a token file that is missing or unreadable is refused at spawn.
+A token that merely expired at GitHub is not detected.
+The bridge for that case is the rollback below, not `sandbox_roles ''`.
+
+**Fail closed.** A listed role never starts without its credential. Before any pane is placed the spawn checks the token file (regular, 0600, own uid, not empty, directly in `~/.config/factory`), the repository list and that a real `gh` is on the spawner's `PATH`. On failure it exits 3, starts no pane, records event `gh-cred-refused` and sends the director one alert per hour. The text names the config key, never a token path.
+
+**Rollout order.**
+
+1. Merged and live: `factory config worker_gh_roles reviewer,qa,pm`. This needs only the read-only token (O3). Check: a new reviewer's `gh pr view <n>` works, and `git config --get-all credential.https://github.com.helper` inside its pane shows only the `ghcred.py` helper.
+2. After the owner has created the read-write token (O4): `factory config worker_gh_roles reviewer,qa,pm,coder,judge,cleaner`. Check: a coder pushes its branch and `gh pr view` works, `factory judge` merges one PR, and the GitHub PR timeline shows the PAT's actor, not the owner.
+3. Never list `coder`, `judge` or `cleaner` before the rw token file exists: the preflight refuses their spawns.
+
+Agents that are already running keep the credential they started with until their next relaunch.
+
+**Rollback.** `factory config worker_gh_roles ''` returns every unsandboxed role to the owner's `gh` login from the next spawn on. It does not touch `sandbox_roles` (section 5).
+
+**Residual risks.**
+
+1. An unsandboxed worker can still read `~/.config/gh/hosts.yml` and `~/.ssh` and unset the pane env on purpose. R-c stops accidents and gives every worker call a scoped, revocable identity; hiding the owner's files is what the sandbox does.
+2. HQ calls (lead, director, boss, tick: `refresh`, gate status posts, state export pushes) stay on the owner login.
+3. The rw PAT can merge a green PR through the API and so bypass `factory judge` (section 2). A separate judge identity is later work.
+4. An unsandboxed worker can read the token files in `~/.config/factory` directly, the rw one included (a pm or reviewer too), and the shim hands the token to `gh` for each call; it can be exfiltrated by that worker. It is scoped to the configured repositories and revocable.
 
 ## factory test
 
