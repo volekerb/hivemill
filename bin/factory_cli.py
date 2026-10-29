@@ -174,6 +174,7 @@ DEFAULT_CONFIG = {
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
     "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
+    "test_sandbox_subuid": "0",  # 1 (with test_sandbox 1) = the test box runs as a subordinate host uid via newuidmap, not the owner uid; no newuidmap/subuid range = exit 3, never as the owner (T-0682)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -203,6 +204,8 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
+    "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -1566,6 +1569,8 @@ def cmd_config(a):
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
         if a.key in ("public_text_repos", "frozen_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
             die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
+            die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
         if a.key == "opus_effort":
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
@@ -2240,11 +2245,15 @@ def task_sandbox_required(con, task):
     return bool(r and r["sandbox_required"])
 
 
+# same pattern as web/queries.py _TAG_RE, so a title is tagged exactly when the goal page counts it
+SC_TAG_RE = r"\[(SC\d+(?:\s*,\s*SC\d+)*)\]"
+
+
 def cmd_task(a):
     con = db()
     if a.action == "add":
         require_role(con, "pm", "lead", "director")
-        g = con.execute("SELECT id FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
+        g = con.execute("SELECT id,success_criteria FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
         if a.follow_up_of:
             pm_own_goal(con, g["id"], "the follow-up")
             par = con.execute("SELECT status FROM tasks WHERE id=? AND goal_id=?", (a.follow_up_of, g["id"])).fetchone()
@@ -2271,6 +2280,9 @@ def cmd_task(a):
         if a.follow_up_of:
             event(con, "task", tid, "follow-up", f"follow-up of {a.follow_up_of}")
         warn_file_overlap(con, tid, g["id"], spec)
+        if (g["success_criteria"] or "").strip() and not re.search(SC_TAG_RE, a.title or ""):
+            print(f"warning: {tid} title has no [SCn] tag but {g['id']} has success criteria; the goal page shows "
+                  f"them untracked. Retitle: factory task update {tid} --title '<title> [SCn]'", file=sys.stderr)
         print(tid)
     elif a.action == "reopen":
         role = actor_role(con)
@@ -3230,6 +3242,27 @@ def judge_max_refreshes(con):
 REFRESH_IDENT = {"GIT_AUTHOR_NAME": "factory refresh", "GIT_AUTHOR_EMAIL": "factory-refresh@localhost",
                  "GIT_COMMITTER_NAME": "factory refresh", "GIT_COMMITTER_EMAIL": "factory-refresh@localhost"}
 
+def refresh_ident(con, repo, task, owner_repo):
+    """Identity env of a refresh merge commit (T-0604). Private repo: REFRESH_IDENT. PR repo or the task's project
+    gh_repo in public_text_repos (no slug at all while the list is set counts as public): author and committer email =
+    noreply_email(con) (config, else git user.email). Returns (env, None), or
+    (None, why) when no noreply address is known: the refresh is refused (fail closed)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    if not public:
+        return REFRESH_IDENT, None
+    proj = con.execute("SELECT p.gh_repo FROM projects p JOIN goals g ON g.project_id=p.id JOIN tasks t ON t.goal_id=g.id "
+                       "WHERE t.id=?", (task,)).fetchone()
+    slugs = [x for x in dict.fromkeys((_repo_slug(owner_repo), _repo_slug(proj["gh_repo"] if proj else ""))) if x]
+    if slugs and not set(slugs) & public:
+        return REFRESH_IDENT, None
+    email = noreply_email(con)
+    if not email:
+        return None, (f"REFRESH-IDENT: {', '.join(slugs) or 'the repo'} is public (public_text_repos) and neither config "
+                      f"noreply_email nor git user.email is a {NOREPLY_SUFFIX} address; set "
+                      f"`factory config noreply_email <id+handle{NOREPLY_SUFFIX}>`")
+    name = REFRESH_IDENT["GIT_AUTHOR_NAME"]
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}, None
+
 
 def refresh_lock(pr_number):
     """Non-blocking exclusive flock on db/refresh-pr-<N>.lock: one refresher per PR at a time. Returns (file, holder): the
@@ -3292,8 +3325,11 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
     frozen = _push_policy(db(), repo_url) or _push_policy(db(), owner_repo)
     if frozen:
         return {"status": "error", "why": f"{frozen}; nothing pushed"}
+    ident, why = refresh_ident(db(), repo, task, owner_repo)
+    if why:
+        return {"status": "error", "why": f"{why}; nothing pushed"}
     msg = f"Merge origin/main into {branch} (factory refresh {task})"
-    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **REFRESH_IDENT})
+    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **ident})
     if rc != 0 or not new:
         return {"status": "error", "why": f"git commit-tree failed: {err or rc}"}
     rc, _, err = _git_rc(["push", "-q", f"--force-with-lease=refs/heads/{branch}:{old}", repo_url, f"{new}:refs/heads/{branch}"],
@@ -3751,7 +3787,6 @@ def cmd_judge(a):
     reason = read_text(a.reason)
     waited = 0
     proj = gate_project_for(con, t["pr_url"])  # local merge gate mode (T-0516) iff the project has a gate_cmd
-    gate_waited = False
     if not a.reject:
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
@@ -3764,6 +3799,13 @@ def cmd_judge(a):
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
+    return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
+
+
+def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
+    """The merge gate of `factory judge` (pure extraction from cmd_judge): verdicts + carry, freshness, CI, refresh,
+    push-policy, public-text, noreply, then `gh pr merge` and the post-merge records. Dies (exit 4/5/6) on any refusal."""
+    gate_waited = False
     wt = t["worktree"]
     git_repo = wt if wt and Path(wt).is_dir() else HOME
     for r in dict.fromkeys([str(git_repo), os.getcwd()]):  # the carry check runs in git_repo, `gh pr merge` in the cwd
@@ -4988,6 +5030,247 @@ def reap_stray_serves(con):
             pass
 
 
+ORPHAN_REAP_THROTTLE_S = 600   # same cadence as the serve reaper
+ORPHAN_ENDED = ("done", "exited", "lost", "cancelled")   # a 'stopped' agent can be resumed: not ended
+ORPHAN_BLOCKING = ("live", "queued", "starting", "stopped")
+ORPHAN_HQ_ROLES = ("boss", "director", "lead", "staff-engineer")
+ORPHAN_MODES = ("dry-run", "on", "off")
+
+
+def _orphan_stat(pid):
+    """(ppid, pgid, starttime) from /proc/<pid>/stat, or None when it is gone or unreadable."""
+    try:
+        s = (_serve_proc_root() / str(pid) / "stat").read_text(errors="replace")
+        f = s[s.rindex(")") + 2:].split()
+        return int(f[1]), int(f[2]), int(f[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _orphan_ident(pid):
+    """(argv, starttime) of a pid right now, or None: the pid-reuse guard compares this before every signal."""
+    st, argv = _orphan_stat(pid), _serve_argv(pid)
+    return (argv, st[2]) if st and argv else None
+
+
+def _orphan_env(pid):
+    try:
+        raw = (_serve_proc_root() / str(pid) / "environ").read_bytes()
+    except OSError:
+        return None
+    return dict(x.decode(errors="replace").split("=", 1) for x in raw.split(b"\0") if b"=" in x)
+
+
+def _orphan_task(cwd, argv):
+    """((goal, task), attributed_by) when cwd/scratchpad/argv all point at one task's worktree, else None (nothing
+    found, or two tasks: then the process is not ours). attributed_by is the first of cwd, scratchpad, argv that matched."""
+    wt = WORKTREES.resolve()
+
+    def in_worktree(path):
+        try:
+            rel = Path(path).relative_to(wt).parts
+        except ValueError:
+            return None
+        m = re.fullmatch(r"(G-\d+)-(T-\d+)", rel[0]) if rel else None
+        return (m.group(1), m.group(2)) if m else None
+
+    found = []
+    if (k := in_worktree(cwd)):
+        found.append(("cwd", k))
+    pad = _serve_pad(cwd)
+    if pad and pad[0].parent.name == f"claude-{os.getuid()}":  # the Claude scratchpad shape only
+        m = re.search(r"(G-\d+)-(T-\d+)$", pad[0].name)
+        if m:
+            found.append(("scratchpad", (m.group(1), m.group(2))))
+    for el in argv[1:]:
+        if el and (k := in_worktree(os.path.realpath(os.path.join(cwd, el)))):
+            found.append(("argv", k))
+    if not found or len({k for _by, k in found}) != 1:
+        return None
+    return found[0][1], found[0][0]
+
+
+def _orphan_judge(con, pid, skip):
+    """The facts about `pid` when it is an orphan of an ended worker (see reap_orphans), else None."""
+    if pid in skip:
+        return None
+    root = _serve_proc_root()
+    try:
+        if (root / str(pid)).stat().st_uid != os.getuid():
+            return None
+        cwd = os.path.realpath(os.readlink(root / str(pid) / "cwd"))
+    except OSError:
+        return None
+    env, ident = _orphan_env(pid), _orphan_ident(pid)
+    if env is None or ident is None:
+        return None
+    agent = env.get("FACTORY_AGENT", "")
+    if not agent or agent == "owner":
+        return None  # not started by a factory agent: never ours to reap
+    argv = ident[0]
+    att = _orphan_task(cwd, argv)
+    if not att:
+        return None
+    (goal, task), by = att
+    rows = con.execute("SELECT name,role,status FROM agents WHERE task_id=?", (task,)).fetchall()
+    mine = next((r for r in rows if r["name"] == agent), None)
+    if (not mine or mine["status"] not in ORPHAN_ENDED or mine["role"] in ORPHAN_HQ_ROLES
+            or agent in ("boss", "director", "staff-engineer") or agent.startswith("lead-")
+            or any(r["status"] in ORPHAN_BLOCKING for r in rows)):
+        return None
+    home = env.get("FACTORY_HOME", "")
+    if os.path.basename(argv[0]) in ("claude", "herdr"):
+        return None  # a pane's own process
+    if home and home_is_live(home) and any(os.path.basename(x) == "factory" for x in argv[:3]):
+        return None  # a factory process on the live home (the owner's serve, a tick, a CLI call)
+    cur = (_orphan_stat(pid) or (None,))[0]
+    for _ in range(64):  # a live pane's process tree is never ours
+        if cur is None or cur <= 1:
+            break
+        if cur in skip:
+            return None
+        a = _serve_argv(cur)
+        if a and os.path.basename(a[0]) == "claude":
+            return None
+        anc = (_orphan_env(cur) or {}).get("FACTORY_AGENT", "")
+        if anc and anc != "owner":
+            row = con.execute("SELECT status FROM agents WHERE name=?", (anc,)).fetchone()
+            if row and row["status"] not in ORPHAN_ENDED:
+                return None
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return {"pid": pid, "agent": agent, "task": task, "argv": argv, "ident": ident, "cwd": cwd, "home": home,
+            "worktree": str(WORKTREES / f"{goal}-{task}"), "by": by}
+
+
+def _orphan_skip(main_pid):
+    """The tick, its ancestors and the factory-serve unit's MainPID."""
+    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    for _ in range(64):
+        if cur is None or cur <= 1:
+            break
+        skip.add(cur)
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return skip
+
+
+def _orphan_signal(sig, targets, group):
+    """Send `sig` (to the group when `group`) only if every (pid, ident) in targets still has its scanned identity."""
+    if any(_orphan_ident(pid) != ident for pid, ident in targets):
+        return False
+    try:
+        _serve_kill(-group if group else targets[0][0], sig)
+    except OSError:  # gone (ProcessLookupError) or not ours to signal (PermissionError)
+        return False
+    return True
+
+
+def _orphan_payload(j, how):
+    """The event body of a would-reap / reap event: exactly these keys."""
+    return {"pid": j["pid"], "start_time": j["ident"][1], "argv0": j["argv"][0],
+            "cmd_sha": hashlib.sha256(b"\0".join(x.encode() for x in j["argv"])).hexdigest()[:12],
+            "cwd": j["cwd"], "worktree": j["worktree"], "task": j["task"], "agent": j["agent"],
+            "attributed_by": j["by"], "signal": how}
+
+
+def reap_orphans(con):
+    """Tick hook, at most every 10 min, per config orphan_reap_mode: 'dry-run' (default; an unknown value too) logs one
+    "orphan-would-reap" event per (pid, start time) and signals nothing; 'on' sends SIGTERM (SIGKILL after 10 s); 'off'
+    skips the scan. A candidate is a same-user process attributed to ONE task by its cwd in the task worktree, its cwd in
+    that task's Claude scratchpad, or an argv path in the worktree (two tasks = untouched), whose FACTORY_AGENT is an
+    ENDED (done/exited/lost/cancelled) non-HQ agent of that task while no agent of the task is live/queued/starting/
+    stopped. FACTORY_AGENT unset, empty or 'owner' is never touched; nor the tick and its ancestors, the unit's
+    MainPID, a factory process on the live home, or anything under a claude process or a non-ended agent. start time +
+    cmdline are re-read before each signal (pid reuse). The process group goes too only when its leader passes every
+    check itself. One event per pid, one batched alert to the director. A reaped factory serve's own demo FACTORY_HOME
+    directly under /tmp goes afterwards, unless some process still uses it."""
+    try:
+        mode = cfg(con, "orphan_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off":
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='orphanreap'").fetchone()
+        if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('orphanreap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        skip = _orphan_skip(_serve_mainpid())
+        grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
+        reaped, homes = [], {}
+        for d in sorted(_serve_proc_root().iterdir()):
+            if not d.name.isdigit():
+                continue
+            j = _orphan_judge(con, int(d.name), skip)
+            if not j:
+                continue
+            pid = j["pid"]
+            if mode == "dry-run":
+                body = _orphan_payload(j, "none")
+                key = json.dumps({"pid": pid, "start_time": j["ident"][1]})[:-1] + ","
+                if not con.execute("SELECT 1 FROM events WHERE action='orphan-would-reap' AND substr(detail,1,?)=?",
+                                   (len(key), key)).fetchone():
+                    event_as(con, "tick", "agent", j["agent"], "orphan-would-reap", body)
+                continue
+            targets, group = [(pid, j["ident"])], 0
+            st = _orphan_stat(pid)
+            if st and st[1] > 1 and st[1] != os.getpgrp():
+                lead = j if st[1] == pid else _orphan_judge(con, st[1], skip)
+                if lead:
+                    group = st[1]
+                    targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
+            if not _orphan_signal(signal.SIGTERM, targets, group):
+                continue
+            how, deadline = "TERM", time.time() + grace
+            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
+                time.sleep(0.2)
+            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
+                how = "KILL"
+            event_as(con, "tick", "agent", j["agent"], "orphan-reaped", _orphan_payload(j, how))
+            reaped.append(j)
+            if _is_factory_serve(j["argv"]) and j["home"]:
+                homes[j["home"]] = j["agent"]
+        for home, agent in homes.items():
+            h, tmp = Path(home), tmp_dir().resolve()
+            if home_is_live(home) or h.is_symlink() or not h.is_dir() or h.resolve().parent != tmp or _pad_in_use(h.resolve()):
+                continue
+            size = _tree_bytes(h)
+            shutil.rmtree(h)
+            event_as(con, "tick", "agent", agent, "tmp-cleaned", {"path": str(h), "mb": round(size / 1048576, 1)})
+        if reaped:
+            lines = [f"{j['agent']} ({j['task']}) pid {j['pid']} {j['argv'][0]} cwd {j['cwd']} by {j['by']}" for j in reaped]
+            send(con, "director", f"reaped {len(reaped)} orphan process(es) of ended workers",
+                 "The tick sent SIGTERM (SIGKILL after 10 s) to:\n" + "\n".join(lines), "alert", sender="tick")
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+# tick phase timers (T-0664, log-only; see _pt_lap below): state, and a decorator for phases whose call line is pinned by tests
+_PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
+
+
+def _pt_phase(name):
+    """Time a whole call as tick phase `name` (only while the tick timers are on; otherwise a plain call)."""
+    def deco(fn):
+        def wrapper(*a, **k):
+            if not _PT["on"]:
+                return fn(*a, **k)
+            try:
+                return fn(*a, **k)
+            finally:
+                try:
+                    t = time.perf_counter()
+                    _PT["phases"].append((name, t - _PT["last"]))
+                    _PT["last"] = t
+                except Exception:  # noqa: BLE001 — a timer must never stop the tick
+                    _PT["on"] = False
+        wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
+        return wrapper
+    return deco
+
+
+@_pt_phase("scout")
 def scout_tick(con):
     """Tick hook: start the skill scout at its slot and keep its run within budget (scout/schedule.py). Never breaks the tick."""
     try:
@@ -5007,6 +5290,7 @@ def scout_tick(con):
             pass
 
 
+@_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
     try:
@@ -5253,6 +5537,7 @@ def git_argv(repo, *args):
 
 def git_run(repo, *args, env=None, text=True, **kw):
     """subprocess.run of git in `repo` with hooks, fsmonitor, non-https transports and the system config off, and no prompts."""
+    _PT["git_n"] += 1  # tick phase timers: export_git counts these
     return subprocess.run(git_argv(repo, *args), capture_output=True, text=text,
                           env={**(os.environ if env is None else env), "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}, **kw)
 
@@ -5492,6 +5777,31 @@ def make_task_clone(con, repo, wt, branch, base):
         fail(f"clone checkout failed: {p.stderr.strip()}")
 
 
+PRE_PUSH_MARK = "# factory pre-push public-text guard (G-021 T-0696)"
+
+
+def install_pre_push_hook(repo):
+    """<git-common-dir>/hooks/pre-push runs ci/pre_push_public_text.py of the factory home, so every worktree of `repo`
+    (and a task clone's own repo) refuses a push to a public_text_repos remote that carries private text. A hook file,
+    not core.hooksPath: git_config_refusal allows no such key. Dies (spawn refused) when it cannot be written."""
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the pre-push guard: {p.stderr.strip()}", 4)
+    hooks = Path(repo, p.stdout.strip()).resolve() / "hooks"
+    script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+    body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+            f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+    dst = hooks / "pre-push"
+    try:
+        hooks.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -5507,6 +5817,7 @@ def prepare_worktree(con, task, role):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
+        install_pre_push_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -5521,6 +5832,7 @@ def prepare_worktree(con, task, role):
     start = f"origin/{base}" if has_remote else base
     if cfg(con, "task_clones") == "1":
         make_task_clone(con, repo, wt, branch, base)
+        install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
@@ -5534,6 +5846,7 @@ def prepare_worktree(con, task, role):
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
         die(f"worktree checkout failed: {p.stderr.strip()}")
+    install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -7946,15 +8259,19 @@ def cmd_test(a):
             os.execvp(cmd[0], cmd)
         except OSError as e:
             die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+    sv = cfg(db(), "test_sandbox_subuid").strip()
+    if sv not in ("0", "1"):
+        die(f"config test_sandbox_subuid is {sv!r}, not 0 or 1; fix it with `factory config test_sandbox_subuid 1`, the command was not run", 3)
+    subuid = sv == "1"
     tree, scratch = os.getcwd(), None
     try:
         scratch = testbox.new_scratch(tree)
-        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ,
+        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
                                   runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     except testbox.TestboxError as e:
         if scratch:
             testbox.cleanup(scratch)
-        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
+        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0, or test_sandbox_subuid 0)", 3)
     p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
 
     def forward(sig, _frame):
@@ -8789,25 +9106,115 @@ def stale_agents(con):
             con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'fresh:%' ORDER BY key").fetchall()]
 
 
+# ── tick phase timers (T-0664): log-only, behind config tick_phase_timers; nothing here may stop the tick ──
+
+
+def _pt_reset(con):
+    """Tick start: reset the counters and say whether the timers are on."""
+    try:
+        _PT.update(on=cfg(con, "tick_phase_timers") == "1", phases=[], counters={}, git_n=0, git_mark=0)
+        _PT["t0"] = _PT["last"] = time.perf_counter()
+    except Exception:  # noqa: BLE001 — a timer must never stop the tick
+        _PT["on"] = False
+
+
+def _pt_lap(name):
+    """Close the phase that just ran: its wall time is the time since the previous lap."""
+    if not _PT["on"]:
+        return
+    try:
+        t = time.perf_counter()
+        _PT["phases"].append((name, t - _PT["last"]))
+        _PT["last"] = t
+    except Exception:  # noqa: BLE001
+        _PT["on"] = False
+
+
+def _pt_count(name, n=1):
+    try:
+        _PT["counters"][name] = _PT["counters"].get(name, 0) + n
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _pt_git(start):
+    """Bracket export(): export_git = git subprocesses (git_run calls) made in between."""
+    try:
+        if start:
+            _PT["git_mark"] = _PT["git_n"]
+        else:
+            _PT["counters"]["export_git"] = _PT["git_n"] - _PT["git_mark"]
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _timed_spawn(*a, **k):
+    """spawn() for the dequeue loop; with the timers on it also counts the calls and their wall time."""
+    if not _PT["on"]:
+        return spawn(*a, **k)
+    t = time.perf_counter()
+    try:
+        return spawn(*a, **k)
+    finally:
+        _pt_count("dequeue_spawns")
+        _pt_count("dequeue_spawn_s", time.perf_counter() - t)
+
+
+def _pt_emit(con):
+    """One `tick-phases` stdout line and one event row at the end of the tick (also on the herdr-unreachable return)."""
+    if not _PT["on"]:
+        return
+    try:
+        c = _PT["counters"]
+        for k, v in (("dequeue_spawns", 0), ("dequeue_spawn_s", 0.0), ("ci_wake_ls_remote", 0), ("ci_wake_gh", 0), ("export_git", 0)):
+            c.setdefault(k, v)
+        line = "tick-phases total=%.2f" % (time.perf_counter() - _PT["t0"])
+        line += "".join(" %s=%.2f" % (n, d) for n, d in _PT["phases"])
+        line += "".join(" %s=%s" % (k, v if isinstance(v, int) else "%.2f" % v) for k, v in c.items())
+        print(line, flush=True)
+        event(con, "tick", "phases", "tick-phases", line)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
+    t_mig = time.perf_counter()
     migrate_db_layout()
     con = db()
+    _pt_reset(con)
+    _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
+    _pt_lap("migrate_db")
     render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
+    _pt_lap("render_settings")
     agents = herdr_agents()
+    _pt_lap("herdr_list")
     morning_digest(con)
+    _pt_lap("digest")
     tmp_alert(con)
+    _pt_lap("tmp_alert")
     remote_url_alert(con)
+    _pt_lap("remote_url_alert")
     main_protection_alert(con)
+    _pt_lap("main_protection")
     tmp_clean(con)
+    _pt_lap("tmp_clean")
     red_main_check(con)
+    _pt_lap("red_main")
     reap_stray_serves(con)
+    _pt_lap("reap_serves")
+    reap_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
+        _pt_lap("drift")
         print("herdr unreachable; exporting only")
+        _pt_git(True)
         export(con)
+        _pt_git(False)
+        _pt_lap("export")
+        _pt_emit(con)
         return
     scout_tick(con)
     skilleval_tick(con)
@@ -8815,6 +9222,7 @@ def cmd_tick(a, locked=False):
     by_pane = {x["pane_id"]: x for x in agents}
     t = time.time()
     finish_pending_nudges(con, by_name, t)
+    _pt_lap("pending_nudges")
 
     # 1. reap finished workers; detect lost agents; record session ids for resume
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
@@ -8861,17 +9269,21 @@ def cmd_tick(a, locked=False):
         elif r["blocked_since"]:
             con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
 
+    _pt_lap("reap_loop")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
+    _pt_lap("drift")
 
     # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
     notify_flagless(con, [f for f in flagless_scan(
         con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
         throttle=True) if f["new"]])
+    _pt_lap("flagless")
 
     try:  # 1b'. a Claude process under an agent that factory spawn did not start
         claude_outside_spawn(con)
     except Exception as e:  # noqa: BLE001 — the audit must never stop the tick
         event(con, "tick", "claude-audit", "claude-audit-failed", str(e))
+    _pt_lap("claude_audit")
 
     # 1c. stop fallback BEFORE the dequeue, so a freed slot is seen by it
     stop_timeout = int(cfg(con, "stop_timeout_s"))
@@ -8883,24 +9295,28 @@ def cmd_tick(a, locked=False):
         if att is not None and (nowdt - att).total_seconds() < stop_timeout:
             continue  # retry at most once per stop_timeout_s
         _res, _note = force_stop(con, r["name"], "timeout", attempt_seen=r["stop_attempt_at"])  # the tick needs neither
+    _pt_lap("stop_fallback")
 
     # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
     try:
         tick_gate(con)
     except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
         event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
+    _pt_lap("gate")
 
     # 1c'. CI result of a parked team's in_review PR -> mail to its lead, so 1d wakes it in this tick
     try:
         tick_ci_wake(con)
     except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
         event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+    _pt_lap("ci_wake")
 
     # 1d. wake parked leads (unread mail), BEFORE the dequeue so a queued wake can start in this tick
     try:
         tick_wake_leads(con)
     except Exception as e:  # noqa: BLE001 — a bad team row must never stop the tick
         event(con, "tick", "wake-leads", "wake-error", str(e)[:300])
+    _pt_lap("wake_leads")
 
     # 2. dequeue spawns while the gate is open. Drain before build: role class first (director, lead, judge, reviewer, qa,
     # then coder/pm/cleaner/staff-engineer). Inside the coder/pm/... class a merge-only refresh coder (its spawn prompt
@@ -8935,7 +9351,7 @@ def cmd_tick(a, locked=False):
         if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
             continue  # judge cap reached or PR CI not green: the rows behind it may start
         try:
-            spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
+            _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
@@ -8965,12 +9381,14 @@ def cmd_tick(a, locked=False):
                             "WHERE name=? AND status='queued'", (fails, q["name"]))
                 event(con, "agent", q["name"], "evaluator-spawn-retry",
                       f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
+    _pt_lap("dequeue")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
     try:
         dispatch_tick(con)
     except Exception as e:  # noqa: BLE001 — dispatch must never stop the tick
         event(con, "tick", "dispatch", "dispatch-error", str(e)[:300])
+    _pt_lap("dispatch")
 
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
@@ -8995,6 +9413,7 @@ def cmd_tick(a, locked=False):
         if text:
             herdr("agent", "prompt", h.get("name") or r["name"], text, check=False)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
+    _pt_lap("nudge")
 
     # 4. sidebar: goal progress on each goal workspace, capacity on HQ
     _, why, s = gate(con)
@@ -9015,7 +9434,11 @@ def cmd_tick(a, locked=False):
                 label = label[:28 - len(f" 📬{n}")] + f" 📬{n}"
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
+    _pt_lap("sidebar")
+    _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
+    _pt_git(False)
+    _pt_lap("export")
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
@@ -9027,16 +9450,20 @@ def cmd_tick(a, locked=False):
         if not old or old["ts"] != err:  # one event per new error text, not one per tick
             con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
             event(con, "tick", "freshness", "freshness-failed", err)
+    _pt_lap("freshness")
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
         tick_recycle(con)
     except Exception as e:  # noqa: BLE001 — one bad agent row or log must not stop the relaunches
         event(con, "agent", "tick", "recycle-error", str(e)[:300])
+    _pt_lap("recycle")
     tick_relaunches(con)
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
+    _pt_lap("util")
+    _pt_emit(con)
 
 
 # ───────────────────────────── export & backup ─────────────────────────────
@@ -10064,9 +10491,11 @@ def _ci_remote_head(branch, batch=None):
         return None
     if batch is not None and branch.startswith("factory/"):
         if not batch:
+            _pt_count("ci_wake_ls_remote")
             batch.append(_ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    _pt_count("ci_wake_ls_remote")
     rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
@@ -10102,6 +10531,7 @@ def tick_ci_wake(con):
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
+            _pt_count("ci_wake_gh")
             try:
                 pr = gh_json("pr", "view", k["pr_url"], "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup",
                              timeout=float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S))
@@ -10152,6 +10582,7 @@ def _stale_park_alert(con, t, clock):
          "alert", t["goal_id"], sender="tick")
 
 
+@_pt_phase("relaunches")
 def tick_relaunches(con):
     """Run the queued `relaunch --when-idle` requests of agents that are idle now (tick step 5, after export)."""
     rows = con.execute("SELECT * FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL").fetchall()

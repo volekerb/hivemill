@@ -18,6 +18,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness import REPO  # noqa: E402
+import harness
 
 sys.path.insert(0, str(REPO))
 from scout import gatebox, nsbox  # noqa: E402
@@ -30,9 +31,7 @@ GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT
 
 
 def git(*args, cwd=None):
-    r = subprocess.run(["git", *args], cwd=cwd, env=GIT_ENV, capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
-    return r.stdout.strip()
+    return harness.git(*args, cwd=cwd, env=GIT_ENV)
 
 
 class Fixture(unittest.TestCase):
@@ -123,7 +122,7 @@ class ProfileTests(Fixture):
         self.assertFalse(cfg["net"])
         self.assertNotEqual(cfg.get("pid"), False)
         self.assertEqual(sorted(cfg["rw"]), sorted([str(self.tree), *(f"{self.wt}/{d}" for d in ("reports", "factory-home", "tmp"))]))
-        resolve = ["/run/systemd/resolve"] if os.path.isdir("/run/systemd/resolve") else []  # DNS stub, ro (T-0673)
+        resolve = [d for d in nsbox.run_keep_ro() if os.path.isdir(d)]  # DNS dir, ro (T-0673)
         self.assertEqual(sorted(cfg["ro"]), sorted([str(self.main), str(self.repo / ".git"), str(self.tree / ".git"), *resolve]))  # tree is a worktree: its .git pointer file is ro
         self.assertEqual(sorted(cfg["masks"]), sorted(f"{self.main}/{d}" for d in gatebox.MASKED))
         self.assertEqual(sorted(cfg["hide_dirs"]), sorted([str(self.home), str(self.runtime), "/tmp", "/dev/shm", "/run"]))  # /var/tmp is patched out here

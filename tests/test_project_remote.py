@@ -27,7 +27,7 @@ class ProjectRemoteTests(FactoryTestCase):
         d = self.root / name
         d.mkdir()
         git("init", "-q", "-b", "main", cwd=d)
-        git("remote", "add", "origin", url, cwd=d)
+        git("remote", "add", "origin", url, cwd=d, inert_remote=True)
         git("commit", "-q", "--allow-empty", "-m", "base", cwd=d)
         return d
 

@@ -16,7 +16,7 @@ class RemoteUrlCheckTests(FactoryTestCase):
         self.addCleanup(tmp.cleanup)
         self.checkout = Path(tmp.name).resolve()
         git("init", "-q", "-b", "main", cwd=self.checkout)
-        git("remote", "add", "origin", OLD, cwd=self.checkout)
+        git("remote", "add", "origin", OLD, cwd=self.checkout, inert_remote=True)
 
     def set_cfg(self, value):
         self.env.sql("INSERT INTO config(key,value) VALUES('factory_remote_url',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (value,))
@@ -44,7 +44,7 @@ class RemoteUrlCheckTests(FactoryTestCase):
         self.assertEqual(len(self.alerts()), 2)
 
     def test_credentials_are_not_copied_into_the_alert(self):
-        git("remote", "set-url", "origin", "https://user:s3cret" + chr(64) + "github.com/example-org/old.git", cwd=self.checkout)
+        git("remote", "set-url", "origin", "https://user:s3cret" + chr(64) + "github.com/example-org/old.git", cwd=self.checkout, inert_remote=True)
         self.set_cfg(NEW)
         self.run_hook()
         body = self.alerts()[0]["body"]

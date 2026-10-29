@@ -6,6 +6,7 @@ import subprocess
 import unittest
 
 from harness import rendered_settings_dir
+import harness
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIVE = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
@@ -24,7 +25,7 @@ IN_GIT_WORK_TREE = _in_git_work_tree()
 
 
 def git(*args):
-    return subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout
+    return harness.git(*args, cwd=ROOT)
 
 
 def top_level(ref):

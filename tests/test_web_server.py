@@ -144,6 +144,38 @@ class TestRoutes(ServerCase):
             with self.subTest(p):
                 self.assertEqual(self.get(p)[0], 404)
 
+    def test_inter_fonts_served_locally(self):
+        css = self.get("/static/app.css")[2].decode()
+        faces = re.findall(r"@font-face\s*\{[^}]*\}", css)
+        self.assertEqual(len(faces), 4)
+        urls = []
+        for face in faces:
+            self.assertIn('font-family: "Inter"', face)
+            self.assertIn("font-display: swap", face)
+            urls += re.findall(r'url\("([^"]+)"\)', face)
+        self.assertEqual(len(urls), 4)
+        for u in urls:
+            with self.subTest(u):
+                self.assertTrue(u.startswith("/static/fonts/"), u)
+                st, h, body = self.get(u)
+                self.assertEqual((st, h["Content-Type"]), (200, "font/woff2"))
+                self.assertEqual(body[:4], b"wOF2")
+        self.assertIn('"Inter", system-ui', css)  # system stack stays as the fallback
+
+    def test_no_external_url_in_css_or_html(self):
+        css = self.get("/static/app.css")[2].decode()
+        self.assertEqual(re.findall(r"(?:https?:)?//[\w.-]+\.\w+", re.sub(r"/\*.*?\*/", "", css, flags=re.S)), [])
+        for p in PAGES:
+            with self.subTest(p):
+                # resource loads only: data rows may link out to GitHub PRs
+                self.assertNotRegex(self.get(p)[2].decode(), r"""<(?:link|script|img|source)\b[^>]*\b(?:src|href)=["'](?:https?:)?//""")
+
+    def test_font_paths_stay_confined(self):
+        for p in ["/static/fonts/", "/static/fonts/nope.woff2", "/static/fonts/LICENSE-Inter.txt",
+                  "/static/fonts/../app.css", "/static/fonts/a/b.woff2", "/static/%2e%2e/fonts/Inter-Bold.woff2"]:
+            with self.subTest(p):
+                self.assertEqual(self.get(p)[0], 404)
+
     def test_static_types(self):
         self.assertTrue(self.get("/static/app.css")[1]["Content-Type"].startswith("text/css"))
         self.assertEqual(self.get("/static/favicon.svg")[1]["Content-Type"], "image/svg+xml")

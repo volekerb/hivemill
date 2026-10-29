@@ -10,6 +10,8 @@ import sys
 import tempfile
 import time
 import unittest
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -38,8 +40,7 @@ class PublicTextTests(unittest.TestCase):
 
     # ── helpers
     def git(self, *args, cwd=None, env=None):
-        return subprocess.run(["git", *args], cwd=cwd or self.repo, check=True, capture_output=True, text=True,
-                              env={**os.environ, **GIT_ENV, **(env or {})}).stdout.strip()
+        return harness.git(*args, cwd=cwd or self.repo, env={**GIT_ENV, **(env or {})}, inert_remote=True)
 
     def set_origin(self, url):
         subprocess.run(["git", "remote", "remove", "origin"], cwd=self.repo, capture_output=True)
@@ -63,7 +64,7 @@ class PublicTextTests(unittest.TestCase):
     def public(self, **kv):
         self.config(public_text_repos="acme/pub", **kv)
 
-    def run_hook(self, cmd, mode="coder", terms=True, cwd=None):
+    def run_hook(self, cmd, mode="qa", terms=True, cwd=None):  # not coder: T-0689 pins a coder push to its own branch
         env = {k: v for k, v in os.environ.items() if k not in ("SCRUB_TERMS_FILE", "FACTORY_AGENT")}
         env.update(FACTORY_HOME=self.home, **GIT_ENV)
         if terms:
@@ -108,6 +109,14 @@ class PublicTextTests(unittest.TestCase):
         self.public()
         self.commit("add rule")
         self.allowed("git push origin HEAD:factory/t-1")
+
+    def test_push_blocks_owner_term_in_an_older_commit_of_the_range(self):
+        self.public()
+        self.commit("add zebracorp notes")
+        self.commit("fix the notes")
+        p = self.blocked("git push origin HEAD:factory/t-1")
+        self.assertIn("owner-term", p.stderr)
+        self.assertNotIn("zebracorp", p.stderr)
 
     # ── 4 scope = the write command only
     def test_chained_cd_to_home_path_is_not_scanned(self):

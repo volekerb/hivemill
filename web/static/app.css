@@ -1,4 +1,9 @@
-/* Hivemill web UI (G-019 B2). Tokens v2 copied verbatim from docs/design/g-019/mock.css (T-0429 note 2). Local CSS only; Inter and JetBrains Mono apply once vendored, else the system fonts. */
+/* Hivemill web UI (G-019 B2). Tokens v2 copied verbatim from docs/design/g-019/mock.css (T-0429 note 2). Local CSS only; Inter is self-hosted (T-0711); JetBrains Mono applies once vendored, else the system fonts. */
+/* == fonts == */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("/static/fonts/Inter-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("/static/fonts/Inter-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("/static/fonts/Inter-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("/static/fonts/Inter-Bold.woff2") format("woff2"); }
 /* == tokens v2 == */
 :root {
   --surface-0: #F2F2F7;

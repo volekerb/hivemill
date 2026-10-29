@@ -3,7 +3,6 @@ pre-merge public text check (guard loaded from the main checkout), frozen repo r
 merge. Temp FACTORY_HOME, temp bare origins whose path ends acme/pub (public), acme/old (frozen), acme/priv (neither),
 the tests/stubs gh, a temp terms file holding `zebracorp`."""
 import json
-import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -13,15 +12,14 @@ from harness import FactoryTestCase, REPO, gates_summary, git
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 PUB_URL = "https://github.com/acme/pub/pull/1"
 OLD_URL = "https://github.com/acme/old/pull/1"
-NOREPLY = "1+dev@users.noreply.github.com"
+NOREPLY = "1+volekerb@users.noreply.github.com"
 MERGE_SHA = "a" * 40
-CLEAN = {"GIT_AUTHOR_NAME": "dev", "GIT_AUTHOR_EMAIL": "dev@users.noreply.github.com",
-         "GIT_COMMITTER_NAME": "dev", "GIT_COMMITTER_EMAIL": "dev@users.noreply.github.com"}
+CLEAN = {"GIT_AUTHOR_NAME": "volekerb", "GIT_AUTHOR_EMAIL": "volekerb@users.noreply.github.com",
+         "GIT_COMMITTER_NAME": "volekerb", "GIT_COMMITTER_EMAIL": "volekerb@users.noreply.github.com"}
 
 
 def run_git(cwd, *args, env=None):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True,
-                          env={**os.environ, **(env or CLEAN)}).stdout.strip()
+    return git(*args, cwd=cwd, env=env or CLEAN)
 
 
 class Base(FactoryTestCase):
@@ -85,7 +83,7 @@ class StateBranchTests(Base):
     def test_unparsable_origin_refused_when_public_list_set(self):
         bare = self.bare("acme/priv")
         (self.env.home / "lonely").symlink_to(bare)  # "../lonely" names no OWNER/NAME
-        run_git(self.env.home_dir, "remote", "add", "origin", "../lonely")
+        git("remote", "add", "origin", "../lonely", cwd=self.env.home_dir, inert_remote=True)  # parse-only; the factory refuses it
         run_git(self.env.home_dir, "commit", "-q", "--allow-empty", "-m", "base")
         before = self.refs(bare)
         self.ok("config", "public_text_repos", "acme/pub")
@@ -141,7 +139,7 @@ class JudgeTextTests(Base):
         self.ok("config", "noreply_email", NOREPLY)
         self.pr(self.terms_env)
 
-    def pr(self, extra, author_email="dev@users.noreply.github.com", title="fix T-0529", comments=(), body="clean body",
+    def pr(self, extra, author_email="volekerb@users.noreply.github.com", title="fix T-0529", comments=(), body="clean body",
            merge_emails=(NOREPLY, "noreply@github.com")):
         """A PR head one commit past main on a temp bare remote (refs/pull/1/head), the gh stub's PR text in `texts`."""
         e = self.env
@@ -207,7 +205,7 @@ class JudgeTextTests(Base):
 
     def test_public_squash_body_drops_non_noreply_coauthors(self):
         self.set_commits([
-            {"messageHeadline": "one", "messageBody": "Co-authored-by: Dev <1+dev@users.noreply.github.com>"},
+            {"messageHeadline": "one", "messageBody": "Co-authored-by: volekerb <1+volekerb@users.noreply.github.com>"},
             {"messageHeadline": "two", "messageBody": "keep this\n\nCo-authored-by: factory refresh <factory-refresh@localhost>"},
             {"messageHeadline": "three", "messageBody": "Co-authored-by: Claude <noreply@anthropic.com>"}])
         p = self.judge()
@@ -215,7 +213,7 @@ class JudgeTextTests(Base):
         argv = self.merge_args()
         body = argv[argv.index("--body") + 1]
         self.assertNotIn("localhost", body)
-        self.assertIn("1+dev@users.noreply.github.com", body)
+        self.assertIn("1+volekerb@users.noreply.github.com", body)
         self.assertIn("noreply@anthropic.com", body)
         self.assertIn("keep this", body)
         self.assertEqual(argv[argv.index("--author-email") + 1], NOREPLY)
@@ -263,11 +261,11 @@ class JudgeTextTests(Base):
     def test_git_identity_noreply_user_email_is_used(self):
         self.ok("config", "noreply_email", "")
         ident = {**self.terms_env, "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "user.email",
-                 "GIT_CONFIG_VALUE_0": "7+me@users.noreply.github.com"}
+                 "GIT_CONFIG_VALUE_0": "7+volekerb@users.noreply.github.com"}
         p = self.judge(ident)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         argv = self.merge_args()
-        self.assertEqual(argv[argv.index("--author-email") + 1], "7+me@users.noreply.github.com")
+        self.assertEqual(argv[argv.index("--author-email") + 1], "7+volekerb@users.noreply.github.com")
 
     def test_post_merge_real_author_email_fails_loudly(self):
         self.pr(self.terms_env, merge_emails=("real.person@example.com", "noreply@github.com"))
