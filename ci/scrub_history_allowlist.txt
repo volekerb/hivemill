@@ -3,7 +3,7 @@
 # Every entry maps to a line already allowed by ci/scrub_allowlist.txt, except binary-blob false positives (docs/demo/hero.webp). Never add a line of real data; owner-term hits cannot be listed.
 # Generate a hash with: python3 ci/scrub_scan.py --history DIR --show-line-hash. Adding a line needs a reviewer: see docs/scrub-scan.md.
 tests/test_scrub_scan.py:email:1208ae6e0e07c0e780323681d2dc12640d82cc27d945c87a1b3f0d56615f56cc  # asserts the fake fixture values are masked in output
-tests/test_scrub_scan.py:email:6dcc381dfdb33f2709dda874efb0a233fb2f70bd91df5e9e15714c8b043e2478  # lookalike domain that must still hit
+tests/test_scrub_scan.py:email:beb94e4c18b2b8d4e6c52b8474222e8b901ae1c9ae6c1eb283e07eef2b8569f8  # lookalike domain that must still hit
 tests/test_scrub_scan.py:email:80d3e04524708ebe0af07bd17ce2cdb4032346dfe7970ba935a17607d0f4707e  # the scanner's own test fixture: fake data
 tests/test_scrub_scan.py:email:814b1348f60dc739a8882151a5f71439e9b859da5d75d87c121b3593cbd1042b  # fake author email for the history test
 tests/test_scrub_scan.py:email:aa1fbd834b2dad0d6693013f26a834c2c5bcc7c3012049358393404f30907780  # asserts the fake email is masked

@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import _gitenv  # noqa: F401
 import envcheck
 
 sys.path.insert(0, str(envcheck.REPO / "ci"))

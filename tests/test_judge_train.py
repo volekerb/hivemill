@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from harness import FactoryTestCase
+from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 RED = [{"name": "unittest", "status": "COMPLETED", "conclusion": "FAILURE"}]
@@ -34,9 +35,7 @@ else:
 
 
 def git(cwd, *args):
-    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    assert p.returncode == 0, f"git {args}: {p.stderr}"
-    return p.stdout.strip()
+    return harness_git(*args, cwd=cwd)
 
 
 class JudgeTrainTests(FactoryTestCase):
