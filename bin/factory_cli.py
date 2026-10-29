@@ -1031,11 +1031,15 @@ def pane_at_shell(pane_id):
     return bool(names) and all(n in ("zsh", "bash", "sh", "dash", "fish") for n in names)
 
 
+def _relaunch_poll_s():
+    return float(os.environ.get("FACTORY_RELAUNCH_POLL_S") or 0.5)  # tests set a tiny value
+
+
 def export_in_shell(pane, env, cwd):
     """An idle shell lacks the agent's env: export it before the agent launches."""
     herdr("pane", "run", pane, "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
           + f" && cd {shlex.quote(cwd)} && clear")
-    time.sleep(1)
+    time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
 
 
 # ───────────────────────────── flagless detection ─────────────────────────────
@@ -10117,12 +10121,12 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         for _ in range(20):
             if not find_pane(pane):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
             if not claude_procs(r["session_id"]):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         else:
             die(f"a claude process still runs session {r['session_id']} after its pane closed; not restarting", 3)
     event(con, "agent", r["name"], "relaunch", {"pane": r["pane_id"], "session": r["session_id"]})
