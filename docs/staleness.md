@@ -50,14 +50,16 @@ Three stages catch staleness; each has one job:
 
 | stage | where | what it does |
 |---|---|---|
-| spawn (T-0172) | `factory spawn`, queued start | refreshes a clean-behind head, refuses a conflict or a refresh in flight |
+| spawn (T-0172, T-0488) | `factory spawn`, queued start | judge: refreshes a clean-behind head; reviewer/qa: only refuse a conflict (no refresh); refuses a refresh in flight |
 | review (T-0149 S1) | reviewer / QA verdict | a clean-behind head still gets PASS with STALE-BASE |
 | merge (T-0152 STALE-ONLY) | `factory judge --merge` | the fail-closed gate: head must contain origin/main |
 
 After the verified fetch of `refresh_branch` (the spawn pre-check reuses `refresh_branch`, see docs/refresh.md):
 
 - head contains origin/main: the spawn proceeds, nothing is pushed.
-- head behind and the merge is clean: `refresh_branch` pushes one pure main merge, events `refreshed` (`"how": "by spawn
+- reviewer/qa, head behind and the merge is clean (T-0488): nothing is pushed (`refresh_branch` dry run), the spawn
+  proceeds on the current head: a refresh would restart CI before review starts and the judge refreshes before merging.
+- judge, head behind and the merge is clean: `refresh_branch` pushes one pure main merge, events `refreshed` (`"how": "by spawn
   pre-check"`) and `note` are recorded, the refresh line goes to stderr, and the spawn proceeds on the new head.
 - head behind and the merge conflicts: refused for all three roles, exit 2, `CONFLICT-ONLY: <files>; spawn a merge-only
   coder (fix-loop, not an attempt)`, event `spawn-bounced`, no agent row. A queued spawn is cancelled through the
