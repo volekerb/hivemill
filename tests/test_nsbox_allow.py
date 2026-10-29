@@ -82,7 +82,8 @@ class GoldenDefaultsTests(unittest.TestCase):
         dflt = nsbox.make_cfg(self.trial, None, "/h", mode="allow", tmpfs_size="8m", tmpfs_sizes={})
         self.assertNotIn("tmpfs_size", dflt)
         self.assertNotIn("tmpfs_sizes", dflt)
-        allow = nsbox.make_cfg(self.trial, None, "/h", mode="allow", rw=["/a"], ro=["/b"], masks=["/b/m"], pid=False)
+        allow = nsbox.make_cfg(self.trial, None, "/h", mode="allow", rw=["/a"], ro=["/b"], masks=["/b/m"], pid=False,
+                                run_mask=False)
         self.assertEqual((allow["mode"], allow["rw"], allow["ro"], allow["masks"], allow["pid"]),
                          ("allow", ["/a"], ["/b"], ["/b/m"], False))
 
@@ -160,7 +161,7 @@ class GoldenDefaultsTests(unittest.TestCase):
         link = self.root / "bin" / "claude"
         link.parent.mkdir()
         link.symlink_to(real / "claude")
-        cfg = nsbox.make_cfg(self.trial, str(link), "/h", mode="allow")
+        cfg = nsbox.make_cfg(self.trial, str(link), "/h", mode="allow", run_mask=False)
         self.assertEqual(cfg["ro"], [str(link), str(real / "claude")])
         viadir = self.root / "viadir"
         viadir.symlink_to(self.root / "bin")
@@ -202,6 +203,15 @@ class GoldenDefaultsTests(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", scrub)
         self.assertIn("ANTHROPIC_API_KEY", scrub)
         self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", nsbox.make_cfg(self.trial, None, "/h", net=True)["scrub"])
+
+    def test_allow_mode_masks_run_and_keeps_only_resolve_ro(self):
+        cfg = nsbox.make_cfg(self.trial, None, "/h", mode="allow", hide_dirs=["/h"])
+        self.assertEqual(cfg["hide_dirs"], ["/h", "/run"])
+        want = ["/run/systemd/resolve"] if os.path.isdir("/run/systemd/resolve") else []
+        self.assertEqual(cfg["ro"], want)
+        off = nsbox.make_cfg(self.trial, None, "/h", mode="allow", hide_dirs=["/h"], run_mask=False)
+        self.assertEqual((off["hide_dirs"], off["ro"]), (["/h"], []))
+        self.assertNotIn("/run", nsbox.make_cfg(self.trial, None, "/h")["hide_dirs"])  # deny mode unchanged
 
     def test_allow_mode_does_not_make_trial_or_cwd_writable(self):
         cfg = nsbox.make_cfg(self.trial, None, "/h", mode="allow", cwd="/c", rw=["/w"])
@@ -456,7 +466,7 @@ class NoFollowTargetTests(unittest.TestCase):
 
     def swap_run(self, **kw):
         cfg = nsbox.make_cfg(self.trial, None, self.root / "home", self.root / "trials", mode="allow", hide_dirs=(),
-                             hide_files=(), unshare=UNSHARE, **kw)
+                             hide_files=(), unshare=UNSHARE, run_mask=False, **kw)
         code = SWAP_SCRIPT.format(repo=str(REPO))
         return subprocess.run([UNSHARE, "-r", "-m", PY, "-I", "-c", code, json.dumps(cfg), str(self.parent), str(self.decoy)],
                               capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
@@ -577,3 +587,92 @@ class PidAndEnvNamespaceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class RunMaskTests(unittest.TestCase):
+    """T-0673: the host's /run sockets (container engine, ssh-unix-local) are unreachable in allow mode."""
+    SOCKS = ("/run/docker.sock", "/var/run/docker.sock", "/run/ssh-unix-local/socket")
+
+    def setUp(self):
+        self.root = tmpdir(self)
+        self.trial = self.root / "trials" / "t1"
+        self.trial.mkdir(parents=True)
+
+    def run_in(self, code, **kw):
+        cfg = nsbox.make_cfg(self.trial, None, self.root / "home", self.root / "trials", mode="allow", hide_dirs=(),
+                             hide_files=(), unshare=UNSHARE, rw=[self.trial], **kw)
+        return run_cfg(cfg, probe(code))
+
+    def test_run_sockets_cannot_be_connected_and_run_is_empty_but_resolve(self):
+        code = f"""
+import os, socket, json
+out = {{}}
+for p in {self.SOCKS!r}:
+    s = socket.socket(socket.AF_UNIX)
+    try: s.connect(p); out[p] = "connected"
+    except OSError as e: out[p] = "blocked"
+out["ls"] = sorted(os.listdir("/run"))
+print(json.dumps(out))
+"""
+        r = self.run_in(code)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        for p in self.SOCKS:
+            self.assertEqual(out[p], "blocked", p)
+        self.assertEqual(out["ls"], ["systemd"] if os.path.isdir("/run/systemd/resolve") else [])
+
+    @unittest.skipUnless(os.path.exists("/run/docker.sock"), "no /run/docker.sock on this host to compare against")
+    def test_without_the_mask_the_host_socket_is_reachable(self):
+        # control: proves the probe can connect at all, so "blocked" above is the mask and not a broken probe
+        r = self.run_in("import socket; s = socket.socket(socket.AF_UNIX); s.connect('/run/docker.sock'); print('ok')",
+                        run_mask=False)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "ok"), r.stderr)
+
+    @unittest.skipUnless(os.path.isfile("/run/systemd/resolve/stub-resolv.conf"), "no systemd-resolved stub file")
+    def test_resolv_conf_still_readable_and_read_only(self):
+        code = """
+import json
+out = {"nameserver": "nameserver" in open("/etc/resolv.conf").read()}
+try: open("/run/systemd/resolve/stub-resolv.conf", "a"); out["rw"] = True
+except OSError: out["rw"] = False
+print(json.dumps(out))
+"""
+        r = self.run_in(code)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), {"nameserver": True, "rw": False})
+
+    def test_eval_profile_run_sockets_unreachable(self):
+        from scout import sandbox
+        socks = []
+        for p in self.SOCKS:
+            c = socket.socket(socket.AF_UNIX)
+            try:
+                c.connect(p)  # control: connectable outside, or not asserted
+                socks.append(p)
+            except OSError:
+                pass
+            finally:
+                c.close()
+        if not socks:
+            self.skipTest("no connectable host /run socket on this box")
+        code = f"""
+import socket, json
+out = {{}}
+for p in {socks!r}:
+    s = socket.socket(socket.AF_UNIX)
+    try: s.connect(p); out[p] = "connected"
+    except OSError as e: out[p] = "blocked"
+print(json.dumps(out))
+"""
+        claude = self.root / "home/.local/bin/claude"  # the eval profile execs claude itself: a probe stands in for it
+        claude.parent.mkdir(parents=True)
+        claude.write_text(f"#!{PY}\n{code}")
+        claude.chmod(0o755)
+        (self.trial / "work").mkdir()
+        for d in ("bin", "scout", "role"):
+            (self.trial / d).mkdir()
+        cfg = sandbox.eval_ns_cfg(self.trial, home=self.root / "home", real_claude=claude, unshare=UNSHARE)
+        r = run_cfg(cfg, [])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(set(json.loads(r.stdout).values()), {"blocked"})

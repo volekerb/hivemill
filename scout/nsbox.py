@@ -30,6 +30,10 @@ except ImportError:  # run as a script by path (stage 1 setup, python -I): egres
 
 HIDE_DIRS = ("~/.claude", "~/.config", "~/.ssh", "~/.gnupg", "~/factory", "$XDG_RUNTIME_DIR")
 HIDE_FILES = ("~/.git-credentials", "~/.netrc")
+# allow mode masks all of /run (container-engine socket, ssh-unix-local/socket, the user bus); only these come back,
+# read-only: /etc/resolv.conf links to /run/systemd/resolve/stub-resolv.conf, so DNS in a net=True profile needs that dir
+RUN_MASK = "/run"
+RUN_KEEP_RO = ("/run/systemd/resolve",)
 TOKEN_FILE = "~/.config/factory/eval-oauth-token"
 NO_TOKEN_MSG = "owner decision D3 pending: no eval token"
 SCRUB_ENV = ("SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS")
@@ -88,13 +92,15 @@ def _expand(entry, home, runtime):
 
 def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs=HIDE_DIRS, hide_files=HIDE_FILES,
              vendor_dir=None, keep=(), net=False, forward=False, unshare="unshare", cwd=None, *,
-             mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None):
+             mode="deny", rw=(), ro=(), masks=(), pid=True, keep_env=(), tmpfs_size=TMPFS_SIZE, tmpfs_sizes=None,
+             run_mask=True):
     """Everything setup needs, as plain JSON-able data with absolute paths.
 
     The keyword-only args are the allow-list mode (docs/scout-nsbox.md#allow-list-mode). At their defaults the dict
     is exactly the deny-mode dict of old: the extra keys (mode, rw, ro, masks, pid, tmpfs_size, tmpfs_sizes) appear only
     when non-default. `tmpfs_size` is the size= of every allow-mode hide/mask tmpfs, `tmpfs_sizes` maps a hidden tree
-    (or mask) to its own size; tmpfs is memory-backed, so keep them small."""
+    (or mask) to its own size; tmpfs is memory-backed, so keep them small. In allow mode /run is masked too (see
+    RUN_MASK) unless `run_mask=False`."""
     if not _size_ok(tmpfs_size) or any(not _size_ok(v) for v in (tmpfs_sizes or {}).values()):
         raise ValueError(f"tmpfs size must be a positive number like 8m, 512k or 1g (0 means unlimited), at most 16g or 100%, "
                          f"got {tmpfs_size!r} / {tmpfs_sizes!r}")
@@ -138,6 +144,10 @@ def make_cfg(trial_dir, real_claude=None, home=None, trials_root=None, hide_dirs
         cfg["mode"] = "allow"
         cfg["rw"] = [os.path.abspath(p) for p in rw]
         cfg["ro"] = [os.path.abspath(p) for p in [*ro, *([claude, os.path.realpath(claude)] if claude else [])]]
+        if run_mask:  # `run_mask=False` is for tests that count mounts; no profile turns it off
+            if RUN_MASK not in cfg["hide_dirs"]:
+                cfg["hide_dirs"].append(RUN_MASK)
+            cfg["ro"] += [k for k in RUN_KEEP_RO if os.path.isdir(k) and k not in cfg["ro"]]
         for p in cfg["ro"][len(ro):]:  # the claude link may be a link itself, its parents may not
             bad = _symlink_parent(p)
             if bad:
