@@ -6,6 +6,7 @@ GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 
 
 class JudgeTests(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env

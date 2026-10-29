@@ -16,6 +16,7 @@ def at(n, mins=0):
 
 
 class DequeueBase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
