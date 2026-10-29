@@ -212,6 +212,7 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
@@ -5292,6 +5293,171 @@ def reap_orphans(con):
             pass
 
 
+def _is_test_runner(argv):
+    """True only for a local test run: python3 ci/affected.py, -m unittest, -m pytest, `factory test`, pytest/py.test."""
+    if not argv:
+        return False
+    b = os.path.basename(argv[0])
+    if b in ("pytest", "py.test"):
+        return True
+    if re.fullmatch(r"python3(\.\d+)?", b) is None or len(argv) < 2:
+        return False
+    return (argv[1].endswith("ci/affected.py") or argv[1:3] in (["-m", "unittest"], ["-m", "pytest"])
+            or (os.path.basename(argv[1]) in ("factory", "factory_cli.py") and argv[2:3] == ["test"]))
+
+
+def _test_judge(con, pid, skip, row):
+    """The facts about `pid` when it is a test runner of the ended agent `row`'s own task, else None."""
+    if pid in skip:
+        return None
+    root = _serve_proc_root()
+    try:
+        if (root / str(pid)).stat().st_uid != os.getuid():
+            return None
+        cwd = os.path.realpath(os.readlink(root / str(pid) / "cwd"))
+    except OSError:
+        return None
+    env, ident = _orphan_env(pid), _orphan_ident(pid)
+    if env is None or ident is None or env.get("FACTORY_AGENT", "") != row["name"] or not _is_test_runner(ident[0]):
+        return None
+    att = _orphan_task(cwd, ident[0])
+    if not att or att[0][1] != row["task_id"]:
+        return None
+    cur = (_orphan_stat(pid) or (None,))[0]
+    for _ in range(64):  # a live pane's process tree is never ours
+        if cur is None or cur <= 1:
+            break
+        if cur in skip:
+            return None
+        a = _serve_argv(cur)
+        if a and os.path.basename(a[0]) in ("claude", "herdr"):
+            return None
+        cur = (_orphan_stat(cur) or (None,))[0]
+    (goal, task), by = att
+    return {"pid": pid, "agent": row["name"], "task": task, "argv": ident[0], "ident": ident, "cwd": cwd,
+            "worktree": str(WORKTREES / f"{goal}-{task}"), "by": by}
+
+
+def _agent_tests_failed(con, name, e):
+    try:
+        event_as(con, "tick", "agent", name, "agent-tests-reap-failed", str(e) or repr(e))
+    except Exception:  # noqa: BLE001 — recording must not break the caller either
+        pass
+
+
+def reap_agent_tests(con, name, trigger):
+    """When agent `name` just ended ('done': status exited; 'stop': status stopped), signal its own local test runners
+    (see _is_test_runner) per config orphan_reap_mode: 'dry-run' (default; unknown too) logs "agent-tests-would-reap"
+    once per (pid, start time); 'on' sends SIGTERM, SIGKILL after the grace period, and logs "agent-tests-reaped"; 'off'
+    scans nothing. Same candidate rules as the orphan reaper: same user, FACTORY_AGENT == name exactly, attributed to the
+    agent's own task, not the caller, its ancestors, the serve MainPID or a pane tree; identity re-read before each
+    signal; the group goes too only when its leader passes the same checks. Never raises."""
+    try:
+        mode = cfg(con, "orphan_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off":
+            return
+        row = con.execute("SELECT name,role,status,task_id FROM agents WHERE name=?", (name,)).fetchone()
+        if (not row or row["status"] != {"done": "exited", "stop": "stopped"}.get(trigger)
+                or row["role"] in ORPHAN_HQ_ROLES or not row["task_id"]):
+            return
+        skip = _orphan_skip(_serve_mainpid())
+        grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
+        for d in sorted(_serve_proc_root().iterdir()):
+            if not d.name.isdigit():
+                continue
+            j = _test_judge(con, int(d.name), skip, row)
+            if not j:
+                continue
+            pid = j["pid"]
+            if mode == "dry-run":
+                body = {**_orphan_payload(j, "none"), "trigger": trigger}
+                key = json.dumps({"pid": pid, "start_time": j["ident"][1]})[:-1] + ","
+                if not con.execute("SELECT 1 FROM events WHERE action='agent-tests-would-reap' AND substr(detail,1,?)=?",
+                                   (len(key), key)).fetchone():
+                    event_as(con, "tick", "agent", name, "agent-tests-would-reap", body)
+                continue
+            targets, group = [(pid, j["ident"])], 0
+            st = _orphan_stat(pid)
+            if st and st[1] > 1 and st[1] != os.getpgrp():
+                lead = j if st[1] == pid else _test_judge(con, st[1], skip, row)
+                if lead:
+                    group = st[1]
+                    targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
+            if not _orphan_signal(signal.SIGTERM, targets, group):
+                continue
+            how, deadline = "TERM", time.time() + grace
+            while _orphan_ident(pid) == j["ident"] and time.time() < deadline:
+                time.sleep(0.2)
+            if _orphan_ident(pid) == j["ident"] and _orphan_signal(signal.SIGKILL, targets, group):
+                how = "KILL"
+            event_as(con, "tick", "agent", name, "agent-tests-reaped", {**_orphan_payload(j, how), "trigger": trigger})
+    except Exception as e:  # noqa: BLE001 — must never break the tick or force_stop
+        _agent_tests_failed(con, name, e)
+
+
+def alert_test_orphans(con):
+    """Tick hook, at most every 10 min: tell the director about test runners older than config test_orphan_alert_s
+    (default 1800; 0 or non-integer = off) whose FACTORY_AGENT names an agent that is not live/starting/queued (or
+    unknown). One "test-orphan-alert" event per (pid, start time), one batched message per tick. Never signals."""
+    try:
+        raw = cfg(con, "test_orphan_alert_s")
+        limit = int(raw) if str(raw).strip().isdigit() else 0
+        if limit <= 0:
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='testorphanalert'").fetchone()
+        if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('testorphanalert',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        root = _serve_proc_root()
+        btime = next((int(x.split()[1]) for x in (root / "stat").read_text().splitlines() if x.startswith("btime ")), None)
+        if btime is None:
+            return
+        clk = os.sysconf("SC_CLK_TCK")
+        lines = []
+        for d in sorted(root.iterdir()):
+            if not d.name.isdigit():
+                continue
+            pid = int(d.name)
+            try:
+                if d.stat().st_uid != os.getuid():
+                    continue
+                cwd = os.path.realpath(os.readlink(d / "cwd"))
+            except OSError:
+                continue
+            env, ident = _orphan_env(pid), _orphan_ident(pid)
+            if env is None or ident is None or not _is_test_runner(ident[0]):
+                continue
+            agent = env.get("FACTORY_AGENT", "")
+            if not agent or agent == "owner":
+                continue
+            age = int(t - (btime + ident[1] / clk))
+            if age <= limit:
+                continue
+            r = con.execute("SELECT status FROM agents WHERE name=?", (agent,)).fetchone()
+            status = r["status"] if r else "unknown"
+            if status in ("live", "starting", "queued"):
+                continue
+            key = json.dumps({"pid": pid, "start_time": ident[1]})[:-1] + ","
+            if con.execute("SELECT 1 FROM events WHERE action='test-orphan-alert' AND substr(detail,1,?)=?",
+                           (len(key), key)).fetchone():
+                continue
+            event_as(con, "tick", "agent", agent, "test-orphan-alert", {
+                "pid": pid, "start_time": ident[1], "age_s": age, "argv0": ident[0][0],
+                "cmd_sha": hashlib.sha256(b"\0".join(x.encode() for x in ident[0])).hexdigest()[:12],
+                "cwd": cwd, "agent": agent, "agent_status": status})
+            lines.append(f"pid {pid} agent {agent} ({status}) age {age // 60} min cwd {cwd}")
+        if lines:
+            send(con, "director", f"{len(lines)} test run(s) without a live owner",
+                 "Test runners older than the alert age; nothing was signalled:\n" + "\n".join(lines), "alert", sender="tick")
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "test-orphan-alert", "test-orphan-alert-failed", str(e) or repr(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
 # tick phase timers (T-0664, log-only; see _pt_lap below): state, and a decorator for phases whose call line is pinned by tests
 _PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
 
@@ -6818,6 +6984,10 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
         return f"failed:{kind}", note
     if con.execute(f"UPDATE agents SET status='stopped', ended=?, stop_failed_kind=NULL {cond}", (now(), name)).rowcount != 1:
         return "skip", None  # it finished meanwhile
+    try:
+        reap_agent_tests(con, name, "stop")
+    except Exception as e:  # noqa: BLE001 — never changes the stop result
+        _agent_tests_failed(con, name, e)
     event(con, "agent", name, "stopped", {"reason": how, "pane": pane})
     if how == "timeout":
         req = _ts(r["stop_requested_at"])
@@ -9294,6 +9464,7 @@ def cmd_tick(a, locked=False):
     reap_stray_serves(con)
     _pt_lap("reap_serves")
     reap_orphans(con)
+    alert_test_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
         _pt_lap("drift")
@@ -9319,6 +9490,10 @@ def cmd_tick(a, locked=False):
             if r["pane_id"]:
                 herdr("pane", "close", r["pane_id"], check=False)
             con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
+            try:
+                reap_agent_tests(con, r["name"], "done")
+            except Exception as e:  # noqa: BLE001 — the tick must go on
+                _agent_tests_failed(con, r["name"], e)
             event(con, "agent", r["name"], "reaped", r["pane_id"])
             continue
         if not h and r["started"] and still_starting(r):
