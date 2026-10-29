@@ -9492,6 +9492,7 @@ def cmd_tick(a, locked=False):
     reap_stray_serves(con)
     _pt_lap("reap_serves")
     reap_orphans(con)
+    _pt_lap("reap_orphans")
     alert_test_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
