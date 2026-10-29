@@ -7,9 +7,10 @@ The default is a DRY RUN: it prints every `gh api` call it would make, with its 
 (neither gh nor anything else that talks to GitHub). `--apply` runs the calls with `--gh` (default "gh"), in order,
 and stops at the first failure. Exit 0 = done, 1 = a call failed (the calls already made are listed), 2 = refusal.
 
-Refused before any call, in both modes: --repo that is not OWNER/NAME; --repo equal to the GitHub origin slug of a live
-factory home or to --private-repo; metadata that still names such a slug or that ci/scrub_scan.py flags (SCRUB_TERMS_FILE
-is honoured). With --apply the repository must already be public and not a fork: branch protection is for the public
+Refused before any call, in both modes: --repo that is not OWNER/NAME; --repo equal to a repo in the config key
+frozen_repos of a live factory home or to --private-repo (the live origin itself is allowed: after the cutover it is the
+public repo); metadata that still names such a slug or that ci/scrub_scan.py flags (SCRUB_TERMS_FILE is honoured).
+With --apply the repository must already be public and not a fork: branch protection is for the public
 repository only, the private repository's main stays unprotected. See docs/PUBLISHING.md.
 """
 import argparse
@@ -17,6 +18,7 @@ import importlib.util
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -60,20 +62,26 @@ def parse_slug(text, flag):
     return owner, name
 
 
-def live_origin_slugs():
-    """Lower-cased OWNER/NAME of the GitHub origin of every live factory home that has one."""
+def frozen_repo_slugs():
+    """Lower-cased OWNER/NAME of every repo in the config key `frozen_repos` of a live factory home's DB (read only).
+    The live public origin is never in this set: after the cutover it is the repo this tool is meant to configure."""
     slugs = set()
     for home in sorted(FX.live_homes()):
-        if not os.path.isdir(home):
+        db = os.path.join(home, "db", "factory.db")
+        if not os.path.isfile(db):
             continue
-        p = FX.git(["remote", "get-url", "origin"], home, check=False)
-        if p.returncode != 0:
-            continue  # no origin: nothing to compare with
-        m = FX.ORIGIN_RE.fullmatch(p.stdout.strip())
-        if not m:
-            raise Refused("a live factory home has an origin that is not a plain github.com URL, so the private slug cannot be "
-                          "derived. Set a plain https://github.com/OWNER/NAME origin, or pass --private-repo OWNER/NAME and fix the origin.")
-        slugs.add(f"{m.group(1)}/{m.group(2)}".lower())
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+            try:
+                row = con.execute("SELECT value FROM config WHERE key='frozen_repos'").fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error as e:
+            raise Refused(f"cannot read config frozen_repos from {db}: {e}. Fix the database, or pass --private-repo OWNER/NAME "
+                          "and retry once the database is readable.") from None
+        for item in (row[0] if row and row[0] else "").split(","):
+            if item.strip():
+                slugs.add("/".join(parse_slug(item.strip(), "config frozen_repos")).lower())
     return slugs
 
 
@@ -186,7 +194,7 @@ def build_parser():
 def run(args):
     owner, name = parse_slug(args.repo, "--repo")
     repo = f"{owner}/{name}"
-    forbidden = live_origin_slugs()
+    forbidden = frozen_repo_slugs()
     if args.private_repo:
         forbidden.add("/".join(parse_slug(args.private_repo, "--private-repo")).lower())
     if repo.lower() in forbidden:

@@ -13,6 +13,8 @@ Follow these steps in order.
 3. On the notification, read the result once: `gh pr checks <url>`. All green: continue (in_review, then `factory done`).
 4. On red: check `gh pr view <url> --json mergeable` first (L-013), fix what your head caused, commit, push, then repeat from step 1 with one new watch. A red check outside your diff: tell your lead with the check name and output.
 
+Local = fast, CI = full (docs/testing.md): CI is where the full suite, go and integration run. Locally you ran only lint and `ci/affected.py --quick`. Read a red check with `gh run view <run-id> --log-failed` (run id from `gh pr checks <url>`), reproduce with only the failing module (`python3 -m unittest discover -s tests -p test_<name>.py`), never the full suite. Never export GIT_* env (L-050).
+
 Rules:
 - Never more than one watch per PR at a time; wait for the notification of the old one before starting a new one.
 - Kill only your own background job (`kill %job` / `kill $!`), never `pkill` or `killall` (L-022).
