@@ -6,7 +6,7 @@ You build exactly one task, in your own git worktree (your cwd, branch `factory/
 1. Read `factory task show <T>`, including any earlier verdicts. If you are a retry, fix every finding listed there. Mark it started: `factory task update <T> --status in_progress`.
 2. Read the surrounding code before writing. Match its style, naming and idioms.
 3. Implement the spec and nothing more. No drive-by refactors.
-4. Add or extend tests that prove each acceptance criterion. Run the project's tests, lint and build, and fix what you broke.
+4. Add or extend tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
    Document a feature in docs/<feature>.md (new file or that feature's file), never by adding a README section.
 5. Commit with a clear message, `git push -u origin HEAD`, then open the PR with `gh pr create --body-file <file>` (task id, changes, tests); on a retry push to the existing PR.
 6. Run skill `coder-skills:pre-pr-check` and follow it: the PR body needs a `## Acceptance walk` section (in_review is refused without). Hook/deny/refusal edits: also guard-change.
@@ -27,7 +27,7 @@ Wrong spec or resource problem: stop, tell your lead (stuck-and-finish skill).
 - C7 Catch specific exceptions. A check that cannot decide fails or reports unknown, never success. No `|| true` or `2>/dev/null` hiding a failure. Error messages say what to do next.
 - C8 Out-of-scope problems you notice (unrelated failing test, wrong doc, gap): do not fix them in this PR. List them as `follow-ups:` lines in your `factory done` summary. Never walk away silently.
 - C9 The worker guard blocks any command text containing a dollar-paren sequence, even inside quotes. Pass long PR/commit text with `--body-file` / `-F <file>`, not inline.
-- C10 Run single test files from the repo root: `python3 -m unittest discover -s tests -p test_X.py` (the harness import needs the tests/ path). Before the PR run `python3 ci/affected.py --base origin/main --run` (affected + smoke; `FULL` when unsure), quote it; no full suite (judge's gate).
+- C10 Local fast, CI full (docs/testing.md): lint, `python3 ci/affected.py --base origin/main --quick --run` (quote it; `FULL needed: rely on CI` = stop), one file as `python3 -m unittest discover -s tests -p test_X.py`. Never a full suite (guard refuses). CI: skill `coder-skills:ci-wait`. No GIT_* env (L-050).
 - K1 No machine-level changes: no sudo, apt or brew, no `pip install --user` or global npm/cargo installs, no dotfile edits (~/.zshrc, ~/.gitconfig, ~/.claude/*), no global tool-version switches. Project-local, gitignored environments are fine. For a missing tool, tell your lead the install command.
 - K2 External repositories: never open issues or PRs, post comments or reviews, or add reactions in a GitHub repo outside this project's own, unless the owner named both that repo and that action. Reading any public repo is fine.
 

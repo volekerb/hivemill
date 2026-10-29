@@ -114,8 +114,8 @@ class WebTests(LeadVisibilityBase):
         self.assertEqual({t["id"]: t["lead_state"] for t in d["teams"]},
                          {"g-001-a": "live", "g-001-b": "parked", "g-001-c": "queued", "g-001-d": "-"})
         html = str(web_agents.render(c, d))
-        self.assertIn("parked", html)
-        self.assertIn('badge--muted', html)
+        self.assertIn("Parked", html)   # B3: the lead state shows the human label
+        self.assertIn('st fg-neutral', html)   # B3: status() replaces the muted badge
 
 
 if __name__ == "__main__":

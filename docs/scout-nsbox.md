@@ -2,6 +2,8 @@
 
 Follow-up to the eval sandbox in [skill-scout.md](skill-scout.md#eval-sandbox) (`scout/nsbox.py`).
 
+Worker sandbox that uses this allow mode: [worker-sandbox.md](worker-sandbox.md).
+
 ## Shim environment allow-list
 
 `shim_main` (what `trials/<id>/bin/claude` runs) no longer passes the evaluator pane's environment into stage 1 minus a scrub list. It builds the environment from an allow-list and execs stage 1 with only that:
