@@ -145,6 +145,54 @@ class RedMainTests(FactoryTestCase):
         self.assertIn("T-0001", spec)
         self.assertNotIn("unknown", spec)
 
+    def hive_setup(self):
+        """T-0669: the repo's own project has no goal; the active goal sits under another project but its task has a PR there."""
+        self.env.sql("UPDATE projects SET gh_repo='acme/home' WHERE id='zz-test-proj'")
+        self.env.seed_project("zz-hive")
+        self.env.sql("UPDATE projects SET gh_repo='acme/priv' WHERE id='zz-hive'")
+        self.ok("config", "red_main_freeze", "1")
+        self.runs(RED)
+
+    def test_red_run_files_task_under_goal_working_in_that_repo(self):
+        self.hive_setup()
+        self.tick()
+        tasks = self.env.sql("SELECT id, goal_id FROM tasks WHERE title LIKE 'Red main:%'")
+        self.assertEqual([t["goal_id"] for t in tasks], ["G-001"], tasks)
+        self.assertIn("filed", self.director_mail()[0]["body"])
+        self.assertNotIn("No active goal", self.director_mail()[0]["body"])
+
+    def test_no_goal_anywhere_still_alerts_director(self):
+        self.hive_setup()
+        self.env.sql("UPDATE tasks SET pr_url='https://github.com/acme/elsewhere/pull/1'")
+        self.tick()
+        self.assertEqual(self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'"), [])
+        self.assertIn("No active goal", self.director_mail()[0]["body"])
+
+    def test_director_names_fix_task_and_it_may_merge(self):
+        self.hive_setup()
+        self.env.sql("UPDATE tasks SET pr_url='https://github.com/acme/elsewhere/pull/1'")
+        self.tick()  # no goal: the stored task is empty (the deadlock)
+        self.env.sql("UPDATE tasks SET pr_url=?", (URL,))
+        self.env.seed_task(tid="T-0002", pr_url="https://github.com/acme/priv/pull/2")
+        p = self.env.run("redmain", "fix", "acme/priv", "T-0002", agent="zz-test-director")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.env.sql("SELECT action FROM events WHERE entity='redmain' AND action='red-main-fix-task'")[0]["action"], "red-main-fix-task")
+        with self.env.load_factory() as f:
+            con = f.db()
+            self.assertIsNone(f.red_main_refusal(con, ["acme/priv"], "T-0002"))
+            self.assertIn("run 901", f.red_main_refusal(con, ["acme/priv"], "T-0001"))
+
+    def test_redmain_fix_refusals(self):
+        self.hive_setup()
+        self.tick()
+        p = self.env.run("redmain", "fix", "acme/priv", "T-0001", agent="zz-test-judge")
+        self.assertEqual(p.returncode, 3, p.stdout + p.stderr)
+        p = self.env.run("redmain", "fix", "acme/priv", "T-9999", agent="zz-test-director")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        p = self.env.run("redmain", "fix", "acme/other", "T-0001", agent="zz-test-director")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("not frozen", p.stderr)
+
     def test_flag_off_after_red_lifts_refusal(self):
         self.ok("config", "red_main_freeze", "1")
         self.runs(RED)
