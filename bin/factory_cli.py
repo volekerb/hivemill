@@ -9,6 +9,7 @@ resource gate on spawning, and the head-SHA-bound merge gate.
 Markdown under exports/ is generated FROM the DB. Editing it changes nothing.
 """
 import argparse
+import concurrent.futures
 import contextlib
 import fcntl
 import glob
@@ -142,6 +143,7 @@ DEFAULT_CONFIG = {
     "affected_smoke": "test_db_layout.py test_inbox.py test_judge.py",  # ci/affected.py always-run smoke modules (T-0519)
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
+    "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -648,15 +650,21 @@ def evaluator_settings(rdir):
     copied (stdlib-only, 0555, regular file, replaced atomically on every launch) into <trial>/role/roles/hooks and
     every hook command is pointed at that copy. A hook command left under the live home would fail closed on every
     tool call. The depth matters: the guard counts dirname^3 of its own path as a live home, so <trial>/role/ (which
-    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`."""
+    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`.
+    The copy layout mirrors the repo (roles/hooks/, ci/) under <trial>/role/, because the guard resolves its sibling
+    files (ci/public_text_guard.py, which loads ci/scrub_scan.py by path) and its live home via dirname^3 of its own
+    path. Those two ci files are copied the same way (0555, atomic, every launch)."""
     rdir = Path(rdir)
-    src = ROLES_DIR / "hooks" / "worker-guard.py"
-    try:
-        body = src.read_text()
-    except OSError as e:
-        die(f"cannot read {src}: {e}; restore it with git checkout", 3)
-    guard = rdir / "roles" / "hooks" / "worker-guard.py"
-    write_atomic(guard, body, 0o555)
+    copies = [(ROLES_DIR / "hooks" / "worker-guard.py", rdir / "roles" / "hooks" / "worker-guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "public_text_guard.py", rdir / "ci" / "public_text_guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "scrub_scan.py", rdir / "ci" / "scrub_scan.py")]
+    for src, dst in copies:
+        try:
+            body = src.read_text()
+        except OSError as e:
+            die(f"cannot read {src}: {e}; restore it with git checkout", 3)
+        write_atomic(dst, body, 0o555)
+    guard = copies[0][1]
     cfg = json.loads(settings_text("evaluator"))
     n = 0
     for groups in cfg.get("hooks", {}).values():
@@ -10590,6 +10598,16 @@ def _ci_remote_head(branch, batch=None):
     return rows[0][0] if len(rows) == 1 else None
 
 
+def _ci_wake_probe(pr_url, timeout):
+    """One `gh pr view` probe, run in a pool thread: no DB, cfg, event or send in here. Returns the PR dict or the error."""
+    try:
+        pr = gh_json("pr", "view", pr_url, "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup", timeout=timeout)
+        pr["headRefOid"]  # noqa: B018 — a PR json without a head sha is an error, as before
+        return pr
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
+        return e
+
+
 def tick_ci_wake(con):
     """Tick step 1c': message the lead of a parked team when an in_review PR of the team is CLEAN with all checks green
     (or all checks done and one failed), once per (task, head sha); tick_wake_leads then wakes it on the unread mail.
@@ -10606,6 +10624,7 @@ def tick_ci_wake(con):
     except FactoryNowError:
         clock = time.time()
     batch = []  # one ls-remote per tick, made on first need
+    todo = []  # (team, task) rows that need a gh call, in team then task order
     for t in con.execute("SELECT * FROM teams WHERE status='active' AND parked_at IS NOT NULL ORDER BY id").fetchall():
         lead = t["lead_agent"]
         r = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone() if lead else None
@@ -10620,38 +10639,54 @@ def tick_ci_wake(con):
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
             _pt_count("ci_wake_gh")
-            try:
-                pr = gh_json("pr", "view", k["pr_url"], "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup",
-                             timeout=float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S))
-                sha = pr["headRefOid"]
-            except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
-                event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {e}"[:300])
-                continue
-            if pr.get("state", "OPEN") != "OPEN":
-                continue  # merged or closed: nothing to wait for
-            verdict, names = ci_verdict(pr.get("statusCheckRollup"))
-            if verdict == "green" and pr.get("mergeStateStatus") == "CLEAN":
-                kind = "green"
-            elif verdict == "red":
-                kind = "red"
-            else:
-                continue
-            key = f"ci-{kind}:{k['id']}:{sha}"
-            if _throttled(con, key, clock, float("inf")):
-                _throttle_set(con, f"ci-head:{k['id']}", clock)  # same head, already mailed: back off (fallback window)
-                continue
-            _throttle_set(con, key, clock)
-            _throttle_set(con, f"ci-head:{k['id']}", clock)
-            label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
-            if kind == "green":
-                send(con, lead, f"CI green: {label}",
-                     f"head {sha}; checks: {', '.join(names)}; mergeStateStatus CLEAN. ready for judge per M6364.",
-                     "report", t["goal_id"], k["id"], sender="tick")
-            else:
-                send(con, lead, f"CI red: {label}: {', '.join(names)}",
-                     f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
-                     sender="tick")
-            event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
+            todo.append((t, k))
+    if not todo:
+        return
+    try:
+        timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
+    except ValueError:
+        timeout = float(CI_WAKE_GH_TIMEOUT_S)  # a bad override must not stop every probe
+    try:
+        workers = int(cfg(con, "ci_wake_workers"))
+    except (TypeError, ValueError):
+        workers = 1
+    urls = [k["pr_url"] for _, k in todo]
+    if workers < 2 or len(urls) < 2:
+        results = [_ci_wake_probe(u, timeout) for u in urls]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
+    for (t, k), pr in zip(todo, results):
+        lead = t["lead_agent"]
+        if isinstance(pr, BaseException):
+            event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
+            continue
+        sha = pr["headRefOid"]
+        if pr.get("state", "OPEN") != "OPEN":
+            continue  # merged or closed: nothing to wait for
+        verdict, names = ci_verdict(pr.get("statusCheckRollup"))
+        if verdict == "green" and pr.get("mergeStateStatus") == "CLEAN":
+            kind = "green"
+        elif verdict == "red":
+            kind = "red"
+        else:
+            continue
+        key = f"ci-{kind}:{k['id']}:{sha}"
+        if _throttled(con, key, clock, float("inf")):
+            _throttle_set(con, f"ci-head:{k['id']}", clock)  # same head, already mailed: back off (fallback window)
+            continue
+        _throttle_set(con, key, clock)
+        _throttle_set(con, f"ci-head:{k['id']}", clock)
+        label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
+        if kind == "green":
+            send(con, lead, f"CI green: {label}",
+                 f"head {sha}; checks: {', '.join(names)}; mergeStateStatus CLEAN. ready for judge per M6364.",
+                 "report", t["goal_id"], k["id"], sender="tick")
+        else:
+            send(con, lead, f"CI red: {label}: {', '.join(names)}",
+                 f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
+                 sender="tick")
+        event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
 
 
 def _stale_park_alert(con, t, clock):
