@@ -34,7 +34,7 @@ class RoleTableTests(unittest.TestCase):
             self.assertEqual(MODELS[r], "claude-sonnet-5-5")
 
     def test_not_persistent(self):
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         line = next(x for x in src.splitlines() if x.startswith("PERSISTENT_ROLES"))
         for r in NEW:
             self.assertNotIn(f'"{r}"', line)

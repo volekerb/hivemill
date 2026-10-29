@@ -67,7 +67,7 @@ class AffectedTest(unittest.TestCase):
         self.write("ci/shard.py", "y = 1\n")
         self.write("roles/coder.md", "a\n")
         self.write("docs/a.md", "a\n")
-        self.write("bin/factory", BIN_BASE)
+        self.write("bin/factory_cli.py", BIN_BASE)
         self.git("add", "-A")
         self.git("commit", "-qm", "base")
         self.git("branch", "base")
@@ -113,7 +113,7 @@ class AffectedTest(unittest.TestCase):
         self.assertIn("test_alpha.py", got)  # mentions ci/tool
 
     def test_bin_factory_change_inside_one_cmd_selects_its_tests_only(self):
-        self.write("bin/factory", BIN_BASE.replace("def cmd_inbox(a):\n    return 2", "def cmd_inbox(a):\n    return 3"))
+        self.write("bin/factory_cli.py", BIN_BASE.replace("def cmd_inbox(a):\n    return 2", "def cmd_inbox(a):\n    return 3"))
         self.commit()
         got = self.selected()
         self.assertIn("test_beta.py", got)  # "inbox" subcommand
@@ -121,14 +121,14 @@ class AffectedTest(unittest.TestCase):
         self.assertNotIn("test_alpha.py", got)
 
     def test_bin_factory_helper_change_selects_by_def_name(self):
-        self.write("bin/factory", BIN_BASE.replace("def helper(x):\n    return x", "def helper(x):\n    return x + 1"))
+        self.write("bin/factory_cli.py", BIN_BASE.replace("def helper(x):\n    return x", "def helper(x):\n    return x + 1"))
         self.commit()
         got = self.selected()
         self.assertIn("test_alpha.py", got)
         self.assertNotIn("test_beta.py", got)
 
     def test_schema_change_is_full(self):
-        self.write("bin/factory", BIN_BASE.replace('SCHEMA = "a"', 'SCHEMA = "b"'))
+        self.write("bin/factory_cli.py", BIN_BASE.replace('SCHEMA = "a"', 'SCHEMA = "b"'))
         self.commit()
         r = self.affected()
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -140,12 +140,12 @@ class AffectedTest(unittest.TestCase):
                          ("def db():\n    return 1", "def db():\n    return 2")]:
             self.git("checkout", "-q", "work")
             self.git("reset", "-q", "--hard", "base")
-            self.write("bin/factory", BIN_BASE.replace(old, new))
+            self.write("bin/factory_cli.py", BIN_BASE.replace(old, new))
             self.commit()
             self.assertTrue(self.affected().stdout.startswith("FULL"), old)
 
     def test_hub_def_change_is_full(self):
-        self.write("bin/factory", BIN_BASE.replace("def hub(x):\n    return x", "def hub(x):\n    return -x"))
+        self.write("bin/factory_cli.py", BIN_BASE.replace("def hub(x):\n    return x", "def hub(x):\n    return -x"))
         self.commit()
         r = self.affected()
         self.assertTrue(r.stdout.startswith("FULL"), r.stdout)
@@ -220,6 +220,51 @@ class AffectedTest(unittest.TestCase):
         self.write("web/app.py", "x\n")
         self.commit()
         self.assertEqual(self.selected(), sorted(SMOKE + ["test_beta.py"]))
+
+    def test_view_change_selects_modules_that_import_it(self):
+        # T-0665: `from web.views import home` mentions neither the path web/views/home.py nor the dotted web.views.home
+        for name, body in (("test_util.py", "from web.views import home  # noqa\n"),
+                           ("test_multi.py", "from web.views import (\n    agents,\n    home as h,\n)\n"),
+                           ("test_dotted.py", "import web.views.home\n"),
+                           ("test_other.py", "from web.views import homepage, agents\n")):
+            self.write("tests/" + name, body)
+        self.git("add", "-A")
+        self.git("commit", "-qm", "importers")
+        self.git("branch", "-f", "base")
+        self.write("web/views/home.py", "x = 1\n")
+        self.commit()
+        got = self.selected()
+        self.assertEqual(got, sorted(SMOKE + ["test_util.py", "test_multi.py", "test_dotted.py"]))
+
+    def test_view_change_selects_parenthesised_import_on_one_line(self):
+        self.write("tests/test_util.py", "from web.views import (agents, home)\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "importer")
+        self.git("branch", "-f", "base")
+        self.write("web/views/home.py", "x = 1\n")
+        self.commit()
+        self.assertIn("test_util.py", self.selected())
+
+    def test_run_leaves_uncommitted_and_untracked_edits_in_the_caller_worktree(self):
+        # T-0665: a dirty worktree must survive an affected --run byte for byte
+        self.write("tests/test_beta.py",
+                   "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n")
+        self.commit()
+        self.write("ci/tool.py", "x = 2  # uncommitted\n")
+        self.write("scratch.txt", "untracked\n")
+        self.write("docs/a.md", "staged\n")
+        self.git("add", "docs/a.md")
+
+        def snap():
+            st = subprocess.run(["git", "-C", str(self.repo), "status", "--porcelain=v1", "-uall"], capture_output=True, text=True).stdout
+            st = "".join(l for l in st.splitlines(True) if "__pycache__" not in l)  # the run's own bytecode is not an edit
+            return st, {f: (self.repo / f).read_text() for f in ("ci/tool.py", "scratch.txt", "docs/a.md")}
+        before = snap()
+        r = self.affected("--run")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Ran 1 tests", r.stdout)
+        self.assertEqual(snap(), before)
+        self.assertEqual(before[1]["ci/tool.py"], "x = 2  # uncommitted\n")
 
     def test_bad_base_fails_with_hint(self):
         env = dict(os.environ, FACTORY_HOME=str(self.home))

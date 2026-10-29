@@ -4,6 +4,8 @@
 
 The factory builds itself. Its own changes come from goals and tasks run by agents (pm, coder, qa, reviewer, judge); each task becomes one PR on a `factory/<task-id>` branch. Outside contributors do not need any of that: fork, branch, and open a normal pull request against `main`. A maintainer (GitHub handle `volekerb`) reviews it.
 
+External pull requests get the same reviewer, QA and judge gate as the factory's own, and nothing in them runs before a reviewer has read the diff. The details are in [docs/contributor-flow.md](docs/contributor-flow.md).
+
 Open an issue first for anything larger than a small fix, so the change is agreed before you build it. Security problems do not go in issues: see [SECURITY.md](SECURITY.md).
 
 ## Dev setup

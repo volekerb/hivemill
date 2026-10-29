@@ -13,9 +13,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import envcheck
 from harness import REPO, ROLES, FactoryTestCase, git, rendered_settings_dir
 
-FACTORY = REPO / "bin" / "factory"
+FACTORY = REPO / "bin" / "factory_cli.py"
 HOOK = REPO / "roles" / "hooks" / "worker-guard.py"
 SETTINGS = REPO / "roles" / "settings"
 PW_DIR = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
@@ -51,6 +52,7 @@ def deny(path):
 
 
 class TemplateFileTests(unittest.TestCase):
+    @envcheck.skip_without_git()
     def test_every_role_has_a_template_and_nothing_else_is_tracked(self):
         names = sorted(p.name for p in SETTINGS.glob("*.json.in"))
         self.assertEqual(names, sorted(f"{r}.json.in" for r in ROLES))
@@ -73,6 +75,7 @@ class TemplateFileTests(unittest.TestCase):
                 self.assertIn(f"Edit(/{tmp}/live/run/settings/**)", data["permissions"]["deny"], r)
                 self.assertNotIn("@FACTORY_", json.dumps(data))
                 self.assertNotIn(PW_DIR + "/factory", json.dumps(data), r)
+                self.assertEqual(data.get("attribution", {}).get("pr"), "", r)  # no PR-body footer (M11175)
 
     def test_rendered_rules_equal_the_substituted_template_rule_for_rule(self):
         for r in ROLES:
@@ -119,7 +122,7 @@ class TemplateFileTests(unittest.TestCase):
             guard = [c for c in cmds if "worker-guard.py" in c]
             self.assertEqual(len(guard), 1, r)
             edit = [h["command"] for g in groups if g.get("matcher") != "Bash" for h in g["hooks"]]  # T-0334: workers only
-            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 1, r)
+            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 2 if r in ("coder", "qa", "reviewer", "judge", "pm", "staff-engineer") else 1, r)  # T-0600: + Read|Grep
             self.assertTrue(all(f"{LIVE_HOME}/roles/hooks/worker-guard.py" in c for c in edit), r)
             self.assertTrue(guard[0].startswith(f"python3 {LIVE_HOME}/roles/hooks/worker-guard.py"), guard[0])
 
@@ -260,6 +263,7 @@ class SpawnRenderTests(FactoryTestCase):
         self.assertNotIn("may not do this", p.stderr)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
+    @envcheck.skip_without_git()
     def test_tick_renders_the_legacy_settings_path_rule_for_rule(self):
         legacy = REPO / "roles" / "settings"  # the temp home's roles dir is a symlink to this checkout
         for r in ROLES:

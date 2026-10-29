@@ -230,7 +230,7 @@ class StaffEngineerTests(FactoryTestCase):
         self.assertEqual(len(self.starts()), 1)
 
     def test_common_md_workers_go_through_lead(self):
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         callers = [l for l in src.splitlines() if l.startswith("ON_DEMAND_CALLERS")][0]
         for worker in ("pm", "coder", "qa", "reviewer", "judge", "cleaner"):
             self.assertNotIn(f'"{worker}"', callers)
@@ -241,7 +241,7 @@ class StaffEngineerTests(FactoryTestCase):
             self.assertIn("Workers ask their lead", line)
 
     def test_not_persistent(self):
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         line = [l for l in src.splitlines() if l.startswith("PERSISTENT_ROLES")][0]
         self.assertNotIn("staff-engineer", line)
 
@@ -263,7 +263,7 @@ class StaffEngineerTests(FactoryTestCase):
         self.assertLessEqual(len(window), limit, window)
         self.assertGreaterEqual(ttl, limit * timeout + 30)
         self.assertGreaterEqual(ttl, len(window) * timeout + 30)
-        src = (REPO / "bin" / "factory").read_text()
+        src = (REPO / "bin" / "factory_cli.py").read_text()
         self.assertIn("timeout=HERDR_TIMEOUT_S", src)  # herdr()'s default is the constant the bound is built on
 
     def test_role_file_length_rule(self):

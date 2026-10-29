@@ -10,3 +10,6 @@ Verbatim from the coder role prompt.
 If the spec is wrong or impossible, stop and tell your lead with specifics. Don't silently build something different. If you hit a resource problem (out of memory, gate closed), report it rather than retrying in a loop.
 
 Step 9 sentence: `factory done` refuses uncommitted tracked changes and commits not pushed to origin, so commit and push first.
+
+K1 (moved from the coder role prompt, verbatim):
+- K1 No machine-level changes: no sudo, apt or brew, no `pip install --user` or global npm/cargo installs, no dotfile edits (~/.zshrc, ~/.gitconfig, ~/.claude/*), no global tool-version switches. Project-local, gitignored environments are fine. For a missing tool, tell your lead the install command.

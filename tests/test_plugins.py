@@ -88,7 +88,7 @@ class VendoredPluginsStaticTests(unittest.TestCase):
         for needle in ("factory stop", "--acceptance", "factory spawn"):
             self.assertIn(needle, sc)
         wb = (skills / "worker-brief" / "SKILL.md").read_text()
-        for needle in ("factory inbox", "factory verdict", "goal show", "merge origin/main", "test count"):
+        for needle in ("factory inbox", "factory verdict", "goal show", "merge origin/main", "Test count:"):
             self.assertIn(needle, wb)
         for needle in ("pilot-test-first", "docs/test-first-pilot.md"):
             self.assertIn(needle, wb)

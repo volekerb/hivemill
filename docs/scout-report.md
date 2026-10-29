@@ -14,6 +14,10 @@ How the skill scout's results reach the director, the boss and the owner. The co
 
 Candidate text is untrusted: every field is collapsed to one line, so it cannot add headings or list items.
 
+## Window boundaries
+
+Every window is `(since, until]`: the start is exclusive, the end inclusive. The section and the digest (`factory digest`, `--hours`) use the same rule, so an item stamped exactly on a boundary appears in exactly one of two adjacent reports.
+
 ## Report flow
 
 | path | when | from → to |
@@ -30,10 +34,12 @@ Candidate text is untrusted: every field is collapsed to one line, so it cannot 
 
 `factory scout report [--slot S | --since ISO] [--send]`
 
-- Prints the section. `--slot 2026-10-26T09` uses the window of that finished run (as the tick does); `--since` uses `(ISO, now]`. Without either, the window starts at the end of the newest finished run, or 24 h before now when there is none.
+- Prints the section. `--slot 2026-10-26T09` uses the window of that finished run (as the tick does); `--since` uses `(ISO, now]`. Without either, the window is the newest finished run's own window: it starts at the end of the run before it, so that run's finds are included, or 24 h before now when there is none.
 - `--send` (director or owner only; lead, boss, scout and workers are refused with exit 3) sends the section to the director as kind `report`, subject `skill scout <date> <slot>` (the hour of now when no `--slot`). It does not set `reported_msg`.
 - Reading is open to director, lead, boss, scout and owner.
 
 ## Related settings
 
 `scout_enabled` (`factory config scout_enabled 0` stops new runs; reports of runs already finished are still sent), `scout_slots`, `scout_max_minutes`, `scout_max_tokens`, `scout_queue_max_h`, and `skilleval_root`. Details: [scout-tick.md](scout-tick.md) and [scout-vendor.md](scout-vendor.md).
+
+A run whose `ended` cannot be parsed is reported with the current time as its end, so it is sent once and never blocks later runs.

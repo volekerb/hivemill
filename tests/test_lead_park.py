@@ -2,7 +2,7 @@
 import sqlite3
 import unittest
 
-from harness import FactoryTestCase, FACTORY
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC
 
 LEAD = "lead-g-001-a"
 TEAM = "g-001-a"
@@ -134,7 +134,7 @@ class SchemaTests(FactoryTestCase):
         self.assertTrue({"parked_at", "resume_note"} <= cols)
 
     def test_config_keys(self):
-        src = FACTORY.read_text()
+        src = FACTORY_SRC.read_text()
         for line in ('"lead_parking": "0"', '"max_live_leads": "4"', '"reserved_worker_slots": "10"'):
             self.assertEqual(src.count(line), 1, line)
 
