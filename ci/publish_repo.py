@@ -131,10 +131,12 @@ def plan(repo, meta):
         ("PUT", f"{r}/vulnerability-alerts", None),
         # https://docs.github.com/en/rest/repos/repos#enable-private-vulnerability-reporting-for-a-repository (no body, 204)
         ("PUT", f"{r}/private-vulnerability-reporting", None),
-        # https://docs.github.com/en/rest/branches/branch-protection#update-branch-protection (all four top-level keys are required)
+        # https://docs.github.com/en/rest/branches/branch-protection#update-branch-protection (the four top-level keys are required; allow_force_pushes and allow_deletions are optional booleans)
+        # R-a (owner rule, T-0638): PR required with 0 approvals, enforce_admins ON so the owner's own login cannot push to main either
         ("PUT", f"{r}/branches/main/protection",
-         {"required_status_checks": {"strict": True, "contexts": meta["required_checks"]}, "enforce_admins": False,
-          "required_pull_request_reviews": None, "restrictions": None}),
+         {"required_status_checks": {"strict": True, "contexts": meta["required_checks"]}, "enforce_admins": True,
+          "required_pull_request_reviews": {"required_approving_review_count": 0}, "restrictions": None,
+          "allow_force_pushes": False, "allow_deletions": False}),
     ]
 
 
