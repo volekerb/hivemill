@@ -109,6 +109,14 @@ class PublicTextTests(unittest.TestCase):
         self.commit("add rule")
         self.allowed("git push origin HEAD:factory/t-1")
 
+    def test_push_blocks_owner_term_in_an_older_commit_of_the_range(self):
+        self.public()
+        self.commit("add zebracorp notes")
+        self.commit("fix the notes")
+        p = self.blocked("git push origin HEAD:factory/t-1")
+        self.assertIn("owner-term", p.stderr)
+        self.assertNotIn("zebracorp", p.stderr)
+
     # ── 4 scope = the write command only
     def test_chained_cd_to_home_path_is_not_scanned(self):
         self.public()
