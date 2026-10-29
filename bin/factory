@@ -5165,7 +5165,9 @@ def sandbox_preflight(role, cwd, name):
 
 
 class SandboxRefused(SystemExit):
-    """A sandboxed spawn that preflight refused: exit 3. The tick's dequeue loop skips it (the row stays queued)."""
+    """A sandboxed spawn that preflight refused: exit 3. A direct spawn just exits; the tick's dequeue loop cancels
+    the queued row (sandbox_drop_queued). reason and why say what to fix."""
+    reason = why = ""
 
 
 def sandbox_refuse(con, role, name, reason, why):
@@ -5187,7 +5189,25 @@ def sandbox_refuse(con, role, name, reason, why):
     con.commit()  # the exit follows: the event and the message must survive
     print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
           "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
-    raise SandboxRefused(3)
+    e = SandboxRefused(3)
+    e.reason, e.why = reason, why
+    raise e
+
+
+def sandbox_drop_queued(con, row, s, e):
+    """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
+    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path."""
+    if not cancel_queued(con, row["name"], "sandbox-preflight", f"{e.reason}: {e.why}"):
+        return
+    team = s.get("team")
+    subject = f"sandbox refused queued spawn {row['name']}"
+    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: sandbox preflight refused it "
+            f"({e.reason}: {e.why}). Fix it and spawn again.")
+    try:
+        send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
+             sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
 def sandbox_prepare(con, role, name, cwd):
@@ -7746,8 +7766,9 @@ def cmd_tick(a, locked=False):
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
-        except SandboxRefused:
-            continue  # refused and logged; spawn() left the row queued, a later tick retries
+        except SandboxRefused as e:
+            sandbox_drop_queued(con, q, s, e)  # spawn() left the row queued; every refusal needs a human fix
+            con.commit()
         except EvaluatorInvalid:
             # a trial sandbox that no longer validates (cleaned up, tampered) must not wedge the tick every minute
             con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
