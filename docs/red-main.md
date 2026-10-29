@@ -11,3 +11,7 @@ With the flag on, the tick (at most every `red_main_interval_s`, default 120 s) 
 State is kept in `config` rows `red_main:<owner/name>` and `red_main_green:<owner/name>`. The refusal is `red_main_refusal(con, slugs)`; the mechanical merger (G-022 #4) calls it before merging.
 
 The revert/fix task the check files may itself merge during the freeze (matched by its task id); every other task is refused. "Merged since the last green main" counts from the start of the last green push run.
+
+**Which goal gets the revert task (T-0669).** The active goal of the project whose `gh_repo` is the repo; if that project has none, the active goal with a task whose PR is in the repo (a goal can work in a repo its project row does not name). With no such goal the director is told to file the task by hand.
+
+**Naming the fix task by hand.** `factory redmain fix <OWNER/NAME> <T-id>` (director only) sets the stored fix task of a frozen repo (event `red-main-fix-task`), so that task may merge during the freeze. Use it when no revert task was filed, otherwise the fix PR cannot merge.

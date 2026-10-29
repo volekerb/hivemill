@@ -15,7 +15,7 @@ Follow these steps in order.
 6. Risk / rollback: what could break, "rollback = revert this PR", and "applies after relaunch" when role files, plugins or settings change.
 7. Keep the five sections to 150-250 words target, 300 hard limit. After Risk, add the template's `<details>` block holding the line `## Acceptance walk` (pre-pr-check) and one line per acceptance item; other long evidence (an audit table) goes in its own `<details>` block. Text inside `<details>` is outside the word count.
 8. No marketing tone ("robust", "seamless", "comprehensive"), no narration of your process, no restating the task spec.
-9. End the body with the footer line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. The `Co-Authored-By` trailer belongs in the commit message, not the body.
+9. Add no "Generated with Claude Code" footer (owner M11175). The `Co-Authored-By` trailer belongs in the commit message, not the body.
 10. Do not add a `## Gates` block. Gates belong in QA and reviewer verdicts (`factory verdict`), not in PR bodies.
 11. Pass the text with `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` (coder.md C9). Re-check the body after every push that changes the story.
 
