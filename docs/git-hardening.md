@@ -64,10 +64,10 @@ The guard module is loaded from the main checkout (`$FACTORY_HOME/ci/public_text
 
 ## Residual risk: owner-terms file (T-0600)
 
-worker-guard refuses direct reads of the terms file by any path form (compared by file identity), recursive or archive reads (`grep -r`, `rg`, `find`, `tar`, `zip`, `cp -r`, `rsync`) aimed at its directory or any ancestor, and `${!var}` indirection or brace expansion in a command that names the terms file. A command-text guard cannot stop every indirect read, so these remain:
+worker-guard refuses direct reads of the terms file by any path form (compared by file identity), recursive or archive reads (`grep -r`, `rg`, `find`, `tar`, `zip`, `cp -r`, `rsync`) aimed at its directory or any ancestor, `$HOME`/simple `VAR=` expansion, a bare `cd`, `bash -c` payloads, `xargs` with a recursive command and `grep -d recurse` in those checks, and `${!var}` indirection or brace expansion in a command that names the terms file. A command-text guard cannot stop every indirect read, so these remain:
 
 - discovering the path (`env`, `printenv`, `/proc/self/environ`), which discloses only the path;
 - computed variable names in scripts (a python string concatenation that builds `SCRUB_TERMS_FILE`), and other interpreters reading the environment;
-- a recursive read that reaches the directory through a command not listed above.
+- a recursive read that reaches the directory through a command or shell form not listed above (accepted as documented residual by the director).
 
 Backstops: the public text guard refuses owner terms in every push, PR, comment and commit (fail closed), and G-010 sandboxing keeps the owner's config directory out of sandboxed workers. The guard stops accidents, not deliberate evasion.
