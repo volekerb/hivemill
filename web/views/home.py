@@ -171,7 +171,11 @@ def _system_section(d):
         rows.append(charts.gauge("Load", f"{ld['load1']:.1f} / {ld['cpus']} CPUs", 100 * ld["load1"] / full, [100 * ld["cpus"] / full],
                                  zone, "1-min average"))
     rows.append(_usage_row(u))
-    return _sect("system", "System", el("div", rows, class_="system"), more=("/resources", "Resources"))
+    ut = d["utilization"]
+    ut_text = ("utilization: no fresh tick sample" if ut is None
+               else ut["line"] + (" (UNDER TARGET)" if ut["under"] else ""))
+    return _sect("system", "System", el("div", rows, class_="system"), el("p", ut_text, class_="summary-line"),
+                 more=("/resources", "Resources"))
 
 
 def _usage_row(u):

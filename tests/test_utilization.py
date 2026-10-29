@@ -249,7 +249,7 @@ class WebHomeCase(Base):
         con = wdb.connect(self.env.db_path)
         self.addCleanup(con.close)
         import datetime as dt
-        ctx = SimpleNamespace(db=con, now=dt.datetime.fromisoformat(now).astimezone(), usage_fn=None, defaults={})
+        ctx = SimpleNamespace(db=con, now=dt.datetime.fromisoformat(now).astimezone(), usage_fn=None, mem_fn=None, defaults={})
         return str(home.render(ctx, home.data(ctx)))
 
     def test_matches_res_line_and_flags(self):
