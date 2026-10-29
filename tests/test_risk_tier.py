@@ -1,5 +1,8 @@
 """Tests for ci/risk_tier.py: the pure tier(diff, paths, lines, rules) classifier (G-022 #1)."""
 import importlib.util
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -23,7 +26,7 @@ class TierRuleTests(unittest.TestCase):
         return rt.tier(diff or {}, paths, lines, self.rules)
 
     def test_docs_only_is_t0(self):
-        self.assertEqual(self.tier(["docs/a.md", "README.md", "docs/img/x.png"], lines=900 - 400), "T0")
+        self.assertEqual(self.tier(["docs/a.md", "README.md", "docs/img/x.png"], lines=500), "T0")
 
     def test_markdown_in_sensitive_or_excluded_dirs_is_not_docs(self):
         self.assertEqual(self.tier(["roles/coder.md"], 10), "T1")      # excluded from T0, small -> T1
@@ -85,6 +88,61 @@ class TierRuleTests(unittest.TestCase):
     def test_broken_rules_file_is_an_error_not_a_default(self):
         with self.assertRaises(rt.TierError):
             rt.load_rules("/nonexistent/tier_rules.json")
+
+    def test_removed_sensitive_def_is_t3(self):
+        diff = {"bin/factory": (BASE, BASE.replace("def judge_gate(a):\n    return 1\n", ""))}
+        self.assertEqual(self.tier(["bin/factory"], 3, diff), "T3")
+
+
+class ClassifyRangeTests(unittest.TestCase):
+    def setUp(self):
+        self.rules = rt.load_rules()
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.root = d.name
+        self.git("init", "-q", "-b", "main")
+        self.write("web.py", "x = 1\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "base")
+        self.git("checkout", "-q", "-b", "pr")
+
+    def git(self, *a):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+        subprocess.run(["git", "-C", self.root, *a], check=True, capture_output=True, env=env)
+
+    def write(self, rel, text, mode="w"):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, mode) as f:
+            f.write(text)
+
+    def commit(self):
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "pr")
+
+    def test_non_ascii_sensitive_path_is_t3(self):
+        self.write(".github/workflows/\u00e9.yml", "on: push\n")
+        self.commit()
+        t, why = rt.classify_range(self.root, "main", "pr", self.rules)
+        self.assertEqual(t, "T3")
+        self.assertTrue(any("\u00e9.yml" in w for w in why), why)
+
+    def test_binary_file_counts_as_large(self):
+        self.write("blob.bin", b"\x00\x01\x02".decode("latin-1"), "w")
+        self.commit()
+        self.assertEqual(rt.classify_range(self.root, "main", "pr", self.rules)[0], "T3")
+
+    def test_small_change_is_t1(self):
+        self.write("web.py", "x = 2\n")
+        self.commit()
+        self.assertEqual(rt.classify_range(self.root, "main", "pr", self.rules)[0], "T1")
+
+    def test_ref_starting_with_dash_is_refused(self):
+        for base, head in (("--output=/tmp/zz-never", "pr"), ("main", "-x")):
+            with self.assertRaises(rt.TierError):
+                rt.classify_range(self.root, base, head, self.rules)
+        self.assertFalse(os.path.exists("/tmp/zz-never...pr"))
 
 
 if __name__ == "__main__":

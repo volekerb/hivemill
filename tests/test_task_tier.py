@@ -49,6 +49,24 @@ class TaskTierTests(FactoryTestCase):
     def test_classify_refused_while_flag_off(self):
         self.refused(2, "task", "tier", "T-0001", "--classify", "--head", "main", agent="zz-lead")
 
+    def test_every_raiser_role_may_raise(self):
+        for i, r in enumerate(("qa", "judge", "director", "boss")):
+            self.env.seed_agent(f"zz-{r}", r, goal="G-001")
+            self.ok("task", "tier", "T-0001", "up", f"T{i}", agent=f"zz-{r}")
+        self.assertEqual(self.tier(), "T3")
+
+    def test_tier_and_classify_together_refused(self):
+        self.refused(2, "task", "tier", "T-0001", "T2", "--classify", agent="zz-lead")
+
+    def test_classify_without_branch_or_head_refused(self):
+        self.env.sql("INSERT INTO config(key,value) VALUES('risk_tiers','on') ON CONFLICT(key) DO UPDATE SET value='on'")
+        p = self.refused(2, "task", "tier", "T-0001", "--classify", agent="zz-lead")
+        self.assertIn("--head", p.stderr)
+
+    def test_classify_dash_ref_refused(self):
+        self.env.sql("INSERT INTO config(key,value) VALUES('risk_tiers','on') ON CONFLICT(key) DO UPDATE SET value='on'")
+        self.refused(2, "task", "tier", "T-0001", "--classify", "--base", "--output=zz-never", "--head", "main", agent="zz-lead")
+
     def _home_repo(self, rules=None):
         """The main checkout (HOME): ci/ copies, a commit on main, and a PR branch that edits the tier rules."""
         (self.home / "ci" / "guard_x.py").write_text("x = 1\n")

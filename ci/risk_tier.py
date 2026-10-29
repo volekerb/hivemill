@@ -119,9 +119,15 @@ def _show(root, rev, path):
 
 def classify_range(root, base, head, rules):
     """(tier, reasons) for `git diff base...head` in the repo at `root`."""
+    for ref in (base, head):
+        if not ref or ref.startswith("-"):
+            raise TierError("bad ref %r: a ref must not start with '-'" % ref)
     rng = "%s...%s" % (base, head)
     paths, lines = [], 0
-    for ln in _git(root, "diff", "--numstat", "--no-renames", rng).splitlines():
+    # -z: NUL-separated, paths unquoted (a quoted non-ASCII path would match no sensitive glob)
+    for ln in _git(root, "diff", "--numstat", "--no-renames", "-z", rng).split("\0"):
+        if not ln:
+            continue
         add, dele, path = ln.split("\t", 2)
         paths.append(path)
         lines += (int(add) + int(dele)) if add != "-" else rules["large_lines"] + 1  # binary file: size unknown, treat as large
