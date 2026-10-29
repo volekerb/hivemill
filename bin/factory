@@ -6271,9 +6271,6 @@ def util_alerts(con):
                 pass
 
 
-OWNER_ONLY_GATE_PREFIXES = ("/tmp ",)  # gate() reasons only the owner can clear (the cleaner cannot free /tmp)
-
-
 def is_night(con, t):
     """True when local datetime t is outside [day_start_hour, day_end_hour)."""
     ds, de = day_hours(con)
@@ -6281,20 +6278,28 @@ def is_night(con, t):
 
 
 def owner_blockers(con):
-    """Open owner-only blockers: [{key, since (ISO), age_min, text}]. Two sources: unread escalations to the boss whose subject
-    says "owner action", and a spawn gate closed on an OWNER_ONLY_GATE_PREFIXES cause (first-seen time kept in the throttle table)."""
+    """Open owner-only blockers: [{key, since (ISO), age_min, text}]. Two sources: escalations to the boss whose subject says
+    "owner action" until the boss records a decision quoting their M-id, and /tmp at or over tmp_max_pct (the cleaner cannot
+    free it; first-seen time kept in the throttle table) until it drops below."""
     clock = digest_clock()
     out = []
-    for m in con.execute("SELECT id,created,subject FROM messages WHERE recipient='boss' AND kind='escalation' AND sender<>'tick' AND read_at IS NULL "
+    for m in con.execute("SELECT id,created,subject FROM messages WHERE recipient='boss' AND kind='escalation' AND sender<>'tick' "
                          "AND lower(subject) LIKE '%owner action%' ORDER BY id"):
-        out.append({"key": f"owner-blocker:M{m['id']}", "since": m["created"], "text": f"M{m['id']} {m['subject']}"})
-    ok, why, _ = gate(con)
-    if not ok and why.startswith(OWNER_ONLY_GATE_PREFIXES):
+        # open until the boss records the owner's answer: a decision from boss whose subject or body quotes the M-id
+        done = con.execute("SELECT 1 FROM messages WHERE sender='boss' AND kind='decision' AND id>? "
+                           "AND (subject GLOB ? OR subject GLOB ? OR body GLOB ? OR body GLOB ?) LIMIT 1",
+                           (m["id"], f"*M{m['id']}[^0-9]*", f"*M{m['id']}", f"*M{m['id']}[^0-9]*", f"*M{m['id']}")).fetchone()
+        if not done:
+            out.append({"key": f"owner-blocker:M{m['id']}", "since": m["created"], "text": f"M{m['id']} {m['subject']}"})
+    tmp = tmp_usage()  # decided from /tmp itself: gate() reports only its first cause, which another cap can mask
+    if tmp is not None and tmp["pct"] >= float(cfg(con, "tmp_max_pct")):
         row = con.execute("SELECT ts FROM throttle WHERE key='owner-blocker:gate'").fetchone()
         since = row["ts"] if row else clock.isoformat(timespec="seconds")
         if not row:
             con.execute("INSERT INTO throttle(key,ts) VALUES('owner-blocker:gate',?)", (since,))
-        out.append({"key": f"owner-blocker:gate:{since}", "since": since, "text": f"spawn gate closed: {why}"})
+        out.append({"key": f"owner-blocker:gate:{since}", "since": since,
+                    "text": f"spawn gate closed: /tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) "
+                            f"≥ {cfg(con, 'tmp_max_pct')}%"})
     else:
         con.execute("DELETE FROM throttle WHERE key='owner-blocker:gate'")
     for b in out:
