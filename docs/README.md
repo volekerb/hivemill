@@ -55,9 +55,11 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 ## Contribute
 
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): how to propose and land a change.
+- [contributor-flow.md](contributor-flow.md): how external pull requests are gated, and why fork code never runs before a read pass.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
 - [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
+- [cli-layout.md](cli-layout.md): why `bin/factory` is a stub and the CLI code lives in `bin/factory_cli.py`.
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
 - [review-rules.md](review-rules.md): rules that keep reviewer, QA and judge verdicts evidence-based.
 - [review-workflow.md](review-workflow.md): the multi-angle review used on risky PRs.

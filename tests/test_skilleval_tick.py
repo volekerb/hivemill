@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import FactoryTestCase, FACTORY, REPO  # noqa: E402
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC, REPO  # noqa: E402
 from test_skilleval_collect import CollectBase, FakeApi, PASS_OUT, SHA  # noqa: E402
 
 sys.path.insert(0, str(REPO))
@@ -565,7 +565,7 @@ class EntryPointTests(CliBase):
             self.assertIn(f"{k} = {v}", out)
 
     def test_cmd_tick_calls_skilleval_tick_once_right_after_scout_tick(self):
-        src = FACTORY.read_text()
+        src = FACTORY_SRC.read_text()
         body = src[src.index("def cmd_tick"):]
         body = body[:body.index("\ndef ", 1)]
         self.assertEqual(body.count("skilleval_tick(con)"), 1)
