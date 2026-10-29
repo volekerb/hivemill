@@ -4527,6 +4527,53 @@ def remote_url_alert(con):
                     (msg or "",))
 
 
+MAIN_PROTECTION_EVERY_S = 3600  # the check, and so the boss alert, runs at most this often (R-a)
+
+
+def main_protection_problem(slug):
+    """Why the main branch protection of OWNER/NAME fails rule R-a (PR required and enforce_admins on), None when it
+    holds. Raises OSError/SubprocessError/ValueError when gh cannot answer: unknown is never reported as fine."""
+    p = subprocess.run(["gh", "api", f"repos/{slug}/branches/main/protection"], capture_output=True, text=True, timeout=30)
+    if p.returncode != 0:
+        if "branch not protected" in (p.stdout + p.stderr).lower():
+            return "main has no branch protection at all"
+        raise subprocess.SubprocessError(f"gh api protection exited {p.returncode}: {p.stderr.strip()[-200:]}")
+    prot = json.loads(p.stdout)
+    missing = []
+    if not (prot.get("enforce_admins") or {}).get("enabled"):
+        missing.append("enforce_admins is off (admins, including the owner's login, can push to main)")
+    if not prot.get("required_pull_request_reviews"):
+        missing.append("pull requests are not required")
+    return "; ".join(missing) or None
+
+
+def main_protection_alert(con):
+    """Tick hook (R-a): once an hour check main protection of every public_text_repos repo; alert the boss for each one that
+    lacks enforce_admins or the PR requirement. Fix: `python3 ci/publish_repo.py --repo OWNER/NAME --apply` by the owner."""
+    slugs = sorted(_cfg_slugs(con, "public_text_repos") - _cfg_slugs(con, "frozen_repos"))
+    if not slugs:
+        return
+    row = con.execute("SELECT value FROM config WHERE key='main_protection_checked_at'").fetchone()
+    try:
+        if row and (dt.datetime.fromisoformat(now()) - dt.datetime.fromisoformat(row["value"])).total_seconds() < MAIN_PROTECTION_EVERY_S:
+            return
+    except ValueError:
+        pass  # an unreadable stamp: check now and overwrite it
+    con.execute("INSERT INTO config(key,value) VALUES('main_protection_checked_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (now(),))
+    for slug in slugs:
+        try:
+            why = main_protection_problem(slug)
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            event(con, "tick", "main-protection", "main-protection-check-failed", f"{slug}: {str(e)[:300]}")
+            continue
+        if why:
+            send(con, "boss", f"public repo {slug}: main protection is too weak",
+                 f"{slug} main: {why}. Owner rule R-a: PR required (0 approvals), enforce_admins on, no force push, no deletion. "
+                 f"The owner fixes it with `python3 ci/publish_repo.py --repo {slug} --apply`; agents may not change protection. "
+                 "Next reminder in one hour while it stays wrong.", "alert", sender="tick")
+
+
 def _tree_bytes(path):
     total = 0
     for root, dirs, files in os.walk(path, followlinks=False):
@@ -8257,6 +8304,7 @@ def cmd_tick(a, locked=False):
     morning_digest(con)
     tmp_alert(con)
     remote_url_alert(con)
+    main_protection_alert(con)
     tmp_clean(con)
     red_main_check(con)
     reap_stray_serves(con)
