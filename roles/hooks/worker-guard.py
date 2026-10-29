@@ -1742,6 +1742,7 @@ class Analyzer:
             self.git_cd(name, rest)
             self.cfg_cd(name, rest)
         self.claude_launchers(name, rest)
+        self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         self.factory_unit(name, rest, assigns)
@@ -1802,6 +1803,41 @@ class Analyzer:
             if name == "xargs":
                 self.xargs(rest)
             self.loose(rest, depth, assigns)
+
+    def test_sandbox_on(self):
+        """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
+        try:
+            con = sqlite3.connect(f"file:{self.db_path()}?mode=ro", uri=True, timeout=2)
+            try:
+                row = con.execute("SELECT value FROM config WHERE key = 'test_sandbox'").fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return False
+        return bool(row) and str(row[0]).strip() == "1"
+
+    def sandbox_route(self, name, rest):
+        """T-0675 (ADR M11673 T-d): with test_sandbox=1, coder and qa run test runners through `factory test <cmd>`,
+        not bare. Runners: python -m unittest/pytest, pytest, go test. `factory test ...` never reaches here as a
+        runner: its own words are `factory`, and its arguments are not parsed as commands."""
+        if self.role not in ("coder", "qa"):
+            return
+        runner = None
+        if re.fullmatch(r"python[\d.]*", name):
+            for i, tok in enumerate(rest):
+                mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
+                mod = rest[i + 1] if tok == "-m" and rest[i + 1:i + 2] else (mm.group(2) if mm and mm.group(2) else None)
+                if mod is not None:
+                    if mod.split(".")[0] in ("unittest", "pytest"):
+                        runner = f"python3 -m {mod}"
+                    break
+        elif name in ("pytest", "py.test"):
+            runner = name
+        elif name == "go" and next((a for a in rest if not a.startswith("-")), None) == "test":
+            runner = "go test"
+        if runner and self.test_sandbox_on():
+            raise Block(f"bare test runner `{runner}` with test_sandbox=1: run it as `factory test {name} {' '.join(rest)}` "
+                        "(runs under the test sandbox, T-0675)")
 
     def unittest_full(self, name, rest):
         """T-0642: coder, qa and reviewer run no full suite locally (CI is the full gate). Blocked: `python -m unittest`

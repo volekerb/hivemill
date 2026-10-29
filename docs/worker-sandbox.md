@@ -267,6 +267,8 @@ Config flag `test_sandbox` (director only, default `0`):
 
 Rollback: `factory config test_sandbox 0`. Nested use: tests that need a user namespace skip inside the boxed gate (`FACTORY_GATEBOX=1`).
 
+Routing (T-0675): with `test_sandbox=1`, `roles/hooks/worker-guard.py` refuses a bare test runner in a coder or qa pane (`python -m unittest`, `python -m pytest`, `pytest`, `go test`, also env-prefixed, behind `env`/`timeout`, inside `bash -c`, or after `cd x &&`) and names the replacement `factory test <the same command>`. `factory test ...` itself is allowed. With `test_sandbox` at `0`, unset or unreadable, and for every other role, the guard behaves as before.
+
 The scratch dir sits inside the tree as an untracked `.factory-test-*`: it is removed on exit and on SIGINT/SIGTERM/SIGHUP, but a SIGKILL of `factory test` leaves it behind, so delete a stale one before `git add -A` (`.factory-test-*` is gitignored).
 
 See also: [ADR 0002, sandbox runtime v3](adr/0002-sandbox-runtime-v3.md).
