@@ -101,6 +101,30 @@ class SandboxedRun(SandboxBase):
         self.assertEqual(self.run_row()["test_count"], 5)  # the file was hidden, so cat failed and the fallback printed 5
 
 
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class FlagRollback(SandboxBase):
+    """T-0705 (GS3): gate_sandbox 1 -> 0 (the documented rollback) -> 1 on a real factory unittest module, all in the temp home.
+    test_nsbox_allow.GoldenDefaultsTests is pure (no namespaces, network or $HOME writes) and runs in well under a second."""
+
+    def run_gate(self):
+        p = self.gate("run", "T-0001", "--no-cache")  # a pass from the previous flag value must not be reused
+        run_id = self.env.sql("SELECT max(id) AS i FROM gate_runs")[0]["i"]
+        r = self.run_row(run_id)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr + Path(r["log_path"]).read_text())
+        self.assertEqual(r["status"], "pass")
+        self.assertIn("Ran 18 tests", Path(r["log_path"]).read_text())  # unittest really ran, not a vacuous exit 0
+        return r["note"] or ""
+
+    def test_on_then_rollback_then_on_again(self):
+        tests = REPO / "tests"
+        self.set_gate(f"cd {tests} && {sys.executable} -B -m unittest test_nsbox_allow.GoldenDefaultsTests")
+        self.assertIn("sandboxed", self.run_gate())
+        self.ok("config", "gate_sandbox", "0", agent="zz-test-director")
+        self.assertNotIn("sandboxed", self.run_gate())
+        self.ok("config", "gate_sandbox", "1", agent="zz-test-director")
+        self.assertIn("sandboxed", self.run_gate())
+
+
 class FailClosed(SandboxBase):
     def fake_unshare(self):
         f = self.env.stub_bin / "unshare"
