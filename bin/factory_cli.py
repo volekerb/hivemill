@@ -7883,9 +7883,9 @@ def cmd_test(a):
                 die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
         try:
             p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, start_new_session=True, preexec_fn=into_cgroup)
-        except OSError as e:
+        except (OSError, subprocess.SubprocessError) as e:  # SubprocessError: preexec_fn could not enter the cgroup
             end()
-            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+            die(f"factory test: cannot run {cmd[0]}: {getattr(e, 'strerror', None) or e}", 127)
     else:
         try:
             scratch = testbox.new_scratch(tree)
@@ -7896,8 +7896,13 @@ def cmd_test(a):
                 testbox.cleanup(scratch)
             end()
             die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
-        p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True,  # no tty: no TIOCSTI into the caller's shell
-                             preexec_fn=into_cgroup)
+        try:
+            p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True,  # no tty: no TIOCSTI into the caller's shell
+                                 preexec_fn=into_cgroup)
+        except (OSError, subprocess.SubprocessError) as e:
+            testbox.cleanup(scratch)
+            end()
+            die(f"factory test: cannot start the sandboxed run: {getattr(e, 'strerror', None) or e}", 127)
 
     def forward(sig, _frame):
         try:
