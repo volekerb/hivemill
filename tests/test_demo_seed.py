@@ -18,6 +18,7 @@ import unittest
 import unittest.mock
 import urllib.request
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "ci" / "demo_seed.py"

@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from unittest import mock
 from concurrent.futures import ThreadPoolExecutor
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
 

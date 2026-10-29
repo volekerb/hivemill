@@ -9,6 +9,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN = ROOT / "ci" / "scrub_scan.py"

@@ -12,6 +12,7 @@ import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 REPO = Path(__file__).resolve().parent.parent
 TOOL = REPO / "ci" / "fresh_export.py"

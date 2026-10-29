@@ -12,6 +12,7 @@ import time
 import unittest
 import zlib
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 ROOT = Path(__file__).resolve().parent.parent
 GUARD = ROOT / "ci" / "public_text_guard.py"
