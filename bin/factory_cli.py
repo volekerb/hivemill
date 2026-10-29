@@ -629,6 +629,36 @@ def settings_text(role, tokens=None, template=None):
     return text
 
 
+def evaluator_settings(rdir):
+    """(settings text, guard path) for the evaluator: nsbox hides ~/factory in the sandbox, so worker-guard.py is
+    copied (stdlib-only, 0555, regular file, replaced atomically on every launch) into <trial>/role/roles/hooks and
+    every hook command is pointed at that copy. A hook command left under the live home would fail closed on every
+    tool call. The depth matters: the guard counts dirname^3 of its own path as a live home, so <trial>/role/ (which
+    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`."""
+    rdir = Path(rdir)
+    src = ROLES_DIR / "hooks" / "worker-guard.py"
+    try:
+        body = src.read_text()
+    except OSError as e:
+        die(f"cannot read {src}: {e}; restore it with git checkout", 3)
+    guard = rdir / "roles" / "hooks" / "worker-guard.py"
+    write_atomic(guard, body, 0o555)
+    cfg = json.loads(settings_text("evaluator"))
+    n = 0
+    for groups in cfg.get("hooks", {}).values():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                cmd = hook.get("command", "")
+                tail = cmd.partition("worker-guard.py")[2]
+                if "worker-guard.py" not in cmd:
+                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
+                n += 1
+    if not n:
+        die("roles/settings/evaluator.json.in has no hook commands; the evaluator must not start without its guard", 3)
+    return json.dumps(cfg, indent=2) + "\n", guard
+
+
 def write_atomic(path, text, mode=0o644):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -6335,7 +6365,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
         rdir = Path(env["FACTORY_HOME"]).parent / "role"
         settings, sysprompt = rdir / "settings.json", rdir / "prompt.md"
-        settings.write_text(settings_text("evaluator"))
+        settings_body, _guard = evaluator_settings(rdir)
+        settings.write_text(settings_body)
     # resumed agents run with --system-prompt-snapshot off and read this file on every request: write it only right
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
