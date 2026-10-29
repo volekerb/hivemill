@@ -99,6 +99,14 @@ class BroadReadTests(ReadsBase):
         self.blocked("factory goal show G-*")
         self.blocked("factory goal show")
 
+    def test_full_option_position(self):
+        # G-014: `--full` after the id is allowed (own goal only); before the id it stays blocked (fail closed)
+        self.allowed(f"factory goal show {OWN} --full")
+        self.blocked(f"factory goal show {OTHER} --full")
+        self.blocked(f"factory goal show --full {OWN}")
+        self.allowed("factory task show T-1 --full")
+        self.blocked("factory task list")
+
     def test_goal_show_fail_closed(self):
         self.blocked(f"factory goal show {OWN}", agent=None)
         self.blocked(f"factory goal show {OWN}", agent="ghost")
