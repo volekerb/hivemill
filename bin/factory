@@ -1120,6 +1120,32 @@ def sandbox_escape_close(con, name, pane, pid):
     return True
 
 
+ESCAPE_ROW_TTL_S = 7 * 86400
+
+
+def prune_escape_throttle(con, now_ts=None):
+    """Delete `sandbox-escaped:<pid>:<start>` throttle rows (prefix match only) whose process is gone (no /proc
+    entry, or a different start time: a reused pid) or whose ts is older than 7 days. `:None` rows (start time
+    was unreadable) go by the 7-day rule only. Returns the number of rows deleted."""
+    now_ts = time.time() if now_ts is None else now_ts
+    gone = []
+    for r in con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'sandbox-escaped:%'").fetchall():
+        try:
+            old = now_ts - float(r["ts"]) > ESCAPE_ROW_TTL_S
+        except ValueError:
+            old = True
+        parts = r["key"].rsplit(":", 2)
+        if len(parts) != 3:
+            continue
+        pid, start = parts[1], parts[2]
+        dead = start != "None" and _proc_start(pid) != start
+        if old or dead:
+            gone.append(r["key"])
+    for key in gone:
+        con.execute("DELETE FROM throttle WHERE key=?", (key,))
+    return len(gone)
+
+
 def claude_outside_spawn(con):
     """Audit (tick, at most once per 300 s): Claude processes under a live factory agent that `factory spawn`
     did not start, and any claude of an agent (its own process included) resumed without
@@ -1130,6 +1156,7 @@ def claude_outside_spawn(con):
         return []
     con.execute("INSERT INTO throttle(key,ts) VALUES('claude-audit',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
                 (str(time.time()),))
+    prune_escape_throttle(con)
     found = {p: v for p, v in (_scan_claude() or {}).items() if _is_claude_cmd(v[0])}
     if not found:
         return []
