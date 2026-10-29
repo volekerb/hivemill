@@ -52,6 +52,33 @@ class TestSandboxRoutingExtra(unittest.TestCase):
                     "python3 -Impytest x"):
             self.assertEqual(self.run_hook(cmd).returncode, 2, cmd)
 
+    BLOCK = ("-m pytest", "-mpytest", "-Im pytest", "-IBmpytest", "-OO -m pytest", "-bb -m unittest tests.t",
+             "-m pytest.__main__", "-m unittest discover -s tests -p test_x.py", "-W error -m pytest", "-Werror -m pytest",
+             "-IW error -m pytest", "-X dev -m pytest", "-Xdev -m unittest tests.t", "-W a -X b -m pytest",
+             "-u -W ignore -m unittest tests.t", "--check-hash-based-pycs always -m pytest",
+             "--check-hash-based-pycs=always -m pytest", "-Z -m pytest", "--bogus -m pytest")
+    ALLOW = ("script.py -m pytest", "- -m pytest", "-- script.py -m pytest", '-c "pass" -m pytest',
+             "-W -m pytest", "-Wm pytest", "-m pip", "-m pytestish", "-I -m mypkg")
+
+    def test_python_argv_walk_blocked(self):
+        self.seed("1")
+        for args in self.BLOCK:
+            self.assertEqual(self.run_hook("python3 " + args).returncode, 2, args)
+        self.assertEqual(self.run_hook('bash -c "python3 -X dev -m pytest"').returncode, 2)
+
+    def test_python_argv_walk_allowed(self):
+        self.seed("1")
+        for args in self.ALLOW:
+            self.assertEqual(self.run_hook("python3 " + args).returncode, 0, args)
+
+    def test_python_argv_walk_off_or_other_role_allowed(self):
+        self.seed("0")
+        for args in self.BLOCK:
+            self.assertEqual(self.run_hook("python3 " + args).returncode, 0, args)
+        self.seed("1")
+        for args in self.BLOCK:
+            self.assertEqual(self.run_hook("python3 " + args, role="reviewer").returncode, 0, args)
+
     def test_dash_m_after_script_is_script_arg(self):
         self.seed("1")
         self.assertEqual(self.run_hook("python3 script.py -m pytest").returncode, 0)
