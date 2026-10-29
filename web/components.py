@@ -181,3 +181,40 @@ def agent_row(a, now=None):
               el("span", a.get("task_title"), title=a.get("task_title"), class_="agent-task")) if a.get("task_id") else ""
     last = ago(a.get("last_event"), now)
     return [row_status(key), who, task, last or ""]
+
+
+# ── C7 metric tile, C18 needs-you row (G-019 B4) ──
+
+def tile(label, value, unit=None, delta=None, definition=None, href=None):
+    """C7 metric tile: label, big value (+ small `unit`), optional `delta` line and an (i) definition disclosure.
+    `delta` is a text or a (text, tone) pair, tone success|warning|danger|neutral (default neutral); `definition`
+    opens as a short paragraph under the label; `href` makes the label a link (to the detail page)."""
+    text, tone = (delta if isinstance(delta, tuple) else (delta, "neutral"))
+    name = el("a", label, href=href) if href else el("span", label)
+    info = (el("details", el("summary", "i", aria_label=f"What is {label}?"), el("p", definition, class_="tile-def"),
+               class_="disc--i") if definition else None)
+    return el("div", el("div", name, " ", info, class_="tile-label"),
+              el("div", value, el("small", unit) if unit else None, class_="metric"),
+              el("div", text, class_=f"delta fg-{tone}") if text else None, class_="tile")
+
+
+_NEEDS_GLYPH = {"danger": "blocked", "warning": "queued", "neutral": "proposed"}
+
+
+def needs_you_row(item):
+    """C18 row of the Needs-you list. `item`: kind (Blocked task, Escalation, Proposed goal, ...), tone
+    (danger|warning|neutral), subject, ref (goal/task id; shown ONCE, so the subject must not repeat it), href (the
+    ref's page), message (message id, used only when there is no ref: shown as plain text "Message #26"), age (text).
+    Escalations pass the subject only, never the message body."""
+    tone = item.get("tone", "neutral")
+    subject = item.get("subject") or "(no subject)"
+    ref = item.get("ref")
+    if ref:
+        ident = el("a", ref, href=item["href"], class_="mono nid") if item.get("href") else el("span", ref, class_="mono nid")
+    elif item.get("message") is not None:
+        ident = el("span", f"Message #{item['message']}", class_="mono nid")
+    else:
+        ident = None
+    return el("li", glyph(_NEEDS_GLYPH.get(tone, "proposed")), el("span", item["kind"], class_=f"nkind fg-{tone}"),
+              el("span", subject, title=subject, class_="nsub"), ident,
+              el("span", item.get("age"), class_="nage") if item.get("age") else None, class_="needs")
