@@ -386,19 +386,17 @@ class TestNoTickBlocking(ServerCase):
         threads = [threading.Thread(target=hammer) for _ in range(4)]
         for t in threads:
             t.start()
-        w = sqlite3.connect(self.db_path, isolation_level=None, timeout=1)
-        slow = []
+        # timeout=0: the writer never waits for a lock, so any reader that blocks it raises "database is locked".
+        # No wall-clock bound, so runner speed cannot flake it.
+        w = sqlite3.connect(self.db_path, isolation_level=None, timeout=0)
         for i in range(20):
-            t0 = time.perf_counter()
             w.execute("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES('t','w','x','y','z',?)", (str(i),))
-            slow.append(time.perf_counter() - t0)
             time.sleep(0.005)
         w.close()
         for t in threads:
             t.join()
         stop.set()
         self.assertEqual(errors, [])
-        self.assertLess(max(slow), 0.1, slow)
 
 
 class TestWebCodeNeverCallsFactoryDb(unittest.TestCase):

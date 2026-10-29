@@ -56,7 +56,7 @@ class TestFilters(FilterBase):
         d, html = self.page(agents)
         self.assertEqual(d["filters"], {})
         self.assertEqual(d["matches"], [])
-        self.assertIn("Live agents", html)
+        self.assertIn("<h2>Running ", html)
         self.assertNotIn("Matching agents", html)
 
     def test_bad_values_ignored_with_200_and_escaped(self):
@@ -67,7 +67,7 @@ class TestFilters(FilterBase):
             self.assertNotIn("../x", html)
         d, html = self.page(agents, query={"status": "bogus", "role": "<script>alert(1)</script>"})
         self.assertEqual(d["filters"], {})
-        self.assertIn("Live agents", html)
+        self.assertIn("<h2>Running ", html)
         d, _ = self.page(agents, query={"status": "live,bogus"})
         self.assertEqual(d["filters"], {"status": ["live"]})
 
@@ -82,7 +82,12 @@ class TestCountsAndLinks(FilterBase):
         d, html = self.page(agents, query={"status": "queued"})
         self.assertEqual(d["counts"], want)   # counts ignore the active filter
         for s, n in want.items():
-            self.assertRegex(html, rf'href="/agents\?status={s}[^"]*"[^>]*>(<span[^>]*>)?{s} {n}<')
+            word = wh.LABELS[s]
+            if s == "queued":   # the selected chip links back to the unfiltered list
+                self.assertRegex(html, rf'aria-current="true"[^>]*>(<svg.*?</svg>)?<span>{word}</span> <span class="chip-n">{n}<')
+                continue
+            n = n + (want.get("stopped", 0) if s == "exited" else 0)   # Ended covers exited and stopped
+            self.assertRegex(html, rf'href="/agents\?status={s}[^"]*"[^>]*><span>{word}</span> <span class="chip-n">{n}<')
 
     def test_status_set_comes_from_the_table_incl_starting(self):
         self.w.execute("INSERT INTO agents(name,role,goal_id,team_id,status) VALUES('start-x','coder','G-1','t-a','starting')")
@@ -90,7 +95,7 @@ class TestCountsAndLinks(FilterBase):
         self.assertEqual(want["starting"], 1)
         d, html = self.page(agents)
         self.assertEqual(d["counts"], want)
-        self.assertRegex(html, r'href="/agents\?status=starting"[^>]*>(<span[^>]*>)?starting 1<')
+        self.assertRegex(html, r'href="/agents\?status=starting"[^>]*><span>Starting</span> <span class="chip-n">1<')
         self.assertEqual(self.names(status="starting"), {"start-x"})
         d, _ = self.page(agents, query={"status": "starting,bogus"})
         self.assertEqual(d["filters"], {"status": ["starting"]})
@@ -126,14 +131,15 @@ class TestBlocked(FilterBase):
         d, html = self.page(agents, query={"status": "blocked"})
         self.assertEqual(d["blocked"], 1)
         self.assertRegex(html, r"blocked since \d\d:\d\d")
-        self.assertIn("blocked 1", html)
+        self.assertRegex(html, r"<span>Blocked</span> <span class=\"chip-n\">1<")
         _, default = self.page(agents)
         self.assertRegex(default, r"blocked since \d\d:\d\d")   # live table shows it too
 
-    def test_page_says_herdr_states_not_shown(self):
+    def test_page_says_busy_idle_not_tracked(self):
         for q in ({}, {"status": "live"}):
             _, html = self.page(agents, query=q)
-            self.assertIn("herdr working/idle is not shown", html)
+            self.assertIn("Busy/idle is not tracked; last event age is shown.", html)
+            self.assertNotIn("never calls", html)
 
     def test_empty_and_garbage_blocked_since_agree_everywhere(self):
         self.w.execute("INSERT INTO agents(name,role,goal_id,team_id,status,started,blocked_since) VALUES('empty-blk','coder','G-1','t-a','live',?,'')",
@@ -144,7 +150,7 @@ class TestBlocked(FilterBase):
         names = {a["name"] for a in d["matches"]}
         self.assertEqual(names, {"coder-2", "junk-blk"})   # '' is not blocked
         self.assertEqual(d["blocked"], len(names))   # count == list
-        self.assertIn(f"blocked {len(names)}<", html)
+        self.assertIn(f'<span>Blocked</span> <span class="chip-n">{len(names)}<', html)
         self.assertIn("blocked (time unknown)", html)
         self.assertNotIn("since ?", html)
         _, default = self.page(agents)
