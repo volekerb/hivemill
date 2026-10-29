@@ -119,6 +119,41 @@ class OwnerBlockers(AlertCase):
                          (f"owner answered M{mid}: approved", "2026-10-29T02:05:00+01:00"))
         self.assertEqual(open_now(), [])
 
+    def nudge_tick(self, when, status="idle"):
+        self.con.execute("INSERT OR IGNORE INTO agents(name,role,status,pane_id) VALUES('boss','boss','live','p1')")
+        with mock.patch.object(self.mod, "herdr_agents", return_value=[{"name": "boss", "pane_id": "p1", "agent_status": status}]), \
+                mock.patch.object(self.mod, "herdr") as h:
+            self.tick(when)
+        return [c.args for c in h.call_args_list]
+
+    def nudge_events(self):
+        return self.con.execute("SELECT * FROM events WHERE action='owner-blocker-nudge'").fetchall()
+
+    def test_night_blocker_nudges_boss_once(self):
+        self.esc("owner action: a", "2026-10-29T00:12:00+01:00")
+        calls = self.nudge_tick("2026-10-29T00:13:00")
+        self.assertEqual([c[:3] for c in calls], [("agent", "prompt", "boss")])
+        self.assertEqual(len(self.nudge_events()), 1)
+        self.assertEqual(self.nudge_tick("2026-10-29T00:14:00"), [])  # repeat suppressed
+        self.assertEqual(len(self.nudge_events()), 1)
+
+    def test_nudge_waits_for_idle_boss_then_sends(self):
+        self.esc("owner action: a", "2026-10-29T00:12:00+01:00")
+        self.assertEqual(self.nudge_tick("2026-10-29T00:13:00", "working"), [])
+        self.assertEqual(self.nudge_events(), [])
+        self.assertEqual(len(self.nudge_tick("2026-10-29T00:14:00")), 1)
+
+    def test_day_blocker_not_nudged(self):
+        self.esc("owner action: a", "2026-10-29T12:00:00+01:00")
+        self.assertEqual(self.nudge_tick("2026-10-29T12:01:00"), [])
+        self.assertEqual(self.nudge_events(), [])
+
+    def test_second_night_blocker_gets_own_nudge(self):
+        self.esc("owner action: a", "2026-10-29T00:12:00+01:00")
+        self.nudge_tick("2026-10-29T00:13:00")
+        self.esc("owner action: b", "2026-10-29T01:37:00+01:00")
+        self.assertEqual(len(self.nudge_tick("2026-10-29T01:38:00")), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
