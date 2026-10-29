@@ -84,6 +84,39 @@ class TermsReadTests(unittest.TestCase):
         self.assertEqual(self.bash("cat README.md").returncode, 0)
         self.assertEqual(self.bash("cat $SCRUB_TERMS_FILE", role="lead").returncode, 0)
 
+    def test_path_shapes_resolving_to_the_terms_file_refused(self):
+        d = self.secrets
+        base = os.path.basename(d)
+        os.makedirs(os.path.join(self.tmp, "wt"))
+        shapes = [f"cd {d} && cat terms.txt", f"cat {d}/term?.txt", f"cat {d}/*.txt",
+                  f"cat {d}/../{base}/terms.txt", f"cat {self.tmp}//{base}/terms.txt", f"cat {d}/'terms.txt'",
+                  f'cat "{d}"/terms.txt', f"cd {d}; head -1 ./terms.txt", f"cd {self.tmp}/wt && cd ../{base} && cat t*.txt",
+                  f"cat < {d}/terms.txt", f"echo $(cat {d}/terms.txt)", f"grep . --file={d}/terms.txt",
+                  f"python3 ci/scrub_scan.py x && cd {d} && cat terms.txt"]
+        for role in ROLES:
+            for cmd in shapes:
+                self.refused(self.bash(cmd, role=role), f"{role}: {cmd}")
+
+    def test_symlink_and_hardlink_to_the_terms_file_refused(self):
+        os.symlink(self.terms, os.path.join(self.tmp, "ln.txt"))
+        os.link(self.terms, os.path.join(self.tmp, "hard.txt"))
+        self.refused(self.bash("cat ln.txt"), "symlink")
+        self.refused(self.bash("cat hard.txt"), "hardlink")
+
+    def test_unrelated_paths_next_to_it_allowed(self):
+        with open(os.path.join(self.secrets, "other.md"), "w") as f:
+            f.write("x")
+        for cmd in [f"cat {self.secrets}/other.md", f"cd {self.secrets} && ls", "cd /tmp && cat /etc/hostname",
+                    "echo \"it's fine\""]:
+            p = self.bash(cmd)
+            self.assertEqual(p.returncode, 0, f"should allow: {cmd}\n{p.stderr}")
+
+    def test_unstatable_terms_file_fails_closed(self):
+        os.remove(self.terms)
+        self.refused(self.bash(f"cd {self.secrets} && cat terms.txt"), "gone file, basename")
+        self.refused(self.bash(f"cat {self.secrets}/t*.txt"), "gone file, glob")
+        self.assertEqual(self.bash("cat README.md").returncode, 0)
+
     def test_pm_read_tool_refused(self):
         p = self.hook({"tool_name": "Read", "tool_input": {"file_path": self.terms}}, role="pm")
         self.refused(p, "pm Read")

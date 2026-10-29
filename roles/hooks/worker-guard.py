@@ -59,6 +59,7 @@ for every worker role; --role cleaner may do them only when every target matches
 cleaner's other `git push` forms are blocked (the settings no longer deny `git push:*` for it).
 """
 import fnmatch
+import glob
 import json
 import os
 import pwd
@@ -2583,10 +2584,69 @@ def terms_segment_ok(seg):
     return bool(toks) and bool(TERMS_SCANNER.search(toks[0]))
 
 
+def terms_ids(paths):
+    """(st_dev, st_ino) of the terms file under every spelling; None when a spelling cannot be stat'ed (fail closed)."""
+    ids = set()
+    for p in paths:
+        try:
+            st = os.stat(p)
+        except OSError:
+            return None
+        ids.add((st.st_dev, st.st_ino))
+    return ids
+
+
+def terms_token_hits(tok, cwd, paths, ids):
+    """True when a shell token (after quote removal) names the terms file: same inode after realpath and glob expansion,
+    or, when the file cannot be stat'ed, the same basename or a glob next to it."""
+    names = {os.path.basename(p) for p in paths}
+    cands = {tok}
+    if "=" in tok:
+        cands.add(tok.split("=", 1)[1])
+    for c in cands:
+        c = c.lstrip("<>(")
+        if not c:
+            continue
+        full = os.path.join(cwd, os.path.expanduser(c))
+        try:
+            found = glob.glob(full) or [full]
+        except (OSError, re.error):
+            found = [full]
+        for f in found:
+            real = os.path.realpath(f)
+            if real in paths or os.path.basename(real) in names:
+                return True
+            try:
+                st = os.stat(real)
+            except OSError:
+                continue
+            if ids is not None and (st.st_dev, st.st_ino) in ids:
+                return True
+        if ids is None and glob.has_magic(c) and any(
+                fnmatch.fnmatch(os.path.basename(p), os.path.basename(c)) for p in paths):
+            return True
+    return False
+
+
 def terms_bash(cmd, cwd):
     paths = terms_paths(cwd)
+    if not paths:
+        return
+    ids = terms_ids(paths)
+    cwd = cwd or os.getcwd()
     for seg in re.split(r"[;&|\n]+", re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in seg or any(p in seg for p in paths)) and not terms_segment_ok(seg):
+            raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
+        try:
+            toks = shlex.split(re.sub(r"\$\(|[`()]", " ", seg))
+        except ValueError:  # unbalanced quote from a split inside quotes: judge the raw words instead
+            toks = re.sub(r"\$\(|[`()'\"\\]", " ", seg).split()
+        if toks and toks[0] in ("cd", "pushd") and len(toks) > 1:
+            cwd = os.path.realpath(os.path.join(cwd, os.path.expanduser(toks[1])))
+            continue
+        if terms_segment_ok(seg):
+            continue
+        if any(terms_token_hits(t, cwd, paths, ids) for t in toks):
             raise PublicBlock(f"reading the owner-terms file is refused: {TERMS_WHY}")
 
 
