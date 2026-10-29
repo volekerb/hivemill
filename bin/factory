@@ -6847,6 +6847,8 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
         except (ValueError, KeyError) as e:
             note = "; ".join(x for x in (note, f"unreadable shard summary: {e!r}") if x)
     status = "pass" if code == 0 else "fail"
+    if gate_fast(con, proj) and "FULL needed: rely on CI" in Path(log).read_text(errors="replace"):
+        note = "; ".join(x for x in (note, "no local tests ran (FULL needed): CI is the gate for this diff") if x)
     gate_finish(con, run_id, status, note or None, exit_code=code, **counts)
     if kind == "pr" and cfg(con, "gate_post_status") == "1":
         state = "success" if status == "pass" else "failure"

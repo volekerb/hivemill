@@ -1720,19 +1720,26 @@ class Analyzer:
         `python -m unittest tests.test_x` and `unittest discover -s tests -p test_x.py`."""
         if self.role not in ("coder", "qa", "reviewer") or not re.fullmatch(r"python[\d.]*", name):
             return
-        try:
-            m = rest.index("-m")
-        except ValueError:
+        args = None
+        for i, tok in enumerate(rest):
+            mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
+            if tok == "-m" and rest[i + 1:i + 2]:
+                mod, after = rest[i + 1], rest[i + 2:]
+            elif mm and mm.group(2):  # attached form: -munittest
+                mod, after = mm.group(2), rest[i + 1:]
+            else:
+                continue
+            if mod in ("unittest", "unittest.__main__"):
+                args = after
+                break
+        if args is None:
             return
-        if rest[m + 1:m + 2] != ["unittest"]:
-            return
-        args = rest[m + 2:]
         advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
                   "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
         if args[:1] == ["discover"]:
-            pat = next((args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--pattern")), None)
-            pat = pat or next((a.split("=", 1)[1] for a in args if a.startswith("--pattern=")), None)
-            if pat and re.fullmatch(r"test_[\w]+\.py", pat):
+            pats = [args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--pattern")]
+            pats += [a.split("=", 1)[1] for a in args if a.startswith("--pattern=")]
+            if pats and all(re.fullmatch(r"test_[\w]+\.py", x) for x in pats):  # the last pattern wins, so all must be single-module
                 return
             raise Block("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
         mods = []

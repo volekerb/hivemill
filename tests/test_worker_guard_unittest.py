@@ -23,6 +23,11 @@ BLOCKED = (
     "timeout 600 python3 -m unittest discover -s tests",
     "bash -c 'python3 -m unittest discover -s tests'",
     "python3 -X dev -m unittest discover",
+    "python3 -munittest discover",
+    "python3 -munittest",
+    "python3 -m unittest discover -p test_x.py -p 'test_*.py'",
+    "python3 -m unittest discover -p test_x.py --pattern='test_*'",
+    "python3 -m unittest.__main__ discover",
 )
 ALLOWED = (
     "python3 -m unittest tests.test_x",
