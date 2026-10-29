@@ -73,6 +73,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [profiling.md](profiling.md): the baseline script for per-call cost measurements.
 - [adr/README.md](adr/README.md): index of architecture decision records.
 - [adr/0001-language-policy.md](adr/0001-language-policy.md): the language policy (Go, Rust exceptions, Python).
+- [adr/0002-sandbox-runtime-v3.md](adr/0002-sandbox-runtime-v3.md): sandbox runtime v3 (hardened nsbox testbox, no microVMs for tests).
 
 ## Internals
 
