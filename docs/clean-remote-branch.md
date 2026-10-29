@@ -9,6 +9,9 @@
 4. `refs/pull/<n>/head` on origin equals H, so the content stays recoverable after the delete.
 5. No worktree has the branch checked out, no task with `branch == name` is non-terminal (not done/merged/cancelled), and no queued/starting/live agent works on such a task.
 
+### Stray branches
+A `factory/<task-id>` branch that fails check 3 only because no PR has it as head (e.g. `factory/T-0361` pushed beside `factory/t-0361`) is still deletable when no OPEN PR exists for that task id (case-insensitive) and its head is an ancestor of, or equal to, the head of a MERGED PR for the same task id whose `refs/pull/<n>/head` on origin equals that head. Check 5 still applies. The table and the `branch-deleted` event carry the evidence (branch sha, PR number, PR head). If no merged PR covers the branch, the original refusal stands.
+
 Any git or gh error, timeout (60 s), bad JSON or empty answer refuses. All git calls use the hardened helper (`docs/git-hardening.md`).
 
 ## Action

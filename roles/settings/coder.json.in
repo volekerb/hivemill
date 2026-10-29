@@ -17,6 +17,7 @@
       "Bash(git push origin HEAD:main:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
+      "Bash(git push origin HEAD:factory/* *)",
       "Bash(rm -rf ~/factory:*)",
       "Bash(rm -rf @FACTORY_LIVE_HOME@:*)",
       "Edit(/@FACTORY_LIVE_HOME@/factory.db*)",
@@ -174,7 +175,8 @@
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git push origin HEAD:factory/*)"
     ]
   },
   "env": {
@@ -188,6 +190,15 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role coder"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep",
         "hooks": [
           {
             "type": "command",
