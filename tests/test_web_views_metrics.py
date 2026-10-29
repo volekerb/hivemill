@@ -68,7 +68,7 @@ class TestThroughput(MetricsCase):
         # totals 600, 1200, 1800, 2400 and T-1 (10:00 -> 11:20 = 4800): median 1800, nearest-rank p90 4800
         self.assertEqual((d["median_s"], d["p90_s"]), (1800, 4800))
         self.assertEqual(d["open_tasks"], 2)    # one in_progress + one in_review in the fixture
-        for needle in ("30m 00s", "1h 20m", "Median spawn to merge", "Merges (14 days)"):
+        for needle in ("30m 00s", "1h 20m", "Median spawn to merge", "in 14 days"):
             self.assertIn(needle, html)
 
     def test_open_tasks_counts_in_review_and_live_workers(self):
@@ -85,23 +85,19 @@ class TestThroughput(MetricsCase):
         self.assertEqual(d["open_tasks"], base["open_tasks"] + 1)    # T-90 is in_review
         self.assertEqual(d["open_tasks"], 3)    # fixture's in_progress + in_review + T-90
         self.assertEqual(d["live_workers"], base["live_workers"] + 1)   # the lead has no task: not counted
-        self.assertIn("Open tasks now", html)
-        self.assertIn("Live workers now", html)
-        self.assertIn("in progress or in review", html)
+        self.assertIn("3 tasks open now (in progress or in review), 2 agents working on a task.", html)
+        a, b = d["agents"], base["agents"]
+        self.assertEqual((a["workers"] - b["workers"], a["leads"] - b["leads"], a["running"] - b["running"]), (1, 1, 2))
+        self.assertIn(f"{a['workers']} workers · {a['leads']} leads · {a['hq']} HQ", html)     # the Agents running now tile
         self.assertNotIn("In progress now", html)
 
-    def test_scaled_bars_show_count_not_percent(self):
+    def test_merges_chart_replaces_the_bar_table(self):
         _, html = self.page(throughput)
-        merges = re.findall(r'<div class="bar bar--\d+" aria-label="(\d+) of max (\d+)"><span class="mono">(\d+)</span>', html)
-        self.assertTrue(merges)
-        for n, mx, shown in merges:
-            self.assertEqual(n, shown)
-            self.assertLessEqual(int(n), int(mx))
-        self.assertEqual(max(int(m[1]) for m in merges), max(int(m[0]) for m in merges))
-        # the share bars say what they are a share of
-        self.assertRegex(html, r'<span class="mono">\d+% of total</span>')
-        for label in re.findall(r'aria-label="[^"]*of max[^"]*"><span class="mono">([^<]*)</span>', html):
-            self.assertFalse(label.endswith("%"), label)
+        self.assertNotIn("bar--", html)
+        self.assertRegex(html, r'<svg [^>]*role="img"[^>]*aria-label="6 merges in 14 days, peak \d on [\d-]+"[^>]*class="cols">')
+        self.assertIn('</svg><table class="sr-only">', html)
+        # the stages are meters with their share of the total, not percent-of-max bars
+        self.assertRegex(html, r'<span class="lbl">[^<]* · \d+% of total</span>')
 
     def test_stage_sums_and_unknown(self):
         d, html = self.page(throughput)
@@ -115,7 +111,7 @@ class TestThroughput(MetricsCase):
         self.assertEqual((st["coding_s"]["known"], st["coding_s"]["unknown"]), (1, 5))
         self.assertEqual(st["coding_s"]["median_s"], 1800)
         self.assertIn("5 unknown", html)
-        self.assertIn("bar bar--", html)
+        self.assertIn('class="meter"', html)
 
     def test_merges_per_day_match_events(self):
         d = self.page(throughput, days="30")[0]
@@ -145,7 +141,7 @@ class TestThroughput(MetricsCase):
         self.w.executescript("DELETE FROM events; DELETE FROM tasks; DELETE FROM agents; DELETE FROM verdicts;")
         d, html = self.page(throughput)
         self.assertEqual((d["merges"], d["median_s"], d["p90_s"]), (0, None, None))
-        self.assertIn("No merges in this period.", html)
+        self.assertIn("No merges in this range", html)
         self.assertIn("No merged tasks in this period.", html)
         self.assertIn("No timed tasks in this period.", html)
 
@@ -163,25 +159,29 @@ class _KpiTree(HTMLParser):
             if len(self.stack) == self.grid_at + 1:
                 self.children.append(cls)
             if tag == "p":
-                self.paras.append(any("kpi" in c for _, c in self.stack[self.grid_at + 1:]))
-        elif "grid" in cls and not self.done:
+                self.paras.append(any("tile" in c for _, c in self.stack[self.grid_at + 1:]))
+        elif "tiles--4" in cls and not self.done:
             self.grid_at = len(self.stack)
         self.stack.append((tag, cls))
 
     def handle_endtag(self, tag):
         self.stack.pop()
         if self.grid_at is not None and len(self.stack) == self.grid_at:
-            self.done = True    # first grid closed; ignore the rest of the page
+            self.done = True    # first tile row closed; ignore the rest of the page
 
 
 class TestQuality(MetricsCase):
-    def test_kpi_definitions_are_inside_their_cards(self):
+    def test_headline_row_has_four_tiles_each_with_a_definition(self):
         _, html = self.page(quality)
         t = _KpiTree()
         t.feed(html)
-        self.assertEqual(len(t.children), 10)
-        self.assertTrue(all("kpi" in c for c in t.children), t.children)    # grid items are the cards themselves
-        self.assertEqual(t.paras, [True] * 10)      # one definition per card, each a descendant of .kpi
+        self.assertEqual(len(t.children), 4)
+        self.assertTrue(all("tile" in c for c in t.children), t.children)
+        self.assertEqual(t.paras, [True] * 4)       # one (i) definition per tile, each a descendant of .tile
+        labels = re.findall(r'<div class="tile-label"><span>([^<]+)</span>', html)[:4]
+        self.assertEqual(labels, ["Rejections per merged PR", "First-try merge rate", "CI-blocked merges", "Median attempts"])
+        self.assertNotIn("n/a, see G-013", html)
+        self.assertIn("Not measured yet", html)
 
     def test_overall_kpis_and_formula(self):
         d, html = self.page(quality)
@@ -203,8 +203,8 @@ class TestQuality(MetricsCase):
         self.assertEqual(o["rejections_per_merged"], 0.5)     # 3 rejection events / 6 merged
         for label, value in (("Merged PRs", "6"), ("Merged first try", "5"), ("Merged after &gt;= 1 rejection", "1"),
                              ("Rejections per merged PR", "0.50")):
-            self.assertRegex(html, rf'<div class="kpi-label">{label}</div><div class="kpi-value">{value}</div>'
-                                   r'<p class="kpi-note">[^<]+</p></div>')
+            self.assertRegex(html, rf'<span>{label}</span> <details[^>]*>.*?<p class="tile-def">[^<]+</p></details></div>'
+                                   rf'<div class="metric">{value}</div>', label)
 
     def test_second_rejection_moves_the_numbers(self):
         x = self.w.execute
@@ -220,31 +220,41 @@ class TestQuality(MetricsCase):
         d, html = self.page(quality)
         self.assertIsNone(d["overall"]["rejections_per_merged"])
         self.assertEqual(d["overall"]["merged_first_try"], 0)
-        self.assertIn("n/a, see G-013", html)
+        self.assertNotIn("n/a, see G-013", html)
         self.assertIn("Rejections by cause", html)
+        self.assertEqual(d["windows"]["current"]["rejections_per_merged"], None)      # nothing merged: no delta, no divide by 0
+        self.assertRegex(html, r'<div class="tile-label"><span>Rejections per merged PR</span>.*?<div class="metric">-</div></div>')
 
-    def test_cause_is_na_with_definition(self):
+    def test_cause_is_not_measured_yet_with_definition(self):
         _, html = self.page(quality)
-        self.assertRegex(html, r'Rejections by cause</div><div class="kpi-value">n/a, see G-013</div>'
-                               r'<p class="kpi-note">[^<]+</p></div>')
+        self.assertRegex(html, r'<span>Rejections by cause</span> <details[^>]*>.*?'
+                               r'<p class="tile-def">No cause is stored yet \(counts incidents, not events\)\.</p></details></div>'
+                               r'<div class="metric">Not measured yet</div>')
 
-    def test_rejections_week_bars_show_counts(self):
+    def test_rejections_per_week_chart_with_table_fallback(self):
         _, html = self.page(quality)
-        bars = re.findall(r'aria-label="(\d+) of max (\d+)"><span class="mono">([^<]*)</span>', html)
-        self.assertTrue(bars)
-        for n, mx, shown in bars:
-            self.assertEqual(shown, n)
-            self.assertFalse(shown.endswith("%"))
+        self.assertRegex(html, r'aria-label="3 rejections in 12 weeks, peak 3 on 10-19"')
+        self.assertIn('<table class="sr-only"><caption>Rejections per week, last 12 weeks</caption>', html)
+        self.assertIn("<td>2026-10-19</td><td>3</td>", html)
 
-    def test_team_table_has_score_and_date(self):
+    def test_team_table_is_sortable_and_score_is_in_more_metrics(self):
         d, html = self.page(quality)
         t = {x["team_id"]: x for x in d["teams"]}
         self.assertEqual((t["t-a"]["score"], t["t-a"]["eval_date"]), (5, "2026-10-24"))
         self.assertIsNone(t["t-b"]["score"])
-        self.assertIn("2026-10-24", html)
         head = html.split("Per team")[1].split("</tr>")[0]
-        self.assertNotIn("Rej. rate", html)
-        self.assertEqual(len(re.findall(r"<th>", head)), 6)
+        self.assertEqual(re.findall(r">([^<]+)</a></th>", head), ["Team", "Merged", "Rejections", "Rejections per merged PR"])
+        self.assertIn("t-a 5/5", html)
+        self.assertNotIn("g-001-a 5/5, ", html)       # the old comma-joined tile is gone from the headline
+
+    def test_team_sort_whitelist(self):
+        d, html = self.page(quality, sort="merged", dir="asc")
+        self.assertRegex(html, r'aria-sort="ascending"[^>]*><a href="/quality\?sort=merged&amp;dir=desc"')
+        for bad in ("evil", "merged; DROP TABLE tasks", "", "team'--"):
+            _, html = self.page(quality, sort=bad)
+            self.assertRegex(html, r'aria-sort="ascending"[^>]*><a href="/quality\?sort=team&amp;dir=desc"', bad)
+        _, html = self.page(quality, sort="merged", dir="evil")
+        self.assertRegex(html, r'aria-sort="descending"[^>]*><a href="/quality\?sort=merged&amp;dir=asc"')
 
     def test_matches_scorecard_rows(self):
         # legacy judge-reject events without a verdict row are the one documented difference: scorecard ignores them
@@ -329,8 +339,12 @@ class TestQuality(MetricsCase):
         self.assertEqual(o["rejections"] - base["rejections"], 4)    # gate refusals are not rejections
         for label in ("Reviewer", "QA", "Judge", "Gate: judge-blocked", "Gate: merge-failed", "Gate refusals"):
             self.assertIn(label, html)
-        self.assertRegex(html, r'Gate refusals</div><div class="kpi-value">\d+</div><p class="kpi-note">[^<]+</p></div>')
-        self.assertRegex(html, r'Rejections</div><div class="kpi-value">\d+</div><p class="kpi-note">[^<]+</p></div>')
+        for label in ("Gate refusals", "Rejections"):
+            self.assertRegex(html, rf'<span>{label}</span> <details[^>]*>.*?<p class="tile-def">[^<]+</p></details></div>'
+                                   r'<div class="metric">\d+</div>', label)
+        # the source rows are meters with their counts
+        total = o["rej_reviewer"] + o["rej_qa"] + o["rej_judge"]
+        self.assertRegex(html, rf'<span class="ins-name">Judge</span><div class="meter"><svg [^>]*aria-label="{o["rej_judge"]} of {total} rejections done"')
         self.assertIn("counts incidents, not events", html)
 
     def test_rejections_per_week(self):
