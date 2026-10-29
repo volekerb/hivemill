@@ -10,6 +10,7 @@ PARKED = "2026-01-01T00:00:00+00:00"
 
 
 class WakeBase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env

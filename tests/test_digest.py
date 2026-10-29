@@ -16,6 +16,7 @@ def iso(delta=dt.timedelta(0), base=FROZEN):
 
 
 class DigestBase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env

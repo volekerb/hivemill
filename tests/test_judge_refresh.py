@@ -118,6 +118,7 @@ def git(cwd, *args, check=True):
 
 
 class JudgeRefreshTests(FactoryTestCase):
+    INPROC = True
     """`factory judge --merge` refreshes a STALE-ONLY clean head itself, waits for CI, re-runs the full gate, merges."""
 
     def setUp(self):
