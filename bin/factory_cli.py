@@ -65,6 +65,7 @@ from scout import vendor as scoutvendor  # noqa: E402
 from scout import sandbox as scoutsandbox  # noqa: E402
 from scout import workerbox  # noqa: E402
 from scout import gatebox  # noqa: E402
+from scout import testbox  # noqa: E402
 from scout import ghcred  # noqa: E402
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
@@ -144,6 +145,7 @@ DEFAULT_CONFIG = {
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
+    "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -7838,6 +7840,45 @@ def gate_show_row(r):
     print(f"  actor  {r['actor']}  created {r['created']}  started {r['started'] or '-'}  finished {r['finished'] or '-'}")
 
 
+def cmd_test(a):
+    """T-0674: run a command in the cwd under the test sandbox when config test_sandbox is 1, directly when 0.
+    Fail closed: an unbuildable sandbox or a bad flag value exits non-zero and the command is not run."""
+    cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
+    if not cmd:
+        die("factory test needs a command: factory test [--] <cmd...>", 2)
+    v = cfg(db(), "test_sandbox").strip()
+    if v not in ("0", "1"):
+        die(f"config test_sandbox is {v!r}, not 0 or 1; fix it with `factory config test_sandbox 1`, the command was not run", 3)
+    if v == "0":
+        try:
+            os.execvp(cmd[0], cmd)
+        except OSError as e:
+            die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+    tree, scratch = os.getcwd(), None
+    try:
+        scratch = testbox.new_scratch(tree)
+        argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ,
+                                  runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    except testbox.TestboxError as e:
+        if scratch:
+            testbox.cleanup(scratch)
+        die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0)", 3)
+    p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True)  # no tty: no TIOCSTI into the caller's shell
+
+    def forward(sig, _frame):
+        try:
+            os.killpg(p.pid, sig)
+        except ProcessLookupError:
+            pass
+    for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(s, forward)
+    try:
+        rc = p.wait()
+    finally:
+        testbox.cleanup(scratch)
+    sys.exit(rc if rc >= 0 else 128 - rc)
+
+
 def cmd_gate(a):
     con = db()
     if a.action == "run":
@@ -10789,6 +10830,8 @@ def main():
     x.set_defaults(fn=cmd_init)
     x = sp.add_parser("redmain", help="director only: name the fix task that may merge while a repo's main is red")
     x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
+    x = sp.add_parser("test", help="run <cmd> in the cwd under the test sandbox (config test_sandbox)")
+    x.add_argument("cmd", nargs=argparse.REMAINDER); x.set_defaults(fn=cmd_test)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
