@@ -5,6 +5,7 @@ import json
 import os
 import pwd
 import re
+import sqlite3
 import stat
 import sys
 import tempfile
@@ -105,6 +106,15 @@ class Base(unittest.TestCase):
         (git / "HEAD").write_text("ref: refs/heads/main\n")
         (git / "config").write_text(f'[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n\turl = {url}\n')
 
+    def frozen(self, value):
+        """The live home's DB with config frozen_repos = value (the table bin/factory keeps)."""
+        (self.acct / "factory" / "db").mkdir(exist_ok=True)
+        con = sqlite3.connect(self.acct / "factory" / "db" / "factory.db")
+        con.execute("CREATE TABLE IF NOT EXISTS config(key TEXT PRIMARY KEY, value TEXT)")
+        con.execute("INSERT OR REPLACE INTO config(key,value) VALUES('frozen_repos',?)", (value,))
+        con.commit()
+        con.close()
+
     def main(self, *argv):
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
@@ -198,15 +208,41 @@ class TestRefusals(Base):
         self.assertFalse(self.calls.exists(), "a refusal must come before any call")
         return err
 
-    def test_live_home_origin_slug_is_refused_in_both_modes(self):
+    def test_frozen_repo_is_refused_in_both_modes(self):
         self.make_stub(private=False)
-        self.live_origin("https://github.com/Acme/Private.git")
+        self.frozen("Acme/Private, other/frozen")
         for extra in ([], ["--apply"]):
-            err = self.assert_refused("--repo", "acme/private", "--gh", str(self.stub), *extra)
-            self.assertIn("private repository", err)
+            for repo in ("acme/private", "OTHER/frozen"):
+                err = self.assert_refused("--repo", repo, "--gh", str(self.stub), *extra)
+                self.assertIn("private repository", err)
 
-    def test_other_slug_passes_with_a_live_home_origin(self):
-        self.live_origin("https://github.com/acme/private.git")
+    def test_live_public_origin_is_accepted(self):
+        """After the cutover origin is the public repo: it must not be forbidden, only frozen_repos are."""
+        self.make_stub(private=False)
+        self.live_origin("https://github.com/acme/public.git")
+        self.frozen("acme/private")
+        rc, _out, err = self.main("--repo", PUBLIC, "--gh", str(self.stub), "--apply")
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(len(self.recorded()), 6)
+
+    def test_live_origin_equal_to_repo_is_accepted_without_frozen_repos(self):
+        self.live_origin("https://github.com/acme/public")
+        rc, _out, err = self.main("--repo", PUBLIC)
+        self.assertEqual(rc, 0, err)
+
+    def test_malformed_frozen_repos_entry_is_refused(self):
+        self.frozen("acme/private,notaslug")
+        err = self.assert_refused("--repo", PUBLIC)
+        self.assertIn("frozen_repos", err)
+
+    def test_unreadable_database_is_refused(self):
+        (self.acct / "factory" / "db").mkdir()
+        (self.acct / "factory" / "db" / "factory.db").write_text("not a database")
+        err = self.assert_refused("--repo", PUBLIC)
+        self.assertIn("frozen_repos", err)
+
+    def test_other_slug_passes_with_frozen_repos(self):
+        self.frozen("acme/private")
         rc, _out, err = self.main("--repo", PUBLIC)
         self.assertEqual(rc, 0, err)
 
@@ -232,7 +268,7 @@ class TestRefusals(Base):
 
     def test_private_slug_inside_metadata_is_refused(self):
         self.make_stub(private=False)
-        self.live_origin("https://github.com/acme/private")
+        self.frozen("acme/private")
         meta = json.loads(META.read_text())
         meta["description"] = "mirror of acme/private"
         copy = self.root / "meta.json"
@@ -241,19 +277,20 @@ class TestRefusals(Base):
         self.assertIn("private repository slug", err)
 
     def test_prefix_slug_does_not_falsely_refuse(self):
-        self.live_origin("https://github.com/acme/pub")
+        self.frozen("acme/pub")
         rc, _out, err = self.main("--repo", PUBLIC)
         self.assertEqual(rc, 0, err)
 
     def test_dot_git_suffix_cannot_bypass(self):
         self.make_stub(private=False)
-        self.live_origin("https://github.com/acme/private")
+        self.frozen("acme/private")
         self.assert_refused("--repo", "acme/private.git", "--gh", str(self.stub))
         self.assert_refused("--repo", PUBLIC, "--private-repo", "acme/other.git", "--metadata", str(self.root / "missing.json"))
 
-    def test_unparsable_live_origin_is_refused(self):
+    def test_unparsable_live_origin_is_not_a_problem(self):
         self.live_origin("https://git.example.test/acme/private")
-        self.assert_refused("--repo", PUBLIC)
+        rc, _out, err = self.main("--repo", PUBLIC)
+        self.assertEqual(rc, 0, err)
 
     def test_broken_metadata_is_refused(self):
         copy = self.root / "meta.json"

@@ -132,6 +132,7 @@ DEFAULT_CONFIG = {
     "required_checks": "",       # comma-separated check names the judge needs green before merging
     "gate_max_parallel": "1",    # local merge gate (T-0515): `factory gate run` processes at once; one test slot stays for workers
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
+    "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -2185,6 +2186,28 @@ def cmd_task(a):
         if a.reason and a.note:
             die("give --reason or --note, not both (--reason is the blocked reason)", 2)
         a.note = a.note or a.reason
+        if a.merged_externally:
+            if role not in ("owner", "director"):
+                die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
+            if a.status != "done" or not (a.note or "").strip():
+                die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
+            extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
+                                    ("--priority", a.priority), ("--after", a.after), ("--branch", a.branch),
+                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits)) if v is not None]
+            if extra:
+                die(f"--merged-externally only closes the task; do not combine it with {', '.join(extra)}", 2)
+            if t["role"] != "coder" or not t["pr_url"]:
+                die(f"{a.id} is not a coder task with a PR; close it with a plain --status done", 2)
+            if t["status"] == "done":
+                die(f"{a.id} is already done", 2)
+            sha, err = verify_merged_externally(t["pr_url"])
+            if err:
+                die(err, 3)
+            con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.id))
+            event(con, "task", a.id, "update",
+                  f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
+            print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
+            return
         if role == "coder" and a.status == "in_review":
             require_acceptance_walk(a.pr or t["pr_url"])
         if a.spec is not None or a.acceptance is not None:
@@ -2455,6 +2478,28 @@ def gh_json(*args, timeout=120):
     if p.returncode != 0:
         die(f"gh {' '.join(args[:3])}: {p.stderr.strip()}")
     return json.loads(p.stdout)
+
+
+def verify_merged_externally(pr_url):
+    """(merge sha, error) for a PR merged outside the judge: GitHub must say MERGED and the merge commit must be on the
+    base branch. Anything unverifiable is an error, never a pass."""
+    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/\d+$", pr_url or "")
+    if not m:
+        return None, f"PR url {pr_url!r} is not a https://github.com/OWNER/REPO/pull/N url"
+    try:
+        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName")
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+        return None, f"gh pr view {pr_url} failed: cannot verify the merge, so nothing is closed; retry when gh works"
+    sha = (pr.get("mergeCommit") or {}).get("oid") or ""
+    if pr.get("state") != "MERGED" or not sha:
+        return None, f"{pr_url} is {pr.get('state')}, not MERGED on GitHub; merge it through `factory judge` instead"
+    try:
+        cmp = gh_json("api", f"repos/{m.group(1)}/compare/{pr.get('baseRefName')}...{sha}")
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+        return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
+    if cmp.get("status") not in ("identical", "behind"):
+        return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
+    return sha, None
 
 
 ACCEPTANCE_WALK = "## Acceptance walk"
@@ -3269,6 +3314,51 @@ def noreply_email(con):
     return email if email.lower().endswith(NOREPLY_SUFFIX) else None
 
 
+COAUTHOR_LINE = re.compile(r"^\s*co-authored-by:.*$", re.I)
+COAUTHOR_EMAIL = re.compile(r"<([^<>\s]+@[^<>\s]+)>\s*$")
+ANTHROPIC_NOREPLY = "noreply@anthropic.com"
+
+
+def squash_body(commits, owner_noreply):
+    """Public squash body (G-021 T-0616): the PR commit messages joined the way GitHub's default does (a single commit:
+    its body; several: '* headline' + body per commit), minus every Co-authored-by trailer whose email is not a noreply
+    address (owner noreply, *@users.noreply.github.com, noreply@anthropic.com). An unparsable trailer is dropped too."""
+    ok = lambda m: m.lower() in (ANTHROPIC_NOREPLY, (owner_noreply or "").lower()) or m.lower().endswith(NOREPLY_SUFFIX)
+
+    def clean(text):
+        keep = []
+        for line in (text or "").splitlines():
+            if COAUTHOR_LINE.match(line):
+                m = COAUTHOR_EMAIL.search(line)
+                if not (m and ok(m.group(1))):
+                    continue
+            keep.append(line)
+        return "\n".join(keep).strip()
+    if len(commits) == 1:
+        return clean(commits[0].get("messageBody"))
+    parts = []
+    for c in commits:
+        head, body = clean(c.get("messageHeadline")), clean(c.get("messageBody"))
+        if head or body:  # a headline that is itself a bad trailer line is dropped like one in the body
+            parts.append(f"* {head}" + (f"\n\n{body}" if body else ""))
+    return "\n\n".join(parts)
+
+
+def judge_squash_body(pr_url, owner_noreply):
+    """The squash --body for a public repo, from the PR's commits. Raises RuntimeError when they cannot be read."""
+    p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "commits"], capture_output=True, text=True,
+                       timeout=120, env=gh_git_env())
+    if p.returncode != 0:
+        raise RuntimeError(f"gh pr view failed: {p.stderr.strip()[:120]}")
+    try:
+        commits = json.loads(p.stdout)["commits"]
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"unreadable commits: {type(e).__name__}") from e
+    if not commits:
+        raise RuntimeError("the PR lists no commits")
+    return squash_body(commits, owner_noreply)
+
+
 def _email_problems(author, committer):
     """Which of author/committer emails break the public-main rule. Committer may also be GitHub's web-flow address."""
     bad = []
@@ -3517,7 +3607,13 @@ def cmd_judge(a):
                        "or the repo-local git user.email; nothing merged")
                 event(con, "task", a.task, "judge-blocked", msg)
                 die(msg, 4)
-            author_args = ["--author-email", noreply]
+            try:  # explicit body: GitHub's default one adds a Co-authored-by per commit author, real emails included
+                body = judge_squash_body(t["pr_url"], noreply)
+            except (RuntimeError, subprocess.TimeoutExpired, OSError) as e:
+                msg = f"merge refused: cannot build the public squash body: {e}; nothing merged"
+                event(con, "task", a.task, "judge-blocked", msg)
+                die(msg, 4)
+            author_args = ["--author-email", noreply, "--body", body]
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
@@ -3663,8 +3759,10 @@ def staleness_precheck(con, role, task):
     if not git_config_guard(con, repo, always_event=True):
         return skip(f"git config in {repo} would run code: {', '.join(git_config_refusal(repo))}")
     old = pr["headRefOid"]
-    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task)
-    if r["status"] == "fresh":
+    # reviewer/qa run on the current head when it merges cleanly: a refresh would restart CI (~17 min) before review
+    # starts, and the judge refreshes before merging anyway. Only a conflict is refused (dry run: pushes nothing).
+    r = refresh_branch(repo, t["branch"], old, pr["number"], repo_url, owner_repo, task, dry_run=role in ("reviewer", "qa"))
+    if r["status"] in ("fresh", "dry-run"):
         return None
     if r["status"] == "in-flight":
         return f"REFRESH-IN-FLIGHT: PR #{pr['number']}; another refresh is pushing{held_by(r.get('holder'))}; spawn again after its CI starts"
@@ -4071,6 +4169,39 @@ def tmp_alert(con):
     if over != bool(armed and armed["value"] == "1"):
         con.execute("INSERT INTO config(key,value) VALUES('tmp_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     ("1" if over else "0",))
+
+
+def remote_url_mismatch(con, home=None):
+    """None when config `factory_remote_url` is empty (learned later) or equals the checkout's `origin` URL (git remote
+    get-url origin, compared exactly like the git guard does); else a message saying what to run. URLs are shown without
+    credentials."""
+    want = cfg(con, "factory_remote_url").strip()
+    if not want:
+        return None
+    p = git_run(Path(home or LIVE_HOME), "remote", "get-url", "origin", timeout=30)
+    got = p.stdout.strip() if p.returncode == 0 else ""
+    if got and got == want:
+        return None
+    show = lambda u: re.sub(r"(?<=://)[^/@\s]*@", "", u)  # noqa: E731 — never copy a token from a URL into the DB
+    return (f"config factory_remote_url is {show(want)!r} but `git remote get-url origin` of the factory checkout is "
+            f"{show(got) or '(none)'!r}: the git guard will refuse pushes. After a remote switch run "
+            "`factory config factory_remote_url <new origin url>`; otherwise restore the origin.")
+
+
+def remote_url_alert(con):
+    """Tick hook: one alert to the director per distinct mismatch (re-armed once it matches again)."""
+    try:
+        msg = remote_url_mismatch(con)
+    except (OSError, subprocess.SubprocessError) as e:
+        event(con, "tick", "remote-url", "remote-url-check-failed", str(e)[:300])
+        return
+    row = con.execute("SELECT value FROM config WHERE key='remote_url_alerted'").fetchone()
+    seen = row["value"] if row else ""
+    if msg and msg != seen:
+        send(con, "director", "factory_remote_url does not match origin", msg, "alert", sender="tick")
+    if (msg or "") != seen:
+        con.execute("INSERT INTO config(key,value) VALUES('remote_url_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (msg or "",))
 
 
 def _tree_bytes(path):
@@ -5093,7 +5224,9 @@ def sandbox_preflight(role, cwd, name):
 
 
 class SandboxRefused(SystemExit):
-    """A sandboxed spawn that preflight refused: exit 3. The tick's dequeue loop skips it (the row stays queued)."""
+    """A sandboxed spawn that preflight refused: exit 3. A direct spawn just exits; the tick's dequeue loop cancels
+    the queued row (sandbox_drop_queued). reason and why say what to fix."""
+    reason = why = ""
 
 
 def sandbox_refuse(con, role, name, reason, why):
@@ -5115,7 +5248,25 @@ def sandbox_refuse(con, role, name, reason, why):
     con.commit()  # the exit follows: the event and the message must survive
     print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
           "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
-    raise SandboxRefused(3)
+    e = SandboxRefused(3)
+    e.reason, e.why = reason, why
+    raise e
+
+
+def sandbox_drop_queued(con, row, s, e):
+    """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
+    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path."""
+    if not cancel_queued(con, row["name"], "sandbox-preflight", f"{e.reason}: {e.why}"):
+        return
+    team = s.get("team")
+    subject = f"sandbox refused queued spawn {row['name']}"
+    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: sandbox preflight refused it "
+            f"({e.reason}: {e.why}). Fix it and spawn again.")
+    try:
+        send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
+             sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
 def sandbox_prepare(con, role, name, cwd):
@@ -6486,6 +6637,20 @@ def gate_dir():
     return Path.home() / ".cache" / "factory-gate"
 
 
+GATE_FAST_CMD = ("python3 -m py_compile bin/factory ci/affected.py && "
+                 "python3 ci/affected.py --base {main_sha} --quick --budget 600 --run")
+
+
+def gate_fast(con, proj):
+    """T-0642: True when the project runs the gate in fast mode (config gate_fast_projects): lint + smoke + affected quick
+    modules instead of its gate_cmd. The full suite is CI's job (the judge still needs the GitHub checks green)."""
+    return proj["id"] in cfg(con, "gate_fast_projects").split()
+
+
+def gate_cmd_for(con, proj):
+    return GATE_FAST_CMD if gate_fast(con, proj) else proj["gate_cmd"]
+
+
 def gate_pid_alive(pid):
     if not pid:
         return False
@@ -6654,11 +6819,11 @@ def gate_run(con, a):
     repo = proj["repo_path"] or str(HOME)
     if queued:
         run_id = queued["id"]
-        con.execute("UPDATE gate_runs SET pid=?, cmd=? WHERE id=?", (os.getpid(), proj["gate_cmd"], run_id))
+        con.execute("UPDATE gate_runs SET pid=?, cmd=? WHERE id=?", (os.getpid(), gate_cmd_for(con, proj), run_id))
         event(con, "gate", str(run_id), "gate-launched", f"{kind} {task_id or proj['id']}")
     else:
         cur = con.execute("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,status,cmd,actor,created,pid) VALUES(?,?,?,?,'queued',?,?,?,?)",
-                          (proj["id"], task_id, pr_url, kind, proj["gate_cmd"], actor(), now(), os.getpid()))
+                          (proj["id"], task_id, pr_url, kind, gate_cmd_for(con, proj), actor(), now(), os.getpid()))
         run_id = cur.lastrowid
         event(con, "gate", str(run_id), "gate-queued", f"{kind} {task_id or proj['id']}")
     con.commit()  # the pid is visible to the tick before the long part starts
@@ -6676,7 +6841,7 @@ def gate_run(con, a):
             head, main_sha, note = gate_resolve(con, run_id, kind, pr_url, owner_repo, repo)
             if not a.no_cache:
                 hit = con.execute("SELECT * FROM gate_runs WHERE project_id=? AND head_sha=? AND main_sha=? AND status='pass' AND cmd=? AND id<>? "
-                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, proj["gate_cmd"], run_id)).fetchone()
+                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, gate_cmd_for(con, proj), run_id)).fetchone()
                 if hit:  # same tree, same main, same command: the result cannot differ, so no slot and no run
                     gate_finish(con, run_id, "pass", f"cached: pass of run #{hit['id']} (same head and main)", exit_code=hit["exit_code"],
                                 test_count=hit["test_count"], main_count=hit["main_count"])
@@ -6756,7 +6921,10 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
     shards = gate_shard_count(con)
     env.update({"GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(wt_root / "reports")})
     gate_worktree(repo, head, wt_root / "head")
-    code, timed_out = gate_run_cmd(proj["gate_cmd"], wt_root / "head", log, proj["gate_timeout_s"], env)
+    cmd = gate_cmd_for(con, proj).replace("{main_sha}", main_sha)
+    if gate_fast(con, proj):
+        note = "; ".join(x for x in (note, "fast mode (gate_fast_projects): lint + affected quick; CI runs the full suite") if x)
+    code, timed_out = gate_run_cmd(cmd, wt_root / "head", log, proj["gate_timeout_s"], env)
     if timed_out:
         raise RuntimeError(f"gate_cmd timed out after {proj['gate_timeout_s']} s; process group killed")
     counts = {}
@@ -6785,6 +6953,8 @@ def gate_execute(con, run_id, proj, kind, owner_repo, head, main_sha, note, repo
         except (ValueError, KeyError) as e:
             note = "; ".join(x for x in (note, f"unreadable shard summary: {e!r}") if x)
     status = "pass" if code == 0 else "fail"
+    if gate_fast(con, proj) and "FULL needed: rely on CI" in Path(log).read_text(errors="replace"):
+        note = "; ".join(x for x in (note, "no local tests ran (FULL needed): CI is the gate for this diff") if x)
     gate_finish(con, run_id, status, note or None, exit_code=code, **counts)
     if kind == "pr" and cfg(con, "gate_post_status") == "1":
         state = "success" if status == "pass" else "failure"
@@ -6863,7 +7033,7 @@ def gate_enqueue(con, proj, pr_url, sha=None):
         return r["id"]
     t = con.execute("SELECT id FROM tasks WHERE pr_url=?", (pr_url,)).fetchone()
     cur = con.execute("INSERT INTO gate_runs(project_id,task_id,pr_url,kind,head_sha,status,cmd,actor,created) VALUES(?,?,?,'pr',?,'queued',?,?,?)",
-                      (proj["id"], t["id"] if t else None, pr_url, sha, proj["gate_cmd"], actor(), now()))
+                      (proj["id"], t["id"] if t else None, pr_url, sha, gate_cmd_for(con, proj), actor(), now()))
     event(con, "gate", str(cur.lastrowid), "gate-enqueued", f"pr {pr_url}")
     return cur.lastrowid
 
@@ -7542,6 +7712,7 @@ def cmd_tick(a, locked=False):
     agents = herdr_agents()
     morning_digest(con)
     tmp_alert(con)
+    remote_url_alert(con)
     tmp_clean(con)
     reap_stray_serves(con)
     if agents is None:
@@ -7674,8 +7845,9 @@ def cmd_tick(a, locked=False):
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
-        except SandboxRefused:
-            continue  # refused and logged; spawn() left the row queued, a later tick retries
+        except SandboxRefused as e:
+            sandbox_drop_queued(con, q, s, e)  # spawn() left the row queued; every refusal needs a human fix
+            con.commit()
         except EvaluatorInvalid:
             # a trial sandbox that no longer validates (cleaned up, tampered) must not wedge the tick every minute
             con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
@@ -7876,12 +8048,17 @@ def public_main_email_check(con):
             return
         seen = row["value"] if row else ""
         rng = [f"{seen}..{tip}"] if seen and _git_rc(["merge-base", "--is-ancestor", seen, tip])[0] == 0 else [f"-n{PUBLIC_MAIN_SCAN_MAX}", tip]
-        rc, out, err = _git_rc(["log", "--format=%H%x09%ae%x09%ce", *rng])
+        rc, out, err = _git_rc(["log", "--format=%x00%H%x09%ae%x09%ce%x09%B", *rng])
         if rc != 0:
             raise RuntimeError(err or f"git log exited {rc}")
-        for line in out.splitlines():
-            sha, ae, ce = (line.split("\t") + ["", ""])[:3]
+        for rec in out.split("\x00"):
+            if not rec.strip():
+                continue
+            sha, ae, ce, msg = (rec.split("\t", 3) + ["", "", ""])[:4]
+            sha = sha.strip()
             bad = _email_problems(ae, ce)
+            if squash_body([{"messageBody": msg}], noreply_email(con)) != msg.strip():
+                bad.append("Co-authored-by trailer")
             tkey = f"email-alert:{sha}"
             if not bad or con.execute("SELECT 1 FROM throttle WHERE key=?", (tkey,)).fetchone():
                 continue
@@ -9476,6 +9653,8 @@ def main():
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
     x.add_argument("--waits", choices=TASK_WAITS, help="with --status blocked: owner (the owner must act) or internal (queue/freeze; default)")
+    x.add_argument("--merged-externally", dest="merged_externally", action="store_true",
+                   help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)
 
     x = sp.add_parser("lesson"); x.add_argument("action", choices=["add", "list", "show", "edit", "link", "apply", "verify", "reopen"])
