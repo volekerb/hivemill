@@ -14,16 +14,16 @@ mechanics are in [lead-wake.md](lead-wake.md), the spawn gate in [spawn-queue.md
 
 ## Waking
 
-A parked team wakes on any unread message to its lead: a worker's `done`, a report, a blocked-worker or drift alert, a
+A parked team wakes on any unread message to its lead except kind `fyi` (tick wake query: `read_at IS NULL AND kind != 'fyi'`): a worker's `done`, a report, a blocked-worker or drift alert, a
 spawn bounce, a CI green/red mail for its PR (T-0400), a message from the director or boss. The tick (step 1d) checks every
 parked team each minute, so the wake is level-triggered: it is retried every tick until the lead is live, starting or
 queued. One wake per team per 120 s (throttle). The woken lead is a fresh session; its kickoff carries the resume note,
 the re-orient one-pager and the unread count, and the mail stays unread for the lead to read.
 
-What never wakes a lead: role-change notices (they go to live agents only), and `factory up` / `factory relaunch`, which
+What never wakes a lead: `fyi` mails (the tick's own informational mails say "This mail does not wake you."), role-change notices (they go to live agents only), and `factory up` / `factory relaunch`, which
 never resurrect a parked lead.
 
-A park older than 12 h with no unread mail and no live or queued agent of the team sends one alert to the director, who
+A park older than 12 h with no unread non-`fyi` mail (unread `fyi` mail does not count) and no live or queued agent of the team sends one alert to the director, who
 either wakes the team (`factory team wake <team>`) or closes it.
 
 ## Caps
