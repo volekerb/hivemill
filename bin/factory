@@ -2186,6 +2186,28 @@ def cmd_task(a):
         if a.reason and a.note:
             die("give --reason or --note, not both (--reason is the blocked reason)", 2)
         a.note = a.note or a.reason
+        if a.merged_externally:
+            if role not in ("owner", "director"):
+                die(f"only the director or the owner may close a task with --merged-externally ({role} may not)", 3)
+            if a.status != "done" or not (a.note or "").strip():
+                die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
+            extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
+                                    ("--priority", a.priority), ("--after", a.after), ("--branch", a.branch),
+                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits)) if v is not None]
+            if extra:
+                die(f"--merged-externally only closes the task; do not combine it with {', '.join(extra)}", 2)
+            if t["role"] != "coder" or not t["pr_url"]:
+                die(f"{a.id} is not a coder task with a PR; close it with a plain --status done", 2)
+            if t["status"] == "done":
+                die(f"{a.id} is already done", 2)
+            sha, err = verify_merged_externally(t["pr_url"])
+            if err:
+                die(err, 3)
+            con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.id))
+            event(con, "task", a.id, "update",
+                  f"status=done merged-externally by={actor()} pr={t['pr_url']} merge_sha={sha} — {a.note}")
+            print(f"{a.id} closed: {t['pr_url']} is MERGED on GitHub as {sha[:8]} (merged externally)")
+            return
         if role == "coder" and a.status == "in_review":
             require_acceptance_walk(a.pr or t["pr_url"])
         if a.spec is not None or a.acceptance is not None:
@@ -2456,6 +2478,28 @@ def gh_json(*args, timeout=120):
     if p.returncode != 0:
         die(f"gh {' '.join(args[:3])}: {p.stderr.strip()}")
     return json.loads(p.stdout)
+
+
+def verify_merged_externally(pr_url):
+    """(merge sha, error) for a PR merged outside the judge: GitHub must say MERGED and the merge commit must be on the
+    base branch. Anything unverifiable is an error, never a pass."""
+    m = re.match(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/\d+$", pr_url or "")
+    if not m:
+        return None, f"PR url {pr_url!r} is not a https://github.com/OWNER/REPO/pull/N url"
+    try:
+        pr = gh_json("pr", "view", pr_url, "--json", "state,mergeCommit,baseRefName")
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+        return None, f"gh pr view {pr_url} failed: cannot verify the merge, so nothing is closed; retry when gh works"
+    sha = (pr.get("mergeCommit") or {}).get("oid") or ""
+    if pr.get("state") != "MERGED" or not sha:
+        return None, f"{pr_url} is {pr.get('state')}, not MERGED on GitHub; merge it through `factory judge` instead"
+    try:
+        cmp = gh_json("api", f"repos/{m.group(1)}/compare/{pr.get('baseRefName')}...{sha}")
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError):
+        return None, f"cannot check that merge commit {sha[:8]} is on {pr.get('baseRefName')}; nothing is closed"
+    if cmp.get("status") not in ("identical", "behind"):
+        return None, f"merge commit {sha[:8]} is not on {pr.get('baseRefName')} (compare says {cmp.get('status')}); nothing is closed"
+    return sha, None
 
 
 ACCEPTANCE_WALK = "## Acceptance walk"
@@ -5094,7 +5138,9 @@ def sandbox_preflight(role, cwd, name):
 
 
 class SandboxRefused(SystemExit):
-    """A sandboxed spawn that preflight refused: exit 3. The tick's dequeue loop skips it (the row stays queued)."""
+    """A sandboxed spawn that preflight refused: exit 3. A direct spawn just exits; the tick's dequeue loop cancels
+    the queued row (sandbox_drop_queued). reason and why say what to fix."""
+    reason = why = ""
 
 
 def sandbox_refuse(con, role, name, reason, why):
@@ -5116,7 +5162,25 @@ def sandbox_refuse(con, role, name, reason, why):
     con.commit()  # the exit follows: the event and the message must survive
     print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
           "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
-    raise SandboxRefused(3)
+    e = SandboxRefused(3)
+    e.reason, e.why = reason, why
+    raise e
+
+
+def sandbox_drop_queued(con, row, s, e):
+    """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
+    unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path."""
+    if not cancel_queued(con, row["name"], "sandbox-preflight", f"{e.reason}: {e.why}"):
+        return
+    team = s.get("team")
+    subject = f"sandbox refused queued spawn {row['name']}"
+    body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: sandbox preflight refused it "
+            f"({e.reason}: {e.why}). Fix it and spawn again.")
+    try:
+        send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
+             sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
 def sandbox_prepare(con, role, name, cwd):
@@ -7867,8 +7931,9 @@ def cmd_tick(a, locked=False):
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
-        except SandboxRefused:
-            continue  # refused and logged; spawn() left the row queued, a later tick retries
+        except SandboxRefused as e:
+            sandbox_drop_queued(con, q, s, e)  # spawn() left the row queued; every refusal needs a human fix
+            con.commit()
         except EvaluatorInvalid:
             # a trial sandbox that no longer validates (cleaned up, tampered) must not wedge the tick every minute
             con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
@@ -9669,6 +9734,8 @@ def main():
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
     x.add_argument("--waits", choices=TASK_WAITS, help="with --status blocked: owner (the owner must act) or internal (queue/freeze; default)")
+    x.add_argument("--merged-externally", dest="merged_externally", action="store_true",
+                   help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)
 
     x = sp.add_parser("lesson"); x.add_argument("action", choices=["add", "list", "show", "edit", "link", "apply", "verify", "reopen"])
