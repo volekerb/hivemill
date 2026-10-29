@@ -1,8 +1,12 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import envcheck
+
+sys.path.insert(0, str(envcheck.REPO / "ci"))
+import demo_record  # noqa: E402
 
 
 class HasGit(unittest.TestCase):
@@ -43,6 +47,9 @@ class OnRam(unittest.TestCase):
             self.assertTrue(envcheck.on_ram(Path(ram) / "a" / "b", ram_dirs))
             self.assertTrue(envcheck.on_ram(ram, ram_dirs))
             self.assertFalse(envcheck.on_ram(Path(disk) / "a", ram_dirs))
+
+    def test_ram_dirs_match_what_demo_record_refuses(self):
+        self.assertEqual(envcheck.RAM_DIRS, demo_record.RAM_DIRS)
 
     def test_symlink_into_ram_is_resolved(self):
         with tempfile.TemporaryDirectory() as ram, tempfile.TemporaryDirectory() as disk:

@@ -19,10 +19,11 @@ import unittest.mock
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-SEED = ROOT / "ci" / "demo_seed.py"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import envcheck  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+SEED = ROOT / "ci" / "demo_seed.py"
 FACTORY = ROOT / "bin" / "factory"
 NOW = "2026-10-25T12:00:00+00:00"
 PAGES = ["/", "/goals", "/goal/G-002", "/tasks", "/task/T-0004", "/agents", "/throughput", "/quality", "/resources",
