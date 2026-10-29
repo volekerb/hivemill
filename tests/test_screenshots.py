@@ -658,6 +658,22 @@ class TestFullRun(ScreenshotsBase):
         self.assertEqual((screenshots.WARN_PNG_BYTES, screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES),
                          (307200, 716800, 8388608))
 
+    def test_tasks_is_captured_lower_than_hmax_and_the_caps_and_hmax_are_unchanged(self):
+        self.assertEqual(screenshots.PAGE_HEIGHT, {"tasks": 960})  # HMAX itself is patched to 250 in setUp
+        self.assertEqual((screenshots.WARN_PNG_BYTES, screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES),
+                         (307200, 716800, 8388608))
+        calls = []
+        real = screenshots.browser_args
+        with unittest.mock.patch.object(screenshots, "PAGE_HEIGHT", {"tasks": 120}), \
+                unittest.mock.patch.object(screenshots, "browser_args",
+                                        side_effect=lambda *a, **k: calls.append(a) or real(*a, **k)):
+            self.use_zip()
+            code, out, err = self.run_main("--out", str(self.images), "--pages", "home,tasks")
+        self.assertEqual(code, 0, out + err)
+        by_page = {a[3].rsplit("/", 1)[-1] or "home": a[4] for a in calls if a[3].count("/") >= 3}
+        self.assertEqual(by_page["tasks"], 120)  # the override wins when below HMAX
+        self.assertEqual(by_page["home"], 250)  # other pages keep HMAX
+
     def test_browser_runs_with_the_dpr_flag_for_pages_but_not_for_the_social_page(self):
         self.use_zip()
         code, out, err = self.run_main("--out", str(self.images), "--pages", "home")
