@@ -8,9 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness import FactoryTestCase  # noqa: E402
 
 LINE = re.compile(r"^tick-phases total=\d+\.\d\d( [a-z_]+=\d+(\.\d\d)?)+$")
-PHASES = ("migrate_db render_settings herdr_list digest tmp_alert remote_url_alert tmp_clean reap_serves scout skilleval "
-          "pending_nudges reap_loop drift flagless claude_audit stop_fallback gate ci_wake wake_leads dequeue dispatch "
-          "nudge sidebar export recycle relaunches util").split()
+PHASES = ("migrate_db render_settings herdr_list digest tmp_alert remote_url_alert main_protection tmp_clean red_main "
+          "reap_serves scout skilleval pending_nudges reap_loop drift flagless claude_audit stop_fallback gate ci_wake "
+          "wake_leads dequeue dispatch nudge sidebar export freshness recycle relaunches util").split()
 COUNTERS = "dequeue_spawns dequeue_spawn_s ci_wake_ls_remote ci_wake_gh export_git".split()
 
 

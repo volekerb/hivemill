@@ -43,7 +43,7 @@ This guards against accidental loss of the environment, not against an adversary
 
 ## Tick phase timers
 
-`factory config tick_phase_timers 1` makes every tick time its phases (default `0`, off: no output and no extra work). Log-only: it changes no behaviour, and a timer failure is swallowed.
+`factory config tick_phase_timers 1` makes every tick time its phases (default `0`, off: no output, no event, only a few integer counter increments). Log-only: it changes no behaviour, and a timer failure is swallowed.
 
 With it on, each tick prints one line to stdout (so it lands in journald) and records one event row (`action` `tick-phases`, same text), also on the "herdr unreachable" early return:
 
