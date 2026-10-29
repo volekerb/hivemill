@@ -29,6 +29,7 @@ CLASSES = frozenset({
     "meter", "meter-svg", "lbl", "track", "fill-data1", "fill-success", "fill-warning", "fill-danger", "fill-neutral", "spark", "spark-wrap",
     "spark-cap", "spark-last", "cols", "cols-wrap", "col", "col--zero", "col-val", "col-x", "tiles", "tile", "tile-label", "tile-def",
     "metric", "delta",
+    "gchips", "gblk", "crit-text", "crit-tasks", "intent", "gd", "gd-main", "rail", "rail-list", "rail-dl", "metarow", "attempt",
     *(f"{p}-{t}" for p in ("fg", "gs", "tone") for t in _TONES),
     *(f"status--{s}" for s in _STATUSES),
     *(f"bar--{n}" for n in range(0, 101, 5)),
