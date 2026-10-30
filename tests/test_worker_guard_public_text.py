@@ -12,6 +12,7 @@ import time
 import unittest
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 import harness
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -71,7 +72,7 @@ class PublicTextTests(unittest.TestCase):
             env["SCRUB_TERMS_FILE"] = self.terms
         argv = [sys.executable, HOOK, "--hq"] if mode == "hq" else [sys.executable, HOOK, "--role", mode]
         payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.repo}
-        return subprocess.run(argv, input=json.dumps(payload), capture_output=True, text=True, timeout=60, env=env)
+        return hook_run(json.dumps(payload), argv, env=env, timeout=60)
 
     def blocked(self, cmd, *want, **kw):
         p = self.run_hook(cmd, **kw)

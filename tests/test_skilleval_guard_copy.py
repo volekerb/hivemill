@@ -4,6 +4,7 @@ Group A needs no namespaces: spawn writes <trial>/role/roles/hooks/worker-guard.
 inside a real allow-list sandbox with the "home" (and the factory checkout in it) hidden, and skips with the reason where
 user namespaces are restricted. The old path shows "can't open file" there, which proves the test sees the bug.
 """
+GUARD_IMPL_PYTHON_ONLY = "tests the copy of the Python hook that skill-eval spawn writes into a trial; the copy is always Python"
 import contextlib
 import importlib.util
 import io

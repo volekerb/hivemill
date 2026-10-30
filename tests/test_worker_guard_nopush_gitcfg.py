@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -29,8 +30,7 @@ class NoPushGitCfgTests(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
         env.update(WORKER_GUARD_LIVE_HOME=self.home, WORKER_GUARD_SCRATCH=self.scratch)
         payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.scratch}
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload), capture_output=True,
-                              text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role], env=env)
 
     def tool(self, name, path, role, *flags):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
@@ -39,8 +39,7 @@ class NoPushGitCfgTests(unittest.TestCase):
         if name == "MultiEdit":
             ti = {"file_path": path, "edits": [{"old_string": "a", "new_string": "b"}]}
         payload = {"tool_name": name, "tool_input": ti, "cwd": self.scratch}
-        return subprocess.run([sys.executable, HOOK, "--role", role, *flags], input=json.dumps(payload),
-                              capture_output=True, text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role, *flags], env=env)
 
     def blocked(self, cmd, role):
         p = self.bash(cmd, role)
@@ -113,10 +112,9 @@ class NoPushGitCfgTests(unittest.TestCase):
         for cmd in (f"echo x > {r}/.git/hooks/pre-commit", f"git config --file {r}/.git/config core.bare false",
                     f"echo x > {r}/.git/config"):
             for role in ("boss", "director", "lead"):
-                p = subprocess.run([sys.executable, HOOK, "--role", role, "--hq"], capture_output=True, text=True,
-                                   timeout=30, input=json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd},
-                                                                 "cwd": self.scratch}),
-                                   env={**os.environ, "WORKER_GUARD_LIVE_HOME": self.home, "WORKER_GUARD_SCRATCH": self.scratch})
+                p = hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.scratch}),
+                             ["--role", role, "--hq"],
+                             env={**os.environ, "WORKER_GUARD_LIVE_HOME": self.home, "WORKER_GUARD_SCRATCH": self.scratch})
                 self.assertEqual(p.returncode, 0, f"HQ {role} should allow {cmd!r}: {p.stderr}")
         for role in ("qa",):
             res = self.tool("Write", f"{r}/.git/config", role, "--hq")

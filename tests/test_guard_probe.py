@@ -7,6 +7,7 @@ import unittest
 
 import harness
 from harness import REPO
+from guard_impl import hook_run
 
 SCRIPT = REPO / "roles" / "workflows" / "guard-probe.js"
 HOOK = REPO / "roles" / "hooks" / "worker-guard.py"
@@ -19,8 +20,7 @@ def guard(role, command):
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
     with tempfile.TemporaryDirectory() as home:
         env = dict(os.environ, FACTORY_HOME=home)
-        return subprocess.run([sys.executable, str(HOOK), "--role", role], input=payload,
-                              capture_output=True, text=True, timeout=30, env=env)
+        return hook_run(payload, ["--role", role], env=env)
 
 
 def tracked(*args):

@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 from harness import rendered_settings
+from guard_impl import hook_run
 
 HOME_DIR = pwd.getpwuid(os.getuid()).pw_dir
 LIVE_HOME = os.path.join(HOME_DIR, "factory")  # what the hook and bin/factory derive (T-0212)
@@ -24,8 +25,8 @@ NON_WORKERS = ("boss", "director", "lead")
 def run_hook(command, tool="Bash", raw=None, cwd=None, role=None):
     payload = raw if raw is not None else json.dumps(
         {"tool_name": tool, "tool_input": {"command": command}, **({"cwd": cwd} if cwd else {})})
-    argv = [sys.executable, HOOK] + (["--role", role] if role else [])
-    return subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=30)
+    argv = (["--role", role] if role else [])
+    return hook_run(payload, argv)
 
 
 class WorkerGuardTests(unittest.TestCase):
@@ -498,8 +499,7 @@ class WorkerGuardTests(unittest.TestCase):
         env.pop("FACTORY_AGENT", None)
         if own:
             env["FACTORY_AGENT"] = own
-        return subprocess.run([sys.executable, HOOK, "--role", "coder"], capture_output=True, text=True, env=env,
-                              input=json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}), timeout=30)
+        return hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}), ["--role", "coder"], env=env)
 
     def test_identity_belt_blocked(self):
         for cmd in (

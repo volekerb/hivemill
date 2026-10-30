@@ -12,6 +12,7 @@ import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
+GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up T-0809: T-0783 (#222) is a Python-only rule until the Go port gets it"
 NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 
 

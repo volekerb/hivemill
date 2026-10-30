@@ -40,10 +40,10 @@ var (
 func (a *Analyzer) noPush() bool { return in(noPushRoles, a.Role) && !a.HQ }
 
 // gitHooksPath is a port of worker-guard.py:git_hooks_path: p is <x>/.git/hooks, <x>/.git/info or anything under them,
-// outside the worker's scratchpad.
-func gitHooksPath(p string) bool {
+// outside the worker's scratchpad when scratchOK (T-0770: the callers pass false, the scratchpad is not exempt).
+func gitHooksPath(p string, scratchOK bool) bool {
 	for _, c := range uniq([]string{pyNormpath(p), pyRealpath(p)}) {
-		if inScratchpad(c) {
+		if scratchOK && inScratchpad(c) {
 			continue
 		}
 		parts := strings.Split(c, "/")

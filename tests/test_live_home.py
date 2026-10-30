@@ -1,6 +1,7 @@
 """T-0212: the live factory home is derived from the passwd entry (bin/factory and roles/hooks/worker-guard.py),
 never from $HOME, $XDG_CONFIG_HOME or the checkout the script runs from. <pw_dir>/.config/factory/live_home can only
 ADD a live home. The seam is an in-process patch of pwd.getpwuid; there is no env-var seam and no real home is touched."""
+GUARD_IMPL_PYTHON_ONLY = "runs the hook under a pwd.getpwuid patch (in-process and a -c wrapper); the Go port derives the live home itself and is covered by Go unit tests"
 import contextlib
 import importlib.machinery
 import importlib.util

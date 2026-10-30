@@ -5,13 +5,14 @@ import unittest
 from pathlib import Path
 
 from harness import FactoryTestCase, git
+from guard_impl import hook_run
 
 HOOK = str(Path(__file__).resolve().parent.parent / "roles" / "hooks" / "worker-guard.py")
 
 
 def run_hook(command, *flags):
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
-    return subprocess.run([sys.executable, HOOK, *flags], input=payload, capture_output=True, text=True, timeout=30)
+    return hook_run(payload, [*flags])
 
 
 class CleanRemoteBranchTests(FactoryTestCase):

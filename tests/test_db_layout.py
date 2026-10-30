@@ -14,6 +14,7 @@ import urllib.request
 from pathlib import Path
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
+from guard_impl import hook_run
 from harness import FACTORY, REPO, FactoryEnv, FactoryTestCase, rendered_settings_dir
 from test_worker_guard_reads import AGENT, OWN, OTHER, ReadsBase
 from web import db as wdb
@@ -177,13 +178,12 @@ class NoOverrideTests(FactoryTestCase):
             self.untouched(p)
 
     def test_d_hook_temp_home_exemption_cannot_reach_live_db(self):
-        hook = str(REPO / "roles" / "hooks" / "worker-guard.py")
         parent = self.env.home
         for cmd in ("agents", "goal list", "res", "msg boss x y"):
             line = f"FACTORY_HOME={parent} FACTORY_DB={self.live} python3 {FACTORY} {cmd}"
             payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": line}})
-            hk = subprocess.run([sys.executable, hook, "--role", "coder"], input=payload, capture_output=True, text=True,
-                                env={**os.environ, "FACTORY_AGENT": "zz-coder", "FACTORY_HOME": str(self.live_home)}, timeout=30)
+            hk = hook_run(payload, ["--role", "coder"],
+                          env={**os.environ, "FACTORY_AGENT": "zz-coder", "FACTORY_HOME": str(self.live_home)})
             if hk.returncode == 0:  # the exemption lets the command through: the CLI must still not reach the live DB
                 p = self.sh(line, parent)
                 self.assertNotEqual(p.returncode, 0, f"{cmd}: {p.stdout}{p.stderr}")

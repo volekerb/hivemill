@@ -61,6 +61,7 @@ func Explain(err error) string {
 	var b *Block
 	var rp *RepoProtBlock
 	var pb *PublicBlock
+	var gb *GitBlock
 	switch {
 	case errors.As(err, &pb):
 		return fmt.Sprintf("worker-guard: blocked (%s)\n", pb.Msg)
@@ -74,6 +75,8 @@ func Explain(err error) string {
 		return fmt.Sprintf("worker-guard: blocked (`%s`): branch protection and repository settings are changed only by "+
 			"the owner (ci/publish_repo.py, rule R-a); agents may only read them with a plain GET. "+
 			"Tell your lead if this is wrong.\n", rp.Msg)
+	case errors.As(err, &gb):
+		return fmt.Sprintf("worker-guard: blocked %s\n", gb.Msg)
 	case errors.As(err, &d):
 		return fmt.Sprintf("worker-guard: blocked (%s). Workers may not run herdr, and only factory spawn "+
 			"starts Claude (lesson M347); use the factory CLI (factory done, factory msg, ...) "+

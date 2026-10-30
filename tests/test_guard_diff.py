@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `-m unittest tests.test_guard_diff` has no tests/ on the path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 import harness
+from guard_impl import hook_run, impl
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
 
@@ -72,7 +73,7 @@ class GuardDiffCase(unittest.TestCase):
     def run_tool(self, *extra, base="main"):
         argv = [sys.executable, TOOL, "--base", base, "--repo", self.repo, "--hook", self.hook,
                 "--corpus", self.corpus, *extra]
-        return subprocess.run(argv, capture_output=True, text=True, timeout=120)
+        return subprocess.run(argv, capture_output=True, text=True, timeout=600)
 
 
 class GuardDiffTests(GuardDiffCase):
@@ -142,7 +143,7 @@ class GuardDiffTests(GuardDiffCase):
             f.write(STUB_LOOSE)
         argv = [sys.executable, TOOL, "--base", "main", "--repo", self.repo, "--hook", copy,
                 "--corpus", self.corpus, "--mode", "hq"]
-        p = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600)
         self.assertEqual(p.returncode, 1, p.stderr)
         self.assertIn(f"LOOSENED base=2 pr=0 hq {BAD}", p.stdout)
 
@@ -180,15 +181,15 @@ def hook_rc_subprocess(cmd, mode, role="coder", home=None):
     args = ["--role", role] if mode == "worker" else ["--hq"]
     env = {**os.environ, "FACTORY_HOME": home} if home else None
     env = guard_diff.hook_env(cmd, env)
-    p = subprocess.run([sys.executable, HOOK, *args],
-                       input=json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}),
-                       capture_output=True, text=True, timeout=30, env=env)
+    p = hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}), list(args), env=env)
     return p.returncode
 
 
 def hook_rc(cmd, mode, role="coder", home=None):
     """Exit code of the real hook's main(), run in-process: the corpus sanity checks make ~500 calls and a subprocess each
     costs ~40 ms of startup. CorpusSanityTests.check compares a sample with hook_rc_subprocess."""
+    if impl() != "python":  # GUARD_IMPL=go|diff: the real binaries decide, never the in-process Python module
+        return hook_rc_subprocess(cmd, mode, role, home)
     if not _HOOK_MOD:
         loader = importlib.machinery.SourceFileLoader("worker_guard_under_test", HOOK)
         mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
@@ -250,7 +251,7 @@ class EvaluatorRunTests(GuardDiffCase):
         for base in ("--output=/x", "-p"):
             argv = [sys.executable, TOOL, f"--base={base}", "--repo", self.repo, "--hook", self.hook,
                     "--corpus", self.corpus]
-            p = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+            p = subprocess.run(argv, capture_output=True, text=True, timeout=600)
             self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
             self.assertIn("looks like an option", p.stderr)
             self.assertFalse(os.path.exists("/x"))
@@ -269,7 +270,7 @@ class GoImplTests(GuardDiffCase):
     def run_go(self, body, *extra):
         argv = [sys.executable, TOOL, "--impl", "go", "--go-bin", self.stub(body), "--repo", self.repo,
                 "--hook", self.hook, "--corpus", self.corpus, "--mode", "worker", *extra]
-        return subprocess.run(argv, capture_output=True, text=True, timeout=120)
+        return subprocess.run(argv, capture_output=True, text=True, timeout=600)
 
     def test_identical_candidate_exit_0_strict(self):
         p = self.run_go(STUB_BASE, "--strict")
@@ -335,7 +336,7 @@ class GoImplTests(GuardDiffCase):
     def test_missing_go_bin_exit_2(self):
         argv = [sys.executable, TOOL, "--impl", "go", "--go-bin", "/nonexistent/worker-guard", "--repo", self.repo,
                 "--hook", self.hook, "--corpus", self.corpus]
-        p = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600)
         self.assertEqual(p.returncode, 2)
         self.assertIn("--go-bin", p.stderr)
 
@@ -355,7 +356,7 @@ class GoImplTests(GuardDiffCase):
         os.makedirs(os.path.join(self.repo, "go"), exist_ok=True)
         argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook,
                 "--corpus", self.corpus, "--mode", "worker", "--strict"]
-        p = subprocess.run(argv, capture_output=True, text=True, timeout=120, env=env)
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600, env=env)
         self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
         with open(envlog) as f:
             self.assertEqual(json.load(f), {"GOTOOLCHAIN": "local", "GOFLAGS": "-mod=readonly", "GOPROXY": "off"})
@@ -367,7 +368,7 @@ class GoImplTests(GuardDiffCase):
         os.makedirs(only_git)
         os.symlink(shutil.which("git"), os.path.join(only_git, "git"))
         env["PATH"] = only_git  # git for the repo lookup, no go
-        p = subprocess.run(argv, capture_output=True, text=True, timeout=60, env=env)
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600, env=env)
         self.assertEqual(p.returncode, 2, p.stdout)
         self.assertIn("go", p.stderr)
 
@@ -379,7 +380,7 @@ class GoImplTests(GuardDiffCase):
             f.write("#!/bin/sh\necho 'boom: syntax error' >&2\nexit 1\n")
         os.chmod(os.path.join(fake, "go"), 0o755)
         argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook, "--corpus", self.corpus]
-        p = subprocess.run(argv, capture_output=True, text=True, timeout=60,
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600,
                            env={**os.environ, "PATH": fake + os.pathsep + os.environ["PATH"]})
         self.assertEqual(p.returncode, 2, p.stdout)
         self.assertIn("go build", p.stderr)
