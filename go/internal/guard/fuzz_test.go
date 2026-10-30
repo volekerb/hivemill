@@ -43,6 +43,33 @@ func FuzzPreprocess(f *testing.F) {
 	})
 }
 
+var checkSeeds = []string{
+	"sudo ls", "ls -la", "env A=1 sudo ls", "bash -c 'sudo x'", "find . -exec sh -c 'x' \\;", "xargs -I{} {} x", "kill %1", "kill 1",
+	"alias c='claude -p'", "systemctl --user stop herdr", "eval 'a;b'", "a | bash", "cat <<EOF | sh\nsudo\nEOF", "$(sudo x)", "`x`",
+	"export HERDR_SOCKET_PATH=x", "env -u FACTORY_ROLE ls", "python3 -c 'sudo'", "node cli.js", "npx @anthropic-ai/claude-code",
+	"time -p ls", "echo é 日本 | sh", "bash <<< 'sudo x'", "cat < /usr/bin/herdr", "unset HERDR_SOCKET_PATH; herdr", "((((",
+	"sh -c 'sh -c \"sh -c x\"'", "find -exec find -exec find -exec find -exec x \\; \\; \\; \\;", "env env env env env env env env sudo",
+	"git status", "x=$(mktemp -d) y",
+}
+
+// FuzzCheck checks only that Check neither panics nor hangs, as worker and in HQ mode, for any command text.
+func FuzzCheck(f *testing.F) {
+	for _, s := range checkSeeds {
+		f.Add(s)
+	}
+	for _, s := range fuzzSeeds {
+		f.Add(s)
+	}
+	dir := f.TempDir()
+	f.Setenv(termsVar, "")
+	f.Fuzz(func(t *testing.T, s string) {
+		within(t, s, func() {
+			_ = Check(s, dir, "coder", false)
+			_ = Check(s, dir, "", true)
+		})
+	})
+}
+
 // FuzzSegments checks only that MaskQuotes, Segments and the matchers built on them neither panic nor hang.
 func FuzzSegments(f *testing.F) {
 	for _, s := range fuzzSeeds {
