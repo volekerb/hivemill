@@ -1,0 +1,761 @@
+{
+ "keys": [
+  {
+   "key": "affected_smoke",
+   "kind": "setting",
+   "default": "test_db_layout.py test_inbox.py test_judge.py",
+   "summary": "ci/affected.py always-run smoke modules",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "blocked_alert_s",
+   "kind": "setting",
+   "default": "600",
+   "summary": "seconds a task stays blocked before the tick alerts",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "ci_wake_workers",
+   "kind": "setting",
+   "default": "4",
+   "summary": "tick_ci_wake runs its gh pr view probes in this many threads",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "day_end_hour",
+   "kind": "setting",
+   "default": "20",
+   "summary": "local hour at which daytime ends for the director row",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "day_start_hour",
+   "kind": "setting",
+   "default": "8",
+   "summary": "daytime for the director row",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "digest_hour",
+   "kind": "setting",
+   "default": "8",
+   "summary": "local hour from which the tick sends the daily digest",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "director_cycle_s",
+   "kind": "setting",
+   "default": "900",
+   "summary": "seconds between director cycles",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "dispatch_max_per_tick",
+   "kind": "setting",
+   "default": "2",
+   "summary": "at most this many lead-less spawns per tick run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "dispatch_max_team_workers",
+   "kind": "setting",
+   "default": "2",
+   "summary": "no lead-less spawn while the team already has this many worker agents live/starting/queued",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "factory_remote_url",
+   "kind": "setting",
+   "default": "",
+   "summary": "the one origin URL the git guard allows for the factory checkout",
+   "goal": "",
+   "doc": "docs/git-hardening.md"
+  },
+  {
+   "key": "frozen_repos",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list OWNER/NAME no push or merge by bin/factory may target",
+   "goal": "G-021",
+   "doc": ""
+  },
+  {
+   "key": "gate_fast_projects",
+   "kind": "flag",
+   "default": "factory",
+   "summary": "project ids whose gate run is fast mode (lint + affected quick); CI is the full gate",
+   "goal": "",
+   "doc": "",
+   "state": "on",
+   "promoted_in": "baseline"
+  },
+  {
+   "key": "gate_max_load_ratio",
+   "kind": "setting",
+   "default": "1.25",
+   "summary": "the gate closes while load1 > this x nproc",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "gate_max_parallel",
+   "kind": "setting",
+   "default": "1",
+   "summary": "local merge gate: `factory gate run` processes at once",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "gate_post_status",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = mirror each PR gate result as the commit status factory/local-gate",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "gate_retry_error",
+   "kind": "setting",
+   "default": "1",
+   "summary": "error (infra) gate runs are retried this many times",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "gate_sandbox",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = gate_cmd and gate_count_cmd run under scout/gatebox.py",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "gate_shards",
+   "kind": "setting",
+   "default": "4",
+   "summary": "parallel shard processes tests/gate_shards.py runs inside one gate run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "gh_rw_roles",
+   "kind": "setting",
+   "default": "coder,judge,cleaner",
+   "summary": "the roles of worker_gh_roles that get the read-write token",
+   "goal": "G-010",
+   "doc": ""
+  },
+  {
+   "key": "gh_token_ro",
+   "kind": "setting",
+   "default": "",
+   "summary": "read-only worker token file; empty = ~/.config/factory/gh-worker-ro-token",
+   "goal": "G-010",
+   "doc": ""
+  },
+  {
+   "key": "gh_token_rw",
+   "kind": "setting",
+   "default": "",
+   "summary": "read-write worker token file; empty = ~/.config/factory/gh-worker-rw-token",
+   "goal": "G-010",
+   "doc": ""
+  },
+  {
+   "key": "git_push",
+   "kind": "flag",
+   "default": "1",
+   "summary": "the tick pushes to git remotes (1 = on)",
+   "goal": "",
+   "doc": "",
+   "state": "on",
+   "promoted_in": "baseline"
+  },
+  {
+   "key": "herdr_socket",
+   "kind": "setting",
+   "default": "~/.config/herdr/herdr.sock",
+   "summary": "herdr() pins this for every herdr call, whatever the caller env holds",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "hq_unblock_s",
+   "kind": "setting",
+   "default": "900",
+   "summary": "the tick denies a permission dialog on an HQ pane after this many seconds",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "judge_ci_wait_s",
+   "kind": "setting",
+   "default": "2400",
+   "summary": "`factory judge --merge` waits this long for pending CI before refusing",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "judge_max_refreshes",
+   "kind": "setting",
+   "default": "4",
+   "summary": "refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "lead_less_dispatch",
+   "kind": "flag",
+   "default": "0",
+   "summary": "0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams",
+   "goal": "G-018",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "lead_parking",
+   "kind": "flag",
+   "default": "0",
+   "summary": "leads may `factory park` and the tick wakes them on mail",
+   "goal": "G-014",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "lead_wake_debounce_s",
+   "kind": "flag",
+   "default": "0",
+   "summary": "a parked lead is woken by mail at most once per this many seconds; 0 = off",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "max_five_hour_pct",
+   "kind": "setting",
+   "default": "92",
+   "summary": "the gate closes above this five-hour usage percent",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "max_live_agents",
+   "kind": "setting",
+   "default": "6",
+   "summary": "cap on live factory agents",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "max_live_judges",
+   "kind": "setting",
+   "default": "3",
+   "summary": "cap on live+starting judges",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "max_live_leads",
+   "kind": "setting",
+   "default": "4",
+   "summary": "cap on live leads woken from parking",
+   "goal": "G-014",
+   "doc": ""
+  },
+  {
+   "key": "max_seven_day_pct",
+   "kind": "setting",
+   "default": "92",
+   "summary": "the gate closes above this seven-day usage percent",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "max_total_claude",
+   "kind": "setting",
+   "default": "10",
+   "summary": "cap on ALL claude processes on the host, the owner's own panes included",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "mech_merge",
+   "kind": "flag",
+   "default": "off",
+   "summary": "off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs",
+   "goal": "G-022",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "mech_merge_retry_s",
+   "kind": "setting",
+   "default": "600",
+   "summary": "the merger looks at a PR head it already blocked on",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "min_mem_available_mb",
+   "kind": "setting",
+   "default": "1024",
+   "summary": "the gate closes below this MemAvailable (MB)",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "model_cleaner",
+   "kind": "setting",
+   "default": "",
+   "summary": "cleaner model override; empty = the MODELS table",
+   "goal": "G-011",
+   "doc": "docs/model-routing.md"
+  },
+  {
+   "key": "noreply_email",
+   "kind": "setting",
+   "default": "",
+   "summary": "author email judge merges into a public_text_repos repo with",
+   "goal": "G-021",
+   "doc": ""
+  },
+  {
+   "key": "nudge_cooldown_s",
+   "kind": "setting",
+   "default": "120",
+   "summary": "seconds between nudges of one agent",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "opus_effort",
+   "kind": "setting",
+   "default": "medium",
+   "summary": "reasoning effort for Opus agents",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "orphan_reap_mode",
+   "kind": "flag",
+   "default": "dry-run",
+   "summary": "tick reaper of orphan processes of ended workers: dry-run | on | off",
+   "goal": "",
+   "doc": "",
+   "state": "shadow"
+  },
+  {
+   "key": "prcheck_required",
+   "kind": "flag",
+   "default": "0",
+   "summary": "a coder's `factory done` needs a passing `factory prcheck` on its HEAD",
+   "goal": "G-022",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "public_text_repos",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list OWNER/NAME where the public text rule applies",
+   "goal": "G-021",
+   "doc": ""
+  },
+  {
+   "key": "push_interval_s",
+   "kind": "setting",
+   "default": "600",
+   "summary": "tick exports commit every change but push at most this often",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "recycle_context_tokens",
+   "kind": "setting",
+   "default": "250000",
+   "summary": "relaunch a director/lead fresh when its context exceeds this many tokens; 0 = never",
+   "goal": "",
+   "doc": "docs/context-policy.md"
+  },
+  {
+   "key": "red_main_freeze",
+   "kind": "flag",
+   "default": "0",
+   "summary": "judges refuse to merge while the latest tests.yml push run on main is red",
+   "goal": "G-022",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "red_main_interval_s",
+   "kind": "setting",
+   "default": "120",
+   "summary": "the red-main monitor asks gh at most this often",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "refresh_lane",
+   "kind": "flag",
+   "default": "off",
+   "summary": "only the head of the merge queue is refreshed; the rest hold",
+   "goal": "G-022",
+   "doc": "docs/refresh-lane.md",
+   "state": "off"
+  },
+  {
+   "key": "required_checks",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma-separated check names the judge needs green before merging",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "reserved_worker_slots",
+   "kind": "setting",
+   "default": "10",
+   "summary": "agent slots kept free for workers when waking leads",
+   "goal": "G-014",
+   "doc": ""
+  },
+  {
+   "key": "review_autospawn",
+   "kind": "flag",
+   "default": "off",
+   "summary": "off | on: the tick starts reviewer + QA when a PR opens",
+   "goal": "G-022",
+   "doc": "docs/review-autospawn.md",
+   "state": "off"
+  },
+  {
+   "key": "review_reserved_slots",
+   "kind": "setting",
+   "default": "2",
+   "summary": "with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "risk_tiers",
+   "kind": "flag",
+   "default": "off",
+   "summary": "off | on: `factory task tier T --classify` computes a PR's risk tier",
+   "goal": "G-022",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "sandbox_roles",
+   "kind": "flag",
+   "default": "",
+   "summary": "comma list of roles whose claude runs in the namespace sandbox; empty = off",
+   "goal": "G-010",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "scout_enabled",
+   "kind": "flag",
+   "default": "1",
+   "summary": "the tick starts the skill scout at each slot (kill switch)",
+   "goal": "",
+   "doc": "",
+   "state": "on",
+   "promoted_in": "baseline"
+  },
+  {
+   "key": "scout_max_minutes",
+   "kind": "setting",
+   "default": "20",
+   "summary": "wall budget of one scout run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "scout_max_tokens",
+   "kind": "setting",
+   "default": "300000",
+   "summary": "token budget of one scout run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "scout_queue_max_h",
+   "kind": "setting",
+   "default": "6",
+   "summary": "a scout queued longer than this many hours",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "scout_slots",
+   "kind": "setting",
+   "default": "09,18",
+   "summary": "local hours at which the tick runs the scout, comma-separated",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "scout_triage_per_run",
+   "kind": "setting",
+   "default": "8",
+   "summary": "`factory scout pending` without --limit lists at most this many candidates",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "scrub_terms_file",
+   "kind": "setting",
+   "default": "",
+   "summary": "path of the owner terms file",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "serve_bind",
+   "kind": "setting",
+   "default": "",
+   "summary": "`factory serve`: LAN address to listen on",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "serve_hostnames",
+   "kind": "setting",
+   "default": "",
+   "summary": "`factory serve`: extra Host names accepted besides the bind IP",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "serve_port",
+   "kind": "setting",
+   "default": "8765",
+   "summary": "`factory serve`: TCP port",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "skilleval_keep_failed_h",
+   "kind": "setting",
+   "default": "48",
+   "summary": "sandboxes of error/timeout/over-budget trials are deleted after this many hours",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "skilleval_max_concurrent",
+   "kind": "setting",
+   "default": "1",
+   "summary": "running or gate-queued skill trials at once",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "skilleval_max_trials_per_day",
+   "kind": "setting",
+   "default": "6",
+   "summary": "the tick starts at most this many skill trials per local day",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "skilleval_root",
+   "kind": "setting",
+   "default": "~/.cache/factory-skilleval",
+   "summary": "vendored third-party skills for evaluation",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "skilleval_trial_max_tokens",
+   "kind": "setting",
+   "default": "300000",
+   "summary": "token budget of one trial",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "skilleval_trial_minutes",
+   "kind": "setting",
+   "default": "15",
+   "summary": "wall budget of one trial",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "stale_policy",
+   "kind": "flag",
+   "default": "behind_ok",
+   "summary": "behind_ok: a clean BEHIND PR is not refreshed; strict: always refresh",
+   "goal": "G-022",
+   "doc": "docs/stale-policy.md",
+   "state": "on",
+   "promoted_in": "baseline"
+  },
+  {
+   "key": "state_push",
+   "kind": "flag",
+   "default": "0",
+   "summary": "push the state branch (full DB dump) to origin",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "stop_timeout_s",
+   "kind": "setting",
+   "default": "300",
+   "summary": "`factory stop`: the tick force-closes the pane of a stopped agent still live after this long",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "task_clones",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = a new coder task gets a standalone `git clone --shared` instead of a `git worktree add`",
+   "goal": "",
+   "doc": "docs/git-hardening.md",
+   "state": "off"
+  },
+  {
+   "key": "test_cgroup",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = each `factory test` run gets a child cgroup with the caps below",
+   "goal": "",
+   "doc": "docs/test-cgroups.md",
+   "state": "off"
+  },
+  {
+   "key": "test_cgroup_parent",
+   "kind": "setting",
+   "default": "",
+   "summary": "absolute cgroupfs dir of the delegated parent",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "test_cpu_quota",
+   "kind": "setting",
+   "default": "400",
+   "summary": "percent of one CPU per run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "test_mem_max",
+   "kind": "setting",
+   "default": "3G",
+   "summary": "memory.max per run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "test_orphan_alert_s",
+   "kind": "setting",
+   "default": "1800",
+   "summary": "tick alert for a test runner older than this with no live owner agent; 0 = off",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "test_sandbox",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = `factory test <cmd>` runs under scout/testbox.py",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "test_sandbox_subuid",
+   "kind": "flag",
+   "default": "0",
+   "summary": "with test_sandbox: the test box runs as a subordinate host uid via newuidmap",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "test_slots",
+   "kind": "setting",
+   "default": "2",
+   "summary": "host-wide full-suite slots (tests/_slot.py)",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "test_tasks_max",
+   "kind": "setting",
+   "default": "512",
+   "summary": "pids.max per run",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "tick_async_start",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = _spawn_start does not wait for the TUI or sleep before the kickoff",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "tick_phase_timers",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = the tick prints one `tick-phases` timing line per tick",
+   "goal": "",
+   "doc": "",
+   "state": "off"
+  },
+  {
+   "key": "tmp_max_pct",
+   "kind": "setting",
+   "default": "90",
+   "summary": "the gate closes when the filesystem holding /tmp is this full",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "tmp_sweep_pct",
+   "kind": "setting",
+   "default": "80",
+   "summary": "over this, the tick deletes scratch dirs of finished agents",
+   "goal": "",
+   "doc": ""
+  },
+  {
+   "key": "worker_gh_repos",
+   "kind": "setting",
+   "default": "",
+   "summary": "comma list OWNER/NAME the worker token is offered for",
+   "goal": "G-010",
+   "doc": ""
+  },
+  {
+   "key": "worker_gh_roles",
+   "kind": "flag",
+   "default": "",
+   "summary": "comma list of roles whose workers use the worker GitHub token; empty = off",
+   "goal": "G-010",
+   "doc": "",
+   "state": "off"
+  }
+ ]
+}

@@ -577,6 +577,8 @@ def require_known(a):
     """Unknown identity: read-only commands may run, every write is refused (exit 3)."""
     if actor() != UNKNOWN:
         return
+    if a.cmd == "flags":  # read-only registry listing
+        return
     ro = (a.cmd in ("whoami", "inbox", "agents", "res", "scorecard", "serve")
           or (a.cmd == "config" and a.value is None)
           or (a.cmd == "project" and a.action == "list")
@@ -8413,6 +8415,31 @@ def cmd_agents(a):
           ["name", "role", "status", "flagless", "relaunch", "goal_id", "team_id", "task_id", "pane_id", "model", "started"])
 
 
+def cmd_flags(a):
+    """List the feature flags of bin/flags.json (read-only); --all adds the plain settings, --json prints entries plus current."""
+    path = Path(__file__).resolve().parent / "flags.json"
+    try:
+        entries = json.loads(path.read_text())["keys"]
+        if not isinstance(entries, list) or not all(isinstance(e, dict) and "key" in e and "kind" in e for e in entries):
+            raise ValueError("'keys' must be a list of objects with key and kind")
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(f"factory flags: cannot read bin/flags.json: {e}", file=sys.stderr)
+        sys.exit(2)
+    con = db()
+    rows = []
+    for e in entries:
+        if e["kind"] != "flag" and not a.all and not a.json:
+            continue
+        cur = "-" if e.get("state") == "removed" or e["key"] not in DEFAULT_CONFIG else cfg(con, e["key"])
+        rows.append({**e, "current": cur})
+    if a.json:
+        print(json.dumps(rows, indent=1))
+        return
+    table([{"key": r["key"], "state": r.get("state", "-"), "default": r["default"], "current": r["current"],
+            "goal": r["goal"], "doc": r["doc"]} for r in rows],
+          ["key", "state", "default", "current", "goal", "doc"])
+
+
 # ───────────────────────────── clean ─────────────────────────────
 
 def _git(repo, *args):
@@ -13262,6 +13289,8 @@ def main():
     x = sp.add_parser("dequeue", help="director/lead: cancel a QUEUED spawn (status cancelled; nothing else is touched)")
     x.add_argument("agent"); x.add_argument("--reason"); x.set_defaults(fn=cmd_dequeue)
     x = sp.add_parser("agents"); x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_agents)
+    x = sp.add_parser("flags", help="list the feature flags of bin/flags.json")
+    x.add_argument("--all", action="store_true", help="also the plain settings"); x.add_argument("--json", action="store_true"); x.set_defaults(fn=cmd_flags)
     x = sp.add_parser("mech-merge", help="one run of the mechanical merger (config mech_merge off|shadow|on); the tick launches it")
     x.add_argument("--task", help="only this task"); x.set_defaults(fn=cmd_mech_merge)
     x = sp.add_parser("gate", help="local merge gate: run the project's gate_cmd on a PR head or on main, show/list runs")
