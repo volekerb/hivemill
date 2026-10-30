@@ -10,9 +10,8 @@ import (
 	"unicode/utf8"
 )
 
-// Section 2 of the port: the command analyser (cmd and everything it calls). The rules that belong to the git
-// section (T6c) and the config/persist/factory section (T6d) are fail-closed stubs: each raises a NotPorted
-// for the commands that would reach them, so the port blocks more than Python and never less.
+// Section 2 of the port: the command analyser (cmd and everything it calls). The decisions that read the factory DB
+// (owngoal.go) are the Python hook's: they return a Delegate, never an allow.
 
 var (
 	reDashCeEr   = regexp.MustCompile(`^-[A-Za-z]*[ceEr]\n?$`)
@@ -125,25 +124,7 @@ func pyJoin(a, b string) string {
 	return a + "/" + b
 }
 
-// ───────────────────────────── stubs and small pure rules of the later sections ─────────────────────────────
-
-// checkIdentity is the entry of Analyzer.check_identity. It decides with the passwd entry, FACTORY_AGENT and
-// the live-home set, which belong to T6d: any identity-variable assignment is a stub.
-func checkIdentity(assigns []string) error {
-	for _, x := range assigns {
-		name := x
-		if k := strings.IndexByte(x, '='); k >= 0 {
-			name = x[:k]
-		}
-		name = strings.TrimRight(name, "+")
-		for _, v := range IdentVars {
-			if name == v {
-				return notPorted("check_identity (T6d)")
-			}
-		}
-	}
-	return nil
-}
+// ───────────────────────────── small pure rules ─────────────────────────────
 
 // checkScrub is a port of Analyzer.check_scrub. It returns the new scrub_with_factory value ("" = unchanged).
 func checkScrub(name string, rest []string) (string, error) {
@@ -224,49 +205,6 @@ func containsStr(list []string, s string) bool {
 	return false
 }
 
-// factoryUnit is a port of Analyzer.factory_unit up to the decisions that need the live home, the DB or the
-// agent identity (evaluator_factory, broad_read, temp_home): those are stubs.
-func (a *Analyzer) factoryUnit(name string, rest []string) error {
-	if interpreterFull(name) {
-		si, ci, _ := InterpArgs(name, rest)
-		stdinCode := (si < 0 || rest[si] == "-") && ci < 0 && !anyOf(rest, reDashLettM.MatchString)
-		if (ci >= 0 && strings.Contains(rest[ci], "factory_cli")) || (stdinCode && strings.Contains(a.text, "factory_cli")) {
-			return blockf("inline code naming factory_cli runs the factory CLI around the guard; run `factory <cmd>`")
-		}
-		fi := factoryScript(name, rest)
-		if fi < 0 {
-			return nil
-		}
-		rest = rest[fi+1:]
-	} else if name != "factory" {
-		return nil
-	}
-	sub, hasSub := "", false
-	for _, x := range rest {
-		if !strings.HasPrefix(x, "-") {
-			sub, hasSub = x, true
-			break
-		}
-	}
-	if a.Role == "evaluator" {
-		return notPorted("evaluator_factory (T6d)")
-	}
-	if hasSub {
-		if _, ok := BroadReads[sub]; ok {
-			if err := a.broadRead(sub, rest); err != nil {
-				return err
-			}
-		}
-	}
-	if !hasSub || !in(FactoryUnitCmds, sub) {
-		return nil
-	}
-	if sub == "clean" && a.Role == "cleaner" {
-		return nil
-	}
-	return notPorted("factory_unit temp_home (T6d)")
-}
-
 // factoryInitLiveHome is the first block of Analyzer.cfg_write: `factory init --live-home` (also through an
 // interpreter running the factory script) writes ~/.config/factory.
 func factoryInitLiveHome(name string, rest []string) error {
@@ -290,67 +228,6 @@ func factoryInitLiveHome(name string, rest []string) error {
 			"as the live home; only the owner changes it with `factory init --live-home`")
 	}
 	return nil
-}
-
-// broadRead is a port of Analyzer.broad_read up to the decisions that need the factory DB (own goal) or the
-// live home (temp_home): where Python would take one of those, this is a stub. Every path that returns without
-// them is ported.
-func (a *Analyzer) broadRead(sub string, rest []string) error {
-	if a.Role == "staff-engineer" {
-		return nil
-	}
-	seconds := BroadReads[sub]
-	subI := 0
-	for subI < len(rest) && strings.HasPrefix(rest[subI], "-") {
-		subI++
-	}
-	after := rest[subI+1:]
-	if seconds != nil {
-		actI := -1
-		for i, x := range after {
-			if !strings.HasPrefix(x, "-") {
-				actI = i
-				break
-			}
-		}
-		if actI < 0 {
-			return nil // no action word: argparse usage error, reads nothing
-		}
-		action := after[actI]
-		switch {
-		case subI > 0 || actI > 0:
-		case sub == "goal" && action == "show":
-			return notPorted("broad_read own_goal (T6d)")
-		case in(seconds, action):
-		default:
-			return nil
-		}
-	}
-	if sub == "agents" && a.Role == "cleaner" {
-		return nil
-	}
-	return notPorted("broad_read temp_home (T6d)")
-}
-
-// cfgPersistApplies reports whether the rest of Analyzer.cfg_write or persist_write would examine this
-// command: the stub of the config/persist section (T6d) fires exactly then.
-func cfgPersistApplies(name string, rest []string) bool {
-	if in(CfgWriters, name) {
-		return true
-	}
-	if name == "sed" || name == "perl" || name == "gawk" || in(Awks, name) {
-		if in(Awks, name) || anyOf(rest, isInPlaceFlag) {
-			return true
-		}
-	}
-	if interpreterFull(name) {
-		return true
-	}
-	switch name {
-	case "less", "more", "man", "view":
-		return false
-	}
-	return in(Editors, name)
 }
 
 // isInPlaceFlag is re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace".
@@ -504,7 +381,7 @@ func uvxScan(words []string, prefix string) string {
 	return ""
 }
 
-// sandboxRoute is a port of Analyzer.sandbox_route up to the test_sandbox read of the factory DB, which is a stub.
+// sandboxRoute is a port of Analyzer.sandbox_route; the test_sandbox config row is read by the Python hook (delegate).
 func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	if a.Role != "coder" && a.Role != "qa" {
 		return nil
@@ -563,8 +440,8 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	case name == "uvx": // T-0745, T-0748
 		runner = uvxScan(rest, "uvx")
 	}
-	if runner != "" {
-		return notPorted("sandbox_route test_sandbox read of the factory DB (T6d)")
+	if runner != "" && !dbMissing() { // test_sandbox_on(): a config row of the factory DB, read by the Python hook
+		return delegate("sandbox_route: config test_sandbox is in the factory DB")
 	}
 	return nil
 }
@@ -639,16 +516,6 @@ func singleModulePattern(x string) bool {
 
 // ───────────────────────────── cmd ─────────────────────────────
 
-// ptName is the command word worker-guard.py:PublicText.command looks at: in HQ mode the wrappers with a
-// modelled option set are peeled first. The public-text rule reads the factory DB, so a git or gh command is a stub.
-func ptName(words []string, hq bool) string {
-	words = ptPeel(words, hq)
-	if len(words) == 0 {
-		return ""
-	}
-	return pyBasename(words[0])
-}
-
 // ptPeel is the wrapper peeling at the top of PublicText.command: in HQ mode the wrappers with a modelled option
 // set are skipped, so the command word comes first.
 func ptPeel(words []string, hq bool) []string {
@@ -696,36 +563,35 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	words = stripped
 	if len(words) == 0 {
+		for _, x := range assigns { // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
+			if IsAssign(x) {
+				k := strings.IndexByte(x, '=')
+				if !strings.HasSuffix(x[:k], "+") {
+					a.vars[x[:k]] = x[k+1:]
+				}
+			}
+		}
 		if !a.HQ {
-			return checkIdentity(assigns)
+			return a.checkIdentity(assigns)
 		}
 		return nil
 	}
-	// git_push_pin and the public-text rule read the factory DB (T6d): stubs, reported after the git rules they must
-	// not mask. The pin only acts in the worker pass (the PRIV pass swallows its Block), the public text where a.pt.
-	var pinStub, stub error
 	if pyBasename(words[0]) == "git" {
-		pinStub = gitPushPinStub(a.Role, words[1:])
-	}
-	if a.pt {
-		if pw := ptPeel(words, a.HQ); len(pw) > 0 {
-			switch pyBasename(pw[0]) {
-			case "git":
-				stub = gitPublicTextStub(pw[1:])
-			case "gh":
-				return notPorted("gh rules: public text, gh_repo_change (T6c)")
-			}
+		if err := a.gitPushPin(words[1:]); err != nil { // before the public-text push check: names the one allowed push
+			return err
 		}
 	}
-	if pyBasename(words[0]) == "gh" {
-		return notPorted("gh rules: gh_repo_change (T6c)")
+	if a.pt {
+		if err := a.ptCommand(words); err != nil {
+			return err
+		}
 	}
 	if !inLoose {
 		if err := a.priv(words, depth, piped, hstrs); err != nil {
 			return err
 		}
 		if a.HQ {
-			return stub // HQ mode runs no git rule beyond priv: only the public-text stub is left
+			return nil
 		}
 	}
 	w, rest := words[0], words[1:]
@@ -734,7 +600,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if in(Declarers, name) {
 		extra = filterStr(rest, IsAssign)
 	}
-	if err := checkIdentity(append(append([]string(nil), assigns...), extra...)); err != nil {
+	for _, x := range extra {
+		k := strings.IndexByte(x, '=')
+		a.vars[x[:k]] = x[k+1:]
+	}
+	if err := a.checkIdentity(append(append([]string(nil), assigns...), extra...)); err != nil {
 		return err
 	}
 	if name == "setsid" {
@@ -767,7 +637,8 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		return &ClaudeBlock{Msg: "direct claude invocation"}
 	}
 	if (name == "cd" || name == "pushd" || name == "popd") && !inLoose {
-		a.gitCd(name, rest) // cfg_cd (the CFG_DIR write detector's cwd) is T6d's
+		a.gitCd(name, rest)
+		a.cfgCd(name, rest)
 	}
 	if err := a.claudeLaunchers(name, rest); err != nil {
 		return err
@@ -778,10 +649,13 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if err := factoryInitLiveHome(name, rest); err != nil {
 		return err
 	}
-	if cfgPersistApplies(name, rest) {
-		return notPorted("cfg_write/persist_write (T6d)")
+	if err := a.cfgWrite(name, rest); err != nil {
+		return err
 	}
-	if err := a.factoryUnit(name, rest); err != nil {
+	if err := a.persistWrite(name, rest); err != nil {
+		return err
+	}
+	if err := a.factoryUnit(name, rest, assigns); err != nil {
 		return err
 	}
 	if in(Copiers, name) { // R3: no copying/encoding/reading the real herdr binary
@@ -796,9 +670,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	switch {
 	case in(Shells, name):
-		savedCwd, savedDyn := a.gcwd, a.gdyn // a cd inside `sh -c` does not move the caller
+		savedCwd, savedDyn, savedC, savedCK := a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown // a cd inside `sh -c` does not move the caller
 		err := a.shell(rest, depth, piped, hstrs)
-		a.gcwd, a.gdyn = savedCwd, savedDyn
+		a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown = savedCwd, savedDyn, savedC, savedCK
 		if err != nil {
 			return err
 		}
@@ -853,12 +727,6 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 		if err := gitHerdrInConfig(rest); err != nil {
 			return err
-		}
-		if pinStub != nil {
-			return pinStub
-		}
-		if stub != nil {
-			return stub
 		}
 	case name == "pkill" || name == "killall":
 		return blockf(name + ": pattern kills hit other agents' processes (G-008 M1932); kill your own job " +

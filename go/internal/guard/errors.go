@@ -31,19 +31,12 @@ type DynamicBlock struct{ Msg string }
 
 func (b *DynamicBlock) Error() string { return b.Msg }
 
-// NotPorted is the fail-closed stub of a rule that a later section of the port owns. It is never swallowed
-// (HQ mode's soft() keeps it), so a stub can only block more than Python, never less.
-type NotPorted struct{ Section string }
-
-func (n *NotPorted) Error() string { return "not ported: " + n.Section }
-
-func notPorted(section string) error { return &NotPorted{Section: section} }
-
 // IsPrivBlock reports whether err is a PrivBlock or one of its Python subclasses.
 func IsPrivBlock(err error) bool {
 	var p *PrivBlock
 	var u *UnitBlock
-	return errors.As(err, &p) || errors.As(err, &u)
+	var r *RepoProtBlock
+	return errors.As(err, &p) || errors.As(err, &u) || errors.As(err, &r)
 }
 
 // IsClaudeBlock reports whether err is a ClaudeBlock or a DynamicBlock.
@@ -53,10 +46,10 @@ func IsClaudeBlock(err error) bool {
 	return errors.As(err, &c) || errors.As(err, &d)
 }
 
-// IsNotPorted reports whether err is a stub of a later section.
-func IsNotPorted(err error) bool {
-	var n *NotPorted
-	return errors.As(err, &n)
+// isPublicBlock reports whether err is a PublicBlock (never swallowed by HQ mode).
+func isPublicBlock(err error) bool {
+	var p *PublicBlock
+	return errors.As(err, &p)
 }
 
 // Explain is the stderr text of worker-guard.py:main for err (one line, newline included).
@@ -66,7 +59,7 @@ func Explain(err error) string {
 	var c *ClaudeBlock
 	var p *PrivBlock
 	var b *Block
-	var n *NotPorted
+	var rp *RepoProtBlock
 	var pb *PublicBlock
 	switch {
 	case errors.As(err, &pb):
@@ -77,8 +70,10 @@ func Explain(err error) string {
 	case errors.As(err, &p):
 		return fmt.Sprintf("worker-guard: blocked: privilege escalation (`%s`) is not allowed for factory agents "+
 			"(owner M803)\n", p.Word)
-	case errors.As(err, &n):
-		return fmt.Sprintf("worker-guard(go): not ported: %s; failing closed. Use the Python hook (guard_impl=python).\n", n.Section)
+	case errors.As(err, &rp):
+		return fmt.Sprintf("worker-guard: blocked (`%s`): branch protection and repository settings are changed only by "+
+			"the owner (ci/publish_repo.py, rule R-a); agents may only read them with a plain GET. "+
+			"Tell your lead if this is wrong.\n", rp.Msg)
 	case errors.As(err, &d):
 		return fmt.Sprintf("worker-guard: blocked (%s). Workers may not run herdr, and only factory spawn "+
 			"starts Claude (lesson M347); use the factory CLI (factory done, factory msg, ...) "+
