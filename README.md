@@ -1,8 +1,11 @@
 <a id="readme-top"></a>
 
+<!-- README media slots. Each SLOT marker names a block that T-0480 (new screenshots) or T-0708 (video v2) swaps by
+     changing only the file path or URL inside it, never the surrounding layout. See docs/readme-media.md. -->
+
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg"><img src="docs/images/wordmark-light.svg" alt="Hivemill" height="72"></picture></p>
 
-# Hivemill
+<h3 align="center">Hivemill is a self-hosted software factory of Claude Code agents,<br>with separate review, QA and a judge that decides the merge.</h3>
 
 <p align="center">
   <a href="https://github.com/volekerb/hivemill/actions/workflows/tests.yml"><img src="https://github.com/volekerb/hivemill/actions/workflows/tests.yml/badge.svg?branch=main&event=push" alt="CI"></a>
@@ -11,16 +14,8 @@
   <a href="https://github.com/volekerb/hivemill/releases"><img src="https://img.shields.io/github/v/release/volekerb/hivemill?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
-<div align="center">
-
-**A self-hosted software factory of Claude Code agents with review, QA and a judge merge gate.**
-
-Hivemill's CLI is `factory`.
-
-</div>
-
 <p align="center">
-  <a href="#quickstart">Quickstart</a> ·
+  <a href="#quickstart"><b>Quickstart</b></a> ·
   <a href="docs/README.md">Docs</a> ·
   <a href="docs/examples/README.md">Examples</a> ·
   <a href="docs/adopt/ADOPT.md">Adopt with Claude</a> ·
@@ -28,88 +23,79 @@ Hivemill's CLI is `factory`.
   <a href="https://github.com/volekerb/hivemill/discussions">Discussions</a>
 </p>
 
----
-
+<!-- SLOT:VIDEO (T-0708): replace only the bare user-attachments URL on the next line and the MP4 link below it. -->
 https://github.com/user-attachments/assets/7615b7c0-48b0-4b44-ad01-aacd7f692583
 
-<p align="center"><a href="https://github.com/volekerb/hivemill/releases/download/v0.1.0/demo.mp4">Download the MP4</a> · <a href="docs/demo/README.md">how it was made</a></p>
+<p align="center"><a href="https://github.com/volekerb/hivemill/releases/download/v0.1.0/demo.mp4">Download the MP4</a> · <a href="docs/demo/README.md">how it was made</a> · seeded demo data only</p>
 
-You describe what you want built to one boss agent. It turns the request into a goal, a director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The coder who writes a change never reviews, tests or merges it, and every goal, task, message and verdict is a row in one SQLite database behind the single `factory` CLI.
+<!-- SLOT:HERO (T-0480): one big screenshot. Swap the two paths (light in img src, dark in source srcset) and the alt text. -->
+<p align="center">
+  <a href="docs/images/home-light.png"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.png">
+    <img src="docs/images/home-light.png" width="860" alt="The overview page of the web UI: live agents, open PRs, goals, items waiting on the owner and usage">
+  </picture></a>
+</p>
+
+## What you get
+
+You describe what you want built to one boss agent. A director staffs a team, and a chain of coders, QA, reviewers and a judge ships it as pull requests. The agent that writes a change never reviews, tests or merges it. Hivemill's CLI is `factory`.
+
+<table>
+  <tr>
+    <td width="33%"><b>Fixed roles</b><br>Each role has its own prompt and permissions, enforced by hooks rather than by trust.</td>
+    <td width="33%"><b>Independent review</b><br>A separate reviewer and QA check every pull request against a real test run.</td>
+    <td width="33%"><b>A judge merges</b><br>Only on passing reviewer and QA verdicts. Anything else goes back with findings.</td>
+  </tr>
+  <tr>
+    <td><b>One source of truth</b><br>Goals, tasks, messages and verdicts are rows in SQLite with an append-only log.</td>
+    <td><b>Small-box friendly</b><br>A spawn gate queues agents until RAM, load and Claude process count allow.</td>
+    <td><b>A read-only web UI</b><br>Goals, agents, throughput and quality, in light and dark.</td>
+  </tr>
+</table>
+
+## One change, five steps
+
+1. **You ask.** Describe what you want to the boss. It becomes a goal with success criteria.
+2. **A team forms.** A director staffs a lead, who plans tasks. Each task gets its own worktree and branch.
+3. **A coder builds.** It opens a pull request and stops. It cannot merge or review.
+4. **Two others check.** A reviewer reads the diff. QA runs the tests against the acceptance criteria.
+5. **A judge decides.** Both pass, it merges. Either fails, it goes back with findings. Every verdict is stored.
+
+The roles and the merge gate as diagrams are under [How it works](#how-it-works).
 
 The factory runs on [herdr](https://herdr.dev), the terminal multiplexer that hosts the agent panes ([source](https://github.com/herdrdev/herdr), pinned release [v0.9.5](https://github.com/herdrdev/herdr/releases/tag/v0.9.5)).
 
 ## Quickstart
 
-Needs Python 3.11+, git, `gh`, `herdr` and a logged-in Claude Code. Full steps and troubleshooting: [docs/SETUP.md](docs/SETUP.md). Every output below was captured from a real run against the seeded demo home ([docs/demo-data.md](docs/demo-data.md)); `...` marks every cut (whole lines or parts of lines).
+Needs Python 3.11+, git, `gh`, `herdr` and a logged-in Claude Code. Full steps and troubleshooting: [docs/SETUP.md](docs/SETUP.md).
 
 ### 1. Look around without herdr or Claude
 
-Seeded fictional data, nothing real runs. Run from the repository root:
+Seeded fictional data, nothing real runs ([docs/demo-data.md](docs/demo-data.md)). Run from the repository root:
 
 ```
 export TRIAL=$(mktemp -d)
 python3 ci/demo_seed.py --home "$TRIAL/demo" --now 2026-10-25T12:00:00+01:00
-```
-
-```
-seeded .../demo/db/factory.db at now=2026-10-25T11:00:00+00:00: 12 goals, 111 tasks, 258 verdicts, 187 messages, 105 agents, 755 events
-scrub scan: no hits
-view it with (the HOME prefix is MANDATORY: without it the tokens page shows the real owner's live usage):
-  HOME=... FACTORY_HOME=... factory serve --bind 127.0.0.1 --port 8799
-```
-
-Serve the read-only web UI on it:
-
-```
 HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo bin/factory serve --bind 127.0.0.1 --port 18624
 ```
 
-```
-factory serve: http://127.0.0.1:18624/ (read-only, LAN only, no auth)
-127.0.0.1 "GET / HTTP/1.1" 200 -
-127.0.0.1 "GET /goals HTTP/1.1" 200 -
-```
-
-Open <http://127.0.0.1:18624/>. In another shell, list the demo goals (put `HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of every `factory` command below):
-
-```
-factory goal list
-```
-
-```
-ID     STATUS    PRIORITY  PROJECT_ID  DONE  TOTAL  TITLE
-G-002  active    1         acme-web    3     9      Build the checkout flow
-G-006  active    1         ledger-api  23    31     Rate-limit the public API
-G-003  active    2         acme-web    4     5      Add account settings
-...
-G-011  planning  3         docs-site   0     0      Add versioned docs
-G-012  planning  3         acme-web    0     0      Add a wishlist
-```
+Open <http://127.0.0.1:18624/> to see the read-only web UI on the demo data. In another shell, put `HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of `factory goal list` to see the demo goals as a table.
 
 ### 2. Run the real factory
 
-Put the CLI on your `PATH` (`~/.local/bin` must exist and be on it), then initialise:
+Put the CLI on your `PATH` (`~/.local/bin` must exist and be on it), initialise, register a project, bring up the headquarters and open the web UI:
 
 ```
 git clone https://github.com/volekerb/hivemill.git ~/factory
 cd ~/factory
 ln -s "$PWD/bin/factory" ~/.local/bin/factory
 factory init
-```
-
-```
-initialised .../db/factory.db
-```
-
-Then register a project, bring up the headquarters and open the web UI:
-
-```
 factory project add myapp --name "My app" --repo ~/src/myapp --gh example-org/myapp
 factory up
 factory serve --bind 127.0.0.1
 ```
 
-`project add` and `up` need a plain shell (workers are refused), a running herdr server and a logged-in Claude Code, so their output is not reproduced here; the walk-through is in [docs/SETUP.md](docs/SETUP.md). Then open the boss's pane in herdr and describe what you want built.
+`project add` and `up` need a plain shell (workers are refused), a running herdr server and a logged-in Claude Code; the walk-through is in [docs/SETUP.md](docs/SETUP.md). Then open the boss's pane in herdr and describe what you want built.
 
 <details>
 <summary>Let Claude set it up</summary>
@@ -131,103 +117,7 @@ Read docs/adopt/ADOPT.md in this checkout and set up Hivemill step by step; stop
 
 ## A task's life in commands
 
-Same demo home (`HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of each command). Three walkthroughs with full output: [from a goal to a merged PR](docs/examples/01-goal-to-merged-pr.md), [handling a rejection](docs/examples/02-handling-a-rejection.md), [the digest and scorecard](docs/examples/03-digest-and-scorecard.md).
-
-A goal, with its intent, success criteria, plan, team and tasks:
-
-```
-factory goal show G-002
-```
-
-```
-# G-002 — Build the checkout flow
-status=active priority=1 project=acme-web
-
-## intent
-Let a visitor pay for a cart in one short flow.
-
-## success_criteria
-1. Cart page works.
-2. Shipping details are collected.
-3. Payment step completes an order.
-4. Confirmation email is sent.
-
-## plan v1 (lead-g-002-a, 2026-10-13T15:48:00+00:00)
-1. Specify
-2. Build
-3. Verify
-
-## teams
-ID       LEAD_AGENT    STATUS  SCOPE
-g-002-a  lead-g-002-a  active  Cart, shipping, payment and confirmation
-
-## tasks
-ID      STATUS       ROLE   ASSIGNEE      DEPENDS_ON  PR_URL                                            TITLE
-T-0006  done         pm     pm-t-0006     []                                                            Specify the checkout flow
-T-0007  done         coder  coder-t-0007  ["T-0006"]  https://github.com/example-org/acme-web/pull/104  Add cart page [SC1]
-...
-T-0014  todo         coder                ["T-0010"]                                                    Add receipt download
-```
-
-One task with its acceptance criteria and every verdict. This one failed QA, was rejected by the judge for touching a file no acceptance item covers, and merged on the third attempt:
-
-```
-factory task show T-0004
-```
-
-```
-id: T-0004
-goal_id: G-001
-...
-title: Add contact form [SC3]
-role: coder
-status: done
-...
-attempts: 3
-...
-## acceptance
-1. A valid post returns 200 and queues one email.
-2. A missing email returns 422 with a field error.
-3. A message over 2000 characters is rejected.
-
-## verdicts
-- ... qa FAIL @ba49e234 by qa-t-0004: Changes needed: POST /api/contact with email 'a@' returned 200, expected 422 (api/contact.py:31 only checks for an @ sign).
-- ... reviewer PASS @3bb1e7aa by reviewer-t-0004: Checked input validation in api/contact.py and that the mail queue call is made once per request.
-- ... qa PASS @3bb1e7aa by qa-t-0004: Posted a valid, an invalid-email and a 2001-character message; got 200, 422 and 422 as specified.
-- ... judge REJECT @3bb1e7aa by judge-t-0004: Rejected: the diff edits src/cart.js:88, which no acceptance item of this task covers. Remove it or split it into its own task.
-- ... reviewer PASS @a6bd606d by reviewer-t-0004: Checked input validation in api/contact.py and that the mail queue call is made once per request.
-- ... qa PASS @a6bd606d by qa-t-0004: Posted a valid, an invalid-email and a 2001-character message; got 200, 422 and 422 as specified.
-- ... judge MERGE @a6bd606d by judge-t-0004: Reviewer and QA PASS at a6bd606d; checks green; merging.
-...
-```
-
-Reviewers and QA record verdicts with `factory verdict`, the judge merges or rejects with `factory judge` ([docs/verdict-gates.md](docs/verdict-gates.md)). The owner's overview of everything:
-
-```
-factory digest
-```
-
-```
-# Factory digest ...
-
-Leads: 5 live, 1 parked, 0 queued; workers live 10
-
-## G-002 — Build the checkout flow (active)
-
-### Done
-_nothing_
-
-### In progress
-- T-0010 Add payment step [SC3] (in_review, coder-t-0010, attempts 2)
-- T-0011 Verify checkout end to end (in_progress, qa-t-0011, attempts 1)
-- T-0012 Add order confirmation email [SC4] (in_progress, coder-t-0012, attempts 1)
-...
-### Team scores
-| team | tasks | done | merged | rejections | retries | score |
-|---|---|---|---|---|---|---|
-| g-002-a | 9 | 3 | 2 | 2 | 2 | 4.0 |
-...
-```
+Three walkthroughs with full output on the demo data: [from a goal to a merged PR](docs/examples/01-goal-to-merged-pr.md), [handling a rejection](docs/examples/02-handling-a-rejection.md), [the digest and scorecard](docs/examples/03-digest-and-scorecard.md).
 
 ## How it works
 
@@ -319,24 +209,28 @@ Works with: Claude Code, [herdr](https://github.com/herdrdev/herdr), `gh`, syste
 
 A read-only web UI shows goals, tasks, live agents, throughput and quality, in light and dark themes. Start it with `factory serve` ([docs/web-ui.md](docs/web-ui.md)). The screenshots come from fictional demo data only ([docs/demo-data.md](docs/demo-data.md)); click one for the full-size light image.
 
+<!-- SLOT:GALLERY (T-0480): six page shots in a 3x2 table; swap paths and alt text only. -->
 <table>
   <tr>
     <td align="center" width="33%">
       <a href="docs/images/home-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.png">
-        <img src="docs/images/home-light.png" width="280" alt="The overview page: live agents, open PRs, goals, items waiting on the owner and usage">
+        <img src="docs/images/home-light.png" width="280" alt="The overview page: a needs-you list, system gauges, goals with progress, live agents, shipped changes and quality">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Overview</a>: agents, PRs, goals and usage</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/goals-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/goals-dark.png">
-        <img src="docs/images/goals-light.png" width="280" alt="The goals page: goals with status and priority">
+        <img src="docs/images/goals-light.png" width="280" alt="The goals page: goals grouped by status with progress bars and priority">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Goals</a>: status and priority</sub>
     </td>
     <td align="center" width="33%">
-      <a href="docs/images/tasks-dark.png"><img src="docs/images/tasks-dark.png" width="280" alt="The tasks page: tasks by status with assignee and PR"></a><br>
+      <a href="docs/images/tasks-light.png"><picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/tasks-dark.png">
+        <img src="docs/images/tasks-light.png" width="280" alt="The tasks page: tasks grouped by status with goal, assignee, PR and CI state">
+      </picture></a><br>
       <sub><a href="docs/web-ui.md">Tasks</a>: status, assignee and PR</sub>
     </td>
   </tr>
@@ -344,23 +238,32 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
     <td align="center" width="33%">
       <a href="docs/images/agents-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/agents-dark.png">
-        <img src="docs/images/agents-light.png" width="280" alt="The agents page: live agents by role and team">
+        <img src="docs/images/agents-light.png" width="280" alt="The agents page: live agents by role and team with model and uptime">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Agents</a>: live agents by role and team</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/throughput-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/throughput-dark.png">
-        <img src="docs/images/throughput-light.png" width="280" alt="The throughput page: merged changes over time">
+        <img src="docs/images/throughput-light.png" width="280" alt="The throughput page: merges per day and spawn-to-merge times as charts">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Throughput</a>: merged changes over time</sub>
     </td>
     <td align="center" width="33%">
       <a href="docs/images/quality-light.png"><picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/quality-dark.png">
-        <img src="docs/images/quality-light.png" width="280" alt="The quality page: rejections and retries per team">
+        <img src="docs/images/quality-light.png" width="280" alt="The quality page: merge, rejection, retry and CI pass-rate cards with per-team scores">
       </picture></a><br>
       <sub><a href="docs/web-ui.md">Quality</a>: rejections and retries per team</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <a href="docs/images/goal-light.png"><picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/goal-dark.png">
+        <img src="docs/images/goal-light.png" width="280" alt="The goal detail page: a goal's intent, plan, teams, tasks and progress">
+      </picture></a><br>
+      <sub><a href="docs/web-ui.md">Goal detail</a>: intent, plan, teams and tasks</sub>
     </td>
   </tr>
 </table>
@@ -370,13 +273,14 @@ A read-only web UI shows goals, tasks, live agents, throughput and quality, in l
 - Every agent is a Claude Code session, so it uses your Claude usage.
 - It is built for a single box, not a cluster. State is one SQLite file.
 - Agent isolation is a tripwire, not a sandbox. Hooks and permission settings stop honest mistakes and make bypasses visible; they do not contain a determined adversary. Read [SECURITY.md](SECURITY.md) for the threat model and the known limits before you point it at anything you cannot afford to lose.
+- The worker sandbox, which would add real containment, is [in progress](docs/worker-sandbox.md).
 - The web UI is read-only and has no authentication; bind it to an address you trust.
 
 Not affiliated with Anthropic. Claude and Claude Code are products of Anthropic.
 
 ## Use it from your phone
 
-[Moshi](https://getmoshi.app) is an SSH and Mosh terminal app built for checking on coding agents. Its App Store listing is [Moshi: herdr/tmux on SSH/MOSH](https://apps.apple.com/app/id6757859949) by Moshi Tech Ltd., and the developer's site also links a [Google Play listing](https://play.google.com/store/apps/details?id=app.getmoshi.android). Connect from the phone to your box over SSH or Mosh (`you@your-box`), then run `herdr` there: per the [herdr README](https://github.com/herdrdev/herdr), "`ctrl+b q` detaches, `herdr` reattaches." Open the boss's pane and talk to it as you would at your desk. Moshi is a third-party app, not part of Hivemill. To reach the web UI from there, use an SSH port forward to `127.0.0.1`.
+Install [Moshi](https://getmoshi.app) on your phone, connect to your box over SSH, and run `herdr` there to reach the boss's pane. Moshi is a third-party app, not part of Hivemill.
 
 ## Resources
 

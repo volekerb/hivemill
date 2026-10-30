@@ -13,7 +13,8 @@ import sys
 
 argv = sys.argv[1:]
 with open(os.environ["FAKE_CALLS"], "a") as f:
-    f.write(json.dumps({"tool": "gh", "argv": argv}) + "\n")
+    f.write(json.dumps({"tool": "gh", "argv": argv, "env": {k: os.environ.get(k) for k in ("GH_REPO", "GH_HOST")},
+                        "stdin": sys.stdin.read() if argv[:2] == ["pr", "create"] else None}) + "\n")
 
 try:
     with open(os.environ["FAKE_GH_STATE"]) as f:
@@ -21,7 +22,12 @@ try:
 except FileNotFoundError:
     st = {}
 
-if argv[:2] == ["pr", "view"]:
+if argv[:2] == ["pr", "create"]:
+    print("https://github.com/zz-test/repo/pull/7")
+    sys.exit(0)
+elif argv[:2] == ["pr", "ready"]:
+    sys.exit(0)
+elif argv[:2] == ["pr", "view"]:
     if st.get("pr_view_sleep"):  # a slow gh (timeout tests)
         import time
         time.sleep(st["pr_view_sleep"])

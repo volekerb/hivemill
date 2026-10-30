@@ -9,10 +9,12 @@ resource gate on spawning, and the head-SHA-bound merge gate.
 Markdown under exports/ is generated FROM the DB. Editing it changes nothing.
 """
 import argparse
+import concurrent.futures
 import contextlib
 import fcntl
 import glob
 import hashlib
+import importlib
 import datetime as dt
 import importlib.util
 import io
@@ -57,15 +59,44 @@ WORKTREES = HOME / "worktrees"
 RUN = HOME / "run"
 USAGE_FILE = Path.home() / ".claude" / "usage-limits.json"
 
-from scout import db as scoutdb  # noqa: E402
-from scout import report as scoutreport  # noqa: E402
-from scout import schedule as scoutsched  # noqa: E402
-from scout import sources as scoutsrc  # noqa: E402
-from scout import vendor as scoutvendor  # noqa: E402
-from scout import sandbox as scoutsandbox  # noqa: E402
-from scout import workerbox  # noqa: E402
-from scout import gatebox  # noqa: E402
-from scout import ghcred  # noqa: E402
+
+# Tables created by scout.db.SCOUT_DDL; tests/test_cli_lazy_imports.py pins this list to the DDL.
+SCOUT_TABLES = {"scout_candidates", "scout_triage", "scout_stars", "scout_cursors", "scout_runs", "skill_trials"}
+
+
+class _LazyScout:
+    """Stands in for a scout module until first use (PEP 562 cannot serve bare globals read inside functions).
+    Imports scout.<name> on first attribute access, then forwards get/set/del to the real module, so
+    mock.patch.object(f.scoutsandbox, ...) patches the module itself. Keeps `factory inbox` & co. from
+    paying for scout.sources (urllib/ssl) and the sandbox modules."""
+
+    def __init__(self, name):
+        object.__setattr__(self, "_name", name)
+
+    def _mod(self):
+        return importlib.import_module("scout." + object.__getattribute__(self, "_name"))
+
+    def __getattr__(self, attr):
+        return getattr(self._mod(), attr)
+
+    def __setattr__(self, attr, value):
+        setattr(self._mod(), attr, value)
+
+    def __delattr__(self, attr):
+        delattr(self._mod(), attr)
+
+
+scoutdb = _LazyScout("db")
+scoutreport = _LazyScout("report")
+scoutsched = _LazyScout("schedule")
+scoutsrc = _LazyScout("sources")
+scoutvendor = _LazyScout("vendor")
+scoutsandbox = _LazyScout("sandbox")
+workerbox = _LazyScout("workerbox")
+gatebox = _LazyScout("gatebox")
+testbox = _LazyScout("testbox")
+testcg = _LazyScout("testcg")
+ghcred = _LazyScout("ghcred")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -74,7 +105,7 @@ MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
     "staff-engineer": "claude-opus-5-5",
-    "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-sonnet-5-5",
+    "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
 PERSISTENT_ROLES = {"boss", "director", "lead"}  # never reaped; everyone else is one task, one pane
@@ -89,6 +120,8 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 # role never takes it. After a crash the claim stalls the queued row for at most this long (10 min). A fixed literal (tests
 # read it without importing); test_staff_engineer asserts the bound against a real spawn.
 CLAIM_TTL_S = 600
+# a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
+EVALUATOR_SPAWN_RETRY_MAX = 5
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -100,6 +133,7 @@ TASK_WAITS = ["owner", "internal"]
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
+    "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
@@ -110,11 +144,13 @@ DEFAULT_CONFIG = {
     "affected_smoke": "test_db_layout.py test_inbox.py test_judge.py",  # ci/affected.py always-run smoke modules (T-0519)
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
+    "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
     "stale_policy": "behind_ok",
+    "refresh_lane": "off",       # G-022: on = only the head of the merge queue (the oldest BEHIND judge row) is refreshed; the rest hold as 'lane: position N' (docs/refresh-lane.md)
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
@@ -122,6 +158,7 @@ DEFAULT_CONFIG = {
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
+    "tmp_sweep_pct": "80",       # over this, the tick deletes scratch dirs of finished agents (T-0606); keep it below tmp_max_pct
     "tmp_max_pct": "90",         # the gate closes when the filesystem holding /tmp is this full (it is RAM-backed tmpfs on your-box)
     "max_five_hour_pct": "92",
     "max_seven_day_pct": "92",
@@ -129,9 +166,12 @@ DEFAULT_CONFIG = {
     "director_cycle_s": "900",
     "blocked_alert_s": "600",
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
+    "prcheck_required": "0",     # 1 = a coder's `factory done` (task with a PR) needs a passing `factory prcheck` on its HEAD (G-022)
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
-    "risk_tiers": "off",         # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
+    "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
+    "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
@@ -144,6 +184,13 @@ DEFAULT_CONFIG = {
     "gate_shards": "4",          # parallel shard processes tests/gate_shards.py runs inside one gate run (capped by free CPU, see gate_shard_count)
     "gate_fast_projects": "factory",  # space-separated project ids whose `gate run` is fast mode (lint + ci/affected.py --quick), CI is the full gate (T-0642); '' = off
     "gate_sandbox": "0",         # 1 = gate_cmd and gate_count_cmd run under scout/gatebox.py (ro tree, no net, no $HOME); no user namespaces = status error, never unsandboxed (T-0652)
+    "test_sandbox": "0",         # 1 = `factory test <cmd>` runs under scout/testbox.py (rw cwd tree, ro git dir, no net, no $HOME); sandbox cannot be built = exit 3, never unsandboxed (T-0674)
+    "test_cgroup": "0",         # 1 = each `factory test` run gets a child cgroup with the caps below; parent = the delegated factory-tests unit, missing = exit 3, never uncapped (T-0681, docs/test-cgroups.md)
+    "test_cgroup_parent": "",    # absolute cgroupfs dir of the delegated parent; '' = derived from the uid
+    "test_cpu_quota": "400",     # percent of one CPU per run (cpu.max)
+    "test_mem_max": "3G",        # memory.max per run (swap 0)
+    "test_tasks_max": "512",     # pids.max per run
+    "test_sandbox_subuid": "0",  # 1 (with test_sandbox 1) = the test box runs as a subordinate host uid via newuidmap, not the owner uid; no newuidmap/subuid range = exit 3, never as the owner (T-0682)
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
@@ -173,6 +220,11 @@ DEFAULT_CONFIG = {
     "skilleval_root": "~/.cache/factory-skilleval",  # vendored third-party skills for evaluation; must lie outside ~/factory and ~/.claude
     "day_start_hour": "8",       # daytime for the director row (local hour, every day of the week); invalid or start >= end -> 8 and 20
     "day_end_hour": "20",
+    "tick_async_start": "0",     # 1 = _spawn_start does not wait for the TUI or sleep before the kickoff; the tick's start_confirm phase sends it once the agent is listed ready (sandboxed spawns and the evaluator stay synchronous); 0 = off
+    "lead_wake_debounce_s": "0", # > 0 = a parked lead is woken by mail at most once per this many seconds (escalation/decision kinds and owner/boss senders bypass; pending mail is batched); 0 = off
+    "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
+    "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
+    "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -269,7 +321,8 @@ CREATE TABLE IF NOT EXISTS agents (
   queued_at TEXT, started TEXT, ended TEXT,
   flagless INTEGER NOT NULL DEFAULT 0, flagless_since TEXT,
   stop_requested_at TEXT, stop_attempt_at TEXT, stop_failed_kind TEXT,
-  relaunch_requested_at TEXT, relaunch_requested_by TEXT, relaunch_fresh INTEGER NOT NULL DEFAULT 0);
+  relaunch_requested_at TEXT, relaunch_requested_by TEXT, relaunch_fresh INTEGER NOT NULL DEFAULT 0,
+  start_pending REAL, start_pending_info TEXT);
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL);
 {UTIL_DDL}
 CREATE TABLE IF NOT EXISTS messages (
@@ -288,7 +341,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL + scoutdb.SCOUT_DDL
+""" + GATE_RUNS_DDL + LESSONS_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -329,7 +382,8 @@ def migrate(con):
     for col, ddl in (("flagless", "INTEGER NOT NULL DEFAULT 0"), ("flagless_since", "TEXT"),
                      ("stop_requested_at", "TEXT"), ("stop_attempt_at", "TEXT"), ("stop_failed_kind", "TEXT"),
                      ("relaunch_requested_at", "TEXT"), ("relaunch_requested_by", "TEXT"),
-                     ("relaunch_fresh", "INTEGER NOT NULL DEFAULT 0")):
+                     ("relaunch_fresh", "INTEGER NOT NULL DEFAULT 0"),
+                     ("start_pending", "REAL"), ("start_pending_info", "TEXT")):
         if col not in cols:
             try:
                 con.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
@@ -387,7 +441,17 @@ def migrate(con):
     con.executescript(UTIL_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
-    con.executescript(scoutdb.SCOUT_DDL)
+    have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
+        con.executescript(scoutdb.SCOUT_DDL)
+    tcols = {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}
+    for col in ("void_reason", "void_why"):  # T-0729: `skilleval void` records why a terminal trial was voided
+        if col not in tcols:
+            try:
+                con.execute(f"ALTER TABLE skill_trials ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError:  # a concurrent process added it first
+                if col not in {r["name"] for r in con.execute("PRAGMA table_info(skill_trials)")}:
+                    raise
 
 
 def cfg(con, key):
@@ -592,6 +656,42 @@ def settings_text(role, tokens=None, template=None):
     if "@FACTORY_" in text:
         die(f"settings template {template} has an unknown @FACTORY_ token; known: {', '.join(settings_tokens())}", 3)
     return text
+
+
+def evaluator_settings(rdir):
+    """(settings text, guard path) for the evaluator: nsbox hides ~/factory in the sandbox, so worker-guard.py is
+    copied (stdlib-only, 0555, regular file, replaced atomically on every launch) into <trial>/role/roles/hooks and
+    every hook command is pointed at that copy. A hook command left under the live home would fail closed on every
+    tool call. The depth matters: the guard counts dirname^3 of its own path as a live home, so <trial>/role/ (which
+    holds no FACTORY_HOME) must be that root; a copy directly in <trial>/role/ would make trials/ live and block `factory`.
+    The copy layout mirrors the repo (roles/hooks/, ci/) under <trial>/role/, because the guard resolves its sibling
+    files (ci/public_text_guard.py, which loads ci/scrub_scan.py by path) and its live home via dirname^3 of its own
+    path. Those two ci files are copied the same way (0555, atomic, every launch)."""
+    rdir = Path(rdir)
+    copies = [(ROLES_DIR / "hooks" / "worker-guard.py", rdir / "roles" / "hooks" / "worker-guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "public_text_guard.py", rdir / "ci" / "public_text_guard.py"),
+              (ROLES_DIR.resolve().parent / "ci" / "scrub_scan.py", rdir / "ci" / "scrub_scan.py")]
+    for src, dst in copies:
+        try:
+            body = src.read_text()
+        except OSError as e:
+            die(f"cannot read {src}: {e}; restore it with git checkout", 3)
+        write_atomic(dst, body, 0o555)
+    guard = copies[0][1]
+    cfg = json.loads(settings_text("evaluator"))
+    n = 0
+    for groups in cfg.get("hooks", {}).values():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                cmd = hook.get("command", "")
+                tail = cmd.partition("worker-guard.py")[2]
+                if "worker-guard.py" not in cmd:
+                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
+                n += 1
+    if not n:
+        die("roles/settings/evaluator.json.in has no hook commands; the evaluator must not start without its guard", 3)
+    return json.dumps(cfg, indent=2) + "\n", guard
 
 
 def write_atomic(path, text, mode=0o644):
@@ -911,6 +1011,25 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
         return {"raw": out}
 
 
+def herdr_start_error(*args):
+    """Run a herdr command that may fail; return (result, error text). error is None on success."""
+    herdr_gate(args)
+    env = {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
+    try:
+        p = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
+    except subprocess.TimeoutExpired as e:
+        return None, f"timed out: {e}"
+    except FileNotFoundError as e:
+        return None, f"herdr not found: {e}"
+    if p.returncode != 0:
+        return None, p.stderr.strip() or p.stdout.strip() or f"exit {p.returncode}"
+    out = p.stdout.strip()
+    try:
+        return (json.loads(out.splitlines()[-1])["result"] if out else {}), None
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return {"raw": out}, None
+
+
 def herdr_agents():
     r = herdr("agent", "list", check=False)
     return (r or {}).get("agents", []) if r is not None else None
@@ -966,11 +1085,15 @@ def pane_at_shell(pane_id):
     return bool(names) and all(n in ("zsh", "bash", "sh", "dash", "fish") for n in names)
 
 
+def _relaunch_poll_s():
+    return float(os.environ.get("FACTORY_RELAUNCH_POLL_S") or 0.5)  # tests set a tiny value
+
+
 def export_in_shell(pane, env, cwd):
     """An idle shell lacks the agent's env: export it before the agent launches."""
     herdr("pane", "run", pane, "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
           + f" && cd {shlex.quote(cwd)} && clear")
-    time.sleep(1)
+    time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
 
 
 # ───────────────────────────── flagless detection ─────────────────────────────
@@ -1060,6 +1183,8 @@ def flagless_scan(con, rows, throttle=False):
     throttle: check each agent at most once an hour (the tick)."""
     out = []
     for r in rows:
+        if r["role"] == "evaluator":  # eval sandbox agents run without role flags by design
+            continue
         if throttle:
             key = f"flagless_check:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
@@ -1497,7 +1622,7 @@ def cmd_init(a):
     if a.live_home:
         write_live_home(a.live_home)
     con = db(create=True)
-    con.executescript(SCHEMA)
+    con.executescript(SCHEMA + scoutdb.SCOUT_DDL)
     for k, v in DEFAULT_CONFIG.items():
         con.execute("INSERT OR IGNORE INTO config(key,value) VALUES(?,?)", (k, v))
     if (ROLES_DIR / "settings").is_dir():  # a bare data dir without a checkout (tests, dry installs) has no templates to render
@@ -1526,6 +1651,16 @@ def check_sandbox_roles(value):
     return ",".join(dict.fromkeys(names))
 
 
+CONFIG_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
+
+
+def check_model_override(key, value):
+    """Exit 2 unless value is empty or one of CONFIG_MODELS (never a Fable id)."""
+    if value.strip() not in ("",) + CONFIG_MODELS:
+        die(f"config {key}: {value!r} is not allowed; use one of {', '.join(CONFIG_MODELS)} or empty for the default: "
+            f"fix it with `factory config {key} claude-sonnet-5-5`", 2)
+
+
 def check_gh_roles(key, value):
     """The normalised comma list, or exit 2: every name must be a worker role ghcred can serve ("" = none)."""
     names = [x.strip() for x in value.split(",") if x.strip()]
@@ -1544,10 +1679,15 @@ def cmd_config(a):
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}")
         if a.key in ("public_text_repos", "frozen_repos") and any(not _repo_slug(x) for x in a.value.split(",") if x.strip()):
             die(f"{a.key} takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "noreply_email" and a.value.strip() and not a.value.strip().lower().endswith(NOREPLY_SUFFIX):
+            die(f"noreply_email must end in {NOREPLY_SUFFIX} (e.g. 123+handle{NOREPLY_SUFFIX}), or be empty", 2)
         if a.key == "opus_effort":
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
             triage_per_run(a.value)
+        if a.key == "model_cleaner":
+            check_model_override(a.key, a.value)
+            a.value = a.value.strip()
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -2218,11 +2358,15 @@ def task_sandbox_required(con, task):
     return bool(r and r["sandbox_required"])
 
 
+# same pattern as web/queries.py _TAG_RE, so a title is tagged exactly when the goal page counts it
+SC_TAG_RE = r"\[(SC\d+(?:\s*,\s*SC\d+)*)\]"
+
+
 def cmd_task(a):
     con = db()
     if a.action == "add":
         require_role(con, "pm", "lead", "director")
-        g = con.execute("SELECT id FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
+        g = con.execute("SELECT id,success_criteria FROM goals WHERE id=?", (a.goal,)).fetchone() or die(f"no goal {a.goal}")
         if a.follow_up_of:
             pm_own_goal(con, g["id"], "the follow-up")
             par = con.execute("SELECT status FROM tasks WHERE id=? AND goal_id=?", (a.follow_up_of, g["id"])).fetchone()
@@ -2249,6 +2393,9 @@ def cmd_task(a):
         if a.follow_up_of:
             event(con, "task", tid, "follow-up", f"follow-up of {a.follow_up_of}")
         warn_file_overlap(con, tid, g["id"], spec)
+        if (g["success_criteria"] or "").strip() and not re.search(SC_TAG_RE, a.title or ""):
+            print(f"warning: {tid} title has no [SCn] tag but {g['id']} has success criteria; the goal page shows "
+                  f"them untracked. Retitle: factory task update {tid} --title '<title> [SCn]'", file=sys.stderr)
         print(tid)
     elif a.action == "reopen":
         role = actor_role(con)
@@ -2682,6 +2829,72 @@ def cmd_report(a):
 
 
 # ───────────────────────────── verdicts & merge gate ─────────────────────────────
+
+def cmd_pr(a):
+    """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
+    the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
+    redirect it. The child env drops GH_REPO and GH_HOST."""
+    con = db()
+    role = actor_role(con)
+    if role != "coder":
+        die(f"role '{role}' ({actor()}) may not do this: `factory pr` is for coders; ask your lead", 3)
+    ag = con.execute("SELECT task_id FROM agents WHERE name=?", (actor(),)).fetchone()
+    tid = ag["task_id"] if ag else None
+    if not tid:
+        die(f"{actor()} has no task: `factory pr` opens the PR of your own task; ask your lead", 3)
+    row = con.execute("SELECT p.gh_repo, p.base_branch, t.branch AS task_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                      "JOIN projects p ON p.id=g.project_id WHERE t.id=?", (tid,)).fetchone()
+    repo = ((row["gh_repo"] if row else "") or "").strip()
+    if not ghcred.SLUG_RE.fullmatch(repo):
+        die(f"{tid}: its project has no valid gh_repo ({repo!r}); ask your lead to set it with `factory project update`", 3)
+    try:
+        g = git_run(os.getcwd(), "branch", "--show-current", timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"cannot read the current git branch ({e}); run `factory pr` from your task worktree", 3)
+    branch = g.stdout.strip() if g.returncode == 0 else ""
+    want = f"factory/{tid.lower()}"
+    # a rebuilt clean branch (no force-push) is factory/<id>-vN; accepted only when it is the DB branch of the own task
+    db_branch = (row["task_branch"] if row else "") or ""
+    db_ok = bool(db_branch) and branch == db_branch and re.fullmatch(rf"factory/{re.escape(tid)}(-v[0-9]+)?", branch, re.I)
+    if branch != want and not db_ok:
+        die(f"current branch is {branch or '(none)'!r}, not {want!r} or the task's recorded branch "
+            f"(factory/{tid.lower()}-vN, set in the task): run `factory pr` from your own task worktree", 3)
+    env = {k: v for k, v in gh_git_env().items() if k not in ("GH_REPO", "GH_HOST")}
+    body = None
+    if a.action == "create":
+        if a.body != "-":
+            die("`factory pr create` takes the body on stdin only: --body - with a heredoc", 2)
+        body = read_text("-")
+        if not (a.title or "").strip() or not body:
+            die("`factory pr create` needs a non-empty --title and a body on stdin", 2)
+        argv = ["gh", "pr", "create", "--repo", repo, "--base", row["base_branch"], "--head", branch,
+                "--title", a.title, "--body-file", "-"]
+        if _repo_slug(repo) in _cfg_slugs(con, "public_text_repos"):  # G-021: raw `gh pr create` is denied, so this is the only text path
+            try:
+                guard = _public_guard()
+                terms = guard.load_terms_or_fail(os.environ, cfg(con, "scrub_terms_file") or None)
+                hits = guard.check_text(a.title, terms) + guard.check_text(body, terms) + guard.check_ref(branch, terms)
+            except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses, never lets the text through
+                die(f"pr create refused (public text): cannot check the text: {type(e).__name__}: {str(e)[:200]}; "
+                    f"fix the guard or SCRUB_TERMS_FILE, or ask your lead", 3)
+            if hits:
+                die(f"pr create refused (public text): {len(hits)} hits in the title, body or branch "
+                    f"({', '.join(sorted({h[0] for h in hits}))}); reword and retry", 3)
+    else:
+        if a.title is not None or a.body is not None:
+            die("`factory pr ready` takes no arguments: it targets the PR of your own branch", 2)
+        argv = ["gh", "pr", "ready", branch, "--repo", repo]
+    try:
+        p = subprocess.run(argv, input=body, capture_output=True, text=True, timeout=120, env=env)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        die(f"gh pr {a.action} failed to run: {e}", 1)
+    if p.returncode == 0:
+        event(con, "task", tid, f"pr-{a.action}", f"{repo} {branch}")
+    sys.stdout.write(p.stdout)
+    sys.stderr.write(p.stderr)
+    if p.returncode != 0:
+        sys.exit(p.returncode)
+
 
 def gh_json(*args, timeout=120):
     p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
@@ -3153,6 +3366,27 @@ def judge_max_refreshes(con):
 REFRESH_IDENT = {"GIT_AUTHOR_NAME": "factory refresh", "GIT_AUTHOR_EMAIL": "factory-refresh@localhost",
                  "GIT_COMMITTER_NAME": "factory refresh", "GIT_COMMITTER_EMAIL": "factory-refresh@localhost"}
 
+def refresh_ident(con, repo, task, owner_repo):
+    """Identity env of a refresh merge commit (T-0604). Private repo: REFRESH_IDENT. PR repo or the task's project
+    gh_repo in public_text_repos (no slug at all while the list is set counts as public): author and committer email =
+    noreply_email(con) (config, else git user.email). Returns (env, None), or
+    (None, why) when no noreply address is known: the refresh is refused (fail closed)."""
+    public = _cfg_slugs(con, "public_text_repos")
+    if not public:
+        return REFRESH_IDENT, None
+    proj = con.execute("SELECT p.gh_repo FROM projects p JOIN goals g ON g.project_id=p.id JOIN tasks t ON t.goal_id=g.id "
+                       "WHERE t.id=?", (task,)).fetchone()
+    slugs = [x for x in dict.fromkeys((_repo_slug(owner_repo), _repo_slug(proj["gh_repo"] if proj else ""))) if x]
+    if slugs and not set(slugs) & public:
+        return REFRESH_IDENT, None
+    email = noreply_email(con)
+    if not email:
+        return None, (f"REFRESH-IDENT: {', '.join(slugs) or 'the repo'} is public (public_text_repos) and neither config "
+                      f"noreply_email nor git user.email is a {NOREPLY_SUFFIX} address; set "
+                      f"`factory config noreply_email <id+handle{NOREPLY_SUFFIX}>`")
+    name = REFRESH_IDENT["GIT_AUTHOR_NAME"]
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}, None
+
 
 def refresh_lock(pr_number):
     """Non-blocking exclusive flock on db/refresh-pr-<N>.lock: one refresher per PR at a time. Returns (file, holder): the
@@ -3215,8 +3449,11 @@ def _refresh_locked(repo, branch, old, pr_number, repo_url, owner_repo, task, dr
     frozen = _push_policy(db(), repo_url) or _push_policy(db(), owner_repo)
     if frozen:
         return {"status": "error", "why": f"{frozen}; nothing pushed"}
+    ident, why = refresh_ident(db(), repo, task, owner_repo)
+    if why:
+        return {"status": "error", "why": f"{why}; nothing pushed"}
     msg = f"Merge origin/main into {branch} (factory refresh {task})"
-    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **REFRESH_IDENT})
+    rc, new, err = _git_rc(["commit-tree", tree, "-p", old, "-p", main_sha, "-m", msg], repo=repo, env={**env, **ident})
     if rc != 0 or not new:
         return {"status": "error", "why": f"git commit-tree failed: {err or rc}"}
     rc, _, err = _git_rc(["push", "-q", f"--force-with-lease=refs/heads/{branch}:{old}", repo_url, f"{new}:refs/heads/{branch}"],
@@ -3309,7 +3546,8 @@ def record_merged(con, t, a, sha, shown, reason, carried=(), post_err=""):
     con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                 (a.task, t["pr_url"], sha, "judge", "merge", reason, actor(), now()))
     con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.task))
-    event(con, "task", a.task, "merged", f"@{shown[:8]}")
+    by = getattr(a, "by", None)  # the mechanical merger names itself and the full gate reason list
+    event(con, "task", a.task, "merged", f"@{shown[:8]}" + (f" by={by}: {reason}" if by else ""))
     con.commit()
     run_after_merge(con, t)
     if post_err:
@@ -3518,16 +3756,18 @@ def judge_public_text_refusal(con, t, owner_repo, git_repo, base, head):
         if p.returncode != 0:
             return why(f"cannot read the PR text: gh pr view failed: {p.stderr.strip()[:120]}")
         pr = json.loads(p.stdout)
-        texts = [pr.get("title") or "", pr.get("body") or ""] + [(c or {}).get("body") or "" for c in pr.get("comments") or []] \
-            + [(r or {}).get("body") or "" for r in pr.get("reviews") or []]
-        hits = [h for x in texts for h in guard.check_text(x, terms)] + guard.check_ref(pr.get("headRefName") or "", terms) \
-            + guard.check_push(git_repo, base, head, terms)
+        texts = [("title", pr.get("title") or ""), ("body", pr.get("body") or "")] \
+            + [(f"comment {i}", (c or {}).get("body") or "") for i, c in enumerate(pr.get("comments") or [], 1)] \
+            + [(f"review {i}", (r or {}).get("body") or "") for i, r in enumerate(pr.get("reviews") or [], 1)]
+        hits = [h for lbl, x in texts for h in guard.locate_text(x, terms, lbl)] \
+            + [(h[0], "branch") for h in guard.check_ref(pr.get("headRefName") or "", terms)] \
+            + [(h[0], h[1]) for h in guard.check_push(git_repo, base, head, terms)]
     except guard.NoTermsError:
         return why("no owner terms loaded; set SCRUB_TERMS_FILE or `factory config scrub_terms_file <path>`")
     except Exception as e:  # noqa: BLE001 — a guard that cannot decide refuses the merge, never crashes past the event
         return why(f"cannot check: {type(e).__name__}: {str(e)[:200]}")
     if hits:
-        return why(f"{len(hits)} hits: {', '.join(sorted({h[0] for h in hits}))}")
+        return why(f"{len(hits)} hits: {guard.format_locations(hits, terms)}")
     return None
 
 
@@ -3674,7 +3914,6 @@ def cmd_judge(a):
     reason = read_text(a.reason)
     waited = 0
     proj = gate_project_for(con, t["pr_url"])  # local merge gate mode (T-0516) iff the project has a gate_cmd
-    gate_waited = False
     if not a.reject:
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
@@ -3687,6 +3926,40 @@ def cmd_judge(a):
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
+    return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
+
+
+def task_merge_lock(stack, task):
+    """Per-task merge lock shared by the judge and the mechanical merger: held (flock, released when `stack` closes) from the
+    final recheck to the end of record_merged, so two mergers of one task never both record it. Dies 4 if held."""
+    RUN.mkdir(exist_ok=True)
+    f = stack.enter_context(open(RUN / f"merge-{task}.lock", "w"))
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        die(f"merge refused: another judge or mechanical merger is merging {task} right now (run/merge-{task}.lock); nothing merged", 4)
+
+
+def lock_and_recheck(stack, con, t, task):
+    """Take the per-task merge lock, then recheck under it that nobody merged this task meanwhile (task still in_review, PR
+    still OPEN): the late loser of a race must do nothing, not record a second merge. Dies 4 otherwise."""
+    task_merge_lock(stack, task)
+    if con.execute("SELECT status FROM tasks WHERE id=?", (task,)).fetchone()["status"] != "in_review":
+        die(f"merge refused: {task} is no longer in_review (merged or moved by another run); nothing merged", 4)
+    if pr_state(t["pr_url"])["state"] != "OPEN":
+        die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
+
+
+def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
+    with contextlib.ExitStack() as stack:
+        return _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack)
+
+
+def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
+    """The merge gate of `factory judge` (pure extraction from cmd_judge): verdicts + carry, freshness, CI, refresh,
+    push-policy, public-text, noreply, then `gh pr merge` and the post-merge records. Dies (exit 4/5/6) on any refusal."""
+    gate_waited = False
+    dry_run, mech = getattr(a, "dry_run", False), getattr(a, "mech", False)  # the mechanical merger (mech_merge shadow / on)
     wt = t["worktree"]
     git_repo = wt if wt and Path(wt).is_dir() else HOME
     for r in dict.fromkeys([str(git_repo), os.getcwd()]):  # the carry check runs in git_repo, `gh pr merge` in the cwd
@@ -3694,7 +3967,7 @@ def cmd_judge(a):
             con.commit()
             die(f"merge refused: git config in {r} would run code (repo config outside the allow-list): "
                 f"{', '.join(git_config_refusal(r))}; nothing merged", 4)
-    retried, refreshes = False, 0
+    retried, refreshes, locked = False, 0, False
     while True:
         # Gate: both verdicts must be PASS on this exact head, CI green, PR open & mergeable.
         problems, carry, carried = [], {}, []
@@ -3744,7 +4017,7 @@ def cmd_judge(a):
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
             run = gate_run_for_head(con, t["pr_url"], sha)
-            if (stale[0] or behind_clean) and not gate_waited and (not run or run["status"] in ("queued", "running")):
+            if (stale[0] or behind_clean) and not gate_waited and not dry_run and (not run or run["status"] in ("queued", "running")):
                 # no verdict yet on this head: queue it for the tick, wait for it, then run the whole gate again
                 gate_enqueue(con, proj, t["pr_url"], sha)
                 con.commit()
@@ -3768,12 +4041,19 @@ def cmd_judge(a):
         if stale[1] == "STALE" and not others and pr["state"] == "OPEN":
             # already squashed onto main (the merge answer was lost)? never refresh, push or squash again: record it
             landed = main_landing(git_repo, pr["number"], repo_url, owner_repo, sha)
+            if landed and dry_run:
+                die(f"already squashed onto main as {landed[:8]}; the judge records it", 4)
             if landed:
+                if not locked:
+                    lock_and_recheck(stack, con, t, a.task)
+                    locked = True
                 err = close_landed_pr(t["pr_url"], landed, reason)
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
         if behind_clean:
             pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        elif stale[1] == "STALE" and not others and mech:
+            problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
         elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
@@ -3871,6 +4151,11 @@ def cmd_judge(a):
                 event(con, "task", a.task, "judge-blocked", msg)
                 die(msg, 4)
             author_args = ["--author-email", noreply, "--body", body]
+        if dry_run:  # every refusal above ran; nothing is merged, the caller records the would-merge
+            return "would-merge"
+        if not locked:
+            lock_and_recheck(stack, con, t, a.task)
+            locked = True
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
@@ -3918,6 +4203,203 @@ def cmd_judge(a):
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
     if _judge_is_public(con, t, owner_repo):
         judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
+
+
+# ── mechanical merger (G-022 #4): the tick merges T0-T2 PRs with the judge's own gate, no LLM ──
+MECH_MODES = ("off", "shadow", "on")
+MECH_UNIT = "factory-mech-merge"
+MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
+MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
+MECH_MAX_TIER = "T2"
+DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
+
+
+def mech_mode(con):
+    """off | shadow | on; any other value counts as off."""
+    m = cfg(con, "mech_merge")
+    return m if m in MECH_MODES else "off"
+
+
+def mech_dispute(con, tid):
+    """Why the LLM judge must decide this task (a dispute), or None. A dispute: reviewer and QA disagree on the same head,
+    two or more FAIL verdicts so far, or a verdict text with a `judge:` line."""
+    rows = con.execute("SELECT role,verdict,head_sha,summary FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') "
+                       "ORDER BY id", (tid,)).fetchall()
+    if any(DISPUTE_REQUEST.search(r["summary"] or "") for r in rows):
+        return "a verdict asks for the judge"
+    if sum(1 for r in rows if r["verdict"] == "fail") >= 2:
+        return "2 or more FAIL verdicts"
+    last = {r["role"]: r for r in rows}
+    rv, qa = last.get("reviewer"), last.get("qa")
+    if rv and qa and rv["head_sha"] == qa["head_sha"] and rv["verdict"] != qa["verdict"]:
+        return f"reviewer and QA disagree on {(rv['head_sha'] or '')[:8]}"
+    return None
+
+
+def mech_candidates(con, only=None):
+    """Tasks the merger may look at, oldest first: in_review with a PR, tier not above T2 (an unset tier is classified
+    later), latest reviewer and QA verdict PASS, no dispute, no judge live/starting/queued on it, and no merger event in
+    the last mech_merge_retry_s. DB only: the tick calls this to decide whether to launch a unit."""
+    retry = _int_cfg(con, "mech_merge_retry_s", 600)
+    nowdt = dt.datetime.now().astimezone()
+    out = []
+    q = "SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' " + ("AND id=? " if only else "") + \
+        "ORDER BY updated, id"
+    for t in con.execute(q, (only,) if only else ()).fetchall():
+        if t["tier"] and t["tier"] > MECH_MAX_TIER:
+            continue
+        if mech_dispute(con, t["id"]):
+            continue
+        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
+            continue
+        if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
+                       (t["id"],)).fetchone():
+            continue
+        last = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                           "ORDER BY id DESC LIMIT 1", (t["id"], *MECH_EVENTS)).fetchone()
+        seen = _ts(last["ts"]) if last else None
+        if seen is not None and (nowdt - seen).total_seconds() < retry:
+            continue
+        out.append(t)
+    return out
+
+
+def mech_tier(con, t, sha, git_repo):
+    """(tier, why) of the PR at exact head `sha`, or (None, why) when it cannot be decided (never a guess). Rules come
+    from the main checkout; the diff is computed after fetching the branch, for this head, and the stored tier only ever
+    goes up (raise_task_tier). Needs risk_tiers=on."""
+    if cfg(con, "risk_tiers") != "on":
+        return None, "risk_tiers is off, no tier"
+    try:
+        rt = _risk_tier_mod()
+        rules = rt.load_rules(str(HOME / "ci" / rt.RULES_FILE))
+    except (OSError, ImportError, SyntaxError, AttributeError, KeyError) as e:
+        return None, f"cannot load the tier classifier: {e}"
+    branch = t["branch"] or ""
+    if not branch or branch.startswith("-"):
+        return None, f"task branch {branch!r} cannot be fetched"
+    rc, _, err = _git_rc(["fetch", "-q", "origin", "main", f"refs/heads/{branch}"], timeout=120, repo=git_repo)
+    if rc != 0:
+        return None, f"git fetch origin main {branch} failed: {err}"
+    try:
+        new, why = rt.classify_range(str(git_repo), "origin/main", sha, rules)
+    except rt.TierError as e:
+        return None, f"cannot classify {sha[:8]}: {e}"
+    top = raise_task_tier(con, t["id"], new, "; ".join(why) or "mechanical merger")
+    return top, "; ".join(why) or "no sensitive path or def"
+
+
+def mech_try(con, t, mode, retry_s):
+    """Evaluate one candidate: 'merged', 'blocked' (event written) or 'skipped' (not ready yet; nothing written)."""
+    tid, url = t["id"], t["pr_url"]
+    ready, why = judge_pr_ready(con, url)
+    if not ready:
+        return "skipped"
+    try:
+        pr = pr_state(url)
+    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+        return "skipped"  # gh failed: try again next run
+    sha = pr["headRefOid"]
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    block_kind = "mech-would-block" if mode == "shadow" else "mech-blocked"
+
+    def block(msg):
+        detail = f"head={sha[:12]}: {msg}"[:900]
+        last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                           "ORDER BY id DESC LIMIT 1", (tid, *MECH_EVENTS)).fetchone()
+        if not last or last["detail"] != detail:  # a permanent block is recorded once, not every retry window
+            event(con, "task", tid, block_kind, detail)
+        con.commit()
+        return "blocked"
+
+    if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
+                   (tid,)).fetchone() or con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "in_review":
+        return "skipped"  # a judge appeared (or the task moved) since the candidate list was built
+
+    if not git_config_guard(con, git_repo, always_event=True):
+        return block(f"git config in {git_repo} would run code")
+    tier, tier_why = mech_tier(con, t, sha, git_repo)
+    if tier is None:
+        return block(f"{tier_why}; the judge decides")
+    if tier > MECH_MAX_TIER:
+        return block(f"tier {tier} ({tier_why}); the judge decides")
+    reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
+    a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
+    mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
+    err = io.StringIO()
+    code, res = 0, None
+    try:
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            res = judge_gate_and_merge(con, con.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone(), a, reason, pr, sha,
+                                       0, gate_project_for(con, url))
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else 1
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:  # the gate could not decide: block, never merge
+        code, err = 1, io.StringIO(f"gate error {type(e).__name__}: {e}")
+    finally:
+        if mode == "shadow":  # the gate's own judge-blocked events are not a judge's: keep the judge's counts clean
+            con.execute("DELETE FROM events WHERE id>? AND entity='task' AND entity_id=? AND action='judge-blocked' AND actor=?",
+                        (mark, tid, actor()))
+    if not code and mode == "on" and pr_state(url)["headRefOid"] != sha and con.execute(
+            "SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "done":
+        return block("PR head changed during the gate; the judge decides")
+    if code:
+        return block((err.getvalue().strip() or f"gate exit {code}").replace("factory: ", "", 1))
+    if mode == "shadow":
+        if res != "would-merge":
+            return block(f"gate stopped without a verdict ({res!r})")
+        event(con, "task", tid, "mech-would-merge", f"head={sha[:12]}: {reason}"[:900])
+        con.commit()
+        return "would-merge"
+    done = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] == "done"
+    return "merged" if done else block("gate returned without merging")
+
+
+def cmd_mech_merge(a):
+    """`factory mech-merge [--task T]`: one run of the mechanical merger (the tick launches it as a detached unit). One at a
+    time: a second run exits 4 while the first holds the lock. In shadow it records mech-would-merge / mech-would-block."""
+    con = db()
+    require_role(con, "director")
+    mode = mech_mode(con)
+    if mode == "off":
+        print("mech_merge is off; nothing to do")
+        return
+    RUN.mkdir(exist_ok=True)
+    lock = open(RUN / "mech-merge.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        die("another mechanical merger run holds run/mech-merge.lock; merges are serial, retry later", 4)
+    frozen = merge_freeze_refusal(con)
+    if frozen:
+        print(f"merge freeze ({frozen}); nothing evaluated")
+        return
+    n = 0
+    for t in mech_candidates(con, only=a.task):
+        if n >= MECH_MAX_EVAL:
+            break
+        n += 1
+        out = mech_try(con, t, mode, _int_cfg(con, "mech_merge_retry_s", 600))
+        print(f"{t['id']}: {out}")
+        if out == "merged":
+            break
+    con.commit()
+
+
+def tick_mech_merge(con):
+    """Tick: with mech_merge shadow/on and a candidate, launch ONE detached `factory mech-merge` (own transient unit under
+    systemd, fixed name: a second unit is refused while the first is active; the run lock covers the rest). The tick never
+    waits on gh."""
+    if mech_mode(con) == "off" or not mech_candidates(con):
+        return
+    run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "mech-merge"]
+    kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "FACTORY_AGENT": actor()})
+    if os.environ.get("INVOCATION_ID"):
+        subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "--unit", MECH_UNIT, "--", *run], **kw)  # rc!=0: previous unit still active
+    else:
+        subprocess.Popen(run, start_new_session=True, **kw)
 
 
 def cmd_refresh(a):
@@ -4709,6 +5191,101 @@ def _tree_bytes(path):
     return total
 
 
+TMP_SWEEP_MIN_AGE_S = 1800                    # an agent counts as finished for the sweep once it ended this long ago
+TMP_SWEEP_DONE = ("done", "stopped", "lost", "exited")
+
+
+def _sweep_candidates(con, t):
+    """[(dir, task)] of per-session scratch dirs (<tmp>/claude-<uid>/<worktrees slug>-<GOAL>-<TASK>) and QA homes
+    (<tmp>/qa-*-T-nnnn-*) whose task has agent rows, every one finished (done/stopped/lost/exited) for >= 30 min.
+    Anything else (HQ scratch, unknown names, task without agents, symlinks, a dir resolving elsewhere) is not listed."""
+    root = tmp_dir()
+    if not root.is_dir() or root.is_symlink():
+        return []
+    root = root.resolve()
+    found = []
+    base = root / f"claude-{os.getuid()}"
+    slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"G-\d+-(T-\d+)$")
+    if base.is_dir() and not base.is_symlink():
+        for d in sorted(base.iterdir()):
+            m = slug.match(d.name)
+            if m:
+                found.append((d, m.group(1), base))
+    for d in sorted(root.glob("qa-*")):
+        m = re.search(r"(?<![A-Za-z0-9])[Tt]-(\d+)(?![0-9])", d.name)
+        if m:
+            found.append((d, "T-" + m.group(1), root))
+    out = []
+    for d, task, parent in found:
+        if d.is_symlink() or not d.is_dir() or d.resolve().parent != parent.resolve() or d.stat().st_uid != os.getuid():
+            continue
+        rows = con.execute("SELECT status,ended FROM agents WHERE task_id=?", (task,)).fetchall()
+        if not rows:
+            continue
+        try:
+            ok = all(r["status"] in TMP_SWEEP_DONE and r["ended"]
+                     and t - dt.datetime.fromisoformat(r["ended"]).timestamp() >= TMP_SWEEP_MIN_AGE_S for r in rows)
+        except ValueError:
+            ok = False  # an ended stamp we cannot read: ownership unclear, keep
+        if ok:
+            out.append((d, task))
+    return out
+
+
+def tmp_sweep(con):
+    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates),
+    write one tmp-swept event (MB freed, dir count), and alert the director once if /tmp is still over tmp_max_pct.
+    No agent involved; any failure is an event, never a stopped tick."""
+    try:
+        tmp = tmp_usage()
+        if tmp is None:
+            return
+        if tmp["pct"] > float(cfg(con, "tmp_sweep_pct")):
+            t = time.time()
+            freed = n = 0
+            for d, task in _sweep_candidates(con, t):
+                size = _tree_bytes(d)
+                try:
+                    shutil.rmtree(d)
+                except OSError as e:
+                    event_as(con, "tick", "task", task, "tmp-sweep-failed", f"{d}: {e}")
+                    continue
+                freed += size
+                n += 1
+            if n:
+                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept", {"mb": round(freed / 1048576, 1), "dirs": n})
+            tmp = tmp_usage() or tmp
+        over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
+        armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
+        armed = bool(armed and armed["value"] == "1")
+        if over and not armed:
+            send(con, "director", f"tmp sweep: /tmp still {tmp['pct']:.0f}% full",
+                 f"The tick swept the scratch of finished agents but /tmp uses {tmp['used_mb']}/{tmp['total_mb']} MB, "
+                 f"over tmp_max_pct {cfg(con, 'tmp_max_pct')}%: spawns stay held and nothing more is safe to delete "
+                 "automatically. Find what holds the space (`du -sh /tmp/* | sort -h`) and ask the owner or boss.",
+                 "alert", sender="tick")
+        if over != armed:
+            con.execute("INSERT INTO config(key,value) VALUES('tmp_sweep_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        ("1" if over else "0",))
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def last_tmp_sweep(con):
+    """(ts, mb, dirs) of the last tmp-swept event, or None."""
+    r = con.execute("SELECT ts,detail FROM events WHERE action='tmp-swept' ORDER BY id DESC LIMIT 1").fetchone()
+    if not r:
+        return None
+    try:
+        d = json.loads(r["detail"])
+        return r["ts"], d["mb"], d["dirs"]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
 def tmp_clean(con):
     """Tick hook, at most hourly: delete <tmp>/claude-<uid>/<worktrees dir as a path slug>-<GOAL>-<TASK> scratchpads whose
     task is done or cancelled, that no live/starting/queued/done-unreaped agent of that task holds, and that are older than
@@ -4911,6 +5488,435 @@ def reap_stray_serves(con):
             pass
 
 
+ORPHAN_REAP_THROTTLE_S = 600   # same cadence as the serve reaper
+ORPHAN_ENDED = ("done", "exited", "lost", "cancelled")   # a 'stopped' agent can be resumed: not ended
+ORPHAN_BLOCKING = ("live", "queued", "starting", "stopped")
+ORPHAN_HQ_ROLES = ("boss", "director", "lead", "staff-engineer")
+ORPHAN_MODES = ("dry-run", "on", "off")
+
+
+def _orphan_stat(pid):
+    """(ppid, pgid, starttime) from /proc/<pid>/stat, or None when it is gone or unreadable."""
+    try:
+        s = (_serve_proc_root() / str(pid) / "stat").read_text(errors="replace")
+        f = s[s.rindex(")") + 2:].split()
+        return int(f[1]), int(f[2]), int(f[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _orphan_ident(pid):
+    """(argv, starttime) of a pid right now, or None: the pid-reuse guard compares this before every signal."""
+    st, argv = _orphan_stat(pid), _serve_argv(pid)
+    return (argv, st[2]) if st and argv else None
+
+
+def _orphan_env(pid):
+    try:
+        raw = (_serve_proc_root() / str(pid) / "environ").read_bytes()
+    except OSError:
+        return None
+    return dict(x.decode(errors="replace").split("=", 1) for x in raw.split(b"\0") if b"=" in x)
+
+
+def _orphan_task(cwd, argv):
+    """((goal, task), attributed_by) when cwd/scratchpad/argv all point at one task's worktree, else None (nothing
+    found, or two tasks: then the process is not ours). attributed_by is the first of cwd, scratchpad, argv that matched."""
+    wt = WORKTREES.resolve()
+
+    def in_worktree(path):
+        try:
+            rel = Path(path).relative_to(wt).parts
+        except ValueError:
+            return None
+        m = re.fullmatch(r"(G-\d+)-(T-\d+)", rel[0]) if rel else None
+        return (m.group(1), m.group(2)) if m else None
+
+    found = []
+    if (k := in_worktree(cwd)):
+        found.append(("cwd", k))
+    pad = _serve_pad(cwd)
+    if pad and pad[0].parent.name == f"claude-{os.getuid()}":  # the Claude scratchpad shape only
+        m = re.search(r"(G-\d+)-(T-\d+)$", pad[0].name)
+        if m:
+            found.append(("scratchpad", (m.group(1), m.group(2))))
+    for el in argv[1:]:
+        if el and (k := in_worktree(os.path.realpath(os.path.join(cwd, el)))):
+            found.append(("argv", k))
+    if not found or len({k for _by, k in found}) != 1:
+        return None
+    return found[0][1], found[0][0]
+
+
+def _orphan_judge(con, pid, skip):
+    """The facts about `pid` when it is an orphan of an ended worker (see reap_orphans), else None."""
+    if pid in skip:
+        return None
+    root = _serve_proc_root()
+    try:
+        if (root / str(pid)).stat().st_uid != os.getuid():
+            return None
+        cwd = os.path.realpath(os.readlink(root / str(pid) / "cwd"))
+    except OSError:
+        return None
+    env, ident = _orphan_env(pid), _orphan_ident(pid)
+    if env is None or ident is None:
+        return None
+    agent = env.get("FACTORY_AGENT", "")
+    if not agent or agent == "owner":
+        return None  # not started by a factory agent: never ours to reap
+    argv = ident[0]
+    att = _orphan_task(cwd, argv)
+    if not att:
+        return None
+    (goal, task), by = att
+    rows = con.execute("SELECT name,role,status FROM agents WHERE task_id=?", (task,)).fetchall()
+    mine = next((r for r in rows if r["name"] == agent), None)
+    if (not mine or mine["status"] not in ORPHAN_ENDED or mine["role"] in ORPHAN_HQ_ROLES
+            or agent in ("boss", "director", "staff-engineer") or agent.startswith("lead-")
+            or any(r["status"] in ORPHAN_BLOCKING for r in rows)):
+        return None
+    home = env.get("FACTORY_HOME", "")
+    if os.path.basename(argv[0]) in ("claude", "herdr"):
+        return None  # a pane's own process
+    if home and home_is_live(home) and any(os.path.basename(x) == "factory" for x in argv[:3]):
+        return None  # a factory process on the live home (the owner's serve, a tick, a CLI call)
+    cur = (_orphan_stat(pid) or (None,))[0]
+    for _ in range(64):  # a live pane's process tree is never ours
+        if cur is None or cur <= 1:
+            break
+        if cur in skip:
+            return None
+        a = _serve_argv(cur)
+        if a and os.path.basename(a[0]) == "claude":
+            return None
+        anc = (_orphan_env(cur) or {}).get("FACTORY_AGENT", "")
+        if anc and anc != "owner":
+            row = con.execute("SELECT status FROM agents WHERE name=?", (anc,)).fetchone()
+            if row and row["status"] not in ORPHAN_ENDED:
+                return None
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return {"pid": pid, "agent": agent, "task": task, "argv": argv, "ident": ident, "cwd": cwd, "home": home,
+            "worktree": str(WORKTREES / f"{goal}-{task}"), "by": by}
+
+
+def _orphan_skip(main_pid):
+    """The tick, its ancestors and the factory-serve unit's MainPID."""
+    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    for _ in range(64):
+        if cur is None or cur <= 1:
+            break
+        skip.add(cur)
+        cur = (_orphan_stat(cur) or (None,))[0]
+    return skip
+
+
+def _orphan_signal(sig, targets, group):
+    """Send `sig` (to the group when `group`) only if every (pid, ident) in targets still has its scanned identity."""
+    if any(_orphan_ident(pid) != ident for pid, ident in targets):
+        return False
+    try:
+        _serve_kill(-group if group else targets[0][0], sig)
+    except OSError:  # gone (ProcessLookupError) or not ours to signal (PermissionError)
+        return False
+    return True
+
+
+def _orphan_term_kill(pid, ident, targets, group, grace):
+    """SIGTERM was sent: wait up to `grace` seconds for `pid` to go, then SIGKILL it if it still has its scanned
+    identity. Returns "KILL" when the SIGKILL was sent, else "TERM"."""
+    deadline = time.time() + grace
+    while _orphan_ident(pid) == ident and time.time() < deadline:
+        time.sleep(0.2)
+    if _orphan_ident(pid) == ident and _orphan_signal(signal.SIGKILL, targets, group):
+        return "KILL"
+    return "TERM"
+
+
+def _orphan_payload(j, how):
+    """The event body of a would-reap / reap event: exactly these keys."""
+    return {"pid": j["pid"], "start_time": j["ident"][1], "argv0": j["argv"][0],
+            "cmd_sha": hashlib.sha256(b"\0".join(x.encode() for x in j["argv"])).hexdigest()[:12],
+            "cwd": j["cwd"], "worktree": j["worktree"], "task": j["task"], "agent": j["agent"],
+            "attributed_by": j["by"], "signal": how}
+
+
+def reap_orphans(con):
+    """Tick hook, at most every 10 min, per config orphan_reap_mode: 'dry-run' (default; an unknown value too) logs one
+    "orphan-would-reap" event per (pid, start time) and signals nothing; 'on' sends SIGTERM (SIGKILL after 10 s); 'off'
+    skips the scan. A candidate is a same-user process attributed to ONE task by its cwd in the task worktree, its cwd in
+    that task's Claude scratchpad, or an argv path in the worktree (two tasks = untouched), whose FACTORY_AGENT is an
+    ENDED (done/exited/lost/cancelled) non-HQ agent of that task while no agent of the task is live/queued/starting/
+    stopped. FACTORY_AGENT unset, empty or 'owner' is never touched; nor the tick and its ancestors, the unit's
+    MainPID, a factory process on the live home, or anything under a claude process or a non-ended agent. start time +
+    cmdline are re-read before each signal (pid reuse). The process group goes too only when its leader passes every
+    check itself. One event per pid, one batched alert to the director. A reaped factory serve's own demo FACTORY_HOME
+    directly under /tmp goes afterwards, unless some process still uses it."""
+    try:
+        mode = cfg(con, "orphan_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off":
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='orphanreap'").fetchone()
+        if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('orphanreap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        skip = _orphan_skip(_serve_mainpid())
+        grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
+        reaped, homes = [], {}
+        for d in sorted(_serve_proc_root().iterdir()):
+            if not d.name.isdigit():
+                continue
+            j = _orphan_judge(con, int(d.name), skip)
+            if not j:
+                continue
+            pid = j["pid"]
+            if mode == "dry-run":
+                body = _orphan_payload(j, "none")
+                key = json.dumps({"pid": pid, "start_time": j["ident"][1]})[:-1] + ","
+                if not con.execute("SELECT 1 FROM events WHERE action='orphan-would-reap' AND substr(detail,1,?)=?",
+                                   (len(key), key)).fetchone():
+                    event_as(con, "tick", "agent", j["agent"], "orphan-would-reap", body)
+                continue
+            targets, group = [(pid, j["ident"])], 0
+            st = _orphan_stat(pid)
+            if st and st[1] > 1 and st[1] != os.getpgrp():
+                lead = j if st[1] == pid else _orphan_judge(con, st[1], skip)
+                if lead:
+                    group = st[1]
+                    targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
+            if not _orphan_signal(signal.SIGTERM, targets, group):
+                continue
+            how = _orphan_term_kill(pid, j["ident"], targets, group, grace)
+            event_as(con, "tick", "agent", j["agent"], "orphan-reaped", _orphan_payload(j, how))
+            reaped.append(j)
+            if _is_factory_serve(j["argv"]) and j["home"]:
+                homes[j["home"]] = j["agent"]
+        for home, agent in homes.items():
+            h, tmp = Path(home), tmp_dir().resolve()
+            if home_is_live(home) or h.is_symlink() or not h.is_dir() or h.resolve().parent != tmp or _pad_in_use(h.resolve()):
+                continue
+            size = _tree_bytes(h)
+            shutil.rmtree(h)
+            event_as(con, "tick", "agent", agent, "tmp-cleaned", {"path": str(h), "mb": round(size / 1048576, 1)})
+        if reaped:
+            lines = [f"{j['agent']} ({j['task']}) pid {j['pid']} {j['argv'][0]} cwd {j['cwd']} by {j['by']}" for j in reaped]
+            send(con, "director", f"reaped {len(reaped)} orphan process(es) of ended workers",
+                 "The tick sent SIGTERM (SIGKILL after 10 s) to:\n" + "\n".join(lines), "alert", sender="tick")
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _is_test_runner(argv):
+    """True only for a local test run: python3 ci/affected.py, -m unittest, -m pytest, `factory test`, pytest/py.test."""
+    if not argv:
+        return False
+    b = os.path.basename(argv[0])
+    if b in ("pytest", "py.test"):
+        return True
+    if re.fullmatch(r"python3(\.\d+)?", b) is None or len(argv) < 2:
+        return False
+    return (argv[1].endswith("ci/affected.py") or argv[1:3] in (["-m", "unittest"], ["-m", "pytest"])
+            or (os.path.basename(argv[1]) in ("factory", "factory_cli.py") and argv[2:3] == ["test"]))
+
+
+def _own_ended_claude(pid, row):
+    """True when claude `pid` is the ended agent `row`'s own, still exiting: its FACTORY_AGENT is the agent's name and
+    it started inside the agent's started..ended window (a later claude with the same name, or a reused pid, started
+    outside it). Anything unreadable or unparseable is False: the runner then stays untouched."""
+    try:
+        if (_orphan_env(pid) or {}).get("FACTORY_AGENT", "") != row["name"] or not row["started"] or not row["ended"]:
+            return False
+        raw = (_serve_proc_root() / "stat").read_text()
+        btime = next(int(x.split()[1]) for x in raw.splitlines() if x.startswith("btime "))
+        st = _orphan_stat(pid)
+        if st is None:
+            return False
+        began = btime + st[2] / os.sysconf("SC_CLK_TCK")
+        lo, hi = (dt.datetime.fromisoformat(row[k]).timestamp() for k in ("started", "ended"))
+        return lo - 5 <= began <= hi + 5
+    except (OSError, ValueError, StopIteration, IndexError):
+        return False
+
+
+def _test_judge(con, pid, skip, row):
+    """The facts about `pid` when it is a test runner of the ended agent `row`'s own task, else None."""
+    if pid in skip:
+        return None
+    root = _serve_proc_root()
+    try:
+        if (root / str(pid)).stat().st_uid != os.getuid():
+            return None
+        cwd = os.path.realpath(os.readlink(root / str(pid) / "cwd"))
+    except OSError:
+        return None
+    env, ident = _orphan_env(pid), _orphan_ident(pid)
+    if env is None or ident is None or env.get("FACTORY_AGENT", "") != row["name"] or not _is_test_runner(ident[0]):
+        return None
+    att = _orphan_task(cwd, ident[0])
+    if not att or att[0][1] != row["task_id"]:
+        return None
+    cur = (_orphan_stat(pid) or (None,))[0]
+    for _ in range(64):  # a live pane's process tree is never ours
+        if cur is None or cur <= 1:
+            break
+        if cur in skip:
+            return None
+        a = _serve_argv(cur)
+        if a and os.path.basename(a[0]) in ("claude", "herdr"):
+            if os.path.basename(a[0]) != "claude" or not _own_ended_claude(cur, row):
+                return None
+        cur = (_orphan_stat(cur) or (None,))[0]
+    (goal, task), by = att
+    return {"pid": pid, "agent": row["name"], "task": task, "argv": ident[0], "ident": ident, "cwd": cwd,
+            "worktree": str(WORKTREES / f"{goal}-{task}"), "by": by}
+
+
+def _agent_tests_failed(con, name, e):
+    try:
+        event_as(con, "tick", "agent", name, "agent-tests-reap-failed", str(e) or repr(e))
+    except Exception:  # noqa: BLE001 — recording must not break the caller either
+        pass
+
+
+def reap_agent_tests(con, name, trigger):
+    """When agent `name` just ended ('done': status exited; 'stop': status stopped), signal its own local test runners
+    (see _is_test_runner) per config orphan_reap_mode: 'dry-run' (default; unknown too) logs "agent-tests-would-reap"
+    once per (pid, start time); 'on' sends SIGTERM, SIGKILL after the grace period, and logs "agent-tests-reaped"; 'off'
+    scans nothing. Same candidate rules as the orphan reaper: same user, FACTORY_AGENT == name exactly, attributed to the
+    agent's own task, not the caller, its ancestors, the serve MainPID or a pane tree; identity re-read before each
+    signal; the group goes too only when its leader passes the same checks. Never raises."""
+    try:
+        mode = cfg(con, "orphan_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off":
+            return
+        row = con.execute("SELECT name,role,status,task_id,started,ended FROM agents WHERE name=?", (name,)).fetchone()
+        if (not row or row["status"] != {"done": "exited", "stop": "stopped"}.get(trigger)
+                or row["role"] in ORPHAN_HQ_ROLES or not row["task_id"]):
+            return
+        skip = _orphan_skip(_serve_mainpid())
+        grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
+        for d in sorted(_serve_proc_root().iterdir()):
+            if not d.name.isdigit():
+                continue
+            j = _test_judge(con, int(d.name), skip, row)
+            if not j:
+                continue
+            pid = j["pid"]
+            if mode == "dry-run":
+                body = {**_orphan_payload(j, "none"), "trigger": trigger}
+                key = json.dumps({"pid": pid, "start_time": j["ident"][1]})[:-1] + ","
+                if not con.execute("SELECT 1 FROM events WHERE action='agent-tests-would-reap' AND substr(detail,1,?)=?",
+                                   (len(key), key)).fetchone():
+                    event_as(con, "tick", "agent", name, "agent-tests-would-reap", body)
+                continue
+            targets, group = [(pid, j["ident"])], 0
+            st = _orphan_stat(pid)
+            if st and st[1] > 1 and st[1] != os.getpgrp():
+                lead = j if st[1] == pid else _test_judge(con, st[1], skip, row)
+                if lead:
+                    group = st[1]
+                    targets = [(pid, j["ident"])] + ([(st[1], lead["ident"])] if st[1] != pid else [])
+            if not _orphan_signal(signal.SIGTERM, targets, group):
+                continue
+            how = _orphan_term_kill(pid, j["ident"], targets, group, grace)
+            event_as(con, "tick", "agent", name, "agent-tests-reaped", {**_orphan_payload(j, how), "trigger": trigger})
+    except Exception as e:  # noqa: BLE001 — must never break the tick or force_stop
+        _agent_tests_failed(con, name, e)
+
+
+def alert_test_orphans(con):
+    """Tick hook, at most every 10 min: tell the director about test runners older than config test_orphan_alert_s
+    (default 1800; 0 or non-integer = off) whose FACTORY_AGENT names an agent that is not live/starting/queued (or
+    unknown). One "test-orphan-alert" event per (pid, start time), one batched message per tick. Never signals."""
+    try:
+        raw = cfg(con, "test_orphan_alert_s")
+        limit = int(raw) if str(raw).strip().isdigit() else 0
+        if limit <= 0:
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='testorphanalert'").fetchone()
+        if last and t - float(last["ts"]) < ORPHAN_REAP_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('testorphanalert',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        root = _serve_proc_root()
+        btime = next((int(x.split()[1]) for x in (root / "stat").read_text().splitlines() if x.startswith("btime ")), None)
+        if btime is None:
+            return
+        clk = os.sysconf("SC_CLK_TCK")
+        lines = []
+        for d in sorted(root.iterdir()):
+            if not d.name.isdigit():
+                continue
+            pid = int(d.name)
+            try:
+                if d.stat().st_uid != os.getuid():
+                    continue
+                cwd = os.path.realpath(os.readlink(d / "cwd"))
+            except OSError:
+                continue
+            env, ident = _orphan_env(pid), _orphan_ident(pid)
+            if env is None or ident is None or not _is_test_runner(ident[0]):
+                continue
+            agent = env.get("FACTORY_AGENT", "")
+            if not agent or agent == "owner":
+                continue
+            age = int(t - (btime + ident[1] / clk))
+            if age <= limit:
+                continue
+            r = con.execute("SELECT status FROM agents WHERE name=?", (agent,)).fetchone()
+            status = r["status"] if r else "unknown"
+            if status in ("live", "starting", "queued"):
+                continue
+            key = json.dumps({"pid": pid, "start_time": ident[1]})[:-1] + ","
+            if con.execute("SELECT 1 FROM events WHERE action='test-orphan-alert' AND substr(detail,1,?)=?",
+                           (len(key), key)).fetchone():
+                continue
+            event_as(con, "tick", "agent", agent, "test-orphan-alert", {
+                "pid": pid, "start_time": ident[1], "age_s": age, "argv0": ident[0][0],
+                "cmd_sha": hashlib.sha256(b"\0".join(x.encode() for x in ident[0])).hexdigest()[:12],
+                "cwd": cwd, "agent": agent, "agent_status": status})
+            lines.append(f"pid {pid} agent {agent} ({status}) age {age // 60} min cwd {cwd}")
+        if lines:
+            send(con, "director", f"{len(lines)} test run(s) without a live owner",
+                 "Test runners older than the alert age; nothing was signalled:\n" + "\n".join(lines), "alert", sender="tick")
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "test-orphan-alert", "test-orphan-alert-failed", str(e) or repr(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+# tick phase timers (T-0664, log-only; see _pt_lap below): state, and a decorator for phases whose call line is pinned by tests
+_PT = {"on": False, "last": 0.0, "t0": 0.0, "phases": [], "counters": {}, "git_n": 0, "git_mark": 0}
+
+
+def _pt_phase(name):
+    """Time a whole call as tick phase `name` (only while the tick timers are on; otherwise a plain call)."""
+    def deco(fn):
+        def wrapper(*a, **k):
+            if not _PT["on"]:
+                return fn(*a, **k)
+            try:
+                return fn(*a, **k)
+            finally:
+                try:
+                    t = time.perf_counter()
+                    _PT["phases"].append((name, t - _PT["last"]))
+                    _PT["last"] = t
+                except Exception:  # noqa: BLE001 — a timer must never stop the tick
+                    _PT["on"] = False
+        wrapper.__name__, wrapper.__doc__ = fn.__name__, fn.__doc__
+        return wrapper
+    return deco
+
+
+@_pt_phase("scout")
 def scout_tick(con):
     """Tick hook: start the skill scout at its slot and keep its run within budget (scout/schedule.py). Never breaks the tick."""
     try:
@@ -4930,6 +5936,7 @@ def scout_tick(con):
             pass
 
 
+@_pt_phase("skilleval")
 def skilleval_tick(con):
     """Tick hook: collect and start skill-eval trials under the caps (scout/skilleval.py). Never breaks the tick."""
     try:
@@ -5176,6 +6183,7 @@ def git_argv(repo, *args):
 
 def git_run(repo, *args, env=None, text=True, **kw):
     """subprocess.run of git in `repo` with hooks, fsmonitor, non-https transports and the system config off, and no prompts."""
+    _PT["git_n"] += 1  # tick phase timers: export_git counts these
     return subprocess.run(git_argv(repo, *args), capture_output=True, text=text,
                           env={**(os.environ if env is None else env), "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}, **kw)
 
@@ -5415,6 +6423,31 @@ def make_task_clone(con, repo, wt, branch, base):
         fail(f"clone checkout failed: {p.stderr.strip()}")
 
 
+PRE_PUSH_MARK = "# factory pre-push public-text guard (G-021 T-0696)"
+
+
+def install_pre_push_hook(repo):
+    """<git-common-dir>/hooks/pre-push runs ci/pre_push_public_text.py of the factory home, so every worktree of `repo`
+    (and a task clone's own repo) refuses a push to a public_text_repos remote that carries private text. A hook file,
+    not core.hooksPath: git_config_refusal allows no such key. Dies (spawn refused) when it cannot be written."""
+    p = git_run(repo, "rev-parse", "--git-common-dir", env={**os.environ, "LC_ALL": "C"})
+    if p.returncode != 0 or not p.stdout.strip():
+        die(f"spawn refused: cannot find the git dir of {repo} to install the pre-push guard: {p.stderr.strip()}", 4)
+    hooks = Path(repo, p.stdout.strip()).resolve() / "hooks"
+    script = Path(__file__).resolve().parent.parent / "ci" / "pre_push_public_text.py"
+    body = (f"#!/bin/sh\n{PRE_PUSH_MARK}\n"
+            f"exec python3 {shlex.quote(str(script))} --home {shlex.quote(str(HOME))} \"$@\"\n")
+    dst = hooks / "pre-push"
+    try:
+        hooks.mkdir(parents=True, exist_ok=True)
+        if not dst.is_file() or dst.is_symlink() or dst.read_text() != body:
+            dst.unlink(missing_ok=True)
+            dst.write_text(body)
+        dst.chmod(0o755)
+    except OSError as e:
+        die(f"spawn refused: cannot install the pre-push guard at {dst}: {e.strerror}. Fix the permissions, then spawn again.", 4)
+
+
 def prepare_worktree(con, task, role):
     """Coder gets a fresh worktree on factory/<task> from origin/<base>; QA/reviewer reuse it read-only."""
     if not task:
@@ -5430,6 +6463,7 @@ def prepare_worktree(con, task, role):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
             git_run(t["worktree"], "switch", "-q", t["branch"], text=False)
+        install_pre_push_hook(t["worktree"])
         return t["worktree"]
     if role != "coder":
         return None  # verifiers never create branches; they work from the coder's worktree or the PR
@@ -5444,6 +6478,7 @@ def prepare_worktree(con, task, role):
     start = f"origin/{base}" if has_remote else base
     if cfg(con, "task_clones") == "1":
         make_task_clone(con, repo, wt, branch, base)
+        install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
@@ -5457,6 +6492,7 @@ def prepare_worktree(con, task, role):
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
         die(f"worktree checkout failed: {p.stderr.strip()}")
+    install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
     return str(wt)
 
@@ -5633,6 +6669,13 @@ def check_effort_level(level):
     if level and level not in EFFORT_LEVELS:
         die(f"config opus_effort must be one of {', '.join(EFFORT_LEVELS)} or empty, got {level!r}: "
             "fix it with `factory config opus_effort medium`")
+
+
+def role_model(con, role):
+    """The model a role starts on: config model_<role> when that key exists and is set (only cleaner has one), else MODELS."""
+    key = f"model_{role}"
+    override = (cfg(con, key) or "").strip() if key in DEFAULT_CONFIG else ""
+    return override or MODELS[role]
 
 
 def effort_args(con, model):
@@ -5905,10 +6948,49 @@ def gh_cred_env(con, role, name):
     return {**scrub, **ghcred.pane_env(agent_dir, path)}
 
 
+ASYNC_START_TIMEOUT_MS = "3001"  # tick_async_start: the shortest agent-start --timeout herdr 0.9.5 accepts (> 3000, <= 300000); the tick checks readiness itself
+START_PENDING_ERRORS = ("agent_not_ready", "timed out")  # herdr start errors that only mean "not ready yet"
+START_CONFIRM_S = 90          # a start-pending agent not listed ready after this long is start-uncertain (the old --timeout 90000)
+
+
+def start_confirm(con, agents):
+    """Tick phase for tick_async_start: finish the spawns whose agent start did not wait for the TUI.
+    Ready (idle/done/working in the agent list) -> relaunched-fresh event, flagless clear, one kickoff prompt.
+    Not ready after START_CONFIRM_S -> the start-uncertain event, no prompt. Otherwise it waits for the next tick.
+    Returns the names still pending or just confirmed, which the nudge step must leave alone this tick."""
+    rows = con.execute("SELECT * FROM agents WHERE status='live' AND start_pending IS NOT NULL").fetchall()
+    if not rows:
+        return set()
+    agents = herdr_agents() if agents is None else agents
+    by_name = {x.get("name"): x for x in agents or [] if x.get("name")}
+    by_pane = {x.get("pane_id"): x for x in agents or []}
+    skip = set()
+    for r in rows:
+        skip.add(r["name"])
+        h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
+        try:
+            info = json.loads(r["start_pending_info"] or "{}")
+        except json.JSONDecodeError:
+            info = {}
+        if h and h.get("agent_status") in ("idle", "done", "working"):
+            if info.get("fresh"):
+                event(con, "agent", r["name"], "relaunched-fresh", {"old_sid": info.get("old_sid"), "new_sid": info.get("new_sid")})
+            if info.get("flagless") and r["flagless"]:
+                con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (r["name"],))
+                event(con, "agent", r["name"], "flagless-cleared", {"via": "spawn"})
+            if info.get("kick") and herdr("agent", "prompt", h.get("name") or r["name"], info["kick"], check=False) is not None:
+                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
+            con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
+        elif time.time() - r["start_pending"] > START_CONFIRM_S:
+            event(con, "agent", r["name"], "start-uncertain", r["pane_id"])
+            con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
+    return skip
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    model = model or MODELS[role]
+    model = model or role_model(con, role)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
     optin = args.get("sandbox_optin") is True
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
@@ -5945,7 +7027,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
         rdir = Path(env["FACTORY_HOME"]).parent / "role"
         settings, sysprompt = rdir / "settings.json", rdir / "prompt.md"
-        settings.write_text(settings_text("evaluator"))
+        settings_body, _guard = evaluator_settings(rdir)
+        settings.write_text(settings_body)
     # resumed agents run with --system-prompt-snapshot off and read this file on every request: write it only right
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
@@ -5975,21 +7058,39 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
                 "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
                 "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
                 "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
-                "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL",
+                "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
                 (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
     if role == "lead" and team:
         con.execute("UPDATE teams SET lead_agent=?, tab_id=?, parked_at=NULL WHERE id=?", (name, tab, team))
     if task and role == "coder":
         con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
     task_auto_start(con, task, f"spawn {name}", role)
-    r = herdr("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout", "90000", "--", *claude_args, check=False)
-    if r is None:
+    # tick_async_start: not sandboxed (its escape check must not wait a tick), not the evaluator; the start is told
+    # not to wait for the TUI and the tick's start_confirm phase finishes what follows a successful start
+    async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
+    start_args = ("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
+                  ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args)
+    start_err = None
+    if async_start:
+        r, start_err = herdr_start_error(*start_args)
+    else:
+        r = herdr(*start_args, check=False)
+    if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
+        # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
+        event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
+    elif async_start:
+        con.execute("UPDATE agents SET start_pending=?, start_pending_info=? WHERE name=?",
+                    (time.time(), json.dumps({"fresh": bool(fresh), "old_sid": existing["session_id"] if existing else None,
+                                              "new_sid": sid, "flagless": bool(existing and existing["flagless"]),
+                                              "kick": None if resume else kickoff_text(role, name, goal, team, task, prompt)}),
+                     name))
+    elif r is None:
         # agent_not_ready usually means a startup dialog (e.g. trust); the tick alerts if it stays blocked
         event(con, "agent", name, "start-uncertain", pane)
     elif fresh:
         event(con, "agent", name, "relaunched-fresh",
               {"old_sid": existing["session_id"] if existing else None, "new_sid": sid})
-    if r is not None and existing and existing["flagless"]:
+    if not async_start and r is not None and existing and existing["flagless"]:
         # every spawn carries the full role flags: drop the old marker now instead of waiting for the hourly
         # check, but only once the start succeeded (a failed or uncertain start leaves it as it was)
         con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (name,))
@@ -6007,9 +7108,10 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if not evaluator:  # it reads mail from its temp DB; an unread live message would be nudged forever
             send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
                  sender="factory")
-        time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))  # lets the TUI settle; tests set 0
-        if herdr("agent", "prompt", name, kick, check=False) is not None:
-            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+        if not async_start:  # async: the tick sends the kickoff prompt once the agent is ready
+            time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))  # lets the TUI settle; tests set 0
+            if herdr("agent", "prompt", name, kick, check=False) is not None:
+                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "live": stats["live"] + 1,
                                         **({"sandbox": True} if sandboxed else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
@@ -6129,6 +7231,197 @@ def coder_done_findings(con, r, force=False):
     return dirty, untracked, unpushed, ci
 
 
+# ── prcheck (G-022 item 7): a coder's pre-PR check, and the `factory done` gate on it ──
+
+PRCHECK_AFFECTED_TIMEOUT_S = 3600
+_TEST_DEF = "^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_"
+_RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
+_TESTS_REMOVED = re.compile(r"^\W*tests? removed:\s*\S", re.I | re.M)
+_PR_SECTION = re.compile(r"^## ", re.M)
+
+
+def prcheck_target(con, me):
+    """(agent row, task row with the project's base branch) of the calling coder; dies when it has no task."""
+    r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone()
+    if not r or r["role"] != "coder" or not r["task_id"]:
+        die("prcheck is for a coder with a task; run it from your task worktree", 3)
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, t.pr_url, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (r["task_id"],)).fetchone()
+    if not t or not t["worktree"] or not Path(t["worktree"]).is_dir():
+        die(f"{r['task_id']} has no worktree directory; ask your lead", 3)
+    return t
+
+
+def prcheck_fresh(wt, base):
+    """Check 1: HEAD holds origin/<base>, or a merge of it would be conflict-free. (ok, note)."""
+    ref = f"origin/{base}"
+    f = git_run(wt, "fetch", "origin", base, timeout=180)
+    if f.returncode != 0:
+        return False, f"cannot fetch origin {base}: {f.stderr.strip()[:200]}; retry in a minute"
+    if git_run(wt, "merge-base", "--is-ancestor", ref, "HEAD").returncode == 0:
+        return True, f"HEAD contains {ref}"
+    behind = _git_out(wt, "rev-list", "--count", f"HEAD..{ref}")[1]
+    m = git_run(wt, "merge-tree", "--write-tree", "--name-only", ref, "HEAD")
+    if m.returncode == 0:
+        return True, f"behind {ref} by {behind}; a merge is clean (git fetch origin && git merge {ref} keeps it fresh)"
+    if m.returncode == 1:
+        names = m.stdout.split("\n\n", 1)[0].splitlines()[1:]  # tree id, then the conflicted paths (--name-only)
+        files = sorted(set(names))
+        return False, (f"merging {ref} conflicts ({', '.join(files[:10]) or 'see git merge'}): "
+                       f"run git merge {ref}, resolve, rerun the tests, push")
+    return False, f"cannot test a merge of {ref}: {m.stderr.strip()[:200]}"
+
+
+def prcheck_identity(wt, base):
+    """Check 2: author and committer of every commit in origin/<base>..HEAD are noreply addresses. (ok, note)."""
+    p = git_run(wt, "log", "--format=%H%x09%ae%x09%ce", f"origin/{base}..HEAD")
+    if p.returncode != 0:
+        return False, f"cannot read the commits: {p.stderr.strip()[:200]}"
+    rows = [ln.split("\t") for ln in p.stdout.splitlines() if ln]
+    if not rows:
+        return False, f"no commits beyond origin/{base}: commit your work"
+    bad = [f"{h[:9]} {'+'.join(_email_problems(ae, ce))}" for h, ae, ce in rows if _email_problems(ae, ce)]
+    if bad:
+        return False, (f"non-noreply identity in {', '.join(bad[:5])}: set the repo-local user.email to your "
+                       f"{NOREPLY_SUFFIX} address and rewrite those commits (git rebase -r --exec 'git commit --amend --reset-author --no-edit')")
+    return True, f"{len(rows)} commit(s), author and committer noreply"
+
+
+def prcheck_test_count(wt, ref):
+    """Number of `def test_` lines under tests/ at `ref`; None when git cannot say."""
+    p = git_run(wt, "grep", "-h", "-E", _TEST_DEF, ref, "--", "tests")
+    return len(p.stdout.splitlines()) if p.returncode in (0, 1) else None
+
+
+def prcheck_body(wt, base, pr_url):
+    """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
+    if not pr_url:
+        return False, "no PR for this task yet: open it (gh pr create --body-file F) or pass --pr <url>, then rerun"
+    try:
+        p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
+                           env=gh_git_env())
+        body = json.loads(p.stdout)["body"] if p.returncode == 0 else None
+        err = p.stderr.strip()
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
+        body, err = None, str(e)
+    if body is None:
+        return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
+    problems = pr_body_problems(body, pr_template_headings())
+    outside = pr_outside_details(body)
+    sec = outside.split("## Test evidence", 1)[-1] if "## Test evidence" in outside else ""
+    sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
+    if not re.search(r"`[^`\n]+`", sec):
+        problems.append("`## Test evidence` has no command in backticks (e.g. `python3 -m unittest discover -s tests -v`)")
+    # count against the merge-base, so tests main gained since the branch point do not look like removals
+    mb = _git_out(wt, "merge-base", "HEAD", f"origin/{base}")
+    n_head = prcheck_test_count(wt, "HEAD")
+    n_base = prcheck_test_count(wt, mb[1]) if mb[0] == 0 and mb[1] else None
+    if n_head is None or n_base is None:
+        problems.append("cannot count the tests (git grep failed)")
+    elif n_head < n_base and not _TESTS_REMOVED.search(outside):
+        problems.append(f"the test count drops ({n_base} at the merge base with origin/{base}, {n_head} on HEAD): add a line "
+                        "`Tests removed: <which and why>` outside <details>")
+    if problems:
+        return False, f"PR body of {pr_url}:\n" + "\n".join(f"      - {x}" for x in problems)
+    return True, f"PR body follows {PR_TEMPLATE}"
+
+
+def prcheck_public(con, t, wt, base):
+    """Check 4: the G-021 public-text guard over the diff, as the judge runs it. (ok, note)."""
+    m = re.match(r"https?://[^/]+/([^/]+/[^/]+)/pull/", t["pr_url"] or "")
+    slug = m and m.group(1)
+    if not _judge_is_public(con, t, slug):
+        return True, "n/a: the repo is not in public_text_repos"
+    if not t["pr_url"]:
+        return False, "no PR url: the guard reads the PR text too; open the PR first"
+    msg = judge_public_text_refusal(con, t, slug, wt, f"origin/{base}", "HEAD")
+    if msg:
+        return False, msg.replace("judge: refused ", "") + ("; remove or rephrase them" if " hits:" in msg else "")
+    return True, "no hits"
+
+
+def prcheck_affected(wt, base):
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note)."""
+    script = Path(wt) / "ci" / "affected.py"
+    if not script.is_file():
+        return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
+    try:
+        p = subprocess.run([sys.executable, str(script), "--base", f"origin/{base}", "--run"], cwd=wt, capture_output=True,
+                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return False, f"ci/affected.py --run timed out after {PRCHECK_AFFECTED_TIMEOUT_S}s"
+    except OSError as e:
+        return False, f"cannot run ci/affected.py: {e}"
+    out = (p.stdout + p.stderr).strip()
+    tail = "\n".join("      " + ln for ln in out.splitlines()[-8:])
+    if p.returncode != 0:
+        return False, f"ci/affected.py --run exited {p.returncode}; fix and rerun:\n{tail}"
+    ran = _RAN_RE.findall(out)
+    if not ran or not any(int(x) for x in ran):
+        return False, f"ci/affected.py --run exited 0 but reported no tests run:\n{tail}"
+    return True, f"ci/affected.py --run ok, ran {sum(int(x) for x in ran)} tests"
+
+
+def prcheck_tier(wt, base):
+    """Check 6 (informational): the risk tier of the diff, from the classifier when this build has one."""
+    fn = globals().get("risk_tier")
+    if fn is None:
+        return True, "tier: unavailable (no risk classifier in this build)"
+    try:
+        return True, f"tier: {fn(wt, f'origin/{base}', 'HEAD')}"
+    except (TypeError, ValueError, OSError) as e:  # informational only: a classifier with another signature must not break prcheck
+        return True, f"tier: unavailable ({type(e).__name__}: {str(e)[:80]})"
+
+
+def cmd_prcheck(a):
+    con = db()
+    require_role(con, "coder")
+    t = prcheck_target(con, actor())
+    wt, base = t["worktree"], t["base_branch"] or "main"
+    pr_url = a.pr or t["pr_url"]
+    t = {**dict(t), "pr_url": pr_url}
+    if _git_out(wt, "status", "--porcelain", "--untracked-files=no")[1]:
+        die("uncommitted tracked changes: commit them (a WIP commit is fine), then rerun prcheck", 3)
+    rc, head = _git_out(wt, "rev-parse", "HEAD")
+    if rc != 0:
+        die(f"cannot read HEAD of {wt}", 3)
+    results = []
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
+                     ("affected", lambda: prcheck_affected(wt, base)), ("tier", lambda: prcheck_tier(wt, base))):
+        ok, note = fn()
+        results.append((name, ok, note))
+        print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
+    ok = all(x[1] for x in results)
+    event(con, "task", t["id"], "prcheck", {"head": head, "ok": ok, "failed": [n for n, k, _ in results if not k]})
+    print(f"prcheck {'passed' if ok else 'FAILED'} on {head[:9]}" + ("" if ok else ": fix the FAIL lines, commit, rerun"))
+    sys.exit(0 if ok else 1)
+
+
+def prcheck_done_refusal(con, r, t):
+    """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
+    worktree's current HEAD. Cannot read HEAD or the record = refuse."""
+    if cfg(con, "prcheck_required") != "1" or not t or not t["pr_url"]:
+        return
+    row = con.execute("SELECT worktree FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    wt = row and row["worktree"]
+    rc, head = _git_out(wt, "rev-parse", "HEAD") if wt and Path(wt).is_dir() else (1, "")
+    if rc != 0 or not head:
+        die(f"prcheck_required is on and the HEAD of {r['task_id']}'s worktree cannot be read; ask your lead", 3)
+    for e in con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='prcheck' ORDER BY id DESC",
+                         (r["task_id"],)):
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if d.get("head") == head:
+            if d.get("ok"):
+                return
+            break
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+        "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
+
+
 JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject")  # what cmd_judge records
 
 
@@ -6192,6 +7485,7 @@ def cmd_done(a):
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
             require_acceptance_walk(t["pr_url"])
+        prcheck_done_refusal(con, r, t)
         unclean = "; ".join(found)
         if untracked:
             print("WARNING: untracked files left in the worktree: " + ", ".join(untracked[:10]), file=sys.stderr)
@@ -6381,6 +7675,10 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
         return f"failed:{kind}", note
     if con.execute(f"UPDATE agents SET status='stopped', ended=?, stop_failed_kind=NULL {cond}", (now(), name)).rowcount != 1:
         return "skip", None  # it finished meanwhile
+    try:
+        reap_agent_tests(con, name, "stop")
+    except Exception as e:  # noqa: BLE001 — never changes the stop result
+        _agent_tests_failed(con, name, e)
     event(con, "agent", name, "stopped", {"reason": how, "pane": pane})
     if how == "timeout":
         req = _ts(r["stop_requested_at"])
@@ -7449,12 +8747,31 @@ def owner_blockers(con):
     return out
 
 
+def owner_blocker_nudge(con, blockers):
+    """The one night exception to "the tick never prompts the boss pane": prompt it once per alerted night blocker, like
+    step 3 does for other agents (idle/done only, never into a running turn; retried each tick until delivered)."""
+    agents = herdr_agents() or []
+    for b in blockers:
+        key = "nudged:" + b["key"]
+        if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone() or \
+                not con.execute("SELECT 1 FROM throttle WHERE key=?", ("alerted:" + b["key"],)).fetchone():
+            continue
+        r = con.execute("SELECT name,pane_id FROM agents WHERE role='boss' AND status='live' ORDER BY rowid DESC LIMIT 1").fetchone()
+        h = next((x for x in agents if r and (x.get("name") == r["name"] or x.get("pane_id") == r["pane_id"])), None)
+        if not h or h.get("agent_status") not in ("idle", "done"):
+            continue
+        if herdr("agent", "prompt", h.get("name") or r["name"],
+                 "📬 OWNER-ONLY BLOCKER (night): run `factory inbox` and tell the owner now.", check=False) is None:
+            continue  # herdr failed: no throttle row, no event; retried next tick
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+        event_as(con, "tick", "agent", r["name"], "owner-blocker-nudge", b["text"][:200])
+
+
 def owner_blocker_alerts(con):
     """Tick hook: an owner-only blocker raised between day_end_hour and day_start_hour pings the boss once, at once. Never raises."""
     try:
-        for b in owner_blockers(con):
-            if not is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone()):
-                continue
+        night = [b for b in owner_blockers(con) if is_night(con, dt.datetime.fromisoformat(b["since"]).astimezone())]
+        for b in night:
             key = "alerted:" + b["key"]
             if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
                 continue
@@ -7463,6 +8780,7 @@ def owner_blocker_alerts(con):
                  f"Raised {b['since']}, outside daytime ({ds}-{de} h). Tell the owner now by the owner channel; "
                  "tell again at day_start_hour if still open.", "escalation", sender="tick")
             con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, b["since"]))
+        owner_blocker_nudge(con, night)
     except Exception as e:  # noqa: BLE001 — alerting must never break the tick
         try:
             if not _util_throttled(con, "owner-blocker-failed", 3600, digest_clock().timestamp()):
@@ -7855,6 +9173,90 @@ def gate_show_row(r):
     print(f"  actor  {r['actor']}  created {r['created']}  started {r['started'] or '-'}  finished {r['finished'] or '-'}")
 
 
+def cmd_test(a):
+    """T-0674: run a command in the cwd under the test sandbox when config test_sandbox is 1, directly when 0.
+    Fail closed: an unbuildable sandbox or a bad flag value exits non-zero and the command is not run."""
+    cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
+    if not cmd:
+        die("factory test needs a command: factory test [--] <cmd...>", 2)
+    v = cfg(db(), "test_sandbox").strip()
+    if v not in ("0", "1"):
+        die(f"config test_sandbox is {v!r}, not 0 or 1; fix it with `factory config test_sandbox 1`, the command was not run", 3)
+    cg = cfg(db(), "test_cgroup").strip()
+    if cg not in ("0", "1"):
+        die(f"config test_cgroup is {cg!r}, not 0 or 1; fix it with `factory config test_cgroup 0`, the command was not run", 3)
+    cgpath = cgfd = None
+    if cg == "1":  # T-0681: per-run child cgroup with caps; fail closed, never run uncapped
+        try:
+            lim = testcg.limits(cfg(db(), "test_cpu_quota"), cfg(db(), "test_mem_max"), cfg(db(), "test_tasks_max"))
+            parent = cfg(db(), "test_cgroup_parent").strip() or testcg.default_parent(os.getuid())
+            cgpath = testcg.create(parent, f"run-{os.getpid()}", lim)
+            cgfd = testcg.enter_fd(cgpath)
+        except testcg.CgroupError as e:
+            die(str(e), 3)
+
+    def into_cgroup():
+        if cgfd is not None:
+            try:
+                os.write(cgfd, b"0")  # moves this forked child into the run's cgroup before exec
+            except OSError as e:  # preexec_fn exceptions lose their cause; say it, and never exec the command uncapped
+                os.write(2, f"factory test: cannot move the run into {cgpath}: {e.strerror} (errno {e.errno}); the command was not run uncapped\n".encode())
+                os._exit(127)
+
+    def end():
+        if cgfd is not None:
+            os.close(cgfd)
+            testcg.destroy(cgpath)
+    sv = cfg(db(), "test_sandbox_subuid").strip()
+    if sv not in ("0", "1"):
+        die(f"config test_sandbox_subuid is {sv!r}, not 0 or 1; fix it with `factory config test_sandbox_subuid 1`, the command was not run", 3)
+    subuid = sv == "1"
+    tree, scratch = os.getcwd(), None
+    if v == "0":
+        if cg == "0":
+            try:
+                os.execvp(cmd[0], cmd)
+            except OSError as e:
+                die(f"factory test: cannot run {cmd[0]}: {e.strerror}", 127)
+        try:
+            p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, start_new_session=True, preexec_fn=into_cgroup)
+        except (OSError, subprocess.SubprocessError) as e:  # SubprocessError: preexec_fn could not enter the cgroup
+            end()
+            die(f"factory test: cannot run {cmd[0]}: {getattr(e, 'strerror', None) or e}", 127)
+    else:
+        try:
+            scratch = testbox.new_scratch(tree)
+            argv, env = testbox.build(cmd, tree, str(Path(__file__).resolve().parent.parent), scratch, os.environ, subuid=subuid,
+                                      runtime=os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+        except testbox.TestboxError as e:
+            if scratch:
+                testbox.cleanup(scratch)
+            end()
+            die(f"test_sandbox=1: {e}; the command was not run unsandboxed (rollback: factory config test_sandbox 0, or test_sandbox_subuid 0)", 3)
+        try:
+            p = subprocess.Popen(argv, cwd=tree, env=env, stdin=subprocess.DEVNULL, start_new_session=True,  # no tty: no TIOCSTI into the caller's shell
+                                 preexec_fn=into_cgroup)
+        except (OSError, subprocess.SubprocessError) as e:
+            testbox.cleanup(scratch)
+            end()
+            die(f"factory test: cannot start the sandboxed run: {getattr(e, 'strerror', None) or e}", 127)
+
+    def forward(sig, _frame):
+        try:
+            os.killpg(p.pid, sig)
+        except ProcessLookupError:
+            pass
+    for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(s, forward)
+    try:
+        rc = p.wait()
+    finally:
+        if scratch:
+            testbox.cleanup(scratch)
+        end()
+    sys.exit(rc if rc >= 0 else 128 - rc)
+
+
 def cmd_gate(a):
     con = db()
     if a.action == "run":
@@ -8071,6 +9473,8 @@ def cmd_res(a):
     else:
         print(f"tmp used {tmp['used_mb']} MB / {tmp['total_mb']} MB ({tmp['pct']:.0f}%)"
               + (f" on {tmp['fstype']}" if tmp["fstype"] else "") + f" (gate closes at {cfg(con, 'tmp_max_pct')}%)")
+        sw = last_tmp_sweep(con)
+        print(f"tmp sweep (over {cfg(con, 'tmp_sweep_pct')}%): " + (f"last {sw[0]} freed {sw[1]} MB in {sw[2]} dirs" if sw else "never swept"))
     if s["total"] is None:
         print("claude processes unknown")
     else:
@@ -8543,6 +9947,100 @@ def judge_hold(con, task, cap=True, behind_ok=False):
     return None
 
 
+LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the task whose judge holds the refresh lane
+LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
+
+
+LANE_PENDING = ("QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED", "EXPECTED")
+
+
+def lane_owner_stuck(con, task):
+    """Why the lane owner `task` can no longer be merged without a new push (a red check, or a DIRTY/conflicting head),
+    else None. A pending check, a BEHIND head or a gh failure is not stuck: the owner is still on its way."""
+    r = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    if not r or not r["pr_url"]:
+        return None
+    ready, why = judge_pr_ready(con, r["pr_url"], True)
+    if ready:
+        return None
+    if why == "PR is DIRTY":
+        return why
+    if why.startswith("CI not green: "):
+        red = [x for x in why[len("CI not green: "):].split(", ") if "=" in x and x.rsplit("=", 1)[1].upper() not in LANE_PENDING]
+        if red:
+            return why
+    return None
+
+
+def lane_throttle_sweep(con):
+    """Drop 'lane:<task>' throttle rows of tasks that are finished or gone (the lane is released when they end)."""
+    con.execute("DELETE FROM throttle WHERE key LIKE 'lane:%' AND substr(key, 6) NOT IN "
+                "(SELECT id FROM tasks WHERE status NOT IN ('done','cancelled'))")
+
+
+def refresh_lane_hold(con, task, queued):
+    """G-022 refresh_lane (phase 1): why a queued judge for `task` waits for the refresh lane, or None to let it go on.
+    Only with config refresh_lane=on. Behind-only is not a failure, but every BEHIND judge that starts refreshes its
+    branch and restarts CI, and each merge makes the next one BEHIND again. So one task owns the lane at a time: the
+    oldest queued judge (queue order) whose PR is ready except for being BEHIND. The others get 'T-x lane: position N'
+    and no refresh, no CI run. The owner keeps the lane while it has a queued, starting or live judge and its task is
+    open; when it merges (or its judge ends without a merge) the next BEHIND head takes over. A PR that is not BEHIND
+    is never held, and nothing is held when stale_policy=behind_ok applies (no refresh happens then). `queued` = the
+    tick's queued rows in queue order. A gh failure reads as not BEHIND (not held): the lane only narrows refreshes."""
+    lane_throttle_sweep(con)
+    if (cfg(con, "refresh_lane") or "off").strip().lower() != "on" or not task:
+        return None
+
+    def behind(tid):
+        r = con.execute("SELECT pr_url FROM tasks WHERE id=?", (tid,)).fetchone()
+        url = r["pr_url"] if r else None
+        if not url or (url.startswith("https://github.com/") and stale_behind_ok(con, "/".join(url.split("/")[3:5]))):
+            return False
+        ready, why = judge_pr_ready(con, url, True)
+        return bool(ready) and why == "PR is BEHIND"
+
+    row = con.execute("SELECT value FROM config WHERE key=?", (LANE_OWNER_KEY,)).fetchone()
+    owner, _, since = (row["value"] if row else "").partition("|")
+    try:
+        if owner and time.time() - float(since) > LANE_OWNER_TTL_S:
+            owner = ""  # the owner made no progress for an hour (CI red, DIRTY, judge parked): the next head takes over
+    except ValueError:
+        owner = ""  # an unreadable value is a released lane
+    if owner:
+        t = con.execute("SELECT status FROM tasks WHERE id=?", (owner,)).fetchone()
+        live = con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('queued','starting','live')",
+                           (owner,)).fetchone()
+        if not t or t["status"] in ("done", "cancelled") or not live:
+            owner = None
+    if owner:
+        stuck = lane_owner_stuck(con, owner)
+        if stuck:  # red CI or DIRTY: it needs a new push, so it must not hold the lane for the TTL
+            con.execute("DELETE FROM config WHERE key=?", (LANE_OWNER_KEY,))
+            con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + owner,))
+            event(con, "task", owner, "lane-release", f"refresh lane released: {stuck}"[:300])
+            owner = None
+    if owner == task or not behind(task):
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
+        return None
+    line = [x for x in dict.fromkeys(q["task_id"] for q in queued if q["role"] == "judge" and q["task_id"])
+            if x != owner and (x == task or behind(x))]
+    if task not in line:
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
+        return None
+    if not owner and line[0] == task:
+        con.execute("DELETE FROM throttle WHERE key=?", ("lane:" + task,))
+        con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (LANE_OWNER_KEY, f"{task}|{time.time()}"))
+        event(con, "task", task, "lane-head", "refresh lane: this task is the queue head and is refreshed first")
+        return None
+    why = f"lane: position {line.index(task) + 1 + (1 if owner else 0)}"
+    old = con.execute("SELECT ts FROM throttle WHERE key=?", ("lane:" + task,)).fetchone()
+    if not old or old["ts"] != why:
+        con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", ("lane:" + task, why))
+        event(con, "task", task, "lane-hold", why)
+    return f"{task} {why}"
+
+
 QUEUE_AGE_STEP_MIN = 30  # one aging step; see queue_order_key
 QUEUE_AGE_CAP_MIN = 240  # hard age cap: a row queued this long is at level 0 whatever its priority; see queue_order_key
 QUEUE_ROLE_CLASS = {"director": 0, "lead": 1, "judge": 2, "reviewer": 3, "qa": 4}
@@ -8673,25 +10171,118 @@ def stale_agents(con):
             con.execute("SELECT key, ts FROM throttle WHERE key LIKE 'fresh:%' ORDER BY key").fetchall()]
 
 
+# ── tick phase timers (T-0664): log-only, behind config tick_phase_timers; nothing here may stop the tick ──
+
+
+def _pt_reset(con):
+    """Tick start: reset the counters and say whether the timers are on."""
+    try:
+        _PT.update(on=cfg(con, "tick_phase_timers") == "1", phases=[], counters={}, git_n=0, git_mark=0)
+        _PT["t0"] = _PT["last"] = time.perf_counter()
+    except Exception:  # noqa: BLE001 — a timer must never stop the tick
+        _PT["on"] = False
+
+
+def _pt_lap(name):
+    """Close the phase that just ran: its wall time is the time since the previous lap."""
+    if not _PT["on"]:
+        return
+    try:
+        t = time.perf_counter()
+        _PT["phases"].append((name, t - _PT["last"]))
+        _PT["last"] = t
+    except Exception:  # noqa: BLE001
+        _PT["on"] = False
+
+
+def _pt_count(name, n=1):
+    try:
+        _PT["counters"][name] = _PT["counters"].get(name, 0) + n
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _pt_git(start):
+    """Bracket export(): export_git = git subprocesses (git_run calls) made in between."""
+    try:
+        if start:
+            _PT["git_mark"] = _PT["git_n"]
+        else:
+            _PT["counters"]["export_git"] = _PT["git_n"] - _PT["git_mark"]
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _timed_spawn(*a, **k):
+    """spawn() for the dequeue loop; with the timers on it also counts the calls and their wall time."""
+    if not _PT["on"]:
+        return spawn(*a, **k)
+    t = time.perf_counter()
+    try:
+        return spawn(*a, **k)
+    finally:
+        _pt_count("dequeue_spawns")
+        _pt_count("dequeue_spawn_s", time.perf_counter() - t)
+
+
+def _pt_emit(con):
+    """One `tick-phases` stdout line and one event row at the end of the tick (also on the herdr-unreachable return)."""
+    if not _PT["on"]:
+        return
+    try:
+        c = _PT["counters"]
+        for k, v in (("dequeue_spawns", 0), ("dequeue_spawn_s", 0.0), ("ci_wake_ls_remote", 0), ("ci_wake_gh", 0), ("export_git", 0)):
+            c.setdefault(k, v)
+        line = "tick-phases total=%.2f" % (time.perf_counter() - _PT["t0"])
+        line += "".join(" %s=%.2f" % (n, d) for n, d in _PT["phases"])
+        line += "".join(" %s=%s" % (k, v if isinstance(v, int) else "%.2f" % v) for k, v in c.items())
+        print(line, flush=True)
+        event(con, "tick", "phases", "tick-phases", line)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def cmd_tick(a, locked=False):
     """Runs every minute from systemd. No LLM tokens: reap, dequeue, nudge, publish."""
     refuse_worker("tick")
     lock = None if locked else tick_lock()  # noqa: F841 — held until exit
+    t_mig = time.perf_counter()
     migrate_db_layout()
     con = db()
+    _pt_reset(con)
+    _PT["last"] = t_mig  # migrate_db covers the DB open and the timer setup too
+    _pt_lap("migrate_db")
     render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
+    _pt_lap("render_settings")
     agents = herdr_agents()
+    _pt_lap("herdr_list")
     morning_digest(con)
+    _pt_lap("digest")
     tmp_alert(con)
+    _pt_lap("tmp_alert")
+    tmp_sweep(con)
     remote_url_alert(con)
+    _pt_lap("remote_url_alert")
     main_protection_alert(con)
+    _pt_lap("main_protection")
     tmp_clean(con)
+    _pt_lap("tmp_clean")
     red_main_check(con)
+    _pt_lap("red_main")
     reap_stray_serves(con)
+    _pt_lap("reap_serves")
+    reap_orphans(con)
+    _pt_lap("reap_orphans")
+    alert_test_orphans(con)
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
+        _pt_lap("drift")
         print("herdr unreachable; exporting only")
+        _pt_git(True)
         export(con)
+        _pt_git(False)
+        _pt_lap("export")
+        _pt_emit(con)
         return
     scout_tick(con)
     skilleval_tick(con)
@@ -8699,6 +10290,7 @@ def cmd_tick(a, locked=False):
     by_pane = {x["pane_id"]: x for x in agents}
     t = time.time()
     finish_pending_nudges(con, by_name, t)
+    _pt_lap("pending_nudges")
 
     # 1. reap finished workers; detect lost agents; record session ids for resume
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
@@ -8707,6 +10299,10 @@ def cmd_tick(a, locked=False):
             if r["pane_id"]:
                 herdr("pane", "close", r["pane_id"], check=False)
             con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
+            try:
+                reap_agent_tests(con, r["name"], "done")
+            except Exception as e:  # noqa: BLE001 — the tick must go on
+                _agent_tests_failed(con, r["name"], e)
             event(con, "agent", r["name"], "reaped", r["pane_id"])
             continue
         if not h and r["started"] and still_starting(r):
@@ -8745,17 +10341,21 @@ def cmd_tick(a, locked=False):
         elif r["blocked_since"]:
             con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
 
+    _pt_lap("reap_loop")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
+    _pt_lap("drift")
 
     # 1b. flagless panes (resumed by herdr without role flags) surface even without `factory up`
     notify_flagless(con, [f for f in flagless_scan(
         con, con.execute("SELECT * FROM agents WHERE status='live' AND session_id IS NOT NULL").fetchall(),
         throttle=True) if f["new"]])
+    _pt_lap("flagless")
 
     try:  # 1b'. a Claude process under an agent that factory spawn did not start
         claude_outside_spawn(con)
     except Exception as e:  # noqa: BLE001 — the audit must never stop the tick
         event(con, "tick", "claude-audit", "claude-audit-failed", str(e))
+    _pt_lap("claude_audit")
 
     # 1c. stop fallback BEFORE the dequeue, so a freed slot is seen by it
     stop_timeout = int(cfg(con, "stop_timeout_s"))
@@ -8767,24 +10367,35 @@ def cmd_tick(a, locked=False):
         if att is not None and (nowdt - att).total_seconds() < stop_timeout:
             continue  # retry at most once per stop_timeout_s
         _res, _note = force_stop(con, r["name"], "timeout", attempt_seen=r["stop_attempt_at"])  # the tick needs neither
+    _pt_lap("stop_fallback")
 
     # 1c''. local merge gate (T-0516): launch the queued gate runs within gate_max_parallel
     try:
         tick_gate(con)
     except Exception as e:  # noqa: BLE001 — a bad gate row must never stop the tick
         event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
+    _pt_lap("gate")
+
+    # 1c'''. mechanical merger (G-022 #4, config mech_merge off|shadow|on): one detached unit, never blocks the tick
+    try:
+        tick_mech_merge(con)
+    except Exception as e:  # noqa: BLE001 — a bad candidate must never stop the tick
+        event(con, "tick", "mech-merge", "mech-merge-tick-error", str(e)[:300])
+    _pt_lap("mech_merge")
 
     # 1c'. CI result of a parked team's in_review PR -> mail to its lead, so 1d wakes it in this tick
     try:
         tick_ci_wake(con)
     except Exception as e:  # noqa: BLE001 — a bad PR or team row must never stop the tick
         event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
+    _pt_lap("ci_wake")
 
     # 1d. wake parked leads (unread mail), BEFORE the dequeue so a queued wake can start in this tick
     try:
         tick_wake_leads(con)
     except Exception as e:  # noqa: BLE001 — a bad team row must never stop the tick
         event(con, "tick", "wake-leads", "wake-error", str(e)[:300])
+    _pt_lap("wake_leads")
 
     # 2. dequeue spawns while the gate is open. Drain before build: role class first (director, lead, judge, reviewer, qa,
     # then coder/pm/cleaner/staff-engineer). Inside the coder/pm/... class a merge-only refresh coder (its spawn prompt
@@ -8818,8 +10429,10 @@ def cmd_tick(a, locked=False):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
         if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
             continue  # judge cap reached or PR CI not green: the rows behind it may start
+        if s["role"] == "judge" and refresh_lane_hold(con, s.get("task"), queued):
+            continue  # refresh_lane=on: a BEHIND PR that is not the queue head waits without a refresh
         try:
-            spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
+            _timed_spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"],
                   s.get("resume"), from_queue=True, env_extra=s.get("env_extra"), plugin_dirs=s.get("plugin_dirs"),
                   add_home_dir=s.get("add_home_dir", True), fresh=s.get("fresh", False),
                   sandbox_optin=s.get("sandbox_optin") is True)
@@ -8835,14 +10448,36 @@ def cmd_tick(a, locked=False):
         except SystemExit:
             if s["role"] != "evaluator":
                 raise
-            # a transient failure: spawn() left the row queued and the trial running; the next tick retries
-            event(con, "agent", q["name"], "evaluator-spawn-retry", "queued evaluator spawn failed; retried next tick")
+            # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
+            # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
+            fails = int(s.get("spawn_failures", 0)) + 1
+            if fails >= EVALUATOR_SPAWN_RETRY_MAX:
+                why = f"evaluator spawn failed {fails} times; giving up"
+                con.execute("UPDATE agents SET status='cancelled', ended=? WHERE name=? AND status='queued'", (now(), q["name"]))
+                con.execute("UPDATE skill_trials SET status='error', passed=0, ended=?, check_output=? "
+                            "WHERE agent=? AND status='running'", (now(), why, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-failed", why)
+            else:
+                con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) "
+                            "WHERE name=? AND status='queued'", (fails, q["name"]))
+                event(con, "agent", q["name"], "evaluator-spawn-retry",
+                      f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
+    _pt_lap("dequeue")
 
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
     try:
         dispatch_tick(con)
     except Exception as e:  # noqa: BLE001 — dispatch must never stop the tick
         event(con, "tick", "dispatch", "dispatch-error", str(e)[:300])
+    _pt_lap("dispatch")
+
+    # 2c. tick_async_start: confirm the spawns whose agent start did not wait for the TUI (no-op when nothing is pending)
+    try:
+        starting = start_confirm(con, None)
+    except Exception as e:  # noqa: BLE001 — confirming must never stop the tick
+        starting = set()
+        event(con, "tick", "start_confirm", "start-confirm-error", str(e)[:300])
+    _pt_lap("start_confirm")
 
     # 2c. review autospawn: start reviewer + QA when a PR opens (config review_autospawn; default off)
     try:
@@ -8858,6 +10493,8 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
         if r["role"] == "boss":
             continue  # the owner types in this pane: the tick never prompts it (badge in step 4, hook reads the mail)
+        if r["name"] in starting:
+            continue  # start pending or just kicked off: no second prompt
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])  # herdr may have resumed it under another name
         if not h or h.get("agent_status") not in ("idle", "done"):
             continue
@@ -8873,6 +10510,7 @@ def cmd_tick(a, locked=False):
         if text:
             herdr("agent", "prompt", h.get("name") or r["name"], text, check=False)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
+    _pt_lap("nudge")
 
     # 4. sidebar: goal progress on each goal workspace, capacity on HQ
     _, why, s = gate(con)
@@ -8893,7 +10531,11 @@ def cmd_tick(a, locked=False):
                 label = label[:28 - len(f" 📬{n}")] + f" 📬{n}"
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
+    _pt_lap("sidebar")
+    _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
+    _pt_git(False)
+    _pt_lap("export")
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
@@ -8905,16 +10547,20 @@ def cmd_tick(a, locked=False):
         if not old or old["ts"] != err:  # one event per new error text, not one per tick
             con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
             event(con, "tick", "freshness", "freshness-failed", err)
+    _pt_lap("freshness")
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
         tick_recycle(con)
     except Exception as e:  # noqa: BLE001 — one bad agent row or log must not stop the relaunches
         event(con, "agent", "tick", "recycle-error", str(e)[:300])
+    _pt_lap("recycle")
     tick_relaunches(con)
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
+    _pt_lap("util")
+    _pt_emit(con)
 
 
 # ───────────────────────────── export & backup ─────────────────────────────
@@ -8960,11 +10606,16 @@ def _sync_failed(con, err):
     return False
 
 
-def _migrate_state_commits(con, push_ok=True, target="origin/main"):
+_FETCH_MAIN = ["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"]
+
+
+def _migrate_state_commits(con, push_ok=True, target="origin/main", fetched=False):
     """Old code committed "state:" commits on main. Drain them once by dropping them locally; they are never pushed
     (they carry factory.sql, T-0326). With git_push=0, state_push=0 or --no-push (push_ok False) the commits stay
-    where they are. Returns an error string when main holds anything else (nothing is touched then), else None."""
-    _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])
+    where they are. fetched=True: the caller just fetched origin/main, skip our own fetch.
+    Returns an error string when main holds anything else (nothing is touched then), else None."""
+    if not fetched:
+        _git_rc(_FETCH_MAIN)
     rc, out, _ = _git_rc(["log", "--format=%H%x00%P%x00%s", "origin/main..main"])
     if rc != 0 or not out:
         return None
@@ -9007,15 +10658,16 @@ def sync_pull(con, push_ok=True):
     if tracked:
         _git_rc(["restore", "--worktree", "--source=HEAD", "--pathspec-from-file=-", "--pathspec-file-nul"], input=tracked)
         _git_rc(["update-index", "-q", "--refresh"])  # restore leaves stale stat data: reset --keep / ff-merge would say "not uptodate"
+    # the one fetch of this call (_sync_target reads only config, so the order is free); later checks (email) read origin/main
+    frc, _, ferr = _git_rc(_FETCH_MAIN)
     target = _sync_target(con)
     if target is None:
-        _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])  # later checks (email) read origin/main
         return False  # public main holds (or may hold) a non-PR commit: the freeze alert already went out (T-0639)
-    err = _migrate_state_commits(con, push_ok, target)
+    if frc != 0:
+        return _sync_failed(con, f"git fetch origin main failed: {ferr or frc}")
+    err = _migrate_state_commits(con, push_ok, target, fetched=True)
     if err is None:
-        rc, _, err = _git_rc(["fetch", "-q", "--no-write-fetch-head", "origin", "+refs/heads/main:refs/remotes/origin/main"])
-        if rc == 0:
-            rc, _, err = _git_rc(["merge", "-q", "--ff-only", target])
+        rc, _, err = _git_rc(["merge", "-q", "--ff-only", target])
         if rc == 0:
             render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2); the pull just deleted the tracked files
             try:
@@ -9519,10 +11171,10 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     else:
         steps.append("place a new pane")
     sess = "--session-id <new uuid>" if fresh else f"--resume {r['session_id']}"
-    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or MODELS[r['role']]} "
+    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or role_model(con, r['role'])} "
                  f"--permission-mode auto --settings {RUN / 'settings' / (r['role'] + '.json')} "
                  f"--append-system-prompt-file {RUN / (r['name'] + '.prompt.md')} {sess} "
-                 f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or MODELS[r['role']]))} ...")
+                 f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or role_model(con, r['role'])))} ...")
     if fresh:
         steps.append(f"kickoff: whoami + inbox + a re-orient one-pager from the DB ({len(reorient_onepager(con, r))} chars); "
                      "the old context is dropped")
@@ -9537,12 +11189,12 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         for _ in range(20):
             if not find_pane(pane):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         pane = None
         for _ in range(10):  # the prompt file is rewritten next: the old process must be gone first
             if not claude_procs(r["session_id"]):
                 break
-            time.sleep(0.5)
+            time.sleep(_relaunch_poll_s())
         else:
             die(f"a claude process still runs session {r['session_id']} after its pane closed; not restarting", 3)
     event(con, "agent", r["name"], "relaunch", {"pane": r["pane_id"], "session": r["session_id"]})
@@ -9681,6 +11333,29 @@ def _throttle_set(con, key, clock):
     con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (key, str(clock)))
 
 
+def _wake_debounced(con, team_id, lead, clock):
+    """True while config lead_wake_debounce_s > 0 and the team's last lead wake is younger than that and no unread message
+    for the lead is a bypass one (kind escalation/decision, or sent by the owner or a boss). One 'wake-debounced' event per
+    team per window; the mail stays unread, so the wake that ends the window covers all of it."""
+    try:
+        window = float(cfg(con, "lead_wake_debounce_s") or 0)
+    except ValueError:
+        return False
+    if not math.isfinite(window) or window <= 0 or not _throttled(con, f"wakedb:{team_id}", clock, window):
+        return False
+    bypass = con.execute(
+        "SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL AND kind != 'fyi' AND (kind IN ('escalation','decision') "
+        "OR sender IN ('owner','boss') OR sender IN (SELECT name FROM agents WHERE role='boss')) LIMIT 1", (lead,)).fetchone()
+    if bypass:
+        return False
+    woke = float(con.execute("SELECT ts FROM throttle WHERE key=?", (f"wakedb:{team_id}",)).fetchone()["ts"])
+    seen = con.execute("SELECT ts FROM throttle WHERE key=?", (f"wakedb-ev:{team_id}",)).fetchone()
+    if not seen or float(seen["ts"]) < woke:
+        _throttle_set(con, f"wakedb-ev:{team_id}", clock)
+        event(con, "team", team_id, "wake-debounced", {"window_s": window, "age_s": round(clock - woke)})
+    return True
+
+
 def tick_wake_leads(con):
     """Tick step 1d: wake the lead of every parked active team that has unread mail (level-triggered: retried every tick
     until the lead row is live, starting or queued). With config lead_parking=0 and no mail, one parked team per tick
@@ -9709,14 +11384,18 @@ def tick_wake_leads(con):
                 continue
         else:
             trigger = f"M{m}"
+            if _wake_debounced(con, t["id"], lead, clock):
+                continue
         if _throttled(con, f"wake:{t['id']}", clock, WAKE_THROTTLE_S):
             continue
         _throttle_set(con, f"wake:{t['id']}", clock)
+        _throttle_set(con, f"wakedb:{t['id']}", clock)
         drained = drained or trigger == "flag-off"
         try:
             wake_lead(con, t, trigger)
         except SystemExit as e:  # a refused spawn (sandbox, bad effort) must not stop the tick; the next one retries
             event(con, "team", t["id"], "wake-error", f"spawn refused (exit {e.code})")
+            con.execute("DELETE FROM throttle WHERE key=?", (f"wakedb:{t['id']}",))  # no wake happened: no debounce window
 
 
 DISPATCH_ROLES = ("pm", "coder", "qa", "reviewer", "cleaner")  # never judge (the merge queue and leads own judges)
@@ -10007,13 +11686,25 @@ def _ci_remote_head(branch, batch=None):
         return None
     if batch is not None and branch.startswith("factory/"):
         if not batch:
+            _pt_count("ci_wake_ls_remote")
             batch.append(_ci_remote_heads())
         return (batch[0] or {}).get(branch)
     ref = f"refs/heads/{branch}"
+    _pt_count("ci_wake_ls_remote")
     rc, out, _ = _git_rc(["ls-remote", "--refs", "origin", ref], timeout=CI_WAKE_GH_TIMEOUT_S)
     rows = [l.split("\t") for l in out.splitlines() if l.strip()] if rc == 0 else []
     rows = [r for r in rows if len(r) == 2 and r[1] == ref and re.fullmatch(r"[0-9a-f]{40}", r[0])]
     return rows[0][0] if len(rows) == 1 else None
+
+
+def _ci_wake_probe(pr_url, timeout):
+    """One `gh pr view` probe, run in a pool thread: no DB, cfg, event or send in here. Returns the PR dict or the error."""
+    try:
+        pr = gh_json("pr", "view", pr_url, "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup", timeout=timeout)
+        pr["headRefOid"]  # noqa: B018 — a PR json without a head sha is an error, as before
+        return pr
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
+        return e
 
 
 def tick_ci_wake(con):
@@ -10032,6 +11723,7 @@ def tick_ci_wake(con):
     except FactoryNowError:
         clock = time.time()
     batch = []  # one ls-remote per tick, made on first need
+    todo = []  # (team, task) rows that need a gh call, in team then task order
     for t in con.execute("SELECT * FROM teams WHERE status='active' AND parked_at IS NOT NULL ORDER BY id").fetchall():
         lead = t["lead_agent"]
         r = con.execute("SELECT status FROM agents WHERE name=?", (lead,)).fetchone() if lead else None
@@ -10045,38 +11737,55 @@ def tick_ci_wake(con):
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
-            try:
-                pr = gh_json("pr", "view", k["pr_url"], "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup",
-                             timeout=float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S))
-                sha = pr["headRefOid"]
-            except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
-                event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {e}"[:300])
-                continue
-            if pr.get("state", "OPEN") != "OPEN":
-                continue  # merged or closed: nothing to wait for
-            verdict, names = ci_verdict(pr.get("statusCheckRollup"))
-            if verdict == "green" and pr.get("mergeStateStatus") == "CLEAN":
-                kind = "green"
-            elif verdict == "red":
-                kind = "red"
-            else:
-                continue
-            key = f"ci-{kind}:{k['id']}:{sha}"
-            if _throttled(con, key, clock, float("inf")):
-                _throttle_set(con, f"ci-head:{k['id']}", clock)  # same head, already mailed: back off (fallback window)
-                continue
-            _throttle_set(con, key, clock)
-            _throttle_set(con, f"ci-head:{k['id']}", clock)
-            label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
-            if kind == "green":
-                send(con, lead, f"CI green: {label}",
-                     f"head {sha}; checks: {', '.join(names)}; mergeStateStatus CLEAN. ready for judge per M6364.",
-                     "report", t["goal_id"], k["id"], sender="tick")
-            else:
-                send(con, lead, f"CI red: {label}: {', '.join(names)}",
-                     f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
-                     sender="tick")
-            event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
+            _pt_count("ci_wake_gh")
+            todo.append((t, k))
+    if not todo:
+        return
+    try:
+        timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
+    except ValueError:
+        timeout = float(CI_WAKE_GH_TIMEOUT_S)  # a bad override must not stop every probe
+    try:
+        workers = int(cfg(con, "ci_wake_workers"))
+    except (TypeError, ValueError):
+        workers = 1
+    urls = [k["pr_url"] for _, k in todo]
+    if workers < 2 or len(urls) < 2:
+        results = [_ci_wake_probe(u, timeout) for u in urls]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
+    for (t, k), pr in zip(todo, results):
+        lead = t["lead_agent"]
+        if isinstance(pr, BaseException):
+            event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
+            continue
+        sha = pr["headRefOid"]
+        if pr.get("state", "OPEN") != "OPEN":
+            continue  # merged or closed: nothing to wait for
+        verdict, names = ci_verdict(pr.get("statusCheckRollup"))
+        if verdict == "green" and pr.get("mergeStateStatus") == "CLEAN":
+            kind = "green"
+        elif verdict == "red":
+            kind = "red"
+        else:
+            continue
+        key = f"ci-{kind}:{k['id']}:{sha}"
+        if _throttled(con, key, clock, float("inf")):
+            _throttle_set(con, f"ci-head:{k['id']}", clock)  # same head, already mailed: back off (fallback window)
+            continue
+        _throttle_set(con, key, clock)
+        _throttle_set(con, f"ci-head:{k['id']}", clock)
+        label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
+        if kind == "green":
+            send(con, lead, f"CI green: {label}",
+                 f"head {sha}; checks: {', '.join(names)}; mergeStateStatus CLEAN. ready for judge per M6364.",
+                 "report", t["goal_id"], k["id"], sender="tick")
+        else:
+            send(con, lead, f"CI red: {label}: {', '.join(names)}",
+                 f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
+                 sender="tick")
+        event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
 
 
 def _stale_park_alert(con, t, clock):
@@ -10095,6 +11804,7 @@ def _stale_park_alert(con, t, clock):
          "alert", t["goal_id"], sender="tick")
 
 
+@_pt_phase("relaunches")
 def tick_relaunches(con):
     """Run the queued `relaunch --when-idle` requests of agents that are idle now (tick step 5, after export)."""
     rows = con.execute("SELECT * FROM agents WHERE status='live' AND relaunch_requested_at IS NOT NULL").fetchall()
@@ -10487,6 +12197,42 @@ def skilleval_vendor(con, cid):
     return cand, res
 
 
+def skilleval_rescreen(con, cid):
+    """factory skilleval vendor C-xxxx --rescreen: re-run the current pre-screen on the kept copy of a candidate held
+    for pre-screen hits. 0 hits -> triaged; any hit -> stays needs-owner, exit non-zero. Never clears a hit by itself."""
+    r = con.execute("SELECT * FROM scout_candidates WHERE id=?", (cid,)).fetchone() or die(f"no candidate {cid}", 2)
+    cand = dict(r)
+    if cand["status"] != "needs-owner":
+        die(f"{cid} is {cand['status']}, not needs-owner; --rescreen only releases a pre-screen hold", 2)
+    try:
+        held = json.loads(cand["risk_detail"] or "[]")
+    except ValueError:
+        held = None
+    if not isinstance(held, list) or not held or not all(
+            isinstance(x, str) and (x.startswith("prescreen ") or x.startswith("... and ")) for x in held):
+        die(f"{cid} is held for a reason other than pre-screen hits; --rescreen does not clear it", 2)
+    try:
+        root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
+        meta, hits, d = scoutvendor.rescreen(root, cand)
+    except scoutvendor.VendorError as e:
+        die(str(e), e.code)
+    if hits:
+        lines = scoutvendor.hit_lines(hits)
+        scoutdb.set_needs_owner(con, cid, lines)
+        event(con, "skilleval", cid, "vendor-rescreen-hit", f"{len(hits)} pre-screen hit(s) remain")
+        die(f"{cid}: {len(hits)} pre-screen hit(s) remain; status stays needs-owner\n" + "\n".join(lines),
+            scoutvendor.EXIT_PRESCREEN)
+    old = {}
+    for h in meta.get("prescreen_hits") or []:
+        old[h["pattern"]] = old.get(h["pattern"], 0) + 1
+    scoutvendor.clear_hits(d, meta)
+    con.execute("UPDATE scout_candidates SET status='triaged', risk_detail=NULL WHERE id=? AND status='needs-owner'", (cid,))
+    cleared = ", ".join(f"{k} x{v}" for k, v in sorted(old.items())) or "none recorded"
+    event(con, "skilleval", cid, "vendor-rescreen-clear",
+          f"{sum(old.values())} old pre-screen hit(s), now 0; rules cleared: {cleared}")
+    print(f"{cid}@{cand['head_sha']} rescreened: 0 pre-screen hits (was {sum(old.values())}: {cleared}); status triaged")
+
+
 BASELINE_ID, BASELINE_SHA = "C-0000", "baseline"
 
 
@@ -10565,13 +12311,13 @@ def skilleval_try(con, a):
             die(f"{cid} failed the eval gate after vendoring", 2)
     old = con.execute("SELECT * FROM skill_trials WHERE candidate_id=? AND vendor_sha=? AND task=? AND condition=?",
                       (cid, sha, task, cond)).fetchone()
-    if old and old["status"] not in ("error", "cancelled"):
+    if old and old["status"] not in ("error", "cancelled", "voided"):
         die(f"trial {old['id']} for {cid}@{sha[:9]} {task} {cond} already exists (status {old['status']})", 2)
     sk = _skilleval()
     if old:
         tid = old["id"]
-        if not sk.transition(con, tid, "starting", ("error", "cancelled"), agent=None, sandbox=None, queued=now(),
-                             started=now(), ended=None, author=actor()):
+        if not sk.transition(con, tid, "starting", ("error", "cancelled", "voided"), agent=None, sandbox=None, queued=now(),
+                             started=now(), ended=None, author=actor(), void_reason=None, void_why=None):
             die(f"trial {tid} for {cid}@{sha[:9]} {task} {cond} was taken by another start meanwhile", 2)
     else:
         try:
@@ -10655,6 +12401,21 @@ def skilleval_cancel(con, a):
         die("; ".join(errors), 2)
 
 
+def skilleval_void(con, a):
+    scoutskilleval = _skilleval()
+    why = (a.why or "").strip()
+    if a.reason != "infra" or not why:
+        die('usage: factory skilleval void <trial id|trNNNN> --reason infra --why "<what failed>"', 2)
+    try:
+        r = scoutskilleval.void(con, a.id, a.reason, why)
+    except scoutskilleval.CollectError as e:
+        die(str(e), 2)
+    event(con, "skilleval", r["candidate_id"], "void",
+          (f"trial {r['id']} {r['task']} {r['condition']} was {r['prev']} (passed={r['passed']} tokens_in={r['tokens_in']} "
+           f"tokens_out={r['tokens_out']} wall_s={r['wall_s']}): {a.reason}: {why}")[:400])
+    print(scoutskilleval.trial_line(r))
+
+
 def cmd_skilleval(a):
     w = caller_is_worker()
     if w and not worker_stub_exempt():
@@ -10664,10 +12425,12 @@ def cmd_skilleval(a):
         require_role(con, "director", "lead", "boss")
     else:
         require_role(con, "director", "lead")
+    if a.rescreen and a.action != "vendor":
+        die("--rescreen belongs to `factory skilleval vendor C-xxxx --rescreen`", 2)
     if a.action == "vendor":
         if not a.id:
-            die("usage: factory skilleval vendor C-xxxx", 2)
-        skilleval_vendor(con, a.id)
+            die("usage: factory skilleval vendor C-xxxx [--rescreen]", 2)
+        skilleval_rescreen(con, a.id) if a.rescreen else skilleval_vendor(con, a.id)
     elif a.action == "try":
         skilleval_try(con, a)
     elif a.action == "collect":
@@ -10676,6 +12439,8 @@ def cmd_skilleval(a):
         skilleval_queue(con, a)
     elif a.action == "cancel":
         skilleval_cancel(con, a)
+    elif a.action == "void":
+        skilleval_void(con, a)
     elif a.action in ("list", "results"):
         scoutskilleval = _skilleval()
         lines = (scoutskilleval.list_lines if a.action == "list" else scoutskilleval.result_lines)(con, a.candidate)
@@ -10865,6 +12630,8 @@ def main():
     x.set_defaults(fn=cmd_init)
     x = sp.add_parser("redmain", help="director only: name the fix task that may merge while a repo's main is red")
     x.add_argument("action", choices=["fix"]); x.add_argument("repo", help="OWNER/NAME"); x.add_argument("task"); x.set_defaults(fn=cmd_redmain)
+    x = sp.add_parser("test", help="run <cmd> in the cwd under the test sandbox (config test_sandbox)")
+    x.add_argument("cmd", nargs=argparse.REMAINDER); x.set_defaults(fn=cmd_test)
     x = sp.add_parser("config"); x.add_argument("key", nargs="?"); x.add_argument("value", nargs="?"); x.set_defaults(fn=cmd_config)
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
@@ -10929,10 +12696,12 @@ def main():
     x.add_argument("--slot"); x.add_argument("--send", action="store_true")
     x.set_defaults(fn=cmd_scout)
 
-    x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, list, results")
-    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "list", "results"]); x.add_argument("id", nargs="?")
+    x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, void, list, results")
+    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
-    x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled"]); x.add_argument("--tasks")
+    x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled", "infra"]); x.add_argument("--tasks")
+    x.add_argument("--why")
+    x.add_argument("--rescreen", action="store_true")
     x.set_defaults(fn=cmd_skilleval)
 
     x = sp.add_parser("msg"); x.add_argument("to"); x.add_argument("subject"); x.add_argument("body", nargs="?")
@@ -10974,6 +12743,12 @@ def main():
     x = sp.add_parser("done", help="worker: finish, send summary to lead, get reaped")
     x.add_argument("--force", action="store_true", help="close even with unread decision/request messages")
     x.add_argument("summary"); x.set_defaults(fn=cmd_done)
+    x = sp.add_parser("pr", help="coder: open (create) or mark ready the PR of your own task; repo and branch are fixed")
+    x.add_argument("action", choices=["create", "ready"])
+    x.add_argument("--title"); x.add_argument("--body", help="create: must be - (body on stdin)")
+    x.set_defaults(fn=cmd_pr)
+    x = sp.add_parser("prcheck", help="coder: pre-PR check (fresh vs main, noreply identity, PR body, public text, affected tests, tier)")
+    x.add_argument("--pr", help="PR url (default: the task's)"); x.set_defaults(fn=cmd_prcheck)
     x = sp.add_parser("stop", help="owner/director/lead: STOP a busy worker (message + Esc + nudge, then a hard fallback)")
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")
@@ -10992,6 +12767,8 @@ def main():
     x = sp.add_parser("dequeue", help="director/lead: cancel a QUEUED spawn (status cancelled; nothing else is touched)")
     x.add_argument("agent"); x.add_argument("--reason"); x.set_defaults(fn=cmd_dequeue)
     x = sp.add_parser("agents"); x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_agents)
+    x = sp.add_parser("mech-merge", help="one run of the mechanical merger (config mech_merge off|shadow|on); the tick launches it")
+    x.add_argument("--task", help="only this task"); x.set_defaults(fn=cmd_mech_merge)
     x = sp.add_parser("gate", help="local merge gate: run the project's gate_cmd on a PR head or on main, show/list runs")
     x.add_argument("action", choices=["run", "show", "list"]); x.add_argument("task", nargs="?", help="run: task id; show: task id or run id")
     x.add_argument("--main", metavar="PROJECT", help="run: gate the verified main of this project instead of a PR")

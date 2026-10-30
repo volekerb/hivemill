@@ -9,6 +9,8 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN = ROOT / "ci" / "scrub_scan.py"
@@ -38,8 +40,7 @@ GIT_ENV = {
 
 
 def git(cwd, *args, env=None):
-    e = {**os.environ, **GIT_ENV, **(env or {})}
-    return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True, text=True, env=e).stdout.strip()
+    return harness.git(*args, cwd=cwd, env={**GIT_ENV, **(env or {})})
 
 
 def scan(*args, terms_env=None, env_extra=None):
@@ -705,20 +706,21 @@ class EmailTests(Base):
         return scan("--tree", d)
 
     def test_github_noreply_addresses_are_exempt(self):
-        r = self.emails("12345+someone@users.noreply.github.com", "someone@users.noreply.github.com")
+        r = self.emails("12345+volekerb@users.noreply.github.com", "volekerb@users.noreply.github.com")
         self.assertEqual(r.returncode, 0, r.stdout)
 
     def test_lookalike_domains_still_hit(self):
-        for addr in ("someone@github.com.evil.test", "x@noreply.github.com.attacker.test",
-                     "someone@users.noreply.github.com.evil.test"):
+        at = "@"
+        for addr in ("someone" + at + "github.com.evil.test", "x" + at + "noreply.github.com.attacker.test",
+                     "volekerb" + at + "users.noreply.github.com.evil.test"):
             r = self.emails(addr)
             self.assertEqual(r.returncode, 1, (addr, r.stdout))
             self.assertIn("email a.txt:1", r.stdout)
 
     def test_noreply_author_scans_clean_in_history(self):
         d = self.repo(files={"a.txt": "x\n"})
-        self.commit(d, env={"GIT_AUTHOR_EMAIL": "12345+someone@users.noreply.github.com",
-                            "GIT_COMMITTER_EMAIL": "someone@users.noreply.github.com"})
+        self.commit(d, env={"GIT_AUTHOR_EMAIL": "12345+volekerb@users.noreply.github.com",
+                            "GIT_COMMITTER_EMAIL": "volekerb@users.noreply.github.com"})
         self.assertEqual(scan("--history", d).returncode, 0)
 
     def test_long_run_without_at_sign_is_fast(self):

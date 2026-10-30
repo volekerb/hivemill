@@ -1,6 +1,7 @@
 """G-019 B6: the insights pages /quality, /throughput, /resources and /tokens (web/views/{quality,throughput,resources,tokens}.py)
 and the queries appended to web/queries.py for them. Seeded temp DBs only; time is the fixed NOW of test_web_queries."""
 import ast
+import datetime as dt
 import json
 import re
 import subprocess
@@ -10,11 +11,13 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
+import _gitenv  # noqa: F401,E402
 from test_web_queries import NOW, make_db, ts  # noqa: E402
 from test_web_server import ServerCase  # noqa: E402
 from web import db as wdb  # noqa: E402
@@ -58,6 +61,12 @@ class InsightServer(ServerCase):
 
     def setUp(self):
         super().setUp()
+        # pin the clock the request handler stamps pages with (HH:MM in the header): two renders must not straddle a minute
+        frozen = dt.datetime.now().astimezone()
+        clock = type("FrozenDatetime", (dt.datetime,), {"now": classmethod(lambda cls, tz=None: frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None))})
+        patcher = mock.patch.object(server, "dt", SimpleNamespace(datetime=clock))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.httpd.server_close()
         self.httpd = server.make_server(self.db_path, "127.0.0.1", 0, (), tokens=lambda: SNAP,
                                         usage_fn=lambda: {"five_hour": 10.0, "seven_day": 20.0, "fresh": True, "age_min": 1},
@@ -91,8 +100,11 @@ class TestQualityPage(InsightServer):
         r = subprocess.run(["git", "show", "origin/main:web/views/quality.py"], cwd=ROOT, capture_output=True, text=True)
         if r.returncode != 0:
             self.skipTest("origin/main is not available in this checkout; DEFINITIONS above is the pinned copy")
-        found = {n.args[2].value for n in ast.walk(ast.parse(r.stdout)) if isinstance(n, ast.Call)
-                 and getattr(n.func, "id", "") in ("k", "kpi") and len(n.args) == 3 and isinstance(n.args[2], ast.Constant)}
+        calls = [n for n in ast.walk(ast.parse(r.stdout)) if isinstance(n, ast.Call)]
+        found = {n.args[2].value for n in calls if getattr(n.func, "id", "") in ("k", "kpi") and len(n.args) == 3
+                 and isinstance(n.args[2], ast.Constant)}
+        found |= {kw.value.value for n in calls if getattr(n.func, "id", "") == "tile" for kw in n.keywords
+                  if kw.arg == "definition" and isinstance(kw.value, ast.Constant)}
         self.assertTrue(found)
         self.assertEqual(found - set(DEFINITIONS), set(), "a definition on main is not in the pinned list")
         html = self.text("/quality")

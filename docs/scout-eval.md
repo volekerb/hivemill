@@ -8,7 +8,7 @@
    `--candidate none` (or no `--candidate`) is the baseline smoke: it uses the reserved candidate `C-0000`, created on demand, and the condition is always `without`.
 2. Fail closed (exit 3, nothing created, no multiplexer call, no agent row): the token file `~/.config/factory/eval-oauth-token` must be a regular file, mode 0600, owned by you (message `owner decision D3 pending: no eval token`); user namespaces must work (`unshare -r -n -m`). There is no fallback to an unsandboxed claude.
 3. For condition `with`, vendors the candidate if needed (`factory skilleval vendor`) and re-checks the gate against the vendored copy.
-4. Inserts a `skill_trials` row (an existing `error` or `cancelled` row for the same candidate, sha, task and condition is reused; any other existing row is refused) and builds `<skilleval_root>/trials/trNNNN/`.
+4. Inserts a `skill_trials` row (an existing `error`, `cancelled` or `voided` row for the same candidate, sha, task and condition is reused; any other existing row is refused) and builds `<skilleval_root>/trials/trNNNN/`.
 5. Runs a preflight: the real namespace view with no proxy and no token, around the claude version command. A mount or bind failure ends in exit 3, the trial dir is removed and the row is `error`.
 6. Spawns `eval-trNNNN` through the normal gate (it may queue) and sets the row to `running`.
 
@@ -69,7 +69,7 @@ C-0001 fix-bug with: trial 1 status=passed passed=1 tokens=165 wall_s=300 skill_
 C-0001 summary: with: passed 1/2 tasks, median tokens 382, median wall_s 450; without: passed 1/2 tasks, median tokens 165, median wall_s 300
 ```
 
-`tokens` is `tokens_in + tokens_out`; `-` means not recorded. Only trials in a terminal status count in the with/without figures; open trials are added as `; pending N` and `; running N`.
+`tokens` is `tokens_in + tokens_out`; `-` means not recorded. Only trials in a terminal status other than `voided` count in the with/without figures; open trials are added as `; pending N` and `; running N`.
 
 ### Start log
 
@@ -86,6 +86,19 @@ Tests: `tests/test_skilleval_collect.py` (fixtures in `tests/fixtures/skilleval/
 3. The key `(candidate, vendor_sha, task, condition)` is unique, so a second `queue` adds nothing, says `already queued` and prints the existing trials.
 
 `factory skilleval cancel <trial id|trNNNN|C-xxxx>` (same roles) turns pending trials into `cancelled` and stops running ones through `collect` with reason `cancelled` (the checker does not run). If a stop fails, the command exits 2 and that trial stays running for a retry.
+
+### Voiding a trial: `factory skilleval void <trial id|trNNNN> --reason infra --why "<text>"`
+
+Roles director and lead only (workers and the boss are refused). For a finished trial whose result says nothing about the skill because the harness failed (for example the `timeout` of trial 1 caused by the T-0718 hook bug). Code: `scout/skilleval.py` (`void`).
+
+- Allowed on `passed`, `failed`, `timeout`, `over-budget` and `error`. `pending`, `starting` and `running` trials are refused (use `cancel`); so are `cancelled` and already `voided` ones. Exit 2, row unchanged.
+- `--reason infra` and a non-empty `--why` are both required; any other reason is refused. (`collect --reason` does not accept `infra`.)
+- The status becomes `voided`. The row is never deleted and keeps `passed`, `wall_s`, tokens and the rest; `void_reason` and `void_why` (two nullable `skill_trials` columns, added to an existing DB by `migrate`) hold the reason. One `skilleval` event `void` records the old status, the figures and the why.
+- `list` and `results` still print the trial line, with `status=voided void_reason=infra void_why='...'`. The with/without figures (passed x/y, median tokens, median wall_s) ignore voided trials; the summary adds `; voided N`.
+- `factory skilleval try` treats a `voided` trial like `error` or `cancelled`: it reuses the row (the key is unique) and starts it again, clearing `void_reason` and `void_why`. The void event keeps the old figures.
+- Sandboxes of voided trials are cleaned like `error` ones (`skilleval_keep_failed_h`).
+
+Tests: `VoidCliTests` in `tests/test_skilleval_tick.py`; the re-run in `tests/test_skilleval_sandbox.py`.
 
 `cmd_tick` calls `skilleval_tick` right after `scout_tick`, on the normal path only. It is wrapped like `scout_tick`: an exception is recorded as one `skilleval-failed` event per local day and never breaks the tick. Each pass (`scout/skilleval.py`, `tick`):
 
@@ -105,3 +118,20 @@ Tests: `tests/test_skilleval_collect.py` (fixtures in `tests/fixtures/skilleval/
 Six trials per candidate is one candidate per day by default; the director may raise the daily cap temporarily with `factory config`.
 
 Tests: `tests/test_skilleval_tick.py` (injected clock, a fake launch, the checker mocked; the CLI tests run `bin/factory` as a subprocess).
+
+## Scoped allowances and `--rescreen` (T-0728)
+
+Three false positives hit every real plugin, so the pre-screen has three allowances. Each is scoped by file kind and exact pattern; the same text anywhere else still hits, and no other rule changed.
+
+| allowance | clean only when | still hits |
+|---|---|---|
+| Apache-2.0 boilerplate URL | the file is named `LICENSE` or `NOTICE` (any case, optional `-`/`_`/`.` suffix such as `LICENSE-APACHE`, `NOTICE.md`) with no extension or `.md`/`.txt` and the URL is exactly `http(s)://www.apache.org/licenses/` or `…/licenses/LICENSE-2.0` | the same URL in any other file (`.py`, `.md`, `plugin.json`); any other URL, extra path or host in a LICENSE |
+| doc-host author e-mail | the file's basename is `plugin.json`, the address is the value of `author.email`, `support` or `support.email`, its host is in `DOC_HOSTS` (or the `www.` form), it sits alone on its line and occurs once in the file | the same address in code, `.md`, another `plugin.json` key or a second place; any other domain; `https://user@host` userinfo; any other `@host` |
+| `requests.` in prose | the file extension is `.md` or `.txt` (the pattern itself is unchanged) | every other file (code, `.json`, `.sh`, no extension): `requests.get(`, `import requests`, bare `requests.` |
+
+`factory skilleval vendor C-xxxx --rescreen` (director or lead; workers are refused, exit 3) re-runs the current pre-screen on the kept copy (same sha) of a `needs-owner` candidate whose hold came from pre-screen hits:
+
+- 0 hits: `VENDOR.json` records no hits, status goes back to `triaged`, event `vendor-rescreen-clear` names the old hit count and the rules that cleared (e.g. `url x3, requests x1`).
+- any hit: status stays `needs-owner`, the hits are printed, exit 4. A rescreen never clears a hit by itself and never partially clears.
+- Before the scan the kept files are checked against the per-file sha256 recorded in `VENDOR.json` at vendor time. A file that differs, has no recorded sha, or is missing is refused (exit 2, the file is named); so is a legacy `VENDOR.json` with no `files` map. Remove the kept copy and run `factory skilleval vendor C-xxxx` again. The shas are self-attested: they catch accidental or partial edits of the kept copy, not someone who can also rewrite VENDOR.json.
+- refused with exit 2, status unchanged: a candidate that is not `needs-owner` (dismissed, new, …), one held for another reason (`risk_detail` is not a list of pre-screen hits), or one with no valid vendored copy.

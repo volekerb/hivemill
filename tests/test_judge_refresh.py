@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from harness import FactoryTestCase, PR_URL, gates_summary
+from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 BRANCH = "factory/t-0001"
@@ -113,13 +114,11 @@ done
 
 
 def git(cwd, *args, check=True):
-    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    if check and p.returncode != 0:
-        raise AssertionError(f"git {args}: {p.stderr}")
-    return p.stdout.strip()
+    return harness_git(*args, cwd=cwd, check=check)
 
 
 class JudgeRefreshTests(FactoryTestCase):
+    INPROC = True
     """`factory judge --merge` refreshes a STALE-ONLY clean head itself, waits for CI, re-runs the full gate, merges."""
 
     def setUp(self):
@@ -221,8 +220,9 @@ class JudgeRefreshTests(FactoryTestCase):
         argv = m[0]["argv"]
         self.assertEqual(argv[argv.index("--match-head-commit") + 1], head)
         self.assertEqual(self.remote_ref(f"refs/heads/{BRANCH}"), head)
-        self.assertEqual(subprocess.run(["git", "merge-base", "--is-ancestor", self.remote_ref("refs/heads/main"), head],
-                                        cwd=self.remote).returncode, 0, "merged head does not contain origin/main")
+        main_tip = self.remote_ref("refs/heads/main")
+        self.assertEqual(git(self.remote, "merge-base", main_tip, head), main_tip,
+                         "merged head does not contain origin/main")
         self.assertEqual(m[0]["last_view"]["head"], head)
         self.assertEqual([c["conclusion"] for c in m[0]["last_view"]["rollup"]], ["SUCCESS"])
         self.assertEqual(len(self.events("merged")), 1)
@@ -252,6 +252,28 @@ class JudgeRefreshTests(FactoryTestCase):
         for c in carried:
             self.assertEqual((c["from"], c["to"], c["main"]), (self.head, new, main))
         self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+
+    def test_a3_public_repo_refresh_uses_noreply_identity(self):
+        # T-0604: the judge's refresh merge on a public_text_repos repo is committed as config noreply_email
+        self.main_commit()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('noreply_email','123+volekerb@users.noreply.github.com')")
+        self.judge()  # the merge itself then meets the public text check; only the refresh is under test here
+        new = self.remote_ref(f"refs/heads/{BRANCH}")
+        self.assertEqual(self.pushes(), [new])
+        who = "factory refresh <123+volekerb@users.noreply.github.com>"
+        self.assertEqual(git(self.remote, "log", "-1", "--format=%an <%ae>|%cn <%ce>", new), f"{who}|{who}")
+
+    def test_a4_public_repo_no_noreply_address_refuses_nothing_pushed(self):
+        self.main_commit()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('public_text_repos','zz-test/repo')")
+        p = self.judge()
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("REFRESH-IDENT", p.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.remote_ref(f"refs/heads/{BRANCH}"), self.head)
+        self.assertTrue(any("REFRESH-IDENT" in r["detail"] for r in self.events("judge-blocked")))
+        self.assertNoMerge()
 
     def test_g_behind_ok_merges_clean_behind_head_without_refresh(self):
         # G-022 acceptance 2: strict=false on GitHub, BEHIND but MERGEABLE, green checks, PASS verdicts

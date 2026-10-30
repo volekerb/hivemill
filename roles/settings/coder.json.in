@@ -4,6 +4,8 @@
     "deny": [
       "Advisor",
       "Bash(gh pr merge:*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr ready*)",
       "Bash(sqlite3:*)",
       "Bash(herdr server stop:*)",
       "Bash(herdr workspace close:*)",
@@ -170,13 +172,16 @@
     ],
     "allow": [
       "Bash(factory:*)",
+      "Bash(factory pr create *)",
+      "Bash(factory pr ready)",
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
-      "Bash(git push origin HEAD:factory/*)"
+      "Bash(git push origin HEAD:factory/*)",
+      "Workflow(coder-skills:multi-angle-review)"
     ]
   },
   "env": {

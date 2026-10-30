@@ -28,6 +28,9 @@ class ReadsBase(unittest.TestCase):
         con.execute("CREATE TABLE agents (name TEXT PRIMARY KEY, role TEXT, goal_id TEXT)")
         con.execute("INSERT INTO agents VALUES (?, 'coder', ?)", (AGENT, OWN))
         con.execute("INSERT INTO agents VALUES ('nogoal', 'coder', NULL)")
+        # T-0743: the coder push pin resolves the own worktree from tasks.worktree (the hook cwd here)
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES ('T-9', ?)", (os.getcwd(),))
         con.commit()
         con.close()
 
@@ -169,7 +172,7 @@ class NoFalsePositiveTests(ReadsBase):
     def test_normal_worker_commands(self):
         cmds = [
             "git status", "git diff", "git log --oneline -5", 'git commit -m "x"',
-            "git push -u origin factory/T-0047", "gh pr create --fill", "gh pr view 5", "gh pr checks 5",
+            "git push origin HEAD:factory/t-9", "gh pr create --fill", "gh pr view 5", "gh pr checks 5",
             "python3 -m unittest discover -s tests -p test_x.py -v", "pytest -q", "ls -la", "cat README.md",
             "rg factory README.md", 'grep "factory res" README.md', 'git commit -m "factory task list fix"',
             "echo factory agents", 'gh pr create --title t --body "uses factory res and factory task list"',

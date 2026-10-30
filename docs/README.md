@@ -13,9 +13,14 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
 - [images/README.md](images/README.md): light and dark screenshots of the dashboard, built from fictional data.
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
+- [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
+- [design/g-023/README.md](design/g-023/README.md): three draft README layouts for owner preview.
+- [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
+- [design/g-023/readme-option-b.md](design/g-023/readme-option-b.md): README draft B, docs-first.
+- [design/g-023/readme-option-c.md](design/g-023/readme-option-c.md): README draft C, the loop.
 
 ## Operate it
 
@@ -34,10 +39,14 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [updating-persistent-agents.md](updating-persistent-agents.md): how role changes reach long-running agents.
 - [clean-remote-branch.md](clean-remote-branch.md): deleting stale `factory/*` branches on origin safely.
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
+- [refresh-lane.md](refresh-lane.md): `refresh_lane` flag, only the merge-queue head is refreshed.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
+- [mech-merge.md](mech-merge.md): the tick's mechanical merger for T0-T2 PRs (`mech_merge` off/shadow/on), same gate as the judge.
+- [prcheck.md](prcheck.md): `factory prcheck`, the coder's pre-PR check, and the `prcheck_required` gate on `factory done` (G-022).
 - [local-gate.md](local-gate.md): `factory gate run/show/list`, the local merge gate runner and `gate_runs` table (step 1: not yet read by the judge).
+- [model-routing.md](model-routing.md): which model each role starts on, and the `model_cleaner` config rollback.
 - [freshness.md](freshness.md): the per-tick check that flags live agents running outdated role files, plugins or CLI.
 - [staleness.md](staleness.md): what to do when main moves during review and QA.
 - [verdict-carry-over.md](verdict-carry-over.md): when a PASS verdict survives a merge of main.
@@ -59,6 +68,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
 - [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
+- [test-cgroups.md](test-cgroups.md): per-run cgroup caps for `factory test` and the user unit the owner installs.
 - [cli-layout.md](cli-layout.md): why `bin/factory` is a stub and the CLI code lives in `bin/factory_cli.py`.
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
 - [review-rules.md](review-rules.md): rules that keep reviewer, QA and judge verdicts evidence-based.

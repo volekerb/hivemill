@@ -92,6 +92,21 @@ def check_text(text, terms):
     return [hit for line in text.splitlines() for hit in sc.scan_line(line)]
 
 
+def locate_text(text, terms, label):
+    """[(pattern id, 'label:line N')] for every hit in text: where it is, never the matched text."""
+    sc = _scanner(tuple(terms))
+    return [(pid, sc.hide_terms(f"{label}:line {n}")) for n, line in enumerate(text.splitlines(), 1)
+            for pid, _ in sc.scan_line(line)]
+
+
+def format_locations(hits, terms, limit=10):
+    """'category@source' list for a refusal message, from (id, location) pairs; never includes matched text."""
+    sc = _scanner(tuple(terms))
+    seen = list(dict.fromkeys(f"{pid}@{sc.hide_terms(loc)}" for pid, loc in hits))
+    more = f" (+{len(seen) - limit} more)" if len(seen) > limit else ""
+    return "; ".join(seen[:limit]) + more
+
+
 def check_ref(name, terms):
     """check_text for one branch or tag name."""
     return check_text(name, terms)
