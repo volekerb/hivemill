@@ -12038,11 +12038,49 @@ COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tie
 
 
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day
+REVIEW_PROBE_ERR_EVERY_S = 3600  # one review-autospawn-probe-error event per task per hour
+REVIEW_DEAD_RECHECK_MIN_S = 3600  # a dead task is not probed again for max(director_cycle_s, this)
+
+
+def _review_dead_key(t):
+    """Throttle key of a dead-PR mark: a changed pr_url or branch is a new key, so the task is probed again at once."""
+    return f"review-dead:{t['id']}:" + hashlib.sha1(f"{t['pr_url']}|{t['branch']}".encode()).hexdigest()[:12]
+
+
+def _review_dead_recent(con, t, clock):
+    """True while t was found dead (skip) within the recheck window: the callers then make no gh or ls-remote call for it."""
+    try:
+        window = float(cfg(con, "director_cycle_s"))
+    except ValueError:
+        window = 0.0
+    if not math.isfinite(window):
+        window = 0.0
+    return _throttled(con, _review_dead_key(t), clock, max(window, REVIEW_DEAD_RECHECK_MIN_S))
+
+
+def _review_probe(pr_url, timeout):
+    """_ci_wake_probe for the review tick. A gh failure that says the PR does not exist stays a SystemExit (dead PR); any other
+    gh failure comes back as an OSError (transient: the caller logs a probe error, never a skip)."""
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        pr = _ci_wake_probe(pr_url, timeout)
+    if isinstance(pr, SystemExit) and not re.search(r"no pull requests? found|could not resolve to a pullrequest", err.getvalue(), re.I):
+        return OSError(f"gh pr view exit {pr.code}: {err.getvalue().strip()[:200]}")
+    return pr
+
+
+def _review_probe_error(con, t, detail, clock):
+    """The probe could not decide (fail closed): one review-autospawn-probe-error event per task per hour, never the daily skip slot."""
+    key = f"review-probe-err:{t['id']}"
+    if not _throttled(con, key, clock, REVIEW_PROBE_ERR_EVERY_S):
+        event(con, "task", t["id"], "review-autospawn-probe-error", detail[:300])
+        _throttle_set(con, key, clock)
 
 
 def _review_skip(con, t, reason, clock):
     """The tick will not start review on t (dead or foreign PR): one `review-autospawn-skip` event per task per day, no status change."""
     key = f"review-skip:{t['id']}"
+    _throttle_set(con, _review_dead_key(t), clock)  # a dead task is not probed again for a while
     if not _throttled(con, key, clock, REVIEW_SKIP_EVERY_S):
         event(con, "task", t["id"], "review-autospawn-skip", reason[:300])
         _throttle_set(con, key, clock)
@@ -12082,7 +12120,7 @@ def _review_pr_problem(con, t, pr, batch, clock, head_known=False):
         _review_skip(con, t, f"gh cannot resolve {t['pr_url']} (gh pr view exit {pr.code})", clock)
         return True
     if isinstance(pr, BaseException):
-        event(con, "task", tid, "review-autospawn-error", f"gh pr view {t['pr_url']}: {pr}"[:300])
+        _review_probe_error(con, t, f"gh pr view {t['pr_url']}: {pr}", clock)
         return True
     if pr.get("state", "OPEN") != "OPEN":
         _review_skip(con, t, f"PR is {pr.get('state')}", clock)
@@ -12161,10 +12199,12 @@ def review_rerun_tick(con):
         if why:
             _review_skip(con, t, why, clock)
             continue
+        if _review_dead_recent(con, t, clock):
+            continue
         head = _ci_remote_head(t["branch"], batch)
         if head and _review_head_done(con, tid, head, clock):
             continue
-        pr = _ci_wake_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
             continue
         sha = pr["headRefOid"]
@@ -12222,7 +12262,9 @@ def review_autospawn_tick(con):
         if why:
             _review_skip(con, t, why, clock)
             continue
-        if _review_pr_problem(con, t, _ci_wake_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S), batch, clock):
+        if _review_dead_recent(con, t, clock):
+            continue
+        if _review_pr_problem(con, t, _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S), batch, clock):
             continue
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
