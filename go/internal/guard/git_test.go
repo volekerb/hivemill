@@ -625,3 +625,20 @@ func TestGitTopSharedWalksForDotGit(t *testing.T) {
 		}
 	}
 }
+
+// port of worker-guard.py:PT_WRITE_HINT in HQ mode: the one HQ rule that blocks on parse trouble is the public-text
+// rule, so an unparseable git/gh write is the Python hook's decision (delegate) and other parse trouble allows.
+func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
+	f := newGitFix(t)
+	t.Setenv("FACTORY_HOME", dbHome(t))
+	for _, cmd := range []string{"git commit -m 'unterminated", "gh pr create --title 'x"} {
+		if err := Check(cmd, f.wt, "", true); !IsDelegate(err) {
+			t.Errorf("hq %q: %v, want a delegation", cmd, err)
+		}
+	}
+	for _, cmd := range []string{"echo 'unterminated", "ls 'x"} {
+		if err := Check(cmd, f.wt, "", true); err != nil {
+			t.Errorf("hq %q: %v, want allow", cmd, err)
+		}
+	}
+}

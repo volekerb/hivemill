@@ -1242,7 +1242,16 @@
   "echo x >> .git/config.worktree",
   "echo x >> .git/info/attributes",
   "echo x >> ../../.git/config",
-  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x"
+  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x",
+  {"cmd": "gh api -X PUT repos/acme/widgets/branches/main/protection"},
+  {"cmd": "gh api --method DELETE repos/acme/widgets/branches/main/protection"},
+  {"cmd": "gh api -X PATCH repos/acme/widgets -f private=true"},
+  {"cmd": "gh api repos/acme/widgets/branches/main/protection -X PUT"},
+  {"cmd": "gh pr create --repo acme/widgets --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
+  {"cmd": "git commit -m 'unterminated", "modes": ["hq"], "config": {"public_text_repos": "acme/widgets"}},
+  {"cmd": "gh pr create --title 'x", "modes": ["hq"], "config": {"public_text_repos": "acme/widgets"}},
+  {"cmd": "gh pr create -R acme/widgets --title t --body-file -", "config": {"public_text_repos": "acme/widgets"}},
+  {"cmd": "gh issue create --repo acme/widgets --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}}
  ],
  "must_allow": [
  {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},
@@ -1513,6 +1522,13 @@
   "uvx ruff check .",
   "uv tool run black --check .",
   "uvx pytest",
-  "uv tool run pytest"
+  "uv tool run pytest",
+  "gh api repos/acme/widgets/branches/main/protection",
+  "gh api repos/acme/widgets",
+  "gh repo view acme/widgets",
+  "gh pr list --repo acme/widgets",
+  {"cmd": "gh pr create --repo other/repo --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
+  {"cmd": "gh pr list --repo acme/widgets", "config": {"public_text_repos": "acme/widgets"}},
+  {"cmd": "gh pr view 3 --repo acme/widgets", "config": {"public_text_repos": "acme/widgets"}}
  ]
 }
