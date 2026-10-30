@@ -8470,7 +8470,8 @@ def cmd_clean(a):
     pane_cwds = live_pane_cwds()
     if pane_cwds is None:
         die("cannot verify live panes; refusing to remove anything", 4)
-    listed = herdr_agents()  # None (cannot list) keeps every task that has a live agent row
+    r = herdr("agent", "list", check=False)  # no usable agents list = None: every task with a live agent row is kept
+    listed = r["agents"] if isinstance(r, dict) and isinstance(r.get("agents"), list) else None
     rows = []
     known = set()
     repos = {}

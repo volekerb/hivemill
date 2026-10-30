@@ -400,7 +400,7 @@ class CleanTests(FactoryTestCase):
         self.env.set_herdr(agents=None)  # the stub's `agent list` then answers without usable agents
         p = self.clean("--dry-run")
         self.assertTrue(wt.exists())
-        self.assertNotIn("1 would remove", p.stdout)
+        self.assertIn("agent live", p.stdout)
 
     def test_three_reported_cases_removable_in_one_dry_run(self):
         w1, _, _ = self.task(1)
