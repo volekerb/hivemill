@@ -221,7 +221,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_heavy_steps_are_gated_on_tier(self):
         self.assertIn("steps.tier.outputs.go == 'true'", self.wf)
-        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 6)
+        self.assertEqual(self.wf.count("steps.tier.outputs.mode != 'docs'"), 7)
         self.assertIn("--only", self.wf)
 
     def test_runners_are_free(self):
