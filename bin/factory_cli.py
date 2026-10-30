@@ -105,7 +105,7 @@ MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
     "staff-engineer": "claude-opus-5-5",
-    "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-sonnet-5-5",
+    "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
 PERSISTENT_ROLES = {"boss", "director", "lead"}  # never reaped; everyone else is one task, one pane
@@ -133,6 +133,7 @@ TASK_WAITS = ["owner", "internal"]
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
+    "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
@@ -1637,6 +1638,16 @@ def check_sandbox_roles(value):
     return ",".join(dict.fromkeys(names))
 
 
+CONFIG_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
+
+
+def check_model_override(key, value):
+    """Exit 2 unless value is empty or one of CONFIG_MODELS (never a Fable id)."""
+    if value.strip() not in ("",) + CONFIG_MODELS:
+        die(f"config {key}: {value!r} is not allowed; use one of {', '.join(CONFIG_MODELS)} or empty for the default: "
+            f"fix it with `factory config {key} claude-sonnet-5-5`", 2)
+
+
 def check_gh_roles(key, value):
     """The normalised comma list, or exit 2: every name must be a worker role ghcred can serve ("" = none)."""
     names = [x.strip() for x in value.split(",") if x.strip()]
@@ -1661,6 +1672,9 @@ def cmd_config(a):
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
             triage_per_run(a.value)
+        if a.key == "model_cleaner":
+            check_model_override(a.key, a.value)
+            a.value = a.value.strip()
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -6637,6 +6651,13 @@ def check_effort_level(level):
             "fix it with `factory config opus_effort medium`")
 
 
+def role_model(con, role):
+    """The model a role starts on: config model_<role> when that key exists and is set (only cleaner has one), else MODELS."""
+    key = f"model_{role}"
+    override = (cfg(con, key) or "").strip() if key in DEFAULT_CONFIG else ""
+    return override or MODELS[role]
+
+
 def effort_args(con, model):
     """['--effort', <level>] for an Opus model (config opus_effort), [] for any other model or an empty setting."""
     level = (cfg(con, "opus_effort") or "").strip()
@@ -6949,7 +6970,7 @@ def start_confirm(con, agents):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    model = model or MODELS[role]
+    model = model or role_model(con, role)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
     optin = args.get("sandbox_optin") is True
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
@@ -10932,10 +10953,10 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     else:
         steps.append("place a new pane")
     sess = "--session-id <new uuid>" if fresh else f"--resume {r['session_id']}"
-    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or MODELS[r['role']]} "
+    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or role_model(con, r['role'])} "
                  f"--permission-mode auto --settings {RUN / 'settings' / (r['role'] + '.json')} "
                  f"--append-system-prompt-file {RUN / (r['name'] + '.prompt.md')} {sess} "
-                 f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or MODELS[r['role']]))} ...")
+                 f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or role_model(con, r['role'])))} ...")
     if fresh:
         steps.append(f"kickoff: whoami + inbox + a re-orient one-pager from the DB ({len(reorient_onepager(con, r))} chars); "
                      "the old context is dropped")
