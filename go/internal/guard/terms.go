@@ -401,7 +401,11 @@ func termsBash(cmd, cwd string, env map[string]string, depth int) error {
 	}
 	ids, idsOK := termsIDs(paths)
 	if cwd == "" {
-		cwd, _ = os.Getwd()
+		wd, err := os.Getwd()
+		if err != nil {
+			return blockf("cannot determine the working directory: " + err.Error())
+		}
+		cwd = wd
 	}
 	home := os.Getenv("HOME")
 	if home == "" {

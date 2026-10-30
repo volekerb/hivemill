@@ -2,6 +2,7 @@ package guard
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/user"
 	"regexp"
@@ -1085,7 +1086,7 @@ func (a *Analyzer) read(path string) (string, error) {
 	if err != nil {
 		return "", blockf("cannot inspect script " + path)
 	}
-	s := strings.ToValidUTF8(string(b), "�")
+	s := replaceInvalidUTF8(b)
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n"), nil
 }
 
@@ -1117,7 +1118,10 @@ func (a *Analyzer) execPath(path string, depth int) error {
 	}
 	defer f.Close()
 	head := make([]byte, 200)
-	n, _ := f.Read(head)
+	n, err := io.ReadFull(f, head)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return blockf("cannot inspect script " + path)
+	}
 	first := string(head[:n])
 	if k := strings.IndexByte(first, '\n'); k >= 0 {
 		first = first[:k]
@@ -1204,9 +1208,12 @@ func hasR2Path(s string) bool {
 // claudeOverPriv is a port of worker-guard.py:claude_over_priv: the Claude block of the worker pass with the
 // PRIV rule switched off, or nil. A DynamicBlock and every other error are dropped; the caller re-raises the PrivBlock.
 func claudeOverPriv(cmd, cwd, role string) error {
-	an := NewAnalyzer(cwd, role, false)
+	an, err := NewAnalyzer(cwd, role, false)
+	if err != nil {
+		return nil // unreachable: Check built an Analyzer for this cwd first and already failed closed
+	}
 	an.skipPriv = true
-	err := an.script(cmd, 0)
+	err = an.script(cmd, 0)
 	var d *DynamicBlock
 	if errors.As(err, &d) {
 		return nil
@@ -1254,4 +1261,21 @@ func pyLines(s string) []string {
 		out = append(out, s[start:])
 	}
 	return out
+}
+
+// replaceInvalidUTF8 is Python's errors="replace": every undecodable byte becomes one U+FFFD (strings.ToValidUTF8
+// collapses a run of them into one).
+func replaceInvalidUTF8(b []byte) string {
+	var sb strings.Builder
+	for len(b) > 0 {
+		r, n := utf8.DecodeRune(b)
+		if r == utf8.RuneError && n <= 1 {
+			sb.WriteRune(utf8.RuneError)
+			b = b[1:]
+			continue
+		}
+		sb.Write(b[:n])
+		b = b[n:]
+	}
+	return sb.String()
 }

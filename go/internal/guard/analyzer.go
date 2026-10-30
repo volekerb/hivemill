@@ -35,13 +35,16 @@ type Analyzer struct {
 }
 
 // NewAnalyzer is a port of Analyzer.__init__.
-func NewAnalyzer(cwd, role string, hq bool) *Analyzer {
+// Python's `cwd or os.getcwd()` raises when the cwd is gone; that is exit 2, so an error here is a block.
+func NewAnalyzer(cwd, role string, hq bool) (*Analyzer, error) {
 	if cwd == "" {
-		if wd, err := os.Getwd(); err == nil {
-			cwd = wd
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, blockf("cannot determine the working directory: " + err.Error())
 		}
+		cwd = wd
 	}
-	return &Analyzer{Cwd: cwd, Role: role, HQ: hq}
+	return &Analyzer{Cwd: cwd, Role: role, HQ: hq}, nil
 }
 
 // soft is a port of Analyzer.soft applied to the result of the call: in HQ mode only a PRIV block (and a

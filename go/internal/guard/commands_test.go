@@ -3,6 +3,7 @@ package guard
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -48,7 +49,16 @@ func loadPyCases(t *testing.T) []pyCase {
 }
 
 // clearTermsEnv keeps the host's exported owner-terms path out of the table tests.
-func clearTermsEnv(t *testing.T) { t.Setenv(termsVar, "") }
+func clearTermsEnv(t *testing.T) { unsetEnv(t, termsVar) }
+
+// unsetEnv removes k for the test (t.Setenv(k, "") would leave it set but empty) and restores it afterwards.
+func unsetEnv(t *testing.T, k string) {
+	t.Helper()
+	t.Setenv(k, "") // registers the restore of the original value
+	if err := os.Unsetenv(k); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func exitOf(err error) int {
 	if err != nil {
@@ -78,7 +88,7 @@ func TestCommandsPythonCases(t *testing.T) {
 			stubs[c.Module]++
 		}
 		for k := range c.Env {
-			t.Setenv(k, "")
+			unsetEnv(t, k)
 		}
 	}
 	if !reflect.DeepEqual(perModule, casesPerModule) {
@@ -511,5 +521,89 @@ func TestCommandsUnicodeCommandWords(t *testing.T) {
 	}
 	if err := checkRole("python3 -c 'import os; os.system(\"sudo ls\")'", "coder"); err == nil {
 		t.Errorf("sudo followed by a no-break space allowed")
+	}
+}
+
+// chdirGone moves the process into a directory and removes it, so os.Getwd fails.
+func chdirGone(t *testing.T) {
+	t.Helper()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	gone := filepath.Join(dir, "gone")
+	if err := os.Mkdir(gone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(gone); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Getwd(); err == nil {
+		t.Skip("os.Getwd still works in a removed directory on this platform")
+	}
+}
+
+// Python's `cwd or os.getcwd()` raises when the cwd is gone (exit 2); Go must not carry on with cwd "".
+func TestCommandsGetwdErrorFailsClosed(t *testing.T) {
+	clearTermsEnv(t)
+	chdirGone(t)
+	for _, hq := range []bool{false, true} {
+		if err := Check("ls -la", "", "coder", hq); err == nil {
+			t.Errorf("Check with a removed cwd (hq %v) = nil, want a block", hq)
+		}
+	}
+	if _, err := NewAnalyzer("", "coder", false); err == nil {
+		t.Error("NewAnalyzer with a removed cwd = nil error, want a block")
+	}
+	// termsBash returns early when no terms file is configured; point it at a real file
+	f := filepath.Join(t.TempDir(), "terms")
+	if err := os.WriteFile(f, []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(termsVar, f)
+	if err := TermsBash("ls", ""); err == nil {
+		t.Error("TermsBash with a removed cwd = nil, want a block")
+	}
+	// an explicit cwd never needs os.Getwd
+	if err := Check("ls -la", t.TempDir(), "coder", false); err != nil && !IsNotPorted(err) {
+		t.Errorf("Check with an explicit cwd = %v, want allow", err)
+	}
+}
+
+// A read error on a regular file run as a command is exit 2 in Python (read(200) raises); /proc/self/mem is a
+// regular file whose read fails with EIO.
+func TestCommandsExecPathReadErrorFailsClosed(t *testing.T) {
+	clearTermsEnv(t)
+	p := "/proc/self/mem"
+	f, err := os.Open(p)
+	if err != nil {
+		t.Skip("no /proc/self/mem")
+	}
+	defer f.Close()
+	if _, rerr := f.Read(make([]byte, 1)); rerr == nil || rerr == io.EOF {
+		t.Skip("/proc/self/mem is readable here")
+	}
+	an := &Analyzer{Cwd: "/", Role: "coder"}
+	if err := an.execPath(p, 0); err == nil {
+		t.Error("execPath on an unreadable regular file = nil, want a block")
+	}
+	if err := Check(p, "/", "coder", false); err == nil {
+		t.Error("Check on an unreadable regular file = nil, want a block")
+	}
+}
+
+// Python reads scripts with errors="replace": one U+FFFD per undecodable byte.
+func TestReplaceInvalidUTF8PerByte(t *testing.T) {
+	got := replaceInvalidUTF8([]byte("a\xff\xfe\xc3b\xe2\x82"))
+	if want := "a\ufffd\ufffd\ufffdb\ufffd\ufffd"; got != want {
+		t.Errorf("replaceInvalidUTF8 = %q, want %q", got, want)
+	}
+	if got := replaceInvalidUTF8([]byte("ok \u00e9\ufffd")); got != "ok \u00e9\ufffd" {
+		t.Errorf("valid text changed: %q", got)
 	}
 }

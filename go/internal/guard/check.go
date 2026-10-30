@@ -169,7 +169,10 @@ func envOption(s string, i int) bool {
 // Check is a port of worker-guard.py:check. A nil result is exit 0; any error is a block (exit 2), see Explain.
 func Check(cmd, cwd, role string, hq bool) error {
 	// PRIV pass (the whole of HQ mode): parse trouble allows
-	an := NewAnalyzer(cwd, role, true)
+	an, err := NewAnalyzer(cwd, role, true)
+	if err != nil {
+		return err
+	}
 	an.unitRule = hq
 	if err := an.script(cmd, 0); err != nil {
 		switch {
@@ -222,7 +225,10 @@ func Check(cmd, cwd, role string, hq bool) error {
 			return blockf("R1: herdr with a mutating subcommand behind an exec-capable launcher")
 		}
 	}
-	an2 := NewAnalyzer(cwd, role, false)
+	an2, err := NewAnalyzer(cwd, role, false)
+	if err != nil {
+		return err
+	}
 	if err := an2.script(cmd, 0); err != nil {
 		if IsPrivBlock(err) {
 			if cerr := claudeOverPriv(cmd, cwd, role); cerr != nil {

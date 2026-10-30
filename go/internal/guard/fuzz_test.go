@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -62,6 +63,9 @@ func FuzzCheck(f *testing.F) {
 	}
 	dir := f.TempDir()
 	f.Setenv(termsVar, "")
+	if err := os.Unsetenv(termsVar); err != nil {
+		f.Fatal(err)
+	}
 	f.Fuzz(func(t *testing.T, s string) {
 		within(t, s, func() {
 			_ = Check(s, dir, "coder", false)
