@@ -1706,8 +1706,6 @@ class Analyzer:
         """T-0689: a coder's only allowed push is `git push origin HEAD:factory/<own task id>`; the task id comes from
         FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
         no -c / --git-dir overrides (push.default, remote URLs); an unknown own task id refuses."""
-        if self.role in NO_PUSH_ROLES and not self.hq:
-            self.git_push_refuse(rest)
         if self.role != "coder":
             return
         i = 0
@@ -1752,10 +1750,9 @@ class Analyzer:
         git subtree push, alias definitions on the command line). Only the coder pin and cleaner deletes push."""
         i = 0
         while i < len(rest) and rest[i].startswith("-"):
-            if rest[i] == "-c" and i + 1 < len(rest) and rest[i + 1].lower().startswith("alias."):
-                raise Block(f"{self.role} may not run git push: git -c alias.* could hide a push; ask your lead")
-            if rest[i].startswith("--config-env=alias.") or rest[i].lower().startswith("-calias."):
-                raise Block(f"{self.role} may not run git push: git alias override could hide a push; ask your lead")
+            nxt = rest[i + 1].lower() if rest[i] == "-c" and i + 1 < len(rest) else rest[i].lower()
+            if re.match(r"^(-c)?alias\.[^=]*=(!|.*push)", nxt) or rest[i].startswith("--config-env=alias."):
+                raise Block(f"{self.role} may not run git push: a git alias override could hide a push; ask your lead")
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("push", "send-pack", "http-push")
                               or (rest[i] == "subtree" and "push" in rest[i + 1:])):
@@ -1861,6 +1858,8 @@ class Analyzer:
         elif name == "git":
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice
             self.git_delete(rest)
+            if self.role in NO_PUSH_ROLES and not self.hq:
+                self.git_push_refuse(rest)  # T-0755: after git_delete, whose reason names the branch-deletion rule
             self.git_persist(rest, depth)
             for j, a in enumerate(rest):
                 if "herdr" in a and (rest[j - 1:j] == ["-c"] or "config" in rest[:j] or a.startswith("-c")):
