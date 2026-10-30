@@ -73,6 +73,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [coder-rules.md](coder-rules.md): the quality bar coders work to.
 - [review-rules.md](review-rules.md): rules that keep reviewer, QA and judge verdicts evidence-based.
 - [review-workflow.md](review-workflow.md): the multi-angle review used on risky PRs.
+- [review-autospawn.md](review-autospawn.md): the tick starts reviewer and QA when a PR opens; reserved review slots.
 - [self-review.md](self-review.md): the independent read a coder runs on its own diff.
 - [role-rules.md](role-rules.md): how lessons become standing rules in each role prompt.
 - [planning-rules.md](planning-rules.md): planning and retry rules carried by per-role skills.

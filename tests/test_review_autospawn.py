@@ -1,0 +1,203 @@
+"""T-0629 (G-022 #6): review_autospawn: the tick starts reviewer + QA (or one combined agent) when a PR opens;
+review_reserved_slots keeps slots for them (docs/review-autospawn.md)."""
+import unittest
+
+from harness import SHA_A, FactoryTestCase, gates_summary
+
+TEAM, LEAD = "g-001-a", "lead-g-001-a"
+GOOD = "## Gates\n- unittest exit=0 cmd=python3 -m unittest discover -s tests\n"
+
+
+class Base(FactoryTestCase):
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_team(TEAM, lead=LEAD)
+        e.seed_agent(LEAD, "lead", goal="G-001", team=TEAM, status="exited")
+
+    def task(self, tid="T-0001", **kw):
+        kw.setdefault("team", TEAM)
+        self.env.seed_task(tid, **kw)
+
+    def tick_step(self, gate_open=True, spawn_status="live"):
+        calls = []
+        with self.env.load_factory() as f:
+            con = f.db()
+
+            def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw):
+                calls.append({"role": role, "team": team, "task": task, "name": name, "prompt": prompt})
+                con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,?,'t')",
+                            (name, role, goal, team, task, spawn_status))
+
+            f.spawn = fake_spawn
+            f.gate = lambda con, **k: (gate_open, "" if gate_open else "closed", {})
+            f.review_autospawn_tick(con)
+            con.commit()
+        return calls
+
+    def on(self, **cfg):
+        self.ok("config", "review_autospawn", "on")
+        for k, v in cfg.items():
+            self.ok("config", k, v)
+
+
+class AutospawnTests(Base):
+    def test_off_by_default_spawns_nothing(self):
+        self.task()
+        self.assertEqual(self.tick_step(), [])
+
+    def test_on_spawns_reviewer_and_qa_with_fyi(self):
+        self.on()
+        self.task()
+        calls = self.tick_step()
+        self.assertEqual([(c["role"], c["name"], c["task"]) for c in calls],
+                         [("reviewer", "reviewer-t-0001", "T-0001"), ("qa", "qa-t-0001", "T-0001")])
+        self.assertIn("affected.py", calls[0]["prompt"])
+        fyi = self.env.sql("SELECT kind, recipient FROM messages WHERE kind='fyi'")
+        self.assertEqual([(r["kind"], r["recipient"]) for r in fyi], [("fyi", LEAD)])
+
+    def test_team_worker_cap_not_consulted(self):
+        self.on()
+        self.task()
+        for i in range(3):
+            self.env.seed_agent(f"zz-test-w{i}", "coder", goal="G-001", team=TEAM, task="T-0009")
+        self.assertEqual(len(self.tick_step()), 2)
+
+    def test_closed_gate_spawns_nothing(self):
+        self.on()
+        self.task()
+        self.assertEqual(self.tick_step(gate_open=False), [])
+
+    def test_skips_task_with_review_agent_verdict_or_not_in_review(self):
+        self.on()
+        self.task("T-0001")
+        self.env.seed_agent("qa-t-0001", "qa", goal="G-001", task="T-0001", status="exited")
+        self.task("T-0002")
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                     "VALUES('T-0002','u','x','qa','pass','s','a','t')")
+        self.task("T-0003", status="todo", pr_url=None)
+        self.task("T-0004", pr_url=None)
+        self.assertEqual(self.tick_step(), [])
+
+    def test_queued_spawn_stops_loop(self):
+        self.on()
+        self.task("T-0001")
+        self.task("T-0002")
+        self.assertEqual(len(self.tick_step(spawn_status="queued")), 1)
+
+    def test_partial_start_gets_its_qa_next_tick(self):
+        self.on()
+        self.task()
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001")
+        calls = self.tick_step()
+        self.assertEqual([(c["role"], c["name"]) for c in calls], [("qa", "qa-t-0001")])
+        self.assertEqual(self.tick_step(), [])
+
+    def test_low_tier_one_combined_agent(self):
+        self.on(risk_tiers="on")
+        self.task()
+        self.env.sql("UPDATE tasks SET tier='T1' WHERE id='T-0001'")
+        calls = self.tick_step()
+        self.assertEqual([(c["role"], c["name"]) for c in calls], [("reviewer", "combined-t-0001")])
+        self.assertIn("--as qa", calls[0]["prompt"])
+
+    def test_low_tier_with_plain_reviewer_gets_qa_and_one_fyi(self):
+        self.on(risk_tiers="on")
+        self.task()
+        self.env.sql("UPDATE tasks SET tier='T1' WHERE id='T-0001'")
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001")
+        calls = [self.tick_step() for _ in range(3)]
+        self.assertEqual([[(c["role"], c["name"]) for c in cs] for cs in calls], [[("qa", "qa-t-0001")], [], []])
+        fyi = self.env.sql("SELECT body FROM messages WHERE kind='fyi'")
+        self.assertEqual(len(fyi), 1)
+        self.assertIn("qa-t-0001", fyi[0]["body"])
+        self.assertNotIn("reviewer-t-0001", fyi[0]["body"])
+
+    def test_tier_ignored_when_risk_tiers_off(self):
+        self.on()
+        self.task()
+        self.env.sql("UPDATE tasks SET tier='T0' WHERE id='T-0001'")
+        self.assertEqual(len(self.tick_step()), 2)
+
+    def test_high_tier_gets_two_agents(self):
+        self.on(risk_tiers="on")
+        self.task()
+        self.env.sql("UPDATE tasks SET tier='T3' WHERE id='T-0001'")
+        self.assertEqual(len(self.tick_step()), 2)
+
+
+class CombinedVerdictTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.env.seed_project()
+        self.task()
+        self.env.seed_agent("combined-t-0001", "reviewer", goal="G-001", task="T-0001")
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", task="T-0001")
+        self.env.seed_pr()
+
+    def test_combined_agent_records_both_verdicts_on_head(self):
+        self.ok("verdict", "T-0001", "--pass", "--summary", "ok", agent="combined-t-0001")
+        self.ok("verdict", "T-0001", "--pass", "--as", "qa", "--summary", "ok\n" + GOOD, agent="combined-t-0001")
+        rows = self.env.sql("SELECT role, head_sha, verdict FROM verdicts ORDER BY id")
+        self.assertEqual([(r["role"], r["head_sha"], r["verdict"]) for r in rows],
+                         [("reviewer", SHA_A, "pass"), ("qa", SHA_A, "pass")])
+
+    def test_plain_reviewer_cannot_record_qa(self):
+        self.ok("verdict", "T-0001", "--pass", "--as", "qa", "--summary", "ok", agent="reviewer-t-0001")
+        self.assertEqual([r["role"] for r in self.env.sql("SELECT role FROM verdicts")], ["reviewer"])
+
+    def test_combined_agent_of_another_task_cannot_record_qa(self):
+        self.task("T-0002")
+        self.env.seed_agent("combined-t-0002", "reviewer", goal="G-001", task="T-0002")
+        self.ok("verdict", "T-0001", "--pass", "--as", "qa", "--summary", "ok", agent="combined-t-0002")
+        self.assertEqual([r["role"] for r in self.env.sql("SELECT role FROM verdicts")], ["reviewer"])
+
+    def test_combined_qa_pass_still_needs_gates(self):
+        p = self.refused(5, "verdict", "T-0001", "--pass", "--as", "qa", "--summary", "ok", agent="combined-t-0001")
+        self.assertIn("Gate line format:", p.stdout + p.stderr)
+
+
+class ReservedSlotsTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.on(max_live_agents="3", review_reserved_slots="2")
+        self.task("T-0009", status="todo", pr_url=None)
+        self.env.seed_agent("zz-test-x1", "coder", goal="G-001")
+        self.env.sql("UPDATE agents SET pane_id='p-x1' WHERE name='zz-test-x1'")
+        self.env.set_herdr(agents=[{"name": "zz-test-x1", "agent": "claude", "pane_id": "p-x1"}])
+
+    def gate(self, role):
+        with self.env.load_factory() as f:
+            return f.gate(f.db(), role=role)[:2]
+
+    def test_coder_blocked_by_reserved_slots(self):
+        ok, why = self.gate("coder")
+        self.assertFalse(ok)
+        self.assertIn("review_reserved_slots", why)
+
+    def test_reviewer_and_qa_use_reserved_slots(self):
+        self.assertTrue(self.gate("reviewer")[0])
+        self.assertTrue(self.gate("qa")[0])
+
+    def test_reviewer_still_bound_by_the_global_cap(self):
+        self.ok("config", "max_live_agents", "1")
+        ok, why = self.gate("reviewer")
+        self.assertFalse(ok)
+        self.assertIn("agent panes live", why)
+
+    def test_flag_off_coder_unaffected(self):
+        self.ok("config", "review_autospawn", "off")
+        self.assertTrue(self.gate("coder")[0])
+
+    def test_held_review_slots_are_returned_to_coders(self):
+        self.env.seed_agent("zz-test-r1", "reviewer", goal="G-001")
+        self.env.sql("UPDATE agents SET pane_id='p-r1' WHERE name='zz-test-r1'")
+        self.ok("config", "review_reserved_slots", "1")
+        self.env.set_herdr(agents=[{"name": "zz-test-x1", "agent": "claude", "pane_id": "p-x1"},
+                                   {"name": "zz-test-r1", "agent": "claude", "pane_id": "p-r1"}])
+        self.assertTrue(self.gate("coder")[0])
+
+
+if __name__ == "__main__":
+    unittest.main()
