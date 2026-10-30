@@ -62,7 +62,7 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 		p = pyJoin(cwd, p)
 	}
 	noPush := in(noPushRoles, role) // T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
-	if persistPath(p, false, !noPush) || (noPush && gitHooksPath(p, false)) || (strings.Contains(p, "$") && PersistCode(p)) {
+	if persistPath(p, false, !noPush) || (noPush && (gitHooksPath(p, false) || gitfilePath(p))) || (strings.Contains(p, "$") && PersistCode(p)) {
 		why := persistWhy
 		if repoCfgPath(pyRealpath(p), true) || repoCfgPath(pyNormpath(p), true) {
 			why = repoCfgWhy

@@ -5,14 +5,13 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up T-0809: T-0783 (#222) is a Python-only rule until the Go port gets it"
 NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 
 
@@ -31,8 +30,7 @@ class NoPushGitFileTests(unittest.TestCase):
     def run_hook(self, payload, role, *flags):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
         env.update(WORKER_GUARD_LIVE_HOME=self.home, WORKER_GUARD_SCRATCH=self.scratch)
-        return subprocess.run([sys.executable, HOOK, "--role", role, *flags], input=json.dumps(payload),
-                              capture_output=True, text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role, *flags], env=env)
 
     def bash(self, cmd, role, cwd=None, *flags):
         return self.run_hook({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.scratch}, role, *flags)

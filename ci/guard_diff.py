@@ -62,7 +62,17 @@ def scratch_fixture():
     the worker's scratchpad (WORKER_GUARD_SCRATCH), so the git init rule is exercised on any machine."""
     path = os.path.join(tempfile.gettempdir(), f"guard-diff-scratch-{os.getuid()}")
     os.makedirs(path, exist_ok=True)
-    return os.path.realpath(path)
+    path = os.path.realpath(path)
+    # T-0809: fixed contents the archive-extract corpus entries (T-0783) depend on: a repo (r/.git), a clean dir (out),
+    # a symlink below a dir (linked/l) and a gitfile three levels down (deep/a/b/.git)
+    os.makedirs(os.path.join(path, "r", ".git"), exist_ok=True)
+    os.makedirs(os.path.join(path, "out"), exist_ok=True)
+    os.makedirs(os.path.join(path, "linked"), exist_ok=True)
+    if not os.path.lexists(os.path.join(path, "linked", "l")):
+        os.symlink(os.path.join(path, "r"), os.path.join(path, "linked", "l"))
+    os.makedirs(os.path.join(path, "deep", "a", "b"), exist_ok=True)
+    open(os.path.join(path, "deep", "a", "b", ".git"), "a").close()
+    return path
 
 
 def hook_env(cmd, env=None):
