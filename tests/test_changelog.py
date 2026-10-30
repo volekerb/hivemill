@@ -62,6 +62,17 @@ class ChangelogTest(unittest.TestCase):
             self.assertNotIn("(#", l)
             self.assertIsNone(re.search(r"\d{4}-\d{2}-\d{2}", l))
 
+    def test_release_pr_subject_not_listed_and_check_passes(self):
+        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        git(self.repo, "commit", "-q", "--allow-empty", "-m", f"Release v{version} (#227)")
+        git(self.repo, "commit", "-q", "--allow-empty", "-m", "T-0006: later change (#6)")
+        out = changelog(self.repo).stdout
+        self.assertNotIn("Release v", out.split("## [0.2.0]")[0].split("### All merged changes")[1])
+        self.assertIn("- T-0006: later change\n", out)
+        f = os.path.join(self.repo, "CHANGELOG.md")
+        self.assertEqual(changelog(self.repo, "--write", "--file", f).returncode, 0)
+        self.assertEqual(changelog(self.repo, "--check", "--file", f).returncode, 0)
+
     def test_since_limits_range(self):
         sha = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD~1"], capture_output=True, text=True).stdout.strip()
         out = changelog(self.repo, "--since", sha).stdout

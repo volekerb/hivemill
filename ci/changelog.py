@@ -98,6 +98,14 @@ def known_commit(sha, repo):
     return subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode == 0
 
 
+def release_subject_prefix():
+    """The release PR's own squash subject ("Release v<VERSION> (#N)"): it never lists itself."""
+    try:
+        return f"Release v{(Path(__file__).resolve().parent.parent / 'VERSION').read_text(encoding='utf-8').strip()}"
+    except (OSError, UnicodeDecodeError) as e:
+        raise ChangelogError(f"cannot read VERSION: {e}. Restore the VERSION file.")
+
+
 def merged_subjects(ref, since=None, repo="."):
     if since is None and known_commit(SINCE, repo):  # a repo without the release commit (a test repo) lists its whole history
         since = SINCE
@@ -106,10 +114,10 @@ def merged_subjects(ref, since=None, repo="."):
                           capture_output=True, text=True)
     if proc.returncode != 0:
         raise ChangelogError(f"git log {rng} failed: {proc.stderr.strip()}. Fetch the ref or pass --ref/--since a valid one.")
-    subjects = []
+    subjects, release = [], release_subject_prefix()
     for line in proc.stdout.splitlines():
         parts = line.split("\t", 2)
-        if len(parts) == 3 and PR_SUFFIX.search(parts[2]):
+        if len(parts) == 3 and PR_SUFFIX.search(parts[2]) and not parts[2].startswith(release):
             subjects.append(DATE.sub("", PR_SUFFIX.sub("", parts[2])).strip())
     return subjects
 
