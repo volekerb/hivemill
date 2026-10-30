@@ -166,9 +166,14 @@ class TestSandboxRoutingExtra(unittest.TestCase):
 
     def test_t0745_coverage_module_flag_then_options(self):
         self._denied("coverage run --module --branch pytest", "coverage run -m --branch pytest", "coverage run -mp pytest",
-                     "python3 -m coverage run --module --branch pytest")
+                     "python3 -m coverage run --module --branch pytest",
+                     "coverage run -pm pytest", "coverage run -am pytest", "python3 -m coverage run -pm pytest",
+                     "coverage run -m --pylib pytest", "coverage run -m --concurrency thread pytest",
+                     "coverage run -m --save-signal USR1 pytest", "coverage run .venv/bin/pytest",
+                     "coverage run -m unittest tests.test_x", "coverage run -mpytest")
         self.seed("1")
-        for cmd in ("coverage run --module --branch myapp", "coverage run -mp myapp", "coverage run script.py pytest"):
+        for cmd in ("coverage run --module --branch myapp", "coverage run -mp myapp", "coverage run app.py",
+                    "coverage run -m mypkg", "python3 -m coverage run app.py"):
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
 
     def test_t0745_go_double_dash_C(self):

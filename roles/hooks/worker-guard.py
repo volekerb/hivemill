@@ -1960,30 +1960,21 @@ class Analyzer:
 
     @staticmethod
     def coverage_run_module(args):
-        """T-0735/T-0745: the unittest/pytest module run by `coverage run -m` (also `--module`, `-mp`, `--module=X`),
-        else None. `-m` is a flag: the module is the first non-option word after it (`run` stops option parsing there)."""
-        runners = ("unittest", "pytest")
-        valued = {"--rcfile", "--include", "--omit", "--data-file", "--context", "--debug", "--source", "--pylib"}
-        flagged = False
+        """T-0745: fail closed. Any word after `coverage run` naming pytest/py.test/unittest is the runner;
+        no option model, so flags, valued options and clusters cannot hide it. Never returns early on a non-match.
+        Accepted false positive: `coverage run app.py pytest` goes to the test slot."""
         for t in args:
-            if flagged:
-                if t in valued:
-                    flagged = "skip"
-                    continue
-                if flagged == "skip":
-                    flagged = True
-                    continue
-                if t.startswith("-"):
-                    continue
-                return t if t.split(".")[0] in runners else None
-            if t == "--module":
-                flagged = True
-            elif t.startswith("--module="):
-                return t[9:] if t[9:].split(".")[0] in runners else None
-            elif t.startswith("-m") and not t.startswith("--"):
-                if t[2:].split(".")[0] in runners:  # fail closed on the old `-mpytest` spelling
-                    return t[2:]
-                flagged = True
+            if t.startswith("--module="):
+                cand = t[9:]
+            elif t.startswith("-") and not t.startswith("--"):
+                cand = t[t.index("m") + 1:] if "m" in t else ""   # -mpytest, -pmpytest
+            elif t.startswith("-"):
+                cand = t.split("=", 1)[1] if "=" in t else ""
+            else:
+                cand = t
+            base = os.path.basename(cand)
+            if base == "py.test" or base.split(".")[0] in ("pytest", "unittest"):
+                return cand
         return None
 
     @staticmethod
