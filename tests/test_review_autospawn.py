@@ -20,10 +20,13 @@ class Base(FactoryTestCase):
         kw.setdefault("team", TEAM)
         self.env.seed_task(tid, **kw)
 
-    def tick_step(self, gate_open=True, spawn_status="live"):
+    def tick_step(self, gate_open=True, spawn_status="live", stub_pr=True, heads=None):
         calls = []
         with self.env.load_factory() as f:
             con = f.db()
+            if stub_pr:  # a healthy open PR; the T-0815 skip tests use the gh stub instead
+                f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA_A, "statusCheckRollup": []}
+            f._ci_remote_heads = lambda: heads
 
             def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw):
                 calls.append({"role": role, "team": team, "task": task, "name": name, "prompt": prompt})
@@ -258,6 +261,7 @@ class NewHeadTests(Base):
             f.spawn = fake_spawn
             f.gate = lambda con, **k: (True, "", {})
             f._ci_remote_head = lambda branch, batch=None: head
+            f._ci_remote_heads = lambda: {"factory/t-0001": head}
             f._ci_wake_probe = probe
             f.review_autospawn_tick(con)
             con.commit()
@@ -366,6 +370,125 @@ class NewHeadTests(Base):
         self.assertIn("@22222222", fyi[0]["subject"])
         self.assertIn("reviewer-t-0001-22222222", fyi[0]["body"])
         self.assertNotIn("qa-t-0001-22222222", fyi[0]["body"])
+
+
+DEAD_URL = "https://github.com/volekerb/factory/pull/262"
+HIVEMILL_URL = "https://github.com/volekerb/hivemill/pull/9"
+
+
+class SkipTests(Base):
+    """T-0815: no reviewer/qa for a PR on another repo, one gh cannot resolve or that is closed/merged, or whose head branch is gone."""
+
+    def setUp(self):
+        super().setUp()
+        self.on()
+        self.env.sql("INSERT INTO projects(id,name,gh_repo,created) VALUES('hm','hm','volekerb/hivemill','t')")
+        self.env.sql("UPDATE goals SET project_id='hm' WHERE id='G-001'")
+        self.heads = {"factory/t-0001": H1}
+
+    def spawns_over_three_ticks(self):
+        calls = []
+        for _ in range(3):
+            calls += self.tick_step(stub_pr=False, heads=self.heads)
+        return calls
+
+    def skip_events(self):
+        return [r["detail"] for r in self.env.sql("SELECT detail FROM events WHERE action='review-autospawn-skip' AND entity_id='T-0001'")]
+
+    def status(self):
+        return self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"]
+
+    def dead_task(self, url=HIVEMILL_URL, branch="factory/t-0001"):
+        self.task(pr_url=url)
+        self.env.sql("UPDATE tasks SET branch=? WHERE id='T-0001'", (branch,))
+
+    def seed(self, url=HIVEMILL_URL, **kw):
+        self.env.seed_pr(url=url, **kw)
+
+    def assert_skipped_once(self, text):
+        self.assertEqual(self.spawns_over_three_ticks(), [])
+        events = self.skip_events()
+        self.assertEqual(len(events), 1)
+        self.assertIn(text, events[0])
+        self.assertEqual(self.status(), "in_review")
+
+    def test_a_pr_on_another_repo_is_skipped_once(self):
+        self.dead_task(url=DEAD_URL)
+        self.seed(url=DEAD_URL)  # open on GitHub and its branch exists: only the repo name is wrong
+        self.assert_skipped_once("volekerb/factory")
+        self.assertEqual(self.env.calls("gh"), [])  # decided from the url, no gh call
+
+    def test_a_origin_slug_is_the_reference_without_a_project_gh_repo(self):
+        self.env.sql("UPDATE goals SET project_id=NULL WHERE id='G-001'")
+        self.dead_task(url=DEAD_URL)
+        self.seed(url=DEAD_URL)
+        with self.env.load_factory() as f:
+            f._origin_urls = lambda: ["https://github.com/volekerb/hivemill.git"]
+            f._ci_remote_heads = lambda: self.heads
+            f.spawn = lambda *a, **k: self.fail("spawned")
+            f.gate = lambda con, **k: (True, "", {})
+            con = f.db()
+            f.review_autospawn_tick(con)
+            con.commit()
+        self.assertEqual(len(self.skip_events()), 1)
+
+    def test_b_unresolvable_pr_is_skipped_once(self):
+        self.dead_task()  # no PR in the gh stub state: gh exits 1
+        self.assert_skipped_once("gh cannot resolve")
+
+    def test_b_closed_or_merged_pr_is_skipped_once(self):
+        for state in ("CLOSED", "MERGED"):
+            with self.subTest(state=state):
+                self.env.sql("DELETE FROM tasks")
+                self.env.sql("DELETE FROM events")
+                self.env.sql("DELETE FROM throttle")
+                self.dead_task()
+                self.seed(state=state)
+                self.assert_skipped_once(state)
+
+    def test_c_head_branch_absent_is_skipped_once(self):
+        self.dead_task()
+        self.seed()
+        self.heads = {"factory/t-0099": H2}
+        self.assert_skipped_once("factory/t-0001")
+
+    def test_failing_gh_fails_closed(self):
+        self.dead_task()
+        self.seed()
+        self.env.set_gh(pr_view_exit=1)
+        self.assertEqual(self.spawns_over_three_ticks(), [])
+        self.assertEqual(self.status(), "in_review")
+
+    def test_unreadable_remote_fails_closed_without_skip_event(self):
+        self.dead_task()
+        self.seed()
+        self.heads = None  # ls-remote failed
+        self.assertEqual(self.spawns_over_three_ticks(), [])
+        self.assertEqual(self.skip_events(), [])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='review-autospawn-error'")), 3)
+
+    def test_normal_hivemill_pr_still_gets_reviewer_and_qa(self):
+        self.dead_task()
+        self.seed()
+        calls = self.tick_step(stub_pr=False, heads=self.heads)
+        self.assertEqual([(c["role"], c["name"]) for c in calls], [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
+        self.assertEqual(self.skip_events(), [])
+
+    def test_rerun_pass_skips_the_same_dead_prs(self):
+        for label, url, seed, heads in (("repo", DEAD_URL, True, {"factory/t-0001": H2}),
+                                        ("closed", HIVEMILL_URL, "CLOSED", {"factory/t-0001": H2}),
+                                        ("branch", HIVEMILL_URL, True, {})):
+            with self.subTest(label=label):
+                self.env.sql("DELETE FROM tasks")
+                self.env.sql("DELETE FROM events")
+                self.env.sql("DELETE FROM throttle")
+                self.env.sql("DELETE FROM verdicts")
+                self.dead_task(url=url)
+                self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                             "VALUES('T-0001','u',?,'reviewer','fail','s','a','t')", (H1,))
+                self.seed(url=url, sha=H2, checks=GREEN, **({"state": seed} if isinstance(seed, str) else {}))
+                self.heads = heads
+                self.assert_skipped_once("")
 
 
 if __name__ == "__main__":
