@@ -11261,19 +11261,25 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     agents = herdr_agents()
     if agents is None:
         die("herdr is unreachable")
-    pane, close = r["pane_id"], False
+    pane, close, by_pane = r["pane_id"], False, False
     # the session decides which pane hosts the agent; the row's pane id may be stale
     host = next((x for x in agents if (x.get("agent_session") or {}).get("value") == r["session_id"]), None)
     if host:
         pane = host.get("pane_id")
-    elif claude_procs(r["session_id"]):
-        die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
-            "refusing to start a second copy", 3)
+    elif procs := claude_procs(r["session_id"]):
+        # herdr omits agent_session for most workers (sandboxed or not): fall back to the row's own pane, but only when
+        # exactly one process runs the session and the entry there is this agent and names no session of its own
+        host = next((x for x in agents if pane and x.get("pane_id") == pane and x.get("name") == r["name"]
+                     and not (x.get("agent_session") or {}).get("value")), None) if len(procs) == 1 else None
+        if not host:
+            die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
+                "refusing to start a second copy", 3)
+        by_pane = True
     else:
         host = next((x for x in agents if pane and x.get("pane_id") == pane), None)
     if host:
         sess = (host.get("agent_session") or {}).get("value")
-        if sess != r["session_id"]:
+        if sess != r["session_id"] and not by_pane:
             die(f"pane {pane} hosts another agent ({host.get('name')}, session {sess}); refusing to touch it", 3)
         if host.get("agent_status") == "working" and not force:
             die(f"{r['name']} is mid-turn (a relaunch would lose the turn); use --when-idle, or --force", 2)
@@ -11293,6 +11299,9 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         gh_cred_preflight(con, r["role"], r["name"])
     steps = []
     if close:
+        if by_pane:
+            steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; its one claude "
+                         f"process runs session {r['session_id']}, so pane {pane} is the host")
         steps.append(f"herdr pane close {pane}  (`/exit` via `herdr agent prompt` is not a documented clean exit; "
                      "this ends the agent process)")
         steps.append(f"wait until pane {pane} is gone, then place a new pane")
