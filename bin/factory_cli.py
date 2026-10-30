@@ -5312,9 +5312,13 @@ _HARNESS_NAME = re.compile(r"zz-test-factory-[A-Za-z0-9_]{8}")
 
 
 def _harness_newest_mtime(d):
-    """Newest mtime of d and of every entry below it (symlinks not followed)."""
+    """Newest mtime of d and of every entry below it (symlinks not followed). Any OSError other than an entry vanishing
+    (an unreadable or unsearchable subdir) propagates: the caller must treat the tree as unmeasured and keep it."""
     newest = d.lstat().st_mtime
-    for root, dirs, files in os.walk(d, followlinks=False):
+
+    def _raise(e):
+        raise e
+    for root, dirs, files in os.walk(d, followlinks=False, onerror=_raise):
         for n in dirs + files:
             try:
                 newest = max(newest, os.lstat(os.path.join(root, n)).st_mtime)
@@ -5325,7 +5329,8 @@ def _harness_newest_mtime(d):
 
 def _proc_holds(roots):
     """The `roots` (realpaths) that a process of our uid has as cwd or an open fd (or holds something inside); None when
-    a pid of ours cannot be read completely, so the caller keeps everything."""
+    a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
+    unreadable fd dir, which also lands in the keep-everything branch.)"""
     held = set()
     uid = os.getuid()
     for pdir in _serve_proc_root().iterdir():
@@ -5361,19 +5366,24 @@ def tmp_sweep_harness(con):
         base = tmp_dir()
         if not base.is_dir():
             return
-        root = os.path.realpath(base)
         old = []
+        unmeasured = []
         for d in sorted(base.iterdir()):
             if not _HARNESS_NAME.fullmatch(d.name):
                 continue
             try:
                 st = d.lstat()
-                if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or os.path.realpath(d.parent) != root:
+                if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
                     continue
                 if t - _harness_newest_mtime(d) >= TMP_HARNESS_MIN_AGE_S:
                     old.append(d)
             except FileNotFoundError:
                 continue   # vanished while we looked
+            except OSError as e:
+                unmeasured.append(f"{d.name}: {e}")   # cannot measure it completely: keep it, go on with the others
+        if unmeasured:
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-unmeasured",
+                     {"count": len(unmeasured), "kept": unmeasured[:20]})
         if not old:
             return
         held = _proc_holds([os.path.realpath(d) for d in old])

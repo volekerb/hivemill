@@ -127,6 +127,29 @@ class HarnessSweep(FactoryTestCase):
         finally:
             (stuck / "sub").chmod(0o755)
 
+    @unittest.skipIf(os.getuid() == 0, "root reads anything")
+    def test_unreadable_subdir_keeps_dir_and_others_still_swept(self):
+        # mode-000 subdir holding a fresh file (unreadable), and a mode-600 subdir (listable, children not stat-able)
+        locked = self.home_dir("zz-test-factory-aaaaaaaa")
+        (locked / "hid").mkdir()
+        (locked / "hid" / "fresh").write_text("new")
+        (locked / "hid").chmod(0o000)
+        nosearch = self.home_dir("zz-test-factory-bbbbbbbb")
+        (nosearch / "sub").chmod(0o600)
+        other = self.home_dir("zz-test-factory-cccccccc")
+        try:
+            self.tick()
+            self.assertTrue((locked / "sub" / "f").exists())
+            self.assertTrue(nosearch.exists())
+            self.assertFalse(other.exists())
+            self.assertIn('"count": 1', self.events()[0]["detail"])
+            unm = self.env.sql("SELECT detail FROM events WHERE action='tmp-harness-unmeasured'")
+            self.assertEqual(len(unm), 1)
+            self.assertIn('"count": 2', unm[0]["detail"])
+        finally:
+            (locked / "hid").chmod(0o755)
+            (nosearch / "sub").chmod(0o755)
+
     def test_runs_at_most_hourly(self):
         self.home_dir()
         self.tick()
