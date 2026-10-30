@@ -3752,6 +3752,14 @@ def train_merge(con, plan, upto, run, owner_repo):
             pr = pr_state(t["pr_url"])
             if pr["headRefOid"] != s["head"]:
                 return stop(f"PR head moved from {s['head'][:8]} to {pr['headRefOid'][:8]} since the plan")
+            _, _, _, _, unready = train_ready(con, tid, repo)  # verdicts, draft, checks, auto_merge may have changed during the gate
+            if unready:
+                return stop("no longer ready: " + "; ".join(unready))
+            if k == 1:  # main must still be what the train was built and gated on, before the first PR lands
+                repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+                _, m, why = verified_main(repo, pr["number"], repo_url, owner_repo)
+                if m != plan["main"]:
+                    return stop(f"origin/main moved during the gate ({plan['main'][:8]} -> {(m or '?')[:8]}{'; ' + why if why else ''})")
             slugs = _judge_slugs(con, t, owner_repo)
             problems = next(filter(None, (_push_policy(con, x) for x in slugs)), None) or red_main_refusal(con, slugs, tid) \
                 or merge_freeze_refusal(con)
@@ -4031,7 +4039,7 @@ def cmd_judge(a):
     if getattr(a, "dry_run", False):
         die("--dry-run is only for --train; nothing was merged or rejected", 2)
     if not a.task or not a.reason:
-        die("judge needs a task and --reason (or --train T-a T-b ... --dry-run)", 2)
+        die("judge needs a task and --reason (or --train T-a T-b ... [--dry-run])", 2)
     if getattr(a, "record_merged", None) is not None:  # "" must reach the sha check, never fall to --merge
         return judge_record_merged(con, a)
     require_role(con, "judge")
@@ -12954,7 +12962,7 @@ def main():
     x = sp.add_parser("judge"); x.add_argument("task", nargs="?"); g = x.add_mutually_exclusive_group(required=True)
     g.add_argument("--merge", action="store_true"); g.add_argument("--reject", action="store_true")
     g.add_argument("--record-merged", metavar="SHA", help="record a PR whose squash already landed on origin/main (judge, director)")
-    g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (needs --dry-run; pushes and merges nothing)")
+    g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
     x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
