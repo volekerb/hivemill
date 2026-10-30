@@ -30,7 +30,7 @@ def copy_bin(dest):
 
 class TestVersionFile(unittest.TestCase):
     def test_content(self):
-        self.assertEqual((ROOT / "VERSION").read_text(), "0.2.0\n")
+        self.assertEqual((ROOT / "VERSION").read_text(), "0.3.0\n")
 
 
 class TestFactoryVersion(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestFactoryVersion(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             p = run([sys.executable, str(ROOT / "bin" / "factory"), "--version"], env=clean_env(FACTORY_HOME=home))
             self.assertEqual(p.returncode, 0, p.stderr)
-            self.assertRegex(p.stdout, r"^hivemill 0\.2\.0 \(git [0-9a-f]{12}\)\n$")
+            self.assertRegex(p.stdout, r"^hivemill 0\.3\.0 \(git [0-9a-f]{12}\)\n$")
             self.assertEqual(os.listdir(home), [])
 
     def test_without_git_binary(self):
@@ -50,7 +50,7 @@ class TestFactoryVersion(unittest.TestCase):
             empty_path.mkdir()
             p = run([sys.executable, str(tmp / "bin" / "factory"), "--version"],
                     env=clean_env(PATH=str(empty_path), FACTORY_HOME=str(tmp / "home")))
-            self.assertEqual((p.returncode, p.stdout), (0, "hivemill 0.2.0\n"), p.stderr)
+            self.assertEqual((p.returncode, p.stdout), (0, "hivemill 0.3.0\n"), p.stderr)
 
     def test_non_git_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -58,7 +58,7 @@ class TestFactoryVersion(unittest.TestCase):
             copy_bin(tmp)
             shutil.copy(ROOT / "VERSION", tmp / "VERSION")
             p = run([sys.executable, str(tmp / "bin" / "factory"), "--version"], env=clean_env(GIT_CEILING_DIRECTORIES=str(tmp.parent)))
-            self.assertEqual((p.returncode, p.stdout), (0, "hivemill 0.2.0\n"), p.stderr)
+            self.assertEqual((p.returncode, p.stdout), (0, "hivemill 0.3.0\n"), p.stderr)
 
     def test_missing_and_empty_version_file(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -98,7 +98,7 @@ class TestCheckVersion(unittest.TestCase):
             self.assertEqual((p.returncode, p.stderr), (0, ""))
 
     def test_real_repo_passes_for_current_version(self):
-        p = run([sys.executable, str(CHANGELOG), "--check-version", "0.2.0"], env=clean_env())
+        p = run([sys.executable, str(CHANGELOG), "--check-version", "0.3.0"], env=clean_env())
         self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_real_repo_blocks_other_version(self):
