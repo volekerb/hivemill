@@ -12,11 +12,11 @@ NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 OTHER = ("coder", "cleaner", "judge")
 
 DENIED = [
-    "read HOME <<< d; git p",
-    "printf -v HOME d; git p",
-    "mapfile -t HOME < f; git p",
+    "read HOME <<< d",
+    "printf -v HOME d",
+    "mapfile -t HOME < f",
     "readarray HOME < f",
-    "for HOME in d; do git p; done",
+    "for HOME in d; do :; done",
     "getopts HOME x",
     "getopts ab: GIT_DIR",
     "read XDG_CONFIG_HOME <<< d",
@@ -32,6 +32,26 @@ DENIED = [
     'read "$v" <<< d',
     'local "$v"=d',
     ": ${!v:=d}",
+    # attached option argument
+    "read -aHOME <<< d",
+    "read -raHOME <<< d",
+    "read -eaHOME <<< d",
+    # array subscript
+    "printf -v HOME[0] d",
+    "read HOME[0] <<< d",
+    "local HOME[0]=d",
+    # glob in the target
+    "read HOM[E] <<< d",
+    "read HOM? <<< d",
+    "read HOM* <<< d",
+    # brace expansion
+    "read {HOME,x} <<< d",
+    "printf -v {HOME,x} d",
+    # nameref
+    "declare -n r=HOME",
+    "local -n r=HOME",
+    "typeset -n r=HOME",
+    'declare -n r="$v"',
 ]
 ALLOWED = [
     "read x <<< y",
@@ -43,6 +63,10 @@ ALLOWED = [
     ": ${x:=d}",
     "let n=1+2",
     "local y=1",
+    "read -a arr <<< y",
+    "read -ra arr <<< y",
+    "declare -n r=x",
+    "read arr[0] <<< y",
 ]
 
 
@@ -57,8 +81,9 @@ class BuiltinAssignTests(unittest.TestCase):
         for role in NO_PUSH:
             for cmd in DENIED:
                 with self.subTest(role=role, cmd=cmd):
-                    p = self.run_hook(cmd, role)
+                    p = self.run_hook(cmd + "; git log -1", role)  # an allowed git tail: only the new check can refuse
                     self.assertEqual(p.returncode, 2, p.stderr)
+                    self.assertIn("XDG_CONFIG_HOME, PATH, PAGER or GIT_", p.stderr)
 
     def test_allowed_names_outside_protected_set(self):
         for role in NO_PUSH:

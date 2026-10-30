@@ -1917,10 +1917,11 @@ class Analyzer:
         printf -v, mapfile/readarray, for/select, getopts, let, declare-like, `${VAR:=x}` / `${VAR=x}`), and fail closed
         when the target name is dynamic."""
         def bad(name):
-            return bool(PROTECTED_NAME.match(name))
+            return bool(PROTECTED_NAME.match(re.sub(r"\[\d+\]$", "", name)))  # HOME[0] is HOME
 
         def dyn(name):
-            return bool(re.search(r"[$`!]", name))
+            # expansion/glob/brace/subscript other than [digits] can name HOME at run time: fail closed
+            return bool(re.search(r"[$`!*?{]", name)) or bool(re.search(r"\[", re.sub(r"\[\d+\]$", "", name)))
 
         def deny(what, name):
             why = "dynamic target name" if dyn(name) else "it selects the git config, helpers or pager"
@@ -1929,6 +1930,8 @@ class Analyzer:
 
         for w in [*assigns, *words]:
             m = PARAM_DEFAULT.search(w)
+            if m and m.group(1).startswith("!"):
+                deny("an indirect ${!VAR:=...} default", m.group(1))
             if m and (bad(m.group(1)) or dyn(m.group(1))):
                 deny("a ${VAR:=...} default", m.group(1))
         if not words:
@@ -1936,13 +1939,22 @@ class Analyzer:
         name, rest = os.path.basename(words[0]), words[1:]
         targets = []
         if name in ("read", "mapfile", "readarray"):
-            argopt = set("pdnNtui") if name == "read" else set("dnOsuCc")
-            skip = False
+            argopt = set("padnNtui") if name == "read" else set("dnOsuCc")
+            skip = None
             for a in rest:
-                if skip:
-                    skip = False
+                if skip is not None:
+                    if skip == "a":
+                        targets.append(a)
+                    skip = None
                 elif a.startswith("-") and len(a) > 1:
-                    skip = a[-1] in argopt
+                    for k, c in enumerate(a[1:], 1):
+                        if c in argopt:  # the rest of the cluster (-aHOME) or the next word is its argument
+                            if a[k + 1:]:
+                                if c == "a":
+                                    targets.append(a[k + 1:])
+                            else:
+                                skip = c
+                            break
                 else:
                     targets.append(a)
         elif name == "printf":
@@ -1960,6 +1972,12 @@ class Analyzer:
                 targets += re.findall(r"[A-Za-z_]\w*|\$\S*", a.split("=", 1)[0] if "=" in a else a)
         elif name in DECLARERS:
             targets += [a.split("=", 1)[0] for a in rest if not a.startswith("-")]
+            if any(a.startswith("-") and not a.startswith("--") and "n" in a for a in rest):
+                for a in rest:  # nameref: declare -n r=HOME makes `read r` assign HOME
+                    if not a.startswith("-") and "=" in a:
+                        v = a.split("=", 1)[1]
+                        if bad(v) or dyn(v):
+                            deny(name + " -n", v)
         for t in targets:
             if bad(t) or dyn(t):
                 deny(name, t)
