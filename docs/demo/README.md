@@ -7,7 +7,7 @@ this repository and the demo seed data, so it can be regenerated after any UI ch
 |---|---|---|
 | `demo.mp4` | H.264, 1920x1080, 30 fps, no audio, under 25 MB | GitHub release asset, not committed |
 | `demo.webm` | VP9, same picture, under 25 MB | GitHub release asset, not committed |
-| `hero.webp` | animated WebP, 1600 px wide, 18 fps, loops forever, under 5 MB, the org chart without captions | committed (`docs/demo/hero.webp`) and shown at the top of the README |
+| `hero.webp` | animated WebP, 1600 px wide, 20 fps, loops forever, under 5 MB, the org chart without captions | committed (`docs/demo/hero.webp`) and shown at the top of the README |
 
 ## Build it
 
@@ -69,7 +69,7 @@ fps for the loop):
 - scene clips: `libx264 -crf 12 -preset veryfast -pix_fmt yuv420p -threads 4`
 - `demo.mp4`: `libx264 -crf 22 -preset slow -pix_fmt yuv420p -r 30 -movflags +faststart`, no audio
 - `demo.webm`: `libvpx-vp9 -crf 34 -b:v 0 -row-mt 1 -threads 4`, no audio
-- `hero.webp`: `libwebp_anim`, `scale=1600:-2`, `fps=18`, `-loop 0`, `-quality 85` (width, fps and quality come from the `hero` entry of `storyboard.json`)
+- `hero.webp`: `libwebp_anim`, `scale=1600:-2`, `fps=20` (50 ms frames, so a 10 s loop times as 10.000 s; at 18 fps the WebP frame timing rounds it to 9.999 s), `-loop 0`, `-quality 85` (width, fps and quality come from the `hero` entry of `storyboard.json`)
 
 ## Tour pages (web UI scenes)
 
@@ -81,7 +81,7 @@ defaults reproduce the plain tour (so a storyboard of path strings renders as be
 | `path` | required | URL path on the demo server |
 | `duration` | the scene's `page_duration` | seconds this page is on screen |
 | `hold` | `0` | seconds the page stays still before it scrolls (must be shorter than `duration`) |
-| `scroll_to` | down to 600 px | pixels, or a CSS selector whose element ends at the top of the page box; capped at the end of the page |
+| `scroll_to` | down to 600 px | pixels, or a CSS selector whose element ends at the top of the page box, just below the page's sticky title bar; capped at the end of the page |
 | `fade_in` | `true` | `false` = fully visible on frame 0 (hard open), the fade-out at the end stays |
 | `push_in` | `1.0` | end scale of a slow eased push-in over the page (1.0 to 2.0), for example `1.04` |
 | `label` | the scene's `labels[i]` | page label |

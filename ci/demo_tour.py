@@ -163,12 +163,20 @@ def check_pages(base_url, pages):
                             "list in docs/demo/storyboard.json." % (path, status))
 
 
+SCROLL_GAP = 12  # px between a sticky top bar and the element scrolled to
+
+
 def selector_top(browser, selector):
-    """scrollTop that puts the first element matching `selector` at the top of the page box."""
+    """scrollTop that puts the first element matching `selector` at the top of the page box, just below the page's
+    sticky top bars (the UI's title bar stays on screen and would cover the element otherwise)."""
     y = browser.evaluate(
-        "(function(s){var e=document.querySelector(s);if(!e)return null;var p=document.getElementById('demo-page');"
-        "return Math.round(e.getBoundingClientRect().top-p.getBoundingClientRect().top+p.scrollTop)})(%s)"
-        % json.dumps(selector))
+        "(function(s,gap){var e=document.querySelector(s);if(!e)return null;var p=document.getElementById('demo-page');"
+        "var pr=p.getBoundingClientRect(),bar=0;"
+        "Array.prototype.forEach.call(p.querySelectorAll('*'),function(x){var c=getComputedStyle(x),r;"
+        "if(c.position!=='sticky'||c.top!=='0px')return;r=x.getBoundingClientRect();"
+        "if(r.height<pr.height/3)bar=Math.max(bar,r.height+gap);});"
+        "return Math.round(e.getBoundingClientRect().top-pr.top+p.scrollTop-bar)})(%s,%d)"
+        % (json.dumps(selector), SCROLL_GAP))
     if y is None:
         raise PageError("scroll_to selector %r matched nothing on the page; fix it in docs/demo/storyboard.json." % selector)
     return y

@@ -94,7 +94,7 @@ class StoryboardTests(unittest.TestCase):
         self.assertEqual((hero["start"], hero["end"]), (0.0, 10.0))
         self.assertTrue(10 <= hero["end"] - hero["start"] <= 15)
         self.assertTrue(0 <= hero["start"] < hero["end"] <= scene["duration"])
-        self.assertEqual((hero["width"], hero["fps"]), (1600, 18))
+        self.assertEqual((hero["width"], hero["fps"]), (1600, 20))  # 50 ms frames: a 10 s loop times as 10.000 s (18 fps: 9.999)
 
     def test_captions_inside_scene_and_long_enough(self):
         for path in (DEMO / "storyboard.json", LINKEDIN):
