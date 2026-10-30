@@ -228,3 +228,87 @@ class ReservedSlotsTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+H1, H2 = "1" * 40, "2" * 40
+GREEN = [{"__typename": "CheckRun", "name": "ci", "workflowName": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"}]
+PENDING = [{"__typename": "CheckRun", "name": "ci", "workflowName": "ci", "status": "IN_PROGRESS", "conclusion": ""}]
+
+
+class NewHeadTests(Base):
+    """T-0812: a task that had a review round on an older head gets a fresh reviewer + qa once its new head is green."""
+
+    def setUp(self):
+        super().setUp()
+        self.on()
+        self.task()
+        self.env.sql("UPDATE tasks SET branch='factory/t-0001' WHERE id='T-0001'")
+        self.probes = 0
+
+    def step(self, head, rollup=GREEN, spawn_status="live"):
+        calls = []
+        with self.env.load_factory() as f:
+            con = f.db()
+
+            def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw):
+                calls.append((role, name))
+                con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,?,'t')",
+                            (name, role, goal, team, task, spawn_status))
+
+            def probe(url, timeout):
+                self.probes += 1
+                return {"number": 1, "state": "OPEN", "headRefOid": head, "mergeStateStatus": "CLEAN", "statusCheckRollup": rollup}
+
+            f.spawn = fake_spawn
+            f.gate = lambda con, **k: (True, "", {})
+            f._ci_remote_head = lambda branch, batch=None: head
+            f._ci_wake_probe = probe
+            f.review_autospawn_tick(con)
+            con.commit()
+        return calls
+
+    def verdict(self, head, role="reviewer", verdict="fail"):
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                     "VALUES('T-0001','u',?,?,?,'s','a','t')", (head, role, verdict))
+
+    def reviewed_on_h1(self):
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        self.env.seed_agent("qa-t-0001", "qa", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        self.verdict(H1)
+
+    def test_green_before_in_review_spawns_when_in_review(self):
+        self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
+
+    def test_second_attempt_new_green_head_spawns_again_once(self):
+        self.reviewed_on_h1()
+        first = self.step(H2)
+        self.assertEqual(first, [("reviewer", "reviewer-t-0001-22222222"), ("qa", "qa-t-0001-22222222")])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
+
+    def test_exact_failed_shape_qa_row_and_verdict_on_old_head_new_head_green(self):
+        # T-0352 #209 / T-0798 #227 2026-10-30: reviewer FAIL on the old head, qa row exited, coder re-pushed, CI green, no spawn
+        self.reviewed_on_h1()
+        self.assertEqual(len(self.step(H2)), 2)
+        fyi = self.env.sql("SELECT subject FROM messages WHERE kind='fyi'")
+        self.assertIn("@22222222", fyi[0]["subject"])
+
+    def test_verdict_on_current_head_no_spawn_and_no_gh_call(self):
+        self.reviewed_on_h1()
+        self.assertEqual([self.step(H1) for _ in range(3)], [[], [], []])
+        self.assertEqual(self.probes, 0)
+
+    def test_live_or_queued_review_agent_no_spawn(self):
+        for status in ("live", "queued", "starting"):
+            with self.subTest(status=status):
+                self.env.sql("DELETE FROM agents WHERE task_id='T-0001'")
+                self.env.seed_agent("qa-t-0001", "qa", goal="G-001", team=TEAM, task="T-0001", status="exited")
+                self.env.seed_agent("reviewer-t-0001-aaaaaaaa", "reviewer", goal="G-001", team=TEAM, task="T-0001", status=status)
+                self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
+
+    def test_pending_or_red_head_waits(self):
+        self.reviewed_on_h1()
+        self.assertEqual(self.step(H2, PENDING), [])
+        red = [dict(GREEN[0], conclusion="FAILURE")]
+        self.assertEqual(self.step(H2, red), [])
+        self.assertEqual(len(self.step(H2)), 2)
