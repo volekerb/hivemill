@@ -181,7 +181,8 @@
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
-      "Workflow(qa-skills:multi-angle-review)"
+      "Workflow(qa-skills:multi-angle-review)",
+      "Workflow(qa-skills:guard-probe)"
     ]
   },
   "env": {
