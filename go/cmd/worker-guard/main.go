@@ -2,9 +2,9 @@
 // anywhere yet). It keeps the hook's I/O contract: argv (--role ROLE | --hq), a PreToolUse JSON payload on
 // stdin, exit 0 = allow, exit 2 = block with the reason on stderr.
 //
-// Until the analysis sections land (T-0347 front end, then T6b commands, T6c git, T6d config/persist/factory)
-// every call the Python hook would have to analyse is refused with "not ported": a partial port never allows
-// more than Python. A panic or any internal error also exits 2.
+// The command analyser (T-0349) is ported; the git rules (T6c) and the config/persist/factory rules (T6d) are
+// still fail-closed stubs: a command that would reach one is refused with "not ported", so a partial port never
+// allows more than Python. A panic or any internal error also exits 2.
 package main
 
 import (
@@ -84,10 +84,20 @@ func dispatch(tool string, data map[string]any, role string, hq bool, stderr io.
 	if !ok {
 		return failClosed(stderr, "hook error, failing closed: no command string")
 	}
-	if _, _, err := guard.Preprocess(cmd, hq, nil); err != nil {
-		return failClosed(stderr, err.Error())
+	cwd := ""
+	switch c := data["cwd"].(type) {
+	case nil:
+	case string:
+		cwd = c
+	default:
+		// Python passes any other value to Analyzer, where a truthy one crashes and fails closed.
+		return failClosed(stderr, "hook error, failing closed: cwd is not a string")
 	}
-	return notPorted(stderr, "bash analysis (T6b-T6d)")
+	if err := guard.Check(cmd, cwd, role, hq); err != nil {
+		fmt.Fprint(stderr, guard.Explain(err))
+		return 2
+	}
+	return 0
 }
 
 // parseArgs is the argv handling of worker-guard.py:main: --hq anywhere, --role VALUE not in last position.
