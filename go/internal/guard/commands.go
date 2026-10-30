@@ -590,6 +590,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		if err := a.gitConfigEnv(assigns, words); err != nil {
 			return err
 		}
+		if err := a.builtinAssign(assigns, words, hstrs); err != nil {
+			return err
+		}
 		if err := a.gitLaunch(assigns, words); err != nil {
 			return err
 		}

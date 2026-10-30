@@ -29754,6 +29754,2612 @@
 "src": "corpus"
 },
 {
+"input": "read HOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v HOME d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "quote",
+"quoted": "'mapfile -t HOME < f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"readarray",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"readarray",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"readarray",
+"HOME",
+"<",
+"f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "quote",
+"quoted": "'readarray HOME < f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"HOME",
+"in",
+"d",
+";",
+"do",
+":",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"HOME",
+"in",
+"d",
+";",
+"do",
+":",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"HOME",
+"in",
+"d;",
+"do",
+":;",
+"done;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "quote",
+"quoted": "'for HOME in d; do :; done; git log -1'",
+"src": "corpus"
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"getopts",
+"HOME",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"getopts",
+"HOME",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"getopts",
+"HOME",
+"x;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "quote",
+"quoted": "'getopts HOME x; git log -1'",
+"src": "corpus"
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"GIT_DIR",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab",
+":",
+"GIT_DIR",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"GIT_DIR;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "quote",
+"quoted": "'getopts ab: GIT_DIR; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read XDG_CONFIG_HOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -r -a PATH <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"GIT_DIR",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"GIT_DIR",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"GIT_DIR",
+"x;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "quote",
+"quoted": "'printf -v GIT_DIR x; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-vPAGER",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-vPAGER",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-vPAGER",
+"x;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "quote",
+"quoted": "'printf -vPAGER x; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${HOME:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"HOME",
+":",
+"=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${HOME:=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "quote",
+"quoted": "': ${HOME:=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${XDG_CONFIG_HOME=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"XDG_CONFIG_HOME=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${XDG_CONFIG_HOME=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "quote",
+"quoted": "': ${XDG_CONFIG_HOME=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME=d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "quote",
+"quoted": "'local HOME=d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"let",
+"HOME=1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"let",
+"HOME=1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"let",
+"HOME=1;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "quote",
+"quoted": "'let HOME=1; git log -1'",
+"src": "corpus"
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"select",
+"PAGER",
+"in",
+"a",
+";",
+"do",
+"break",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"select",
+"PAGER",
+"in",
+"a",
+";",
+"do",
+"break",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"select",
+"PAGER",
+"in",
+"a;",
+"do",
+"break;",
+"done;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "quote",
+"quoted": "'select PAGER in a; do break; done; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"$v",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"$v",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"$v",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v \"$v\" d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"$v",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"$v",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"$v",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read \"$v\" <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"$v=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"$v=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"$v=d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "quote",
+"quoted": "'local \"$v\"=d; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${!v:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"!",
+"v",
+":",
+"=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${!v:=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "quote",
+"quoted": "': ${!v:=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-aHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-aHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-aHOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -aHOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-raHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-raHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-raHOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -raHOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-eaHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-eaHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-eaHOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -eaHOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME[0]",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"[",
+"0",
+"]",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME[0]",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v HOME[0] d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME[0]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"[",
+"0",
+"]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME[0]",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOME[0] <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME[0]=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME",
+"[",
+"0",
+"]",
+"=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME[0]=d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "quote",
+"quoted": "'local HOME[0]=d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM[E]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM",
+"[",
+"E",
+"]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM[E]",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOM[E] <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM?",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM?",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM?",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOM? <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM*",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM*",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM*",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOM* <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"{HOME,x}",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"{",
+"HOME",
+",",
+"x",
+"}",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"{HOME,x}",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read {HOME,x} <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"{HOME,x}",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"{",
+"HOME",
+",",
+"x",
+"}",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"{HOME,x}",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v {HOME,x} d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "quote",
+"quoted": "'declare -n r=HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r=HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "quote",
+"quoted": "'local -n r=HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r=HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "quote",
+"quoted": "'typeset -n r=HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=$v",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=$v",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=$v;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "quote",
+"quoted": "'declare -n r=\"$v\"; git log -1'",
+"src": "corpus"
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r;",
+"r=HOME;",
+"read",
+"r",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "quote",
+"quoted": "'declare -n r; r=HOME; read r <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r;",
+"r=HOME;",
+"read",
+"r",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "quote",
+"quoted": "'local -n r; r=HOME; read r <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r",
+";",
+"r=GIT_DIR",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r",
+";",
+"r=GIT_DIR",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r;",
+"r=GIT_DIR;",
+"read",
+"r",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "quote",
+"quoted": "'typeset -n r; r=GIT_DIR; read r <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME:=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "quote",
+"quoted": "': <<< '\"'\"'${HOME:=d}'\"'\"'; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"$",
+"{",
+"HOME=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "quote",
+"quoted": "': <<< ${HOME=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<",
+"EOF",
+"${HOME:=d}",
+"EOF",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<",
+"EOF",
+"$",
+"{",
+"HOME",
+":",
+"=d",
+"}",
+"EOF",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<EOF",
+"${HOME:=d}",
+"EOF;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "quote",
+"quoted": "': <<EOF\n${HOME:=d}\nEOF; git log -1'",
+"src": "corpus"
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "quote",
+"quoted": "'wait -n -p HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "quote",
+"quoted": "'wait -p HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-pHOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-pHOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-pHOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "quote",
+"quoted": "'wait -pHOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"{",
+":",
+";",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"{",
+":",
+";",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"{",
+":;",
+"};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "quote",
+"quoted": "'coproc HOME { :; }; git log -1'",
+"src": "corpus"
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"sleep",
+"1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"sleep",
+"1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"sleep",
+"1;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "quote",
+"quoted": "'coproc HOME sleep 1; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"HOME",
+"}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}>f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "quote",
+"quoted": "'exec {HOME}>f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{XDG_CONFIG_HOME}",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"XDG_CONFIG_HOME",
+"}",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{XDG_CONFIG_HOME}<f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "quote",
+"quoted": "'exec {XDG_CONFIG_HOME}<f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{GIT_DIR}",
+">&",
+"2",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"GIT_DIR",
+"}",
+">&",
+"2",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{GIT_DIR}>&2;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "quote",
+"quoted": "'exec {GIT_DIR}>&2; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}",
+"<>",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"HOME",
+"}",
+"<>",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}<>f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "quote",
+"quoted": "'exec {HOME}<>f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{$v}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"$v",
+"}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{$v}>f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "quote",
+"quoted": "'exec {\"$v\"}>f; git log -1'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -41720,6 +44326,821 @@
 "src": "corpus"
 },
 {
+"input": "read x <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read x <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read x <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read x <<< y",
+"mode": "quote",
+"quoted": "'read x <<< y'",
+"src": "corpus"
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "quote",
+"quoted": "'read -r -p prompt x <<< y'",
+"src": "corpus"
+},
+{
+"input": "printf -v x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"x",
+"y"
+]
+},
+{
+"input": "printf -v x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"x",
+"y"
+]
+},
+{
+"input": "printf -v x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"x",
+"y"
+]
+},
+{
+"input": "printf -v x y",
+"mode": "quote",
+"quoted": "'printf -v x y'",
+"src": "corpus"
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "quote",
+"quoted": "'mapfile -t arr < f'",
+"src": "corpus"
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"f",
+"in",
+"a",
+"b",
+";",
+"do",
+"git",
+"log",
+"-1",
+";",
+"done"
+]
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"f",
+"in",
+"a",
+"b",
+";",
+"do",
+"git",
+"log",
+"-1",
+";",
+"done"
+]
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"f",
+"in",
+"a",
+"b;",
+"do",
+"git",
+"log",
+"-1;",
+"done"
+]
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "quote",
+"quoted": "'for f in a b; do git log -1; done'",
+"src": "corpus"
+},
+{
+"input": "getopts ab: opt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"opt"
+]
+},
+{
+"input": "getopts ab: opt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab",
+":",
+"opt"
+]
+},
+{
+"input": "getopts ab: opt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"opt"
+]
+},
+{
+"input": "getopts ab: opt",
+"mode": "quote",
+"quoted": "'getopts ab: opt'",
+"src": "corpus"
+},
+{
+"input": ": ${x:=d}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${x:=d}"
+]
+},
+{
+"input": ": ${x:=d}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"x",
+":",
+"=d",
+"}"
+]
+},
+{
+"input": ": ${x:=d}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${x:=d}"
+]
+},
+{
+"input": ": ${x:=d}",
+"mode": "quote",
+"quoted": "': ${x:=d}'",
+"src": "corpus"
+},
+{
+"input": "let n=1+2",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"let",
+"n=1+2"
+]
+},
+{
+"input": "let n=1+2",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"let",
+"n=1",
+"+",
+"2"
+]
+},
+{
+"input": "let n=1+2",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"let",
+"n=1+2"
+]
+},
+{
+"input": "let n=1+2",
+"mode": "quote",
+"quoted": "'let n=1+2'",
+"src": "corpus"
+},
+{
+"input": "local y=1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"y=1"
+]
+},
+{
+"input": "local y=1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"y=1"
+]
+},
+{
+"input": "local y=1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"y=1"
+]
+},
+{
+"input": "local y=1",
+"mode": "quote",
+"quoted": "'local y=1'",
+"src": "corpus"
+},
+{
+"input": "read -a arr <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -a arr <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -a arr <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -a arr <<< y",
+"mode": "quote",
+"quoted": "'read -a arr <<< y'",
+"src": "corpus"
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "quote",
+"quoted": "'read -ra arr <<< y'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x"
+]
+},
+{
+"input": "declare -n r=x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x"
+]
+},
+{
+"input": "declare -n r=x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x"
+]
+},
+{
+"input": "declare -n r=x",
+"mode": "quote",
+"quoted": "'declare -n r=x'",
+"src": "corpus"
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"arr[0]",
+"<<<",
+"y"
+]
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"arr",
+"[",
+"0",
+"]",
+"<<<",
+"y"
+]
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"arr[0]",
+"<<<",
+"y"
+]
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "quote",
+"quoted": "'read arr[0] <<< y'",
+"src": "corpus"
+},
+{
+"input": "wait -p x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"x"
+]
+},
+{
+"input": "wait -p x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"x"
+]
+},
+{
+"input": "wait -p x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"x"
+]
+},
+{
+"input": "wait -p x",
+"mode": "quote",
+"quoted": "'wait -p x'",
+"src": "corpus"
+},
+{
+"input": "wait -n -p pid",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"pid"
+]
+},
+{
+"input": "wait -n -p pid",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"pid"
+]
+},
+{
+"input": "wait -n -p pid",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"pid"
+]
+},
+{
+"input": "wait -n -p pid",
+"mode": "quote",
+"quoted": "'wait -n -p pid'",
+"src": "corpus"
+},
+{
+"input": "coproc foo { :; }",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"foo",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc foo { :; }",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"foo",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc foo { :; }",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"foo",
+"{",
+":;",
+"}"
+]
+},
+{
+"input": "coproc foo { :; }",
+"mode": "quote",
+"quoted": "'coproc foo { :; }'",
+"src": "corpus"
+},
+{
+"input": "coproc { :; }",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc { :; }",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc { :; }",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"{",
+":;",
+"}"
+]
+},
+{
+"input": "coproc { :; }",
+"mode": "quote",
+"quoted": "'coproc { :; }'",
+"src": "corpus"
+},
+{
+"input": "exec {fd}>f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{fd}",
+">",
+"f"
+]
+},
+{
+"input": "exec {fd}>f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"fd",
+"}",
+">",
+"f"
+]
+},
+{
+"input": "exec {fd}>f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{fd}>f"
+]
+},
+{
+"input": "exec {fd}>f",
+"mode": "quote",
+"quoted": "'exec {fd}>f'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x",
+";",
+"r=y"
+]
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x",
+";",
+"r=y"
+]
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x;",
+"r=y"
+]
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "quote",
+"quoted": "'declare -n r=x; r=y'",
+"src": "corpus"
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${x:=d}"
+]
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"$",
+"{",
+"x",
+":",
+"=d",
+"}"
+]
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${x:=d}"
+]
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "quote",
+"quoted": "': <<< ${x:=d}'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -45751,7 +49172,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1025,
+"corpus_commands": 1096,
 "edge_inputs": 123,
 "python": "3.13"
 }

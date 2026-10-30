@@ -275,9 +275,19 @@ func (a *Analyzer) script(text string, depth int) error {
 			}
 		}
 	}
-	text, extras, err := Preprocess(text, a.HQ, nil)
+	var nbodies []Heredoc // T-0771: the heredoc bodies of this call only
+	text, extras, err := Preprocess(text, a.HQ, &nbodies)
 	if err != nil {
 		return err
+	}
+	if a.noPush() {
+		bodies := make([]string, len(nbodies))
+		for i, b := range nbodies {
+			bodies[i] = b.Body
+		}
+		if err := a.callAssign(text, bodies); err != nil {
+			return err
+		}
 	}
 	for _, x := range extras {
 		switch {
