@@ -477,6 +477,33 @@ func uvRunRunner(rest []string) string {
 	return ""
 }
 
+// uvxScan is a port of worker-guard.py:uvx_scan (T-0748): fail closed. Any word after uvx / `uv [global opts] tool run`
+// naming pytest/py.test/unittest is the runner, after stripping extras, specifiers and version suffixes.
+func uvxScan(words []string, prefix string) string {
+	if prefix == "uv tool run" {
+		for i, w := range words {
+			if w == "tool" {
+				words = words[i+1:]
+				break
+			}
+		}
+	}
+	for _, t := range words {
+		if strings.HasPrefix(t, "-") {
+			_, t, _ = strings.Cut(t, "=")
+		}
+		// re.split(r"[\s\[@=<>~!;(]", basename, maxsplit=1)[0]
+		base := pyBasename(t)
+		if i := strings.IndexFunc(base, func(r rune) bool { return pyIsSpace(r) || strings.ContainsRune("[@=<>~!;(", r) }); i >= 0 {
+			base = base[:i]
+		}
+		if base == "pytest" || base == "py.test" || base == "unittest" {
+			return prefix + " " + base
+		}
+	}
+	return ""
+}
+
 // sandboxRoute is a port of Analyzer.sandbox_route up to the test_sandbox read of the factory DB, which is a stub.
 func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	if a.Role != "coder" && a.Role != "qa" {
@@ -531,6 +558,10 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 		}
 	case name == "uv" && len(rest) > 0 && rest[0] == "run":
 		runner = uvRunRunner(rest[1:])
+	case name == "uv" && in(set(rest...), "tool"): // T-0745, T-0748: global options may sit between tool and run
+		runner = uvxScan(rest, "uv tool run")
+	case name == "uvx": // T-0745, T-0748
+		runner = uvxScan(rest, "uvx")
 	}
 	if runner != "" {
 		return notPorted("sandbox_route test_sandbox read of the factory DB (T6d)")
