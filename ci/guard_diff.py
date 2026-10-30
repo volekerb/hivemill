@@ -18,6 +18,7 @@ import os
 import pwd
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -85,14 +86,22 @@ def expand(cmd):
 
 
 def entry_item(e):
-    """(cmd, role): role is the corpus entry's own `role` tag (e.g. "evaluator"), or None for the --role default."""
+    """(cmd, role) or (cmd, role, seed): role is the corpus entry's own `role` tag (e.g. "evaluator"), or None for the
+    --role default. seed is the entry's `config` dict (config rows the hook reads from the factory DB), as a tuple of
+    sorted (key, value) pairs; an unseeded entry stays a 2-tuple."""
     if isinstance(e, str):
         return expand(e), None
     if isinstance(e, dict) and isinstance(e.get("cmd"), str):
         role = e.get("role")
         if role is not None and not (isinstance(role, str) and role):
             raise UsageError(f"bad corpus entry {e!r}: 'role' must be a non-empty string")
-        return expand(e["cmd"]), role
+        if "config" not in e:
+            return expand(e["cmd"]), role
+        seed = e["config"]
+        if not (isinstance(seed, dict) and seed and all(isinstance(k, str) and k and isinstance(v, str)
+                                                         for k, v in seed.items())):
+            raise UsageError(f"bad corpus entry {e!r}: 'config' must be a non-empty object of string keys to string values")
+        return expand(e["cmd"]), role, tuple(sorted(seed.items()))
     raise UsageError(f"bad corpus entry {e!r}: expected a string or an object with a string 'cmd'")
 
 
@@ -132,6 +141,25 @@ def load_allow(path):
     return {ln for ln in text.splitlines() if ln}
 
 
+def seed_label(seed):
+    return "config=" + ",".join(f"{k}:{v}" for k, v in seed)
+
+
+def make_seed_home(parent, seed, n):
+    """A fresh temp FACTORY_HOME under parent holding db/factory.db with the factory's config table (same DDL as the
+    factory CLI schema), seeded with exactly `seed` ((key, value) pairs). Returns the home path."""
+    home = os.path.join(parent, f"seed-{n}")
+    os.makedirs(os.path.join(home, "db"))
+    con = sqlite3.connect(os.path.join(home, "db", "factory.db"))
+    try:
+        with con:
+            con.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            con.executemany("INSERT INTO config(key, value) VALUES (?, ?)", list(seed))
+    finally:
+        con.close()
+    return home
+
+
 def run_hook(hook, argv_extra, cmd, timeout, env=None, exe=None):
     """Run the Python hook, or the executable `exe` (a Go candidate) when given, on one command."""
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
@@ -153,29 +181,44 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
     pr_exe/pr_extra run an executable (with extra argv) as the PR side instead of the Python hook. roles (a
     list) runs each untagged item in worker mode once per role and labels worker lines `worker role=<role>`."""
     work = []
-    for c, r in items:
+    for c, r, *sd in items:
+        seed = sd[0] if sd else None
         if r is None:
             for m in modes:
-                work += [(m, x, c) for x in roles] if roles and m == "worker" else [(m, role, c)]
+                work += [(m, x, c, seed) for x in roles] if roles and m == "worker" else [(m, role, c, seed)]
         elif "worker" in modes:
-            work.append(("worker", r, c))
+            work.append(("worker", r, c, seed))
     work = list(dict.fromkeys(work))
+    seed_tmp = tempfile.TemporaryDirectory(prefix="guard-diff-seed-")
+    try:
+        seed_homes = {s: make_seed_home(seed_tmp.name, s, i)
+                      for i, s in enumerate(dict.fromkeys(w[3] for w in work if w[3]))}
+    except BaseException:
+        seed_tmp.cleanup()
+        raise
 
     def one(item):
-        m, r, c = item
+        m, r, c, seed = item
         argv = ["--role", r] if m == "worker" else ["--hq"]
         env = None
-        if m == "worker" and r == "evaluator":
+        if seed:  # a seeded entry runs both sides against its own temp home (its config rows), never the live DB
+            env = {**os.environ, "FACTORY_HOME": seed_homes[seed]}
+        elif m == "worker" and r == "evaluator":
             env = {**os.environ, "FACTORY_HOME": temp_home}
         if roles:
             label = "hq" if m == "hq" else f"worker role={r}"
         else:
             label = m if m == "hq" or r == role else f"{m}:{r}"
+        if seed:
+            label += " " + seed_label(seed)
         return (label, c, run_hook(base_hook, argv, c, timeout, env),
                 run_hook(pr_hook, [*argv, *pr_extra], c, timeout, env, pr_exe))
 
-    with ThreadPoolExecutor(max_workers=jobs) as ex:
-        results = list(ex.map(one, work))
+    try:
+        with ThreadPoolExecutor(max_workers=jobs) as ex:
+            results = list(ex.map(one, work))
+    finally:
+        seed_tmp.cleanup()
     lines, loosened, bad = [], [], []
     tight = 0
     for m, c, b, p in results:
