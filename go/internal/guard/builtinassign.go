@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // T-0771 (worker-guard.py): NO_PUSH_ROLES may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* through a builtin
@@ -29,8 +30,7 @@ func precededBy(s string, i int, extra string) bool {
 	if i <= 0 {
 		return false
 	}
-	r := []rune(s[:i])
-	last := r[len(r)-1]
+	last, _ := utf8.DecodeLastRuneInString(s[:i])
 	return isWordRune(last) || strings.ContainsRune(extra, last)
 }
 

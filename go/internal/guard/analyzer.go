@@ -366,7 +366,7 @@ func (a *Analyzer) script(text string, depth int) error {
 			}
 		}
 		if !IsPunct(tok) {
-			cur = append(cur[:len(cur):len(cur)], tok)
+			cur = append(cur, tok)
 			i++
 			continue
 		}
@@ -395,7 +395,7 @@ func (a *Analyzer) script(text string, depth int) error {
 					stack = stack[:len(stack)-1]
 					cur, piped, hs = top.words, top.piped, top.hs
 					if anyOf(cur, func(w string) bool { return !assignOrReserved(w) }) {
-						cur = append(cur[:len(cur):len(cur)], "$SUB") // the substitution's value is an argument of that command
+						cur = append(cur, "$SUB") // the substitution's value is an argument of that command
 					}
 				default:
 					cmds = append(cmds, pcmd{cur, piped, hs})

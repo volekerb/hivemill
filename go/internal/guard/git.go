@@ -885,6 +885,10 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	if i < len(rest) && (rest[i] == "send-pack" || rest[i] == "http-push" || (rest[i] == "subtree" && containsStr(rest[i+1:], "push"))) {
 		return blockf("git " + rest[i] + " is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
 	}
+	if i < len(rest) && !literalSubcommand(rest[i]) { // T-0775
+		return blockf("git " + rest[i] + ": coders may not hide the git subcommand behind a variable, expansion, brace or " +
+			"glob word, array, $@/$1 or command substitution; write the literal subcommand (git status, git log ...)")
+	}
 	if i >= len(rest) || rest[i] != "push" {
 		return nil
 	}
@@ -977,4 +981,16 @@ func gitHerdrInConfig(rest []string) error {
 		}
 	}
 	return nil
+}
+
+// literalSubcommand is re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", word).
+func literalSubcommand(w string) bool {
+	for i := 0; i < len(w); i++ {
+		c := w[i]
+		alnum := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+		if !alnum && (i == 0 || !strings.ContainsRune("._-", rune(c))) {
+			return false
+		}
+	}
+	return w != ""
 }

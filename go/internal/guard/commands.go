@@ -1183,9 +1183,10 @@ func (a *Analyzer) systemctl(rest []string) error {
 
 // R2PathHit is a port of worker-guard.py:r2_path_hit.
 func R2PathHit(cmd string) bool {
+	runes := []rune(cmd) // once: RuneSlice per segment would make a long command quadratic
 	for _, s := range Segments(cmd) {
 		if len(s.Words) == 0 || !in(DataCmds, pyBasename(s.Words[0])) {
-			if hasR2Path(RuneSlice(cmd, s.Start, s.End)) {
+			if hasR2Path(string(runes[s.Start:s.End])) {
 				return true
 			}
 		} else if hasR2Path(strings.Join(s.Words, " ")) { // unquoted occurrences only

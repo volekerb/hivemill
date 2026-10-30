@@ -2375,7 +2375,23 @@
  {"cmd": "exec {XDG_CONFIG_HOME}<f; git log -1", "role": "evaluator"},
  {"cmd": "exec {GIT_DIR}>&2; git log -1", "role": "evaluator"},
  {"cmd": "exec {HOME}<>f; git log -1", "role": "evaluator"},
- {"cmd": "exec {\"$v\"}>f; git log -1", "role": "evaluator"}
+ {"cmd": "exec {\"$v\"}>f; git log -1", "role": "evaluator"},
+ {"cmd": "p=push; git $p origin main", "role": "coder"},
+ {"cmd": "p=push; git \"$p\" origin HEAD:main", "role": "coder"},
+ {"cmd": "git ${p:-push} origin main", "role": "coder"},
+ {"cmd": "git $(echo push) origin main", "role": "coder"},
+ {"cmd": "git `echo push` origin main", "role": "coder"},
+ {"cmd": "x=(push origin main); git \"${x[@]}\"", "role": "coder"},
+ {"cmd": "git -C . $p origin main", "role": "coder"},
+ {"cmd": "p=push; git -C . $p origin main", "role": "coder"},
+ {"cmd": "f(){ git \"$@\"; }; f push origin main", "role": "coder"},
+ {"cmd": "alias gp='git $p'; gp origin main", "role": "coder"},
+ {"cmd": "git \"$1\" origin main", "role": "coder"},
+ {"cmd": "git $* origin main", "role": "coder"},
+ {"cmd": "git {push,} origin main", "role": "coder"},
+ {"cmd": "git pus? origin main", "role": "coder"},
+ {"cmd": "git p*h origin main", "role": "coder"},
+ {"cmd": "git pu[s]h origin main", "role": "coder"}
  ],
  "must_allow": [
  {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},
@@ -3112,6 +3128,10 @@
  {"cmd": "coproc { :; }", "role": "evaluator"},
  {"cmd": "exec {fd}>f", "role": "evaluator"},
  {"cmd": "declare -n r=x; r=y", "role": "evaluator"},
- {"cmd": ": <<< ${x:=d}", "role": "evaluator"}
+ {"cmd": ": <<< ${x:=d}", "role": "evaluator"},
+ {"cmd": "git status", "role": "coder"},
+ {"cmd": "git log -1", "role": "coder"},
+ {"cmd": "git diff $(git merge-base origin/main HEAD)..HEAD", "role": "coder"},
+ {"cmd": "git merge-tree --write-tree origin/main HEAD", "role": "coder"}
  ]
 }
