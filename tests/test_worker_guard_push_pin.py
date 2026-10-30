@@ -265,10 +265,39 @@ class PushPinTests(unittest.TestCase):
         "git fetch origin main", "git status", "git branch -a", "git config --get user.name", "git blame f",
         "git grep -n x", "git merge-tree --write-tree origin/main HEAD", "git rev-parse HEAD", "git ls-remote origin",
         "git fetch origin refs/heads/main:refs/remotes/origin/main", "git fetch --prune origin", "git ls-remote --heads origin",
-        "git diff --stat HEAD~1", "git log --no-ext-diff -1", "git remote -v", "git remote get-url origin",
+        "git diff --stat HEAD~1", "git log --no-ext-diff -1", "git remote -v", "git remote get-url origin", "git remote", "git remote show origin",
         "git worktree list", "git config --list", "git config --get-regexp remote", "git branch --list 'f*'",
         "git cat-file -p HEAD", "git show-ref", "git describe --tags --always", "git --version",
     )
+
+    REMOTE_WRITES = (
+        "set-url origin https://example.com/evil.git", "add x https://example.com/evil.git", "rename origin y",
+        "remove origin", "rm origin", "set-head origin -a", "set-branches origin main", "prune origin", "update",
+        "set-url --push origin https://example.com/evil.git", "bogus", "show", "get-url", "show origin extra",
+        "get-url origin extra",
+    )
+    REMOTE_READS = (
+        "", "-v", "--verbose", "get-url origin", "get-url --push origin", "get-url --all origin", "show origin",
+        "show -n origin", "-v show origin", "--verbose show -n origin",
+    )
+
+    def test_non_coder_git_remote_write_forms_refused(self):
+        """T-0755 attempt 4: every word after `remote` is checked; -v in front must not hide a write form."""
+        for role in self.ROLES:
+            for form in self.REMOTE_WRITES:
+                for pre in ("", "-v ", "--verbose "):
+                    cmd = f"git remote {pre}{form}"
+                    with self.subTest(role=role, cmd=cmd):
+                        p = self.run_hook(cmd, role=role, agent=f"{role}-t-0689")
+                        self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_non_coder_git_remote_read_forms_allowed(self):
+        for role in self.ROLES:
+            for form in self.REMOTE_READS:
+                cmd = f"git remote {form}".strip()
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd, role=role, agent=f"{role}-t-0689")
+                    self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_non_coder_git_allow_list_refuses(self):
         """T-0755 acceptance 1: fail-closed allow-list (dynamic subcommand, config-file aliases, fetch helpers, pager,

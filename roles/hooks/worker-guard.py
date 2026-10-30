@@ -1841,7 +1841,7 @@ class Analyzer:
                     self.git_deny("git grep with an expansion in its arguments")
         elif sub == "branch" and not self.branch_mutates(args):
             return
-        elif sub == "remote" and (args[:1] in ([], ["-v"], ["--verbose"], ["get-url"], ["show"])):
+        elif sub == "remote" and self.git_remote_read(args):
             return
         elif sub == "worktree" and args[:1] == ["list"]:
             return
@@ -1850,6 +1850,27 @@ class Analyzer:
         else:
             self.git_deny(f"`git {sub}` is not on the read-only list (aliases, push, send-pack, subtree, rebase --exec, "
                           "bisect run, submodule foreach, archive --remote ... are refused)")
+
+    @staticmethod
+    def git_remote_read(args):
+        """Read-only `git remote` forms; every word must match, so -v cannot hide set-url/add/rename/rm."""
+        def name(a):
+            return len(a) == 1 and bool(a[0]) and not a[0].startswith("-")
+        if args in ([], ["-v"], ["--verbose"]):
+            return True
+        if args[:1] == ["get-url"]:
+            rest = args[1:]
+            if rest[:1] in (["--push"], ["--all"]):
+                rest = rest[1:]
+            return name(rest)
+        if args[:1] in (["-v"], ["--verbose"]):
+            args = args[1:]
+        if args[:1] == ["show"]:
+            rest = args[1:]
+            if rest[:1] == ["-n"]:
+                rest = rest[1:]
+            return name(rest)
+        return False
 
     @staticmethod
     def git_config_read(args):
