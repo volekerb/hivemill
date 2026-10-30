@@ -217,10 +217,11 @@ def _template_home():
     return _TEMPLATE["env"].home_dir
 
 
-def assert_hermetic(home_dir, stub_bin):
+def assert_hermetic(home_dir, stub_bin, tmp_root=None):
     """Raise unless this process would run the CLI against the temp home with the stub binary first on PATH:
-    FACTORY_HOME inside the temp dir (never ~/factory) and the first agent-multiplexer binary on PATH being the stub (T-0647)."""
-    tmp = Path(tempfile.gettempdir()).resolve()
+    FACTORY_HOME inside the temp dir (never ~/factory) and the first agent-multiplexer binary on PATH being the stub (T-0647).
+    tmp_root is the temp dir the home was created under (a test may create it outside tempfile.gettempdir(), T-0807)."""
+    tmp = Path(tmp_root or tempfile.gettempdir()).resolve()
     raw = os.environ.get("FACTORY_HOME", "")
     home = Path(raw).expanduser().resolve()
     if not raw or tmp not in home.parents or home != Path(home_dir).resolve():
@@ -482,7 +483,7 @@ class FactoryEnv:
             os.environ.pop(k, None)
         os.environ.update(self.env())
         try:
-            assert_hermetic(self.home_dir, self.stub_bin)
+            assert_hermetic(self.home_dir, self.stub_bin, self.home.parent)
             loader = importlib.machinery.SourceFileLoader("factory_under_test", str(FACTORY_SRC))
             spec = importlib.util.spec_from_loader(loader.name, loader)
             mod = importlib.util.module_from_spec(spec)
