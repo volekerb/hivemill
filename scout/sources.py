@@ -32,7 +32,8 @@ TOPICS = ("claude-code", "claude-skills", "agent-skills", "claude-code-plugin", 
 MARKETPLACE_REPO = "anthropics/claude-plugins-official"
 SKILLS_REPO = "anthropics/skills"
 AWESOME = ("hesreallyhim/awesome-claude-code", "ComposioHQ/awesome-claude-skills",
-           "travisvn/awesome-claude-skills", "VoltAgent/awesome-claude-code-subagents")
+           "travisvn/awesome-claude-skills", "VoltAgent/awesome-claude-code-subagents",
+           "zhuyansen/awesome-claude-video-skills")
 RAW = ("-H", "Accept: application/vnd.github.raw")
 README_MAX = 4096
 SOURCES = ("marketplace", "skills", "search", "awesome", "hn")
