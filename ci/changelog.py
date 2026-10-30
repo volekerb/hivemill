@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
+## [0.2.0] - Unreleased
+"""
+# Older releases sit below the generated lists of the newest one; each carries only its curated notes.
+OLDER = """
 ## [0.1.0] - Initial public release
 
 First public release of the factory, published from a fresh repository.
@@ -116,9 +120,11 @@ def render(subjects):
             continue
         groups[section_of(subj)].append(f"- {subj}")
     out = [with_curated_notes(HEADER)]
+    out.append("### All merged changes since v0.1.0\n")
     for name in SECTIONS:
         if groups[name]:
-            out.append(f"### {name}\n\n" + "\n".join(groups[name]) + "\n")
+            out.append(f"#### {name}\n\n" + "\n".join(groups[name]) + "\n")
+    out.append(with_curated_notes(OLDER).lstrip("\n"))
     return "\n".join(out), dropped
 
 

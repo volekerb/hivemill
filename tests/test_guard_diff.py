@@ -410,12 +410,16 @@ class CorpusSanityTests(unittest.TestCase):
                 modes = ["worker"]  # a role-tagged entry is a worker-mode check under that role
             elif key == "must_allow":
                 modes = ["worker", "hq"]
-            jobs += [(cmd, m, role or "coder") for m in modes]
+            seed = guard_diff.entry_item(e)[2:]  # a seeded entry (T-0762) runs against its own seeded temp home
+            jobs += [(cmd, m, role or "coder", seed) for m in modes]
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
-            got = [hook_rc(j[0], j[1], j[2], home) for j in jobs]
+            homes = {sd: guard_diff.make_seed_home(home, sd[0], i)
+                     for i, sd in enumerate(dict.fromkeys(j[3] for j in jobs if j[3]))}
+            hm = [homes[j[3]] if j[3] else home for j in jobs]
+            got = [hook_rc(j[0], j[1], j[2], h) for j, h in zip(jobs, hm)]
             for i in range(0, len(jobs), 17):  # the real entry point on a sample of the same jobs
                 j = jobs[i]
-                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], home), got[i], j)
+                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], hm[i]), got[i], j)
         wrong = [(j, g) for j, g in zip(jobs, got) if g != want]
         self.assertEqual(wrong, [], f"{key}: expected exit {want} on the current hook")
         return len(jobs)
@@ -449,6 +453,90 @@ class CorpusSanityTests(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("0 loosened", p.stdout)
 
+
+
+class SeedTests(GuardDiffCase):
+    """T-0762: a corpus entry's `config` seed gives both hook sides a temp FACTORY_HOME whose config table holds it."""
+
+    # stub hook: blocks `uvx pytest` only when the config table of $FACTORY_HOME's DB has test_sandbox=1
+    STUB_CFG = (
+        "import json, os, sqlite3, sys\n"
+        "c = json.load(sys.stdin)['tool_input']['command']\n"
+        "rc = 0\n"
+        "try:\n"
+        "    con = sqlite3.connect('file:%s?mode=ro' % os.path.join(os.environ.get('FACTORY_HOME', '/nonexistent'), 'db', 'factory.db'), uri=True)\n"
+        "    rc = 2 if c == 'uvx pytest' and con.execute(\"SELECT value FROM config WHERE key='test_sandbox'\").fetchone() == ('1',) else 0\n"
+        "except sqlite3.Error:\n"
+        "    pass\n"
+        "sys.exit(rc)\n")
+    STUB_ENV = "import json, os, sys\nsys.exit(2 if os.environ.get('FACTORY_HOME', '').startswith(%r) else 0)\n"
+
+    def write_corpus(self, block=(), allow=("ls -la",)):
+        with open(self.corpus, "w") as f:
+            json.dump({"must_block": list(block), "must_allow": list(allow)}, f)
+
+    def seeded(self, cmd="uvx pytest", **seed):
+        return {"cmd": cmd, "config": seed or {"test_sandbox": "1"}}
+
+    def test_seeded_entry_runs_with_the_seeded_home(self):
+        self.write_hook(self.STUB_CFG)
+        git(self.repo, "add", "."); git(self.repo, "commit", "-q", "-m", "cfg")
+        self.write_corpus(block=[self.seeded(), "uvx pytest"])
+        p = self.run_tool("--mode", "worker")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        # a PR hook that ignores the seed is LOOSENED only for the seeded entry, never for the plain one
+        self.write_hook("import sys\nsys.exit(0)\n")
+        p = self.run_tool("--mode", "worker")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertEqual(p.stdout.count("LOOSENED"), 1, p.stdout)
+
+    def test_seed_without_value_one_allows(self):
+        self.write_hook(self.STUB_CFG)
+        git(self.repo, "add", "."); git(self.repo, "commit", "-q", "-m", "cfg")
+        self.write_corpus(block=[], allow=[self.seeded(test_sandbox="0")])
+        p = self.run_tool("--mode", "worker")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("0 loosened, 0 tightened", p.stdout)
+
+    def test_loosened_line_names_the_seed(self):
+        self.write_hook(self.STUB_CFG)
+        git(self.repo, "add", "."); git(self.repo, "commit", "-q", "-m", "cfg")
+        self.write_hook("import sys\nsys.exit(0)\n")
+        self.write_corpus(block=[self.seeded()])
+        p = self.run_tool("--mode", "worker")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("LOOSENED base=2 pr=0 worker config=test_sandbox:1 uvx pytest", p.stdout)
+
+    def test_bad_seed_shapes_exit_2(self):
+        for bad in ([], {}, {"test_sandbox": 1}, {"": "1"}, "test_sandbox=1", {"k": None}):
+            self.write_corpus(block=[{"cmd": "uvx pytest", "config": bad}])
+            p = self.run_tool()
+            self.assertEqual(p.returncode, 2, f"{bad!r}: {p.stdout}{p.stderr}")
+            self.assertIn("'config' must be", p.stderr)
+
+    def test_unseeded_entries_keep_the_environment(self):
+        # a stub that blocks when FACTORY_HOME is a seed home: unseeded entries must never see one
+        self.write_hook(self.STUB_ENV % os.path.join(tempfile.gettempdir(), "guard-diff-seed-"))
+        git(self.repo, "add", "."); git(self.repo, "commit", "-q", "-m", "env")
+        self.write_corpus(block=[], allow=["ls -la", "uvx pytest"])
+        p = self.run_tool("--mode", "both")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("0 loosened, 0 tightened", p.stdout)
+        self.assertEqual(guard_diff.entry_item("ls"), ("ls", None))
+        self.assertEqual(guard_diff.entry_item({"cmd": "ls", "role": "qa"}), ("ls", "qa"))
+
+    def test_seeded_entry_in_compare_uses_a_fresh_home_with_exactly_the_seed(self):
+        self.write_hook(self.STUB_CFG)
+        items = [("uvx pytest", None, (("test_sandbox", "1"),)), ("uvx pytest", None)]
+        with tempfile.TemporaryDirectory() as t:
+            lines, loose, bad, tight = guard_diff.compare(self.hook, self.hook, items, ["worker"], "coder", 10, t)
+        self.assertEqual((lines, loose, bad, tight), ([], [], [], 0))
+        with tempfile.TemporaryDirectory() as t:
+            home = guard_diff.make_seed_home(t, (("a", "1"), ("b", "2")), 0)
+            import sqlite3
+            con = sqlite3.connect(os.path.join(home, "db", "factory.db"))
+            self.assertEqual(con.execute("SELECT key, value FROM config ORDER BY key").fetchall(), [("a", "1"), ("b", "2")])
+            con.close()
 
 
 class CorpusTokenTests(unittest.TestCase):

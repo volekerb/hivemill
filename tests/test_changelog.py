@@ -44,18 +44,18 @@ class ChangelogTest(unittest.TestCase):
         r = changelog(self.repo)
         self.assertEqual(r.returncode, 0, r.stderr)
         out = r.stdout
-        self.assertEqual(len(re.findall(r"^## ", out, re.M)), 1)
+        self.assertEqual(len(re.findall(r"^## ", out, re.M)), 2)
         self.assertIn("## [0.1.0] - Initial public release\n\nFirst public release of the factory, published from a fresh repository.", out)
         self.assertIn("v0.1.0 summarises the changes merged during private development.", out)
-        self.assertNotIn("Unreleased", out)
-        self.assertRegex(out, r"### Added\n\n- T-0001: add widget\n")
-        self.assertRegex(out, r"### Fixed\n\n- T-0002: fix crash on\n")
-        self.assertRegex(out, r"### Security\n\n- T-0005: tighten deny rule\n")
+        self.assertIn("## [0.2.0] - Unreleased\n", out)
+        self.assertRegex(out, r"(?m)^#### Added\n\n- T-0001: add widget\n")
+        self.assertRegex(out, r"(?m)^#### Fixed\n\n- T-0002: fix crash on\n")
+        self.assertRegex(out, r"(?m)^#### Security\n\n- T-0005: tighten deny rule\n")
         self.assertNotIn("### Changed", out)
         self.assertNotIn("T-0003", out)  # no (#N): not a merged PR
         self.assertNotIn("alice", out)  # scrub hit dropped
         self.assertIn("1 subject(s) dropped", r.stderr)
-        generated = out[out.index("### Added"):]  # the curated release notes above it also use bullets
+        generated = out[out.index("### Added"):out.index("## [0.1.0]")]  # curated notes on both sides also use bullets
         entries = [l for l in generated.splitlines() if l.startswith("- ")]
         self.assertEqual(len(entries), 3)
         for l in entries:
@@ -107,14 +107,16 @@ class ChangelogTest(unittest.TestCase):
     def test_write_puts_curated_block_under_heading(self):
         out = changelog(self.repo).stdout
         notes = (ROOT / "ci" / "release-notes" / "0.1.0.md").read_text(encoding="utf-8").strip()
-        self.assertEqual(len(re.findall(r"^### Highlights$", out, re.M)), 1)
+        self.assertEqual(len(re.findall(r"^### Highlights$", out, re.M)), 2)
+        self.assertLess(out.index("## [0.2.0]"), out.index("### All merged changes"))
+        self.assertLess(out.index("### All merged changes"), out.index("## [0.1.0]"))
         self.assertLess(out.index("## [0.1.0]"), out.index(notes))
-        self.assertLess(out.index(notes), out.index("### Added"))
 
     def test_committed_changelog_has_curated_block_first(self):
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 1)
-        self.assertLess(text.index("## [0.1.0]"), text.index("### Highlights"))
+        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 2)
+        self.assertLess(text.index("## [0.2.0]"), text.index("### Highlights"))
+        self.assertLess(text.index("## [0.1.0]"), text.rindex("### Highlights"))
 
     def test_release_notes_are_public_text(self):
         text = (ROOT / "ci" / "release-notes" / "0.1.0.md").read_text(encoding="utf-8")
@@ -122,6 +124,16 @@ class ChangelogTest(unittest.TestCase):
         self.assertGreaterEqual(len(re.findall(r"^- \*\*", text, re.M)), 6)
         for needle in ("Hivemill v0.1.0", "Pre-release.", "SECURITY.md", "On-demand", "sandbox"):
             self.assertIn(needle, text)
+
+    def test_release_notes_0_2_0(self):
+        text = (ROOT / "ci" / "release-notes" / "0.2.0.md").read_text(encoding="utf-8")
+        self.assertIsNone(re.search(r"\b[GT]-\d{3,4}\b", text))
+        for needle in ("Hivemill v0.2.0", "New web UI", "Faster pull request loop", "Opt-in worker sandbox", "Go quick win",
+                       "Known limits", "VIDEO-PLACEHOLDER"):
+            self.assertIn(needle, text)
+        r = changelog(self.repo, "--release-notes", "0.2.0")
+        self.assertEqual((r.returncode, r.stdout), (0, text.strip() + "\n"))
+        self.assertEqual(changelog(self.repo, "--prerelease", "0.2.0").stdout.strip(), "true")
 
     def test_release_notes_links_are_absolute(self):
         # The same text lands in CHANGELOG.md and the GitHub release body, so a relative link breaks in one of them.

@@ -7,6 +7,768 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "uvx pytest",
+"mask_quotes_pre": "uvx pytest",
+"mask_quotes_raw": "uvx pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"uvx",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"uvx",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx --from x pytest",
+"mask_quotes_pre": "uvx --from x pytest",
+"mask_quotes_raw": "uvx --from x pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from x pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from x pytest"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"uvx",
+"--from",
+"x",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"uvx",
+"--from",
+"x",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx pytest==8.0",
+"mask_quotes_pre": "uvx pytest==8.0",
+"mask_quotes_raw": "uvx pytest==8.0",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest==8.0"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest==8.0"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"uvx",
+"pytest==8.0"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"uvx",
+"pytest==8.0"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run pytest",
+"mask_quotes_pre": "uv tool run pytest",
+"mask_quotes_raw": "uv tool run pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run pytest"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv --quiet tool run py.test",
+"mask_quotes_pre": "uv --quiet tool run py.test",
+"mask_quotes_raw": "uv --quiet tool run py.test",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv --quiet tool run py.test"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv --quiet tool run py.test"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"uv",
+"--quiet",
+"tool",
+"run",
+"py.test"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"uv",
+"--quiet",
+"tool",
+"run",
+"py.test"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx 'pytest[testing]'",
+"mask_quotes_pre": "uvx 'QQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "uvx 'QQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx 'pytest[testing]'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx 'pytest[testing]'"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"uvx",
+"'QQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"uvx",
+"'QQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx --index-url https://pypi.example.org/simple pytest",
+"mask_quotes_pre": "uvx --index-url https://pypi.example.org/simple pytest",
+"mask_quotes_raw": "uvx --index-url https://pypi.example.org/simple pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx --index-url https://pypi.example.org/simple pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx --index-url https://pypi.example.org/simple pytest"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"uvx",
+"--index-url",
+"https://pypi.example.org/simple",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"uvx",
+"--index-url",
+"https://pypi.example.org/simple",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m unittest discover -s tests -p test_X.py",
+"mask_quotes_pre": "python3 -m unittest discover -s tests -p test_X.py",
+"mask_quotes_raw": "python3 -m unittest discover -s tests -p test_X.py",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m unittest discover -s tests -p test_X.py"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m unittest discover -s tests -p test_X.py"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"python3",
+"-m",
+"unittest",
+"discover",
+"-s",
+"tests",
+"-p",
+"test_X.py"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"python3",
+"-m",
+"unittest",
+"discover",
+"-s",
+"tests",
+"-p",
+"test_X.py"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m unittest tests.test_x",
+"mask_quotes_pre": "python3 -m unittest tests.test_x",
+"mask_quotes_raw": "python3 -m unittest tests.test_x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m unittest tests.test_x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m unittest tests.test_x"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"python3",
+"-m",
+"unittest",
+"tests.test_x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"python3",
+"-m",
+"unittest",
+"tests.test_x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx pytest\u3000tests",
+"mask_quotes_pre": "uvx pytest\u3000tests",
+"mask_quotes_raw": "uvx pytest\u3000tests",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest\u3000tests"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest\u3000tests"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"uvx",
+"pytest",
+"tests"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"uvx",
+"pytest",
+"tests"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx pytest\u2028tests",
+"mask_quotes_pre": "uvx pytest\u2028tests",
+"mask_quotes_raw": "uvx pytest\u2028tests",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest\u2028tests"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest\u2028tests"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"uvx",
+"pytest",
+"tests"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"uvx",
+"pytest",
+"tests"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "pytest",
+"mask_quotes_pre": "pytest",
+"mask_quotes_raw": "pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "pytest"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m pytest tests/",
+"mask_quotes_pre": "python3 -m pytest tests/",
+"mask_quotes_raw": "python3 -m pytest tests/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m pytest tests/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m pytest tests/"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"python3",
+"-m",
+"pytest",
+"tests/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"python3",
+"-m",
+"pytest",
+"tests/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "py.test",
+"mask_quotes_pre": "py.test",
+"mask_quotes_raw": "py.test",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "py.test"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "py.test"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"py.test"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"py.test"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run pytest",
+"mask_quotes_pre": "uv run pytest",
+"mask_quotes_raw": "uv run pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run pytest"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"uv",
+"run",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"uv",
+"run",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run python -m pytest",
+"mask_quotes_pre": "uv run python -m pytest",
+"mask_quotes_raw": "uv run python -m pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run python -m pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run python -m pytest"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"uv",
+"run",
+"python",
+"-m",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"uv",
+"run",
+"python",
+"-m",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m pytest",
+"mask_quotes_pre": "python3 -m pytest",
+"mask_quotes_raw": "python3 -m pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m pytest"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"python3",
+"-m",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"-m",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "python3 -m unittest discover -s tests -v",
 "mask_quotes_pre": "python3 -m unittest discover -s tests -v",
 "mask_quotes_raw": "python3 -m unittest discover -s tests -v",
@@ -25806,6 +26568,232 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "factory test tests/test_x.py",
+"mask_quotes_pre": "factory test tests/test_x.py",
+"mask_quotes_raw": "factory test tests/test_x.py",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory test tests/test_x.py"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory test tests/test_x.py"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"factory",
+"test",
+"tests/test_x.py"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"factory",
+"test",
+"tests/test_x.py"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory test",
+"mask_quotes_pre": "factory test",
+"mask_quotes_raw": "factory test",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory test"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory test"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"factory",
+"test"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"factory",
+"test"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx ruff check .",
+"mask_quotes_pre": "uvx ruff check .",
+"mask_quotes_raw": "uvx ruff check .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx ruff check ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx ruff check ."
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"uvx",
+"ruff",
+"check",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"uvx",
+"ruff",
+"check",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run ruff check .",
+"mask_quotes_pre": "uv tool run ruff check .",
+"mask_quotes_raw": "uv tool run ruff check .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run ruff check ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run ruff check ."
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"uv",
+"tool",
+"run",
+"ruff",
+"check",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"uv",
+"tool",
+"run",
+"ruff",
+"check",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv pip list",
+"mask_quotes_pre": "uv pip list",
+"mask_quotes_raw": "uv pip list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv pip list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv pip list"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"uv",
+"pip",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"uv",
+"pip",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "awk 1 ~/.zshrc",
 "mask_quotes_pre": "awk 1 ~/.zshrc",
 "mask_quotes_raw": "awk 1 ~/.zshrc",
@@ -37144,52 +38132,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "uvx ruff check .",
-"mask_quotes_pre": "uvx ruff check .",
-"mask_quotes_raw": "uvx ruff check .",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "uvx ruff check ."
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "uvx ruff check ."
-},
-"segments_pre": [
-[
-0,
-16,
-[
-"uvx",
-"ruff",
-"check",
-"."
-]
-]
-],
-"segments_raw": [
-[
-0,
-16,
-[
-"uvx",
-"ruff",
-"check",
-"."
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "uv tool run black --check .",
 "mask_quotes_pre": "uv tool run black --check .",
 "mask_quotes_raw": "uv tool run black --check .",
@@ -37228,94 +38170,6 @@
 "black",
 "--check",
 "."
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
-"input": "uvx pytest",
-"mask_quotes_pre": "uvx pytest",
-"mask_quotes_raw": "uvx pytest",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "uvx pytest"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "uvx pytest"
-},
-"segments_pre": [
-[
-0,
-10,
-[
-"uvx",
-"pytest"
-]
-]
-],
-"segments_raw": [
-[
-0,
-10,
-[
-"uvx",
-"pytest"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
-"input": "uv tool run pytest",
-"mask_quotes_pre": "uv tool run pytest",
-"mask_quotes_raw": "uv tool run pytest",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "uv tool run pytest"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "uv tool run pytest"
-},
-"segments_pre": [
-[
-0,
-18,
-[
-"uv",
-"tool",
-"run",
-"pytest"
-]
-]
-],
-"segments_raw": [
-[
-0,
-18,
-[
-"uv",
-"tool",
-"run",
-"pytest"
 ]
 ]
 ],
@@ -44440,7 +45294,7 @@
 ]
 }
 },
-"corpus_commands": 714,
+"corpus_commands": 733,
 "edge_inputs": 97,
 "python": "3.13"
 }
