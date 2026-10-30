@@ -4,6 +4,7 @@ Most tests inject a fake runner (the process boundary: git, gh, python children)
 import io
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -178,6 +179,53 @@ class CheckTest(unittest.TestCase):
         cmd = [ln for ln in lines if "ci/freshbox_test.py" in ln][0]
         self.assertIn(f"cd {rc.ROOT} && ", cmd)
         self.assertTrue(os.path.isabs(str(rc.ROOT)))
+
+    def test_freshbox_reminder_passes_repo_ref_and_quotes_cd(self):
+        import shlex
+        lines = []
+        code = rc.main([SHA], run=Fake("0.3.0"), probe=Fake().probe, root="/tmp/a b/factory", out=lines.append, env={"PATH": "/usr/bin"})
+        self.assertEqual(code, 0)
+        cmd = [ln for ln in lines if "ci/freshbox_test.py" in ln][0]
+        words = shlex.split(cmd)
+        self.assertEqual(words[:3], ["cd", "/tmp/a b/factory", "&&"])
+        self.assertEqual(words[words.index("--repo") + 1], "https://github.com/acme/widget.git")
+        self.assertEqual(words[words.index("--ref") + 1], SHA)
+
+    def _terms_run(self, env_terms, config_terms):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        (Path(tmp.name) / "db").mkdir()
+        con = sqlite3.connect(Path(tmp.name) / "db" / "factory.db")
+        con.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)")
+        if config_terms:
+            con.execute("INSERT INTO config VALUES ('scrub_terms_file', ?)", (config_terms,))
+        con.commit()
+        con.close()
+        env = {"PATH": "/usr/bin", "FACTORY_HOME": tmp.name}
+        if env_terms:
+            env["SCRUB_TERMS_FILE"] = env_terms
+        fake = Fake()
+
+        def guard(argv, cwd=None, env=None, timeout=300):
+            if "public_text_guard.py" in argv[1]:
+                if not (env or {}).get("SCRUB_TERMS_FILE"):
+                    return 2, "", "public-text-guard: no owner terms loaded"
+                fake.terms = env["SCRUB_TERMS_FILE"]
+            return fake(argv, cwd=cwd, env=env, timeout=timeout)
+
+        fake.terms = None
+        lines = []
+        rc.main([SHA], run=guard, probe=fake.probe, out=lines.append, env=env)
+        return status(lines, "public-text"), fake.terms
+
+    def test_public_text_uses_config_terms_file_when_env_unset(self):
+        self.assertEqual(self._terms_run(None, "/cfg/terms"), ("PASS", "/cfg/terms"))
+
+    def test_public_text_fails_closed_with_neither_set(self):
+        self.assertEqual(self._terms_run(None, None), ("FAIL", None))
+
+    def test_public_text_env_terms_file_wins_over_config(self):
+        self.assertEqual(self._terms_run("/env/terms", "/cfg/terms"), ("PASS", "/env/terms"))
 
     def test_smoke_fail_demo_seed(self):
         self.assert_fail("fresh-install-smoke", {"demo_seed.py": (1, "", "boom")})
