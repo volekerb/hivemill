@@ -129,8 +129,9 @@ class ChangelogTest(unittest.TestCase):
         text = (ROOT / "ci" / "release-notes" / "0.2.0.md").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"\b[GT]-\d{3,4}\b", text))
         for needle in ("Hivemill v0.2.0", "New web UI", "Faster pull request loop", "Opt-in worker sandbox", "Go quick win",
-                       "Known limits", "VIDEO-PLACEHOLDER"):
+                       "Known limits"):
             self.assertIn(needle, text)
+        self.assertNotIn("VIDEO-PLACEHOLDER", text)
         r = changelog(self.repo, "--release-notes", "0.2.0")
         self.assertEqual((r.returncode, r.stdout), (0, text.strip() + "\n"))
         self.assertEqual(changelog(self.repo, "--prerelease", "0.2.0").stdout.strip(), "true")

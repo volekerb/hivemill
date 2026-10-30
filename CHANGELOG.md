@@ -11,9 +11,6 @@ v0.1.0 summarises the changes merged during private development.
 
 Hivemill v0.2.0 is a pre-release: a redesigned web UI, a faster pull request loop and a much harder worker sandbox, on top of the v0.1.0 chain of Claude Code agents. Most new automation is opt-in and off by default.
 
-<!-- VIDEO-PLACEHOLDER: replace the next line with the user-attachments player link once the owner approves the v2 demo video. -->
-Demo video: _link added when the v2 recording is approved._
-
 ### Highlights
 
 - **New web UI.** A redesigned cockpit with an overview page, goal, task and agent pages, and new insight pages for quality, throughput, resources and token use. Self-hosted font, no external requests, and a phone layout. See [docs/web-ui.md](https://github.com/volekerb/hivemill/blob/main/docs/web-ui.md).
