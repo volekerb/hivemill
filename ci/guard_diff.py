@@ -290,9 +290,11 @@ def go_candidate(top, go_bin, tmp):
     if not go:
         raise UsageError("go not found on PATH; install Go or pass --go-bin PATH (--impl go cannot run without a candidate)")
     out = os.path.join(tmp, "worker-guard")
+    # never let go.mod's `toolchain` line trigger a download (ADR 0001): local toolchain only, no network
+    env = dict(os.environ, GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
     try:
         p = subprocess.run([go, "build", "-o", out, "./cmd/worker-guard"], cwd=os.path.join(top, "go"),
-                           capture_output=True, text=True, timeout=600)
+                           capture_output=True, text=True, timeout=600, env=env)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise UsageError(f"go build failed to run: {e}; check the Go toolchain")
     if p.returncode != 0:

@@ -338,6 +338,27 @@ class GoImplTests(GuardDiffCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("--go-bin", p.stderr)
 
+    def test_go_build_env_pins_local_toolchain(self):
+        # fake `go` on PATH records the env it is built with and drops a stub candidate at -o
+        fakebin = os.path.join(self._tmp.name, "fakebin")
+        os.makedirs(fakebin)
+        envlog = os.path.join(self._tmp.name, "goenv.json")
+        cand = self.stub(STUB_BASE)
+        fake = os.path.join(fakebin, "go")
+        with open(fake, "w") as f:
+            f.write(f"#!{sys.executable}\nimport json, os, shutil, sys\n"
+                    f"json.dump({{k: os.environ.get(k) for k in ('GOTOOLCHAIN', 'GOFLAGS', 'GOPROXY')}}, open({envlog!r}, 'w'))\n"
+                    f"shutil.copy({cand!r}, sys.argv[sys.argv.index('-o') + 1])\n")
+        os.chmod(fake, 0o755)
+        env = dict(os.environ, PATH=fakebin + os.pathsep + os.environ["PATH"], GOTOOLCHAIN="auto")
+        os.makedirs(os.path.join(self.repo, "go"), exist_ok=True)
+        argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook,
+                "--corpus", self.corpus, "--mode", "worker", "--strict"]
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=120, env=env)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        with open(envlog) as f:
+            self.assertEqual(json.load(f), {"GOTOOLCHAIN": "local", "GOFLAGS": "-mod=readonly", "GOPROXY": "off"})
+
     def test_no_go_on_path_exit_2(self):
         argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook, "--corpus", self.corpus]
         env = {k: v for k, v in os.environ.items() if k != "PATH"}
