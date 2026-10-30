@@ -60,6 +60,8 @@ cleaner's other `git push` forms are blocked (the settings no longer deny `git p
 Coder push pin (T-0689): --role coder may run only `git push origin HEAD:factory/<own task id>` (id from FACTORY_AGENT=
 coder-t-NNNN; optional `git -C <dir>`); any other refspec, remote, URL, force form, --all/--mirror/--tags/--delete,
 option, -c override or GIT_CONFIG_* assignment is blocked, as is a push when the task id is unknown.
+T-0743: the hook cwd and any -C target must be the worktree recorded for the task in the factory DB (read-only);
+an unresolvable task/worktree refuses.
 """
 import fnmatch
 import glob
@@ -1728,16 +1730,32 @@ class Analyzer:
         if not w:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
                         "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
-        # T-0719: -C may only name this pane's own worktree (the dir under worktrees/ holding the hook cwd); a cwd outside
-        # any worktrees/ dir resolves to the filesystem root, which no -C target can equal
+        # T-0743: the own worktree is the one recorded for this task in the factory DB, not whatever dir the pane sits in;
+        # both the hook cwd and any -C target must be inside / equal to it. Unresolvable -> refuse (fail closed).
+        own = self.task_worktree(m.group(1))
+        if own is None:
+            raise Block(f"git push: cannot resolve the worktree recorded for {m.group(1)} in the factory DB; ask your lead")
+        cwd = os.path.realpath(self.cwd)
+        if cwd != own and not cwd.startswith(own + os.sep):
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` from their own worktree {own}; "
+                        f"this pane is in {cwd}: cd back to your worktree")
         if w.group(1):
-            own = os.path.realpath(self.cwd)
-            while own != os.path.dirname(own) and os.path.basename(os.path.dirname(own)) != "worktrees":
-                own = os.path.dirname(own)  # a cwd in a subdirectory: the worktree root is the dir under worktrees/
             tgt = os.path.realpath(w.group(1) if os.path.isabs(w.group(1)) else os.path.join(self.cwd, w.group(1)))
-            if os.path.basename(os.path.dirname(own)) != "worktrees" or tgt != own:
-                raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this pane's own "
-                            f"worktree (your cwd), not {w.group(1)}; drop -C or fix the path")
+            if tgt != own:
+                raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
+                            f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
+
+    def task_worktree(self, task):
+        """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
+        try:
+            con = sqlite3.connect(f"file:{self.db_path()}?mode=ro", uri=True, timeout=2)
+            try:
+                row = con.execute("SELECT worktree FROM tasks WHERE id = ?", (task.upper(),)).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return None
+        return os.path.realpath(row[0]) if row and row[0] else None
 
     def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
         words = list(words)

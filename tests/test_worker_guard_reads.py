@@ -28,6 +28,9 @@ class ReadsBase(unittest.TestCase):
         con.execute("CREATE TABLE agents (name TEXT PRIMARY KEY, role TEXT, goal_id TEXT)")
         con.execute("INSERT INTO agents VALUES (?, 'coder', ?)", (AGENT, OWN))
         con.execute("INSERT INTO agents VALUES ('nogoal', 'coder', NULL)")
+        # T-0743: the coder push pin resolves the own worktree from tasks.worktree (the hook cwd here)
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES ('T-9', ?)", (os.getcwd(),))
         con.commit()
         con.close()
 
