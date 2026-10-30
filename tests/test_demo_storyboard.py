@@ -113,7 +113,8 @@ class StoryboardTests(unittest.TestCase):
 
 
 class LinkedinCutTests(unittest.TestCase):
-    """Owner M15130 Q3: the LinkedIn cut drops S10 + S11 and trims S4 (org chart) to 8 s."""
+    """Owner M15130 Q3: the LinkedIn cut drops S10 + S11 and trims S4 (org chart) to 8 s. That recipe sums to 67 s, not
+    the nominal 60 s; the director kept 67 s (M15153)."""
 
     def test_same_scenes_shorter_cut(self):
         full, cut = board(), board(LINKEDIN)

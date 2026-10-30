@@ -108,7 +108,7 @@ G-002 "Build the checkout flow" (acme-web) and its task T-0008 "Add shipping for
 | `result` | S9-S11 | 17 | `/changelog`, `/throughput`, `/quality` |
 | `close` | S12 | 5 | `scenes/close.html`: name, tagline, install line, repository |
 
-`storyboard-linkedin.json` is the 67 s LinkedIn cut: the same scenes with S10 and S11 dropped (`result` shows only the
+`storyboard-linkedin.json` is the 67 s LinkedIn cut (the approved recipe sums to 67 s, not the nominal 60 s; director decision M15153): the same scenes with S10 and S11 dropped (`result` shows only the
 changelog) and the org chart trimmed to 8 s with its own caption timing. Build it into its own directory:
 
     python3 ci/demo_video.py --board docs/demo/storyboard-linkedin.json --out docs/demo/out/linkedin
