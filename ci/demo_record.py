@@ -60,11 +60,14 @@ def wait_for_demo(browser, timeout=READY_TIMEOUT):
         time.sleep(0.05)
 
 
-def record_scene(browser, url, duration, fps, sink, text_every=30, text_dir=None, scene_id="scene"):
+def record_scene(browser, url, duration, fps, sink, text_every=30, text_dir=None, scene_id="scene", captions=None):
     """Load url, wait for window.demo, then for each of round(duration*fps) frames seek to i/fps and capture.
-    Every text_every frames the page text goes to <text_dir>/<scene_id>-<i:05d>.txt (when text_dir is given)."""
+    Every text_every frames the page text goes to <text_dir>/<scene_id>-<i:05d>.txt (when text_dir is given).
+    `captions` (a storyboard caption list) replaces the captions embedded in the scene before the first frame."""
     browser.new_page(url)
     wait_for_demo(browser)
+    if captions is not None:
+        browser.evaluate("window.demo.data.captions = %s" % json.dumps(captions))
     if text_dir is not None:
         Path(text_dir).mkdir(parents=True, exist_ok=True)
     frames = round(duration * fps)

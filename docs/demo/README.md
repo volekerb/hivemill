@@ -23,7 +23,10 @@ Options for `build`:
 - `--browser PATH` uses an already-downloaded `chrome-headless-shell` instead of downloading the pinned one.
 - `--out DIR` changes the output directory (default `docs/demo/out`, gitignored). `--work DIR` changes the work
   directory (default `<out>/work`). Neither may be under `/tmp`: it is RAM-backed and the build refuses (exit 3).
-- `--only SCENE` records one scene to a clip (for example `--only hook`) and stops, without encoding.
+- `--only SCENE` records one scene to a clip (for example `--only problem`) and stops, without encoding.
+- `--board FILE` records another storyboard instead of `docs/demo/storyboard.json`, for example the LinkedIn cut
+  (see [The pitch](#the-pitch-g-024)). A storyboard without a `"hero"` entry builds no hero loop, and `check --board
+  FILE` then skips the hero checks; an unreadable storyboard never waives them.
 - `--scale S` captures at deviceScaleFactor S (1 to 2, default: `"scale"` in `storyboard.json`, else 1). `2` records
   the 1920x1080 layout as 3840x2160 and `1.333` as 2560x1440. The MP4 and WebM are always exported at 1920x1080 with
   `scale=1920:1080:flags=lanczos`, so `check` still demands 1920x1080. At scale 1 no scale filter is added.
@@ -48,7 +51,16 @@ Scenes are HTML/CSS pages in `docs/demo/scenes/`. A recorder drives a headless b
 frame `i/30` and takes a PNG, so the result is smooth however slow the machine is. The PNGs are streamed straight
 into `ffmpeg` (no frame files on disk), one scene at a time, into a clip per scene. The clips are concatenated into
 the MP4 and the WebM. The hero loop records the org chart scene a second time with the captions hidden. The web UI
-tour scene is recorded against the demo seed (`ci/demo_seed.py`). One browser and one `ffmpeg` run at a time.
+scenes (`ui:`) are recorded against the demo seed (`ci/demo_seed.py`), re-seeded for each such scene. One browser and
+one `ffmpeg` run at a time.
+
+Captions come from the storyboard being recorded: the recorder replaces the captions embedded in a scene file with the
+scene's `captions` from the storyboard before the first frame, so one scene file serves every cut. The embedded copy
+(kept equal to `storyboard.json` by the tests) is what a scene shows when opened on its own.
+
+The web UI reloads itself every 60 s (meta refresh). A 2x capture spends longer than that on one page, so the tour
+pauses the page's virtual time after loading it (`Emulation.setVirtualTimePolicy`); no timer fires while the page is
+recorded, and the scroll, fade and push-in are set per frame by the recorder.
 
 Encoder settings (tune these in `ci/demo_video.py` if a size check fails; never go below 30 fps for the video or 15
 fps for the loop):
@@ -78,6 +90,31 @@ sum of the page durations; keep them equal. The standalone recorder takes a scen
 
     python3 ci/demo_tour.py --out DIR --scene tour2 --scale 2 --max-frames 12
 
+## The pitch (G-024)
+
+`storyboard.json` is the owner-approved pitch script (12 shots, 80 s): problem, the factory working, result. Real UI
+is on screen from frame 0 (hard open on the overview, slow 1.04 push-in). Every UI shot follows one seeded story: goal
+G-002 "Build the checkout flow" (acme-web) and its task T-0008 "Add shipping form" (PR #105), which QA sent back once.
+
+| scene | shots | seconds | screen |
+|---|---|---|---|
+| `open` | S1 | 5 | `/` overview, hard open, push-in |
+| `problem` | S2 | 6 | `scenes/problem.html`: the two lines type on, "done" is struck through at 4 s |
+| `request` | S3 | 6 | `scenes/request.html`: you ask the boss for the checkout flow, the boss opens G-002 |
+| `orgchart` | S4 | 10 | `scenes/orgchart.html`: the team is complete by 5.8 s, pulses end by 8 s, fade 9-10 s (hero loop 0-10 s) |
+| `work` | S5-S7 | 23 | `/goal/G-002` (to the Tasks table), `/agents` (Running), `/task/T-0008` (Verdicts) |
+| `mergegate` | S8 | 8 | `scenes/mergegate.html`: PR #105, reviewer + QA PASS, the judge opens the gate |
+| `result` | S9-S11 | 17 | `/changelog`, `/throughput`, `/quality` |
+| `close` | S12 | 5 | `scenes/close.html`: name, tagline, install line, repository |
+
+`storyboard-linkedin.json` is the 67 s LinkedIn cut: the same scenes with S10 and S11 dropped (`result` shows only the
+changelog) and the org chart trimmed to 8 s with its own caption timing. Build it into its own directory:
+
+    python3 ci/demo_video.py --board docs/demo/storyboard-linkedin.json --out docs/demo/out/linkedin
+
+The `scroll_to` selectors (`section.sect:nth-of-type(n)`) pick a page section by position. If a UI change reorders the
+sections of a page, update the selector so the shot still lands on the named section (the table above).
+
 ## Checks
 
 `python3 ci/demo_video.py check` prints one `ok` or `FAIL` line per check and exits 1 on any FAIL:
@@ -97,8 +134,9 @@ The scrub above runs on every `check`. The boss reviews the final video before a
 
 ## After a UI redesign
 
-Rerun `python3 ci/demo_video.py`. The tour addresses the web UI pages by URL path only (`docs/demo/storyboard.json`),
-so a redesign needs no recorder change; a page that stops answering 200 fails the build. Review the new video, then
+Rerun `python3 ci/demo_video.py`. The tour addresses the web UI pages by URL path (`docs/demo/storyboard.json`),
+so a redesign needs no recorder change; a page that stops answering 200 fails the build, and so does a `scroll_to`
+selector that matches nothing. Check that each selector still lands on the section named in the pitch table. Review the new video, then
 commit the new `hero.webp` and upload the new MP4 and WebM as release assets.
 
 ## Last measured (draft build on your-box, about 10 minutes)
