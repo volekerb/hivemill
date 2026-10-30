@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Scene: problem</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.fade { position:absolute; inset:0; background:var(--bg); pointer-events:none; opacity:0; z-index:9; }
+@keyframes fade-in { from { opacity:1; } to { opacity:0; } }
+@keyframes fade-out { from { opacity:0; } to { opacity:1; } }
+@keyframes rise { from { opacity:0; transform:translateY(48px); } to { opacity:1; transform:none; } }
+@keyframes show { from { opacity:0; } to { opacity:1; } }
+@keyframes strike { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+@keyframes caught { from { color:var(--ok); } to { color:var(--qa); } }
+.fade { animation: fade-in .5s linear 0s 1 both, fade-out .5s linear 5.5s 1 forwards; }
+.caption-bar { display:none !important; }  /* the two lines are the caption, set as the headline */
+.hero { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:36px; text-align:center; padding:0 80px; }
+.l1, .l2 { font-size:96px; font-weight:bold; line-height:1.12; white-space:nowrap; }
+.l2 { color:var(--muted); }
+.ch { white-space:pre; opacity:0; animation: show .01s linear 1 both; }  /* one glyph per step: no frame shows a cut glyph */
+.done { position:relative; display:inline-block; color:var(--ok); animation: caught .3s linear 4s 1 both; }
+.strike { position:absolute; left:-6px; right:-6px; top:54%; height:10px; border-radius:5px; background:var(--qa);
+  transform-origin:left center; animation: strike .4s cubic-bezier(.4,0,.2,1) 4s 1 both; }
+.chip { margin-bottom:24px; animation: rise .6s ease-out .2s 1 both; }
+</style></head>
+<body data-scene="problem">
+<div class="stage">
+<div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
+<div class="hero">
+<span class="chip role-coder card active" style="color:var(--accent)">coder</span>
+<div class="l1" aria-label="One AI coder is fast."><span class="ch" style="animation-delay:0.6000s">O</span><span class="ch" style="animation-delay:0.6500s">n</span><span class="ch" style="animation-delay:0.7000s">e</span><span class="ch" style="animation-delay:0.7500s"> </span><span class="ch" style="animation-delay:0.8000s">A</span><span class="ch" style="animation-delay:0.8500s">I</span><span class="ch" style="animation-delay:0.9000s"> </span><span class="ch" style="animation-delay:0.9500s">c</span><span class="ch" style="animation-delay:1.0000s">o</span><span class="ch" style="animation-delay:1.0500s">d</span><span class="ch" style="animation-delay:1.1000s">e</span><span class="ch" style="animation-delay:1.1500s">r</span><span class="ch" style="animation-delay:1.2000s"> </span><span class="ch" style="animation-delay:1.2500s">i</span><span class="ch" style="animation-delay:1.3000s">s</span><span class="ch" style="animation-delay:1.3500s"> </span><span class="ch" style="animation-delay:1.4000s">f</span><span class="ch" style="animation-delay:1.4500s">a</span><span class="ch" style="animation-delay:1.5000s">s</span><span class="ch" style="animation-delay:1.5500s">t</span><span class="ch" style="animation-delay:1.6000s">.</span></div>
+<div class="l2" aria-label="It also says “done” when it isn&#x27;t."><span class="ch" style="animation-delay:1.9000s">I</span><span class="ch" style="animation-delay:1.9400s">t</span><span class="ch" style="animation-delay:1.9800s"> </span><span class="ch" style="animation-delay:2.0200s">a</span><span class="ch" style="animation-delay:2.0600s">l</span><span class="ch" style="animation-delay:2.1000s">s</span><span class="ch" style="animation-delay:2.1400s">o</span><span class="ch" style="animation-delay:2.1800s"> </span><span class="ch" style="animation-delay:2.2200s">s</span><span class="ch" style="animation-delay:2.2600s">a</span><span class="ch" style="animation-delay:2.3000s">y</span><span class="ch" style="animation-delay:2.3400s">s</span><span class="ch" style="animation-delay:2.3800s"> </span><span class="ch" style="animation-delay:2.4200s">“</span><span class="done"><span class="ch" style="animation-delay:2.4600s">d</span><span class="ch" style="animation-delay:2.5000s">o</span><span class="ch" style="animation-delay:2.5400s">n</span><span class="ch" style="animation-delay:2.5800s">e</span><i class="strike"></i></span><span class="ch" style="animation-delay:2.6200s">”</span><span class="ch" style="animation-delay:2.6600s"> </span><span class="ch" style="animation-delay:2.7000s">w</span><span class="ch" style="animation-delay:2.7400s">h</span><span class="ch" style="animation-delay:2.7800s">e</span><span class="ch" style="animation-delay:2.8200s">n</span><span class="ch" style="animation-delay:2.8600s"> </span><span class="ch" style="animation-delay:2.9000s">i</span><span class="ch" style="animation-delay:2.9400s">t</span><span class="ch" style="animation-delay:2.9800s"> </span><span class="ch" style="animation-delay:3.0200s">i</span><span class="ch" style="animation-delay:3.0600s">s</span><span class="ch" style="animation-delay:3.1000s">n</span><span class="ch" style="animation-delay:3.1400s">&#x27;</span><span class="ch" style="animation-delay:3.1800s">t</span><span class="ch" style="animation-delay:3.2200s">.</span></div>
+</div>
+<div class="fade"></div>
+</div>
+<script type="application/json" id="demo-data">{"scene": "problem", "duration": 6, "captions": [{"at": 0.5, "until": 6.0, "text": "One AI coder is fast. It also says “done” when it isn't."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script src="demo.js"></script>
+<script>demo.seek(0);</script>
+</body></html>
