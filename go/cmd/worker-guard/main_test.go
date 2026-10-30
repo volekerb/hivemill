@@ -139,3 +139,23 @@ func TestParseArgs(t *testing.T) {
 		}
 	}
 }
+
+// A mutating git command aimed at the shared checkout is refused by the real git rule (not the stub of a later
+// section) and a read-only one is allowed; WORKER_GUARD_LIVE_HOME stands in for ~/factory, as in the Python tests.
+func TestSharedCheckoutThroughBinary(t *testing.T) {
+	live := t.TempDir()
+	if err := os.Mkdir(live+"/.git", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"WORKER_GUARD_LIVE_HOME=" + live}
+	payload := func(cmd string) []byte {
+		return []byte(`{"tool_name":"Bash","tool_input":{"command":"` + cmd + `"},"cwd":"` + live + `"}`)
+	}
+	code, stderr := call(t, payload("git -C "+live+" commit -m x"), env, "--role", "coder")
+	if code != 2 || !strings.Contains(stderr, "workers never change the shared checkout") {
+		t.Errorf("commit in the shared checkout: exit %d %q, want 2 naming the shared checkout", code, stderr)
+	}
+	if code, stderr := call(t, payload("git log --oneline -3"), env, "--role", "coder"); code != 0 {
+		t.Errorf("git log in the shared checkout: exit %d %q, want 0", code, stderr)
+	}
+}
