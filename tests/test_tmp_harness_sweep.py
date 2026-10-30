@@ -114,6 +114,19 @@ class HarnessSweep(FactoryTestCase):
         self.assertEqual(left(), 0)
         self.assertEqual([('"count": 500' in e["detail"]) for e in self.events()].count(True), 1)
 
+    @unittest.skipIf(os.getuid() == 0, "root deletes anything")
+    def test_undeletable_dir_does_not_block_the_rest(self):
+        stuck = self.home_dir("zz-test-factory-aaaaaaaa")
+        (stuck / "sub").chmod(0o555)
+        other = self.home_dir("zz-test-factory-bbbbbbbb")
+        try:
+            self.tick()
+            self.assertTrue(stuck.exists())
+            self.assertFalse(other.exists())
+            self.assertIn('"count": 1', self.events()[0]["detail"])
+        finally:
+            (stuck / "sub").chmod(0o755)
+
     def test_runs_at_most_hourly(self):
         self.home_dir()
         self.tick()

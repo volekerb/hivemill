@@ -5319,7 +5319,7 @@ def _proc_holds(roots):
         try:
             if pdir.stat().st_uid != uid:
                 continue
-            targets = [os.path.realpath(pdir / "cwd")]
+            targets = [os.path.realpath(os.readlink(pdir / "cwd"))]
             targets += [os.path.realpath(f) for f in (pdir / "fd").iterdir()]
         except FileNotFoundError:
             continue   # the process exited while we looked
@@ -5351,11 +5351,14 @@ def tmp_sweep_harness(con):
         for d in sorted(base.iterdir()):
             if not _HARNESS_NAME.fullmatch(d.name):
                 continue
-            st = d.lstat()
-            if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or os.path.realpath(d.parent) != root:
-                continue
-            if t - _newest_mtime(d) >= TMP_HARNESS_MIN_AGE_S:
-                old.append(d)
+            try:
+                st = d.lstat()
+                if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or os.path.realpath(d.parent) != root:
+                    continue
+                if t - _newest_mtime(d) >= TMP_HARNESS_MIN_AGE_S:
+                    old.append(d)
+            except FileNotFoundError:
+                continue   # vanished while we looked
         if not old:
             return
         held = _proc_holds([os.path.realpath(d) for d in old])
@@ -5367,7 +5370,11 @@ def tmp_sweep_harness(con):
                 busy += 1
             elif n < TMP_HARNESS_CAP:
                 size = _tree_bytes(d)
-                shutil.rmtree(d)
+                try:
+                    shutil.rmtree(d)
+                except OSError as e:
+                    event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-failed", f"{d}: {e}")
+                    continue
                 freed += size
                 n += 1
         if n:
