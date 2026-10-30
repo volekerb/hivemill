@@ -60,11 +60,15 @@ def make_env(env, factory_main, wt_root, home):
     return out
 
 
-def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, unshare="unshare"):
+def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, unshare="unshare", subuid=False):
     """(argv, env) to run the shell command `cmd` in `tree` under the gate profile. Raises GateboxError."""
     ok, why = nsbox.userns_available(unshare)
     if not ok:
         raise GateboxError(f"gatebox: user namespaces unavailable ({why}); the gate must not run unsandboxed")
+    if subuid:
+        ok, why = nsbox.subuid_available(unshare)
+        if not ok:
+            raise GateboxError(f"gatebox: subordinate uid mapping unavailable ({why}); the command must not run as the owner uid")
     tree, main, wt = _real(tree, "gate tree"), _real(factory_main, "FACTORY_MAIN"), os.path.realpath(wt_root)
     home = str(home or nsbox.real_home())
     runtime = str(runtime or os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
@@ -75,19 +79,34 @@ def build(cmd, tree, factory_main, wt_root, env, *, home=None, runtime=None, uns
     except OSError as e:
         raise GateboxError(f"gatebox: cannot create {e.filename}: {e.strerror}; fix wt_root, the command was not run") from e
     rw = [tree, *(os.path.realpath(d) for d in rw)]  # the gate tree is a throwaway detached checkout: tests write into it
-    ro = [main]
+    box = f"{tree}/.factory-box"  # subuid mode: scratch inside the in-box copy of the tree (TMPDIR, FACTORY_HOME, reports)
+    copy = None
+    if subuid:  # no host path is writable: the tree is bound read-only and copied into a tmpfs the box's uid owns
+        try:
+            size = nsbox.tree_bytes(tree)
+        except OSError as e:
+            raise GateboxError(f"gatebox: cannot size the tree {tree}: {e.strerror}; the command was not run") from e
+        copy = {"tree": tree, "mkdirs": [f"{box}/{d}" for d in ("reports", "factory-home", "tmp", "tmp/pycache")],
+                "size": f"{(size * 2 >> 20) + 128}m"}
+        ro_tree, rw = [tree], []
+    else:
+        ro_tree = []
+    ro = [main, *ro_tree]
     common = _git_common_dir(tree)
     if not _under(common, main):
         ro.append(common)  # hooks, config, refs, objects: read-only even when it sits inside the rw tree
+    ptr = os.path.join(tree, ".git")
+    if os.path.isfile(ptr) and not os.path.islink(ptr):
+        ro.append(ptr)  # worktree pointer file: a rw one lets the run redirect gitdir to code that git then runs outside the box
     masks = [os.path.join(main, m) for m in MASKED if os.path.isdir(os.path.join(main, m))]
     hide = [home, runtime, *HIDE_TMP]
     try:
         cfg = nsbox.make_cfg(f"{wt}/reports", None, home, mode="allow", net=False, pid=True, unshare=unshare,
-                             hide_dirs=hide, hide_files=(), rw=rw, ro=ro, masks=masks, cwd=tree,
+                             hide_dirs=hide, hide_files=(), rw=rw, ro=ro, masks=masks, cwd=tree, subuid=subuid, copy=copy,
                              tmpfs_sizes={d: s for d, s in TMPFS_SIZES.items() if os.path.isdir(d)})
     except ValueError as e:
         raise GateboxError(f"gatebox: {e}") from e
-    return nsbox.compose_stage1(cfg, ["bash", "-c", cmd]), make_env(env, main, wt, home)
+    return nsbox.compose_stage1(cfg, ["bash", "-c", cmd]), make_env(env, main, box if subuid else wt, home)
 
 
 def run(cmd, tree, factory_main, wt_root, env, timeout=600, **kw):

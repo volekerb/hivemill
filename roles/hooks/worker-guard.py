@@ -57,6 +57,11 @@ allows (no false positives); worker mode keeps failing closed.
 Cleaner branch deletion (T-0057): `git branch -d/-D/--delete` and `git push <remote> --delete|-d|:<ref>` are blocked
 for every worker role; --role cleaner may do them only when every target matches ^factory/[A-Za-z0-9._/-]+$, and a
 cleaner's other `git push` forms are blocked (the settings no longer deny `git push:*` for it).
+Coder push pin (T-0689): --role coder may run only `git push origin HEAD:factory/<own task id>` (id from FACTORY_AGENT=
+coder-t-NNNN; optional `git -C <dir>`); any other refspec, remote, URL, force form, --all/--mirror/--tags/--delete,
+option, -c override or GIT_CONFIG_* assignment is blocked, as is a push when the task id is unknown.
+T-0743: the hook cwd and any -C target must be the worktree recorded for the task in the factory DB (read-only);
+an unresolvable task/worktree refuses.
 """
 import fnmatch
 import glob
@@ -1697,6 +1702,61 @@ class Analyzer:
         raise Block("branch deletion is refused (the cleaner may delete only factory/<x> branches, every target "
                     "must match; other roles never)")
 
+    def git_push_pin(self, rest):
+        """T-0689: a coder's only allowed push is `git push origin HEAD:factory/<own task id>`; the task id comes from
+        FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
+        no -c / --git-dir overrides (push.default, remote URLs); an unknown own task id refuses."""
+        if self.role != "coder":
+            return
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            if rest[i] != "-C" and "push" in rest[i + 1:]:
+                raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
+            raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
+        if i >= len(rest) or rest[i] != "push":
+            return
+        args = rest[i + 1:]
+        m = re.fullmatch(r"coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
+        if not m:
+            raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
+        if args != ["origin", f"HEAD:factory/{m.group(1)}"]:
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` (no other remote, refspec, "
+                        "force, --all/--mirror/--tags/--delete or option)")
+        # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
+        # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
+        w = re.fullmatch(rf"git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
+        if not w:
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
+                        "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
+        # T-0743: the own worktree is the one recorded for this task in the factory DB, not whatever dir the pane sits in;
+        # both the hook cwd and any -C target must be inside / equal to it. Unresolvable -> refuse (fail closed).
+        own = self.task_worktree(m.group(1))
+        if own is None:
+            raise Block(f"git push: cannot resolve the worktree recorded for {m.group(1)} in the factory DB; ask your lead")
+        cwd = os.path.realpath(self.cwd)
+        if cwd != own and not cwd.startswith(own + os.sep):
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` from their own worktree {own}; "
+                        f"this pane is in {cwd}: cd back to your worktree")
+        if w.group(1):
+            tgt = os.path.realpath(w.group(1) if os.path.isabs(w.group(1)) else os.path.join(self.cwd, w.group(1)))
+            if tgt != own:
+                raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
+                            f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
+
+    def task_worktree(self, task):
+        """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
+        try:
+            con = sqlite3.connect(f"file:{self.db_path()}?mode=ro", uri=True, timeout=2)
+            try:
+                row = con.execute("SELECT worktree FROM tasks WHERE id = ?", (task.upper(),)).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return None
+        return os.path.realpath(row[0]) if row and row[0] else None
+
     def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
         words = list(words)
         assigns = list(env_assigns)
@@ -1710,6 +1770,8 @@ class Analyzer:
             if not self.hq:
                 self.check_identity(assigns)
             return
+        if os.path.basename(words[0]) == "git":
+            self.git_push_pin(words[1:])  # before the public-text push check: names the one allowed push
         if self.pt:
             self.pt.command(words, self.hq)
         if not in_loose:
@@ -1742,6 +1804,7 @@ class Analyzer:
             self.git_cd(name, rest)
             self.cfg_cd(name, rest)
         self.claude_launchers(name, rest)
+        self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         self.factory_unit(name, rest, assigns)
@@ -1803,25 +1866,133 @@ class Analyzer:
                 self.xargs(rest)
             self.loose(rest, depth, assigns)
 
+    def test_sandbox_on(self):
+        """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
+        try:
+            con = sqlite3.connect(f"file:{self.db_path()}?mode=ro", uri=True, timeout=2)
+            try:
+                row = con.execute("SELECT value FROM config WHERE key = 'test_sandbox'").fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return False
+        return bool(row) and str(row[0]).strip() == "1"
+
+    @staticmethod
+    def python_m_module(rest):
+        """T-0675: walk CPython argv like the interpreter. Returns the -m module name, None when the command runs a
+        script, stdin or -c (or has no -m), or "?" for an option this walker does not know."""
+        return Analyzer.python_m_split(rest)[0]
+
+    @staticmethod
+    def python_m_split(rest):
+        """T-0735: the one CPython argv walker. Returns (module, args after the module); (None, []) when the command
+        runs a script, stdin or -c (or has no -m); ("?", tokens after the unknown option) for an option it does not know."""
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            i += 1
+            if tok == "--" or tok == "-" or not tok.startswith("-"):
+                return None, []
+            if tok.startswith("--"):
+                if tok == "--check-hash-based-pycs":
+                    i += 1
+                elif not (tok.startswith("--check-hash-based-pycs=") or tok == "--version" or tok.startswith("--help")):
+                    return "?", rest[i:]
+                continue
+            for k, ch in enumerate(tok[1:], 1):
+                if ch in "bBdEhiIOPqRsSuvVx?":
+                    continue
+                if ch in "WX":
+                    if k == len(tok) - 1:
+                        i += 1  # value is the next token, even one that starts with "-"
+                    break
+                if ch == "m":
+                    if tok[k + 1:]:
+                        return tok[k + 1:], rest[i:]
+                    return (rest[i], rest[i + 1:]) if i < len(rest) else (None, [])
+                if ch == "c":
+                    return None, []
+                return "?", rest[i:]
+        return None, []
+
+    def sandbox_route(self, name, rest):
+        """T-0675 (ADR M11673 T-d): with test_sandbox=1, coder and qa run test runners through `factory test <cmd>`,
+        not bare. Runners: python -m unittest/pytest, pytest, go test. `factory test ...` never reaches here as a
+        runner: its own words are `factory`, and its arguments are not parsed as commands."""
+        if self.role not in ("coder", "qa"):
+            return
+        runner = None
+        if re.fullmatch(r"python[\d.]*", name):
+            mod = self.python_m_module(rest)
+            if mod == "?":  # unknown interpreter option: fail closed on any later -m naming a runner
+                mod = next((m for m in (t[2:] if t.startswith("-m") and len(t) > 2 else rest[j + 1] if t == "-m" and rest[j + 1:j + 2] else None
+                                        for j, t in enumerate(rest)) if m and m.split(".")[0] in ("unittest", "pytest")), None)
+            if mod and mod.split(".")[0] in ("unittest", "pytest"):
+                runner = f"python3 -m {mod}"
+        elif name in ("pytest", "py.test"):
+            runner = name
+        elif name == "go" and self.go_subcommand(rest) == "test":
+            runner = "go test"
+        elif name == "tox":
+            runner = "tox"
+        elif name == "coverage" and rest[:1] == ["run"]:
+            mod = next((t[2:] if t.startswith("-m") and len(t) > 2 else rest[j + 2] if rest[j + 2:j + 3] else None
+                        for j, t in enumerate(rest[1:]) if t.startswith("-m")), None)
+            if mod and mod.split(".")[0] in ("unittest", "pytest"):
+                runner = f"coverage run -m {mod}"
+        elif name == "uv" and rest[:1] == ["run"]:
+            runner = self.uv_run_runner(rest[1:])
+        if runner and self.test_sandbox_on():
+            raise Block(f"bare test runner `{runner}` with test_sandbox=1: run it as `factory test {name} {' '.join(rest)}` "
+                        "(runs under the test sandbox, T-0675)")
+
+    @staticmethod
+    def go_subcommand(rest):
+        """T-0735: first go word that is not an option; `-C <dir>` takes a value."""
+        i = 0
+        while i < len(rest):
+            a = rest[i]
+            i += 2 if a == "-C" else 1
+            if not a.startswith("-"):
+                return a
+        return None
+
+    def uv_run_runner(self, rest):
+        """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""
+        valued = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--extra", "--group",
+                  "--env-file", "--package", "--only-group", "--no-group", "--with-editable", "-w", "--index", "--config-file"}
+        i = 0
+        while i < len(rest):
+            a = rest[i]
+            i += 1
+            if a == "-m" and i < len(rest):
+                a, rest = "python", ["-m"] + rest[i:]
+                i = 0
+            elif a in valued:
+                i += 1
+                continue
+            elif a.startswith("-"):
+                continue
+            if a in ("pytest", "py.test"):
+                return f"uv run {a}"
+            if re.fullmatch(r"python[\d.]*", a):
+                mod = self.python_m_module(rest[i:])
+                if mod and mod.split(".")[0] in ("unittest", "pytest"):
+                    return f"uv run {a} -m {mod}"
+            return None
+        return None
+
     def unittest_full(self, name, rest):
         """T-0642: coder, qa and reviewer run no full suite locally (CI is the full gate). Blocked: `python -m unittest`
         with no test argument, `... discover` unless -p/--pattern names one module (no wildcard). Allowed:
         `python -m unittest tests.test_x` and `unittest discover -s tests -p test_x.py`."""
         if self.role not in ("coder", "qa", "reviewer") or not re.fullmatch(r"python[\d.]*", name):
             return
-        args = None
-        for i, tok in enumerate(rest):
-            mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
-            if tok == "-m" and rest[i + 1:i + 2]:
-                mod, after = rest[i + 1], rest[i + 2:]
-            elif mm and mm.group(2):  # attached form: -munittest
-                mod, after = mm.group(2), rest[i + 1:]
-            else:
-                continue
-            if mod in ("unittest", "unittest.__main__"):
-                args = after
-                break
-        if args is None:
+        mod, args = self.python_m_split(rest)
+        while mod == "?":  # unknown interpreter option: keep looking for a later -m
+            mod, args = self.python_m_split(args)
+        if mod not in ("unittest", "unittest.__main__"):
             return
         advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
                   "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
