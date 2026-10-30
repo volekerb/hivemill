@@ -1826,9 +1826,9 @@ class Analyzer:
         sub, args = rest[i], rest[i + 1:]
         if is_dynamic(sub, True) or GLOB.search(sub) or "{" in sub:
             self.git_deny(f"the subcommand word {sub!r} is dynamic, so it could be push")
-        flagdyn = [a for a in args if a.startswith("-") and is_dynamic(a, True)]
-        if flagdyn:
-            self.git_deny(f"option {flagdyn[0]!r} is built from an expansion")
+        dyn = [a for a in args if is_dynamic(a, True)]
+        if dyn:
+            self.git_deny(f"argument {dyn[0]!r} is built from an expansion and could be an option (--output, --ext-diff ...)")
         if sub in ("fetch", "ls-remote"):
             self.git_fetch_args(sub, args)
         elif sub in GIT_ALLOW_PLAIN:
@@ -1870,6 +1870,8 @@ class Analyzer:
                     self.git_deny(f"git {sub} option {a!r} can run a program or name another remote")
             elif "::" in a or "://" in a or a.startswith(("/", ".", "~")) or re.match(r"^[\w.-]+@[\w.-]+:", a):
                 self.git_deny(f"git {sub} argument {a!r} is a URL, helper or path, not origin or a refspec")
+            elif ":" in a and not a.split(":", 1)[1].startswith("refs/remotes/"):
+                self.git_deny(f"git {sub} refspec {a!r} would write a local ref other than refs/remotes/*")
 
     def git_config_env(self, assigns, words):
         """T-0755: NO_PUSH_ROLES never set GIT_CONFIG_COUNT/KEY_*/VALUE_*/PARAMETERS (env-injected alias hides a push), nor

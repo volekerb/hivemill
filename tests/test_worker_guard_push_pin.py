@@ -240,6 +240,8 @@ class PushPinTests(unittest.TestCase):
         "git fetch 'ext::sh -c x'", "git fetch origin 'ext::sh -c x'", "git fetch https://example.com/x.git",
         "git fetch /tmp/other", "git ls-remote --upload-pack=x origin", "git ls-remote git@example.com:x/y.git",
         "git fetch --server-option=x origin", "git fetch $r", "git ls-remote $r",
+        "o=--output=y; git diff $o", "o=--ext-diff; git log -1 $o", "git log -1 --format=x $(echo --output=y)",
+        "git fetch origin main:refs/heads/x", "git fetch origin +main:main",
         "git grep -O x", "git grep -nO x", "git grep --open-files-in-pager=x y", "git grep --open-f=x y", "git grep $pat",
         "git log --ext-diff", "git diff --ext-diff", "git show --output=f", "git log --output f", "git diff --outp=f",
         "git -p log", "git --paginate log",
