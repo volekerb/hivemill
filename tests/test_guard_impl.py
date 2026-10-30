@@ -51,9 +51,19 @@ class GuardImplTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td, self.env("diff", stub(td, "cat >/dev/null; exit 0")):
             self.assertEqual(hook_run(ALLOW, ["--role", "coder"]).returncode, 0)
 
-    def test_diff_ignores_stderr_wording(self):  # the exit code decides, as in ci/guard_diff.py
+    def test_diff_fails_when_only_stderr_differs(self):  # T-0352 B2: same exit code, different message
         with tempfile.TemporaryDirectory() as td, self.env("diff", stub(td, "cat >/dev/null; echo other >&2; exit 2")):
-            self.assertEqual(hook_run(BLOCK, ["--role", "coder"]).returncode, 2)
+            with self.assertRaises(AssertionError) as cm:
+                hook_run(BLOCK, ["--role", "coder"])
+            self.assertIn("stderr differs", str(cm.exception))
+            self.assertIn("pkill x", str(cm.exception))
+
+    def test_diff_normalizes_only_the_go_prefix(self):
+        self.assertEqual(guard_impl.normalize_go_stderr("worker-guard(go): hook error\n"), "worker-guard: hook error\n")
+        self.assertEqual(guard_impl.normalize_go_stderr("worker-guard: blocked (go)\n"), "worker-guard: blocked (go)\n")
+        with tempfile.TemporaryDirectory() as td, self.env("diff", stub(td, "cat >/dev/null; echo 'worker-guard(go): x' >&2; exit 0")):
+            with self.assertRaises(AssertionError):  # prefix normalized, but python's stderr is empty on ALLOW
+                hook_run(ALLOW, ["--role", "coder"])
 
     def test_go_mode_runs_the_go_binary(self):
         with tempfile.TemporaryDirectory() as td, self.env("go", stub(td, "cat >/dev/null; exit 7")):

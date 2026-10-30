@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `-m unittest tests.test_guard_diff` has no tests/ on the path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 import harness
-from guard_impl import hook_run
+from guard_impl import hook_run, impl
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
 
@@ -188,6 +188,8 @@ def hook_rc_subprocess(cmd, mode, role="coder", home=None):
 def hook_rc(cmd, mode, role="coder", home=None):
     """Exit code of the real hook's main(), run in-process: the corpus sanity checks make ~500 calls and a subprocess each
     costs ~40 ms of startup. CorpusSanityTests.check compares a sample with hook_rc_subprocess."""
+    if impl() != "python":  # GUARD_IMPL=go|diff: the real binaries decide, never the in-process Python module
+        return hook_rc_subprocess(cmd, mode, role, home)
     if not _HOOK_MOD:
         loader = importlib.machinery.SourceFileLoader("worker_guard_under_test", HOOK)
         mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))

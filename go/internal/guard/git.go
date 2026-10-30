@@ -757,7 +757,7 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 	for _, f := range files {
 		if a.persistHit(f, false) {
 			a.ccwd, a.ccwdKnown = saved, savedOK
-			return blockf("`git config --file " + pyRepr(f) + "` write: " + persistWhy)
+			return blockf("`git config --file " + f + "` write: " + persistWhy)
 		}
 	}
 	a.ccwd, a.ccwdKnown = saved, savedOK

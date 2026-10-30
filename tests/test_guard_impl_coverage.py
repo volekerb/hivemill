@@ -53,6 +53,19 @@ def python_only(src):
     return False
 
 
+def in_process_main(src):
+    """True when the module executes a loaded module's main() (the hook run without a subprocess)."""
+    tree = ast.parse(src)
+    loads = any(isinstance(n, ast.Attribute) and n.attr == "exec_module" for n in ast.walk(tree))
+    calls = any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "main"
+                and not n.args and isinstance(n.func.value, ast.Name) and n.func.value.id != "unittest" for n in ast.walk(tree))
+    return loads and calls
+
+
+def calls_impl(src):
+    return any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "impl" for n in ast.walk(ast.parse(src)))
+
+
 def guard_modules(mods):
     return {m for m, src in mods.items() if m != SELF and (SPELLING.search(src) or uses_helper(src) or python_only(src)
                                                   or m.startswith(("test_worker_guard", "test_priv_guard", "test_guard_")))}
@@ -65,6 +78,19 @@ class GuardImplCoverage(unittest.TestCase):
                      and SPELLING.search(mods[m]))
         self.assertEqual(bad, [], f"{bad} name worker-guard but neither import hook_run from guard_impl, set "
                                   "GUARD_IMPL_PYTHON_ONLY = '<reason>', nor sit in ALLOWLIST (tests/test_guard_impl_coverage.py)")
+
+    def test_in_process_hook_runs_honour_guard_impl(self):
+        """A module that loads the hook and calls its main() in-process must branch on impl(), else GUARD_IMPL=go|diff
+        would test the Python hook alone (T-0352 B1)."""
+        mods = modules()
+        bad = sorted(m for m in guard_modules(mods) if in_process_main(mods[m]) and not calls_impl(mods[m]))
+        self.assertEqual(bad, [], f"{bad} call the hook's main() in-process without branching on guard_impl.impl(); "
+                                  "route through hook_run when impl() != 'python'")
+
+    def test_in_process_detector_flags_a_bypass(self):
+        src = "import importlib.util\nm = importlib.util.module_from_spec(s)\ns.loader.exec_module(m)\nrc = m.main()\n"
+        self.assertTrue(in_process_main(src) and not calls_impl(src))
+        self.assertTrue(calls_impl(src + "if impl() != 'python':\n    pass\n"))
 
     def test_allowlist_has_no_stale_entries(self):
         mods = modules()

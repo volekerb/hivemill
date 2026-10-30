@@ -3,8 +3,9 @@
 GUARD_IMPL unset or "python": roles/hooks/worker-guard.py, exactly as before.
 GUARD_IMPL=go: the Go binary (GUARD_GO_BIN, else built once per process from go/cmd/worker-guard). A build failure
 raises, so a Go run never silently skips.
-GUARD_IMPL=diff: both run; differing exit codes raise AssertionError naming the command; the Python result is returned.
-Stderr text is not compared (docs/guard-diff.md: the exit code decides); GUARD_IMPL=go checks the Go messages the tests assert.
+GUARD_IMPL=diff: both run; differing exit codes or stderr raise AssertionError naming the command; the Python result is
+returned. Stderr must be identical except that Go's internal-error lines start "worker-guard(go):" where Python's start
+"worker-guard:"; nothing else is normalized.
 
 Not a test module (no test_ prefix). tests/test_guard_impl_coverage.py fails any module that runs the hook without it.
 """
@@ -50,6 +51,11 @@ def go_bin():
     return _go_bin[0]
 
 
+def normalize_go_stderr(text):
+    """Go's internal-error prefix "worker-guard(go)" -> Python's "worker-guard"; the only allowed stderr difference."""
+    return text.replace("worker-guard(go)", "worker-guard")
+
+
 def _run(argv, payload, env, cwd, timeout):
     return subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd)
 
@@ -68,4 +74,6 @@ def hook_run(payload, argv_tail, env=None, cwd=None, timeout=30):
     what = f"{' '.join(argv_tail)} payload={payload!r}"
     if a.returncode != b.returncode:
         raise AssertionError(f"guard diff: exit python={a.returncode} go={b.returncode} for {what}")
+    if a.stderr != normalize_go_stderr(b.stderr):
+        raise AssertionError(f"guard diff: stderr differs for {what}\n  python: {a.stderr!r}\n  go:     {b.stderr!r}")
     return a

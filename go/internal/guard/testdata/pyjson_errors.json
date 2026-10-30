@@ -1,0 +1,206 @@
+[
+[
+"",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"  ",
+"JSONDecodeError: Expecting value: line 1 column 3 (char 2)"
+],
+[
+"{not json",
+"JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+],
+[
+"{\"a\":1,}",
+"JSONDecodeError: Illegal trailing comma before end of object: line 1 column 7 (char 6)"
+],
+[
+"[1,]",
+"JSONDecodeError: Illegal trailing comma before end of array: line 1 column 3 (char 2)"
+],
+[
+"[1 2]",
+"JSONDecodeError: Expecting ',' delimiter: line 1 column 4 (char 3)"
+],
+[
+"{\"a\" 1}",
+"JSONDecodeError: Expecting ':' delimiter: line 1 column 6 (char 5)"
+],
+[
+"{\"a\":",
+"JSONDecodeError: Expecting value: line 1 column 6 (char 5)"
+],
+[
+"{\"a\":1",
+"JSONDecodeError: Expecting ',' delimiter: line 1 column 7 (char 6)"
+],
+[
+"\"abc",
+"JSONDecodeError: Unterminated string starting at: line 1 column 1 (char 0)"
+],
+[
+"\"a\nb\"",
+"JSONDecodeError: Invalid control character at: line 1 column 3 (char 2)"
+],
+[
+"\"\\x\"",
+"JSONDecodeError: Invalid \\escape: line 1 column 2 (char 1)"
+],
+[
+"\"\\u12\"",
+"JSONDecodeError: Invalid \\uXXXX escape: line 1 column 3 (char 2)"
+],
+[
+"\"\\ud800\\u12\"",
+"JSONDecodeError: Invalid \\uXXXX escape: line 1 column 9 (char 8)"
+],
+[
+"nul",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"-",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"[-]",
+"JSONDecodeError: Expecting value: line 1 column 2 (char 1)"
+],
+[
+"1 2",
+"JSONDecodeError: Extra data: line 1 column 3 (char 2)"
+],
+[
+"{\"a\":1} x",
+"JSONDecodeError: Extra data: line 1 column 9 (char 8)"
+],
+[
+"{\"a\":1}\n{",
+"JSONDecodeError: Extra data: line 2 column 1 (char 8)"
+],
+[
+"\u00e9",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"{\"\u00e9\":}",
+"JSONDecodeError: Expecting value: line 1 column 6 (char 5)"
+],
+[
+"[1,2",
+"JSONDecodeError: Expecting ',' delimiter: line 1 column 5 (char 4)"
+],
+[
+"\"\\",
+"JSONDecodeError: Unterminated string starting at: line 1 column 1 (char 0)"
+],
+[
+"tru",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"{\"a\":01}",
+"JSONDecodeError: Expecting ',' delimiter: line 1 column 7 (char 6)"
+],
+[
+"[01]",
+"JSONDecodeError: Expecting ',' delimiter: line 1 column 3 (char 2)"
+],
+[
+"1.",
+"JSONDecodeError: Extra data: line 1 column 2 (char 1)"
+],
+[
+"1e",
+"JSONDecodeError: Extra data: line 1 column 2 (char 1)"
+],
+[
+"NaN x",
+"JSONDecodeError: Extra data: line 1 column 5 (char 4)"
+],
+[
+"{\"a\" : 1 , \"b\"}",
+"JSONDecodeError: Expecting ':' delimiter: line 1 column 15 (char 14)"
+],
+[
+"\ufeff{}",
+"JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)"
+],
+[
+"{\"a\":1,\n\"b\" 2}",
+"JSONDecodeError: Expecting ':' delimiter: line 2 column 5 (char 12)"
+],
+[
+"{\n\n  x",
+"JSONDecodeError: Expecting property name enclosed in double quotes: line 3 column 3 (char 5)"
+],
+[
+"\u00e9\u00e9{",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"[\u00e9]",
+"JSONDecodeError: Expecting value: line 1 column 2 (char 1)"
+],
+[
+"\"\\u00zz\"",
+"JSONDecodeError: Invalid \\uXXXX escape: line 1 column 3 (char 2)"
+],
+[
+"\"\\ud800\"",
+null
+],
+[
+"{\"a\":1}}",
+"JSONDecodeError: Extra data: line 1 column 8 (char 7)"
+],
+[
+"[}",
+"JSONDecodeError: Expecting value: line 1 column 2 (char 1)"
+],
+[
+"{]",
+"JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+],
+[
+"{\"a\":tru}",
+"JSONDecodeError: Expecting value: line 1 column 6 (char 5)"
+],
+[
+"-Infinity",
+null
+],
+[
+"-Inf",
+"JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+],
+[
+"Infinity",
+null
+],
+[
+"[NaN,]",
+"JSONDecodeError: Illegal trailing comma before end of array: line 1 column 5 (char 4)"
+],
+[
+"{\"a\":\"\\ud83d\\ude00\"} x",
+"JSONDecodeError: Extra data: line 1 column 22 (char 21)"
+],
+[
+"\"\t\"",
+"JSONDecodeError: Invalid control character at: line 1 column 2 (char 1)"
+],
+[
+"{\"a\":1",
+"JSONDecodeError: Expecting ',' delimiter: line 1 column 7 (char 6)"
+],
+[
+"{\"a\":[1,{\"b\"",
+"JSONDecodeError: Expecting ':' delimiter: line 1 column 13 (char 12)"
+],
+[
+"{\"a\":[1,{\"b\":}]}",
+"JSONDecodeError: Expecting value: line 1 column 14 (char 13)"
+]
+]

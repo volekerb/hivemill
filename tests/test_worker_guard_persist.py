@@ -15,7 +15,7 @@ import unittest
 from unittest import mock
 
 from harness import rendered_settings
-from guard_impl import hook_run
+from guard_impl import hook_run, impl
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -45,6 +45,8 @@ def hook(payload, role="coder", hq=False):
     """The hook's main() run in-process (the matrix below makes ~600 calls; a subprocess each costs ~40 ms of startup).
     Same argv, stdin, exit code and stderr as the script; assert_in_process_matches_real_hook (called from
     test_hq_mode_unchanged) keeps the real entry point covered."""
+    if impl() != "python":  # GUARD_IMPL=go|diff: the real binaries decide, never the in-process Python module
+        return hook_subprocess(payload, role, hq)
     if not _HOOK_MOD:
         loader = importlib.machinery.SourceFileLoader("worker_guard_under_test", HOOK)
         mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))

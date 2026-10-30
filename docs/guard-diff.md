@@ -92,7 +92,8 @@ Every unit test that runs the worker-guard hook goes through `tests/guard_impl.p
 
 - unset or `python`: `roles/hooks/worker-guard.py`, as before (the default; nothing here flips it).
 - `go`: the Go binary from `GUARD_GO_BIN`, else built once per process from `go/cmd/worker-guard` into a temp dir (called with `--py-hook <the Python hook>`). A missing `go` or a failed build raises, so the test errors; it never skips.
-- `diff`: runs both. Differing exit codes raise `AssertionError` naming the arguments and payload. Stderr wording is not compared (as in `ci/guard_diff.py`, the exit code decides); `GUARD_IMPL=go` is the mode that checks the Go messages the tests assert. The Python result is returned, so the test's own assertions still run.
+- `diff`: runs both. Differing exit codes, or differing stderr, raise `AssertionError` naming the arguments and payload. Stderr must be identical except that Go's internal-error lines start `worker-guard(go)` where Python's start `worker-guard`; only that prefix is normalized. (`ci/guard_diff.py` stays exit-code only.) The Python result is returned, so the test's own assertions still run.
+- A test helper that runs the hook in-process (loads the hook module and calls `main()`) must branch on `guard_impl.impl()` and call `hook_run` when it is not `python`; `tests/test_guard_impl_coverage.py` fails a guard test module that calls `main()` in-process without it.
 
 ```
 GUARD_IMPL=diff python3 -m unittest tests.test_worker_guard tests.test_priv_guard tests.test_guard_diff
