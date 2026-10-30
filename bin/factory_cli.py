@@ -13093,6 +13093,32 @@ def evaluator_home_guard():
 def main():
     evaluator_home_guard()
     p = argparse.ArgumentParser(prog="factory", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    class VersionAction(argparse.Action):
+        """--version: "hivemill <VERSION> (git <sha12>)", from the VERSION file at the repo root; never opens the DB."""
+        def __init__(self, option_strings, dest, **kw):
+            super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, help="print the version and exit")
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+            try:
+                version = Path(root, "VERSION").read_text(encoding="utf-8").strip()
+            except (OSError, UnicodeDecodeError):
+                version = ""
+            if not version:
+                print("hivemill unknown")
+                parser.exit(0)
+            sha = ""
+            try:
+                r = subprocess.run(git_argv(root, "rev-parse", "--short=12", "HEAD"), capture_output=True, text=True, timeout=10)
+                if r.returncode == 0:
+                    sha = r.stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                pass  # no git or not a checkout: the version alone
+            print(f"hivemill {version} (git {sha})" if sha else f"hivemill {version}")
+            parser.exit(0)
+
+    p.add_argument("--version", action=VersionAction)
     sp = p.add_subparsers(dest="cmd", required=True)
 
     x = sp.add_parser("init"); x.add_argument("--live-home", metavar="ABS_PATH", help="also record ABS_PATH as an extra live home (owner only)")
