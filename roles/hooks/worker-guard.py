@@ -1706,6 +1706,8 @@ class Analyzer:
         """T-0689: a coder's only allowed push is `git push origin HEAD:factory/<own task id>`; the task id comes from
         FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
         no -c / --git-dir overrides (push.default, remote URLs); an unknown own task id refuses."""
+        if self.role in NO_PUSH_ROLES and not self.hq:
+            self.git_push_refuse(rest)
         if self.role != "coder":
             return
         i = 0
@@ -1744,6 +1746,21 @@ class Analyzer:
             if tgt != own:
                 raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
                             f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
+
+    def git_push_refuse(self, rest):
+        """T-0755: read-only worker roles (NO_PUSH_ROLES) never push, in any shape (incl. --dry-run, -C, -c, send-pack,
+        git subtree push, alias definitions on the command line). Only the coder pin and cleaner deletes push."""
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            if rest[i] == "-c" and i + 1 < len(rest) and rest[i + 1].lower().startswith("alias."):
+                raise Block(f"{self.role} may not run git push: git -c alias.* could hide a push; ask your lead")
+            if rest[i].startswith("--config-env=alias.") or rest[i].lower().startswith("-calias."):
+                raise Block(f"{self.role} may not run git push: git alias override could hide a push; ask your lead")
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i < len(rest) and (rest[i] in ("push", "send-pack", "http-push")
+                              or (rest[i] == "subtree" and "push" in rest[i + 1:])):
+            raise Block(f"{self.role} may not run git push (read-only role; only the coder pushes its own branch): "
+                        "report the result with factory done / factory msg instead")
 
     def task_worktree(self, task):
         """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
@@ -2856,6 +2873,7 @@ def check(cmd, cwd=None, role=None, hq=False):
 
 # T-0600: spawn exports SCRUB_TERMS_FILE to workers so the scanners can load the owner terms; nobody but those scanners
 # may read the file, or one `cat` would put the terms into the transcript.
+NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}  # T-0755
 TERMS_ROLES = {"coder", "qa", "reviewer", "judge", "pm"}
 TERMS_VAR = "SCRUB_TERMS_FILE"
 TERMS_SCANNER = re.compile(r"(?:^|/)ci/(?:scrub_scan|public_text_guard)\.py$")

@@ -176,6 +176,43 @@ class PushPinTests(unittest.TestCase):
         self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
         self.assertEqual(self.run_hook(f"git push origin {OWN}", cwd=other).returncode, 0)
 
+    def test_non_coder_roles_never_push(self):
+        """T-0755: qa/reviewer/pm/staff-engineer/scout/evaluator: every push shape is refused, even --dry-run."""
+        shapes = (
+            "git push", "git push origin", f"git push origin {OWN}", "git push origin HEAD:main", "git push origin +HEAD:main",
+            "git push --dry-run origin HEAD:main", "git push -n origin main", "git push --all origin", "git push --mirror origin",
+            "git push --tags origin", "git push --force origin main", f"git -C {self.wt} push origin {OWN}",
+            "git -c remote.origin.url=https://example.com/x.git push origin main", "git -c push.default=current push",
+            "git push https://example.com/x.git main", "git send-pack origin main", "git subtree push --prefix=a origin main",
+            "git -c alias.p=push p origin main",
+        )
+        for role in ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"):
+            for cmd in shapes:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd, role=role, agent=f"{role}-t-0689")
+                    self.assertEqual(p.returncode, 2, p.stderr)
+                    self.assertTrue("may not run git push" in p.stderr or "alias" in p.stderr, p.stderr)
+
+    def test_non_coder_non_push_git_allowed(self):
+        for cmd in ("git status", "git log -1", f"git -C {self.wt} diff", "git fetch origin"):
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, role="qa", agent="qa-t-0689")
+                self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_judge_hq_and_cleaner_unchanged(self):
+        """Judge and HQ are not in the no-push set (no refusal from this rule); the cleaner still gets its own messages."""
+        p = self.run_hook("git push origin HEAD:main", role="judge", agent="judge-1")
+        self.assertNotIn("may not run git push", p.stderr)
+        env = dict(os.environ, HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home, FACTORY_AGENT="lead-g-1")
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git push origin HEAD:main"}, "cwd": self.wt})
+        h = subprocess.run([sys.executable, HOOK, "--hq"], input=payload, capture_output=True, text=True, timeout=30, env=env)
+        self.assertNotIn("may not run git push", h.stderr)
+        c = self.run_hook("git push origin HEAD:main", role="cleaner", agent="cleaner-1")
+        self.assertEqual(c.returncode, 2)
+        self.assertIn("cleaner may only delete", c.stderr)
+        c = self.run_hook("git push origin --delete factory/t-0001", role="cleaner", agent="cleaner-1")
+        self.assertNotIn("may not run git push", c.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
