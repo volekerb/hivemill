@@ -132,6 +132,38 @@ class TestSandboxRoutingExtra(unittest.TestCase):
         for cmd in ("python3 -W error -m unittest tests.test_x", "python3 -X dev -m unittest discover -s tests -p test_x.py"):
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
 
+    # T-0745: one test per form, same classification as T-0735
+    def _denied(self, *cmds):
+        self.seed("1")
+        for cmd in cmds:
+            p = self.run_hook(cmd)
+            self.assertEqual(p.returncode, 2, cmd)
+            self.assertIn("factory test", p.stderr, cmd)
+
+    def test_t0745_coverage_run_long_module_option(self):
+        self._denied("coverage run --module pytest", "coverage run --branch --module unittest tests.test_x",
+                     "coverage run --module=pytest x")
+        self.seed("1")
+        self.assertEqual(self.run_hook("coverage run --module http.server").returncode, 0)
+
+    def test_t0745_python_m_coverage_run_m(self):
+        self._denied("python3 -m coverage run -m pytest", "python3 -m coverage run --module unittest tests.test_x",
+                     "python3 -W error -m coverage run -m pytest")
+        self.seed("1")
+        for cmd in ("python3 -m coverage report", "python3 -m coverage run script.py"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0745_uvx_and_uv_tool_run_pytest(self):
+        self._denied("uvx pytest", "uvx pytest -q tests", "uv tool run pytest", "uv tool run --with foo pytest tests")
+        self.seed("1")
+        for cmd in ("uvx ruff check .", "uv tool run ruff check .", "uv tool list"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0745_go_double_dash_C(self):
+        self._denied("go --C sub test ./...", "go --C sub -v test ./...")
+        self.seed("1")
+        self.assertEqual(self.run_hook("go --C sub build ./...").returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

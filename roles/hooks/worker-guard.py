@@ -1912,6 +1912,14 @@ class Analyzer:
                                         for j, t in enumerate(rest)) if m and m.split(".")[0] in ("unittest", "pytest")), None)
             if mod and mod.split(".")[0] in ("unittest", "pytest"):
                 runner = f"python3 -m {mod}"
+            else:  # T-0745: python3 -m coverage run -m pytest
+                cmod, cargs = self.python_m_split(rest)
+                while cmod == "?":
+                    cmod, cargs = self.python_m_split(cargs)
+                if cmod == "coverage" and cargs[:1] == ["run"]:
+                    cov = self.coverage_run_module(cargs[1:])
+                    if cov:
+                        runner = f"python3 -m coverage run -m {cov}"
         elif name in ("pytest", "py.test"):
             runner = name
         elif name == "go" and self.go_subcommand(rest) == "test":
@@ -1919,28 +1927,47 @@ class Analyzer:
         elif name == "tox":
             runner = "tox"
         elif name == "coverage" and rest[:1] == ["run"]:
-            mod = next((t[2:] if t.startswith("-m") and len(t) > 2 else rest[j + 2] if rest[j + 2:j + 3] else None
-                        for j, t in enumerate(rest[1:]) if t.startswith("-m")), None)
-            if mod and mod.split(".")[0] in ("unittest", "pytest"):
+            mod = self.coverage_run_module(rest[1:])
+            if mod:
                 runner = f"coverage run -m {mod}"
         elif name == "uv" and rest[:1] == ["run"]:
             runner = self.uv_run_runner(rest[1:])
+        elif name == "uv" and rest[:2] == ["tool", "run"]:  # T-0745
+            runner = self.uv_run_runner(rest[2:], "uv tool run")
+        elif name == "uvx":  # T-0745
+            runner = self.uv_run_runner(rest, "uvx")
         if runner and self.test_sandbox_on():
             raise Block(f"bare test runner `{runner}` with test_sandbox=1: run it as `factory test {name} {' '.join(rest)}` "
                         "(runs under the test sandbox, T-0675)")
 
     @staticmethod
+    def coverage_run_module(args):
+        """T-0735/T-0745: the unittest/pytest module named by `-m`, `-mX`, `--module X` or `--module=X` in the
+        arguments after `coverage run`, else None."""
+        for j, t in enumerate(args):
+            if t in ("-m", "--module"):
+                mod = args[j + 1] if j + 1 < len(args) else None
+            elif t.startswith("--module="):
+                mod = t[9:]
+            elif t.startswith("-m") and not t.startswith("--"):
+                mod = t[2:]
+            else:
+                continue
+            return mod if mod and mod.split(".")[0] in ("unittest", "pytest") else None
+        return None
+
+    @staticmethod
     def go_subcommand(rest):
-        """T-0735: first go word that is not an option; `-C <dir>` takes a value."""
+        """T-0735: first go word that is not an option; `-C <dir>` / `--C <dir>` takes a value."""
         i = 0
         while i < len(rest):
             a = rest[i]
-            i += 2 if a == "-C" else 1
+            i += 2 if a in ("-C", "--C") else 1
             if not a.startswith("-"):
                 return a
         return None
 
-    def uv_run_runner(self, rest):
+    def uv_run_runner(self, rest, prefix="uv run"):
         """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""
         valued = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--extra", "--group",
                   "--env-file", "--package", "--only-group", "--no-group", "--with-editable", "-w", "--index", "--config-file"}
@@ -1957,11 +1984,11 @@ class Analyzer:
             elif a.startswith("-"):
                 continue
             if a in ("pytest", "py.test"):
-                return f"uv run {a}"
+                return f"{prefix} {a}"
             if re.fullmatch(r"python[\d.]*", a):
                 mod = self.python_m_module(rest[i:])
                 if mod and mod.split(".")[0] in ("unittest", "pytest"):
-                    return f"uv run {a} -m {mod}"
+                    return f"{prefix} {a} -m {mod}"
             return None
         return None
 
