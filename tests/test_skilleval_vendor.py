@@ -813,6 +813,20 @@ class RescreenTests(VendorBase):
         self.assertIn("re-vendor", p.stderr)
         self.assertEqual(self.cand()["status"], "needs-owner")
 
+    def test_extra_unrecorded_file_is_refused(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/extra.md").write_text("hello\n")
+        self.rescreen(expect=2)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_wrong_type_sha_map_is_refused(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        meta["files"] = ["skills/foo/notes.md"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("re-vendor", p.stderr)
+
     def test_missing_recorded_file_is_refused_and_named(self):
         d = self.held()
         (d / "demo" / "skills/foo/notes.md").unlink()
