@@ -43,9 +43,12 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 1. Clone the repository. The default location is `~/factory`; any other place works if you set `FACTORY_HOME` (below).
 
    ```
-   git clone https://github.com/example-org/factory.git ~/factory
+   git clone https://github.com/volekerb/hivemill.git ~/factory
    cd ~/factory
+   git checkout "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
    ```
+
+   This checks out the latest release. Contributors who want unreleased work use `git checkout main`.
 
 2. Put the CLI on your `PATH`:
 
@@ -83,6 +86,19 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
    `--base` is the base branch (default `main`); `--no-auto-merge` makes the judge stop before merging. Only the owner, the boss and the director may add projects.
 
    A project whose CI runs different checks than the global `required_checks` (see Configuration) gets its own list: `factory project add myapp ... --required-checks "build,stale-ci"`, or on an existing project `factory project update myapp --required-checks "build"` (an empty value goes back to the global list). A non-empty project list replaces the global one, it is not added to it. The judge merge gate and the tick's judge-ready check use it for the project of the task's goal (or of the PR's repository). `factory project list` shows the column.
+
+## Upgrade
+
+To move an existing install to the newest release:
+
+```
+cd ~/factory
+git fetch --tags origin
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+factory --version
+```
+
+Read the Upgrade section of that version's release notes (https://github.com/volekerb/hivemill/releases) before you restart anything. The database schema is migrated by the CLI on its first run. The version rules are in [RELEASING.md](RELEASING.md).
 
 ## Configuration
 
