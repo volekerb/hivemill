@@ -1,6 +1,6 @@
-# worker-guard in Go (G-016 SC4, in progress)
+# worker-guard in Go (G-016 SC4)
 
-`go/cmd/worker-guard` is the Go port of `roles/hooks/worker-guard.py`. It is built in four section tasks and is
+`go/cmd/worker-guard` is the Go port of `roles/hooks/worker-guard.py`. It was built in four section tasks and is
 **not wired anywhere**: no settings file, shim or flag calls it, and Python stays the default (`guard_impl=python`).
 The Python hook on `origin/main` is the behaviour contract.
 
@@ -10,13 +10,38 @@ The Python hook on `origin/main` is the behaviour contract.
 |---|---|---|
 | I/O contract, shell front end, lookaround matchers | T-0347 | merged |
 | command analysis (priv, shells, launchers, kill, systemctl, `check`) | T-0349 | merged |
-| git rules | T-0350 | here |
-| config, persist, factory rules | T6d | not started |
+| git rules | T-0350 | merged |
+| config, persist, factory rules, Edit/Write and Read/Grep tools, gh rules, the decisions that read the DB | T-0351 | here |
 
-A rule that belongs to a section not yet ported is a fail-closed stub: the command exits 2 with
-`worker-guard(go): not ported: <rule>`. A partial port can never allow more than Python. Payloads Python allows without
-analysis (other tools, `--hq` with a non-Bash tool) are allowed here too. Edit/Write/MultiEdit/NotebookEdit calls and
-Read/Grep by a terms role still exit 2 `not ported` (T6d).
+Every rule is ported; no command exits 2 with a "not ported" message. Payloads Python allows without analysis (other
+tools, `--hq` with a non-Bash tool) are allowed here too.
+
+## Decisions that read the factory DB (T-0351)
+
+Go is stdlib only and opens no sqlite. Five decisions of the hook read the factory DB (read-only, `FACTORY_HOME` or the
+live home): the agent's own goal (`own_goal`, for `factory goal show <own goal>`), the `test_sandbox` config row
+(`sandbox_route`), the `public_text_repos` / `frozen_repos` rows (`PublicText`, git and gh writes), the task worktree of a
+coder's `git push` (`git_push_pin`) and the `scrub_terms_file` row (`terms_paths`). The binary decides them like this:
+
+1. Python's own "no DB" branch is taken in Go when the DB file does not exist (`db_path()`: `<home>/db/factory.db`, else
+   the legacy `<home>/factory.db`): own goal `None`, `test_sandbox` off, public text off, the push has no worktree (refused).
+2. Otherwise the whole payload is re-run through the Python hook: `python3 <py-hook> <argv without --py-hook>` with the
+   same stdin; its exit code and stderr are the binary's. The path comes from `--py-hook <abs path of
+   roles/hooks/worker-guard.py>`, which the shim passes (the binary lives outside the repo). If the path is missing or
+   unreadable, `python3` is missing, the run times out (120 s) or the hook exits with anything but 0 or 2, the binary
+   exits 2 (`owngoal.go:RunPython`). Delegation is never swallowed by HQ mode's `soft`.
+3. A command that cannot reach one of these decisions never delegates (no `factory goal show <id>`, no runner, no git/gh
+   write, a terms role with an exported terms file).
+
+Only what Python's early returns skip is decided in Go: a `git`/`gh` command reaches the public-text rule only for
+`commit|tag -a|push|merge|commit-tree|notes`, `-c alias.*`, `gh pr|issue|release <write>` and a `gh api` write.
+`terms_paths` unions the DB key with the exported terms-file variable. Go takes the variable alone while it is
+exported (spawn exports the configured path to every worker) and delegates only when it is not exported and a DB file
+exists; a path changed in the DB after a worker was spawned is therefore not seen by that worker's Go guard.
+
+Consequence for the hot path: on a box whose DB file exists, a terms role (coder, qa, reviewer, judge, pm) without an
+exported terms file, and every git/gh write, costs a Python run. Exporting the four config rows and the agent goals to a
+plain file the binary can read would remove it (follow-up, not part of this task).
 
 ## Command analyser (T-0349)
 
@@ -24,24 +49,9 @@ Read/Grep by a terms role still exit 2 `not ported` (T6d).
 file reads), `check.go` (`Check`, the R1/R2/R3 raw-text layer) and `terms.go` (`terms_bash`) port the functions named in
 their doc comments ("port of worker-guard.py:<func>"). The Python exception classes are Go error types (`Block`,
 `PrivBlock`, `UnitBlock`, `ClaudeBlock`, `DynamicBlock`, `PublicBlock`) and `Explain` prints the same stderr text.
-`NotPorted` is the stub error: unlike a plain `Block` it is never swallowed by HQ mode's `soft`.
 
-Stubs, by the section that owns them (a command that reaches one exits 2 where Python may allow it):
-
-| section | stub fires for | Python function |
-|---|---|---|
-| T6c gh | every `gh` command word (also behind `env` etc. in HQ mode) | `PublicText.command` (gh), `gh_repo_change` |
-| T6d git | a coder's `git push`/`send-pack`/`http-push`; a `git commit/tag/push/merge/commit-tree/notes` or `-c alias.*` in a pass where the public-text rule runs (worker pass, HQ check) | `git_push_pin`, `PublicText.git` (both read the DB) |
-| T6d git | a `git config` write that is not `--global/--system` or a `GIT_CONFIG*/HOME/XDG_CONFIG_HOME` assignment; `--file`/`-f` writes; `git remote add/set-url/...` | `persist_hit`, `repo_cfg_refuse`, `cfg_in_scratch` |
-| T6d config/persist | writers (`rm`, `cp`, `mv`, `tee`, ...), `sed -i`, awk, every interpreter (`python3 x.py`), editors | `cfg_write`, `persist_write` |
-| T6d config/persist | any redirect target (worker mode) | `cfg_redirect`, `persist_redirect` |
-| T6d factory | identity-variable assignments; `factory spawn/up/tick/relaunch/clean`; broad reads that reach a temp-home or own-goal decision; the evaluator role | `check_identity`, `factory_unit`, `broad_read`, `evaluator_factory` |
-| T6d sandbox | a test runner (`python3 -m unittest`, `pytest`, `go test`, ...) run by coder or qa | `sandbox_route` (reads `test_sandbox` from the DB) |
-
-The Go port cannot read the factory DB (stdlib only), so `terms_bash` takes the owner-terms path from the exported
-terms-file environment variable only. Python also reads the `scrub_terms_file` config key; reading it is part of T6d.
-HQ mode's public-text write hint (a command that cannot be parsed and looks like a git/gh write) is a stub for any HQ
-command with a parse error that contains `git` or `gh`.
+`NotPorted` no longer exists; its place is taken by `Delegate` (owngoal.go), the error that means "the Python hook
+decides this payload". `RepoProtBlock` (a `PrivBlock`) is the `gh` R-a refusal.
 
 ## Git rules (T-0350)
 
@@ -52,16 +62,32 @@ command with a parse error that contains `git` or `gh`.
 the Python tests do: `WORKER_GUARD_LIVE_HOME` replaces the shared checkout, `WORKER_GUARD_SCRATCH` names the worker's
 scratchpad; without it the scratchpad comes from the payload `session_id` (`guard.SessionID`).
 
-The stubs of the table above are ordered after the git rules, so a real `GitBlock` (shared checkout, branch deletion,
-`git config --global`) is reported as in Python; a stub only fires for a command the Go rules let through. Tests:
-`git_test.go` (`go test ./internal/guard -run Git`) ports `tests/test_worker_guard_git.py`; where Python allows a command
-that a stub still covers, the test accepts exit 0 or the `not ported` stub and refuses every other block.
+Tests: `git_test.go` (`go test ./internal/guard -run Git`) ports `tests/test_worker_guard_git.py`; where the decision
+reads the DB and a DB file exists, the test accepts the delegation.
+
+## Config, persist and factory rules (T-0351)
+
+- `host.go`: the module-level state that comes from the passwd entry: `derive_live_homes`, `LIVE_HOME(S)`, `PW_DIR`,
+  `CFG_DIR`, `PERSIST_FILES/TREES/ANCESTORS`, `RUN_SETTINGS`, `HOOK_REAL` (from `--py-hook`), `Analyzer.live_homes`.
+  `$HOME` and every env var are never read for it.
+- `config.go`: `cfg_cd`, `cfg_expand`, `cfg_hit`, `cfg_redirect`, `cfg_write` (the `~/.config/factory` and `run/settings`
+  write detector); `persist.go`: `brace_expand`, `repo_cfg_path`, `persist_path`, `persist_hit`, `persist_redirect`,
+  `persist_write`; `git.go`: `git_persist` (with `-C`, `--git-dir`, `--work-tree`), `repo_cfg_refuse`, `cfg_in_scratch`,
+  `git_push_pin`; `factory.go`: `temp_home`, `outside_live`, `agent_temp_home`, `check_identity`, `evaluator_factory`,
+  `factory_unit`, `broad_read`; `gh.go`: `gh_repo_change`; `publictext.go`: the entry conditions of `PublicText`;
+  `tools.go`: `persist_edit` and `terms_tool` (Edit/Write/MultiEdit/NotebookEdit and Read/Grep payloads).
+- Tests: `persist_test.go` ports `tests/test_worker_guard_persist.py` and `tests/test_worker_guard_repocfg.py`;
+  `factory_test.go` ports `tests/test_worker_guard_repoprot.py`, `tests/test_worker_guard_data.py`, the
+  identity/units/evaluator/config cases of `tests/test_worker_guard.py` and compares `derive_live_homes` with the Python
+  function for the same passwd directory; `cmd/worker-guard/section4_test.go` runs payloads through the real binary and
+  the Python hook and requires the same exit and stderr (Edit/Write, terms tools, own goal, `test_sandbox` with the
+  `uv`/`uvx` runner forms of `tests/test_worker_guard_uv_runner.py`, public text, push pin, the terms key in the DB).
 
 Tests: `commands_test.go` replays `testdata/commands_cases.json` (every Bash command the Python test modules
 `test_worker_guard`, `test_priv_guard`, `test_worker_guard_heredoc`, `test_worker_guard_units` and
 `test_worker_guard_reads` send to the hook, with the exit of the Python hook) and `testdata/helpers_cases.json` (the
-hand-written matchers against the Python regexes). A Go result may differ from Python only as a `NotPorted` stub in the
-blocking direction. `FuzzCheck` (`go test ./internal/guard -run XXX -fuzz FuzzCheck`) checks for no panic and no hang.
+hand-written matchers against the Python regexes). A Go result must equal the recorded Python exit unless it is a
+`Delegate` (the replay runs with a DB file present, so the DB-reading decisions delegate). `FuzzCheck` (`go test ./internal/guard -run XXX -fuzz FuzzCheck`) checks for no panic and no hang.
 
 ## I/O contract
 

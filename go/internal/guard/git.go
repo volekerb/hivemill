@@ -2,18 +2,15 @@ package guard
 
 import (
 	"os"
-	"os/user"
 	"strconv"
 	"strings"
-	"syscall"
 	"unicode/utf8"
 
 	"factory/go/internal/shlex"
 )
 
 // Section 3 of the port: the git rules (shared-checkout protection, mutating subcommands, git config/persist
-// keys, branch deletion, the cleaner exceptions). What the config/persist file rules (persist_hit,
-// repo_cfg_refuse), git_push_pin and the public-text rule own stays a fail-closed stub for T6d.
+// keys, repo-config writes, branch deletion, the coder's push pin, the cleaner exceptions).
 
 // SessionID is worker-guard.py:SESSION_ID, the hook payload's session_id; "" is Python's None. main sets it
 // before Check, as Python's main does.
@@ -70,41 +67,6 @@ func dashLetters(a, chars string) bool {
 		}
 	}
 	return hit
-}
-
-// liveHomes is a port of worker-guard.py:derive_live_homes for the current uid: <pw_dir>/factory is always live;
-// <pw_dir>/.config/factory/live_home can only add one. An error means the passwd entry is unreadable (Python
-// would die at import: exit 2).
-func liveHomes() ([]string, error) {
-	uid := os.Getuid()
-	u, err := user.LookupId(strconv.Itoa(uid))
-	if err != nil {
-		return nil, blockf("cannot read the passwd entry: " + err.Error())
-	}
-	homes := []string{pyRealpath(pyJoin(u.HomeDir, "factory"))}
-	cfgdir := pyJoin(pyJoin(u.HomeDir, ".config"), "factory")
-	path := pyJoin(cfgdir, "live_home")
-	st, err := os.Lstat(path)
-	if err != nil {
-		return homes, nil
-	}
-	pst, err := os.Lstat(cfgdir)
-	if err != nil {
-		return homes, nil
-	}
-	sys, ok := st.Sys().(*syscall.Stat_t)
-	if !ok || !st.Mode().IsRegular() || !pst.IsDir() || int(sys.Uid) != uid || st.Mode().Perm()&0o022 != 0 {
-		return homes, nil
-	}
-	b, err := os.ReadFile(path)
-	if err != nil || !utf8.Valid(b) {
-		return homes, nil
-	}
-	lines := pyLines(string(b))
-	if len(lines) == 1 && strings.HasPrefix(lines[0], "/") && !strings.Contains(lines[0], "\x00") {
-		homes = append(homes, pyRealpath(lines[0]))
-	}
-	return homes, nil
 }
 
 // gitHomes is a port of Analyzer.git_homes: the shared checkout(s). WORKER_GUARD_LIVE_HOME replaces them (tests
@@ -665,27 +627,30 @@ func configArgsWrite(args []string) bool {
 }
 
 // gitPersist is a port of Analyzer.git_persist (T-0334): `git config --global|--system|-f <protected file>` writes,
-// also behind `git -c ... config` and an alias. A write that is neither a --global/--system one nor in a command
-// that assigns GIT_CONFIG*/HOME/XDG_CONFIG_HOME reaches persist_hit / repo_cfg_refuse, which T6d owns: stub.
+// also behind `git -c ... config` and an alias. Read-only forms (`--global --get`, `--global --list`) and repo-local
+// writes stay allowed (repo-local ones only inside the scratchpad, T-0226: repoCfgRefuse).
 func (a *Analyzer) gitPersist(rest []string, depth int) error {
 	type aliasDef struct{ name, body string }
 	var aliases []aliasDef
 	i := 0
+	cwd, cwdOK := a.ccwd, a.ccwdKnown
+	var gitDir, workTree *string
 	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
 		o := rest[i]
-		val := ""
+		val, hasVal := "", false
 		if in(GitValueOpts, o) && i+1 < len(rest) {
-			val, i = rest[i+1], i+2
+			val, hasVal, i = rest[i+1], true, i+2
 		} else {
 			if strings.HasPrefix(o, "-c") && !strings.HasPrefix(o, "--") && len(o) > 2 {
-				val, o = o[2:], "-c"
+				val, hasVal, o = o[2:], true, "-c"
 			} else if strings.HasPrefix(o, "--git-dir=") || strings.HasPrefix(o, "--work-tree=") {
 				j := strings.IndexByte(o, '=')
-				o, val = o[:j], o[j+1:]
+				o, val, hasVal = o[:j], o[j+1:], true
 			}
 			i++
 		}
-		if o == "-c" && val != "" {
+		switch {
+		case o == "-c" && hasVal && val != "":
 			if body, ok := aliasAssign(val); ok {
 				name, b := body, ""
 				if j := strings.IndexByte(body, '='); j >= 0 {
@@ -693,6 +658,22 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 				}
 				aliases = append(aliases, aliasDef{name, b})
 			}
+		case o == "-C" && hasVal && cwdOK:
+			if dynamicDir(val) {
+				cwdOK = false
+			} else {
+				cwd = pyJoin(cwd, expandUser(val))
+			}
+		case o == "--git-dir" && hasVal:
+			v := val
+			gitDir = &v
+		case o == "--git-dir":
+			gitDir = nil
+		case o == "--work-tree" && hasVal:
+			v := val
+			workTree = &v
+		case o == "--work-tree":
+			workTree = nil
 		}
 	}
 	for _, al := range aliases {
@@ -723,38 +704,38 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 	}
 	if i < len(rest) && rest[i] == "remote" {
 		if i+1 < len(rest) && in(RemoteWrite, rest[i+1]) {
-			return notPorted("git remote write: repo_cfg_refuse (T6d)")
+			return a.repoCfgRefuse("git remote "+rest[i+1], cwd, cwdOK, gitDir, workTree, nil)
 		}
 		return nil
 	}
 	if i >= len(rest) || rest[i] != "config" {
 		return nil
 	}
-	var args []string
+	var args, files []string
 	scope := ""
-	hasFiles := false
 	for k := i + 1; k < len(rest); {
 		x := rest[k]
 		k++
-		name, eq := x, false
-		if j := strings.IndexByte(x, '='); j >= 0 {
-			name, eq = x[:j], true
-		}
+		name, val, eq := strings.Cut(x, "=")
 		if strings.HasPrefix(x, "--") && len(name) >= 4 {
 			if strings.HasPrefix("--global", name) || strings.HasPrefix("--system", name) {
 				scope = name
 				continue
 			}
 			if strings.HasPrefix("--file", name) && len(name) >= 5 {
-				hasFiles = true
-				if !eq && k < len(rest) {
+				if eq {
+					files = append(files, val)
+				} else if k < len(rest) {
+					files = append(files, rest[k])
 					k++
 				}
 				continue
 			}
 		} else if strings.HasPrefix(x, "-f") && !strings.HasPrefix(x, "--") {
-			hasFiles = true
-			if len(x) == 2 && k < len(rest) {
+			if len(x) > 2 {
+				files = append(files, x[2:])
+			} else if k < len(rest) {
+				files = append(files, rest[k])
 				k++
 			}
 			continue
@@ -771,10 +752,197 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 		return blockf("a `git config` write in a command that assigns GIT_CONFIG*, HOME or XDG_CONFIG_HOME (it can " +
 			"redirect the write to a protected file); set them in a separate command or drop them: " + persistWhy)
 	}
-	if hasFiles {
-		return notPorted("git config --file: persist_hit (T6d)")
+	saved, savedOK := a.ccwd, a.ccwdKnown
+	a.ccwd, a.ccwdKnown = cwd, cwdOK
+	for _, f := range files {
+		if a.persistHit(f, false) {
+			a.ccwd, a.ccwdKnown = saved, savedOK
+			return blockf("`git config --file " + pyRepr(f) + "` write: " + persistWhy)
+		}
 	}
-	return notPorted("git config write: repo_cfg_refuse (T6d)")
+	a.ccwd, a.ccwdKnown = saved, savedOK
+	return a.repoCfgRefuse("git config", cwd, cwdOK, gitDir, workTree, files)
+}
+
+// reGitDirEnv is re.search(r"\bGIT_(?:DIR|WORK_TREE|COMMON_DIR|CONFIG\w*)=", text).
+func hasGitDirEnv(text string) bool {
+	for i := 0; i+4 <= len(text); i++ {
+		if text[i:i+4] != "GIT_" || wordBefore(text, i) {
+			continue
+		}
+		rest := text[i+4:]
+		for _, lit := range []string{"DIR=", "WORK_TREE=", "COMMON_DIR="} {
+			if strings.HasPrefix(rest, lit) {
+				return true
+			}
+		}
+		if strings.HasPrefix(rest, "CONFIG") {
+			j := len("CONFIG")
+			for j < len(rest) && wordAt(rest, j) {
+				j += runeLen(rest, j)
+			}
+			if j < len(rest) && rest[j] == '=' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// repoCfgRefuse is a port of Analyzer.repo_cfg_refuse (T-0226): a repo-config write (git config, git remote add/...)
+// is allowed only with --file inside the worker's own scratchpad, or when the repository is a clone with its own .git
+// inside it. A linked worktree shares the live checkout's config, so it never counts. No key allow-list: no role
+// needs a repo-config write. Undecidable: refuse.
+func (a *Analyzer) repoCfgRefuse(what, cwd string, cwdOK bool, gitDir, workTree *string, files []string) error {
+	why := gitBlockf("`" + what + "` writes repo config: " + repoCfgWhy)
+	if len(files) > 0 {
+		saved, savedOK := a.ccwd, a.ccwdKnown
+		a.ccwd, a.ccwdKnown = cwd, cwdOK
+		all := true
+		for _, f := range files {
+			if !a.cfgInScratch(f) {
+				all = false
+				break
+			}
+		}
+		a.ccwd, a.ccwdKnown = saved, savedOK
+		if all {
+			return nil
+		}
+		return why
+	}
+	if !cwdOK || hasGitDirEnv(a.text) {
+		return why
+	}
+	for _, opt := range []*string{gitDir, workTree} {
+		if opt != nil && dynamicDir(*opt) {
+			return why
+		}
+	}
+	if gitDir != nil {
+		gd := pyRealpath(pyJoin(cwd, expandUser(*gitDir)))
+		if inScratchpad(gd) && !pathExists(pyJoin(gd, "commondir")) {
+			return nil
+		}
+		return why
+	}
+	var p string
+	if workTree != nil {
+		p = pyRealpath(pyJoin(cwd, expandUser(*workTree)))
+	} else {
+		p = pyRealpath(cwd)
+	}
+	for {
+		g := pyJoin(p, ".git")
+		bare := isFile(pyJoin(p, "HEAD")) && isDir(pyJoin(p, "objects"))
+		if isDir(g) || (bare && !pathExists(pyJoin(p, "commondir"))) {
+			if inScratchpad(p) {
+				return nil
+			}
+			break
+		}
+		if isFile(g) || pyDirname(p) == p {
+			break
+		}
+		p = pyDirname(p)
+	}
+	return why
+}
+
+// cfgInScratch is a port of Analyzer.cfg_in_scratch.
+func (a *Analyzer) cfgInScratch(word string) bool {
+	t := expandUser(substVars(cfgExpand(word), a.vars))
+	if t == "" || strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
+		return false
+	}
+	if !strings.HasPrefix(t, "/") {
+		t = pyJoin(a.ccwd, t)
+	}
+	return inScratchpad(pyRealpath(t))
+}
+
+// gitPushPin is a port of Analyzer.git_push_pin (T-0689, T-0743): a coder's only allowed push is `git push origin
+// HEAD:factory/<own task id>`; the task id comes from FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec,
+// force/--all/--mirror/--tags/--delete or option; no -c / --git-dir overrides; an unknown own task id refuses. The
+// own worktree is the one recorded for the task in the factory DB: with no DB file it cannot be resolved (refuse);
+// with one, the Python hook reads it.
+func (a *Analyzer) gitPushPin(rest []string) error {
+	if a.Role != "coder" {
+		return nil
+	}
+	i := 0
+	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
+		if rest[i] != "-C" && containsStr(rest[i+1:], "push") {
+			return blockf("git " + rest[i] + " before push: coder pushes take no git option except -C")
+		}
+		switch rest[i] {
+		case "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path":
+			i += 2
+		default:
+			i++
+		}
+	}
+	if i < len(rest) && (rest[i] == "send-pack" || rest[i] == "http-push" || (rest[i] == "subtree" && containsStr(rest[i+1:], "push"))) {
+		return blockf("git " + rest[i] + " is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
+	}
+	if i >= len(rest) || rest[i] != "push" {
+		return nil
+	}
+	args := rest[i+1:]
+	task, ok := coderTask(os.Getenv("FACTORY_AGENT"))
+	if !ok {
+		return blockf("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
+	}
+	if len(args) != 2 || args[0] != "origin" || args[1] != "HEAD:factory/"+task {
+		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` (no other remote, refspec, " +
+			"force, --all/--mirror/--tags/--delete or option)")
+	}
+	// fail closed: the whole Bash call must be the one push (optionally `-C <static path>`)
+	if _, _, ok := wholePush(strings.TrimFunc(a.text, pyIsSpace), task); !ok {
+		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` as the whole command " +
+			"(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
+	}
+	if !dbMissing() {
+		return delegate("git_push_pin: the task worktree is recorded in the factory DB")
+	}
+	return blockf("git push: cannot resolve the worktree recorded for " + task + " in the factory DB; ask your lead")
+}
+
+// coderTask is re.fullmatch(r"coder-(t-\d+)", agent): the task id part.
+func coderTask(agent string) (string, bool) {
+	t, ok := strings.CutPrefix(agent, "coder-")
+	if !ok || !strings.HasPrefix(t, "t-") || len(t) == 2 {
+		return "", false
+	}
+	for _, r := range t[2:] {
+		if !isDecimal(r) {
+			return "", false
+		}
+	}
+	return t, true
+}
+
+// wholePush is re.fullmatch(r"git(?: -C ([\w./-]+))? push origin HEAD:factory/<task>", text).
+func wholePush(text, task string) (dir string, hasDir, ok bool) {
+	rest, ok := strings.CutPrefix(text, "git")
+	if !ok {
+		return "", false, false
+	}
+	if r, found := strings.CutPrefix(rest, " -C "); found {
+		j := 0
+		for j < len(r) {
+			c, n := utf8.DecodeRuneInString(r[j:])
+			if !(isWord(c) || c == '.' || c == '/' || c == '-') {
+				break
+			}
+			j += n
+		}
+		if j == 0 {
+			return "", false, false
+		}
+		dir, hasDir, rest = r[:j], true, r[j:]
+	}
+	return dir, hasDir, rest == " push origin HEAD:factory/"+task
 }
 
 // aliasAssign is re.match(r"(?i)alias\.[^=]+=", val); it returns val[6:].
@@ -806,55 +974,6 @@ func gitHerdrInConfig(rest []string) error {
 		}
 		if prevC || cfgBefore || strings.HasPrefix(x, "-c") {
 			return blockf("herdr in git config (alias/pager can run shell commands)")
-		}
-	}
-	return nil
-}
-
-// gitPushPinStub reports whether worker-guard.py:git_push_pin (a coder's push pin, which reads the factory DB)
-// could act on this command: only a coder, and only when a push-like word is present. T6d owns the rule itself.
-func gitPushPinStub(role string, rest []string) error {
-	if role != "coder" {
-		return nil
-	}
-	for _, x := range rest {
-		switch x {
-		case "push", "send-pack", "http-push":
-			return notPorted("git_push_pin (T6d)")
-		}
-	}
-	return nil
-}
-
-// ptGitSubs is worker-guard.py:PT_GIT_SUBS.
-var ptGitSubs = set("commit", "tag", "push", "merge", "commit-tree", "notes")
-
-// gitPublicTextStub reports whether PublicText.git could look at this git command: its subcommand is one of
-// PT_GIT_SUBS, or a `-c alias.*` hides it. The rule reads the factory DB (public_text_repos), so it is T6d's;
-// the option walk is run for both readings of `-C` (a dynamic cd makes pt skip the value) and stubs on either.
-func gitPublicTextStub(args []string) error {
-	for _, cKnown := range []bool{true, false} {
-		j, alias := 0, false
-		for j < len(args) && strings.HasPrefix(args[j], "-") {
-			x := args[j]
-			switch {
-			case x == "-C":
-				if cKnown && j+1 < len(args) {
-					j++
-				}
-			case x == "--git-dir" || x == "--work-tree":
-				j++
-			case strings.HasPrefix(x, "--git-dir=") || strings.HasPrefix(x, "--work-tree="):
-			case x == "-c" || x == "--namespace" || x == "--exec-path":
-				if x == "-c" && j+1 < len(args) && strings.HasPrefix(strings.ToLower(args[j+1]), "alias.") {
-					alias = true
-				}
-				j++
-			}
-			j++
-		}
-		if j < len(args) && (in(ptGitSubs, args[j]) || alias) {
-			return notPorted("public text for git (T6d)")
 		}
 	}
 	return nil
