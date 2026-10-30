@@ -1747,6 +1747,9 @@ class Analyzer:
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
+        if i < len(rest) and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", rest[i]):
+            raise Block(f"git {rest[i]}: coders may not hide the git subcommand behind a variable, expansion, brace or "
+                        "glob word, array, $@/$1 or command substitution; write the literal subcommand (git status, git log ...)")
         if i >= len(rest) or rest[i] != "push":
             return
         args = rest[i + 1:]
