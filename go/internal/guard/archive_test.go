@@ -3,7 +3,6 @@ package guard
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -142,9 +141,11 @@ func TestNoPushGitFileOtherRolesUnchanged(t *testing.T) {
 	cmds := []string{"echo 'gitdir: x' > " + s + "/n/.git", "tar -xf a.tar -C " + a.repo + "/.git", "tar -xf a.tar",
 		"unzip a.zip -d " + a.home, "python3 -m zipfile -e a.zip " + a.home, "ar x --output=" + a.home + " a.a"}
 	a.expect(t, []string{"coder", "cleaner", "judge"}, s, 0, cmds...)
-	for _, c := range cmds[:3] {
-		if err := Check(c, s, "qa", true); err != nil && strings.Contains(err.Error(), ".git") {
-			t.Errorf("hq: %q: %v", c, err)
+	for _, role := range []string{"boss", "director", "lead"} {
+		for _, c := range cmds[:3] {
+			if err := Check(c, s, role, true); err != nil {
+				t.Errorf("hq %s: %q: %v", role, c, err)
+			}
 		}
 	}
 }
