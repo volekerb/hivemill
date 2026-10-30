@@ -2,7 +2,7 @@
 name: Feature request
 about: Suggest a change or a new capability
 title: "[Feature] "
-labels: enhancement
+labels: enhancement, triage
 ---
 
 ## Problem
