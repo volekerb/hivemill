@@ -104,8 +104,8 @@ def shots(pages, labels=None, duration=4):
     out = []
     for i, p in enumerate(pages):
         o = {"path": p} if isinstance(p, str) else dict(p)
-        if not isinstance(o.get("path"), str):
-            raise PageError("page %d has no 'path'; give a URL path or an object with a 'path'." % i)
+        if not isinstance(o.get("path"), str) or not o["path"].startswith("/"):
+            raise PageError("page %d needs a URL path starting with /; give a path or an object with a 'path'." % i)
         label = o.get("label", labels[i] if i < len(labels) else "")
         shot = {"path": o["path"], "label": label, "duration": o.get("duration", duration), "hold": o.get("hold", 0),
                 "scroll_to": o.get("scroll_to"), "fade_in": o.get("fade_in", True), "push_in": o.get("push_in", 1.0)}

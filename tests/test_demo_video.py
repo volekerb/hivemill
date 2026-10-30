@@ -201,6 +201,14 @@ class Guards(unittest.TestCase):
             rc, _, err = run_main("build", "--draft", "--out", "/tmp/x")
         self.assertIn("/tmp", err)  # got past the memory check to the dir check
 
+    def test_board_scale_reads_the_storyboard_for_the_memory_floor(self):
+        with mock.patch.object(dv, "load_board", lambda: {"scale": 2}):
+            self.assertEqual(dv.board_scale(), 2.0)
+        with mock.patch.object(dv, "load_board", lambda: {}):
+            self.assertEqual(dv.board_scale(), 1.0)
+        with mock.patch.object(dv, "load_board", side_effect=OSError("gone")):
+            self.assertEqual(dv.board_scale(), 1.0)
+
     def test_scale_out_of_range_is_refused(self):
         for bad in ("0.9", "2.5"):
             rc, _, err = run_main("build", "--draft", "--scale", bad, "--out", "/nonexistent-disk/out")

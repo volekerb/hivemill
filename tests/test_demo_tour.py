@@ -85,13 +85,14 @@ class PageOptions(unittest.TestCase):
         self.assertAlmostEqual(demo_tour.push_scale(5, 5, 1.04), 1.04)
 
     def test_bad_options_are_refused_with_the_page_named(self):
-        for bad in ({"duration": 0}, {"hold": 9}, {"hold": -1}, {"fade_in": "no"}, {"push_in": 0.9}, {"scroll_to": True},
+        for bad in ({"duration": 0}, {"hold": 9}, {"hold": -1}, {"fade_in": "no"}, {"push_in": 0.9}, {"push_in": 2.5}, {"scroll_to": True},
                     {"scroll_to": ["x"]}):
             with self.assertRaises(demo_tour.PageError, msg=bad) as cm:
                 demo_tour.shots([dict(path="/x", **bad)], None, 4)
             self.assertIn("/x", str(cm.exception))
-        with self.assertRaises(demo_tour.PageError):
-            demo_tour.shots([{"duration": 3}], None, 4)
+        for bad_path in ({"duration": 3}, "goals", {"path": "@host"}):
+            with self.assertRaises(demo_tour.PageError):
+                demo_tour.shots([bad_path], None, 4)
 
 
 class FakeBrowser:
