@@ -12062,16 +12062,26 @@ def review_rerun_candidates(con):
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
+def _rerun_agents(con, tid, head):
+    """The reviewer/qa agent rows the re-run pass started on head, by name (<role>-<task>-<sha8>)."""
+    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
+
+
 def _review_head_done(con, tid, head, clock):
-    """True when head already has a verdict, or the tick already started a review round on it (throttle row review-head:<task>:<sha>)."""
-    return bool(con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone()) \
-        or _throttled(con, f"review-head:{tid}:{head}", clock, float("inf"))
+    """True when the tick started both halves (reviewer + qa) on head (throttle row review-head:<task>:<sha>), or head has a verdict and the
+    re-run pass has not left a half-started round on it (only one of its two agents): that half gets its missing partner next tick."""
+    if _throttled(con, f"review-head:{tid}:{head}", clock, float("inf")):
+        return True
+    if len(_rerun_agents(con, tid, head)) == 1:
+        return False
+    return bool(con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone())
 
 
 def review_rerun_tick(con):
     """Part of tick step 2c: a task that had a review round on an older head (its verdicts or agents are why review_candidates skips it)
     gets a fresh reviewer + qa, named with the first 8 sha chars, once its current PR head has all checks green, no verdict and no
     tick-started round (throttle row review-head:<task>:<sha>, set when a round is spawned: no double spawn).
+    Always reviewer + qa, never the combined T0/T1 agent (the spec asks for R+Q on a new head; tiers apply to first reviews only).
     The head is read with `git ls-remote` first (a head with a verdict or a mark costs no gh call), then confirmed by one gh call."""
     try:
         clock = digest_clock().timestamp()
@@ -12106,11 +12116,12 @@ def review_rerun_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            _throttle_set(con, f"review-head:{tid}:{sha}", clock)
             event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8]})
             started.append(name)
             if status == "queued":
                 break
+        if len(_rerun_agents(con, tid, sha)) == 2:  # the mark only when both halves exist; a queued reviewer or refused qa retries
+            _throttle_set(con, f"review-head:{tid}:{sha}", clock)
         if started:
             send(con, boss, f"review autospawn: new head review started on {tid} @{sha[:8]}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} because head {sha} has all checks green "

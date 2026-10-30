@@ -226,10 +226,6 @@ class ReservedSlotsTests(Base):
         self.assertTrue(self.gate("coder")[0])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 H1, H2 = "1" * 40, "2" * 40
 GREEN = [{"__typename": "CheckRun", "name": "ci", "workflowName": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 PENDING = [{"__typename": "CheckRun", "name": "ci", "workflowName": "ci", "status": "IN_PROGRESS", "conclusion": ""}]
@@ -312,3 +308,37 @@ class NewHeadTests(Base):
         red = [dict(GREEN[0], conclusion="FAILURE")]
         self.assertEqual(self.step(H2, red), [])
         self.assertEqual(len(self.step(H2)), 2)
+
+    def test_queued_reviewer_still_gets_qa_after_it_exits(self):
+        # reviewer-review B1: queued reviewer on the new head, it runs and gives a verdict, qa must still be spawned
+        self.reviewed_on_h1()
+        self.assertEqual(self.step(H2, spawn_status="queued"), [("reviewer", "reviewer-t-0001-22222222")])
+        self.env.sql("UPDATE agents SET status='live' WHERE name='reviewer-t-0001-22222222'")
+        self.assertEqual(self.step(H2), [])
+        self.env.sql("UPDATE agents SET status='exited' WHERE name='reviewer-t-0001-22222222'")
+        self.verdict(H2)
+        self.assertEqual(self.step(H2), [("qa", "qa-t-0001-22222222")])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
+
+    def test_gate_refused_qa_is_retried_next_tick(self):
+        self.reviewed_on_h1()
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.spawn = lambda con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw: con.execute(
+                "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,'exited','t')",
+                (name, role, goal, team, task))
+            f.gate = lambda con, role=None, **k: (role != "qa", "full", {})
+            f._ci_remote_head = lambda branch, batch=None: H2
+            f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": H2, "mergeStateStatus": "CLEAN",
+                                                      "statusCheckRollup": GREEN}
+            f.review_autospawn_tick(con)
+            con.commit()
+        self.verdict(H2)
+        self.assertEqual(self.step(H2), [("qa", "qa-t-0001-22222222")])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
+
+
+if __name__ == "__main__":
+    unittest.main()
