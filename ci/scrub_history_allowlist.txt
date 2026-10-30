@@ -1,6 +1,6 @@
 # Reviewed blob-content hits for `ci/scrub_scan.py --history DIR --history-allowlist ci/scrub_history_allowlist.txt` (the fresh_export gate).
 # Format: path:pattern-id:sha256-of-the-raw-line  # reason   (path exact; hash over the line bytes without +/- and LF)
-# Every entry maps to a line already allowed by ci/scrub_allowlist.txt, except binary-blob false positives (docs/demo/hero.webp). Never add a line of real data; owner-term hits cannot be listed.
+# Every entry maps to a line already allowed by ci/scrub_allowlist.txt, except binary-blob false positives (docs/demo/hero.webp, docs/images/hero.png). Never add a line of real data; owner-term hits cannot be listed.
 # Generate a hash with: python3 ci/scrub_scan.py --history DIR --show-line-hash. Adding a line needs a reviewer: see docs/scrub-scan.md.
 tests/test_scrub_scan.py:email:1208ae6e0e07c0e780323681d2dc12640d82cc27d945c87a1b3f0d56615f56cc  # asserts the fake fixture values are masked in output
 tests/test_scrub_scan.py:email:beb94e4c18b2b8d4e6c52b8474222e8b901ae1c9ae6c1eb283e07eef2b8569f8  # lookalike domain that must still hit
@@ -16,6 +16,7 @@ tests/test_scrub_scan.py:rfc1918:62894f02ae06c8f5e5504c85ee9c9eb9b234c1387e3c7b7
 tests/test_scrub_scan.py:rfc1918:bbdd1c831fb0c49da089dee006816bc83dd0c5771da966cf1419023156f12093  # fake LAN address in a history test fixture
 docs/demo-data.md:home-path:90dc6fac8eb5a260412b163f1a91db249588bc62ae84fd108eb4c9b58509dfee  # prose: the demo dir layout, not a user home path
 docs/demo/hero.webp:email:aa4ea2d02c0abdf7bef37b1eaaecdc3cfc51251c8c710906b5c6818611106ead  # random image bytes in the binary blob match the email regex (false positive)
+docs/images/hero.png:email:9b63dac4252e3ae1e82a2a3c1472490511da8909d93769fa4f7acce9783764d0  # random image bytes in the binary blob match the email regex (false positive)
 roles/plugins/staff-engineer/feature-dev/.claude-plugin/plugin.json:email:a55623d43d4cff62f281b1db0080a365cbdad9a9c94dadaa8d2cbd5446c1dd27  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
 roles/plugins/staff-engineer/feature-dev/README.md:email:38ca9a732fbb9e84e911aa8be369193779e059f6a4b5e4c1181b098433129333  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
 roles/plugins/staff-engineer/pr-review-toolkit/.claude-plugin/plugin.json:email:a55623d43d4cff62f281b1db0080a365cbdad9a9c94dadaa8d2cbd5446c1dd27  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
