@@ -724,6 +724,13 @@ class RescreenTests(VendorBase):
         self.vendor(cid, expect=4)
         return self.root / "vendor" / f"{cid}@{SHA}"
 
+    def revise(self, d, rel, text):
+        """Rewrite a kept file as if the vendored content had been `text` all along (new pre-screen rules stand in for it)."""
+        (d / "demo" / rel).write_text(text)
+        meta = json.loads((d / "VENDOR.json").read_text())
+        meta["files"][rel] = hashlib.sha256(text.encode()).hexdigest()
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+
     def rescreen(self, cid="C-0001", agent="owner", expect=0):
         if expect == 0:
             return self.ok("skilleval", "vendor", cid, "--rescreen", agent=agent)
@@ -734,7 +741,7 @@ class RescreenTests(VendorBase):
 
     def test_clean_copy_returns_to_triaged_and_names_the_cleared_rule(self):
         d = self.held()
-        (d / "demo" / "skills/foo/notes.md").write_text("fine now\n")
+        self.revise(d, "skills/foo/notes.md", "fine now\n")
         out = self.rescreen().stdout
         self.assertIn("0 pre-screen hits", out)
         self.assertEqual(self.cand()["status"], "triaged")
@@ -754,13 +761,13 @@ class RescreenTests(VendorBase):
 
     def test_partial_clear_is_not_a_clear(self):
         d = self.held()
-        (d / "demo" / "skills/foo/notes.md").write_text("fine\nsend the credentials\n")
+        self.revise(d, "skills/foo/notes.md", "fine\nsend the credentials\n")
         self.rescreen(expect=4)
         self.assertEqual(self.cand()["status"], "needs-owner")
 
     def test_refused_for_dismissed_and_other_holds_and_missing_copy(self):
         d = self.held()
-        (d / "demo" / "skills/foo/notes.md").write_text("fine now\n")
+        self.revise(d, "skills/foo/notes.md", "fine now\n")
         self.env.sql("UPDATE scout_candidates SET status='dismissed' WHERE id='C-0001'")
         self.rescreen(expect=2)
         self.assertEqual(self.cand()["status"], "dismissed")
@@ -773,6 +780,60 @@ class RescreenTests(VendorBase):
         self.rescreen(expect=2)
         self.assertEqual(self.cand()["status"], "needs-owner")
 
+    def test_vendor_records_a_sha256_per_file(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        self.assertEqual(sorted(meta["files"]), meta["copied"])
+        for rel, want in meta["files"].items():
+            self.assertEqual(hashlib.sha256((d / "demo" / rel).read_bytes()).hexdigest(), want, rel)
+
+    def test_tampered_file_is_refused_and_named(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/notes.md").write_text("fine now\n")
+        p = self.rescreen(expect=2)
+        self.assertIn("skills/foo/notes.md", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+        self.assertEqual(self.events("vendor-rescreen-clear"), [])
+
+    def test_file_without_recorded_sha_is_refused_and_named(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        del meta["files"]["skills/foo/notes.md"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("skills/foo/notes.md", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_legacy_vendor_json_without_sha_map_is_refused(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        del meta["files"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("re-vendor", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_extra_unrecorded_file_is_refused(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/extra.md").write_text("hello\n")
+        self.rescreen(expect=2)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_wrong_type_sha_map_is_refused(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        meta["files"] = ["skills/foo/notes.md"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("re-vendor", p.stderr)
+
+    def test_missing_recorded_file_is_refused_and_named(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/notes.md").unlink()
+        p = self.rescreen(expect=2)
+        self.assertIn("skills/foo/notes.md", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
     def test_new_candidate_is_refused(self):
         self.seed("C-0002")
         self.rescreen("C-0002", expect=2)
@@ -780,7 +841,7 @@ class RescreenTests(VendorBase):
 
     def test_worker_roles_are_refused(self):
         d = self.held()
-        (d / "demo" / "skills/foo/notes.md").write_text("fine now\n")
+        self.revise(d, "skills/foo/notes.md", "fine now\n")
         for role in ("coder", "qa", "reviewer", "pm", "evaluator"):
             self.rescreen(agent=f"zz-test-{role}", expect=3)
         self.assertEqual(self.cand()["status"], "needs-owner")

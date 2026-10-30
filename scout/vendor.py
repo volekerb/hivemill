@@ -390,11 +390,45 @@ def prescreen(path, own_repo=None):
 def rescreen(root, cand):
     """Re-run the current prescreen on the kept copy of `cand` (same sha). Returns (meta, hits, copy dir); a missing or
     invalid copy raises VendorError. Writes nothing: `clear_hits` records a clean result."""
+    d = vendor_dir(root, cand["id"], cand["head_sha"])
     meta = vendored(root, cand["id"], cand["head_sha"])
     if not meta:
+        _raise_missing_file(d, cand)
         raise VendorError(f"{cand['id']}: no valid vendored copy at {cand['head_sha']}; run `factory skilleval vendor` first")
-    d = vendor_dir(root, cand["id"], cand["head_sha"])
+    _check_files(d, meta, cand["id"])
     return meta, prescreen(d / meta["plugin"], meta.get("repo")), d
+
+
+def _raise_missing_file(d, cand):
+    """The copy failed `vendored`: if VENDOR.json records files that are gone, name the first one."""
+    try:
+        meta = json.loads((d / "VENDOR.json").read_text())
+        plugin = d / meta["plugin"]
+        for rel in sorted(meta["files"]):
+            if not (plugin / rel).is_file():
+                raise VendorError(f"{cand['id']}: recorded file {rel} is missing from the kept copy; "
+                                  f"re-vendor it with `factory skilleval vendor {cand['id']}` (after removing the copy)")
+    except (OSError, ValueError, KeyError, TypeError):
+        return
+
+
+def _check_files(d, meta, cid):
+    """Refuse unless every kept file has a recorded sha256 in VENDOR.json and still matches it."""
+    files = meta.get("files")
+    redo = f"re-vendor the candidate (remove the kept copy, then `factory skilleval vendor {cid}`)"
+    if not isinstance(files, dict) or not files:
+        raise VendorError(f"{cid}: VENDOR.json has no per-file sha256 (vendored before shas were recorded); {redo}")
+    plugin = d / meta["plugin"]
+    for rel in sorted(meta.get("copied", [])):
+        if rel not in files:
+            raise VendorError(f"{cid}: {rel} has no recorded sha256 in VENDOR.json; {redo}")
+    for rel, want in sorted(files.items()):
+        try:
+            got = hashlib.sha256((plugin / rel).read_bytes()).hexdigest()
+        except OSError:
+            raise VendorError(f"{cid}: recorded file {rel} is missing from the kept copy; {redo}") from None
+        if got != want:
+            raise VendorError(f"{cid}: {rel} differs from the sha256 recorded at vendor time (modified after vendoring); {redo}")
 
 
 def clear_hits(d, meta):
@@ -575,6 +609,7 @@ def vendor(gh, cand, root):
         hits = prescreen(plugin, repo)
         meta = {"candidate": cid, "repo": repo, "path": path, "sha": sha, "licence": cand.get("licence"),
                 "plugin": plugin_name, "wrapped": wrapped, "copied": sorted(copied), "skipped": skipped,
+                "files": {rel: hashlib.sha256((plugin / rel).read_bytes()).hexdigest() for rel in sorted(copied)},
                 "prescreen_hits": hits}
         _write(stage / "VENDOR.json", (json.dumps(meta, indent=2) + "\n").encode())
         shutil.rmtree(out, ignore_errors=True)
