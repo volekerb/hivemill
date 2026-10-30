@@ -70,7 +70,7 @@ class CleanTests(FactoryTestCase):
         wt, branch, _ = self.task()
         before = git("worktree", "list", cwd=self.repo)
         p = self.clean("--dry-run")
-        self.assertIn("would remove", p.stdout)
+        self.assertIn("1 would remove", p.stdout)
         self.assertTrue(wt.exists())
         self.assertIn(branch, self.branches())
         self.assertEqual(git("worktree", "list", cwd=self.repo), before)
@@ -116,9 +116,10 @@ class CleanTests(FactoryTestCase):
 
     def test_clean_live_agent_kept(self):
         wt, branch, _ = self.task()
-        self.env.seed_agent("zz-test-c2", "coder", goal="G-001", task="T-0001", status="queued")
+        self.env.seed_agent("zz-test-c2", "coder", goal="G-001", task="T-0001", status="queued", pane_id="p1")
         self.assertIn("agent live", self.clean().stdout)
         self.env.sql("UPDATE agents SET status='live' WHERE name='zz-test-c2'")
+        self.env.set_herdr(agents=[{"name": "zz-test-c2", "pane_id": "p1", "agent": "claude"}])
         self.assertIn("agent live", self.clean().stdout)
         self.assertTrue(wt.exists())
         self.assertIn(branch, self.branches())
@@ -292,6 +293,196 @@ class CleanTests(FactoryTestCase):
         self.assertIn("recorded path not absolute", p.stdout)
         self.assertTrue(wt.exists())
         self.assertIn(branch, self.branches())
+
+    # -- T-0332: live agent = pane still belongs to it; closed PR landed on main -----------------------------------
+    def live_agent(self, name="zz-test-c2", pane="p1", task="T-0001", started="2026-01-01T00:00:00+00:00"):
+        self.env.seed_agent(name, "coder", goal="G-001", task=task, status="live", started=started, pane_id=pane)
+
+    def list_agents(self, *agents):
+        self.env.set_herdr(agents=[{"name": n, "pane_id": p, "agent": "claude"} for n, p in agents])
+
+    def land(self, branch, n=1, squash=True):
+        """Put the branch's work on origin/main (a squash commit, or the branch itself) and record the 'merged' event."""
+        git("checkout", "-q", "main", cwd=self.repo)
+        git("pull", "-q", "origin", "main", cwd=self.repo)
+        if squash:
+            git("checkout", "-q", f"origin/{branch}", "--", f"f{n}", cwd=self.repo)
+            git("commit", "-q", "-m", f"squash ({n})", cwd=self.repo)
+        else:
+            git("merge", "-q", "--ff-only", f"origin/{branch}", cwd=self.repo)
+        git("push", "-q", "origin", "main", cwd=self.repo)
+        main = git("rev-parse", "HEAD", cwd=self.repo)
+        self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES('t','judge','task',?,'merged',?)",
+                     (f"T-000{n}", f"@{main[:8]}"))
+        return main
+
+    def test_reused_pane_of_ended_agent_does_not_keep_worktree(self):
+        self.task()
+        self.live_agent(pane="p1")  # stale 'live' row; p1 now belongs to another agent
+        self.list_agents(("zz-test-other", "p1"))
+        p = self.clean("--dry-run")
+        self.assertIn("1 would remove", p.stdout)
+        self.assertNotIn("agent live", p.stdout)
+
+    def test_live_agent_with_its_own_pane_keeps_worktree(self):
+        wt, _, _ = self.task()
+        self.live_agent(pane="p1")
+        self.list_agents(("zz-test-c2", "p1"))
+        self.assertIn("agent live", self.clean().stdout)
+        self.assertTrue(wt.exists())
+
+    def test_live_row_missing_from_pane_list_past_grace_is_not_live(self):
+        self.task()
+        self.live_agent(pane="p1")
+        self.list_agents()
+        self.assertIn("1 would remove", self.clean("--dry-run").stdout)
+
+    def test_fresh_live_row_not_yet_listed_is_kept(self):
+        self.task()
+        now = self.env.sql("SELECT strftime('%Y-%m-%dT%H:%M:%S+00:00','now') t")[0]["t"]
+        self.live_agent(pane="p1", started=now)
+        self.list_agents()
+        self.assertIn("agent live", self.clean("--dry-run").stdout)
+
+    def test_queued_agent_keeps_worktree(self):
+        self.task()
+        self.env.seed_agent("zz-test-c3", "coder", goal="G-001", task="T-0001", status="queued")
+        self.list_agents()
+        self.assertIn("agent live", self.clean("--dry-run").stdout)
+
+    def test_closed_pr_landed_squash_and_task_done_removable(self):
+        wt, branch, _ = self.task(pr_state="CLOSED")
+        self.land(branch)
+        self.assertIn("1 would remove", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())  # dry run
+        self.assertIn("1 removed", self.clean().stdout)
+        self.assertFalse(wt.exists())
+
+    def test_closed_pr_head_ancestor_of_main_removable(self):
+        _, branch, _ = self.task(pr_state="CLOSED")
+        self.land(branch, squash=False)
+        self.assertIn("1 would remove", self.clean("--dry-run").stdout)
+
+    def test_closed_pr_work_not_on_main_kept(self):
+        wt, _, _ = self.task(pr_state="CLOSED")
+        self.assertIn("PR CLOSED", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
+
+    def test_closed_pr_merged_event_but_work_missing_from_main_kept(self):
+        self.task(pr_state="CLOSED")
+        main = git("rev-parse", "origin/main", cwd=self.repo)  # a real main commit that does not hold f1
+        self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES('t','judge','task','T-0001','merged',?)",
+                     (f"@{main[:8]}",))
+        self.assertIn("PR CLOSED", self.clean("--dry-run").stdout)
+
+    def test_closed_pr_landed_but_task_not_done_kept(self):
+        _, branch, _ = self.task(status="in_review", pr_state="CLOSED")
+        self.land(branch)
+        self.assertIn("task in_review", self.clean("--dry-run").stdout)
+
+    def test_closed_pr_landed_but_dirty_kept(self):
+        wt, branch, _ = self.task(pr_state="CLOSED")
+        self.land(branch)
+        (wt / "f1").write_text("changed\n")
+        self.assertIn("dirty", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
+
+    def test_doubt_unknown_merged_commit_keeps_worktree(self):
+        wt, branch, _ = self.task(pr_state="CLOSED")
+        self.land(branch)
+        self.env.sql("UPDATE events SET detail='@deadbeef' WHERE action='merged'")  # not a commit here
+        self.assertIn("PR CLOSED", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
+
+    def test_doubt_agent_list_unavailable_keeps_live_row(self):
+        wt, _, _ = self.task()
+        self.live_agent(pane="p1")
+        self.env.set_herdr(agents=None)  # the stub's `agent list` then answers without usable agents
+        p = self.clean("--dry-run")
+        self.assertTrue(wt.exists())
+        self.assertIn("agent live", p.stdout)
+
+    def pane_at(self, pane_id, wt):
+        self.env.set_herdr(panes=[{"pane_id": pane_id, "tab_id": "t9", "workspace_id": "w9", "cwd": str(wt), "foreground_cwd": str(wt)}])
+
+    def ended_agent(self, name, pane, wt, task="T-0001", status="exited"):
+        self.env.seed_agent(name, "coder", goal="G-001", task=task, status=status, pane_id=pane)
+        self.env.sql("UPDATE agents SET cwd=? WHERE name=?", (str(wt), name))
+
+    def test_three_reported_cases_removable_in_one_dry_run(self):
+        w1, _, _ = self.task(1)
+        w2, _, _ = self.task(2, url=URL2)
+        self.ended_agent("zz-test-a1", "p1", w1)  # exited, but its pane id is still listed in the worktree
+        self.ended_agent("zz-test-a2", "p2", w2, task="T-0002")
+        self.env.set_herdr(panes=[{"pane_id": p, "tab_id": "t9", "workspace_id": "w9", "cwd": str(w), "foreground_cwd": str(w)}
+                                  for p, w in (("p1", w1), ("p2", w2))])
+        self.list_agents(("zz-test-n1", "p7"))  # p1/p2 are leftover panes: no listed agent sits on them
+        w3, b3, _ = self.task(3, pr_state="CLOSED", url="https://github.com/zz-test/repo/pull/3")
+        self.land(b3, n=3)
+        self.assertIn("3 would remove", self.clean("--dry-run").stdout)
+        for w in (w1, w2, w3):
+            self.assertTrue(w.exists())
+
+    def test_exited_agent_pane_reused_by_another_does_not_protect_by_pane_cwd(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
+        self.env.sql("UPDATE agents SET cwd=NULL")  # only the pane cwd is left to hold it
+        self.pane_at("p1", wt)
+        self.list_agents(("zz-test-other", "p7"))  # leftover pane: nothing listed on p1
+        p = self.clean("--dry-run")
+        self.assertNotIn("protected", p.stdout)
+        self.assertIn("1 would remove", p.stdout)
+
+    def test_P1_listed_unknown_agent_without_db_row_holds_pane_cwd(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
+        self.env.sql("UPDATE agents SET cwd=NULL")
+        self.pane_at("p1", wt)
+        self.list_agents(("zz-test-stranger", "p1"))  # listed on p1, unknown to the DB
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
+
+    def test_P2_listed_starting_row_without_pane_id_holds_pane_cwd(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
+        self.env.seed_agent("zz-test-new", "coder", goal="G-001", task="T-0002", status="starting")  # pane_id NULL
+        self.env.sql("UPDATE agents SET cwd=NULL")
+        self.pane_at("p1", wt)
+        self.list_agents(("zz-test-new", "p1"))
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
+
+    def test_stale_live_row_with_recorded_cwd_does_not_protect(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-c2", "p1", wt, status="live")  # spawn recorded cwd=wt; p1 now belongs to another agent
+        self.list_agents(("zz-test-other", "p1"))
+        p = self.clean("--dry-run")
+        self.assertNotIn("protected", p.stdout)
+        self.assertIn("1 would remove", p.stdout)
+
+    def test_pane_cwd_kept_when_owner_unknown_or_running(self):
+        wt, _, _ = self.task()
+        self.pane_at("p9", wt)  # no agent row owns p9
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+        self.live_agent("zz-test-c2", "p9", task="T-0002")  # a running agent of another task owns the pane
+        self.list_agents(("zz-test-c2", "p9"))
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+
+    def test_live_row_with_recorded_cwd_kept_when_listed_or_agents_unknown(self):
+        wt, _, _ = self.task()
+        self.env.seed_agent("zz-test-lead", "lead", goal="G-001", status="live", pane_id="p1")
+        self.env.sql("UPDATE agents SET cwd=? WHERE name='zz-test-lead'", (str(wt),))
+        self.list_agents(("zz-test-lead", "p1"))
+        self.assertIn("protected: cwd of agent zz-test-lead", self.clean("--dry-run").stdout)
+        self.env.set_herdr(agents=None)
+        self.assertIn("protected: cwd of agent zz-test-lead", self.clean("--dry-run").stdout)
+
+    def test_live_row_listed_by_name_under_another_pane_is_still_live(self):
+        wt, _, _ = self.task()
+        self.live_agent(pane="p1")
+        self.list_agents(("zz-test-c2", "p7"), ("zz-test-other", "p1"))
+        self.assertIn("agent live", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
 
 
 if __name__ == "__main__":
