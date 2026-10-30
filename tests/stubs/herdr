@@ -58,11 +58,14 @@ def new_tab(ws, label):
 cmd = tuple(argv[:2])
 if cmd == ("agent", "list"):
     out({"agents": st["agents"]})
-elif cmd == ("agent", "start") and st.get("start_fail"):
-    print("herdr: agent_not_ready", file=sys.stderr)
+elif cmd == ("agent", "start") and opt("--timeout") is not None and not 3000 < int(opt("--timeout")) <= 300000:
+    print("herdr: invalid_agent_timeout: timeout_ms must be greater than 3000 and at most 300000", file=sys.stderr)
+    sys.exit(1)
+elif cmd == ("agent", "start") and st.get("start_fail"):  # true = agent_not_ready; a string = that error text
+    print("herdr: " + (st["start_fail"] if isinstance(st["start_fail"], str) else "agent_not_ready"), file=sys.stderr)
     sys.exit(1)
 elif cmd == ("agent", "start"):
-    if st.get("start_sleep") and opt("--timeout") == "90000":  # test hook: a start that waits for the TUI (the async start asks for 1 ms)
+    if st.get("start_sleep") and opt("--timeout") == "90000":  # test hook: a start that waits for the TUI (the async start asks for 3001 ms)
         import time
         time.sleep(float(st["start_sleep"]))
     name = argv[2]

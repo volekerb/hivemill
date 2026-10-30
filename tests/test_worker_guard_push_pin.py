@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -24,6 +25,7 @@ class PushPinTests(unittest.TestCase):
         self.wt = os.path.join(self.home, "worktrees", "G-018-T-0689")
         os.makedirs(os.path.join(self.home, ".git"))
         os.makedirs(os.path.join(self.home, "roles"))
+        self.write_db(self.wt)
         # a real clone under worktrees/ (own .git dir, not the live home) with a local bare origin
         origin = os.path.join(self.tmp, "origin.git")
         ident = ("-c", "user.email=t@t", "-c", "user.name=t")
@@ -35,9 +37,21 @@ class PushPinTests(unittest.TestCase):
         git(*ident, "fetch", "-q", "origin", cwd=self.wt)
         git(*ident, "checkout", "-q", "-b", f"factory/{TASK}", cwd=self.wt)
 
+    def write_db(self, worktree, task=TASK.upper()):
+        """T-0743: the factory DB row the pin resolves the own worktree from (tasks.worktree)."""
+        os.makedirs(os.path.join(self.home, "db"), exist_ok=True)
+        db = os.path.join(self.home, "db", "factory.db")
+        if os.path.exists(db):
+            os.remove(db)
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES (?, ?)", (task, worktree))
+        con.commit()
+        con.close()
+
     def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
-        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home)
+        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home)
         if agent:
             env["FACTORY_AGENT"] = agent
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
@@ -131,6 +145,36 @@ class PushPinTests(unittest.TestCase):
         link_own = os.path.join(self.tmp, "ownlink")
         os.symlink(self.wt, link_own)
         self.assertEqual(self.run_hook(f"git -C {link_own} push origin {OWN}").returncode, 0)
+
+    def test_pane_in_another_worktree_refused(self):
+        """T-0743: a pane cd'd into another worktree cannot push, with or without -C, even naming its own worktree."""
+        other = os.path.join(self.home, "worktrees", "G-018-T-0001")
+        git("init", "-q", "-b", "main", other, cwd=self.tmp)
+        for cmd in (f"git push origin {OWN}", f"git -C . push origin {OWN}", f"git -C {other} push origin {OWN}",
+                    f"git -C {self.wt} push origin {OWN}"):
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, cwd=other)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("own worktree", p.stderr)
+
+    def test_unresolvable_worktree_refuses(self):
+        """T-0743: no DB, no task row or an empty worktree column refuses (fail closed)."""
+        os.remove(os.path.join(self.home, "db", "factory.db"))
+        p = self.run_hook(f"git push origin {OWN}")
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("cannot resolve the worktree", p.stderr)
+        self.write_db("")
+        self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
+        self.write_db(self.wt, task="T-0001")  # a DB without this task's row
+        self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
+
+    def test_db_worktree_not_cwd_decides(self):
+        """T-0743: the DB path is the pin; a worktree-looking cwd that is not the recorded one is refused, the recorded one passes."""
+        other = os.path.join(self.home, "worktrees", "G-018-T-0002")
+        git("init", "-q", "-b", "main", other, cwd=self.tmp)
+        self.write_db(other)
+        self.assertEqual(self.run_hook(f"git push origin {OWN}").returncode, 2)
+        self.assertEqual(self.run_hook(f"git push origin {OWN}", cwd=other).returncode, 0)
 
 
 if __name__ == "__main__":

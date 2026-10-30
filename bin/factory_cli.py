@@ -1007,6 +1007,25 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
         return {"raw": out}
 
 
+def herdr_start_error(*args):
+    """Run a herdr command that may fail; return (result, error text). error is None on success."""
+    herdr_gate(args)
+    env = {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
+    try:
+        p = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
+    except subprocess.TimeoutExpired as e:
+        return None, f"timed out: {e}"
+    except FileNotFoundError as e:
+        return None, f"herdr not found: {e}"
+    if p.returncode != 0:
+        return None, p.stderr.strip() or p.stdout.strip() or f"exit {p.returncode}"
+    out = p.stdout.strip()
+    try:
+        return (json.loads(out.splitlines()[-1])["result"] if out else {}), None
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return {"raw": out}, None
+
+
 def herdr_agents():
     r = herdr("agent", "list", check=False)
     return (r or {}).get("agents", []) if r is not None else None
@@ -6932,7 +6951,8 @@ def gh_cred_env(con, role, name):
     return {**scrub, **pane}
 
 
-ASYNC_START_TIMEOUT_MS = "1"  # tick_async_start: the shortest agent-start --timeout; the tick checks readiness itself
+ASYNC_START_TIMEOUT_MS = "3001"  # tick_async_start: the shortest agent-start --timeout herdr 0.9.5 accepts (> 3000, <= 300000); the tick checks readiness itself
+START_PENDING_ERRORS = ("agent_not_ready", "timed out")  # herdr start errors that only mean "not ready yet"
 START_CONFIRM_S = 90          # a start-pending agent not listed ready after this long is start-uncertain (the old --timeout 90000)
 
 
@@ -7053,9 +7073,17 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # tick_async_start: not sandboxed (its escape check must not wait a tick), not the evaluator; the start is told
     # not to wait for the TUI and the tick's start_confirm phase finishes what follows a successful start
     async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
-    r = herdr("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
-              ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args, check=False)
+    start_args = ("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
+                  ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args)
+    start_err = None
     if async_start:
+        r, start_err = herdr_start_error(*start_args)
+    else:
+        r = herdr(*start_args, check=False)
+    if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
+        # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
+        event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
+    elif async_start:
         con.execute("UPDATE agents SET start_pending=?, start_pending_info=? WHERE name=?",
                     (time.time(), json.dumps({"fresh": bool(fresh), "old_sid": existing["session_id"] if existing else None,
                                               "new_sid": sid, "flagless": bool(existing and existing["flagless"]),
