@@ -34,16 +34,27 @@ A release candidate is a full 40-character SHA on origin/main (first-parent hist
 
 1. has a green `tests.yml` push run (push runs on main run the full suite);
 2. contains the release PR for that version;
-3. passes `python3 ci/release_check.py <sha>` with exit 0 (built by T-0794).
+3. passes `python3 ci/release_check.py <sha>` with exit 0.
 
-`ci/release_check.py` checks:
+Usage, run by the director from the factory checkout:
 
-- green CI on the SHA;
-- a fresh-install smoke test from a detached checkout of the SHA;
-- the public-text guard on the release notes;
-- the notes exist, have an Upgrade section and contain 0 placeholders;
-- `VERSION` equals the version;
-- the tag is not yet on origin.
+```
+python3 ci/release_check.py <sha> [--version X.Y.Z] [--repo OWNER/NAME]
+```
+
+`<sha>` is any commit-ish; it is resolved to the full 40-character SHA. `--version` defaults to `VERSION` at that SHA, `--repo` to the origin remote. The script prints one `PASS <name>` or `FAIL <name>` line per check and runs all of them even after a failure:
+
+1. `on-main`: the SHA is on the first-parent history of origin/main.
+2. `version`: the version is `X.Y.Z` and equals `VERSION` at the SHA.
+3. `ci-green`: a completed, successful `tests.yml` push run exists for the SHA (push runs on main run the full suite).
+4. `notes`: `changelog.py --check-version` passes and the release notes contain 0 placeholders (the FAIL line names each hit with its line number).
+5. `fresh-install-smoke`: from a detached checkout of the SHA, with a temporary `HOME` and `FACTORY_HOME`, `factory --version` prints `hivemill <version>`, `ci/demo_seed.py` succeeds and `factory serve` on the demo home answers HTTP 200. The live factory is never touched.
+6. `public-text`: the public-text guard passes on the release notes. Without owner terms the guard exits 2 and the check fails; it is never skipped.
+7. `tag-free`: `v<version>` is not on origin yet.
+
+Exit 0: all checks passed, and the script prints the exact owner commands (fetch, `git tag -a`, `git push` of the tag). Exit 1: a check failed, no commands are printed. Exit 2: usage error or the SHA does not resolve. The script only reads; it never tags, pushes or creates a release.
+
+For a MINOR (patch 0) release it also prints a reminder that the owner runs `ci/freshbox_test.py` (needs `sudo`) before tagging. The automated smoke in check 5 runs for every release; the fresh-box test is for MINOR releases only.
 
 Later merges to main do not invalidate the candidate: the tag points at the SHA.
 
