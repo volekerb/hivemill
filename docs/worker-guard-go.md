@@ -8,14 +8,44 @@ The Python hook on `origin/main` is the behaviour contract.
 
 | section | task | state |
 |---|---|---|
-| I/O contract, shell front end, lookaround matchers | T-0347 | here |
-| command analysis | T6b | not started |
+| I/O contract, shell front end, lookaround matchers | T-0347 | merged |
+| command analysis (priv, shells, launchers, kill, systemctl, `check`) | T-0349 | here |
 | git rules | T6c | not started |
 | config, persist, factory rules | T6d | not started |
 
-Until the last section lands every Bash command, and every Edit/Write/MultiEdit/NotebookEdit call and every
-Read/Grep by a terms role, exits 2 with `worker-guard(go): not ported: <section>`. A partial port can never allow more than
-Python. Payloads Python allows without analysis (other tools, `--hq` with a non-Bash tool) are allowed here too.
+A rule that belongs to a section not yet ported is a fail-closed stub: the command exits 2 with
+`worker-guard(go): not ported: <rule>`. A partial port can never allow more than Python. Payloads Python allows without
+analysis (other tools, `--hq` with a non-Bash tool) are allowed here too. Edit/Write/MultiEdit/NotebookEdit calls and
+Read/Grep by a terms role still exit 2 `not ported` (T6d).
+
+## Command analyser (T-0349)
+
+`analyzer.go` (`Analyzer`, `script`, `priv`), `commands.go` (`cmd`, `kill`, `shell`, `loose`, `xargs`, `systemctl`,
+file reads), `check.go` (`Check`, the R1/R2/R3 raw-text layer) and `terms.go` (`terms_bash`) port the functions named in
+their doc comments ("port of worker-guard.py:<func>"). The Python exception classes are Go error types (`Block`,
+`PrivBlock`, `UnitBlock`, `ClaudeBlock`, `DynamicBlock`, `PublicBlock`) and `Explain` prints the same stderr text.
+`NotPorted` is the stub error: unlike a plain `Block` it is never swallowed by HQ mode's `soft`.
+
+Stubs, by the section that owns them (a command that reaches one exits 2 where Python may allow it):
+
+| section | stub fires for | Python function |
+|---|---|---|
+| T6c git | every `git` or `gh` command word (also behind `env` etc. in HQ mode) | `git_push_pin`, `PublicText.command`, `git_shared`, `git_delete`, `git_persist`, `gh_repo_change` |
+| T6d config/persist | writers (`rm`, `cp`, `mv`, `tee`, ...), `sed -i`, awk, every interpreter (`python3 x.py`), editors | `cfg_write`, `persist_write` |
+| T6d config/persist | any redirect target (worker mode) | `cfg_redirect`, `persist_redirect` |
+| T6d factory | identity-variable assignments; `factory spawn/up/tick/relaunch/clean`; broad reads that reach a temp-home or own-goal decision; the evaluator role | `check_identity`, `factory_unit`, `broad_read`, `evaluator_factory` |
+| T6d sandbox | a test runner (`python3 -m unittest`, `pytest`, `go test`, ...) run by coder or qa | `sandbox_route` (reads `test_sandbox` from the DB) |
+
+The Go port cannot read the factory DB (stdlib only), so `terms_bash` takes the owner-terms path from the exported
+terms-file environment variable only. Python also reads the `scrub_terms_file` config key; reading it is part of T6d.
+HQ mode's public-text write hint (a command that cannot be parsed and looks like a git/gh write) is a stub for any HQ
+command with a parse error that contains `git` or `gh`.
+
+Tests: `commands_test.go` replays `testdata/commands_cases.json` (every Bash command the Python test modules
+`test_worker_guard`, `test_priv_guard`, `test_worker_guard_heredoc`, `test_worker_guard_units` and
+`test_worker_guard_reads` send to the hook, with the exit of the Python hook) and `testdata/helpers_cases.json` (the
+hand-written matchers against the Python regexes). A Go result may differ from Python only as a `NotPorted` stub in the
+blocking direction. `FuzzCheck` (`go test ./internal/guard -run XXX -fuzz FuzzCheck`) checks for no panic and no hang.
 
 ## I/O contract
 

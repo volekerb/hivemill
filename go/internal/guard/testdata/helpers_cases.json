@@ -1,0 +1,1068 @@
+[
+{
+"fn": "sedE",
+"in": "s/a/b/e",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "1e sudo x",
+"out": [
+true,
+"sudo x"
+]
+},
+{
+"fn": "sedE",
+"in": "e sudo ls",
+"out": [
+true,
+"sudo ls"
+]
+},
+{
+"fn": "sedE",
+"in": "$e docker ps",
+"out": [
+true,
+"docker ps"
+]
+},
+{
+"fn": "sedE",
+"in": "p;e  su -",
+"out": [
+true,
+"su -"
+]
+},
+{
+"fn": "sedE",
+"in": "s/x/y/gpe;p",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "s/x/y/",
+"out": [
+false,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "e",
+"out": [
+false,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "x e",
+"out": [
+false,
+""
+]
+},
+{
+"fn": "sedE",
+"in": ",e foo",
+"out": [
+true,
+"foo"
+]
+},
+{
+"fn": "sedE",
+"in": "{e foo}",
+"out": [
+true,
+"foo}"
+]
+},
+{
+"fn": "sedE",
+"in": "2٣e sudo",
+"out": [
+true,
+"sudo"
+]
+},
+{
+"fn": "sedE",
+"in": "٣ e sudo",
+"out": [
+true,
+"sudo"
+]
+},
+{
+"fn": "sedE",
+"in": "s/a/b/ge ",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "s/a/b/ge\n",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "/e/",
+"out": [
+false,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "a/Ie;",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "se x",
+"out": [
+false,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "1 e\nsudo x",
+"out": [
+true,
+"sudo x"
+]
+},
+{
+"fn": "sedE",
+"in": "e \n",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": " e x",
+"out": [
+true,
+"x"
+]
+},
+{
+"fn": "sedE",
+"in": "0e docker",
+"out": [
+true,
+"docker"
+]
+},
+{
+"fn": "sedE",
+"in": "/pe",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "/pe\t",
+"out": [
+true,
+""
+]
+},
+{
+"fn": "sedE",
+"in": "1,3e su root",
+"out": [
+true,
+"su root"
+]
+},
+{
+"fn": "sedE",
+"in": " e sudo",
+"out": [
+true,
+"sudo"
+]
+},
+{
+"fn": "sedE",
+"in": ";e sudo",
+"out": [
+true,
+"sudo"
+]
+},
+{
+"fn": "awkRun",
+"in": "BEGIN{system(\"sudo ls\")}",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "system (x)",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "system",
+"out": false
+},
+{
+"fn": "awkRun",
+"in": "{print | \"sudo tee\"}",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "\"sort\" |",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "x | & 'cmd'",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "|&\"c\"",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "a|b",
+"out": false
+},
+{
+"fn": "awkRun",
+"in": "\"a\"  |",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "' |",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "|   \"x",
+"out": true
+},
+{
+"fn": "awkRun",
+"in": "systemx(",
+"out": false
+},
+{
+"fn": "awkRun",
+"in": "print > \"/tmp\"",
+"out": false
+},
+{
+"fn": "awkRun",
+"in": "\"x\"\n|",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "HERDR_SOCKET_PATH=x",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "HERDR_SESSION +=y",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "xHERDR_SOCKET_PATH=1",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "export HERDR_SOCKET_PATH",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "export -x HERDR_SESSION",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "export -n -x  HERDR_SESSION",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "export HERDR_SESSIONS",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "declare -x HERDR_SOCKET_PATH",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "declare -rx HERDR_SESSION",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "typeset -x HERDR_SESSION=1",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "declare -r HERDR_SESSION",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "export HERDR_SOCKET_PATH_X",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "éHERDR_SESSION=1",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "HERDR_SESSION =1",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "echo HERDR_SESSION",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "export\tHERDR_SESSION",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "exportHERDR_SESSION",
+"out": false
+},
+{
+"fn": "r2Set",
+"in": "export -é HERDR_SESSION",
+"out": true
+},
+{
+"fn": "r2Set",
+"in": "declare -x\nHERDR_SESSION",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "unset HERDR_SOCKET_PATH",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "unset FOO HERDR_SOCKET_PATH",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "unset HERDR_SOCKET_PATHX",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "unset FOO\nHERDR_SOCKET_PATH",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "env -u HERDR_SOCKET_PATH ls",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -uHERDR_SOCKET_PATH ls",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -i ls",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -ix ls",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -x ls",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "env --ignore-environment ls",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env --unset=HERDR_SOCKET_PATH x",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env --unset HERDR_SOCKET_PATH x",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -u  HERDR_SOCKET_PATH",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -i",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env\n-i x",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env a\n-i x",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -u HERDR_SOCKET_PATHX",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "xunset HERDR_SOCKET_PATH",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "env FOO=1 -i",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env -I x",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "env --ignore-environmentx",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "env -éi x",
+"out": false
+},
+{
+"fn": "r2Unset",
+"in": "unset x # HERDR_SOCKET_PATH",
+"out": true
+},
+{
+"fn": "r2Unset",
+"in": "env  \t -i\n",
+"out": true
+},
+{
+"fn": "redirSubst",
+"in": ">$(x)",
+"out": [
+">$(x)"
+]
+},
+{
+"fn": "redirSubst",
+"in": "> /tmp/$(cmd).bashrc",
+"out": [
+"> /tmp/$(cmd).bashrc"
+]
+},
+{
+"fn": "redirSubst",
+"in": ">>`x`.bashrc",
+"out": [
+">>`x`.bashrc"
+]
+},
+{
+"fn": "redirSubst",
+"in": "echo hi >| $(f)",
+"out": [
+">| $(f)"
+]
+},
+{
+"fn": "redirSubst",
+"in": "cat >/tmp/a ; echo $(x)",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": "a > b $(c)",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": ">  \n $(x)",
+"out": [
+">  \n $(x)"
+]
+},
+{
+"fn": "redirSubst",
+"in": "> ab c`d`",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": ">$HOME/.bashrc",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": "x > f.txt; y > $(g)",
+"out": [
+"> $(g)"
+]
+},
+{
+"fn": "redirSubst",
+"in": "echo >$(printf .bashrc)\ncat > `h`",
+"out": [
+">$(printf .bashrc)",
+"> `h`"
+]
+},
+{
+"fn": "redirSubst",
+"in": ">&$(x)",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": "<$(x)",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": "> $(x)",
+"out": [
+"> $(x)"
+]
+},
+{
+"fn": "redirSubst",
+"in": ">>>$(x)",
+"out": [
+">>>$(x)"
+]
+},
+{
+"fn": "redirSubst",
+"in": "> a;`b`",
+"out": []
+},
+{
+"fn": "redirSubst",
+"in": "echo `x` > y",
+"out": []
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/cli.js",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "node_modules/@anthropic-ai/claude-code/cli.js",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/a/b/c.mjs",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/x.cjs",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/cli.jsx",
+"out": false
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/cli.js\n",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/.js",
+"out": false
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code//x.js",
+"out": false
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/a.b/c-d.js",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/é/x.js",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "xclaude-code/y.js",
+"out": true
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/ x.js",
+"out": false
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/cli.mcjs",
+"out": false
+},
+{
+"fn": "claudeCLI",
+"in": "claude-code/cli.js\n\n",
+"out": false
+},
+{
+"fn": "claudeCLI",
+"in": "a/claude-code/b/claude-code/c.js",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "herdr e",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "e herdr",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "1e herdr",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "s/x/herdr/e",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "s/a/herdr/ge ",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "p;e herdr",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "x,e",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "a e",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "ee",
+"out": false
+},
+{
+"fn": "sedHerdr",
+"in": "herdr\ne",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "/e;",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "s/herdr/y/",
+"out": false
+},
+{
+"fn": "sedHerdr",
+"in": "$e",
+"out": true
+},
+{
+"fn": "sedHerdr",
+"in": "eé",
+"out": false
+},
+{
+"fn": "sedHerdr",
+"in": "2e٣",
+"out": false
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/bash",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/usr/bin/env bash",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/sh",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/usr/bin/python3",
+"out": false
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/zsh -e",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/usr/bin/env ssh",
+"out": false
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/dash",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!sh",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/ash x",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/ksh",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/fish",
+"out": false
+},
+{
+"fn": "shShebang",
+"in": "#!/usr/bin/perl -sh",
+"out": true
+},
+{
+"fn": "shShebang",
+"in": "#! /bin/rbash",
+"out": false
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/xsh",
+"out": false
+},
+{
+"fn": "shShebang",
+"in": "#!/bin/basher",
+"out": false
+},
+{
+"fn": "pyLines",
+"in": "a\nb",
+"out": [
+"a",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "a\r\nb",
+"out": [
+"a",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "a\rb",
+"out": [
+"a",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "a\u000bb",
+"out": [
+"a",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "a\fb",
+"out": [
+"a",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "a\u001cb\u001d\u001e",
+"out": [
+"a",
+"b",
+""
+]
+},
+{
+"fn": "pyLines",
+"in": "ab",
+"out": [
+"a",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "a b c",
+"out": [
+"a",
+"b",
+"c"
+]
+},
+{
+"fn": "pyLines",
+"in": "",
+"out": []
+},
+{
+"fn": "pyLines",
+"in": "\n",
+"out": [
+""
+]
+},
+{
+"fn": "pyLines",
+"in": "a\n",
+"out": [
+"a"
+]
+},
+{
+"fn": "pyLines",
+"in": "\n\nx",
+"out": [
+"",
+"",
+"x"
+]
+},
+{
+"fn": "pyLines",
+"in": "a\r\n\r\nb",
+"out": [
+"a",
+"",
+"b"
+]
+},
+{
+"fn": "pyLines",
+"in": "é\nè",
+"out": [
+"é",
+"è"
+]
+},
+{
+"fn": "isSigWord",
+"in": "-9",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-KILL",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-s",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-",
+"out": false
+},
+{
+"fn": "isSigWord",
+"in": "-1\n",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-9a",
+"out": false
+},
+{
+"fn": "isSigWord",
+"in": "-٣",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-A_+",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-1_",
+"out": false
+},
+{
+"fn": "isSigWord",
+"in": "-²",
+"out": false
+},
+{
+"fn": "isSigWord",
+"in": "-SIGKILL",
+"out": true
+},
+{
+"fn": "isSigWord",
+"in": "-+",
+"out": false
+},
+{
+"fn": "isSigWord",
+"in": "-a b",
+"out": false
+},
+{
+"fn": "isJobTarget",
+"in": "%1",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "%",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "%%",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "$!",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "${!}",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "%1 2",
+"out": false
+},
+{
+"fn": "isJobTarget",
+"in": "%a\n",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "$!\n",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "%é",
+"out": true
+},
+{
+"fn": "isJobTarget",
+"in": "% x",
+"out": false
+},
+{
+"fn": "isJobTarget",
+"in": "$$",
+"out": false
+},
+{
+"fn": "isJobTarget",
+"in": "%\n\n",
+"out": false
+}
+]

@@ -279,8 +279,9 @@ CREATE INDEX IF NOT EXISTS idx_util_samples_ts ON util_samples(ts);
 GATE_RUNS_DDL = """
 CREATE TABLE IF NOT EXISTS gate_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, task_id TEXT, pr_url TEXT,
-  kind TEXT NOT NULL,  -- pr | main
+  kind TEXT NOT NULL,  -- pr | main | train
   head_sha TEXT, main_sha TEXT,
+  task_ids TEXT, tip_sha TEXT, tree TEXT,  -- kind=train (T-0522): the prefix's tasks, its tip commit and tree id
   status TEXT NOT NULL,  -- queued | running | pass | fail | error
   exit_code INTEGER, test_count INTEGER, main_count INTEGER, cmd TEXT, log_path TEXT, pid INTEGER, actor TEXT,
   note TEXT, created TEXT NOT NULL, started TEXT, finished TEXT);
@@ -438,6 +439,13 @@ def migrate(con):
                     raise
     con.execute("CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL)")
     con.executescript(GATE_RUNS_DDL)
+    for col in ("task_ids", "tip_sha", "tree"):  # train runs (T-0522) on a DB created before the columns existed
+        if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
+            try:
+                con.execute(f"ALTER TABLE gate_runs ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError:  # a concurrent process added it first
+                if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
+                    raise
     con.executescript(UTIL_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
@@ -3696,29 +3704,194 @@ def judge_train_plan(con, tasks):
         if rc != 0 or not new:
             dropped.append((tid, f"git commit-tree failed: {err or rc}"))
             continue
-        steps.append({"task": tid, "head": sha, "tree": tree})
+        steps.append({"task": tid, "head": sha, "tree": tree, "commit": new})
         tip = new
-    return {"main": main_sha, "steps": steps, "dropped": dropped}
+    return {"main": main_sha, "steps": steps, "dropped": dropped, "repo": str(git_repo)}
 
 
 def judge_train(con, a):
-    if not a.dry_run:
-        die("--train needs --dry-run (merging a train is not implemented yet)", 2)
     tasks = list(a.train)
     if len(set(tasks)) != len(tasks):
         die("--train task ids must be distinct", 2)
     if not 2 <= len(tasks) <= TRAIN_MAX:
         die(f"--train takes 2..{TRAIN_MAX} distinct task ids, got {len(tasks)}", 2)
+    proj = None
+    if not a.dry_run:  # T-0522: a real train is gated by the local gate, so the project must have one
+        first = con.execute("SELECT pr_url FROM tasks WHERE id=?", (tasks[0],)).fetchone()
+        proj = gate_project_for(con, first["pr_url"]) if first else None
+        if not proj:
+            die(f"--train without --dry-run needs the PRs' project to have a gate_cmd (the local gate; see `factory project update "
+                f"--gate-cmd`); use --dry-run to plan only. Nothing was merged", 2)
     plan = judge_train_plan(con, tasks)
     for tid, why in plan["dropped"]:
         print(f"DROPPED {tid}: {why}")
     if not plan["steps"]:
         die("train: no task is ready, nothing to plan", 4)
+    if not a.dry_run:
+        return judge_train_run(con, plan, proj)
     ids = "-".join(s["task"] for s in plan["steps"])
     print(f"TRAIN dry-run on origin/main {plan['main']}: {len(plan['steps'])} of {len(tasks)} tasks")
     for k, s in enumerate(plan["steps"], 1):
         print(f"{k}. {s['task']} head={s['head']} T_{k}={s['tree']} ref=factory-train/{ids}-{k}")
     print("dry-run: no push, no merge, no train ref written")
+
+
+def gate_train_run(con, proj, plan, k, owner_repo):
+    """One gate run (kind=train) on the prefix tree T_k of `plan`: gate_cmd in a detached worktree at that tip commit, same
+    capacity, slot, shard and timeout rules as any gate run. Cache key (project, tip tree, main_sha). Returns the row."""
+    steps = plan["steps"][:k]
+    step = steps[-1]
+    cur = con.execute("INSERT INTO gate_runs(project_id,kind,status,cmd,actor,created,pid,task_ids,tip_sha,head_sha,main_sha,tree) "
+                      "VALUES(?,'train','queued',?,?,?,?,?,?,?,?,?)",
+                      (proj["id"], gate_cmd_for(con, proj), actor(), now(), os.getpid(), " ".join(s["task"] for s in steps),
+                       step["commit"], step["commit"], plan["main"], step["tree"]))
+    run_id = cur.lastrowid
+    event(con, "gate", str(run_id), "gate-queued", f"train {' '.join(s['task'] for s in steps)}")
+    con.commit()
+    gate_run_row(con, run_id, proj, "train", owner_repo, plan["repo"], False, lambda: (step["commit"], plan["main"], ""))
+    return con.execute("SELECT * FROM gate_runs WHERE id=?", (run_id,)).fetchone()
+
+
+def train_lead_target(con, t):
+    """Where a REJECT candidate goes: the lead of the task's team, else the director."""
+    r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (t["team_id"],)).fetchone() if t["team_id"] else None
+    return f"lead:{t['team_id']}" if r and r["lead_agent"] else "director"
+
+
+def train_merge(con, plan, upto, run, owner_repo):
+    """Merge the first `upto` steps of the train in order, each the way the serial judge merges (the same `gh pr merge --squash
+    --match-head-commit <head>`), then assert origin/main's tree is T_k. Returns (merged, stopped): stopped is None or why."""
+    merged = 0
+    repo = plan["repo"]
+    for k, s in enumerate(plan["steps"][:upto], 1):
+        tid = s["task"]
+        t = con.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+        stop = lambda why: (merged, f"{tid}: {why}")
+        try:
+            pr = pr_state(t["pr_url"])
+            if pr["headRefOid"] != s["head"]:
+                return stop(f"PR head moved from {s['head'][:8]} to {pr['headRefOid'][:8]} since the plan")
+            _, _, _, _, unready = train_ready(con, tid, repo)  # verdicts, draft, checks, auto_merge may have changed during the gate
+            if unready:
+                return stop("no longer ready: " + "; ".join(unready))
+            if k == 1:  # main must still be what the train was built and gated on, before the first PR lands
+                repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+                _, m, why = verified_main(repo, pr["number"], repo_url, owner_repo)
+                if m != plan["main"]:
+                    return stop(f"origin/main moved during the gate ({plan['main'][:8]} -> {(m or '?')[:8]}{'; ' + why if why else ''})")
+            slugs = _judge_slugs(con, t, owner_repo)
+            problems = next(filter(None, (_push_policy(con, x) for x in slugs)), None) or red_main_refusal(con, slugs, tid) \
+                or merge_freeze_refusal(con)
+            if problems:
+                event(con, "task", tid, "judge-blocked", problems)
+                return stop(problems)
+            refused = judge_public_text_refusal(con, t, owner_repo, repo, plan["main"], s["head"])
+            if refused:
+                event(con, "task", tid, "judge-blocked", refused)
+                return stop(refused)
+            author_args, msg = judge_author_args(con, t, owner_repo)
+            if msg:
+                event(con, "task", tid, "judge-blocked", msg)
+                return stop(msg)
+            with contextlib.ExitStack() as stack:
+                lock_and_recheck(stack, con, t, tid)
+                try:
+                    p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit",
+                                        s["head"], *author_args], capture_output=True, text=True, timeout=180, env=gh_git_env())
+                except subprocess.TimeoutExpired:
+                    p = subprocess.CompletedProcess([], 124, "", "gh pr merge timed out")
+                if p.returncode != 0 and pr_state(t["pr_url"])["state"] != "MERGED":  # gh can fail after the squash landed
+                    event(con, "task", tid, "merge-failed", p.stderr.strip())
+                    return stop(f"gh pr merge failed: {p.stderr.strip()[:200]}")
+                ns = types.SimpleNamespace(task=tid)
+                record_merged(con, t, ns, s["head"], s["head"], f"batch train: gate run #{run['id']} passed on T_{upto} "
+                              f"(tree {run['tree'][:12]}); T_{k} {s['tree'][:12]} merged in train order", (), p.stderr.strip() if p.returncode else "")
+            merged += 1
+            if _judge_is_public(con, t, owner_repo):
+                judge_merge_email_check(con, t, ns, owner_repo, None)
+            repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+            git, main_sha, why = verified_main(repo, pr["number"], repo_url, owner_repo)
+            tree = git("rev-parse", f"{main_sha}^{{tree}}")[1] if main_sha else ""
+            if not main_sha or tree != s["tree"]:
+                return (merged, f"after merging {tid} origin/main's tree is {tree[:12] or '?'}, not T_{k} {s['tree'][:12]}"
+                        + (f" ({why})" if why else " (main moved, or the merge produced a different tree)"))
+        except (SystemExit, ValueError, KeyError, OSError, subprocess.TimeoutExpired) as e:
+            # lock_and_recheck, gh_json and pr_state die or raise: the train stops, the rest is the serial judge's
+            return stop(f"cannot continue: {e if not isinstance(e, SystemExit) else 'refused, see above'}")
+    return merged, None
+
+
+def judge_train_run(con, plan, proj):
+    """`judge --train` without --dry-run: one gate run on the tip T_N (a local ref only), bisect on a failure, then merge
+    the passing prefix in train order. An ERROR or timeout releases the train: no merge, the PRs go back to the serial judge."""
+    steps, n = plan["steps"], len(plan["steps"])
+    t0 = con.execute("SELECT * FROM tasks WHERE id=?", (steps[0]["task"],)).fetchone()
+    owner_repo = "/".join(t0["pr_url"].split("/")[3:5])
+    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo))
+    if frozen:  # the MAIN-RED hold and the freeze apply to a train like to any merge
+        event(con, "task", steps[0]["task"], "judge-blocked", frozen)
+        con.commit()
+        die(f"train refused: {frozen}; no gate run, nothing merged. The PRs wait for the serial judge", 4)
+    for r in dict.fromkeys([plan["repo"], os.getcwd()]):  # the gate and the carry run in the repo, `gh pr merge` in the cwd
+        if not git_config_guard(con, r, always_event=True):
+            con.commit()
+            die(f"train refused: git config in {r} would run code (repo config outside the allow-list): "
+                f"{', '.join(git_config_refusal(r))}; no gate run, nothing merged", 4)
+    ids = "-".join(s["task"] for s in steps)
+    ref = f"refs/factory-train/{ids}"  # local only: nothing in the train path pushes
+    rc, _, err = _git_rc([*HARDENED_GIT_FLAGS, "update-ref", ref, steps[-1]["commit"]], repo=plan["repo"], env=_carry_env())
+    if rc != 0:
+        die(f"train: cannot write {ref}: {err or rc}; nothing merged", 5)
+    print(f"TRAIN on origin/main {plan['main']}: {n} task(s), tip T_{n}={steps[-1]['tree']} local ref {ref}")
+    runs = {}
+
+    def gate(k):
+        r = runs[k] = gate_train_run(con, proj, plan, k, owner_repo)
+        print(f"T_{k} ({r['task_ids']}): gate run #{r['id']} {r['status'].upper()}" + (f" ({r['note']})" if r["note"] else ""))
+        if r["status"] == "error":
+            event(con, "task", steps[0]["task"], "train-released", f"gate run #{r['id']} error: {r['note']}")
+            con.commit()
+            print(f"train released: gate run #{r['id']} ended in ERROR ({r['note']}); nothing merged, the PRs go back to the serial "
+                  f"judge (log {r['log_path']})")
+            sys.exit(5)
+        return r["status"] == "pass"
+
+    lo, hi = (n, n) if gate(n) else (0, n)  # lo = longest prefix known to pass, hi = shortest known to fail
+    while hi - lo > 1:
+        mid = lo + (hi - lo + 1) // 2
+        if gate(mid):
+            lo = mid
+        else:
+            hi = mid
+    bad = steps[hi - 1] if hi > lo else None
+    merged, stopped = 0, None
+    if lo:
+        urls = [con.execute("SELECT pr_url FROM tasks WHERE id=?", (x["task"],)).fetchone()["pr_url"] for x in steps[:lo]]
+        try:  # the test-count rule of the serial judge, on the passing run and every PR body of the prefix
+            short = test_count_problems(runs[lo], [lambda u=u: gh_json("pr", "view", u, "--json", "body").get("body") or "" for u in urls])
+        except (SystemExit, ValueError, KeyError, OSError, subprocess.TimeoutExpired) as e:
+            short = [f"cannot read the PR bodies for the test-count rule: {e if not isinstance(e, SystemExit) else 'see above'}"]
+        if short:
+            event(con, "task", steps[0]["task"], "judge-blocked", short[0])
+            con.commit()
+            stopped = f"{short[0]}; nothing merged (a `tests-removed:` line in any PR of the train clears it)"
+        else:
+            merged, stopped = train_merge(con, plan, lo, runs[lo], owner_repo)
+    if bad:
+        bt = con.execute("SELECT * FROM tasks WHERE id=?", (bad["task"],)).fetchone()
+        r = runs[hi]
+        body = (f"{bad['task']} is the first PR of the batch train {ids} whose prefix fails the local gate: gate run #{r['id']} on "
+                f"T_{hi} failed, T_{lo} passed. Log: {r['log_path']}. The train records no REJECT; the judge decides on the serial path.")
+        send(con, train_lead_target(con, bt), f"{bad['task']}: REJECT candidate (batch train)", body, "request",
+             goal=bt["goal_id"], task=bad["task"], sender=actor())
+        event(con, "task", bad["task"], "train-reject-candidate", f"gate run #{r['id']} {r['log_path']}")
+        con.commit()
+        print(f"{bad['task']} REJECT candidate: gate run #{r['id']} failed on T_{hi}; lead notified (log {r['log_path']})")
+    rest = [s["task"] for s in steps[merged:]]
+    print(f"TRAIN merged {merged} of {n}" + (f"; stopped: {stopped}" if stopped else ""))
+    if rest:
+        print("left for the serial judge: " + " ".join(rest))
+    sys.exit(0 if merged == n else 4)
 
 
 PUBLIC_GUARD = "ci/public_text_guard.py"
@@ -3902,7 +4075,7 @@ def cmd_judge(a):
     if getattr(a, "dry_run", False):
         die("--dry-run is only for --train; nothing was merged or rejected", 2)
     if not a.task or not a.reason:
-        die("judge needs a task and --reason (or --train T-a T-b ... --dry-run)", 2)
+        die("judge needs a task and --reason (or --train T-a T-b ... [--dry-run])", 2)
     if getattr(a, "record_merged", None) is not None:  # "" must reach the sha check, never fall to --merge
         return judge_record_merged(con, a)
     require_role(con, "judge")
@@ -3953,6 +4126,23 @@ def lock_and_recheck(stack, con, t, task):
         die(f"merge refused: {task} is no longer in_review (merged or moved by another run); nothing merged", 4)
     if pr_state(t["pr_url"])["state"] != "OPEN":
         die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
+
+
+def judge_author_args(con, t, owner_repo):
+    """Extra `gh pr merge` args for a merge: [] for a private repo; for a public one (G-021) the squash commit must not
+    carry a real email, so --author-email and an explicit --body. Returns (args, refusal): refusal is the message when the
+    noreply address or the body cannot be built (nothing may be merged then), else None."""
+    if not _judge_is_public(con, t, owner_repo):
+        return [], None
+    noreply = noreply_email(con)
+    if not noreply:
+        return None, ("merge refused: no noreply author email; set `factory config noreply_email <id>+<user>@users.noreply.github.com` "
+                      "or the repo-local git user.email; nothing merged")
+    try:  # explicit body: GitHub's default one adds a Co-authored-by per commit author, real emails included
+        body = judge_squash_body(t["pr_url"], noreply)
+    except (RuntimeError, subprocess.TimeoutExpired, OSError) as e:
+        return None, f"merge refused: cannot build the public squash body: {e}; nothing merged"
+    return ["--author-email", noreply, "--body", body], None
 
 
 def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
@@ -4141,21 +4331,10 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if refused:
             event(con, "task", a.task, "judge-blocked", refused)
             die(refused, 4)
-        author_args = []
-        if _judge_is_public(con, t, owner_repo):  # G-021: the squash commit must not carry a real email
-            noreply = noreply_email(con)
-            if not noreply:
-                msg = ("merge refused: no noreply author email; set `factory config noreply_email <id>+<user>@users.noreply.github.com` "
-                       "or the repo-local git user.email; nothing merged")
-                event(con, "task", a.task, "judge-blocked", msg)
-                die(msg, 4)
-            try:  # explicit body: GitHub's default one adds a Co-authored-by per commit author, real emails included
-                body = judge_squash_body(t["pr_url"], noreply)
-            except (RuntimeError, subprocess.TimeoutExpired, OSError) as e:
-                msg = f"merge refused: cannot build the public squash body: {e}; nothing merged"
-                event(con, "task", a.task, "judge-blocked", msg)
-                die(msg, 4)
-            author_args = ["--author-email", noreply, "--body", body]
+        author_args, msg = judge_author_args(con, t, owner_repo)
+        if msg:
+            event(con, "task", a.task, "judge-blocked", msg)
+            die(msg, 4)
         if dry_run:  # every refusal above ran; nothing is merged, the caller records the would-merge
             return "would-merge"
         if not locked:
@@ -9179,6 +9358,13 @@ def gate_run(con, a):
         run_id = cur.lastrowid
         event(con, "gate", str(run_id), "gate-queued", f"{kind} {task_id or proj['id']}")
     con.commit()  # the pid is visible to the tick before the long part starts
+    return gate_run_row(con, run_id, proj, kind, owner_repo, repo, a.no_cache,
+                        lambda: gate_resolve(con, run_id, kind, pr_url, owner_repo, repo))
+
+
+def gate_run_row(con, run_id, proj, kind, owner_repo, repo, no_cache, resolve):
+    """Run the gate of the row `run_id` (already inserted, pid set) to a final status. `resolve()` returns (head, main_sha,
+    note) of what is tested (RuntimeError = error outcome). Shared by `gate run` and the batch train (T-0522)."""
     log_dir = HOME / "logs" / "gate"
     log_dir.mkdir(parents=True, exist_ok=True)
     log = log_dir / f"{run_id}.log"
@@ -9190,13 +9376,19 @@ def gate_run(con, a):
     held = False
     try:
         try:
-            head, main_sha, note = gate_resolve(con, run_id, kind, pr_url, owner_repo, repo)
-            if not a.no_cache:
-                hit = con.execute("SELECT * FROM gate_runs WHERE project_id=? AND head_sha=? AND main_sha=? AND status='pass' AND cmd=? AND id<>? "
-                                  "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, gate_cmd_for(con, proj), run_id)).fetchone()
+            head, main_sha, note = resolve()
+            if not no_cache:
+                if kind == "train":  # T-0522 cache key: (project, tip tree id, main_sha) + the command
+                    hit = con.execute("SELECT * FROM gate_runs WHERE project_id=? AND kind='train' AND tree=? AND main_sha=? AND status='pass' "
+                                      "AND cmd=? AND id<>? ORDER BY id DESC LIMIT 1",
+                                      (proj["id"], con.execute("SELECT tree FROM gate_runs WHERE id=?", (run_id,)).fetchone()["tree"],
+                                       main_sha, gate_cmd_for(con, proj), run_id)).fetchone()
+                else:
+                    hit = con.execute("SELECT * FROM gate_runs WHERE project_id=? AND head_sha=? AND main_sha=? AND status='pass' AND cmd=? AND id<>? "
+                                      "ORDER BY id DESC LIMIT 1", (proj["id"], head, main_sha, gate_cmd_for(con, proj), run_id)).fetchone()
                 if hit:  # same tree, same main, same command: the result cannot differ, so no slot and no run
-                    gate_finish(con, run_id, "pass", f"cached: pass of run #{hit['id']} (same head and main)", exit_code=hit["exit_code"],
-                                test_count=hit["test_count"], main_count=hit["main_count"])
+                    gate_finish(con, run_id, "pass", f"cached: pass of run #{hit['id']} (same {'tree' if kind == 'train' else 'head'} and main)",
+                                exit_code=hit["exit_code"], test_count=hit["test_count"], main_count=hit["main_count"])
                     return run_id
             started = time.monotonic()
             wait = float(os.environ.get("FACTORY_GATE_SLOT_WAIT_S") or GATE_SLOT_WAIT_S)
@@ -9496,11 +9688,20 @@ def local_gate_problems(con, proj, pr_url, sha, main_sha, contains_main, behind_
     if r["main_sha"] != main_sha and not contains_main and not behind_ok:
         problems.append(f"local gate pass #{r['id']} ran against main {(r['main_sha'] or '?')[:8]}, main is now "
                         f"{(main_sha or '?')[:8]} and the head does not contain it: refresh the branch and re-run the gate")
-    if r["test_count"] is not None and r["main_count"] is not None and r["test_count"] < r["main_count"]:
-        if not TESTS_REMOVED.search((body() if callable(body) else body) or ""):
-            problems.append(f"test count dropped {r['main_count']} -> {r['test_count']} (gate run #{r['id']}) and the PR body "
-                            "has no `tests-removed: <reason>` line")
+    problems += test_count_problems(r, body)
     return problems
+
+
+def test_count_problems(r, body):
+    """The test-count rule on a passing gate run row: [refusal] when its count is below main's and no body (a string or a
+    callable returning one, or a list of them: any one with a `tests-removed: <reason>` line is enough) declares it."""
+    if r["test_count"] is None or r["main_count"] is None or r["test_count"] >= r["main_count"]:
+        return []
+    bodies = body if isinstance(body, (list, tuple)) else [body]
+    if any(TESTS_REMOVED.search((b() if callable(b) else b) or "") for b in bodies):
+        return []
+    return [f"test count dropped {r['main_count']} -> {r['test_count']} (gate run #{r['id']}) and the PR body "
+            "has no `tests-removed: <reason>` line"]
 
 
 def gate_wait(con, pr_url, sha):
@@ -12909,7 +13110,7 @@ def main():
     x = sp.add_parser("judge"); x.add_argument("task", nargs="?"); g = x.add_mutually_exclusive_group(required=True)
     g.add_argument("--merge", action="store_true"); g.add_argument("--reject", action="store_true")
     g.add_argument("--record-merged", metavar="SHA", help="record a PR whose squash already landed on origin/main (judge, director)")
-    g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (needs --dry-run; pushes and merges nothing)")
+    g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
     x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
