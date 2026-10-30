@@ -36,17 +36,19 @@ MARKER = ".demo-tour"
 DEFAULT_DEMO = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "factory-demo-tour" / "demo"
 HTTP_TIMEOUT = 15
 ZOOM = 1.5  # page zoom: the 1170px column fills the 1920px frame and body text is ~21px
-CAPTION_BOTTOM, CAPTION_MAX, CAPTION_PAD, CAPTION_GAP = 18, 160, 22, 14  # px: caption bar geometry
+# px: caption bar geometry. The bar sits >= 70 px above the bottom edge: the README player draws its controls over the
+# bottom 60 px of the video.
+CAPTION_BOTTOM, CAPTION_MAX, CAPTION_PAD, CAPTION_GAP = 72, 160, 22, 14
 # The page lives in a box above the caption band, so the bar never covers page content.
 CAPTION_RESERVE = CAPTION_BOTTOM + CAPTION_MAX + 2 * CAPTION_PAD + CAPTION_GAP
 CAPTION_CSS = ("position:fixed;left:120px;right:120px;bottom:%dpx;z-index:2147483646;background:rgba(5,8,16,0.7);"
-               "border-radius:18px;padding:%dpx 40px;font:46px/1.25 'DejaVu Sans',sans-serif;color:#fff;"
+               "border-radius:18px;padding:%dpx 40px;font:46px/1.25 'Inter','DejaVu Sans',sans-serif;color:#fff;"
                "text-align:center;max-height:%dpx;overflow:hidden" % (CAPTION_BOTTOM, CAPTION_PAD, CAPTION_MAX))
 PAGE_CSS = ("position:fixed;left:0;top:0;right:0;bottom:%dpx;overflow:hidden;background:#fff" % CAPTION_RESERVE)
 ZOOM_CSS = "zoom:%s;transform-origin:50%% 0" % ZOOM
 # the page label sits at the top of the caption band, so it covers no page content either
 LABEL_CSS = ("position:fixed;left:48px;top:%dpx;z-index:2147483646;background:rgba(5,8,16,0.7);color:#fff;"
-             "border-radius:14px;padding:10px 26px;font:bold 36px 'DejaVu Sans',sans-serif" % (1080 - CAPTION_RESERVE + 8))
+             "border-radius:14px;padding:10px 26px;font:bold 36px 'Inter','DejaVu Sans',sans-serif" % (1080 - CAPTION_RESERVE + 8))
 FADE_CSS = "position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:" + BG
 
 
@@ -161,15 +163,29 @@ def check_pages(base_url, pages):
                             "list in docs/demo/storyboard.json." % (path, status))
 
 
+SCROLL_GAP = 12  # px between a sticky top bar and the element scrolled to
+
+
 def selector_top(browser, selector):
-    """scrollTop that puts the first element matching `selector` at the top of the page box."""
+    """scrollTop that puts the first element matching `selector` at the top of the page box, just below the page's
+    sticky top bars (the UI's title bar stays on screen and would cover the element otherwise)."""
     y = browser.evaluate(
-        "(function(s){var e=document.querySelector(s);if(!e)return null;var p=document.getElementById('demo-page');"
-        "return Math.round(e.getBoundingClientRect().top-p.getBoundingClientRect().top+p.scrollTop)})(%s)"
-        % json.dumps(selector))
+        "(function(s,gap){var e=document.querySelector(s);if(!e)return null;var p=document.getElementById('demo-page');"
+        "var pr=p.getBoundingClientRect(),bar=0;"
+        "Array.prototype.forEach.call(p.querySelectorAll('*'),function(x){var c=getComputedStyle(x),r;"
+        "if(c.position!=='sticky'||c.top!=='0px')return;r=x.getBoundingClientRect();"
+        "if(r.height<pr.height/3)bar=Math.max(bar,r.height+gap);});"
+        "return Math.round(e.getBoundingClientRect().top-pr.top+p.scrollTop-bar)})(%s,%d)"
+        % (json.dumps(selector), SCROLL_GAP))
     if y is None:
         raise PageError("scroll_to selector %r matched nothing on the page; fix it in docs/demo/storyboard.json." % selector)
     return y
+
+
+def freeze(browser):
+    """Pause the page's virtual time. The web UI reloads itself every 60 s (meta refresh), and a 2x capture spends
+    longer than that on one page; with time paused no timer fires, while screenshots still render."""
+    browser.send("Emulation.setVirtualTimePolicy", {"policy": "pause"})
 
 
 def record_tour(browser, base_url, pages, seconds_per_page, fps, sink, text_dir, labels=None, captions=(),
@@ -189,6 +205,7 @@ def record_tour(browser, base_url, pages, seconds_per_page, fps, sink, text_dir,
             per_page = min(per_page, frames_per_page)
         browser.new_page(base_url + shot["path"])
         browser.evaluate(_inject_js(shot["label"]))
+        freeze(browser)
         height = browser.evaluate("document.getElementById('demo-page').clientHeight") or page_height()
         scroll_height = browser.evaluate("document.getElementById('demo-page').scrollHeight") or height
         scroll_to = shot["scroll_to"]

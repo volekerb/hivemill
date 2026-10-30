@@ -91,7 +91,7 @@ body { font-family: var(--sans); color: var(--text); font-size: var(--fs-body); 
 
 /* Caption bar: bottom third, light text on a ~70 % dark bar, max 2 lines, >= 44 px at 1080p. */
 .caption-bar {
-  position: absolute; left: 120px; right: 120px; bottom: 96px;
+  position: absolute; left: 120px; right: 120px; bottom: 72px;  /* same edge as the web UI tour bar (ci/demo_tour.py) */
   background: rgba(5, 8, 16, 0.7); border-radius: 18px; padding: 22px 40px;
   font-size: var(--fs-caption); line-height: 1.25; color: #fff; text-align: center;
   max-height: calc(2 * 1.25 * var(--fs-caption) + 44px); overflow: hidden;
