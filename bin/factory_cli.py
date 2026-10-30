@@ -154,6 +154,8 @@ DEFAULT_CONFIG = {
     "max_live_judges": "3",      # cap on live+starting judges; at the cap queued judges wait and the rows behind them start; 0 = no cap
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
+    "review_autospawn": "off",   # off | on: the tick starts reviewer + QA (or one combined agent for T0/T1) when a PR opens (G-022 #6, docs/review-autospawn.md)
+    "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
     "tmp_sweep_pct": "80",       # over this, the tick deletes scratch dirs of finished agents (T-0606); keep it below tmp_max_pct
@@ -1504,6 +1506,9 @@ def _int_cfg(con, key, default):
         return default
 
 
+REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
+
+
 def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
@@ -1575,6 +1580,13 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         if role != "cleaner":
             return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.1f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
                            " — clean finished tasks' scratchpads"), stats
+    if role in REVIEW_RESERVE_BLOCKED and not own_slot and cfg(con, "review_autospawn") == "on":
+        # G-022 #6: carve review_reserved_slots out of max_live_agents; slots already held by reviewer/qa count toward them
+        held = con.execute("SELECT count(*) c FROM agents WHERE status IN ('live','starting') AND role IN ('reviewer','qa')").fetchone()["c"]
+        free_for_others = stats["cap"] - max(_int_cfg(con, "review_reserved_slots", 2) - held, 0)
+        if live >= free_for_others:
+            return False, (f"{live}/{stats['cap']} agent panes live; {max(_int_cfg(con, 'review_reserved_slots', 2) - held, 0)} "
+                           "slots kept for reviewer/qa (review_reserved_slots)"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
@@ -3116,11 +3128,18 @@ def gates_refusal(text, required):
     return "; ".join(bad) or None
 
 
+def combined_name(task):
+    """Agent name of the combined reviewer+QA the tick starts for a T0/T1 PR (review_autospawn)."""
+    return slug(f"combined-{task}")
+
+
 def cmd_verdict(a):
     con = db()
     role = require_role(con, "qa", "reviewer")
     if role == "owner":
         role = a.as_role or die("owner must pass --as qa|reviewer")
+    elif role == "reviewer" and a.as_role == "qa" and actor() == combined_name(a.task):
+        role = "qa"  # the combined T0/T1 agent of this task records the QA verdict too (docs/review-autospawn.md)
     t = con.execute("SELECT * FROM tasks WHERE id=?", (a.task,)).fetchone() or die(f"no task {a.task}")
     if not t["pr_url"]:
         die(f"{a.task} has no PR yet")
@@ -8034,7 +8053,9 @@ def esc_wait_nudge(con, name, nudge, what, defer=False):
         print(f"sent Esc to {name}")
     if defer:
         if live():
-            event_as(con, "tick", "agent", name, "nudge-pending", {"nudge": nudge, "what": what})
+            r = con.execute("SELECT pane_id, started FROM agents WHERE name=?", (name,)).fetchone()
+            event_as(con, "tick", "agent", name, "nudge-pending", {"nudge": nudge, "what": what,
+                                                                   "pane_id": r["pane_id"], "started": r["started"]})
         return
     if live():
         herdr("agent", "wait", name, "--until", "idle", "--until", "done", "--until", "blocked", "--timeout", "30000",
@@ -8062,10 +8083,16 @@ def finish_pending_nudges(con, by_name, t):
             age = t - dt.datetime.fromisoformat(e["ts"]).timestamp()
         except (TypeError, ValueError):
             d, age = {}, NUDGE_PENDING_TTL_S + 1
-        live = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+        live = con.execute("SELECT status, pane_id, started FROM agents WHERE name=?", (name,)).fetchone()
         st = (by_name.get(name) or {}).get("agent_status")
         if not live or live["status"] != "live" or age > NUDGE_PENDING_TTL_S or not d.get("nudge"):
             outcome = "dropped"
+        elif not d.get("pane_id") or d.get("pane_id") != live["pane_id"] or not d.get("started") \
+                or d.get("started") != live["started"]:
+            outcome = "dropped"  # a same-name relaunch: the nudge was meant for another pane or start
+            event_as(con, "tick", "agent", name, "nudge-mismatch",
+                     {"pending": e["id"], "pane_id": d.get("pane_id"), "started": d.get("started"),
+                      "live_pane_id": live["pane_id"], "live_started": live["started"]})
         elif st in ("idle", "done"):
             herdr("agent", "prompt", name, d["nudge"], check=False)
             outcome = "sent"
@@ -10816,6 +10843,12 @@ def cmd_tick(a, locked=False):
         event(con, "tick", "start_confirm", "start-confirm-error", str(e)[:300])
     _pt_lap("start_confirm")
 
+    # 2c. review autospawn: start reviewer + QA when a PR opens (config review_autospawn; default off)
+    try:
+        review_autospawn_tick(con)
+    except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
+        event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
+
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
     agents = herdr_agents() or []
@@ -11462,19 +11495,25 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     agents = herdr_agents()
     if agents is None:
         die("herdr is unreachable")
-    pane, close = r["pane_id"], False
+    pane, close, by_pane = r["pane_id"], False, False
     # the session decides which pane hosts the agent; the row's pane id may be stale
     host = next((x for x in agents if (x.get("agent_session") or {}).get("value") == r["session_id"]), None)
     if host:
         pane = host.get("pane_id")
-    elif claude_procs(r["session_id"]):
-        die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
-            "refusing to start a second copy", 3)
+    elif procs := claude_procs(r["session_id"]):
+        # herdr omits agent_session for most workers (sandboxed or not): fall back to the row's own pane, but only when
+        # exactly one process runs the session and the entry there is this agent and names no session of its own
+        host = next((x for x in agents if pane and x.get("pane_id") == pane and x.get("name") == r["name"]
+                     and not (x.get("agent_session") or {}).get("value")), None) if len(procs) == 1 else None
+        if not host:
+            die(f"a live claude process runs session {r['session_id']} but herdr lists no pane for it; "
+                "refusing to start a second copy", 3)
+        by_pane = True
     else:
         host = next((x for x in agents if pane and x.get("pane_id") == pane), None)
     if host:
         sess = (host.get("agent_session") or {}).get("value")
-        if sess != r["session_id"]:
+        if sess != r["session_id"] and not by_pane:
             die(f"pane {pane} hosts another agent ({host.get('name')}, session {sess}); refusing to touch it", 3)
         if host.get("agent_status") == "working" and not force:
             die(f"{r['name']} is mid-turn (a relaunch would lose the turn); use --when-idle, or --force", 2)
@@ -11494,6 +11533,9 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
         gh_cred_preflight(con, r["role"], r["name"])
     steps = []
     if close:
+        if by_pane:
+            steps.append(f"fallback: pane {pane} ({r['name']}) has no agent_session in the agent list; its one claude "
+                         f"process runs session {r['session_id']}, so pane {pane} is the host")
         steps.append(f"herdr pane close {pane}  (`/exit` via `herdr agent prompt` is not a documented clean exit; "
                      "this ends the agent process)")
         steps.append(f"wait until pane {pane} is gone, then place a new pane")
@@ -11817,6 +11859,71 @@ def dispatch_tick(con):
              "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
         if status == "queued":
             break
+
+
+REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); lead:{team} gets an FYI, you report to it as usual. "
+                "Run only `python3 ci/affected.py --base origin/main --quick --run` locally, never the full suite (CI runs it). "
+                "Never call the advisor tool.")
+COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
+                  "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
+                  "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
+                  "--summary -`. Two verdicts on the same head, then factory done. ")
+
+
+def review_candidates(con):
+    """PR tasks the tick may start a first review for (DB only): in_review with a pr_url, active goal, a team, and no
+    qa agent row (nor a combined one) and no verdict yet (a retry round is the lead's to spawn). A task that has only
+    its reviewer (a partial start: gate closed, queued or refused qa) stays a candidate so the next tick adds the qa. Ordered by goal priority, then id."""
+    return con.execute(
+        "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
+        "AND t.team_id IS NOT NULL AND g.status='active' "
+        "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%')) "
+        "AND NOT EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id) "
+        "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
+
+
+def review_autospawn_tick(con):
+    """Tick step 2c: with config review_autospawn=on start a reviewer and a qa (one combined reviewer for stored tier
+    T0/T1 when risk_tiers=on) for each PR that just went in_review, without the lead's wake. The team worker cap is not
+    consulted; the gate (all global caps) is. A queued or refused spawn stops the loop; the next tick retries."""
+    if cfg(con, "review_autospawn") != "on":
+        return
+    combined_ok = cfg(con, "risk_tiers") == "on"
+    for t in review_candidates(con):
+        tid, team = t["id"], t["team_id"]
+        has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
+        # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
+        low = combined_ok and t["tier"] in ("T0", "T1") and not has_reviewer
+        started = []
+        plan = [("reviewer", combined_name(tid))] if low else [("reviewer", slug(f"reviewer-{tid}")), ("qa", slug(f"qa-{tid}"))]
+        for role, name in plan:
+            if role == "reviewer":  # any reviewer row (the lead's own included) means the reviewer half is done or in flight
+                if has_reviewer:
+                    continue
+            elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
+                continue
+            if not gate(con, role=role)[0]:
+                return
+            brief = REVIEW_BRIEF.format(team=team)
+            if low:
+                brief = COMBINED_BRIEF.format(tier=t["tier"], task=tid) + brief
+            try:
+                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
+            except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
+                event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+                break
+            row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+            status = row["status"] if row else "unknown"
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status})
+            started.append(name)
+            if status == "queued":
+                return
+        else:
+            if not started:
+                continue
+            send(con, f"lead:{team}", f"review autospawn: {'combined ' if low else ''}review started on {tid}",
+                 f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} when the PR opened. "
+                 "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
 
 
 SPEC_FILL_ROLES = ("coder", "qa", "reviewer", "cleaner")
