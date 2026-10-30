@@ -20,6 +20,7 @@ def local(day, h, m):
 class Base(FactoryTestCase):
     def setUp(self):
         super().setUp()
+        time.tzset()  # local() reads the process zone; do not inherit one left by an earlier module
         self.env.run("config", "day_start_hour", "8")
         self.env.run("config", "day_end_hour", "20")
 

@@ -34,8 +34,17 @@ class AutoClear(UnblockBase):
         tz = f"Etc/GMT{-offset:+d}" if offset else "Etc/GMT"  # POSIX sign: Etc/GMT-3 is UTC+3
         old = os.environ.get("TZ")
         os.environ["TZ"] = tz
-        self.addCleanup(lambda: os.environ.__setitem__("TZ", old) if old is not None else os.environ.pop("TZ", None))
+        self.addCleanup(self.restore_tz, old)
         self.local = dt.timezone(dt.timedelta(hours=offset))
+
+    @staticmethod
+    def restore_tz(old):
+        """Put TZ back and re-read it: the in-proc runs call time.tzset(), so the process zone would otherwise leak."""
+        if old is not None:
+            os.environ["TZ"] = old
+        else:
+            os.environ.pop("TZ", None)
+        time.tzset()
 
     def pane(self, name, text, status="blocked"):
         """Give `name` its own pane text; earlier panes keep theirs (the stub reads one dict for every agent)."""
