@@ -34,8 +34,8 @@ than 35 days. A failure never breaks the tick: it logs `util / util-sample-faile
 The web home shows the newest row in the D2 format, plus ` (UNDER TARGET)` when workers < target and demand. With no
 row, or a newest row older than 5 minutes, it shows the friendly line `Utilization appears after the next tick sample`.
 
-Gap: when herdr is unreachable the tick returns early and writes no sample, so the web home shows the "no fresh tick
-sample" text until herdr is back.
+Gap: when herdr is unreachable the tick returns early and writes no sample, so the web home shows the friendly line "Utilization appears after the next
+tick sample" until herdr is back.
 
 ## Owner caps
 

@@ -1350,13 +1350,19 @@ def claude_outside_spawn(con):
 # ───────────────────────────── resources ─────────────────────────────
 
 def mem_available_mb():
-    pinned = os.environ.get("FACTORY_MEM_AVAILABLE_MB")   # pinned by the screenshot/demo server, like FACTORY_LOADAVG
-    if pinned:
-        return int(pinned)
     for line in Path("/proc/meminfo").read_text().splitlines():
         if line.startswith("MemAvailable:"):
             return int(line.split()[1]) // 1024
     return 0
+
+
+def serve_mem_available_mb():
+    """mem_fn of `factory serve` only (display): $FACTORY_MEM_AVAILABLE_MB pins it for the demo shots. gate() never calls this."""
+    pinned = os.environ.get("FACTORY_MEM_AVAILABLE_MB")
+    try:
+        return int(pinned) if pinned else mem_available_mb()
+    except ValueError:
+        return mem_available_mb()
 
 
 def tmp_dir():
@@ -12275,7 +12281,7 @@ def cmd_serve(a):
     g = lambda k: cfg.get(k, DEFAULT_CONFIG[k])  # noqa: E731
     server.run(db_path=resolve_db, bind=a.bind or g("serve_bind") or None, port=a.port if a.port is not None else int(g("serve_port")),
                hostnames=[n.strip() for n in g("serve_hostnames").split(",") if n.strip()],
-               usage_fn=usage, mem_fn=mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
+               usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
 
 
 # ───────────────────────────── cli ─────────────────────────────
