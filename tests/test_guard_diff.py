@@ -5,6 +5,7 @@ import io
 import json
 import os
 import pwd
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -254,6 +255,144 @@ class EvaluatorRunTests(GuardDiffCase):
             self.assertFalse(os.path.exists("/x"))
 
 
+class GoImplTests(GuardDiffCase):
+    """--impl go: the Python hook (reference) against a stub candidate binary given with --go-bin."""
+
+    def stub(self, body):
+        path = os.path.join(self._tmp.name, "cand")
+        with open(path, "w") as f:
+            f.write(f"#!{sys.executable}\n" + body)
+        os.chmod(path, 0o755)
+        return path
+
+    def run_go(self, body, *extra):
+        argv = [sys.executable, TOOL, "--impl", "go", "--go-bin", self.stub(body), "--repo", self.repo,
+                "--hook", self.hook, "--corpus", self.corpus, "--mode", "worker", *extra]
+        return subprocess.run(argv, capture_output=True, text=True, timeout=120)
+
+    def test_identical_candidate_exit_0_strict(self):
+        p = self.run_go(STUB_BASE, "--strict")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("settings diff: skipped (--impl go)", p.stdout)
+        self.assertIn("2 commands, 0 loosened, 0 tightened", p.stdout)
+
+    def test_loosening_candidate_exit_1(self):
+        p = self.run_go(STUB_LOOSE)
+        self.assertEqual(p.returncode, 1, p.stderr)
+        self.assertIn(f"LOOSENED base=2 pr=0 worker {BAD}", p.stdout)
+
+    def test_tightening_candidate_exit_0_without_strict_1_with(self):
+        p = self.run_go(STUB_TIGHT)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("TIGHTENED base=0 pr=2 worker ls -la", p.stdout)
+        p = self.run_go(STUB_TIGHT, "--strict")
+        self.assertEqual(p.returncode, 1, p.stderr)
+
+    def test_changed_exit_code_fails_only_strict(self):
+        # allow-side crash (exit 1) while the block (exit 2) is kept: CHANGED, neither LOOSENED nor TIGHTENED
+        body = ("import json, sys\nc = json.load(sys.stdin)['tool_input']['command']\n"
+                "sys.exit(2 if c == %r else 1)\n" % BAD)
+        p = self.run_go(body)
+        self.assertEqual(p.returncode, 0, p.stdout)
+        self.assertIn("CHANGED base=0 pr=1 worker ls -la", p.stdout)
+        self.assertEqual(self.run_go(body, "--strict").returncode, 1)
+
+    def test_loosened_and_tightened_both_reported(self):
+        body = ("import json, sys\nc = json.load(sys.stdin)['tool_input']['command']\n"
+                "sys.exit(0 if c == %r else 2)\n" % BAD)
+        p = self.run_go(body)
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("LOOSENED", p.stdout)
+        self.assertIn("TIGHTENED", p.stdout)
+
+    def test_candidate_gets_py_hook_and_role(self):
+        log = os.path.join(self._tmp.name, "argv.log")
+        self.run_go("import sys\nopen(%r, 'a').write(' '.join(sys.argv[1:]) + '\\n')\nsys.exit(0)\n" % log)
+        with open(log) as f:
+            lines = set(f.read().splitlines())
+        self.assertEqual(lines, {f"--role coder --py-hook {os.path.abspath(self.hook)}"})
+
+    def test_roles_all_derived_from_templates(self):
+        sdir = os.path.join(self.repo, "roles", "settings")
+        os.makedirs(sdir)
+        for role in ("alpha", "beta-two"):
+            with open(os.path.join(sdir, role + ".json.in"), "w") as f:
+                f.write('{"command": "python3 x/roles/hooks/worker-guard.py --role %s"}' % role)
+        with open(os.path.join(sdir, "norole.json.in"), "w") as f:
+            f.write('{"command": "python3 x/roles/hooks/worker-guard.py --hq"}')
+        p = self.run_go(STUB_TIGHT, "--roles", "all", "--mode", "both")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        roles = {ln.split("worker role=")[1].split()[0] for ln in p.stdout.splitlines() if "worker role=" in ln}
+        self.assertEqual(roles, {"alpha", "beta-two"})
+        self.assertIn(" hq ls -la", p.stdout)
+
+    def test_allow_loosen_refused(self):
+        p = self.run_go(STUB_BASE, "--allow-loosen", os.devnull)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("no --allow-loosen with --impl go", p.stderr)
+
+    def test_missing_go_bin_exit_2(self):
+        argv = [sys.executable, TOOL, "--impl", "go", "--go-bin", "/nonexistent/worker-guard", "--repo", self.repo,
+                "--hook", self.hook, "--corpus", self.corpus]
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("--go-bin", p.stderr)
+
+    def test_go_build_env_pins_local_toolchain(self):
+        # fake `go` on PATH records the env it is built with and drops a stub candidate at -o
+        fakebin = os.path.join(self._tmp.name, "fakebin")
+        os.makedirs(fakebin)
+        envlog = os.path.join(self._tmp.name, "goenv.json")
+        cand = self.stub(STUB_BASE)
+        fake = os.path.join(fakebin, "go")
+        with open(fake, "w") as f:
+            f.write(f"#!{sys.executable}\nimport json, os, shutil, sys\n"
+                    f"json.dump({{k: os.environ.get(k) for k in ('GOTOOLCHAIN', 'GOFLAGS', 'GOPROXY')}}, open({envlog!r}, 'w'))\n"
+                    f"shutil.copy({cand!r}, sys.argv[sys.argv.index('-o') + 1])\n")
+        os.chmod(fake, 0o755)
+        env = dict(os.environ, PATH=fakebin + os.pathsep + os.environ["PATH"], GOTOOLCHAIN="auto")
+        os.makedirs(os.path.join(self.repo, "go"), exist_ok=True)
+        argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook,
+                "--corpus", self.corpus, "--mode", "worker", "--strict"]
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=120, env=env)
+        self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
+        with open(envlog) as f:
+            self.assertEqual(json.load(f), {"GOTOOLCHAIN": "local", "GOFLAGS": "-mod=readonly", "GOPROXY": "off"})
+
+    def test_no_go_on_path_exit_2(self):
+        argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook, "--corpus", self.corpus]
+        env = {k: v for k, v in os.environ.items() if k != "PATH"}
+        only_git = os.path.join(self._tmp.name, "only-git")
+        os.makedirs(only_git)
+        os.symlink(shutil.which("git"), os.path.join(only_git, "git"))
+        env["PATH"] = only_git  # git for the repo lookup, no go
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=60, env=env)
+        self.assertEqual(p.returncode, 2, p.stdout)
+        self.assertIn("go", p.stderr)
+
+    def test_build_failure_exit_2(self):
+        os.makedirs(os.path.join(self.repo, "go"))
+        fake = os.path.join(self._tmp.name, "bin")
+        os.makedirs(fake)
+        with open(os.path.join(fake, "go"), "w") as f:
+            f.write("#!/bin/sh\necho 'boom: syntax error' >&2\nexit 1\n")
+        os.chmod(os.path.join(fake, "go"), 0o755)
+        argv = [sys.executable, TOOL, "--impl", "go", "--repo", self.repo, "--hook", self.hook, "--corpus", self.corpus]
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=60,
+                           env={**os.environ, "PATH": fake + os.pathsep + os.environ["PATH"]})
+        self.assertEqual(p.returncode, 2, p.stdout)
+        self.assertIn("go build", p.stderr)
+        self.assertIn("boom", p.stderr)
+
+    def test_base_still_required_without_impl_go(self):
+        p = subprocess.run([sys.executable, TOOL, "--repo", self.repo], capture_output=True, text=True, timeout=30)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("--base is required", p.stderr)
+
+    def test_strict_needs_impl_go(self):
+        self.assertEqual(self.run_tool("--strict").returncode, 2)
+
+
 class CorpusSanityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -272,10 +411,10 @@ class CorpusSanityTests(unittest.TestCase):
                 modes = ["worker", "hq"]
             jobs += [(cmd, m, role or "coder") for m in modes]
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
-            got = [hook_rc(j[0], j[1], j[2], home if j[2] == "evaluator" else None) for j in jobs]
+            got = [hook_rc(j[0], j[1], j[2], home) for j in jobs]
             for i in range(0, len(jobs), 17):  # the real entry point on a sample of the same jobs
                 j = jobs[i]
-                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], home if j[2] == "evaluator" else None), got[i], j)
+                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], home), got[i], j)
         wrong = [(j, g) for j, g in zip(jobs, got) if g != want]
         self.assertEqual(wrong, [], f"{key}: expected exit {want} on the current hook")
         return len(jobs)
@@ -302,8 +441,10 @@ class CorpusSanityTests(unittest.TestCase):
     @unittest.skipUnless(IN_GIT_WORK_TREE, "ROOT is not a git work tree (archive tree); the corpus check needs git")
     def test_real_corpus_against_origin_main_hook_is_clean(self):
         # the shipped corpus against the hook in this checkout, base = HEAD: the hook is the same file
-        p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
-                           capture_output=True, text=True, timeout=300)
+        # T-0745: an empty FACTORY_HOME, else the live DB's public_text_repos makes the hook block corpus commit text
+        with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
+            p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
+                               capture_output=True, text=True, timeout=300, env={**os.environ, "FACTORY_HOME": home})
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("0 loosened", p.stdout)
 

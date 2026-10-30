@@ -97,6 +97,7 @@ The pinned release page: <https://github.com/herdrdev/herdr/releases/tag/v0.9.5>
 | `min_mem_available_mb` | `1024` | The gate closes below this much available RAM. |
 | `tmp_sweep_pct` | `80` | Over this, the tick deletes `/tmp` scratch dirs and `/tmp/qa-*` homes of agents that all finished (done/stopped/lost/exited) 30+ min ago; unknown dirs stay. One `tmp-swept` event per sweep, shown in `factory res`; if `/tmp` is still over `tmp_max_pct` the director is alerted once. |
 | `tmp_max_pct` | `90` | The gate closes when the filesystem holding `/tmp` is this full. The cleaner role is exempt from this check only (it frees `/tmp`); every other cap still applies to it. |
+| (tick housekeeping) | — | Hourly the tick also removes stale test-harness homes `/tmp/zz-test-factory-<8 chars>`: real dirs of the factory user directly under `/tmp`, nothing in the tree touched for 1 h, no process of that user with its cwd or an fd inside (an unreadable `/proc/<pid>` keeps everything), at most 500 per pass; one `tmp-harness-swept` event. The `/tmp` percent in `factory res` and the gate text has one decimal. |
 | `max_five_hour_pct` | `92` | The gate closes above this share of the five-hour Claude usage window. |
 | `max_seven_day_pct` | `92` | Same, for the seven-day window. |
 | `nudge_cooldown_s` | `120` | Minimum seconds between nudges to one agent about unread mail. |
