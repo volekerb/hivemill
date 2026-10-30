@@ -5296,7 +5296,7 @@ TMP_HARNESS_CAP = 500           # ...and at most this many per pass
 _HARNESS_NAME = re.compile(r"zz-test-factory-[A-Za-z0-9_]{8}")
 
 
-def _newest_mtime(d):
+def _harness_newest_mtime(d):
     """Newest mtime of d and of every entry below it (symlinks not followed)."""
     newest = d.lstat().st_mtime
     for root, dirs, files in os.walk(d, followlinks=False):
@@ -5355,7 +5355,7 @@ def tmp_sweep_harness(con):
                 st = d.lstat()
                 if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or os.path.realpath(d.parent) != root:
                     continue
-                if t - _newest_mtime(d) >= TMP_HARNESS_MIN_AGE_S:
+                if t - _harness_newest_mtime(d) >= TMP_HARNESS_MIN_AGE_S:
                     old.append(d)
             except FileNotFoundError:
                 continue   # vanished while we looked
