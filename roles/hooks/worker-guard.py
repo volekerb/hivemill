@@ -316,7 +316,7 @@ GIT_WORD = re.compile(r"(?:^|[\s/;&|])git(?:-\S*)?(?:\s|$)")
 GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=")
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(\+?=.*)?$")  # T-0788: zsh `path` is tied to PATH
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
-PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):?=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
@@ -2115,7 +2115,7 @@ class Analyzer:
 
         def deny(what, name, verb="assign"):
             why = "dynamic target name" if dyn(name) else "it selects the git config, helpers or pager"
-            raise Block(f"{self.role} may not {verb} HOME, XDG_CONFIG_HOME, PATH, path, PAGER or GIT_* with {what} ({name!r}: "
+            raise Block(f"{self.role} may not {verb} HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with {what} ({name!r}: "
                         f"{why}); use a plain variable name, or ask your lead")
 
         for w in [*assigns, *words, *extra]:
@@ -2188,6 +2188,12 @@ class Analyzer:
                     targets.append(a[2:])
         elif name in ("for", "select") and rest:
             targets.append(rest[0])
+        elif name == "zparseopts":  # T-0788: -a ARRAY / -A ASSOC name the variable they assign
+            for j, a in enumerate(rest):
+                if a in ("-a", "-A") and j + 1 < len(rest):
+                    targets.append(rest[j + 1])
+                elif a[:2] in ("-a", "-A") and len(a) > 2:
+                    targets.append(a[2:])
         elif name == "wait":
             for j, a in enumerate(rest):
                 if a.startswith("-") and not a.startswith("--") and "p" in a:
