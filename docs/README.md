@@ -41,6 +41,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [refresh.md](refresh.md): fast-forwarding a clean but stale PR branch onto main.
 - [refresh-lane.md](refresh-lane.md): `refresh_lane` flag, only the merge-queue head is refreshed.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
+- [merge-queue.md](merge-queue.md): the serial and batch-train merge path (`judge --train` without `--dry-run`).
 - [judge-train.md](judge-train.md): `factory judge --train ... --dry-run`, the batch merge train planner (step 1: plan only).
 - [risk-tiers.md](risk-tiers.md): `factory task tier`, the T0 to T3 risk classifier and its stored, raise-only tier.
 - [mech-merge.md](mech-merge.md): the tick's mechanical merger for T0-T2 PRs (`mech_merge` off/shadow/on), same gate as the judge.
