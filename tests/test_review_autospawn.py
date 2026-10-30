@@ -321,6 +321,13 @@ class NewHeadTests(Base):
         self.env.sql("UPDATE agents SET status='exited'")
         self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
 
+    def test_half_started_round_with_qa_verdict_on_head_does_not_respawn_qa(self):
+        # reviewer-review B2: reviewer row on the new head, qa already has a verdict there: nothing is missing
+        self.reviewed_on_h1()
+        self.env.seed_agent("reviewer-t-0001-22222222", "reviewer", goal="G-001", team=TEAM, task="T-0001", status="exited")
+        self.verdict(H2, role="qa", verdict="pass")
+        self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
+
     def test_gate_refused_qa_is_retried_next_tick(self):
         self.reviewed_on_h1()
         with self.env.load_factory() as f:

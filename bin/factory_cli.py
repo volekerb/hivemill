@@ -12067,14 +12067,20 @@ def _rerun_agents(con, tid, head):
     return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
 
 
+def _rerun_missing(con, tid, head):
+    """The roles (reviewer, qa) the re-run pass still has to start on head. A role is done when it has an agent row named <role>-<task>-<sha8>
+    or a verdict of that role on head. A head with a verdict but no re-run agent at all (a round the lead ran) is done as a whole."""
+    started = _rerun_agents(con, tid, head)
+    if not started and con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone():
+        return []
+    return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
+        "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+
+
 def _review_head_done(con, tid, head, clock):
-    """True when the tick started both halves (reviewer + qa) on head (throttle row review-head:<task>:<sha>), or head has a verdict and the
-    re-run pass has not left a half-started round on it (only one of its two agents): that half gets its missing partner next tick."""
-    if _throttled(con, f"review-head:{tid}:{head}", clock, float("inf")):
-        return True
-    if len(_rerun_agents(con, tid, head)) == 1:
-        return False
-    return bool(con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone())
+    """True when the tick started both halves (reviewer + qa) on head (throttle row review-head:<task>:<sha>), or no role is missing on it
+    (_rerun_missing): a half-started round gets only its missing role next tick."""
+    return _throttled(con, f"review-head:{tid}:{head}", clock, float("inf")) or not _rerun_missing(con, tid, head)
 
 
 def review_rerun_tick(con):
@@ -12103,10 +12109,8 @@ def review_rerun_tick(con):
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
         started = []
-        for role in ("reviewer", "qa"):
+        for role in _rerun_missing(con, tid, sha):
             name = slug(f"{role}-{tid}-{sha[:8]}")
-            if con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
-                continue
             if not gate(con, role=role)[0]:
                 return
             try:
@@ -12120,7 +12124,7 @@ def review_rerun_tick(con):
             started.append(name)
             if status == "queued":
                 break
-        if len(_rerun_agents(con, tid, sha)) == 2:  # the mark only when both halves exist; a queued reviewer or refused qa retries
+        if not _rerun_missing(con, tid, sha):  # the mark only when both halves are done; a queued reviewer or refused qa retries
             _throttle_set(con, f"review-head:{tid}:{sha}", clock)
         if started:
             send(con, boss, f"review autospawn: new head review started on {tid} @{sha[:8]}",
