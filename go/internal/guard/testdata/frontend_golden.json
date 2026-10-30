@@ -41970,6 +41970,3192 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git",
+"mask_quotes_pre": "printf 'QQQQQQQQQQQ' > @SCRATCH@/n/.git",
+"mask_quotes_raw": "printf 'QQQQQQQQQQQ' > @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"printf",
+"'QQQQQQQQQQQ'",
+">",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"printf",
+"'QQQQQQQQQQQ'",
+">",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQ' >> @SCRATCH@/r/.git",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQ' >> @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQ'",
+">>",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQ'",
+">>",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'gitdir: x' | tee @SCRATCH@/n/.git",
+"mask_quotes_pre": "echo 'QQQQQQQQQ' | tee @SCRATCH@/n/.git",
+"mask_quotes_raw": "echo 'QQQQQQQQQ' | tee @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'gitdir: x' | tee @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'gitdir: x' | tee @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"echo",
+"'QQQQQQQQQ'"
+]
+],
+[
+18,
+39,
+[
+"tee",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"echo",
+"'QQQQQQQQQ'"
+]
+],
+[
+18,
+39,
+[
+"tee",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp gf @SCRATCH@/n/.git",
+"mask_quotes_pre": "cp gf @SCRATCH@/n/.git",
+"mask_quotes_raw": "cp gf @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp gf @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp gf @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"cp",
+"gf",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"cp",
+"gf",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"mask_quotes_pre": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"mask_quotes_raw": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s @SCRATCH@/g @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s @SCRATCH@/g @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"ln",
+"-s",
+"@SCRATCH@/g",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"ln",
+"-s",
+"@SCRATCH@/g",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "touch @SCRATCH@/n/.git",
+"mask_quotes_pre": "touch @SCRATCH@/n/.git",
+"mask_quotes_raw": "touch @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"touch",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"touch",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"mask_quotes_pre": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"mask_quotes_raw": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "sed -i s/a/b/ @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "sed -i s/a/b/ @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp gf @SCRATCH@/out/.git",
+"mask_quotes_pre": "cp gf @SCRATCH@/out/.git",
+"mask_quotes_raw": "cp gf @SCRATCH@/out/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp gf @SCRATCH@/out/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp gf @SCRATCH@/out/.git"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"cp",
+"gf",
+"@SCRATCH@/out/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"cp",
+"gf",
+"@SCRATCH@/out/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --git-dir=@SCRATCH@/g status",
+"mask_quotes_pre": "git --git-dir=@SCRATCH@/g status",
+"mask_quotes_raw": "git --git-dir=@SCRATCH@/g status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --git-dir=@SCRATCH@/g status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --git-dir=@SCRATCH@/g status"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"--git-dir=@SCRATCH@/g",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"--git-dir=@SCRATCH@/g",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git --git-dir @SCRATCH@/g status",
+"mask_quotes_pre": "git --git-dir @SCRATCH@/g status",
+"mask_quotes_raw": "git --git-dir @SCRATCH@/g status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git --git-dir @SCRATCH@/g status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git --git-dir @SCRATCH@/g status"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"--git-dir",
+"@SCRATCH@/g",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"--git-dir",
+"@SCRATCH@/g",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "GIT_DIR=@SCRATCH@/g git status",
+"mask_quotes_pre": "GIT_DIR=@SCRATCH@/g git status",
+"mask_quotes_raw": "GIT_DIR=@SCRATCH@/g git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "GIT_DIR=@SCRATCH@/g git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "GIT_DIR=@SCRATCH@/g git status"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"GIT_DIR=@SCRATCH@/g",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"GIT_DIR=@SCRATCH@/g",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export GIT_DIR=@SCRATCH@/g",
+"mask_quotes_pre": "export GIT_DIR=@SCRATCH@/g",
+"mask_quotes_raw": "export GIT_DIR=@SCRATCH@/g",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export GIT_DIR=@SCRATCH@/g"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export GIT_DIR=@SCRATCH@/g"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"export",
+"GIT_DIR=@SCRATCH@/g"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"export",
+"GIT_DIR=@SCRATCH@/g"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar xf a.tar -C @SCRATCH@/r/.git",
+"mask_quotes_pre": "tar xf a.tar -C @SCRATCH@/r/.git",
+"mask_quotes_raw": "tar xf a.tar -C @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar xf a.tar -C @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar xf a.tar -C @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"tar",
+"xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"tar",
+"xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"mask_quotes_pre": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"mask_quotes_raw": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar --directory=@SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar --directory=@SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"tar",
+"-xf",
+"a.tar",
+"--directory=@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"tar",
+"-xf",
+"a.tar",
+"--directory=@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git/hooks"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git/hooks"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"mask_quotes_pre": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"mask_quotes_raw": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bsdtar -xf a.tar -C @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bsdtar -xf a.tar -C @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"bsdtar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"bsdtar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip -d @SCRATCH@/r/.git",
+"mask_quotes_pre": "unzip a.zip -d @SCRATCH@/r/.git",
+"mask_quotes_raw": "unzip a.zip -d @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"mask_quotes_pre": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"mask_quotes_raw": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -o a.zip -d@SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -o a.zip -d@SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"unzip",
+"-o",
+"a.zip",
+"-d@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"unzip",
+"-o",
+"a.zip",
+"-d@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"mask_quotes_pre": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"mask_quotes_raw": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id -D @SCRATCH@/r/.git < a.cpio"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id -D @SCRATCH@/r/.git < a.cpio"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/r/.git",
+"<",
+"a.cpio"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/r/.git",
+"<",
+"a.cpio"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a src/ @SCRATCH@/r/.git/",
+"mask_quotes_pre": "rsync -a src/ @SCRATCH@/r/.git/",
+"mask_quotes_raw": "rsync -a src/ @SCRATCH@/r/.git/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a src/ @SCRATCH@/r/.git/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a src/ @SCRATCH@/r/.git/"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/r/.git/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/r/.git/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/r",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/r",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/r",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/r"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/r"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip -d @SCRATCH@/r",
+"mask_quotes_pre": "unzip a.zip -d @SCRATCH@/r",
+"mask_quotes_raw": "unzip a.zip -d @SCRATCH@/r",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/r"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/r"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip -d @SCRATCH@",
+"mask_quotes_pre": "unzip a.zip -d @SCRATCH@",
+"mask_quotes_raw": "unzip a.zip -d @SCRATCH@",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cpio -id -D @SCRATCH@ < a.cpio",
+"mask_quotes_pre": "cpio -id -D @SCRATCH@ < a.cpio",
+"mask_quotes_raw": "cpio -id -D @SCRATCH@ < a.cpio",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id -D @SCRATCH@ < a.cpio"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id -D @SCRATCH@ < a.cpio"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@",
+"<",
+"a.cpio"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@",
+"<",
+"a.cpio"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/deep",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/deep",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/deep",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/deep"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/deep"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/deep"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/deep"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip -d @SCRATCH@/deep",
+"mask_quotes_pre": "unzip a.zip -d @SCRATCH@/deep",
+"mask_quotes_raw": "unzip a.zip -d @SCRATCH@/deep",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/deep"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/deep"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/deep"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/deep"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/linked",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/linked",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/linked",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/linked"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/linked"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/linked"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/linked"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar",
+"mask_quotes_pre": "tar -xf a.tar",
+"mask_quotes_raw": "tar -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar xzf a.tar.gz",
+"mask_quotes_pre": "tar xzf a.tar.gz",
+"mask_quotes_raw": "tar xzf a.tar.gz",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar xzf a.tar.gz"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar xzf a.tar.gz"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"tar",
+"xzf",
+"a.tar.gz"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"tar",
+"xzf",
+"a.tar.gz"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip",
+"mask_quotes_pre": "unzip a.zip",
+"mask_quotes_raw": "unzip a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"unzip",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"unzip",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cpio -id < a.cpio",
+"mask_quotes_pre": "cpio -id < a.cpio",
+"mask_quotes_raw": "cpio -id < a.cpio",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id < a.cpio"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id < a.cpio"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C $WHERE",
+"mask_quotes_pre": "tar -xf a.tar -C $WHERE",
+"mask_quotes_raw": "tar -xf a.tar -C $WHERE",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C $WHERE"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C $WHERE"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"$WHERE"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"$WHERE"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xPf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xPf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xPf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xPf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xPf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"tar",
+"-xPf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"tar",
+"-xPf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out --absolute-names"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out --absolute-names"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--absolute-names"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--absolute-names"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "7z x a.7z",
+"mask_quotes_pre": "7z x a.7z",
+"mask_quotes_raw": "7z x a.7z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "7z x a.7z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "7z x a.7z"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"7z",
+"x",
+"a.7z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"7z",
+"x",
+"a.7z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "pax -rf a.tar",
+"mask_quotes_pre": "pax -rf a.tar",
+"mask_quotes_raw": "pax -rf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "pax -rf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "pax -rf a.tar"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"pax",
+"-rf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"pax",
+"-rf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "jar xf a.jar",
+"mask_quotes_pre": "jar xf a.jar",
+"mask_quotes_raw": "jar xf a.jar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "jar xf a.jar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "jar xf a.jar"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"jar",
+"xf",
+"a.jar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"jar",
+"xf",
+"a.jar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_pre": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_raw": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python -m tarfile -e a.tar @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python -m tarfile -e a.tar @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"python",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"python",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"python3",
+"-m",
+"tarfile",
+"--extract",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"python3",
+"-m",
+"tarfile",
+"--extract",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m zipfile -e a.zip",
+"mask_quotes_pre": "python3 -m zipfile -e a.zip",
+"mask_quotes_raw": "python3 -m zipfile -e a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -e a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -e a.zip"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"python3",
+"-Bm",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"python3",
+"-Bm",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"python3",
+"-I",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"python3",
+"-I",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"python3",
+"-IBm",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"python3",
+"-IBm",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"python3",
+"-Imzipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"python3",
+"-Imzipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"python3",
+"-W",
+"ignore",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"python3",
+"-W",
+"ignore",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar x --output=@SCRATCH@/r/.git a.a",
+"mask_quotes_pre": "ar x --output=@SCRATCH@/r/.git a.a",
+"mask_quotes_raw": "ar x --output=@SCRATCH@/r/.git a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar x --output=@SCRATCH@/r/.git a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar x --output=@SCRATCH@/r/.git a.a"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"ar",
+"x",
+"--output=@SCRATCH@/r/.git",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"ar",
+"x",
+"--output=@SCRATCH@/r/.git",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar x --output @SCRATCH@/r/.git a.a",
+"mask_quotes_pre": "ar x --output @SCRATCH@/r/.git a.a",
+"mask_quotes_raw": "ar x --output @SCRATCH@/r/.git a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar x --output @SCRATCH@/r/.git a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar x --output @SCRATCH@/r/.git a.a"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"ar",
+"x",
+"--output",
+"@SCRATCH@/r/.git",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"ar",
+"x",
+"--output",
+"@SCRATCH@/r/.git",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar xv --output=@SCRATCH@/r a.a",
+"mask_quotes_pre": "ar xv --output=@SCRATCH@/r a.a",
+"mask_quotes_raw": "ar xv --output=@SCRATCH@/r a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar xv --output=@SCRATCH@/r a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar xv --output=@SCRATCH@/r a.a"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"ar",
+"xv",
+"--output=@SCRATCH@/r",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"ar",
+"xv",
+"--output=@SCRATCH@/r",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"mask_quotes_pre": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"mask_quotes_raw": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"ar",
+"--output=@SCRATCH@/r/.git",
+"--plugin",
+"x.so",
+"x",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"ar",
+"--output=@SCRATCH@/r/.git",
+"--plugin",
+"x.so",
+"x",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"mask_quotes_pre": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"mask_quotes_raw": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"mask_quotes_pre": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"mask_quotes_raw": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a"
+},
+"segments_pre": [
+[
+0,
+49,
+[
+"ar",
+"--target",
+"elf64",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+49,
+[
+"ar",
+"--target",
+"elf64",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"mask_quotes_pre": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"mask_quotes_raw": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar -D --output=@SCRATCH@/r/.git xv a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar -D --output=@SCRATCH@/r/.git xv a.a"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"ar",
+"-D",
+"--output=@SCRATCH@/r/.git",
+"xv",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"ar",
+"-D",
+"--output=@SCRATCH@/r/.git",
+"xv",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"ln",
+"-s",
+"/etc",
+"@SCRATCH@/out/l"
+]
+],
+[
+29,
+60,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"ln",
+"-s",
+"/etc",
+"@SCRATCH@/out/l"
+]
+],
+[
+29,
+60,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"mv",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l"
+]
+],
+[
+31,
+62,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"mv",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l"
+]
+],
+[
+31,
+62,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"cp",
+"-r",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l"
+]
+],
+[
+36,
+65,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"cp",
+"-r",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l"
+]
+],
+[
+36,
+65,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"install",
+"-d",
+"@SCRATCH@/out/l"
+]
+],
+[
+29,
+60,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"install",
+"-d",
+"@SCRATCH@/out/l"
+]
+],
+[
+29,
+60,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"chmod",
+"755",
+"@SCRATCH@/out"
+]
+],
+[
+26,
+57,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"chmod",
+"755",
+"@SCRATCH@/out"
+]
+],
+[
+26,
+57,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/out/f"
+]
+],
+[
+27,
+58,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/out/f"
+]
+],
+[
+27,
+58,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"tee",
+"@SCRATCH@/out/f",
+"<",
+"a"
+]
+],
+[
+26,
+57,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"tee",
+"@SCRATCH@/out/f",
+"<",
+"a"
+]
+],
+[
+26,
+57,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+],
+[
+31,
+62,
+[
+"tar",
+"-xf",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+],
+[
+31,
+62,
+[
+"tar",
+"-xf",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -57806,6 +60992,1384 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "tar -tf a.tar",
+"mask_quotes_pre": "tar -tf a.tar",
+"mask_quotes_raw": "tar -tf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -tf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -tf a.tar"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"tar",
+"-tf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"tar",
+"-tf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar tvf a.tar",
+"mask_quotes_pre": "tar tvf a.tar",
+"mask_quotes_raw": "tar tvf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar tvf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar tvf a.tar"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"tar",
+"tvf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"tar",
+"tvf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar xf a.tar --directory=@SCRATCH@/out",
+"mask_quotes_pre": "tar xf a.tar --directory=@SCRATCH@/out",
+"mask_quotes_raw": "tar xf a.tar --directory=@SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar xf a.tar --directory=@SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar xf a.tar --directory=@SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"tar",
+"xf",
+"a.tar",
+"--directory=@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"tar",
+"xf",
+"a.tar",
+"--directory=@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -l a.zip",
+"mask_quotes_pre": "unzip -l a.zip",
+"mask_quotes_raw": "unzip -l a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -l a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -l a.zip"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"unzip",
+"-l",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"unzip",
+"-l",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -p a.zip f",
+"mask_quotes_pre": "unzip -p a.zip f",
+"mask_quotes_raw": "unzip -p a.zip f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -p a.zip f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -p a.zip f"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"unzip",
+"-p",
+"a.zip",
+"f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"unzip",
+"-p",
+"a.zip",
+"f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cpio -id -D @SCRATCH@/out < a.cpio",
+"mask_quotes_pre": "cpio -id -D @SCRATCH@/out < a.cpio",
+"mask_quotes_raw": "cpio -id -D @SCRATCH@/out < a.cpio",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id -D @SCRATCH@/out < a.cpio"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cpio -id -D @SCRATCH@/out < a.cpio"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/out",
+"<",
+"a.cpio"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/out",
+"<",
+"a.cpio"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cpio -it < a.cpio",
+"mask_quotes_pre": "cpio -it < a.cpio",
+"mask_quotes_raw": "cpio -it < a.cpio",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cpio -it < a.cpio"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cpio -it < a.cpio"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"cpio",
+"-it",
+"<",
+"a.cpio"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"cpio",
+"-it",
+"<",
+"a.cpio"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a src/ @SCRATCH@/out/",
+"mask_quotes_pre": "rsync -a src/ @SCRATCH@/out/",
+"mask_quotes_raw": "rsync -a src/ @SCRATCH@/out/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a src/ @SCRATCH@/out/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a src/ @SCRATCH@/out/"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/out/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/out/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat @SCRATCH@/r/.git/HEAD",
+"mask_quotes_pre": "cat @SCRATCH@/r/.git/HEAD",
+"mask_quotes_raw": "cat @SCRATCH@/r/.git/HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat @SCRATCH@/r/.git/HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat @SCRATCH@/r/.git/HEAD"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"cat",
+"@SCRATCH@/r/.git/HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"cat",
+"@SCRATCH@/r/.git/HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/.gitignore",
+"mask_quotes_pre": "echo x > @SCRATCH@/.gitignore",
+"mask_quotes_raw": "echo x > @SCRATCH@/.gitignore",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/.gitignore"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/.gitignore"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/.gitignore"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/.gitignore"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "7z l a.7z",
+"mask_quotes_pre": "7z l a.7z",
+"mask_quotes_raw": "7z l a.7z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "7z l a.7z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "7z l a.7z"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"7z",
+"l",
+"a.7z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"7z",
+"l",
+"a.7z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "jar tf a.jar",
+"mask_quotes_pre": "jar tf a.jar",
+"mask_quotes_raw": "jar tf a.jar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "jar tf a.jar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "jar tf a.jar"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"jar",
+"tf",
+"a.jar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"jar",
+"tf",
+"a.jar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"mask_quotes_pre": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"mask_quotes_raw": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -e a.zip @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -e a.zip @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"mask_quotes_pre": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"mask_quotes_raw": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile -e a.tar @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile -e a.tar @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"python3",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"python3",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar x --output=@SCRATCH@/out a.a",
+"mask_quotes_pre": "ar x --output=@SCRATCH@/out a.a",
+"mask_quotes_raw": "ar x --output=@SCRATCH@/out a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar x --output=@SCRATCH@/out a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar x --output=@SCRATCH@/out a.a"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"ar",
+"x",
+"--output=@SCRATCH@/out",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"ar",
+"x",
+"--output=@SCRATCH@/out",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m zipfile -l a.zip",
+"mask_quotes_pre": "python3 -m zipfile -l a.zip",
+"mask_quotes_raw": "python3 -m zipfile -l a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -l a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m zipfile -l a.zip"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"zipfile",
+"-l",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"zipfile",
+"-l",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m tarfile -l a.tar",
+"mask_quotes_pre": "python3 -m tarfile -l a.tar",
+"mask_quotes_raw": "python3 -m tarfile -l a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile -l a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m tarfile -l a.tar"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"tarfile",
+"-l",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"tarfile",
+"-l",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar t a.a",
+"mask_quotes_pre": "ar t a.a",
+"mask_quotes_raw": "ar t a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar t a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar t a.a"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"ar",
+"t",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"ar",
+"t",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar p a.a m",
+"mask_quotes_pre": "ar p a.a m",
+"mask_quotes_raw": "ar p a.a m",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar p a.a m"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar p a.a m"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"ar",
+"p",
+"a.a",
+"m"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"ar",
+"p",
+"a.a",
+"m"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"mask_quotes_pre": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"mask_quotes_raw": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im zipfile -e a.zip @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im zipfile -e a.zip @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"mask_quotes_pre": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"mask_quotes_raw": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -I -m tarfile -e a.tar @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -I -m tarfile -e a.tar @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"python3",
+"-I",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"python3",
+"-I",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Im zipfile -l a.zip",
+"mask_quotes_pre": "python3 -Im zipfile -l a.zip",
+"mask_quotes_raw": "python3 -Im zipfile -l a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im zipfile -l a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Im zipfile -l a.zip"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"python3",
+"-Im",
+"zipfile",
+"-l",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"python3",
+"-Im",
+"zipfile",
+"-l",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"mask_quotes_pre": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"mask_quotes_raw": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --plugin x.so --output=@SCRATCH@/out x a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --plugin x.so --output=@SCRATCH@/out x a.a"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/out",
+"x",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/out",
+"x",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --plugin x.so t a.a",
+"mask_quotes_pre": "ar --plugin x.so t a.a",
+"mask_quotes_raw": "ar --plugin x.so t a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --plugin x.so t a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --plugin x.so t a.a"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"ar",
+"--plugin",
+"x.so",
+"t",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"ar",
+"--plugin",
+"x.so",
+"t",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --target elf64 p a.a m",
+"mask_quotes_pre": "ar --target elf64 p a.a m",
+"mask_quotes_raw": "ar --target elf64 p a.a m",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --target elf64 p a.a m"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --target elf64 p a.a m"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"ar",
+"--target",
+"elf64",
+"p",
+"a.a",
+"m"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"ar",
+"--target",
+"elf64",
+"p",
+"a.a",
+"m"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"tar",
+"-tf",
+"a.tar"
+]
+],
+[
+16,
+47,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"tar",
+"-tf",
+"a.tar"
+]
+],
+[
+16,
+47,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'gitdir: x' > @SCRATCH@/n/.git",
+"mask_quotes_pre": "echo 'QQQQQQQQQ' > @SCRATCH@/n/.git",
+"mask_quotes_raw": "echo 'QQQQQQQQQ' > @SCRATCH@/n/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'gitdir: x' > @SCRATCH@/n/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'gitdir: x' > @SCRATCH@/n/.git"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"echo",
+"'QQQQQQQQQ'",
+">",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"echo",
+"'QQQQQQQQQ'",
+">",
+"@SCRATCH@/n/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -64918,7 +69482,7 @@
 ]
 }
 },
-"corpus_commands": 1112,
+"corpus_commands": 1205,
 "edge_inputs": 97,
 "python": "3.13"
 }

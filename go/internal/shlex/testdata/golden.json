@@ -32988,6 +32988,2935 @@
 "src": "corpus"
 },
 {
+"input": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"gitdir: x\\n",
+">",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"gitdir: x\\n",
+">",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"gitdir: x\\n",
+">",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "printf 'gitdir: x\\n' > @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'printf '\"'\"'gitdir: x\\n'\"'\"' > @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
+"input": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: @SCRATCH@/g",
+">>",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: @SCRATCH@/g",
+">>",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: @SCRATCH@/g",
+">>",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "echo 'gitdir: @SCRATCH@/g' >> @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'echo '\"'\"'gitdir: @SCRATCH@/g'\"'\"' >> @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "echo 'gitdir: x' | tee @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: x",
+"|",
+"tee",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "echo 'gitdir: x' | tee @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: x",
+"|",
+"tee",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "echo 'gitdir: x' | tee @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: x",
+"|",
+"tee",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "echo 'gitdir: x' | tee @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'echo '\"'\"'gitdir: x'\"'\"' | tee @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
+"input": "cp gf @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"gf",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "cp gf @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"gf",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "cp gf @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"gf",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "cp gf @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'cp gf @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
+"input": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"@SCRATCH@/g",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"@",
+"SCRATCH",
+"@",
+"/g",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"@SCRATCH@/g",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "ln -s @SCRATCH@/g @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'ln -s @SCRATCH@/g @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
+"input": "touch @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "touch @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"touch",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "touch @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "touch @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'touch @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'sed -i s/a/b/ @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
+"input": "cp gf @SCRATCH@/out/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"gf",
+"@SCRATCH@/out/.git"
+]
+},
+{
+"input": "cp gf @SCRATCH@/out/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"gf",
+"@",
+"SCRATCH",
+"@",
+"/out/.git"
+]
+},
+{
+"input": "cp gf @SCRATCH@/out/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"gf",
+"@SCRATCH@/out/.git"
+]
+},
+{
+"input": "cp gf @SCRATCH@/out/.git",
+"mode": "quote",
+"quoted": "'cp gf @SCRATCH@/out/.git'",
+"src": "corpus"
+},
+{
+"input": "git --git-dir=@SCRATCH@/g status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir=@SCRATCH@/g",
+"status"
+]
+},
+{
+"input": "git --git-dir=@SCRATCH@/g status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir=",
+"@",
+"SCRATCH",
+"@",
+"/g",
+"status"
+]
+},
+{
+"input": "git --git-dir=@SCRATCH@/g status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir=@SCRATCH@/g",
+"status"
+]
+},
+{
+"input": "git --git-dir=@SCRATCH@/g status",
+"mode": "quote",
+"quoted": "'git --git-dir=@SCRATCH@/g status'",
+"src": "corpus"
+},
+{
+"input": "git --git-dir @SCRATCH@/g status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir",
+"@SCRATCH@/g",
+"status"
+]
+},
+{
+"input": "git --git-dir @SCRATCH@/g status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir",
+"@",
+"SCRATCH",
+"@",
+"/g",
+"status"
+]
+},
+{
+"input": "git --git-dir @SCRATCH@/g status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir",
+"@SCRATCH@/g",
+"status"
+]
+},
+{
+"input": "git --git-dir @SCRATCH@/g status",
+"mode": "quote",
+"quoted": "'git --git-dir @SCRATCH@/g status'",
+"src": "corpus"
+},
+{
+"input": "GIT_DIR=@SCRATCH@/g git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_DIR=@SCRATCH@/g",
+"git",
+"status"
+]
+},
+{
+"input": "GIT_DIR=@SCRATCH@/g git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_DIR=",
+"@",
+"SCRATCH",
+"@",
+"/g",
+"git",
+"status"
+]
+},
+{
+"input": "GIT_DIR=@SCRATCH@/g git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_DIR=@SCRATCH@/g",
+"git",
+"status"
+]
+},
+{
+"input": "GIT_DIR=@SCRATCH@/g git status",
+"mode": "quote",
+"quoted": "'GIT_DIR=@SCRATCH@/g git status'",
+"src": "corpus"
+},
+{
+"input": "export GIT_DIR=@SCRATCH@/g",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_DIR=@SCRATCH@/g"
+]
+},
+{
+"input": "export GIT_DIR=@SCRATCH@/g",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_DIR=",
+"@",
+"SCRATCH",
+"@",
+"/g"
+]
+},
+{
+"input": "export GIT_DIR=@SCRATCH@/g",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_DIR=@SCRATCH@/g"
+]
+},
+{
+"input": "export GIT_DIR=@SCRATCH@/g",
+"mode": "quote",
+"quoted": "'export GIT_DIR=@SCRATCH@/g'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "tar xf a.tar -C @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "tar xf a.tar -C @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "tar xf a.tar -C @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "tar xf a.tar -C @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'tar xf a.tar -C @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"--directory=@SCRATCH@/r/.git"
+]
+},
+{
+"input": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"--directory=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"--directory=@SCRATCH@/r/.git"
+]
+},
+{
+"input": "tar -xf a.tar --directory=@SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'tar -xf a.tar --directory=@SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git/hooks"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git/hooks"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r/.git/hooks",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/r/.git/hooks'",
+"src": "corpus"
+},
+{
+"input": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bsdtar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bsdtar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bsdtar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "bsdtar -xf a.tar -C @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'bsdtar -xf a.tar -C @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'unzip a.zip -d @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-o",
+"a.zip",
+"-d@SCRATCH@/r/.git"
+]
+},
+{
+"input": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-o",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-o",
+"a.zip",
+"-d@SCRATCH@/r/.git"
+]
+},
+{
+"input": "unzip -o a.zip -d@SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'unzip -o a.zip -d@SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/r/.git",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/r/.git",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@/r/.git < a.cpio",
+"mode": "quote",
+"quoted": "'cpio -id -D @SCRATCH@/r/.git < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "rsync -a src/ @SCRATCH@/r/.git/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/r/.git/"
+]
+},
+{
+"input": "rsync -a src/ @SCRATCH@/r/.git/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"src/",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/"
+]
+},
+{
+"input": "rsync -a src/ @SCRATCH@/r/.git/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/r/.git/"
+]
+},
+{
+"input": "rsync -a src/ @SCRATCH@/r/.git/",
+"mode": "quote",
+"quoted": "'rsync -a src/ @SCRATCH@/r/.git/'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/r"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/r",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/r'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/r"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/r"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/r",
+"mode": "quote",
+"quoted": "'unzip a.zip -d @SCRATCH@/r'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip -d @SCRATCH@",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@",
+"mode": "quote",
+"quoted": "'unzip a.zip -d @SCRATCH@'",
+"src": "corpus"
+},
+{
+"input": "cpio -id -D @SCRATCH@ < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@ < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@",
+"SCRATCH",
+"@",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@ < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@ < a.cpio",
+"mode": "quote",
+"quoted": "'cpio -id -D @SCRATCH@ < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/deep",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/deep"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/deep",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/deep"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/deep",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/deep"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/deep",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/deep'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/deep",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/deep"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/deep",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/deep"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/deep",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/deep"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/deep",
+"mode": "quote",
+"quoted": "'unzip a.zip -d @SCRATCH@/deep'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/linked",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/linked"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/linked",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/linked"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/linked",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/linked"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/linked",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/linked'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar xzf a.tar.gz",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xzf",
+"a.tar.gz"
+]
+},
+{
+"input": "tar xzf a.tar.gz",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xzf",
+"a.tar.gz"
+]
+},
+{
+"input": "tar xzf a.tar.gz",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xzf",
+"a.tar.gz"
+]
+},
+{
+"input": "tar xzf a.tar.gz",
+"mode": "quote",
+"quoted": "'tar xzf a.tar.gz'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip"
+]
+},
+{
+"input": "unzip a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip"
+]
+},
+{
+"input": "unzip a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip"
+]
+},
+{
+"input": "unzip a.zip",
+"mode": "quote",
+"quoted": "'unzip a.zip'",
+"src": "corpus"
+},
+{
+"input": "cpio -id < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id < a.cpio",
+"mode": "quote",
+"quoted": "'cpio -id < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C $WHERE",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"$WHERE"
+]
+},
+{
+"input": "tar -xf a.tar -C $WHERE",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"$",
+"WHERE"
+]
+},
+{
+"input": "tar -xf a.tar -C $WHERE",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"$WHERE"
+]
+},
+{
+"input": "tar -xf a.tar -C $WHERE",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C $WHERE'",
+"src": "corpus"
+},
+{
+"input": "tar -xPf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xPf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xPf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xPf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xPf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xPf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xPf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xPf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--absolute-names"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"--absolute-names"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--absolute-names"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --absolute-names",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/out --absolute-names'",
+"src": "corpus"
+},
+{
+"input": "7z x a.7z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"7z",
+"x",
+"a.7z"
+]
+},
+{
+"input": "7z x a.7z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"7z",
+"x",
+"a.7z"
+]
+},
+{
+"input": "7z x a.7z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"7z",
+"x",
+"a.7z"
+]
+},
+{
+"input": "7z x a.7z",
+"mode": "quote",
+"quoted": "'7z x a.7z'",
+"src": "corpus"
+},
+{
+"input": "pax -rf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"pax",
+"-rf",
+"a.tar"
+]
+},
+{
+"input": "pax -rf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"pax",
+"-rf",
+"a.tar"
+]
+},
+{
+"input": "pax -rf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"pax",
+"-rf",
+"a.tar"
+]
+},
+{
+"input": "pax -rf a.tar",
+"mode": "quote",
+"quoted": "'pax -rf a.tar'",
+"src": "corpus"
+},
+{
+"input": "jar xf a.jar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"jar",
+"xf",
+"a.jar"
+]
+},
+{
+"input": "jar xf a.jar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"jar",
+"xf",
+"a.jar"
+]
+},
+{
+"input": "jar xf a.jar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"jar",
+"xf",
+"a.jar"
+]
+},
+{
+"input": "jar xf a.jar",
+"mode": "quote",
+"quoted": "'jar xf a.jar'",
+"src": "corpus"
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python -m tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python -m tarfile -e a.tar @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"--extract",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"--extract",
+"a.tar",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"--extract",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -m tarfile --extract a.tar @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -m tarfile --extract a.tar @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -m zipfile -e a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip",
+"mode": "quote",
+"quoted": "'python3 -m zipfile -e a.zip'",
+"src": "corpus"
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -Im zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Bm",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Bm",
+"tarfile",
+"-e",
+"a.tar",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Bm",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-I",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-I",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-I",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-IBm",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-IBm",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-IBm",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Imzipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Imzipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Imzipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -Imzipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"ignore",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"ignore",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"ignore",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -W ignore -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "ar x --output=@SCRATCH@/r/.git a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output=@SCRATCH@/r/.git",
+"a.a"
+]
+},
+{
+"input": "ar x --output=@SCRATCH@/r/.git a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"a.a"
+]
+},
+{
+"input": "ar x --output=@SCRATCH@/r/.git a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output=@SCRATCH@/r/.git",
+"a.a"
+]
+},
+{
+"input": "ar x --output=@SCRATCH@/r/.git a.a",
+"mode": "quote",
+"quoted": "'ar x --output=@SCRATCH@/r/.git a.a'",
+"src": "corpus"
+},
+{
+"input": "ar x --output @SCRATCH@/r/.git a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output",
+"@SCRATCH@/r/.git",
+"a.a"
+]
+},
+{
+"input": "ar x --output @SCRATCH@/r/.git a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"a.a"
+]
+},
+{
+"input": "ar x --output @SCRATCH@/r/.git a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output",
+"@SCRATCH@/r/.git",
+"a.a"
+]
+},
+{
+"input": "ar x --output @SCRATCH@/r/.git a.a",
+"mode": "quote",
+"quoted": "'ar x --output @SCRATCH@/r/.git a.a'",
+"src": "corpus"
+},
+{
+"input": "ar xv --output=@SCRATCH@/r a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"xv",
+"--output=@SCRATCH@/r",
+"a.a"
+]
+},
+{
+"input": "ar xv --output=@SCRATCH@/r a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"xv",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"a.a"
+]
+},
+{
+"input": "ar xv --output=@SCRATCH@/r a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"xv",
+"--output=@SCRATCH@/r",
+"a.a"
+]
+},
+{
+"input": "ar xv --output=@SCRATCH@/r a.a",
+"mode": "quote",
+"quoted": "'ar xv --output=@SCRATCH@/r a.a'",
+"src": "corpus"
+},
+{
+"input": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--output=@SCRATCH@/r/.git",
+"--plugin",
+"x.so",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"--plugin",
+"x.so",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--output=@SCRATCH@/r/.git",
+"--plugin",
+"x.so",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --output=@SCRATCH@/r/.git --plugin x.so x a.a",
+"mode": "quote",
+"quoted": "'ar --output=@SCRATCH@/r/.git --plugin x.so x a.a'",
+"src": "corpus"
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/r/.git x a.a",
+"mode": "quote",
+"quoted": "'ar --plugin x.so --output=@SCRATCH@/r/.git x a.a'",
+"src": "corpus"
+},
+{
+"input": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"elf64",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"elf64",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"elf64",
+"--output=@SCRATCH@/r/.git",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --target elf64 --output=@SCRATCH@/r/.git x a.a",
+"mode": "quote",
+"quoted": "'ar --target elf64 --output=@SCRATCH@/r/.git x a.a'",
+"src": "corpus"
+},
+{
+"input": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"-D",
+"--output=@SCRATCH@/r/.git",
+"xv",
+"a.a"
+]
+},
+{
+"input": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"-D",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git",
+"xv",
+"a.a"
+]
+},
+{
+"input": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"-D",
+"--output=@SCRATCH@/r/.git",
+"xv",
+"a.a"
+]
+},
+{
+"input": "ar -D --output=@SCRATCH@/r/.git xv a.a",
+"mode": "quote",
+"quoted": "'ar -D --output=@SCRATCH@/r/.git xv a.a'",
+"src": "corpus"
+},
+{
+"input": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/etc",
+"@SCRATCH@/out/l",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/etc",
+"@",
+"SCRATCH",
+"@",
+"/out/l",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/etc",
+"@SCRATCH@/out/l",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'ln -s /etc @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l",
+";",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"@",
+"SCRATCH",
+"@",
+"/x",
+"@",
+"SCRATCH",
+"@",
+"/out/l",
+";",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l;",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'mv @SCRATCH@/x @SCRATCH@/out/l; tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l",
+"&&",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"@",
+"SCRATCH",
+"@",
+"/x",
+"@",
+"SCRATCH",
+"@",
+"/out/l",
+"&&",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"@SCRATCH@/x",
+"@SCRATCH@/out/l",
+"&&",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'cp -r @SCRATCH@/x @SCRATCH@/out/l && unzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"-d",
+"@SCRATCH@/out/l",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out/l",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"-d",
+"@SCRATCH@/out/l",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'install -d @SCRATCH@/out/l && tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"chmod",
+"755",
+"@SCRATCH@/out",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"chmod",
+"755",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"chmod",
+"755",
+"@SCRATCH@/out",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/out/f",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/out/f",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/out/f",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tee",
+"@SCRATCH@/out/f",
+"<",
+"a",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tee",
+"@",
+"SCRATCH",
+"@",
+"/out/f",
+"<",
+"a",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tee",
+"@SCRATCH@/out/f",
+"<",
+"a",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+";",
+"tar",
+"-xf",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out",
+";",
+"tar",
+"-xf",
+"b.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out;",
+"tar",
+"-xf",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -45858,6 +48787,1236 @@
 "src": "corpus"
 },
 {
+"input": "tar -tf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"a.tar"
+]
+},
+{
+"input": "tar -tf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"a.tar"
+]
+},
+{
+"input": "tar -tf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"a.tar"
+]
+},
+{
+"input": "tar -tf a.tar",
+"mode": "quote",
+"quoted": "'tar -tf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar tvf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"tvf",
+"a.tar"
+]
+},
+{
+"input": "tar tvf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"tvf",
+"a.tar"
+]
+},
+{
+"input": "tar tvf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"tvf",
+"a.tar"
+]
+},
+{
+"input": "tar tvf a.tar",
+"mode": "quote",
+"quoted": "'tar tvf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar xf a.tar --directory=@SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"--directory=@SCRATCH@/out"
+]
+},
+{
+"input": "tar xf a.tar --directory=@SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"--directory=",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar xf a.tar --directory=@SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"--directory=@SCRATCH@/out"
+]
+},
+{
+"input": "tar xf a.tar --directory=@SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar xf a.tar --directory=@SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "unzip -l a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "unzip -l a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "unzip -l a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "unzip -l a.zip",
+"mode": "quote",
+"quoted": "'unzip -l a.zip'",
+"src": "corpus"
+},
+{
+"input": "unzip -p a.zip f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-p",
+"a.zip",
+"f"
+]
+},
+{
+"input": "unzip -p a.zip f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-p",
+"a.zip",
+"f"
+]
+},
+{
+"input": "unzip -p a.zip f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-p",
+"a.zip",
+"f"
+]
+},
+{
+"input": "unzip -p a.zip f",
+"mode": "quote",
+"quoted": "'unzip -p a.zip f'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "unzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'unzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "cpio -id -D @SCRATCH@/out < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/out",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@/out < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@/out < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"@SCRATCH@/out",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D @SCRATCH@/out < a.cpio",
+"mode": "quote",
+"quoted": "'cpio -id -D @SCRATCH@/out < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "cpio -it < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-it",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -it < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-it",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -it < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-it",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -it < a.cpio",
+"mode": "quote",
+"quoted": "'cpio -it < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "rsync -a src/ @SCRATCH@/out/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/out/"
+]
+},
+{
+"input": "rsync -a src/ @SCRATCH@/out/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"src/",
+"@",
+"SCRATCH",
+"@",
+"/out/"
+]
+},
+{
+"input": "rsync -a src/ @SCRATCH@/out/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"src/",
+"@SCRATCH@/out/"
+]
+},
+{
+"input": "rsync -a src/ @SCRATCH@/out/",
+"mode": "quote",
+"quoted": "'rsync -a src/ @SCRATCH@/out/'",
+"src": "corpus"
+},
+{
+"input": "cat @SCRATCH@/r/.git/HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SCRATCH@/r/.git/HEAD"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/HEAD"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SCRATCH@/r/.git/HEAD"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/HEAD",
+"mode": "quote",
+"quoted": "'cat @SCRATCH@/r/.git/HEAD'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/.gitignore",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/.gitignore"
+]
+},
+{
+"input": "echo x > @SCRATCH@/.gitignore",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/.gitignore"
+]
+},
+{
+"input": "echo x > @SCRATCH@/.gitignore",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/.gitignore"
+]
+},
+{
+"input": "echo x > @SCRATCH@/.gitignore",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/.gitignore'",
+"src": "corpus"
+},
+{
+"input": "7z l a.7z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"7z",
+"l",
+"a.7z"
+]
+},
+{
+"input": "7z l a.7z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"7z",
+"l",
+"a.7z"
+]
+},
+{
+"input": "7z l a.7z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"7z",
+"l",
+"a.7z"
+]
+},
+{
+"input": "7z l a.7z",
+"mode": "quote",
+"quoted": "'7z l a.7z'",
+"src": "corpus"
+},
+{
+"input": "jar tf a.jar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"jar",
+"tf",
+"a.jar"
+]
+},
+{
+"input": "jar tf a.jar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"jar",
+"tf",
+"a.jar"
+]
+},
+{
+"input": "jar tf a.jar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"jar",
+"tf",
+"a.jar"
+]
+},
+{
+"input": "jar tf a.jar",
+"mode": "quote",
+"quoted": "'jar tf a.jar'",
+"src": "corpus"
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -m zipfile -e a.zip @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -m zipfile -e a.zip @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -m tarfile -e a.tar @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "ar x --output=@SCRATCH@/out a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output=@SCRATCH@/out",
+"a.a"
+]
+},
+{
+"input": "ar x --output=@SCRATCH@/out a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"a.a"
+]
+},
+{
+"input": "ar x --output=@SCRATCH@/out a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"--output=@SCRATCH@/out",
+"a.a"
+]
+},
+{
+"input": "ar x --output=@SCRATCH@/out a.a",
+"mode": "quote",
+"quoted": "'ar x --output=@SCRATCH@/out a.a'",
+"src": "corpus"
+},
+{
+"input": "python3 -m zipfile -l a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "python3 -m zipfile -l a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "python3 -m zipfile -l a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"zipfile",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "python3 -m zipfile -l a.zip",
+"mode": "quote",
+"quoted": "'python3 -m zipfile -l a.zip'",
+"src": "corpus"
+},
+{
+"input": "python3 -m tarfile -l a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"-l",
+"a.tar"
+]
+},
+{
+"input": "python3 -m tarfile -l a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"-l",
+"a.tar"
+]
+},
+{
+"input": "python3 -m tarfile -l a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"tarfile",
+"-l",
+"a.tar"
+]
+},
+{
+"input": "python3 -m tarfile -l a.tar",
+"mode": "quote",
+"quoted": "'python3 -m tarfile -l a.tar'",
+"src": "corpus"
+},
+{
+"input": "ar t a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"t",
+"a.a"
+]
+},
+{
+"input": "ar t a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"t",
+"a.a"
+]
+},
+{
+"input": "ar t a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"t",
+"a.a"
+]
+},
+{
+"input": "ar t a.a",
+"mode": "quote",
+"quoted": "'ar t a.a'",
+"src": "corpus"
+},
+{
+"input": "ar p a.a m",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"p",
+"a.a",
+"m"
+]
+},
+{
+"input": "ar p a.a m",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"p",
+"a.a",
+"m"
+]
+},
+{
+"input": "ar p a.a m",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"p",
+"a.a",
+"m"
+]
+},
+{
+"input": "ar p a.a m",
+"mode": "quote",
+"quoted": "'ar p a.a m'",
+"src": "corpus"
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -Im zipfile -e a.zip @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -Im zipfile -e a.zip @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-I",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-I",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-I",
+"-m",
+"tarfile",
+"-e",
+"a.tar",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -I -m tarfile -e a.tar @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -I -m tarfile -e a.tar @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "python3 -Im zipfile -l a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "python3 -Im zipfile -l a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "python3 -Im zipfile -l a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Im",
+"zipfile",
+"-l",
+"a.zip"
+]
+},
+{
+"input": "python3 -Im zipfile -l a.zip",
+"mode": "quote",
+"quoted": "'python3 -Im zipfile -l a.zip'",
+"src": "corpus"
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/out",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"--output=",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"--output=@SCRATCH@/out",
+"x",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so --output=@SCRATCH@/out x a.a",
+"mode": "quote",
+"quoted": "'ar --plugin x.so --output=@SCRATCH@/out x a.a'",
+"src": "corpus"
+},
+{
+"input": "ar --plugin x.so t a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"t",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so t a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"t",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so t a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--plugin",
+"x.so",
+"t",
+"a.a"
+]
+},
+{
+"input": "ar --plugin x.so t a.a",
+"mode": "quote",
+"quoted": "'ar --plugin x.so t a.a'",
+"src": "corpus"
+},
+{
+"input": "ar --target elf64 p a.a m",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"elf64",
+"p",
+"a.a",
+"m"
+]
+},
+{
+"input": "ar --target elf64 p a.a m",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"elf64",
+"p",
+"a.a",
+"m"
+]
+},
+{
+"input": "ar --target elf64 p a.a m",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"elf64",
+"p",
+"a.a",
+"m"
+]
+},
+{
+"input": "ar --target elf64 p a.a m",
+"mode": "quote",
+"quoted": "'ar --target elf64 p a.a m'",
+"src": "corpus"
+},
+{
+"input": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"a.tar",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"a.tar",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"a.tar",
+"&&",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -tf a.tar && tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "echo 'gitdir: x' > @SCRATCH@/n/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: x",
+">",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "echo 'gitdir: x' > @SCRATCH@/n/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/n/.git"
+]
+},
+{
+"input": "echo 'gitdir: x' > @SCRATCH@/n/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"gitdir: x",
+">",
+"@SCRATCH@/n/.git"
+]
+},
+{
+"input": "echo 'gitdir: x' > @SCRATCH@/n/.git",
+"mode": "quote",
+"quoted": "'echo '\"'\"'gitdir: x'\"'\"' > @SCRATCH@/n/.git'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -49889,7 +54048,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1112,
+"corpus_commands": 1205,
 "edge_inputs": 123,
 "python": "3.13"
 }

@@ -175,7 +175,7 @@ func substVars(s string, vars map[string]string) string {
 
 // persistHit is a port of Analyzer.persist_hit (T-0334): word (or the value of --opt=value / of=value) names a
 // protected persistence path. A word with an expansion we cannot resolve counts when it spells a protected name.
-func (a *Analyzer) persistHit(word string, ancestor bool) bool {
+func (a *Analyzer) persistHit(word string, ancestor, gitfile bool) bool {
 	h := mustHost()
 	for _, w := range uniq([]string{word, valueOf(word)}) {
 		t := cfgExpand(substVars(w, a.vars))
@@ -202,13 +202,16 @@ func (a *Analyzer) persistHit(word string, ancestor bool) bool {
 		if persistPath(t, ancestor, !noPush) || (noPush && gitHooksPath(t, false)) {
 			return true
 		}
+		if noPush && gitfile && gitfilePath(t) { // T-0783: a write target named .git
+			return true
+		}
 	}
 	return false
 }
 
 // persistRedirect is a port of Analyzer.persist_redirect.
 func (a *Analyzer) persistRedirect(target string) error {
-	if a.persistHit(target, false) {
+	if a.persistHit(target, false, true) {
 		return blockf("a redirect into a protected config/init file: " + persistWhy)
 	}
 	return nil
@@ -240,7 +243,7 @@ func (a *Analyzer) persistWrite(name string, rest []string) error {
 			}
 		}
 		for _, j := range checked {
-			if a.persistHit(args[j], name == "ln" || name == "mv") {
+			if a.persistHit(args[j], name == "ln" || name == "mv", true) {
 				return blockf("`" + name + "` on a protected config/init file: " + persistWhy)
 			}
 		}
@@ -264,7 +267,7 @@ func (a *Analyzer) persistWrite(name string, rest []string) error {
 			}
 			for _, d := range dests {
 				for _, src := range opts {
-					if src != d && a.persistHit(strings.TrimRight(d, "/")+"/"+pyBasename(strings.TrimRight(src, "/")), false) {
+					if src != d && a.persistHit(strings.TrimRight(d, "/")+"/"+pyBasename(strings.TrimRight(src, "/")), false, true) {
 						return blockf("`" + name + "` into a protected directory under a protected file name: " + persistWhy)
 					}
 				}
@@ -290,13 +293,13 @@ func (a *Analyzer) persistWrite(name string, rest []string) error {
 			}
 		}
 		for _, x := range cand {
-			if a.persistHit(x, false) || PersistCode(x) {
+			if a.persistHit(x, false, true) || PersistCode(x) {
 				return blockf("`" + name + "` writing a protected config/init file: " + persistWhy)
 			}
 		}
 	case interpreterFull(name) || editorWriter(name):
 		for _, x := range rest {
-			if a.persistHit(x, false) || PersistCode(x) {
+			if a.persistHit(x, false, !interpreterFull(name)) || PersistCode(x) {
 				return blockf("`" + name + "` naming a protected config/init file (code there cannot be inspected; read it " +
 					"with cat): " + persistWhy)
 			}

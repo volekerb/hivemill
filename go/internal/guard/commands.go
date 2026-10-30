@@ -690,6 +690,15 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if err := a.persistWrite(name, rest); err != nil {
 		return err
 	}
+	if a.noPush() {
+		ex, err := a.archiveExtract(name, rest)
+		if err != nil {
+			return err
+		}
+		if ex || in(fsMutators, name) {
+			a.fsChanged = true
+		}
+	}
 	if err := a.factoryUnit(name, rest, assigns); err != nil {
 		return err
 	}

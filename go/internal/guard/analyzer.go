@@ -33,6 +33,7 @@ type Analyzer struct {
 
 	vars      map[string]string // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
 	ccwd      string            // like gcwd, for the CFG_DIR write detector
+	fsChanged bool              // T-0783: an earlier command on this line may have changed the filesystem
 	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
 	skipPriv         bool
@@ -428,6 +429,11 @@ func (a *Analyzer) script(text string, depth int) error {
 		}
 		if err := a.soft(a.cmd(c.words, depth, c.piped, false, c.hs, nil)); err != nil {
 			return err
+		}
+		for _, r := range reds {
+			if r.idx == n && r.target != "/dev/null" {
+				a.fsChanged = true
+			}
 		}
 	}
 	return nil
