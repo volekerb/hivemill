@@ -61,6 +61,7 @@ class GuardImplTests(unittest.TestCase):
     def test_diff_normalizes_only_the_go_prefix(self):
         self.assertEqual(guard_impl.normalize_go_stderr("worker-guard(go): hook error\n"), "worker-guard: hook error\n")
         self.assertEqual(guard_impl.normalize_go_stderr("worker-guard: blocked (go)\n"), "worker-guard: blocked (go)\n")
+        self.assertEqual(guard_impl.normalize_go_stderr("note: worker-guard(go) is mid-line\n"), "note: worker-guard(go) is mid-line\n")
         with tempfile.TemporaryDirectory() as td, self.env("diff", stub(td, "cat >/dev/null; echo 'worker-guard(go): x' >&2; exit 0")):
             with self.assertRaises(AssertionError):  # prefix normalized, but python's stderr is empty on ALLOW
                 hook_run(ALLOW, ["--role", "coder"])

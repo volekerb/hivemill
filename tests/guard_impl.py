@@ -11,6 +11,7 @@ Not a test module (no test_ prefix). tests/test_guard_impl_coverage.py fails any
 """
 import atexit
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -53,7 +54,7 @@ def go_bin():
 
 def normalize_go_stderr(text):
     """Go's internal-error prefix "worker-guard(go)" -> Python's "worker-guard"; the only allowed stderr difference."""
-    return text.replace("worker-guard(go)", "worker-guard")
+    return re.sub(r"(?m)^worker-guard\(go\)", "worker-guard", text)
 
 
 def _run(argv, payload, env, cwd, timeout):
