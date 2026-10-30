@@ -50,9 +50,14 @@ Ask: "Install the factory in `~/factory` (the default), or somewhere else?" Reco
 
 ### 3. Get the code
 
-If the repository is already checked out where the user wants it, use it. Otherwise ask for the repository URL and run `git clone <url> <location>`.
+If the repository is already checked out where the user wants it, use it. Otherwise ask for the repository URL and run `git clone <url> <location>`, then check out the latest release tag:
 
-**Verify:** `git -C <location> rev-parse --short HEAD` prints a commit id and `ls <location>/bin/factory` exists.
+```
+cd <location>
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+```
+
+**Verify:** `git -C <location> rev-parse --short HEAD` prints a commit id and `ls <location>/bin/factory` exists, and `factory --version` (once the CLI is on `PATH`, step 4) prints `hivemill X.Y.Z`.
 
 ### 4. Put the CLI on PATH
 

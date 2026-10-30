@@ -88,12 +88,15 @@ Put the CLI on your `PATH` (`~/.local/bin` must exist and be on it), initialise,
 ```
 git clone https://github.com/volekerb/hivemill.git ~/factory
 cd ~/factory
+git checkout "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
 ln -s "$PWD/bin/factory" ~/.local/bin/factory
 factory init
 factory project add myapp --name "My app" --repo ~/src/myapp --gh example-org/myapp
 factory up
 factory serve --bind 127.0.0.1
 ```
+
+This checks out the latest release. Contributors who want unreleased work use `git checkout main`.
 
 `project add` and `up` need a plain shell (workers are refused), a running herdr server and a logged-in Claude Code; the walk-through is in [docs/SETUP.md](docs/SETUP.md). Then open the boss's pane in herdr and describe what you want built.
 
