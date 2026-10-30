@@ -36,8 +36,9 @@ class WorkflowAllowRuleTests(unittest.TestCase):
         for f in sorted(SETTINGS.glob("*.json.in")):
             rules = json.loads(f.read_text())["permissions"].get("allow", [])
             for r in rules:
-                if r.startswith("Workflow") and r != PROBE_RULE:
+                if r.startswith("Workflow"):
                     self.assertEqual((f.name, r), (f.name, RULES[f.name.split(".")[0]]))
+            self.assertNotIn(PROBE_RULE, f.read_text(), f.name)  # removed by T-0758
             self.assertNotRegex(f.read_text(), r'"Workflow"')
             self.assertNotIn(BARE, f.read_text(), f.name)
 
