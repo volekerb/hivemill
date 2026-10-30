@@ -140,7 +140,10 @@ so a redesign needs no recorder change; a page that stops answering 200 fails th
 selector that matches nothing. Check that each selector still lands on the section named in the pitch table. Review the new video, then
 commit the new `hero.webp` and upload the new MP4 and WebM as release assets.
 
-## Last measured (draft build on your-box, about 10 minutes)
+## Last measured (2x capture on your-box, 2026-10-30)
 
-`demo.mp4` 76.0 s, 3.8 MB; `demo.webm` 76.0 s, 4.1 MB; `hero.webp` 13.0 s, 1.7 MB (1600x900, 18 fps encoded, 220 frames = 16.9 fps measured, quality 85). The starting crf and quality
-values above met every limit, so they were not tuned.
+README cut (`storyboard.json`, 16.5 minutes): `demo.mp4` 80.0 s, 4.0 MB; `demo.webm` 80.0 s, 5.4 MB; `hero.webp` 10.0 s,
+1.5 MB (1600x900, 20 fps encoded, 18.2 fps measured, quality 85). LinkedIn cut (`storyboard-linkedin.json`, 11.5
+minutes): `demo.mp4` 67.0 s, 3.3 MB; `demo.webm` 67.0 s, 4.4 MB. Both captured at 3840x2160 and exported at 1920x1080
+(yuv420p, faststart, no audio); scrub 0 hits. The starting crf and quality values met every limit, so they were not
+tuned.

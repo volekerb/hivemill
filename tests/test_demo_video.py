@@ -88,7 +88,7 @@ class ArgBuilders(unittest.TestCase):
         q = self.pairs(dv.hero_args("hero.webp", 1280, 15, 30, 90))
         self.assertEqual((q["-quality"], q["-vf"]), ("90", "fps=15,scale=1280:-2"))
         hero = dv.load_board()["hero"]
-        self.assertEqual((hero["width"], hero["fps"], hero["quality"]), (1600, 18, 85))
+        self.assertEqual((hero["width"], hero["fps"], hero["quality"]), (1600, 20, 85))
 
     def test_concat_list_quotes(self):
         self.assertEqual(dv.concat_list(["/w/a.mp4", "/w/it's.mp4"]), "file '/w/a.mp4'\nfile '/w/it'\\''s.mp4'\n")
