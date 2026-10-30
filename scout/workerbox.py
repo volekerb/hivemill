@@ -52,6 +52,7 @@ WORKER_ENV_PASS = ("PATH", "LANG", "TERM", *nsbox.CLAUDE_ENV_PASS,
 # swap, a worker pays at most 512m + 64m when it fills both. The tmp_max_pct gate only watches the host /tmp, never these
 # per-namespace tmpfs, so these caps are the only bound.
 TMP_SIZE, HOME_SIZE = "512m", "64m"
+TERMS_NAME = "scrub-terms.txt"
 KEEP_ENV = ("CLAUDE_CODE_OAUTH_TOKEN", "GH_TOKEN")  # exempt from nsbox's scrub list (net=True, forward=False)
 
 SEED = {"hasCompletedOnboarding": True, "theme": "dark", "projects": {}}
@@ -125,6 +126,14 @@ def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home,
     link = f"{home}/.local/bin/factory"
     if os.path.islink(link):
         cfg["ro"].append(link)
+    # worker-guard reads the owner's scrub terms (SCRUB_TERMS_FILE, default this path) and fails closed without them:
+    # bind exactly that one file read-only when it exists. Never its directory (it holds the tokens).
+    terms = f"{home}/.config/factory/{TERMS_NAME}"
+    if os.path.islink(terms):
+        raise ValueError(f"{terms} is a symlink; replace it with the regular file (the worker profile will not bind a "
+                         f"link or follow it out of ~/.config/factory)")
+    if os.path.isfile(terms):
+        cfg["ro"].append(terms)
     return cfg
 
 
