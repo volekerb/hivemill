@@ -28,6 +28,6 @@ counts as sensitive (fail closed). Both files are sensitive paths themselves.
   main checkout and store max(old, new), so a later, smaller commit never lowers it. Each raise is a `tier` event.
   Needs config `risk_tiers` = `on` (default `off`).
 
-Rollback: `factory config risk_tiers off`; nothing consumes the stored tier.
+Rollback: `factory config risk_tiers off`. Only the mechanical merger (`docs/mech-merge.md`, `mech_merge` off by default) reads the stored tier.
 
 Tests: `tests/test_risk_tier.py` (each rule, sensitive defs), `tests/test_task_tier.py` (CLI, escalate-only, rules from HOME).

@@ -165,7 +165,9 @@ DEFAULT_CONFIG = {
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
-    "risk_tiers": "off",         # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
+    "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
+    "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
+    "risk_tiers": "off",        # off | on: `factory task tier T --classify` computes a PR's risk tier (G-022 #1); nothing else reads tiers yet
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
@@ -3508,7 +3510,8 @@ def record_merged(con, t, a, sha, shown, reason, carried=(), post_err=""):
     con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                 (a.task, t["pr_url"], sha, "judge", "merge", reason, actor(), now()))
     con.execute("UPDATE tasks SET status='done', updated=? WHERE id=?", (now(), a.task))
-    event(con, "task", a.task, "merged", f"@{shown[:8]}")
+    by = getattr(a, "by", None)  # the mechanical merger names itself and the full gate reason list
+    event(con, "task", a.task, "merged", f"@{shown[:8]}" + (f" by={by}: {reason}" if by else ""))
     con.commit()
     run_after_merge(con, t)
     if post_err:
@@ -3890,10 +3893,37 @@ def cmd_judge(a):
     return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
 
 
+def task_merge_lock(stack, task):
+    """Per-task merge lock shared by the judge and the mechanical merger: held (flock, released when `stack` closes) from the
+    final recheck to the end of record_merged, so two mergers of one task never both record it. Dies 4 if held."""
+    RUN.mkdir(exist_ok=True)
+    f = stack.enter_context(open(RUN / f"merge-{task}.lock", "w"))
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        die(f"merge refused: another judge or mechanical merger is merging {task} right now (run/merge-{task}.lock); nothing merged", 4)
+
+
+def lock_and_recheck(stack, con, t, task):
+    """Take the per-task merge lock, then recheck under it that nobody merged this task meanwhile (task still in_review, PR
+    still OPEN): the late loser of a race must do nothing, not record a second merge. Dies 4 otherwise."""
+    task_merge_lock(stack, task)
+    if con.execute("SELECT status FROM tasks WHERE id=?", (task,)).fetchone()["status"] != "in_review":
+        die(f"merge refused: {task} is no longer in_review (merged or moved by another run); nothing merged", 4)
+    if pr_state(t["pr_url"])["state"] != "OPEN":
+        die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
+
+
 def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
+    with contextlib.ExitStack() as stack:
+        return _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack)
+
+
+def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
     """The merge gate of `factory judge` (pure extraction from cmd_judge): verdicts + carry, freshness, CI, refresh,
     push-policy, public-text, noreply, then `gh pr merge` and the post-merge records. Dies (exit 4/5/6) on any refusal."""
     gate_waited = False
+    dry_run, mech = getattr(a, "dry_run", False), getattr(a, "mech", False)  # the mechanical merger (mech_merge shadow / on)
     wt = t["worktree"]
     git_repo = wt if wt and Path(wt).is_dir() else HOME
     for r in dict.fromkeys([str(git_repo), os.getcwd()]):  # the carry check runs in git_repo, `gh pr merge` in the cwd
@@ -3901,7 +3931,7 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
             con.commit()
             die(f"merge refused: git config in {r} would run code (repo config outside the allow-list): "
                 f"{', '.join(git_config_refusal(r))}; nothing merged", 4)
-    retried, refreshes = False, 0
+    retried, refreshes, locked = False, 0, False
     while True:
         # Gate: both verdicts must be PASS on this exact head, CI green, PR open & mergeable.
         problems, carry, carried = [], {}, []
@@ -3951,7 +3981,7 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
             problems.append("checks not green: " + ", ".join(bad) + (f" (waited {waited}s)" if waited else ""))
         if proj:
             run = gate_run_for_head(con, t["pr_url"], sha)
-            if (stale[0] or behind_clean) and not gate_waited and (not run or run["status"] in ("queued", "running")):
+            if (stale[0] or behind_clean) and not gate_waited and not dry_run and (not run or run["status"] in ("queued", "running")):
                 # no verdict yet on this head: queue it for the tick, wait for it, then run the whole gate again
                 gate_enqueue(con, proj, t["pr_url"], sha)
                 con.commit()
@@ -3975,12 +4005,19 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
         if stale[1] == "STALE" and not others and pr["state"] == "OPEN":
             # already squashed onto main (the merge answer was lost)? never refresh, push or squash again: record it
             landed = main_landing(git_repo, pr["number"], repo_url, owner_repo, sha)
+            if landed and dry_run:
+                die(f"already squashed onto main as {landed[:8]}; the judge records it", 4)
             if landed:
+                if not locked:
+                    lock_and_recheck(stack, con, t, a.task)
+                    locked = True
                 err = close_landed_pr(t["pr_url"], landed, reason)
                 record_merged(con, t, a, sha, landed, reason, carried, f"PR not closed: {err}" if err else "")
                 return
         if behind_clean:
             pass  # TODO(T-0623): refuse here while the red-main freeze is active
+        elif stale[1] == "STALE" and not others and mech:
+            problems.append("STALE-ONLY: the mechanical merger does not refresh; refresh by hand (`factory refresh`) or the judge does")
         elif stale[1] == "STALE" and not others and (pr.get("baseRefName") != "main" or not t["branch"]
                                                    or pr.get("headRefName") != t["branch"]):
             # not refreshable: refuse as before, naming why (a branch we cannot verify is the task's is never pushed to)
@@ -4078,6 +4115,11 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
                 event(con, "task", a.task, "judge-blocked", msg)
                 die(msg, 4)
             author_args = ["--author-email", noreply, "--body", body]
+        if dry_run:  # every refusal above ran; nothing is merged, the caller records the would-merge
+            return "would-merge"
+        if not locked:
+            lock_and_recheck(stack, con, t, a.task)
+            locked = True
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
@@ -4125,6 +4167,203 @@ def judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj):
     record_merged(con, t, a, sha, shown, reason, carried, post_err)
     if _judge_is_public(con, t, owner_repo):
         judge_merge_email_check(con, t, a, owner_repo, shown if shown != sha else None)
+
+
+# ── mechanical merger (G-022 #4): the tick merges T0-T2 PRs with the judge's own gate, no LLM ──
+MECH_MODES = ("off", "shadow", "on")
+MECH_UNIT = "factory-mech-merge"
+MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
+MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
+MECH_MAX_TIER = "T2"
+DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
+
+
+def mech_mode(con):
+    """off | shadow | on; any other value counts as off."""
+    m = cfg(con, "mech_merge")
+    return m if m in MECH_MODES else "off"
+
+
+def mech_dispute(con, tid):
+    """Why the LLM judge must decide this task (a dispute), or None. A dispute: reviewer and QA disagree on the same head,
+    two or more FAIL verdicts so far, or a verdict text with a `judge:` line."""
+    rows = con.execute("SELECT role,verdict,head_sha,summary FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') "
+                       "ORDER BY id", (tid,)).fetchall()
+    if any(DISPUTE_REQUEST.search(r["summary"] or "") for r in rows):
+        return "a verdict asks for the judge"
+    if sum(1 for r in rows if r["verdict"] == "fail") >= 2:
+        return "2 or more FAIL verdicts"
+    last = {r["role"]: r for r in rows}
+    rv, qa = last.get("reviewer"), last.get("qa")
+    if rv and qa and rv["head_sha"] == qa["head_sha"] and rv["verdict"] != qa["verdict"]:
+        return f"reviewer and QA disagree on {(rv['head_sha'] or '')[:8]}"
+    return None
+
+
+def mech_candidates(con, only=None):
+    """Tasks the merger may look at, oldest first: in_review with a PR, tier not above T2 (an unset tier is classified
+    later), latest reviewer and QA verdict PASS, no dispute, no judge live/starting/queued on it, and no merger event in
+    the last mech_merge_retry_s. DB only: the tick calls this to decide whether to launch a unit."""
+    retry = _int_cfg(con, "mech_merge_retry_s", 600)
+    nowdt = dt.datetime.now().astimezone()
+    out = []
+    q = "SELECT * FROM tasks WHERE status='in_review' AND pr_url IS NOT NULL AND pr_url!='' " + ("AND id=? " if only else "") + \
+        "ORDER BY updated, id"
+    for t in con.execute(q, (only,) if only else ()).fetchall():
+        if t["tier"] and t["tier"] > MECH_MAX_TIER:
+            continue
+        if mech_dispute(con, t["id"]):
+            continue
+        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
+            continue
+        if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
+                       (t["id"],)).fetchone():
+            continue
+        last = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                           "ORDER BY id DESC LIMIT 1", (t["id"], *MECH_EVENTS)).fetchone()
+        seen = _ts(last["ts"]) if last else None
+        if seen is not None and (nowdt - seen).total_seconds() < retry:
+            continue
+        out.append(t)
+    return out
+
+
+def mech_tier(con, t, sha, git_repo):
+    """(tier, why) of the PR at exact head `sha`, or (None, why) when it cannot be decided (never a guess). Rules come
+    from the main checkout; the diff is computed after fetching the branch, for this head, and the stored tier only ever
+    goes up (raise_task_tier). Needs risk_tiers=on."""
+    if cfg(con, "risk_tiers") != "on":
+        return None, "risk_tiers is off, no tier"
+    try:
+        rt = _risk_tier_mod()
+        rules = rt.load_rules(str(HOME / "ci" / rt.RULES_FILE))
+    except (OSError, ImportError, SyntaxError, AttributeError, KeyError) as e:
+        return None, f"cannot load the tier classifier: {e}"
+    branch = t["branch"] or ""
+    if not branch or branch.startswith("-"):
+        return None, f"task branch {branch!r} cannot be fetched"
+    rc, _, err = _git_rc(["fetch", "-q", "origin", "main", f"refs/heads/{branch}"], timeout=120, repo=git_repo)
+    if rc != 0:
+        return None, f"git fetch origin main {branch} failed: {err}"
+    try:
+        new, why = rt.classify_range(str(git_repo), "origin/main", sha, rules)
+    except rt.TierError as e:
+        return None, f"cannot classify {sha[:8]}: {e}"
+    top = raise_task_tier(con, t["id"], new, "; ".join(why) or "mechanical merger")
+    return top, "; ".join(why) or "no sensitive path or def"
+
+
+def mech_try(con, t, mode, retry_s):
+    """Evaluate one candidate: 'merged', 'blocked' (event written) or 'skipped' (not ready yet; nothing written)."""
+    tid, url = t["id"], t["pr_url"]
+    ready, why = judge_pr_ready(con, url)
+    if not ready:
+        return "skipped"
+    try:
+        pr = pr_state(url)
+    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+        return "skipped"  # gh failed: try again next run
+    sha = pr["headRefOid"]
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    block_kind = "mech-would-block" if mode == "shadow" else "mech-blocked"
+
+    def block(msg):
+        detail = f"head={sha[:12]}: {msg}"[:900]
+        last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                           "ORDER BY id DESC LIMIT 1", (tid, *MECH_EVENTS)).fetchone()
+        if not last or last["detail"] != detail:  # a permanent block is recorded once, not every retry window
+            event(con, "task", tid, block_kind, detail)
+        con.commit()
+        return "blocked"
+
+    if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
+                   (tid,)).fetchone() or con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "in_review":
+        return "skipped"  # a judge appeared (or the task moved) since the candidate list was built
+
+    if not git_config_guard(con, git_repo, always_event=True):
+        return block(f"git config in {git_repo} would run code")
+    tier, tier_why = mech_tier(con, t, sha, git_repo)
+    if tier is None:
+        return block(f"{tier_why}; the judge decides")
+    if tier > MECH_MAX_TIER:
+        return block(f"tier {tier} ({tier_why}); the judge decides")
+    reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
+    a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
+    mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
+    err = io.StringIO()
+    code, res = 0, None
+    try:
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            res = judge_gate_and_merge(con, con.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone(), a, reason, pr, sha,
+                                       0, gate_project_for(con, url))
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else 1
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError) as e:  # the gate could not decide: block, never merge
+        code, err = 1, io.StringIO(f"gate error {type(e).__name__}: {e}")
+    finally:
+        if mode == "shadow":  # the gate's own judge-blocked events are not a judge's: keep the judge's counts clean
+            con.execute("DELETE FROM events WHERE id>? AND entity='task' AND entity_id=? AND action='judge-blocked' AND actor=?",
+                        (mark, tid, actor()))
+    if not code and mode == "on" and pr_state(url)["headRefOid"] != sha and con.execute(
+            "SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "done":
+        return block("PR head changed during the gate; the judge decides")
+    if code:
+        return block((err.getvalue().strip() or f"gate exit {code}").replace("factory: ", "", 1))
+    if mode == "shadow":
+        if res != "would-merge":
+            return block(f"gate stopped without a verdict ({res!r})")
+        event(con, "task", tid, "mech-would-merge", f"head={sha[:12]}: {reason}"[:900])
+        con.commit()
+        return "would-merge"
+    done = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] == "done"
+    return "merged" if done else block("gate returned without merging")
+
+
+def cmd_mech_merge(a):
+    """`factory mech-merge [--task T]`: one run of the mechanical merger (the tick launches it as a detached unit). One at a
+    time: a second run exits 4 while the first holds the lock. In shadow it records mech-would-merge / mech-would-block."""
+    con = db()
+    require_role(con, "director")
+    mode = mech_mode(con)
+    if mode == "off":
+        print("mech_merge is off; nothing to do")
+        return
+    RUN.mkdir(exist_ok=True)
+    lock = open(RUN / "mech-merge.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        die("another mechanical merger run holds run/mech-merge.lock; merges are serial, retry later", 4)
+    frozen = merge_freeze_refusal(con)
+    if frozen:
+        print(f"merge freeze ({frozen}); nothing evaluated")
+        return
+    n = 0
+    for t in mech_candidates(con, only=a.task):
+        if n >= MECH_MAX_EVAL:
+            break
+        n += 1
+        out = mech_try(con, t, mode, _int_cfg(con, "mech_merge_retry_s", 600))
+        print(f"{t['id']}: {out}")
+        if out == "merged":
+            break
+    con.commit()
+
+
+def tick_mech_merge(con):
+    """Tick: with mech_merge shadow/on and a candidate, launch ONE detached `factory mech-merge` (own transient unit under
+    systemd, fixed name: a second unit is refused while the first is active; the run lock covers the rest). The tick never
+    waits on gh."""
+    if mech_mode(con) == "off" or not mech_candidates(con):
+        return
+    run = [sys.executable, str(Path(__file__).resolve().with_name("factory")), "mech-merge"]
+    kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "FACTORY_AGENT": actor()})
+    if os.environ.get("INVOCATION_ID"):
+        subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "--unit", MECH_UNIT, "--", *run], **kw)  # rc!=0: previous unit still active
+    else:
+        subprocess.Popen(run, start_new_session=True, **kw)
 
 
 def cmd_refresh(a):
@@ -9902,6 +10141,13 @@ def cmd_tick(a, locked=False):
         event(con, "tick", "gate", "gate-tick-error", str(e)[:300])
     _pt_lap("gate")
 
+    # 1c'''. mechanical merger (G-022 #4, config mech_merge off|shadow|on): one detached unit, never blocks the tick
+    try:
+        tick_mech_merge(con)
+    except Exception as e:  # noqa: BLE001 — a bad candidate must never stop the tick
+        event(con, "tick", "mech-merge", "mech-merge-tick-error", str(e)[:300])
+    _pt_lap("mech_merge")
+
     # 1c'. CI result of a parked team's in_review PR -> mail to its lead, so 1d wakes it in this tick
     try:
         tick_ci_wake(con)
@@ -12213,6 +12459,8 @@ def main():
     x = sp.add_parser("dequeue", help="director/lead: cancel a QUEUED spawn (status cancelled; nothing else is touched)")
     x.add_argument("agent"); x.add_argument("--reason"); x.set_defaults(fn=cmd_dequeue)
     x = sp.add_parser("agents"); x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_agents)
+    x = sp.add_parser("mech-merge", help="one run of the mechanical merger (config mech_merge off|shadow|on); the tick launches it")
+    x.add_argument("--task", help="only this task"); x.set_defaults(fn=cmd_mech_merge)
     x = sp.add_parser("gate", help="local merge gate: run the project's gate_cmd on a PR head or on main, show/list runs")
     x.add_argument("action", choices=["run", "show", "list"]); x.add_argument("task", nargs="?", help="run: task id; show: task id or run id")
     x.add_argument("--main", metavar="PROJECT", help="run: gate the verified main of this project instead of a PR")
