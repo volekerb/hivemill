@@ -1,9 +1,9 @@
 import json
 import os
 import re
-import subprocess
 import unittest
 
+import harness
 from harness import REPO
 
 SETTINGS = REPO / "roles" / "settings"
@@ -47,10 +47,9 @@ class WorkflowAllowRuleTests(unittest.TestCase):
 
 
 def git_ls_files(*args):
-    inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=REPO, capture_output=True, text=True)
-    if inside.returncode != 0 or inside.stdout.strip() != "true":
+    if harness.git("rev-parse", "--is-inside-work-tree", cwd=REPO, check=False) != "true":
         raise unittest.SkipTest("not a git checkout (extracted tree): git ls-files unavailable")
-    return subprocess.run(["git", "ls-files", *args], cwd=REPO, capture_output=True, text=True, check=True).stdout
+    return harness.git("ls-files", *args, cwd=REPO)
 
 
 class WorkflowByNameTests(unittest.TestCase):
