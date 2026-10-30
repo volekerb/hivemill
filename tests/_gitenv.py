@@ -6,9 +6,9 @@ instead of the temp one. Importing this module refuses (raises GitEnvLeak) when 
 Commit identity (GIT_AUTHOR_*, GIT_COMMITTER_*) passes, as the
 repo-config allow-list requires tests to pass it through the environment (see harness.py).
 
-User and system config are left alone by default: some tests point HOME at a temp user config on purpose (test_src).
-scrub(environ, isolate_config=True) also sends GIT_CONFIG_GLOBAL / GIT_CONFIG_SYSTEM to os.devnull for a child that
-must not read any. Import with `import _gitenv  # noqa: F401`.
+Config and credential injection (GIT_CONFIG_*, GIT_ASKPASS) is not a leak: import removes it from os.environ and
+points GIT_CONFIG_GLOBAL / GIT_CONFIG_SYSTEM at os.devnull (NOSYSTEM=1). A test that needs a user config sets its own
+GIT_CONFIG_GLOBAL in the child env. scrub(environ, isolate_config=True) does the same for a child env. Import with `import _gitenv  # noqa: F401`.
 """
 import os
 import re
@@ -19,6 +19,10 @@ KEEP_PREFIXES = ("GIT_AUTHOR_", "GIT_COMMITTER_")
 # Harmless non-repo-pointing variables some callers (the factory pane) export; everything else is refused at import.
 ALLOWED = frozenset({"GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "GIT_PAGER", "GIT_TERMINAL_PROMPT"})
 CONFIG_ISOLATION = frozenset({"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM"})  # harmless in a child env
+ISOLATION_VALUES = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+# Config / credential injection a worker pane exports (a real GIT_CONFIG_GLOBAL file, COUNT/KEY_n/VALUE_n, PARAMETERS,
+# ASKPASS). They never aim git at a repo, so install() removes them instead of refusing (T-0804).
+INJECTION = re.compile(r"^GIT_(CONFIG(_GLOBAL|_SYSTEM|_NOSYSTEM|_COUNT|_PARAMETERS|_KEY_\d+|_VALUE_\d+)?|ASKPASS)$")
 URL_LIKE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://|^[^/\s]+@[^/\s]+:")  # scheme://... or user@host:path
 
 
@@ -33,7 +37,7 @@ class RemoteRefused(RuntimeError):
 def _is_isolation(key, value):
     """scrub(isolate_config=True)'s own output (config pointed at /dev/null, or NOSYSTEM=1): an unsandboxed gate child of
     the harness inherits it and re-imports this module, so it must not count as a leak (T-0801)."""
-    return key in CONFIG_ISOLATION and value in (os.devnull, "1")
+    return ISOLATION_VALUES.get(key) == value
 
 
 def leaked(environ):
@@ -66,10 +70,14 @@ def scrub(environ, isolate_config=False):
 
 def install():
     """Refuse (raise) when the caller exported repo-pointing GIT_* state, instead of silently scrubbing it: a leaked
-    GIT_DIR means the run is already unsafe (T-0637 incident)."""
-    bad = leaked(os.environ)
+    GIT_DIR means the run is already unsafe (T-0637 incident). Config/credential injection vars (INJECTION) are removed
+    from os.environ and replaced by the isolation values, so no user, system or pane config reaches a test (T-0804)."""
+    bad = [k for k in leaked(os.environ) if not INJECTION.match(k)]
     if bad:
         raise GitEnvLeak("refusing to run tests with %s set; unset them (env -u ...) and rerun" % ", ".join(bad))
+    for k in [k for k in os.environ if INJECTION.match(k)]:
+        del os.environ[k]
+    os.environ.update(ISOLATION_VALUES)
 
 
 install()
