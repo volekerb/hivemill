@@ -193,12 +193,10 @@ def repo_cfg_path(c, scratch_ok=True):
     return bool(gd) and os.path.isfile(os.path.join(gd, "HEAD")) and os.path.isdir(os.path.join(gd, "objects"))
 
 
-def git_hooks_path(p, scratch_ok=False):
-    """T-0755: True when `p` is <x>/.git/hooks, <x>/.git/info or anything under them, outside the worker's scratchpad
-    (a hook or a pager there runs as git, so a read-only role never writes it). T-0770: the scratchpad is no longer exempt."""
+def git_hooks_path(p):
+    """T-0755: True when `p` is <x>/.git/hooks, <x>/.git/info or anything under them (a hook or a pager there runs as
+    git, so a read-only role never writes it). T-0770: the scratchpad is not exempt."""
     for c in {os.path.normpath(p), os.path.realpath(p)}:
-        if scratch_ok and in_scratchpad(c):
-            continue
         parts = c.split(os.sep)
         if any(a == ".git" and b in ("hooks", "info") for a, b in zip(parts, parts[1:])):
             return True
@@ -227,6 +225,12 @@ def persist_path(p, ancestor=False, scratch_ok=True):
             elif c in PERSIST_FILES or any(c == d or under(c, d) for d in PERSIST_TREES):
                 return True
     return False
+
+
+def gitfile_path(p):
+    """T-0783: True when `p` (absolute) is itself named `.git`: a `.git` file `gitdir: <dir>` moves the repo config to a
+    path no <x>/.git/config rule matches, so NO_PUSH_ROLES never write one (scratchpad included)."""
+    return any(os.path.basename(c.rstrip(os.sep)) == ".git" for c in {os.path.normpath(p), os.path.realpath(p)})
 
 
 def persist_code(text):
@@ -1316,9 +1320,10 @@ class Analyzer:
             if any(self.cfg_hit(a) or self.cfg_code(a) for a in rest):
                 raise Block(f"`{name}` naming ~/.config/factory (code there cannot be inspected; read it with cat): {why}")
 
-    def persist_hit(self, word, ancestor=False):
+    def persist_hit(self, word, ancestor=False, gitfile=False):
         """True when `word` (or the value of --opt=value / of=value) names a protected persistence path (T-0334). A
-        word with an expansion we cannot resolve counts when it spells a protected name."""
+        word with an expansion we cannot resolve counts when it spells a protected name. T-0783: gitfile=True (a write
+        target) also counts a path named `.git` for NO_PUSH_ROLES."""
         for w in {word, word.split("=", 1)[-1]}:
             t = re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w)
             t = self.cfg_expand(t)
@@ -1338,10 +1343,12 @@ class Analyzer:
             nopush = self.role in NO_PUSH_ROLES and not self.hq  # T-0770: no scratchpad exemption for git config/hooks
             if persist_path(t, ancestor, not nopush) or (nopush and git_hooks_path(t)):
                 return True
+            if nopush and gitfile and gitfile_path(t):
+                return True
         return False
 
     def persist_redirect(self, target):
-        if self.persist_hit(target):
+        if self.persist_hit(target, gitfile=True):
             raise Block(f"a redirect into a protected config/init file: {PERSIST_WHY}")
 
     def persist_write(self, name, rest):
@@ -1356,7 +1363,7 @@ class Analyzer:
                 checked = [(j, a) for j, a in checked if j == len(args) - 1 or a.startswith("of=")
                            or (j > 0 and args[j - 1] in ("-t", "--target-directory")) or a.startswith("--target-directory=")]
             for _, a in checked:
-                if self.persist_hit(a, name in ("ln", "mv")):
+                if self.persist_hit(a, name in ("ln", "mv"), gitfile=True):
                     raise Block(f"`{name}` on a protected config/init file: {PERSIST_WHY}")
             if name in ("cp", "mv", "install", "ln", "rsync"):  # a directory destination: the file lands as dest/<source name>
                 opts = [a for a in args if not a.startswith("-")]
@@ -1364,7 +1371,7 @@ class Analyzer:
                          ] + [a.split("=", 1)[1] for a in args if a.startswith("--target-directory=")]
                 for d in dests:
                     for src in opts:
-                        if src != d and self.persist_hit(d.rstrip("/") + "/" + os.path.basename(src.rstrip("/"))):
+                        if src != d and self.persist_hit(d.rstrip("/") + "/" + os.path.basename(src.rstrip("/")), gitfile=True):
                             raise Block(f"`{name}` into a protected directory under a protected file name: {PERSIST_WHY}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):
@@ -1372,12 +1379,76 @@ class Analyzer:
             if name in AWKS and not any(a == "inplace" for a in rest):  # operands are data files: reading one is fine
                 prog = [a for a in rest if not a.startswith("-")][:1] if not any(a.startswith("-f") or a == "--file" for a in rest) else []
                 cand = prog
-            if any(self.persist_hit(a) or persist_code(a) for a in cand):
+            if any(self.persist_hit(a, gitfile=True) or persist_code(a) for a in cand):
                 raise Block(f"`{name}` writing a protected config/init file: {PERSIST_WHY}")
         elif INTERPRETERS.match(name) or name in EDITORS - {"less", "more", "man", "view"}:
-            if any(self.persist_hit(a) or persist_code(a) for a in rest):
+            if any(self.persist_hit(a, gitfile=not INTERPRETERS.match(name)) or persist_code(a) for a in rest):
                 raise Block(f"`{name}` naming a protected config/init file (code there cannot be inspected; read it "
                             f"with cat): {PERSIST_WHY}")
+
+    def archive_target(self, name, d):
+        """T-0783: refuse an extraction directory that is or sits under a .git dir, already holds one, or that the hook
+        cannot resolve."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), d))
+        if any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            raise Block(f"`{name}` into {d!r}: the target cannot be resolved, so it may be a .git dir; "
+                        "give a literal directory in your scratchpad")
+        t = os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+        if ".git" in t.split(os.sep) or os.path.lexists(os.path.join(t, ".git")):
+            raise Block(f"`{name}` into {d!r}: a .git dir (or a dir holding one) would receive config/hooks that run as "
+                        f"git: {PERSIST_WHY}")
+
+    def archive_extract(self, name, rest):
+        """T-0783: NO_PUSH_ROLES extract tar/bsdtar/unzip/cpio/rsync only into a named directory that is not, under or
+        holding a .git dir; an extraction with no named directory cannot be bounded and fails closed. Listing stays allowed."""
+        args = [a for a in rest if a != "--"]
+        dirs, extract, why = [], False, "name the target (tar -C, unzip -d, cpio -D) as a scratchpad dir that has no .git"
+        if name in ("tar", "gtar", "bsdtar"):
+            for j, a in enumerate(args):
+                short = re.match(r"^-?[A-Za-z]+$", a) and (j == 0 or a.startswith("-")) and not a.startswith("--")
+                if a in ("--extract", "--get") or (short and "x" in a):
+                    extract = True
+                if a in ("-C", "--directory") and j + 1 < len(args):
+                    dirs.append(args[j + 1])
+                elif a.startswith("--directory="):
+                    dirs.append(a.split("=", 1)[1])
+                elif short and "C" in a:
+                    tail = a.split("C", 1)[1]
+                    dirs += [tail] if tail else [x for x in args[j + 1:] if not x.startswith("-")]
+                elif a.startswith("-C") and len(a) > 2:
+                    dirs.append(a[2:])
+        elif name == "unzip":
+            if not any(a in ("-l", "-v", "-t", "-p", "-c", "-z", "-Z") for a in args):
+                extract = True
+            for j, a in enumerate(args):
+                if a == "-d" and j + 1 < len(args):
+                    dirs.append(args[j + 1])
+                elif a.startswith("-d") and len(a) > 2:
+                    dirs.append(a[2:])
+        elif name == "cpio":
+            pos = [a for a in args if not a.startswith("-")]
+            for j, a in enumerate(args):
+                short = re.match(r"^-[A-Za-z]+$", a)
+                if a == "--extract" or (short and "i" in a and "t" not in a):
+                    extract = True
+                if a == "--pass-through" or (short and "p" in a):
+                    extract = True
+                    dirs += pos[-1:]
+                if a in ("-D", "--directory") and j + 1 < len(args):
+                    dirs.append(args[j + 1])
+                elif a.startswith("--directory="):
+                    dirs.append(a.split("=", 1)[1])
+        elif name == "rsync":
+            pos = [a for a in args if not a.startswith("-")]
+            if len(pos) >= 2:
+                extract, dirs = True, pos[-1:]
+        if not extract:
+            return
+        if not dirs:
+            raise Block(f"`{name}` extracting without a target directory cannot be bounded (an archive may carry .git/config "
+                        f"or hooks): {why}")
+        for d in dirs:
+            self.archive_target(name, d)
 
     @staticmethod
     def config_args_write(args):
@@ -2087,6 +2158,8 @@ class Analyzer:
         self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
+        if self.role in NO_PUSH_ROLES and not self.hq:
+            self.archive_extract(name, rest)
         self.factory_unit(name, rest, assigns)
         if name in COPIERS:  # R3: no copying/encoding/reading the real herdr binary
             for a in rest:
@@ -3393,7 +3466,8 @@ def persist_edit(data, role=None):
     if not os.path.isabs(p):
         p = os.path.join(cwd, p)
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
-    if persist_path(p, scratch_ok=not nopush) or (nopush and git_hooks_path(p)) or ("$" in p and persist_code(p)):
+    if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (
+            "$" in p and persist_code(p)):
         why = REPO_CFG_WHY if repo_cfg_path(os.path.realpath(p)) or repo_cfg_path(os.path.normpath(p)) else PERSIST_WHY
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {why}. Tell your lead if this is wrong.\n")
         return 2
