@@ -57,7 +57,7 @@ All three files are owner-created, regular files, mode 0600, owned by the owner,
 
 Because the rw PAT has no Workflows permission, a push that changes `.github/workflows` is rejected. Tasks that edit CI files run unsandboxed or are done by the owner.
 
-**Known limit.** `main` is protected (PR plus the `unittest` check required, `enforce_admins`, 0 required approvals), so a direct push or force-push to `main` is refused even with the rw PAT. But the rw PAT can **merge a green PR through the API, bypassing `factory judge`**. The owner's own token can do that and far more, so this is not a regression. The real fix is required approvals plus a separate judge identity (a machine user or GitHub App); that is a later step, outside G-010.
+**Known limit.** `main` is protected on `volekerb/hivemill` (`enforce_admins` on, a pull request required with 0 required approvals, required checks `unittest-shard (1)` to `(10)`, `go` and `unittest`), so a direct push or force-push to `main` is refused even with the rw PAT. But the rw PAT can **merge a green PR through the API, bypassing `factory judge`**. The owner's own token can do that and far more, so this is not a regression. The real fix is required approvals plus a separate judge identity (a machine user or GitHub App); that is a later step, outside G-010.
 
 The `judge` role is not sandboxed: it merges by design and would need the rw PAT or the owner token inside, which isolates nothing.
 
@@ -87,7 +87,7 @@ chmod 600 ~/.config/factory/gh-worker-ro-token
 
 The reviewer preflight needs this file, so O3 is also needed before the step-0 spike if the spike uses a reviewer (it does). Do O3 together with O2 unless you want the spike to prove the refusal first.
 
-**O4, before the coder step (step 3).** Same as O3 with Contents: Read and write (and still no Workflows), saved to `~/.config/factory/gh-worker-rw-token` (0600). Accept the known limit in section 2.
+**O4, before the coder step (step 3).** Check first that `main` is protected (section 2; `gh api repos/volekerb/hivemill/branches/main/protection`): with protection off the rw PAT could push to `main`. Same as O3 with Contents: Read and write (and still no Workflows), saved to `~/.config/factory/gh-worker-rw-token` (0600). Accept the known limit in section 2.
 
 **Renewal (every 90 days).** Put a reminder at day 80. The PATs are not validated at spawn: an expired one shows up as gh/git auth errors inside the worker (HTTP 401 on `gh pr view`, `git push` asking for credentials). Renew: generate a new token with the same permissions, overwrite the file with the same `umask 077; cat >` and `chmod 600`, no restart needed (the shim reads it at each start; a running worker keeps the old one until its next relaunch). The director may bridge an expiry with `factory config sandbox_roles ''` (section 5).
 
@@ -124,7 +124,7 @@ Every step: before it, the event log shows no `sandbox-refused` or `start-uncert
 - Hold: 24 h and 3 QA runs with no refused or escape events.
 
 ### Step 3: coder (T-0171)
-- Preconditions: step 2 held; O4 done; `main` protection still PR plus `unittest` plus `enforce_admins`.
+- Preconditions: step 2 held; O4 done; `main` protection still as in section 2 (`enforce_admins` on, PR required, checks `unittest-shard (1)` to `(10)`, `go`, `unittest`). Protection must be in place before O4; if it is off, do not create the rw token.
 - Command: `factory config sandbox_roles reviewer,qa,coder`.
 - Checks: a small real task: commit, `git push` of `factory/<task>`, `gh pr create`, CI green, judge merges. The lead confirms the main protection with `gh api repos/volekerb/hivemill/branches/main/protection`; the rw PAT has no admin and no Workflows; the done guard works (`factory done` refuses uncommitted or unpushed work). Never test by pushing to `main`.
 - Hold: 3 tasks merged with no refused or escape events before more coders are sandboxed.
@@ -149,7 +149,7 @@ The sandbox is behind one config key, `sandbox_roles`: a comma list of roles who
 
 ### Fail-closed preflight
 
-A role that is listed never starts unsandboxed. Before any pane is placed, the spawn checks: user namespaces work; the DB is at `<FACTORY_HOME>/db/factory.db`; the worker oauth token and the role's gh token are regular files, mode 0600, owned by the owner, not empty (only their metadata is read); a real `claude` is on the PATH; qa and coder run in a per-task clone (`.git` is a directory, G-010 T-G); the cwd is one the sandbox accepts (a reviewer with no task worktree is refused: reason `cwd`).
+A role that is listed never starts unsandboxed. Before any pane is placed, the spawn checks: user namespaces work (`unshare -r -n -m --pid --fork --mount-proc true`, as in `nsbox.userns_available`); the DB is at `<FACTORY_HOME>/db/factory.db`; the worker oauth token and the role's gh token are regular files, mode 0600, owned by the owner, not empty (only their metadata is read); a real `claude` is on the PATH; qa and coder run in a per-task clone (`.git` is a directory, G-010 T-G); the cwd is one the sandbox accepts (a reviewer with no task worktree is refused: reason `cwd`).
 
 When a check fails, no pane and no live row is created, an `sandbox-refused` event is logged with the reason, the director gets one message per reason per hour, and the spawn exits 3. Fix the cause, or roll back with the command above.
 

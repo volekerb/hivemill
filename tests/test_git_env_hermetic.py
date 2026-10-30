@@ -1,6 +1,7 @@
 """T-0637: tests that spawn git must never reach the real repo through an inherited GIT_DIR (it once wrote
 core.bare=true and user.email=t@example.com into the shared .git/config)."""
 import ast
+import json
 import os
 import re
 import subprocess
@@ -11,6 +12,9 @@ from pathlib import Path
 
 import _gitenv
 
+ISO = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+PANE_CONFIG = {"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "a.b", "GIT_CONFIG_VALUE_0": "1", "GIT_CONFIG_KEY_1": "c.d",
+               "GIT_CONFIG_VALUE_1": "2", "GIT_CONFIG_PARAMETERS": "'credential.helper'='x'", "GIT_ASKPASS": "/bin/true"}
 AT = chr(64)  # no literal email-looking text in the fixtures (scrub gate)
 TESTS = Path(__file__).resolve().parent
 REPO = TESTS.parent
@@ -53,12 +57,42 @@ class ScrubTest(unittest.TestCase):
         iso = _gitenv.scrub({}, isolate_config=True)
         self.assertEqual(_gitenv.leaked(iso), [])
         self.assertEqual(_gitenv.leaked({"GIT_CONFIG_GLOBAL": "/elsewhere/cfg"}), ["GIT_CONFIG_GLOBAL"])
-        r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
-                           env=dict(os.environ, **iso))
+        # isolation value checked per key (T-0801 nit): devnull is not a valid NOSYSTEM, "1" is not a valid GLOBAL
+        self.assertEqual(_gitenv.leaked({"GIT_CONFIG_NOSYSTEM": os.devnull}), ["GIT_CONFIG_NOSYSTEM"])
+        self.assertEqual(_gitenv.leaked({"GIT_CONFIG_GLOBAL": "1"}), ["GIT_CONFIG_GLOBAL"])
+        r = self.import_gitenv(**iso)
         self.assertEqual(r.returncode, 0, r.stderr)
-        r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
-                           env=dict(os.environ, GIT_CONFIG_GLOBAL="/elsewhere/cfg"))
-        self.assertIn("GitEnvLeak", r.stderr)
+
+    def import_gitenv(self, **extra):
+        """Import _gitenv in a child with a GIT_*-free env plus `extra`; stdout is the child's GIT_* env as JSON."""
+        code = "import os, json, _gitenv; print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('GIT_')}))"
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        return subprocess.run([sys.executable, "-c", code], cwd=TESTS, capture_output=True, text=True,
+                              env=dict(env, **extra))
+
+    def test_pane_config_and_credential_env_is_normalised_not_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "ghcred.cfg"
+            cfg.write_text("[credential]\n\thelper = x\n")
+            table = dict(PANE_CONFIG, GIT_CONFIG_GLOBAL=str(cfg), GIT_CONFIG_SYSTEM=str(cfg), GIT_CONFIG_NOSYSTEM="0",
+                         GIT_CONFIG=str(cfg))
+            for k, v in table.items():
+                r = self.import_gitenv(**{k: v})
+                self.assertEqual(r.returncode, 0, "%s: %s" % (k, r.stderr))
+                self.assertEqual(json.loads(r.stdout), ISO, k)
+            r = self.import_gitenv(GIT_TERMINAL_PROMPT="0", GIT_EDITOR="true", **table)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(json.loads(r.stdout), dict(ISO, GIT_TERMINAL_PROMPT="0", GIT_EDITOR="true"))
+
+    def test_repo_pointing_vars_still_raise_alone_and_mixed_with_pane_config(self):
+        for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                  "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES",
+                  "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_SOMETHING_UNKNOWN"):
+            for extra in ({}, dict(PANE_CONFIG, GIT_CONFIG_GLOBAL="/elsewhere/cfg")):
+                r = self.import_gitenv(**{k: "/x", **extra})
+                self.assertNotEqual(r.returncode, 0, k)
+                self.assertIn("GitEnvLeak", r.stderr, k)
+                self.assertIn(k, r.stderr)
 
     def test_importing_with_git_dir_set_raises(self):
         r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
