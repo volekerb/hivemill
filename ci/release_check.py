@@ -24,7 +24,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
-PLACEHOLDER_RES = (re.compile(r"\b(?:TODO|TBD|FIXME|XXX)\b"), re.compile(r"__[A-Z_]+__"), re.compile(r"<[a-z][a-z -]*>"))
+PLACEHOLDER_RES = (re.compile(r"TODO|TBD|FIXME|XXX|__[A-Z_]+__|<[a-z][a-z -]*>|<!--"),)
+SMOKE_VERSION_RE = re.compile(r"^hivemill (\S+)(?:\s|$)")
 REMOTE_RE = re.compile(r"^(?:https://github\.com/|git@github\.com:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
 SMOKE_WAIT_S = 20
 
@@ -153,8 +154,9 @@ class Gate:
         factory = [sys.executable, os.path.join(src, "bin", "factory")]
         rc, out, err = self.run(factory + ["--version"], env=env)
         want = f"hivemill {self.version}"
-        if rc != 0 or not out.startswith(want):
-            return False, f"factory --version printed {out.strip()!r} (exit {rc}), want it to start with {want!r}. {err.strip()}"
+        m = SMOKE_VERSION_RE.match(out)
+        if rc != 0 or not m or m.group(1) != self.version:
+            return False, f"factory --version printed {out.strip()!r} (exit {rc}), want version exactly {self.version!r} ({want!r}). {err.strip()}"
         rc, out, err = self.run([sys.executable, os.path.join(src, "ci", "demo_seed.py"), "--home", demo], env=env)
         if rc != 0:
             return False, f"demo_seed.py exit {rc}: {(err or out).strip()[-300:]}"
@@ -213,7 +215,7 @@ class Gate:
         lines = []
         if v.split(".")[2] == "0":
             lines += [f"Reminder: v{v} is a MINOR (or MAJOR) release. Before tagging, the owner also runs the full fresh-box test:",
-                      "  sudo python3 ci/freshbox_test.py"]
+                      f"  cd {self.root} && sudo python3 ci/freshbox_test.py"]
         lines += [f"Release v{v} is ready. Owner, run:",
                   "  git -C ~/factory fetch origin",
                   f"  git -C ~/factory tag -a v{v} -m v{v} {self.sha}",
