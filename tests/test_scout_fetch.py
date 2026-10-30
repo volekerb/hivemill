@@ -23,6 +23,7 @@ DEAD_HN = "http://127.0.0.1:9/"
 MKT = "anthropics/claude-plugins-official"
 SKILLS = "anthropics/skills"
 LIST1 = "hesreallyhim/awesome-claude-code"
+VIDEO = "zhuyansen/awesome-claude-video-skills"
 SKILL_MD = "---\nname: x\ndescription: d\n---\nDo the thing.\n"
 
 
@@ -268,6 +269,25 @@ class AwesomeTests(FetchBase):
         self.fetch()
         self.assertEqual(len(self.api_calls("readme?ref=")), n)  # unchanged sha: no README fetch
         self.assertEqual(len(self.rows()), 3)
+
+    def test_video_skills_list_is_a_source_and_first_sighting_takes_current_links(self):
+        self.assertIn(VIDEO, sources.AWESOME)
+        fx = Fx()
+        links = []
+        for i in range(20):
+            fx.repo(f"zz-v/v{i:02d}", {"SKILL.md": SKILL_MD})
+            links.append(f"- https://github.com/zz-v/v{i:02d}")
+        fx.add(f"repos/{VIDEO}/commits/HEAD", "e" * 40)
+        fx.add(f"repos/{VIDEO}/readme?ref={'e' * 40}", "\n".join(links))
+        self.gh(fx)
+        self.fetch()
+        self.assertEqual(len(self.rows()), 15)  # first sighting: current links, capped (no baseline-only pass)
+        cur = json.loads(self.env.sql("SELECT cursor FROM scout_cursors WHERE source=?", (f"awesome:{VIDEO}",))[0]["cursor"])
+        self.assertIsNone(cur["sha"])
+        self.fetch()
+        self.assertEqual(len(self.rows()), 20)  # leftovers picked up on the next run
+        cur = json.loads(self.env.sql("SELECT cursor FROM scout_cursors WHERE source=?", (f"awesome:{VIDEO}",))[0]["cursor"])
+        self.assertEqual((cur["sha"], len(cur["links"])), ("e" * 40, 20))
 
 
 class HnHandler(http.server.BaseHTTPRequestHandler):
