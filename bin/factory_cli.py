@@ -12050,7 +12050,7 @@ def _review_skip(con, t, reason, clock):
 
 def _review_repo_mismatch(con, t):
     """Reason string when the PR url is not on the task's project repo (project gh_repo, else origin), else None. No repo known = no check."""
-    m = re.match(r"https?://[^/\s]+/([^/\s]+/[^/\s]+)/pull/\d+/?$", t["pr_url"] or "")
+    m = re.match(r"https?://[^/\s]+/([^/\s]+/[^/\s]+)/pull/\d+(?:[/?#]|$)", t["pr_url"] or "")
     have = _repo_slug(m.group(1)) if m else None
     if have is None:
         return f"pr url {t['pr_url']!r} has no OWNER/NAME"

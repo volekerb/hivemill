@@ -432,6 +432,13 @@ class SkipTests(Base):
             con.commit()
         self.assertEqual(len(self.skip_events()), 1)
 
+    def test_pr_url_with_a_trailing_path_is_not_a_repo_mismatch(self):
+        url = HIVEMILL_URL + "/files"
+        self.dead_task(url=url)
+        self.seed(url=url)
+        self.assertEqual(len(self.tick_step(stub_pr=False, heads=self.heads)), 2)
+        self.assertEqual(self.skip_events(), [])
+
     def test_b_unresolvable_pr_is_skipped_once(self):
         self.dead_task()  # no PR in the gh stub state: gh exits 1
         self.assert_skipped_once("gh cannot resolve")
