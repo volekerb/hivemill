@@ -416,7 +416,7 @@ class CleanTests(FactoryTestCase):
         self.ended_agent("zz-test-a2", "p2", w2, task="T-0002")
         self.env.set_herdr(panes=[{"pane_id": p, "tab_id": "t9", "workspace_id": "w9", "cwd": str(w), "foreground_cwd": str(w)}
                                   for p, w in (("p1", w1), ("p2", w2))])
-        self.list_agents(("zz-test-n1", "p1"), ("zz-test-n2", "p2"))
+        self.list_agents(("zz-test-n1", "p7"))  # p1/p2 are leftover panes: no listed agent sits on them
         w3, b3, _ = self.task(3, pr_state="CLOSED", url="https://github.com/zz-test/repo/pull/3")
         self.land(b3, n=3)
         self.assertIn("3 would remove", self.clean("--dry-run").stdout)
@@ -428,10 +428,29 @@ class CleanTests(FactoryTestCase):
         self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
         self.env.sql("UPDATE agents SET cwd=NULL")  # only the pane cwd is left to hold it
         self.pane_at("p1", wt)
-        self.list_agents(("zz-test-other", "p1"))
+        self.list_agents(("zz-test-other", "p7"))  # leftover pane: nothing listed on p1
         p = self.clean("--dry-run")
         self.assertNotIn("protected", p.stdout)
         self.assertIn("1 would remove", p.stdout)
+
+    def test_P1_listed_unknown_agent_without_db_row_holds_pane_cwd(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
+        self.env.sql("UPDATE agents SET cwd=NULL")
+        self.pane_at("p1", wt)
+        self.list_agents(("zz-test-stranger", "p1"))  # listed on p1, unknown to the DB
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
+
+    def test_P2_listed_starting_row_without_pane_id_holds_pane_cwd(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
+        self.env.seed_agent("zz-test-new", "coder", goal="G-001", task="T-0002", status="starting")  # pane_id NULL
+        self.env.sql("UPDATE agents SET cwd=NULL")
+        self.pane_at("p1", wt)
+        self.list_agents(("zz-test-new", "p1"))
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
 
     def test_stale_live_row_with_recorded_cwd_does_not_protect(self):
         wt, _, _ = self.task()

@@ -8460,10 +8460,13 @@ def pane_reused(r, listed):
 
 
 def pane_holds(con, pane_id, listed):
-    """True unless the pane's owner is known and gone: it has agent rows and none is a running agent. No pane id, no row
-    for it, or no usable agent list = unknown owner = holds (fail safe)."""
-    rows = con.execute("SELECT * FROM agents WHERE pane_id=?", (pane_id,)).fetchall() if pane_id else []
-    if not rows or listed is None:
+    """True unless the pane is a leftover: no listed agent sits on it and its DB owner, if any, is not running. No pane
+    id, no agent list, no owner row, or ANY listed agent on the pane (even one with no DB row or a starting row without
+    a pane id) = unknown owner = holds (fail safe)."""
+    if not pane_id or listed is None or any(x.get("pane_id") == pane_id for x in listed):
+        return True
+    rows = con.execute("SELECT * FROM agents WHERE pane_id=?", (pane_id,)).fetchall()
+    if not rows:
         return True
     return any(r["status"] in ("live", "starting", "queued") and not pane_reused(r, listed) for r in rows)
 
