@@ -42,9 +42,10 @@ func braceExpand(t string) []string {
 
 // repoCfgPath is a port of repo_cfg_path (T-0226): c, a normalised absolute path, is repo git config outside the
 // worker's scratchpad: <x>/.git/config*, <x>/.git/worktrees/<n>/config*, <x>/.git/info/attributes, or the same
-// files of a bare repo (HEAD and objects/ beside).
-func repoCfgPath(c string) bool {
-	if inScratchpad(c) {
+// files of a bare repo (HEAD and objects/ beside). T-0770: scratchOK=false (no-push roles) drops the scratchpad
+// exemption: a scratchpad repo's config runs as git too.
+func repoCfgPath(c string, scratchOK bool) bool {
+	if scratchOK && inScratchpad(c) {
 		return false
 	}
 	parts := strings.Split(c, "/")
@@ -84,7 +85,7 @@ func hasGlob(s string) bool { return strings.ContainsAny(s, "*?[") }
 
 // persistPath is a port of persist_path: p (absolute; `..` and symlinks resolved, glob patterns matched) is a
 // protected file or inside a protected tree.
-func persistPath(p string, ancestor bool) bool {
+func persistPath(p string, ancestor, scratchOK bool) bool {
 	h := mustHost()
 	for _, t := range braceExpand(p) {
 		cands := []string{pyNormpath(t)}
@@ -95,7 +96,7 @@ func persistPath(p string, ancestor bool) bool {
 			if _, ok := h.persistAnc[c]; ancestor && ok {
 				return true
 			}
-			if repoCfgPath(c) {
+			if repoCfgPath(c, scratchOK) {
 				return true
 			}
 			if hasGlob(c) {
@@ -197,7 +198,8 @@ func (a *Analyzer) persistHit(word string, ancestor bool) bool {
 			}
 			t = pyJoin(a.ccwd, t)
 		}
-		if persistPath(t, ancestor) || (a.noPush() && gitHooksPath(t)) {
+		noPush := a.noPush() // T-0770: no scratchpad exemption for git config/hooks
+		if persistPath(t, ancestor, !noPush) || (noPush && gitHooksPath(t, false)) {
 			return true
 		}
 	}

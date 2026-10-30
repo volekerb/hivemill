@@ -73,7 +73,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 func dispatch(tool string, data map[string]any, role string, hq bool, passArgs []string, raw []byte, stdout, stderr io.Writer) int {
 	switch {
 	case !hq && guard.IsPersistEditTool(tool):
-		return finish(guard.PersistEdit(data))(stderr)
+		return finish(guard.PersistEdit(data, role))(stderr)
 	case !hq && (tool == "Read" || tool == "Grep"):
 		if guard.IsTermsRole(role) {
 			code, msg, py := guard.TermsTool(data)

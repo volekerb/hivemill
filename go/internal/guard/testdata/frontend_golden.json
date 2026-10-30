@@ -36187,6 +36187,1306 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "echo x >> @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "echo x >> @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "echo x | tee @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "echo x | tee @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | tee @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | tee @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+36,
+[
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+36,
+[
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "cp f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "cp f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "mv f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "mv f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "ln -s f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "ln -s f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "install f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "install f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "install f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "install f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "install f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "touch @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "touch @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "touch @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "sed -i s/a/b/ @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "sed -i s/a/b/ @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mask_quotes_pre": "dd of=@SCRATCH@/r/.git/config",
+"mask_quotes_raw": "dd of=@SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "dd of=@SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "dd of=@SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/config.worktree",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config.worktree"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config.worktree"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/hooks/pre-commit"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/hooks/pre-commit"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mask_quotes_pre": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mask_quotes_raw": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/hooks/pre-push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/hooks/pre-push"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mask_quotes_pre": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mask_quotes_raw": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/hooks/post-commit"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/hooks/post-commit"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/info/attributes",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/attributes"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/attributes"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/info/exclude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/exclude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/exclude"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mask_quotes_pre": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'QQQQQQQ'",
+"mask_quotes_raw": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'QQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mask_quotes_pre": "git -C @SCRATCH@/r config core.fsmonitor 'QQQQQQQ'",
+"mask_quotes_raw": "git -C @SCRATCH@/r config core.fsmonitor 'QQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mask_quotes_pre": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mask_quotes_raw": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --local core.hooksPath /x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --local core.hooksPath /x"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mask_quotes_pre": "git -C @SCRATCH@/r config core.sshCommand x",
+"mask_quotes_raw": "git -C @SCRATCH@/r config core.sshCommand x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.sshCommand x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.sshCommand x"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.fsmonitor='touch m' status",
+"mask_quotes_pre": "git -c core.fsmonitor='QQQQQQQ' status",
+"mask_quotes_raw": "git -c core.fsmonitor='QQQQQQQ' status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.fsmonitor='touch m' status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.fsmonitor='touch m' status"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"-c",
+"core.fsmonitor='QQQQQQQ'",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"-c",
+"core.fsmonitor='QQQQQQQ'",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.hooksPath=/x status",
+"mask_quotes_pre": "git -c core.hooksPath=/x status",
+"mask_quotes_raw": "git -c core.hooksPath=/x status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.hooksPath=/x status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.hooksPath=/x status"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.sshCommand=x fetch origin",
+"mask_quotes_pre": "git -c core.sshCommand=x fetch origin",
+"mask_quotes_raw": "git -c core.sshCommand=x fetch origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.sshCommand=x fetch origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.sshCommand=x fetch origin"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mask_quotes_pre": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mask_quotes_raw": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init -c core.fsmonitor=x @SCRATCH@/r2"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init -c core.fsmonitor=x @SCRATCH@/r2"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mask_quotes_pre": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mask_quotes_raw": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3"
+},
+"segments_pre": [
+[
+0,
+62,
+[
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+62,
+[
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x >> ~/.config/git/config",
+"mask_quotes_pre": "echo x >> ~/.config/git/config",
+"mask_quotes_raw": "echo x >> ~/.config/git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> ~/.config/git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> ~/.config/git/config"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp f ~/.config/git/ignore",
+"mask_quotes_pre": "cp f ~/.config/git/ignore",
+"mask_quotes_raw": "cp f ~/.config/git/ignore",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp f ~/.config/git/ignore"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp f ~/.config/git/ignore"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mask_quotes_pre": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\""
+},
+"segments_pre": [
+[
+0,
+59,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+59,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -50495,6 +51795,326 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "cat @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "cat @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "cat @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "grep -n url @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "grep -n url @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "grep -n url @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "grep -n url @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mask_quotes_pre": "ls @SCRATCH@/r/.git/hooks",
+"mask_quotes_raw": "ls @SCRATCH@/r/.git/hooks",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ls @SCRATCH@/r/.git/hooks"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ls @SCRATCH@/r/.git/hooks"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mask_quotes_pre": "git -C @SCRATCH@/r config --get core.bare",
+"mask_quotes_raw": "git -C @SCRATCH@/r config --get core.bare",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --get core.bare"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --get core.bare"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r log -1",
+"mask_quotes_pre": "git -C @SCRATCH@/r log -1",
+"mask_quotes_raw": "git -C @SCRATCH@/r log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r log -1"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/notes.txt",
+"mask_quotes_pre": "echo x > @SCRATCH@/notes.txt",
+"mask_quotes_raw": "echo x > @SCRATCH@/notes.txt",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/notes.txt"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/notes.txt"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/file.txt",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/file.txt",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/file.txt"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/file.txt"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -57607,7 +59227,7 @@
 ]
 }
 },
-"corpus_commands": 990,
+"corpus_commands": 1025,
 "edge_inputs": 97,
 "python": "3.13"
 }

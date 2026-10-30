@@ -28590,6 +28590,1170 @@
 "src": "corpus"
 },
 {
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'echo x >> @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'echo x | tee @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'cp f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'mv f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'ln -s f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'install f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"touch",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'touch @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'sed -i s/a/b/ @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"dd",
+"of=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'dd of=@SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config.worktree"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/config.worktree'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks/pre-commit"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/hooks/pre-commit'",
+"src": "corpus"
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks/pre-push"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "quote",
+"quoted": "'cp f @SCRATCH@/r/.git/hooks/pre-push'",
+"src": "corpus"
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"touch",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks/post-commit"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "quote",
+"quoted": "'touch @SCRATCH@/r/.git/hooks/post-commit'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/info/attributes"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/info/attributes'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/info/exclude"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/info/exclude'",
+"src": "corpus"
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "quote",
+"quoted": "'git config --file @SCRATCH@/r/.git/config core.fsmonitor '\"'\"'touch m'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config core.fsmonitor '\"'\"'touch m'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config --local core.hooksPath /x'",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"core.sshCommand",
+"x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config core.sshCommand x'",
+"src": "corpus"
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.fsmonitor=touch m",
+"status"
+]
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.fsmonitor=touch m",
+"status"
+]
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.fsmonitor=touch m",
+"status"
+]
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "quote",
+"quoted": "'git -c core.fsmonitor='\"'\"'touch m'\"'\"' status'",
+"src": "corpus"
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "quote",
+"quoted": "'git -c core.hooksPath=/x status'",
+"src": "corpus"
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "quote",
+"quoted": "'git -c core.sshCommand=x fetch origin'",
+"src": "corpus"
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@",
+"SCRATCH",
+"@",
+"/r2"
+]
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "quote",
+"quoted": "'git init -c core.fsmonitor=x @SCRATCH@/r2'",
+"src": "corpus"
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--template=/x",
+"https",
+":",
+"//example.com/a.git",
+"@",
+"SCRATCH",
+"@",
+"/r3"
+]
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "quote",
+"quoted": "'git clone --template=/x https://example.com/a.git @SCRATCH@/r3'",
+"src": "corpus"
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "quote",
+"quoted": "'echo x >> ~/.config/git/config'",
+"src": "corpus"
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "quote",
+"quoted": "'cp f ~/.config/git/ignore'",
+"src": "corpus"
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open('@SCRATCH@/r/.git/config','w').write('x')"
+]
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open('@SCRATCH@/r/.git/config','w').write('x')"
+]
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open('@SCRATCH@/r/.git/config','w').write('x')"
+]
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "quote",
+"quoted": "'python3 -c \"open('\"'\"'@SCRATCH@/r/.git/config'\"'\"','\"'\"'w'\"'\"').write('\"'\"'x'\"'\"')\"'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -40265,6 +41429,297 @@
 "src": "corpus"
 },
 {
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'cat @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"grep",
+"-n",
+"url",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'grep -n url @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks"
+]
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "quote",
+"quoted": "'ls @SCRATCH@/r/.git/hooks'",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"--get",
+"core.bare"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config --get core.bare'",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r log -1'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/notes.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/notes.txt'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/file.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/file.txt'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -44296,7 +45751,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 990,
+"corpus_commands": 1025,
 "edge_inputs": 123,
 "python": "3.13"
 }
