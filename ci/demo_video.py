@@ -29,7 +29,10 @@ import demo_tour  # noqa: E402
 
 DEMO = demo_record.DEMO
 DEFAULT_OUT = DEMO / "out"
-MIN_MEM_MB = 1500
+MIN_MEM_MB = 1500  # at capture scale 1; mem_floor() grows it with the pixel count of the capture
+MEM_PER_EXTRA_PIXEL_MB = 500  # per (scale^2 - 1): 2x capture = 3000 MB (4x PNGs in the browser and the pipe)
+SCALE_RANGE = (1.0, 2.0)
+OUT_SIZE = "1920:1080"
 APT_HELP = "Install it with: sudo apt install ffmpeg"
 THREADS = "4"
 MP4_LIMIT = 25 * 1024 * 1024
@@ -59,15 +62,20 @@ def clip_args(out, fps=30):
             "-an", str(out)]
 
 
-def mp4_args(list_file, out, fps=30):
+def export_filter(scale=1.0):
+    """Video filter args that bring a scaled capture back to 1920x1080 with lanczos; none at scale 1."""
+    return ["-vf", "scale=%s:flags=lanczos" % OUT_SIZE] if scale != 1 else []
+
+
+def mp4_args(list_file, out, fps=30, scale=1.0):
     return ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_file),
-            "-c:v", "libx264", "-crf", FINAL_CRF, "-preset", "slow", "-pix_fmt", "yuv420p", "-r", str(fps),
+            *export_filter(scale), "-c:v", "libx264", "-crf", FINAL_CRF, "-preset", "slow", "-pix_fmt", "yuv420p", "-r", str(fps),
             "-movflags", "+faststart", "-an", "-threads", THREADS, str(out)]
 
 
-def webm_args(list_file, out, fps=30):
+def webm_args(list_file, out, fps=30, scale=1.0):
     return ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_file),
-            "-c:v", "libvpx-vp9", "-crf", WEBM_CRF, "-b:v", "0", "-row-mt", "1", "-pix_fmt", "yuv420p",
+            *export_filter(scale), "-c:v", "libvpx-vp9", "-crf", WEBM_CRF, "-b:v", "0", "-row-mt", "1", "-pix_fmt", "yuv420p",
             "-r", str(fps), "-an", "-threads", THREADS, str(out)]
 
 
@@ -89,6 +97,17 @@ def concat_list(clips):
 
 # ---- preflight ----
 
+def mem_floor(scale=1.0):
+    """MemAvailable (MB) the build needs at capture scale `scale`."""
+    return round(MIN_MEM_MB + MEM_PER_EXTRA_PIXEL_MB * (scale * scale - 1))
+
+
+def check_scale(scale):
+    if not SCALE_RANGE[0] <= scale <= SCALE_RANGE[1]:
+        raise Refused("--scale %s is outside %g-%g. Use 1 (1080p), 1.333 (2560x1440) or 2 (3840x2160)."
+                      % (scale, *SCALE_RANGE))
+
+
 def mem_available_mb(path="/proc/meminfo"):
     """MemAvailable in MB; Refused when it cannot be read (an unknown amount is not enough)."""
     try:
@@ -105,14 +124,16 @@ def placeholders(brand):
     return sorted(k for k, v in brand.items() if "{{" in str(v))
 
 
-def preflight(work, out, draft, brand_path=None):
+def preflight(work, out, draft, brand_path=None, scale=1.0):
+    check_scale(scale)
     for tool in ("ffmpeg", "ffprobe"):
         if shutil.which(tool) is None:
             raise Refused("%s not found on PATH. %s" % (tool, APT_HELP))
     mb = mem_available_mb()
-    if mb < MIN_MEM_MB:
-        raise Refused("only %d MB RAM available, the build needs %d MB. Close other jobs (see factory res) and retry."
-                      % (mb, MIN_MEM_MB))
+    need = mem_floor(scale)
+    if mb < need:
+        raise Refused("only %d MB RAM available, the build needs %d MB at capture scale %g. Close other jobs (see "
+                      "factory res), or lower --scale, and retry." % (mb, need, scale))
     try:
         demo_record.check_dirs(work, out)
     except demo_record.Refused as e:
@@ -286,13 +307,22 @@ def load_board():
     return json.loads((DEMO / "storyboard.json").read_text())
 
 
-def record_one(scene, board, browser_path, work, sink, hero=False, tour_ctx=None):
+def board_scale():
+    """Capture scale from storyboard.json; 1 when it is absent (build then reports an unreadable storyboard)."""
+    try:
+        return float(load_board().get("scale", 1))
+    except (OSError, ValueError):
+        return 1.0
+
+
+def record_one(scene, board, browser_path, work, sink, hero=False, tour_ctx=None, scale=1.0):
     """Record one scene (or the hero range of it) with a fresh browser; returns the frame count."""
     fps = board["fps"]
     browser = None
     try:
         binary = demo_cdp.browser_binary(work, browser_path)
         browser = demo_cdp.Browser.launch(binary, board["width"], board["height"], work)
+        browser.scale = scale
         text_dir = None if hero else Path(work) / "text"
         if scene["source"].startswith("ui:"):
             base_url = tour_ctx["base_url"]
@@ -312,8 +342,10 @@ def record_one(scene, board, browser_path, work, sink, hero=False, tour_ctx=None
             browser.close()
 
 
-def build(out, work, browser_path, only=None, keep_work=False):
+def build(out, work, browser_path, only=None, keep_work=False, scale=None):
     board = load_board()
+    scale = float(board.get("scale", 1)) if scale is None else scale
+    check_scale(scale)
     scenes = board["scenes"]
     if only:
         scenes = [s for s in scenes if s["id"] == only]
@@ -342,7 +374,7 @@ def build(out, work, browser_path, only=None, keep_work=False):
                 ctx = {"base_url": "http://127.0.0.1:%d" % port}
             print("recording %s (beat %d) -> %s" % (scene["id"], scene["beat"], clip), flush=True)
             frames = stream(clip_args(clip, board["fps"]),
-                            lambda sink, s=scene, c=ctx: record_one(s, board, browser_path, work, sink, tour_ctx=c),
+                            lambda sink, s=scene, c=ctx: record_one(s, board, browser_path, work, sink, tour_ctx=c, scale=scale),
                             cwd=work)
             print("  %d frames" % frames, flush=True)
             if server is not None:
@@ -355,14 +387,14 @@ def build(out, work, browser_path, only=None, keep_work=False):
         listing = work / "clips.txt"
         listing.write_text(concat_list(clips))
         print("encoding demo.mp4", flush=True)
-        run(mp4_args(listing, out / "demo.mp4", board["fps"]), cwd=work)
+        run(mp4_args(listing, out / "demo.mp4", board["fps"], scale), cwd=work)
         print("encoding demo.webm", flush=True)
-        run(webm_args(listing, out / "demo.webm", board["fps"]), cwd=work)
+        run(webm_args(listing, out / "demo.webm", board["fps"], scale), cwd=work)
         hero = board["hero"]
         scene = next(s for s in board["scenes"] if s["id"] == hero["scene"])
         print("recording hero loop (%s %.1f-%.1f s)" % (scene["id"], hero["start"], hero["end"]), flush=True)
         stream(hero_args(out / "hero.webp", hero["width"], hero["fps"], board["fps"], hero["quality"]),
-               lambda sink: record_one(scene, board, browser_path, work, sink, hero=True), cwd=work)
+               lambda sink: record_one(scene, board, browser_path, work, sink, hero=True, scale=scale), cwd=work)
     finally:
         if server is not None:
             demo_cdp.stop(server)
@@ -381,6 +413,8 @@ def main(argv=None):
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="output directory (default docs/demo/out)")
     ap.add_argument("--work", help="work dir (default <out>/work)")
     ap.add_argument("--only", help="build: record just this scene to a clip, no encode")
+    ap.add_argument("--scale", type=float, help="build: capture scale, 1-2 (2 = 3840x2160); exports stay 1920x1080 "
+                    "(default: 'scale' in storyboard.json, else 1)")
     ap.add_argument("--keep-work", action="store_true", help="build: keep the per-scene clips")
     args = ap.parse_args(argv)
     out = Path(args.out).resolve()  # ffmpeg runs with cwd=work, so every path it gets must be absolute
@@ -389,8 +423,9 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, demo_record._interrupt)
     try:
         if cmd in ("build", "all"):
-            preflight(work, out, args.draft)
-            build(out, work, args.browser, args.only, args.keep_work)
+            scale = args.scale if args.scale is not None else board_scale()
+            preflight(work, out, args.draft, scale=scale)
+            build(out, work, args.browser, args.only, args.keep_work, scale)
         if cmd == "check" or (cmd == "all" and not args.only):
             return check(out, work)
     except Refused as e:

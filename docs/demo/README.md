@@ -24,6 +24,9 @@ Options for `build`:
 - `--out DIR` changes the output directory (default `docs/demo/out`, gitignored). `--work DIR` changes the work
   directory (default `<out>/work`). Neither may be under `/tmp`: it is RAM-backed and the build refuses (exit 3).
 - `--only SCENE` records one scene to a clip (for example `--only hook`) and stops, without encoding.
+- `--scale S` captures at deviceScaleFactor S (1 to 2, default: `"scale"` in `storyboard.json`, else 1). `2` records
+  the 1920x1080 layout as 3840x2160 and `1.333` as 2560x1440. The MP4 and WebM are always exported at 1920x1080 with
+  `scale=1920:1080:flags=lanczos`, so `check` still demands 1920x1080. At scale 1 no scale filter is added.
 - `--keep-work` keeps the per-scene clips in `<work>/clips`. The frame text dumps in `<work>/text` are always kept
   because `check` scrubs them.
 
@@ -34,7 +37,9 @@ Exit codes: 0 ok, 1 build error or a failed check, 2 usage error, 3 refused (a p
 - `ffmpeg` and `ffprobe` on PATH. On Debian or Ubuntu: `sudo apt install ffmpeg`. The build exits 3 and prints this
   command when they are missing.
 - Fonts as described in `docs/images/README.md` (the scenes use DejaVu Sans).
-- About 1.5 GB of free RAM (the build refuses below 1500 MB `MemAvailable`) and about 2 GB of disk. The browser
+- Free RAM: 1500 MB `MemAvailable` at scale 1, more for a scaled capture (the PNGs have `scale^2` times the pixels):
+  1500 + 500 x (scale^2 - 1) MB, so 1888 MB at 1.333 and 3000 MB at 2. The build refuses (exit 3) below that; check
+  `factory res` first. About 2 GB of disk (a 2x capture needs about 4 GB for the clips). The browser
   download (113 MB, checksum-verified) is the only network access; it is cached in `<work>`.
 
 ## How it works
@@ -52,6 +57,26 @@ fps for the loop):
 - `demo.mp4`: `libx264 -crf 22 -preset slow -pix_fmt yuv420p -r 30 -movflags +faststart`, no audio
 - `demo.webm`: `libvpx-vp9 -crf 34 -b:v 0 -row-mt 1 -threads 4`, no audio
 - `hero.webp`: `libwebp_anim`, `scale=1600:-2`, `fps=18`, `-loop 0`, `-quality 85` (width, fps and quality come from the `hero` entry of `storyboard.json`)
+
+## Tour pages (web UI scenes)
+
+A `ui:` scene lists `pages`. Each entry is a URL path, or an object; every field but `path` is optional and the
+defaults reproduce the plain tour (so a storyboard of path strings renders as before):
+
+| field | default | meaning |
+|---|---|---|
+| `path` | required | URL path on the demo server |
+| `duration` | the scene's `page_duration` | seconds this page is on screen |
+| `hold` | `0` | seconds the page stays still before it scrolls (must be shorter than `duration`) |
+| `scroll_to` | down to 600 px | pixels, or a CSS selector whose element ends at the top of the page box; capped at the end of the page |
+| `fade_in` | `true` | `false` = fully visible on frame 0 (hard open), the fade-out at the end stays |
+| `push_in` | `1.0` | end scale of a slow eased push-in over the page (1.0 to 2.0), for example `1.04` |
+| `label` | the scene's `labels[i]` | page label |
+
+A selector that matches nothing fails the build with the selector in the message. The scene `duration` is still the
+sum of the page durations; keep them equal. The standalone recorder takes a scene id and a capture scale:
+
+    python3 ci/demo_tour.py --out DIR --scene tour2 --scale 2 --max-frames 12
 
 ## Checks
 
