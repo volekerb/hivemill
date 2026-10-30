@@ -16,7 +16,7 @@ DENIED = [
     "path=(/evil)", "path=(/evil $path)", "path+=/evil", "path+=(/evil)", "path[1]=/evil",
     "read -A path", "read -a path", "typeset -g path=(/evil)", "typeset path=(/evil)", "declare -g path=(/evil)",
     "f() { local path=(/evil); }", "export path", "readonly path=(/x)", "print -v path /evil", "zparseopts -a path x",
-    ": ${path::=/evil}", ": ${path:=/evil}", ": ${path=/evil}", "for path in /evil; do :; done",
+    ": ${path::=/evil}", ": ${path:=/evil}", ": ${path=/evil}", "print -rv path x", "set -A path /x", "read -Apath", "for path in /evil; do :; done",
 ]
 ALLOWED = [
     "echo $path", "print -l $path", "for p in $path; do echo $p; done", "mypath=/x", "path_x=1", "PATHX=1",

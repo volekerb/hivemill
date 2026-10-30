@@ -16,9 +16,10 @@ DENIED = [
     "env -u GIT_ASKPASS git status", "env -u GIT_CONFIG_GLOBAL git status", "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
     "env --unset=GIT_CONFIG_PARAMETERS git status", "env --unset GIT_ASKPASS ls", "env -u PATH ls", "unset GIT_ASKPASS",
     "unset -v GIT_CONFIG_GLOBAL", "unset PATH", "unset path", "env -i git status", "env --ignore-environment ls", "env - ls",
-    "env -uGIT_ASKPASS ls", "env -u HOME ls",
+    "env -uGIT_ASKPASS ls", "env -u HOME ls", "env -C /x -u PATH ls", "env --chdir /x -u HOME ls",
+    "env -S\"-u PATH\" ls", "env --split-string=-i ls", "env -iu FOO ls",
 ]
-ALLOWED = ["env", "env | grep GIT", "env FOO=1 ls", "env -u FOO ls", "unset FOO", "unset -v myvar"]
+ALLOWED = ["env", "env | grep GIT", "env FOO=1 ls", "env -u FOO ls", "unset FOO", "unset -v myvar", "env -C /x ls", "env -C /x -u FOO ls"]
 
 
 class EnvUnsetTests(unittest.TestCase):

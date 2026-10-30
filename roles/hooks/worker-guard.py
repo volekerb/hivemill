@@ -63,6 +63,7 @@ option, -c override or GIT_CONFIG_* assignment is blocked, as is a push when the
 T-0743: the hook cwd and any -C target must be the worktree recorded for the task in the factory DB (read-only);
 an unresolvable task/worktree refuses.
 """
+import collections
 import fnmatch
 import glob
 import json
@@ -2132,8 +2133,17 @@ class Analyzer:
         name, rest = os.path.basename(words[0]), words[1:]
         targets = []
         if name == "env":  # T-0788: removing a protected name (env -u, env -i) strips the pane's git isolation
-            it = iter(rest)
+            q = collections.deque(rest)
+            it = iter(lambda: q.popleft() if q else None, None)  # -S pushes its words back onto q
             for a in it:
+                if a in ("-C", "--chdir"):  # takes a directory argument: skip it, keep scanning for -u
+                    next(it, None)
+                    continue
+                if a in ("-S", "--split-string") or a.startswith("--split-string=") or (a.startswith("-S") and not a.startswith("--")):
+                    # re-parse the string as env options
+                    sval = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a[2:] if a.startswith("-S") and a != "-S" else next(it, "")
+                    q.extendleft(reversed(sval.split()))
+                    continue
                 if a in ("-i", "--ignore-environment", "-"):
                     deny("env " + a, "the whole environment", "clear or unset")
                 if a in ("-u", "--unset"):
@@ -2186,8 +2196,14 @@ class Analyzer:
                     targets.append(rest[j + 1])
                 elif a.startswith("-v") and len(a) > 2:
                     targets.append(a[2:])
+                elif name == "print" and re.fullmatch(r"-[A-Za-z]*v", a) and j + 1 < len(rest):  # T-0788: cluster -rv NAME
+                    targets.append(rest[j + 1])
         elif name in ("for", "select") and rest:
             targets.append(rest[0])
+        elif name == "set":  # T-0788: `set -A path ...` assigns the array
+            for j, a in enumerate(rest):
+                if a in ("-A", "+A", "-a", "+a") and j + 1 < len(rest):
+                    targets.append(rest[j + 1])
         elif name == "zparseopts":  # T-0788: -a ARRAY / -A ASSOC name the variable they assign
             for j, a in enumerate(rest):
                 if a in ("-a", "-A") and j + 1 < len(rest):
