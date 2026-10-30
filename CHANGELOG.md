@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-10-30
 
 Hivemill v0.2.0 is a pre-release: a redesigned web UI, a faster pull request loop and a much harder worker sandbox, on top of the v0.1.0 chain of Claude Code agents. Most new automation is opt-in and off by default.
 
@@ -61,6 +61,7 @@ Demo video: _link added when the v2 recording is approved._
 
 #### Changed
 
+- Release v0.2.0: CHANGELOG section and release notes draft (T-0731)
 - Demo polish: healthy seed, tile icon, hero, screenshots v2 (T-0727)
 - T-0332: cleaner live-agent pane binding and closed-but-landed PRs
 - T-0329: drive auto-clear Settings Warning test with an injected clock
@@ -223,6 +224,8 @@ Demo video: _link added when the v2 recording is approved._
 
 #### Security
 
+- worker-guard: refuse git push for non-coder worker roles (T-0755)
+- scrub history allowlist: hero.png binary false positive (T-0768)
 - guard_diff: per-entry config seed + seeded test_sandbox corpus (T-0762)
 - guard (Go): port the git rules, section 3 (T-0350)
 - workerbox: bind the owner scrub-terms file read-only into the worker sandbox (T-0761)
