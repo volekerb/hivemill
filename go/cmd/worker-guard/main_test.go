@@ -52,8 +52,14 @@ func TestIOContract(t *testing.T) {
 		code   int
 		stderr string
 	}{
-		{"bash is not ported", `{"tool_name":"Bash","tool_input":{"command":"ls"}}`, coder, 2, "not ported"},
-		{"bash in hq mode is not ported", `{"tool_name":"Bash","tool_input":{"command":"ls"}}`, []string{"--hq"}, 2, "not ported"},
+		{"plain command allowed", `{"tool_name":"Bash","tool_input":{"command":"ls -la"}}`, coder, 0, ""},
+		{"plain command allowed in hq mode", `{"tool_name":"Bash","tool_input":{"command":"ls -la"}}`, []string{"--hq"}, 0, ""},
+		{"sudo blocked", `{"tool_name":"Bash","tool_input":{"command":"sudo ls"}}`, coder, 2, "privilege escalation (`sudo`)"},
+		{"sudo blocked in hq mode", `{"tool_name":"Bash","tool_input":{"command":"sudo ls"}}`, []string{"--hq"}, 2, "privilege escalation (`sudo`)"},
+		{"direct herdr blocked", `{"tool_name":"Bash","tool_input":{"command":"herdr server stop"}}`, coder, 2, "direct herdr invocation"},
+		{"git is a stub of a later section", `{"tool_name":"Bash","tool_input":{"command":"git status"}}`, coder, 2, "not ported"},
+		{"cwd not a string", `{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":5}`, coder, 2, "cwd is not a string"},
+		{"cwd null", `{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":null}`, coder, 0, ""},
 		{"bad json", `not json`, coder, 2, "failing closed"},
 		{"empty stdin", ``, coder, 2, "failing closed"},
 		{"array", `[]`, coder, 2, "failing closed"},
