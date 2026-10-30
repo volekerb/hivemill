@@ -14,7 +14,7 @@ waiting for the lead's wake. Design: staff-engineer ADR M10886, "Parallel R+Q at
 
 ## What the tick does (step 2c)
 
-A task is a candidate when it is `in_review` with a `pr_url`, has a team, its goal is `active`, and it has no qa agent row (nor a
+A task is a candidate when it is `in_review` with a `pr_url`, its goal is `active`, and it has no qa agent row (nor a
 `combined-<task>` one) and no verdict yet. A task with only a reviewer row (partial start) gets its qa on the next tick. A retry round after a FAIL is not a candidate: the lead spawns it as before.
 
 - Stored tier T2/T3 or unset (or `risk_tiers` off): `reviewer-<task>` and `qa-<task>` start in the same tick.
@@ -23,7 +23,9 @@ A task is a candidate when it is `in_review` with a `pr_url`, has a team, its go
   `--as qa` (a plain reviewer's `--as` is ignored); the QA `## Gates` rules apply unchanged.
 - The team's worker cap (`dispatch_max_team_workers`) is not consulted. `gate()` is: agent, process, memory, load, tmp and usage caps all still apply.
   A closed gate or a queued spawn stops the loop; the next tick retries.
-- The parked lead gets an `fyi` mail (does not wake it). Events: `review-autospawn` and `review-autospawn-error` on the task.
+- A team is not required: a task with no team (lead-less director dispatch) qualifies like any other. Its reviewer and QA
+  are spawned without a team and the brief names the `director` as the report target.
+- The parked lead gets an `fyi` mail (does not wake it); for a team-less task the `fyi` goes to the `director` instead. Events: `review-autospawn` and `review-autospawn-error` on the task.
 - The brief tells them to run only `ci/affected.py --run` locally; CI runs the full suite.
 
 The tick never classifies a PR: the tier is whatever `factory task tier` stored (G-022 #1). Merging is unchanged.
