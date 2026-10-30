@@ -3,10 +3,12 @@ refuses to load the CLI when FACTORY_HOME is outside the temp dir or the stub is
 import contextlib
 import io
 import os
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from harness import FactoryTestCase, assert_hermetic
+from harness import FactoryEnv, FactoryTestCase, assert_hermetic
 
 
 class HermeticSpawnCase(FactoryTestCase):
@@ -44,6 +46,24 @@ class HermeticSpawnCase(FactoryTestCase):
         self.env.home_dir = Path("~/factory").expanduser()
         with self.assertRaisesRegex(RuntimeError, "not the temp test home"):
             with self.env.load_factory():
+                pass
+
+    def test_pane_like_home_under_var_tmp_loads(self):
+        """T-0807: a home created under /var/tmp (tempdir patched only while it is made) is still the temp test home."""
+        with mock.patch.object(tempfile, "tempdir", "/var/tmp"):
+            env = FactoryEnv()
+        self.addCleanup(env.cleanup)
+        self.assertEqual(env.home.parent, Path("/var/tmp").resolve())
+        with env.load_factory():
+            assert_hermetic(env.home_dir, env.stub_bin, env.home.parent)
+
+    def test_guard_still_rejects_a_live_home_for_a_var_tmp_env(self):
+        with mock.patch.object(tempfile, "tempdir", "/var/tmp"):
+            env = FactoryEnv()
+        self.addCleanup(env.cleanup)
+        env.home_dir = Path("~/factory").expanduser()
+        with self.assertRaisesRegex(RuntimeError, "not the temp test home"):
+            with env.load_factory():
                 pass
 
 
