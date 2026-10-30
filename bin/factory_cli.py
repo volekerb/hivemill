@@ -3813,6 +3813,11 @@ def judge_train_run(con, plan, proj):
         event(con, "task", steps[0]["task"], "judge-blocked", frozen)
         con.commit()
         die(f"train refused: {frozen}; no gate run, nothing merged. The PRs wait for the serial judge", 4)
+    for r in dict.fromkeys([plan["repo"], os.getcwd()]):  # the gate and the carry run in the repo, `gh pr merge` in the cwd
+        if not git_config_guard(con, r, always_event=True):
+            con.commit()
+            die(f"train refused: git config in {r} would run code (repo config outside the allow-list): "
+                f"{', '.join(git_config_refusal(r))}; no gate run, nothing merged", 4)
     ids = "-".join(s["task"] for s in steps)
     ref = f"refs/factory-train/{ids}"  # local only: nothing in the train path pushes
     rc, _, err = _git_rc([*HARDENED_GIT_FLAGS, "update-ref", ref, steps[-1]["commit"]], repo=plan["repo"], env=_carry_env())
@@ -3840,7 +3845,19 @@ def judge_train_run(con, plan, proj):
         else:
             hi = mid
     bad = steps[hi - 1] if hi > lo else None
-    merged, stopped = (train_merge(con, plan, lo, runs[lo], owner_repo) if lo else (0, None))
+    merged, stopped = 0, None
+    if lo:
+        urls = [con.execute("SELECT pr_url FROM tasks WHERE id=?", (x["task"],)).fetchone()["pr_url"] for x in steps[:lo]]
+        try:  # the test-count rule of the serial judge, on the passing run and every PR body of the prefix
+            short = test_count_problems(runs[lo], [lambda u=u: gh_json("pr", "view", u, "--json", "body").get("body") or "" for u in urls])
+        except (SystemExit, ValueError, KeyError, OSError, subprocess.TimeoutExpired) as e:
+            short = [f"cannot read the PR bodies for the test-count rule: {e if not isinstance(e, SystemExit) else 'see above'}"]
+        if short:
+            event(con, "task", steps[0]["task"], "judge-blocked", short[0])
+            con.commit()
+            stopped = f"{short[0]}; nothing merged (a `tests-removed:` line in any PR of the train clears it)"
+        else:
+            merged, stopped = train_merge(con, plan, lo, runs[lo], owner_repo)
     if bad:
         bt = con.execute("SELECT * FROM tasks WHERE id=?", (bad["task"],)).fetchone()
         r = runs[hi]
@@ -9644,11 +9661,20 @@ def local_gate_problems(con, proj, pr_url, sha, main_sha, contains_main, behind_
     if r["main_sha"] != main_sha and not contains_main and not behind_ok:
         problems.append(f"local gate pass #{r['id']} ran against main {(r['main_sha'] or '?')[:8]}, main is now "
                         f"{(main_sha or '?')[:8]} and the head does not contain it: refresh the branch and re-run the gate")
-    if r["test_count"] is not None and r["main_count"] is not None and r["test_count"] < r["main_count"]:
-        if not TESTS_REMOVED.search((body() if callable(body) else body) or ""):
-            problems.append(f"test count dropped {r['main_count']} -> {r['test_count']} (gate run #{r['id']}) and the PR body "
-                            "has no `tests-removed: <reason>` line")
+    problems += test_count_problems(r, body)
     return problems
+
+
+def test_count_problems(r, body):
+    """The test-count rule on a passing gate run row: [refusal] when its count is below main's and no body (a string or a
+    callable returning one, or a list of them: any one with a `tests-removed: <reason>` line is enough) declares it."""
+    if r["test_count"] is None or r["main_count"] is None or r["test_count"] >= r["main_count"]:
+        return []
+    bodies = body if isinstance(body, (list, tuple)) else [body]
+    if any(TESTS_REMOVED.search((b() if callable(b) else b) or "") for b in bodies):
+        return []
+    return [f"test count dropped {r['main_count']} -> {r['test_count']} (gate run #{r['id']}) and the PR body "
+            "has no `tests-removed: <reason>` line"]
 
 
 def gate_wait(con, pr_url, sha):

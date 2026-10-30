@@ -4,10 +4,11 @@ import json
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
-from harness import FactoryTestCase
+from harness import FACTORY, FactoryTestCase
 from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
@@ -590,3 +591,66 @@ class JudgeTrainRunTests(FactoryTestCase):
         self.assert_no_merge_happened(p)
         self.assertIn("red main", p.stdout + p.stderr)
         self.assertNotEqual(p.returncode, 0)
+
+
+# ── T-0522 attempt 2: the serial judge's cwd guard and test-count rule apply to the train ─────────────────────────────────
+class JudgeTrainSerialRulesTests(JudgeTrainRunTests):  # the run fixtures; the inherited tests are switched off below
+    # a count command: 5 tests on main, 3 on any tree that has f1.txt (the PR tip), so the train drops the count
+    COUNT_DROP = "test -e f1.txt && echo 3 || echo 5"
+
+    def train_in(self, cwd, *tasks):
+        self.prepare()
+        path = f"{self.zz / 'bin'}{os.pathsep}{self.env.env()['PATH']}"
+        env = self.env.env(AGENT, {"PATH": path, "ZZ_GH_STATE": str(self.state), "GATE_LOG": str(self.gate_log),
+                                   "FACTORY_GATE_SLOT_WAIT_S": "0", "FACTORY_GATE_POLL_S": "0"})
+        return subprocess.run([sys.executable, str(FACTORY), "judge", "--train", *tasks], capture_output=True, text=True,
+                              env=env, cwd=cwd, timeout=120)
+
+    def test_train_from_a_cwd_with_a_code_running_git_config_is_refused(self):
+        a, b = self.pr(1), self.pr(2)
+        cwd = self.zz / "evil"
+        cwd.mkdir()
+        git(cwd, "init", "-q")
+        git(cwd, "config", "core.fsmonitor", "/bin/true")
+        p = self.train_in(cwd, a, b)
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("core.fsmonitor", p.stdout + p.stderr)
+        self.assert_no_merge_happened(p)
+        self.assertEqual(self.gate_executions(), [], "the gate ran although the cwd config is refused")
+        self.assertEqual(self.train_runs(), [])
+
+    def test_train_from_a_clean_cwd_still_merges(self):
+        a, b = self.pr(1), self.pr(2)
+        cwd = self.zz / "clean"
+        cwd.mkdir()
+        git(cwd, "init", "-q")
+        p = self.train_in(cwd, a, b)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merged_numbers(), [1, 2])
+
+    def test_test_count_drop_without_tests_removed_line_does_not_merge(self):
+        a, b = self.pr(1), self.pr(2)
+        self.env.sql("UPDATE projects SET gate_count_cmd=?", (self.COUNT_DROP,))
+        p = self.train(a, b)
+        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("test count dropped 5 -> 3", p.stdout + p.stderr)
+        self.assert_no_merge_happened(p)
+
+    def test_test_count_drop_with_tests_removed_line_merges(self):
+        a, b = self.pr(1), self.pr(2)
+        self.env.sql("UPDATE projects SET gate_count_cmd=?", (self.COUNT_DROP,))
+        self.prs[URL % 2]["body"] = "Cleanup.\ntests-removed: duplicate cases folded into f1\n"
+        p = self.train(a, b)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merged_numbers(), [1, 2])
+
+    def test_unchanged_test_count_merges_without_a_line(self):
+        a, b = self.pr(1), self.pr(2)
+        self.env.sql("UPDATE projects SET gate_count_cmd=?", ("echo 5",))
+        p = self.train(a, b)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merged_numbers(), [1, 2])
+
+
+for _name in [n for n in dir(JudgeTrainRunTests) if n.startswith("test_") and n not in vars(JudgeTrainSerialRulesTests)]:
+    setattr(JudgeTrainSerialRulesTests, _name, None)
