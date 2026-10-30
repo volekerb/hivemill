@@ -1482,6 +1482,10 @@
   "cat ~/factory/.git/config",
   "git config --file @SCRATCH@/x.cfg a b",
   "echo x > config.json",
-  "echo x > docs/config.md"
+  "echo x > docs/config.md",
+  "uvx ruff check .",
+  "uv tool run black --check .",
+  "uvx pytest",
+  "uv tool run pytest"
  ]
 }

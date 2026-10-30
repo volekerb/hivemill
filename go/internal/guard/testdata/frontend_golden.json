@@ -37144,6 +37144,190 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "uvx ruff check .",
+"mask_quotes_pre": "uvx ruff check .",
+"mask_quotes_raw": "uvx ruff check .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx ruff check ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx ruff check ."
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"uvx",
+"ruff",
+"check",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"uvx",
+"ruff",
+"check",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run black --check .",
+"mask_quotes_pre": "uv tool run black --check .",
+"mask_quotes_raw": "uv tool run black --check .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run black --check ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run black --check ."
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"uv",
+"tool",
+"run",
+"black",
+"--check",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"uv",
+"tool",
+"run",
+"black",
+"--check",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx pytest",
+"mask_quotes_pre": "uvx pytest",
+"mask_quotes_raw": "uvx pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"uvx",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"uvx",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run pytest",
+"mask_quotes_pre": "uv tool run pytest",
+"mask_quotes_raw": "uv tool run pytest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run pytest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run pytest"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"pytest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"pytest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -44256,7 +44440,7 @@
 ]
 }
 },
-"corpus_commands": 710,
+"corpus_commands": 714,
 "edge_inputs": 97,
 "python": "3.13"
 }
