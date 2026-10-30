@@ -107,6 +107,56 @@ class IssueIntakeTests(FactoryTestCase):
         for c in self.lists():
             self.assertIn("number,createdAt,url", c["argv"])
 
+    def fail_sends(self, like):
+        self.env.sql("CREATE TRIGGER zz_fail_send BEFORE INSERT ON messages WHEN NEW.subject LIKE '" + like +
+                     "' BEGIN SELECT RAISE(ABORT, 'zz send failed'); END")
+
+    def heal_sends(self):
+        self.env.sql("DROP TRIGGER zz_fail_send")
+
+    def markers(self):
+        return [r["key"] for r in self.env.sql("SELECT key FROM throttle WHERE key LIKE 'issue-intake:%#%' ORDER BY key")]
+
+    def test_failed_issue_send_leaves_no_marker_and_is_retried_once(self):
+        self.enable()
+        self.issues(1)
+        self.tick()
+        self.issues(1, 2)
+        self.fail_sends("issue intake: %#2")
+        self.ok("tick")
+        self.assertNotIn(f"issue-intake:{REPO}#2", self.markers())
+        self.assertEqual(len(self.mail()), 1)  # only the summary
+        self.heal_sends()
+        self.tick()
+        self.tick()
+        mail = self.mail()[1:]
+        self.assertEqual([m["subject"] for m in mail], [f"issue intake: {REPO}#2"])
+
+    def test_failed_first_run_summary_leaves_no_init_marker_and_is_sent_once(self):
+        self.enable()
+        self.issues(1, 2, 3)
+        self.fail_sends("issue intake on for %")
+        self.ok("tick")
+        self.assertEqual(self.markers(), [])
+        self.assertEqual(self.mail(), [])
+        self.heal_sends()
+        self.tick()
+        self.tick()
+        mail = self.mail()
+        self.assertEqual([m["subject"] for m in mail], [f"issue intake on for {REPO}"])
+        self.assertIn(f"issue-intake:{REPO}#init", self.markers())
+
+    def test_event_failure_in_the_except_path_does_not_break_the_tick(self):
+        self.enable()
+        self.issues(1)
+        self.fail_sends("issue intake%")
+        self.env.sql("CREATE TRIGGER zz_fail_event BEFORE INSERT ON events WHEN NEW.action='issue-intake-error' "
+                     "BEGIN SELECT RAISE(ABORT, 'zz event failed'); END")
+        p = self.ok("tick")
+        self.assertNotIn("Traceback", p.stderr)
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='issue-intake-error'"), [])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM util_samples")), 1)  # util_sample runs after issue intake
+
     def test_config_validates_slugs_through_the_cli(self):
         self.refused(2, "config", "issue_intake_repos", "not-a-slug")
         self.ok("config", "issue_intake_repos", REPO)
