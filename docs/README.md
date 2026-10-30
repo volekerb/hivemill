@@ -33,6 +33,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [boss-mail.md](boss-mail.md): why the tick never prompts the boss pane directly.
 - [ci-cost.md](ci-cost.md): the $0 CI budget, owner billing and fork-approval steps, the kill switch.
 - [CUTOVER.md](CUTOVER.md): the runbook that moves factory development to the public repository.
+- [ISSUES.md](ISSUES.md): labels, the triage rule that turns public issues into factory tasks, and release milestones.
 - [lead-wake.md](lead-wake.md): bringing a parked lead back when its team has work.
 - [lead-parking.md](lead-parking.md): parking an idle lead, its wake triggers, caps and rollback.
 - [lead-less-dispatch.md](lead-less-dispatch.md): the tick starts workers for ready tasks of parked teams and only mails the lead.
@@ -61,6 +62,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [utilization.md](utilization.md): the live-agent count shown by `factory res`, the tick sample and the web home.
 - [utilization-alerts.md](utilization-alerts.md): tick alerts to the director and boss for low worker count, starved goals and owner-cap breaches.
 - [PUBLISHING.md](PUBLISHING.md): the one approved route to a public copy of the repository.
+- [RELEASING.md](RELEASING.md): how a release is made, who does each step, and the feature-flag lifecycle.
 
 ## Contribute
 
