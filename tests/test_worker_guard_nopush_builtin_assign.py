@@ -52,6 +52,23 @@ DENIED = [
     "local -n r=HOME",
     "typeset -n r=HOME",
     'declare -n r="$v"',
+    # attempt 3: split nameref, defaults in here-strings/heredocs, wait -p, coproc, named-fd redirects
+    "declare -n r; r=HOME; read r <<< d",
+    "local -n r; r=HOME; read r <<< d",
+    "typeset -n r; r=GIT_DIR; read r <<< d",
+    ": <<< '${HOME:=d}'",
+    ": <<< ${HOME=d}",
+    ": <<EOF\n${HOME:=d}\nEOF",
+    "wait -n -p HOME",
+    "wait -p HOME",
+    "wait -pHOME",
+    "coproc HOME { :; }",
+    "coproc HOME sleep 1",
+    "exec {HOME}>f",
+    "exec {XDG_CONFIG_HOME}<f",
+    "exec {GIT_DIR}>&2",
+    "exec {HOME}<>f",
+    'exec {"$v"}>f',
 ]
 ALLOWED = [
     "read x <<< y",
@@ -67,6 +84,13 @@ ALLOWED = [
     "read -ra arr <<< y",
     "declare -n r=x",
     "read arr[0] <<< y",
+    "wait -p x",
+    "wait -n -p pid",
+    "coproc foo { :; }",
+    "coproc { :; }",
+    "exec {fd}>f",
+    "declare -n r=x; r=y",
+    ": <<< ${x:=d}",
 ]
 
 

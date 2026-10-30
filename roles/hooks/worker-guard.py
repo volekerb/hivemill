@@ -1000,7 +1000,11 @@ class Analyzer:
                 for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text):
                     if persist_code(m.group(0)):
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
-        text, extras = preprocess(text, self.hq, self.pt.bodies if self.pt else None)
+        nbodies = self.pt.bodies if self.pt else []
+        seen = len(nbodies)
+        text, extras = preprocess(text, self.hq, nbodies)
+        if self.role in NO_PUSH_ROLES and not self.hq:
+            self.call_assign(text, [b for _, b in nbodies[seen:]])
         for kind, body in extras:
             if kind == "sh":
                 self.soft(self.script, body, depth + 1)
@@ -1912,7 +1916,31 @@ class Analyzer:
             raise Block(f"{self.role} may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select "
                         "the git config, helpers and pager (an alias there hides a push); ask your lead")
 
-    def builtin_assign(self, assigns, words):
+    def call_assign(self, text, bodies):
+        """T-0771 (attempt 3): whole-call checks for NO_PUSH_ROLES: a `{NAME}>f` named-fd redirect assigns NAME; a call that
+        declares a nameref (-n) may not name a protected variable anywhere (the split `declare -n r; r=HOME; read r` form);
+        ${VAR:=x} in a heredoc body is scanned like one in a word."""
+        for m in re.finditer(r"(?<![\w$\\])\{([A-Za-z_]\w*|[^\s{}]*\$[^\s{}]*)\}(?=[<>])", text):
+            name = m.group(1)
+            if PROTECTED_NAME.match(name) or "$" in name:
+                raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with a named-fd redirect "
+                            f"({{{name}}}>: it assigns the variable, or the name is dynamic); use a plain variable name, "
+                            "or ask your lead")
+        for m in re.finditer(r"(?<![\w-])coproc\s+([^\s{(;|&<>]+)\s+(?=[^\s;|&)])", text):  # coproc is stripped by cmd()
+            name = m.group(1).strip("'\"")
+            if PROTECTED_NAME.match(name) or re.search(r"[$`!*?{\[]", name):
+                raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with coproc NAME "
+                            f"({name!r}: it assigns the variable, or the name is dynamic); use a plain variable name, "
+                            "or ask your lead")
+        if re.search(r"(?<![\w-])(declare|typeset|local)\b[^;&|\n]*\s-[A-Za-z]*n", text) and \
+                re.search(r"(?<![\w])(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(?![\w])", text):
+            raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* ... in a call that declares a "
+                        "nameref (-n): the nameref could assign it later; declare the nameref in a call that does not name "
+                        "them, or ask your lead")
+        for body in bodies:
+            self.builtin_assign([], [], (body,))
+
+    def builtin_assign(self, assigns, words, extra=()):
         """T-0771: NO_PUSH_ROLES may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* through a builtin either (read,
         printf -v, mapfile/readarray, for/select, getopts, let, declare-like, `${VAR:=x}` / `${VAR=x}`), and fail closed
         when the target name is dynamic."""
@@ -1928,7 +1956,7 @@ class Analyzer:
             raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with {what} ({name!r}: {why}); "
                         "use a plain variable name, or ask your lead")
 
-        for w in [*assigns, *words]:
+        for w in [*assigns, *words, *extra]:
             m = PARAM_DEFAULT.search(w)
             if m and m.group(1).startswith("!"):
                 deny("an indirect ${!VAR:=...} default", m.group(1))
@@ -1965,6 +1993,14 @@ class Analyzer:
                     targets.append(a[2:])
         elif name in ("for", "select") and rest:
             targets.append(rest[0])
+        elif name == "wait":
+            for j, a in enumerate(rest):
+                if a.startswith("-") and not a.startswith("--") and "p" in a:
+                    tail = a[a.index("p") + 1:]  # -pNAME, or the next word
+                    if tail:
+                        targets.append(tail)
+                    elif j + 1 < len(rest):
+                        targets.append(rest[j + 1])
         elif name == "getopts":
             targets += [a for a in rest if not a.startswith("-")][:2]  # optstring too: fail closed
         elif name == "let":
@@ -2002,7 +2038,7 @@ class Analyzer:
         words = stripped
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.git_config_env(assigns, words)
-            self.builtin_assign(assigns, words)
+            self.builtin_assign(assigns, words, hstrs)
             self.git_launch(assigns, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":
