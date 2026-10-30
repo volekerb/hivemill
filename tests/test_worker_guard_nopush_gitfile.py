@@ -113,6 +113,17 @@ class NoPushGitFileTests(unittest.TestCase):
                     self.blocked(c, role)
             self.blocked("tar -xf a.tar -C $WHERE", role)
 
+    def test_name_rewriting_and_other_extractors_refused(self):
+        o = self.out
+        for role in NO_PUSH:
+            for c in (f"tar -xPf a.tar -C {o}", f"tar -xf a.tar -C {o} --absolute-names",
+                      f"tar -xf a.tar -C {o} --transform='s,^,../r/.git/,'", f"7z x a.7z -o{self.repo}/.git",
+                      "7z x a.7z", "pax -rf a.tar", "jar xf a.jar"):
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+            self.allowed("7z l a.7z", role)
+            self.allowed("jar tf a.jar", role)
+
     def test_listing_and_plain_extraction_allowed(self):
         o = self.out
         cmds = [

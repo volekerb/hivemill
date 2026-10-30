@@ -1442,6 +1442,22 @@ class Analyzer:
             pos = [a for a in args if not a.startswith("-")]
             if len(pos) >= 2:
                 extract, dirs = True, pos[-1:]
+        elif name in ("7z", "7za", "7zr"):
+            extract = bool(args[:1]) and args[0] in ("x", "e")
+            dirs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
+        elif name == "pax":
+            extract = any(a == "-r" or (re.match(r"^-[A-Za-z]+$", a) and "r" in a) for a in args)
+        elif name == "jar":
+            extract = bool(args[:1]) and "x" in args[0]
+            if extract:
+                raise Block("`jar` extraction writes into the current directory under names the hook cannot see: "
+                            f"{why.replace('(tar -C, unzip -d, cpio -D) ', '')}; use unzip -d")
+        if name in ("tar", "gtar", "bsdtar") and extract and any(
+                a in ("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level")
+                or a.startswith(("--transform=", "--xform=", "--to-command=")) or
+                (re.match(r"^-?[A-Za-z]+$", a) and "P" in a and not a.startswith("--")) for a in args):
+            raise Block(f"`{name}` option that rewrites member names (-P, --transform, --to-command) can escape the -C target "
+                        f"into a .git dir: {why}")
         if not extract:
             return
         if not dirs:
