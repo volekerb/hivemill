@@ -7,9 +7,11 @@ from harness import REPO, FactoryTestCase, ROLES
 
 PLUGINS_ROOT = REPO / "roles" / "plugins"
 PLUGINS = PLUGINS_ROOT / "staff-engineer"
-WITH_PLUGINS = {"coder", "director", "lead", "pm", "reviewer", "staff-engineer"}
+WITH_PLUGINS = {"coder", "director", "lead", "pm", "qa", "reviewer", "staff-engineer"}
 BAD_EXT = {".sh", ".py", ".js", ".ts", ".cmd", ".ps1", ".html"}
 BAD_NAMES = {"hooks", "hooks.json", ".mcp.json"}
+NAMED_WORKFLOW = REPO / "roles" / "workflows" / "multi-angle-review.js"
+NAMED_WORKFLOW_LINK = "/workflows/multi-angle-review.js"
 # the CLI refuses `factory spawn evaluator` (only the skilleval harness spawns it): tests/test_scout_roles.py
 CLI_SPAWNABLE = [r for r in ROLES if r != "evaluator"]
 
@@ -60,6 +62,7 @@ class VendoredPluginsStaticTests(unittest.TestCase):
             "director": ["factory-director"],
             "lead": ["factory-lead"],
             "pm": ["pm-skills"],
+            "qa": ["qa-skills"],
             "reviewer": ["reviewer-skills"],
             "staff-engineer": ["feature-dev", "pr-review-toolkit", "staff-engineer-skills"],
         })
@@ -108,6 +111,8 @@ class VendoredPluginsStaticTests(unittest.TestCase):
             for n in dirs + files:
                 p = os.path.join(root, n)
                 if n in BAD_NAMES or os.path.splitext(n)[1].lower() in BAD_EXT:
+                    if p.endswith(NAMED_WORKFLOW_LINK) and os.path.realpath(p) == str(NAMED_WORKFLOW):
+                        continue  # the one allowed .js: a symlink to the single vendored workflow (T-0366)
                     bad.append(p)
             for n in files:
                 p = os.path.join(root, n)
