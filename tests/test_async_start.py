@@ -102,6 +102,13 @@ class StartErrors(AsyncStartBase):
         self.assertIn("no_such_pane", self.events("start-failed")[0]["detail"])
         self.assertEqual(self.events("start-uncertain"), [])
 
+    def test_invalid_timeout_error_is_not_pending(self):
+        self.go_async(start_fail="invalid_agent_timeout: timeout_ms must be greater than 3000 and at most 300000")
+        self.assertEqual(self.spawn().returncode, 0)
+        self.assertIsNone(self.row()["start_pending"])
+        self.assertEqual(len(self.events("start-failed")), 1)
+        self.assertEqual(self.events("start-uncertain"), [])
+
     def test_stub_rejects_out_of_range_timeout(self):
         import os
         import subprocess

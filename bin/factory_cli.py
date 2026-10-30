@@ -6906,7 +6906,7 @@ def gh_cred_env(con, role, name):
 
 
 ASYNC_START_TIMEOUT_MS = "3001"  # tick_async_start: the shortest agent-start --timeout herdr 0.9.5 accepts (> 3000, <= 300000); the tick checks readiness itself
-START_PENDING_ERRORS = ("agent_not_ready", "timeout", "timed out")  # herdr start errors that only mean "not ready yet"
+START_PENDING_ERRORS = ("agent_not_ready", "timed out")  # herdr start errors that only mean "not ready yet"
 START_CONFIRM_S = 90          # a start-pending agent not listed ready after this long is start-uncertain (the old --timeout 90000)
 
 
