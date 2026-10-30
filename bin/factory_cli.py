@@ -1565,7 +1565,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
         # a cleaner is what frees /tmp: holding it behind the tmp gate deadlocks the factory (T-0610). Only this check is
         # skipped; the agent, process, memory, load and usage caps above and below still apply to it.
         if role != "cleaner":
-            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
+            return False, (f"/tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.1f}%) ≥ {cfg(con, 'tmp_max_pct')}%"
                            " — clean finished tasks' scratchpads"), stats
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
@@ -5077,7 +5077,7 @@ def tmp_alert(con):
     over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
     armed = con.execute("SELECT value FROM config WHERE key='tmp_alerted'").fetchone()
     if over and not (armed and armed["value"] == "1"):
-        send(con, "director", f"/tmp {tmp['pct']:.0f}% full",
+        send(con, "director", f"/tmp {tmp['pct']:.1f}% full",
              f"/tmp ({tmp['fstype'] or 'fs unknown'}) uses {tmp['used_mb']}/{tmp['total_mb']} MB, over tmp_max_pct "
              f"{cfg(con, 'tmp_max_pct')}%: new spawns are held. Free finished tasks' scratchpads and QA temp homes "
              "(/tmp/qa-*) via the cleaner.", "alert", sender="tick")
@@ -5245,7 +5245,7 @@ def tmp_sweep(con):
         armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
         armed = bool(armed and armed["value"] == "1")
         if over and not armed:
-            send(con, "director", f"tmp sweep: /tmp still {tmp['pct']:.0f}% full",
+            send(con, "director", f"tmp sweep: /tmp still {tmp['pct']:.1f}% full",
                  f"The tick swept the scratch of finished agents but /tmp uses {tmp['used_mb']}/{tmp['total_mb']} MB, "
                  f"over tmp_max_pct {cfg(con, 'tmp_max_pct')}%: spawns stay held and nothing more is safe to delete "
                  "automatically. Find what holds the space (`du -sh /tmp/* | sort -h`) and ask the owner or boss.",
@@ -5287,9 +5287,9 @@ def tmp_clean(con):
         if not base.is_dir() or base.is_symlink():
             return
         root = base.resolve()
-        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)$")
+        slug = re.compile(re.escape(re.sub(r"[^A-Za-z0-9]", "-", str(WORKTREES)) + "-") + r"(G-\d+)-(T-\d+)")
         for d in sorted(base.iterdir()):
-            m = slug.match(d.name)
+            m = slug.fullmatch(d.name)
             if not m or d.is_symlink() or not d.is_dir() or d.resolve().parent != root:
                 continue
             task = con.execute("SELECT status FROM tasks WHERE id=? AND goal_id=?", (m.group(2), m.group(1))).fetchone()
@@ -5310,7 +5310,114 @@ def tmp_clean(con):
             pass
 
 
-SERVE_REAP_THROTTLE_S = 600    # the tick looks for stray serves at most every 10 min
+TMP_HARNESS_THROTTLE_S = 3600   # the tick sweeps stale test-harness homes at most once an hour
+TMP_HARNESS_MIN_AGE_S = 3600    # ...only those with nothing touched for this long
+TMP_HARNESS_CAP = 500           # ...and at most this many per pass
+_HARNESS_NAME = re.compile(r"zz-test-factory-[A-Za-z0-9_]{8}")
+
+
+def _harness_newest_mtime(d):
+    """Newest mtime of d and of every entry below it (symlinks not followed). Any OSError other than an entry vanishing
+    (an unreadable or unsearchable subdir) propagates: the caller must treat the tree as unmeasured and keep it."""
+    newest = d.lstat().st_mtime
+
+    def _raise(e):
+        raise e
+    for root, dirs, files in os.walk(d, followlinks=False, onerror=_raise):
+        for n in dirs + files:
+            try:
+                newest = max(newest, os.lstat(os.path.join(root, n)).st_mtime)
+            except FileNotFoundError:
+                continue
+    return newest
+
+
+def _proc_holds(roots):
+    """The `roots` (realpaths) that a process of our uid has as cwd or an open fd (or holds something inside); None when
+    a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
+    unreadable fd dir, which also lands in the keep-everything branch.)"""
+    held = set()
+    uid = os.getuid()
+    for pdir in _serve_proc_root().iterdir():
+        if not pdir.name.isdigit():
+            continue
+        try:
+            if pdir.stat().st_uid != uid:
+                continue
+            targets = [os.path.realpath(os.readlink(pdir / "cwd"))]
+            targets += [os.path.realpath(f) for f in (pdir / "fd").iterdir()]
+        except FileNotFoundError:
+            continue   # the process exited while we looked
+        except OSError:
+            return None
+        for tg in targets:
+            for r in roots:
+                if tg == r or tg.startswith(r + os.sep):
+                    held.add(r)
+    return held
+
+
+def tmp_sweep_harness(con):
+    """Tick hook, at most hourly: delete stale <tmp>/zz-test-factory-<8 chars> test-harness homes (killed or crashed test
+    runs leave them). Only real dirs of our uid directly under <tmp>; kept when anything in the tree is under 1 h old or a
+    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything. At most 500 per pass; one
+    tmp-harness-swept event per pass that removed something."""
+    try:
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='tmpharness'").fetchone()
+        if last and t - float(last["ts"]) < TMP_HARNESS_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('tmpharness',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        base = tmp_dir()
+        if not base.is_dir():
+            return
+        old = []
+        unmeasured = []
+        for d in sorted(base.iterdir()):
+            if not _HARNESS_NAME.fullmatch(d.name):
+                continue
+            try:
+                st = d.lstat()
+                if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+                    continue
+                if t - _harness_newest_mtime(d) >= TMP_HARNESS_MIN_AGE_S:
+                    old.append(d)
+            except FileNotFoundError:
+                continue   # vanished while we looked
+            except OSError as e:
+                unmeasured.append(f"{d.name}: {e}")   # cannot measure it completely: keep it, go on with the others
+        if unmeasured:
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-unmeasured",
+                     {"count": len(unmeasured), "kept": unmeasured[:20]})
+        if not old:
+            return
+        held = _proc_holds([os.path.realpath(d) for d in old])
+        if held is None:
+            return
+        n = busy = freed = 0
+        for d in old:
+            if os.path.realpath(d) in held:
+                busy += 1
+            elif n < TMP_HARNESS_CAP:
+                size = _tree_bytes(d)
+                try:
+                    shutil.rmtree(d)
+                except OSError as e:
+                    event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-failed", f"{d}: {e}")
+                    continue
+                freed += size
+                n += 1
+        if n:
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-swept",
+                     {"count": n, "mb": round(freed / 1048576, 1), "kept_busy": busy})
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+SERVE_REAP_THROTTLE_S = 600   # the tick looks for stray serves at most every 10 min
 SERVE_KILL_GRACE_S = 10        # SIGTERM first; SIGKILL only if it is still there after this long
 _serve_kill = os.kill          # seam: the one place a signal is sent
 
@@ -8762,7 +8869,7 @@ def owner_blockers(con):
         if not row:
             con.execute("INSERT INTO throttle(key,ts) VALUES('owner-blocker:gate',?)", (since,))
         out.append({"key": f"owner-blocker:gate:{since}", "since": since,
-                    "text": f"spawn gate closed: /tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.0f}%) "
+                    "text": f"spawn gate closed: /tmp {tmp['used_mb']}/{tmp['total_mb']} MB used ({tmp['pct']:.1f}%) "
                             f"≥ {cfg(con, 'tmp_max_pct')}%"})
     else:
         con.execute("DELETE FROM throttle WHERE key='owner-blocker:gate'")
@@ -9498,7 +9605,7 @@ def cmd_res(a):
     if tmp is None:
         print("tmp unknown")
     else:
-        print(f"tmp used {tmp['used_mb']} MB / {tmp['total_mb']} MB ({tmp['pct']:.0f}%)"
+        print(f"tmp used {tmp['used_mb']} MB / {tmp['total_mb']} MB ({tmp['pct']:.1f}%)"
               + (f" on {tmp['fstype']}" if tmp["fstype"] else "") + f" (gate closes at {cfg(con, 'tmp_max_pct')}%)")
         sw = last_tmp_sweep(con)
         print(f"tmp sweep (over {cfg(con, 'tmp_sweep_pct')}%): " + (f"last {sw[0]} freed {sw[1]} MB in {sw[2]} dirs" if sw else "never swept"))
@@ -10294,6 +10401,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("main_protection")
     tmp_clean(con)
     _pt_lap("tmp_clean")
+    tmp_sweep_harness(con)
+    _pt_lap("tmp_harness")
     red_main_check(con)
     _pt_lap("red_main")
     reap_stray_serves(con)
