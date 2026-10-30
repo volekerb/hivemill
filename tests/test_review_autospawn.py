@@ -20,13 +20,15 @@ class Base(FactoryTestCase):
         kw.setdefault("team", TEAM)
         self.env.seed_task(tid, **kw)
 
-    def tick_step(self, gate_open=True, spawn_status="live", stub_pr=True, heads=None):
+    def tick_step(self, gate_open=True, spawn_status="live", stub_pr=True, heads=None, now=None):
         calls = []
         with self.env.load_factory() as f:
             con = f.db()
             if stub_pr:  # a healthy open PR; the T-0815 skip tests use the gh stub instead
                 f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA_A, "statusCheckRollup": []}
             f._ci_remote_heads = lambda: heads
+            if now is not None:  # seconds since a fixed epoch: the tick's clock
+                f.digest_clock = lambda: f.dt.datetime.fromtimestamp(now, f.dt.timezone.utc)
 
             def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw):
                 calls.append({"role": role, "team": team, "task": task, "name": name, "prompt": prompt})
@@ -500,3 +502,78 @@ class SkipTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThrottleTests(SkipTests):
+    """T-0816: a dead task is probed at most once per max(director_cycle_s, 1h) unless its url/branch change; a transient gh failure
+    is a probe-error event (hourly), not the daily skip slot."""
+    T0 = 1_800_000_000
+
+    def gh_views(self):
+        return [c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "view"]]
+
+    def tick_at(self, off):
+        return self.tick_step(stub_pr=False, heads=self.heads, now=self.T0 + off)
+
+    def events(self, action):
+        return self.env.sql("SELECT detail FROM events WHERE action=? AND entity_id='T-0001'", (action,))
+
+    def test_dead_task_probed_once_per_window(self):
+        self.dead_task()  # no PR on GitHub: gh says no pull request found
+        for off in (0, 900, 1800, 3500):
+            self.assertEqual(self.tick_at(off), [])
+        self.assertEqual(len(self.gh_views()), 1)
+        self.assertEqual(len(self.skip_events()), 1)
+        self.assertEqual(self.tick_at(3600), [])
+        self.assertEqual(len(self.gh_views()), 2)
+
+    def test_window_is_director_cycle_when_larger(self):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('director_cycle_s','7200')")
+        self.dead_task()
+        for off in (0, 3600, 7100):
+            self.tick_at(off)
+        self.assertEqual(len(self.gh_views()), 1)
+        self.tick_at(7200)
+        self.assertEqual(len(self.gh_views()), 2)
+
+    def test_changed_pr_url_or_branch_probes_again(self):
+        self.dead_task()
+        self.tick_at(0)
+        self.tick_at(60)
+        self.assertEqual(len(self.gh_views()), 1)
+        self.env.sql("UPDATE tasks SET branch='factory/t-0001b' WHERE id='T-0001'")
+        self.tick_at(120)
+        self.assertEqual(len(self.gh_views()), 2)
+        url2 = HIVEMILL_URL + "0"
+        self.env.sql("UPDATE tasks SET pr_url=? WHERE id='T-0001'", (url2,))
+        self.tick_at(180)
+        self.assertEqual(len(self.gh_views()), 3)
+
+    def test_revived_task_after_window_gets_review(self):
+        self.dead_task()
+        self.tick_at(0)
+        self.seed()  # the PR shows up
+        self.assertEqual(self.tick_at(60), [])  # still inside the window
+        self.assertEqual(len(self.tick_at(3600)), 2)
+
+    def test_transient_gh_failure_is_a_probe_error_not_a_skip(self):
+        self.dead_task()
+        self.seed()
+        self.env.set_gh(pr_view_exit=1)
+        self.assertEqual(self.tick_at(0), [])
+        self.assertEqual(self.tick_at(60), [])
+        self.assertEqual(len(self.events("review-autospawn-probe-error")), 1)
+        self.assertEqual(self.skip_events(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.tick_at(3600)  # hourly again
+        self.assertEqual(len(self.events("review-autospawn-probe-error")), 2)
+
+    def test_skip_event_still_fires_after_a_probe_error(self):
+        self.dead_task()  # gh has no such PR
+        self.env.set_gh(pr_view_exit=1)
+        self.assertEqual(self.tick_at(0), [])
+        self.assertEqual(self.skip_events(), [])
+        self.env.set_gh(pr_view_exit=0)
+        self.assertEqual(self.tick_at(60), [])
+        self.assertEqual(len(self.skip_events()), 1)
+        self.assertEqual(len(self.events("review-autospawn-probe-error")), 1)
