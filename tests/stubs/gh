@@ -34,6 +34,9 @@ elif argv[:2] == ["pr", "view"]:
     if "files" in argv and st.get("files_fail"):  # `--json files` fails (post-merge hook tests)
         print("gh: files unavailable", file=sys.stderr)
         sys.exit(1)
+    if st.get("pr_view_exit"):  # gh itself fails (network, auth) rather than "no such PR"
+        print("gh: pr view failed", file=sys.stderr)
+        sys.exit(st["pr_view_exit"])
     pr = st.get("prs", {}).get(argv[2])
     if pr is None:
         print(f"gh: no pull request found for {argv[2]}", file=sys.stderr)
