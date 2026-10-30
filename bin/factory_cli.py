@@ -12049,12 +12049,99 @@ def review_candidates(con):
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
+def review_rerun_candidates(con):
+    """In-review PR tasks that already had a review round (a qa or combined agent row, or a verdict), so review_candidates skips them, but whose
+    head may have moved since. DB only; review_rerun_tick decides per head. Not while a reviewer/qa agent is queued, starting or live."""
+    return con.execute(
+        "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
+        "AND t.branch IS NOT NULL AND t.branch != '' AND g.status='active' "
+        "AND (EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%')) "
+        "     OR EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id)) "
+        "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role IN ('reviewer','qa') "
+        "                AND a.status IN ('queued','starting','live')) "
+        "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
+
+
+def _rerun_agents(con, tid, head):
+    """The reviewer/qa agent rows the re-run pass started on head, by name (<role>-<task>-<sha8>)."""
+    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
+
+
+def _rerun_missing(con, tid, head):
+    """The roles (reviewer, qa) the re-run pass still has to start on head. A role is done when it has an agent row named <role>-<task>-<sha8>
+    or a verdict of that role on head. A head with a verdict but no re-run agent at all (a round the lead ran) is done as a whole."""
+    started = _rerun_agents(con, tid, head)
+    if not started and con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone():
+        return []
+    return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
+        "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+
+
+def _review_head_done(con, tid, head, clock):
+    """True when the tick started both halves (reviewer + qa) on head (throttle row review-head:<task>:<sha>), or no role is missing on it
+    (_rerun_missing): a half-started round gets only its missing role next tick."""
+    return _throttled(con, f"review-head:{tid}:{head}", clock, float("inf")) or not _rerun_missing(con, tid, head)
+
+
+def review_rerun_tick(con):
+    """Part of tick step 2c: a task that had a review round on an older head (its verdicts or agents are why review_candidates skips it)
+    gets a fresh reviewer + qa, named with the first 8 sha chars, once its current PR head has all checks green, no verdict and no
+    tick-started round (throttle row review-head:<task>:<sha>, set when a round is spawned: no double spawn).
+    Always reviewer + qa, never the combined T0/T1 agent (the spec asks for R+Q on a new head; tiers apply to first reviews only).
+    The head is read with `git ls-remote` first (a head with a verdict or a mark costs no gh call), then confirmed by one gh call."""
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    batch = []
+    for t in review_rerun_candidates(con):
+        tid, team = t["id"], t["team_id"]
+        head = _ci_remote_head(t["branch"], batch)
+        if head and _review_head_done(con, tid, head, clock):
+            continue
+        pr = _ci_wake_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if isinstance(pr, BaseException):
+            event(con, "task", tid, "review-autospawn-error", f"gh pr view {t['pr_url']}: {pr}"[:300])
+            continue
+        sha = pr["headRefOid"]
+        if pr.get("state", "OPEN") != "OPEN" or _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            continue
+        boss = f"lead:{team}" if team else "director"
+        brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
+        started = []
+        for role in _rerun_missing(con, tid, sha):
+            name = slug(f"{role}-{tid}-{sha[:8]}")
+            if not gate(con, role=role)[0]:
+                return
+            try:
+                spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
+            except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
+                event(con, "task", tid, "review-autospawn-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+                break
+            row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+            status = row["status"] if row else "unknown"
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8]})
+            started.append(name)
+            if status == "queued":
+                break
+        if not _rerun_missing(con, tid, sha):  # the mark only when both halves are done; a queued reviewer or refused qa retries
+            _throttle_set(con, f"review-head:{tid}:{sha}", clock)
+        if started:
+            send(con, boss, f"review autospawn: new head review started on {tid} @{sha[:8]}",
+                 f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} because head {sha} has all checks green "
+                 "and no verdict yet. This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+
+
 def review_autospawn_tick(con):
     """Tick step 2c: with config review_autospawn=on start a reviewer and a qa (one combined reviewer for stored tier
     T0/T1 when risk_tiers=on) for each PR that just went in_review, without the lead's wake. The team worker cap is not
     consulted; the gate (all global caps) is. A queued or refused spawn stops the loop; the next tick retries."""
     if cfg(con, "review_autospawn") != "on":
         return
+    try:
+        review_rerun_tick(con)
+    except Exception as e:  # noqa: BLE001 — the new-head pass must not stop the first-review pass
+        event(con, "tick", "review-autospawn", "review-autospawn-error", f"rerun: {e}"[:300])
     combined_ok = cfg(con, "risk_tiers") == "on"
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
