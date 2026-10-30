@@ -12,6 +12,8 @@ BAD_EXT = {".sh", ".py", ".js", ".ts", ".cmd", ".ps1", ".html"}
 BAD_NAMES = {"hooks", "hooks.json", ".mcp.json"}
 NAMED_WORKFLOW = REPO / "roles" / "workflows" / "multi-angle-review.js"
 NAMED_WORKFLOW_LINK = "/workflows/multi-angle-review.js"
+PROBE_WORKFLOW = REPO / "roles" / "workflows" / "guard-probe.js"
+PROBE_WORKFLOW_LINK = "/qa/qa-skills/workflows/guard-probe.js"  # qa plugin only (tests/test_guard_probe.py)
 # the CLI refuses `factory spawn evaluator` (only the skilleval harness spawns it): tests/test_scout_roles.py
 CLI_SPAWNABLE = [r for r in ROLES if r != "evaluator"]
 
@@ -113,6 +115,8 @@ class VendoredPluginsStaticTests(unittest.TestCase):
                 if n in BAD_NAMES or os.path.splitext(n)[1].lower() in BAD_EXT:
                     if p.endswith(NAMED_WORKFLOW_LINK) and os.path.realpath(p) == str(NAMED_WORKFLOW):
                         continue  # the one allowed .js: a symlink to the single vendored workflow (T-0366)
+                    if p.endswith(PROBE_WORKFLOW_LINK) and os.path.realpath(p) == str(PROBE_WORKFLOW):
+                        continue  # the qa-only guard-probe symlink (T-0751)
                     bad.append(p)
             for n in files:
                 p = os.path.join(root, n)
