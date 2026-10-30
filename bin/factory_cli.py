@@ -11956,7 +11956,7 @@ def dispatch_tick(con):
             break
 
 
-REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); lead:{team} gets an FYI, you report to it as usual. "
+REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {boss} gets an FYI, you report to it as usual. "
                 "Run only `python3 ci/affected.py --base origin/main --quick --run` locally, never the full suite (CI runs it). "
                 "Never call the advisor tool.")
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
@@ -11966,12 +11966,12 @@ COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tie
 
 
 def review_candidates(con):
-    """PR tasks the tick may start a first review for (DB only): in_review with a pr_url, active goal, a team, and no
+    """PR tasks the tick may start a first review for (DB only): in_review with a pr_url, active goal (team or none: lead-less director dispatch), and no
     qa agent row (nor a combined one) and no verdict yet (a retry round is the lead's to spawn). A task that has only
     its reviewer (a partial start: gate closed, queued or refused qa) stays a candidate so the next tick adds the qa. Ordered by goal priority, then id."""
     return con.execute(
         "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
-        "AND t.team_id IS NOT NULL AND g.status='active' "
+        "AND g.status='active' "
         "AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND (a.role='qa' OR a.name LIKE 'combined-%')) "
         "AND NOT EXISTS (SELECT 1 FROM verdicts v WHERE v.task_id=t.id) "
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
@@ -11986,6 +11986,7 @@ def review_autospawn_tick(con):
     combined_ok = cfg(con, "risk_tiers") == "on"
     for t in review_candidates(con):
         tid, team = t["id"], t["team_id"]
+        boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
         # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
         low = combined_ok and t["tier"] in ("T0", "T1") and not has_reviewer
@@ -11999,7 +12000,7 @@ def review_autospawn_tick(con):
                 continue
             if not gate(con, role=role)[0]:
                 return
-            brief = REVIEW_BRIEF.format(team=team)
+            brief = REVIEW_BRIEF.format(boss=boss)
             if low:
                 brief = COMBINED_BRIEF.format(tier=t["tier"], task=tid) + brief
             try:
@@ -12016,7 +12017,7 @@ def review_autospawn_tick(con):
         else:
             if not started:
                 continue
-            send(con, f"lead:{team}", f"review autospawn: {'combined ' if low else ''}review started on {tid}",
+            send(con, boss, f"review autospawn: {'combined ' if low else ''}review started on {tid}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} when the PR opened. "
                  "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
 
