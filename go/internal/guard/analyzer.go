@@ -20,8 +20,8 @@ var shellLike = func() map[string]struct{} {
 	return m
 }()
 
-// Analyzer is a port of worker-guard.py:Analyzer. The state only the later sections read (gcwd, gdyn, vars,
-// pt, ccwd) is not carried: the rules that read it are stubs (see commands.go).
+// Analyzer is a port of worker-guard.py:Analyzer. The public-text rule (PublicText, pt) is the Python hook's: see
+// ptCommand (publictext.go).
 type Analyzer struct {
 	Cwd  string
 	Role string
@@ -29,7 +29,11 @@ type Analyzer struct {
 
 	gcwd string // directory a git command would run in, moved by `cd` (git rule only)
 	gdyn bool   // true after a `cd` into a directory that is only known at run time
-	pt   bool   // Analyzer.pt is set: the public-text rule would look at git/gh writes (a stub, T6d)
+	pt   bool   // Analyzer.pt is set: the public-text rule looks at git/gh writes (delegated, see ptCommand)
+
+	vars      map[string]string // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
+	ccwd      string            // like gcwd, for the CFG_DIR write detector
+	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
 	skipPriv         bool
 	unitRule         bool // HQ mode: block mutating systemctl (workers keep the factory unit rule)
@@ -48,13 +52,13 @@ func NewAnalyzer(cwd, role string, hq bool) (*Analyzer, error) {
 		}
 		cwd = wd
 	}
-	return &Analyzer{Cwd: cwd, Role: role, HQ: hq, gcwd: cwd}, nil
+	return &Analyzer{Cwd: cwd, Role: role, HQ: hq, gcwd: cwd, vars: map[string]string{}, ccwd: cwd, ccwdKnown: true}, nil
 }
 
-// soft is a port of Analyzer.soft applied to the result of the call: in HQ mode only a PRIV block (and a
-// stub, which must never turn into an allow) counts, so parse trouble never blocks.
+// soft is a port of Analyzer.soft applied to the result of the call: in HQ mode only a PRIV or public-text block (and a
+// delegation, which must never turn into an allow) counts, so parse trouble never blocks.
 func (a *Analyzer) soft(err error) error {
-	if err == nil || IsPrivBlock(err) || IsNotPorted(err) {
+	if err == nil || IsPrivBlock(err) || IsDelegate(err) || isPublicBlock(err) {
 		return err
 	}
 	if a.HQ {
@@ -403,7 +407,12 @@ func (a *Analyzer) script(text string, depth int) error {
 		if !a.HQ {
 			for _, r := range reds {
 				if r.idx == n {
-					return notPorted("cfg_redirect/persist_redirect (T6d)")
+					if err := a.cfgRedirect(r.target); err != nil {
+						return err
+					}
+					if err := a.persistRedirect(r.target); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -535,7 +544,9 @@ func (a *Analyzer) priv(words []string, depth int, piped bool, hstrs []string) e
 			return err
 		}
 	case name == "gh":
-		return notPorted("gh_repo_change (T6c)")
+		if hit := ghRepoChange(rest); hit != "" {
+			return &RepoProtBlock{Msg: hit}
+		}
 	case name == "sed":
 		for _, x := range rest {
 			if m, g1 := sedE(x); m {
