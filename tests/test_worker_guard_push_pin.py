@@ -216,8 +216,7 @@ class PushPinTests(unittest.TestCase):
                     self.assertEqual(p.returncode, 2, p.stderr)
 
     def test_non_coder_git_option_forms_still_allowed(self):
-        for cmd in ("git --no-pager log -1", "git --attr-source HEAD status", f"git --git-dir {self.wt}/.git status",
-                    "git -c core.pager=cat log -1", "git --namespace ns status"):
+        for cmd in ("git --no-pager log -1", "git -P log -1", "git --no-optional-locks status", "git --version"):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd, role="reviewer", agent="reviewer-t-0689")
                 self.assertEqual(p.returncode, 0, p.stderr)
@@ -227,6 +226,87 @@ class PushPinTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd, role="qa", agent="qa-t-0689")
                 self.assertEqual(p.returncode, 0, p.stderr)
+
+    ROLES = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+    # T-0755 attempt 3: the allow-list. Each of these exited 0 for a read-only role at f792b8f93 (the push deny-list).
+    ALLOWLIST_REFUSED = (
+        "p=push; git $p origin main", "p=push; git ${p} x", 'p=push; git "$p" origin main', "git `echo push` origin main",
+        "p=push; git $p --dry-run origin main",
+        "GIT_CONFIG_GLOBAL=f git p origin main", "GIT_CONFIG_SYSTEM=f git p origin main", "GIT_CONFIG=f git p origin main",
+        "HOME=d git p", "env HOME=d git p", "export HOME=d; git p", "export GIT_CONFIG_GLOBAL=f; git p",
+        "unset HOME; git p", "HOME=d; git p", "PATH=/x:$PATH git status",
+        "git -c include.path=f p", "git -c includeIf.x.path=f p", "git -c core.pager=cat log", "git p", "git p origin main",
+        "git fetch --upload-pack='x' .", "git fetch --upload-pack=x origin", "git fetch -u x origin",
+        "git fetch 'ext::sh -c x'", "git fetch origin 'ext::sh -c x'", "git fetch https://example.com/x.git",
+        "git fetch /tmp/other", "git ls-remote --upload-pack=x origin", "git ls-remote git@example.com:x/y.git",
+        "git fetch --server-option=x origin", "git fetch $r", "git ls-remote $r",
+        "git grep -O x", "git grep -nO x", "git grep --open-files-in-pager=x y", "git grep --open-f=x y", "git grep $pat",
+        "git log --ext-diff", "git diff --ext-diff", "git show --output=f", "git log --output f", "git diff --outp=f",
+        "git -p log", "git --paginate log",
+        "echo '[alias] p=push' >> .git/config", "tee -a .git/config < /dev/null", "cp /dev/null .git/config",
+        "sed -i s/a/b/ .git/config", "echo x > .git/hooks/pre-push", "echo x > .git/info/attributes",
+        "echo '[alias]' >> ~/.gitconfig", "echo x > ~/.config/git/config",
+        "git config --file .git/config alias.p push",
+        "printf push | xargs git", "echo push | xargs -n1 git", "find . -maxdepth 0 -exec git push \\;",
+        "find . -maxdepth 0 -execdir git p \\;", "find . -ok git p \\;",
+        "git-push origin main", "/usr/lib/git-core/git-push", "/usr/lib/git-core/git push origin main", "./git push",
+        "$G push", "\\git p", "git rebase --exec 'git push' HEAD~1", "git rebase -x p HEAD~1", "git bisect run p",
+        "git submodule foreach git push", "git filter-branch -f", "git difftool", "git archive --remote=x HEAD",
+        "git push origin main", "git stash", "git commit -m x", "git checkout -b x", "git reset --hard", "git add .",
+        "git branch -D x", "git branch new", "git remote add x y", "git remote set-url origin y", "git worktree add ../x",
+        "git config alias.p push", "git config --unset alias.p", "git config --list --edit", "git config --global alias.p push",
+        "git send-pack /x HEAD:main", "git subtree push --prefix=a origin main", "git daemon", "git var GIT_PAGER",
+        "git remote update",
+    )
+    ALLOWLIST_ALLOWED = (
+        "git log --oneline -5", "git -C {wt} diff origin/main...HEAD", "git show origin/x:f", "git fetch origin",
+        "git fetch origin main", "git status", "git branch -a", "git config --get user.name", "git blame f",
+        "git grep -n x", "git merge-tree --write-tree origin/main HEAD", "git rev-parse HEAD", "git ls-remote origin",
+        "git fetch origin refs/heads/main:refs/remotes/origin/main", "git fetch --prune origin", "git ls-remote --heads origin",
+        "git diff --stat HEAD~1", "git log --no-ext-diff -1", "git remote -v", "git remote get-url origin",
+        "git worktree list", "git config --list", "git config --get-regexp remote", "git branch --list 'f*'",
+        "git cat-file -p HEAD", "git show-ref", "git describe --tags --always", "git --version",
+    )
+
+    def test_non_coder_git_allow_list_refuses(self):
+        """T-0755 acceptance 1: fail-closed allow-list (dynamic subcommand, config-file aliases, fetch helpers, pager,
+        config writes, xargs/find launchers, git-* helpers, unknown builtins)."""
+        for role in self.ROLES:
+            for cmd in self.ALLOWLIST_REFUSED:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd, role=role, agent=f"{role}-t-0689")
+                    self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_non_coder_git_allow_list_allows(self):
+        """T-0755 acceptance 2: the read-only forms stay allowed."""
+        for role in self.ROLES:
+            for cmd in self.ALLOWLIST_ALLOWED:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd.format(wt=self.wt), role=role, agent=f"{role}-t-0689")
+                    self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_non_coder_script_files_are_inspected_or_refused(self):
+        """T-0755 point 7: a script file run by a no-push role is read as sh (its body obeys the allow-list); one for another interpreter is refused."""
+        def script(name, body, mode=0o755):
+            path = os.path.join(self.tmp, name)
+            with open(path, "w") as f:
+                f.write(body)
+            os.chmod(path, mode)
+            return path
+        push, py = script("push.sh", "git push origin main\n"), script("py.py", "#!/usr/bin/env python3\nprint(1)\n")
+        ok = script("ok.sh", "git status\n")
+        for role in self.ROLES:
+            for cmd in (push, f"bash {push}", f"source {push}", py):
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(self.run_hook(cmd, role=role, agent=f"{role}-t-0689").returncode, 2)
+            with self.subTest(role=role, cmd=ok):
+                self.assertEqual(self.run_hook(ok, role=role, agent=f"{role}-t-0689").returncode, 0)
+
+    def test_coder_cleaner_judge_not_under_allow_list(self):
+        """The allow-list is for the no-push roles only: coder, cleaner and judge never get its message."""
+        for role in ("coder", "cleaner", "judge"):
+            p = self.run_hook("git p origin main", role=role, agent=f"{role}-t-0689")
+            self.assertNotIn("read-only allow-list", p.stderr)
 
     def test_judge_hq_and_cleaner_unchanged(self):
         """Judge and HQ are not in the no-push set (no refusal from this rule); the cleaner still gets its own messages."""
