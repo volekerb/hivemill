@@ -8272,14 +8272,59 @@ def protected_by(con, wt, pane_cwds):
     return None
 
 
-def clean_verdict(con, t, repo, base, pane_cwds=()):
+def task_agent_live(con, task_id, listed):
+    """True when an agent row of THIS task is live/starting/queued and, for a 'live' row, its pane still belongs to it:
+    herdr lists that pane under the row's own name. A pane id now used by another agent does not count. `listed` is
+    herdr_agents() (None = cannot tell, which counts as live: fail safe). A row herdr lists nowhere counts only while
+    it is within the start grace (still_starting)."""
+    for r in con.execute("SELECT * FROM agents WHERE task_id=? AND status IN ('live','starting','queued')", (task_id,)):
+        if r["status"] != "live" or listed is None:
+            return True
+        owner = next((x for x in listed if r["pane_id"] and x.get("pane_id") == r["pane_id"]), None) \
+            or next((x for x in listed if x.get("name") == r["name"]), None)
+        if owner is None:
+            if still_starting(r):
+                return True
+            continue
+        if owner.get("name") == r["name"]:
+            return True
+    return False
+
+
+def landed_on_main(con, t, repo, base, head):
+    """True only with proof the finished work is on origin/<base>: task done, a 'merged' event naming a commit that is an
+    ancestor of origin/<base>, and the branch head either an ancestor of it or already contained in its tree (merging
+    the head into origin/<base> changes nothing). Any missing piece or git failure is False."""
+    if t["status"] != "done" or not head:
+        return False
+    ref = f"origin/{base}"
+    shown = None
+    for e in con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='merged' ORDER BY id DESC",
+                         (t["id"],)):
+        m = re.match(r"@([0-9a-f]{7,40})\b", e["detail"] or "")
+        if m:
+            shown = m.group(1)
+            break
+    if not shown:
+        return False
+    r = _git(repo, "rev-parse", "--verify", "-q", f"{shown}^{{commit}}")
+    if r.returncode != 0 or _git(repo, "merge-base", "--is-ancestor", r.stdout.strip(), ref).returncode != 0:
+        return False
+    if _git(repo, "cat-file", "-e", f"{head}^{{commit}}").returncode != 0:
+        return False
+    if _git(repo, "merge-base", "--is-ancestor", head, ref).returncode == 0:
+        return True
+    mt = _git(repo, "merge-tree", "--write-tree", ref, head)
+    main_tree = _git(repo, "rev-parse", f"{ref}^{{tree}}")
+    return mt.returncode == 0 and main_tree.returncode == 0 and mt.stdout.strip() == main_tree.stdout.strip()
+
+
+def clean_verdict(con, t, repo, base, pane_cwds=(), listed=None):
     """Return (skip_reason or None, worktree path or None, branch exists locally). Never changes anything."""
     status = t["status"]
     if status not in ("done", "cancelled"):
         return f"task {status}", None, False
-    live = con.execute("SELECT count(*) c FROM agents WHERE task_id=? AND status IN ('live','starting','queued')",
-                       (t["id"],)).fetchone()["c"]
-    if live:
+    if task_agent_live(con, t["id"], listed):
         return "agent live", None, False
     branch = t["branch"]
     if branch and not branch.startswith("factory/"):
@@ -8299,9 +8344,11 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
         except SystemExit:
             return "PR lookup failed", None, tip is not None
         want = {"MERGED"} if status == "done" else {"MERGED", "CLOSED"}
-        if pr.get("state") not in want:
-            return f"PR {pr.get('state')}", None, tip is not None
         head = pr.get("headRefOid")
+        if pr.get("state") == "CLOSED" and status == "done" and landed_on_main(con, t, repo, base, head):
+            pass  # closed by judge --record-merged: the work is on main
+        elif pr.get("state") not in want:
+            return f"PR {pr.get('state')}", None, tip is not None
     elif status == "done":
         return "PR none", None, tip is not None
     wt = None
@@ -8423,6 +8470,7 @@ def cmd_clean(a):
     pane_cwds = live_pane_cwds()
     if pane_cwds is None:
         die("cannot verify live panes; refusing to remove anything", 4)
+    listed = herdr_agents()  # None (cannot list) keeps every task that has a live agent row
     rows = []
     known = set()
     repos = {}
@@ -8444,7 +8492,7 @@ def cmd_clean(a):
                 continue
             _git(repo, "fetch", "-q", "origin")
             repos[repo] = base
-        why, wt, has_branch = clean_verdict(con, t, repo, base, pane_cwds)
+        why, wt, has_branch = clean_verdict(con, t, repo, base, pane_cwds, listed)
         if why:
             row["reason"] = why
             continue
