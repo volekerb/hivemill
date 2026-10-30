@@ -1179,6 +1179,8 @@ def flagless_scan(con, rows, throttle=False):
     throttle: check each agent at most once an hour (the tick)."""
     out = []
     for r in rows:
+        if r["role"] == "evaluator":  # eval sandbox agents run without role flags by design
+            continue
         if throttle:
             key = f"flagless_check:{r['name']}"
             last = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
