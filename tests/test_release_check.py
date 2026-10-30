@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ci"))
@@ -253,13 +254,12 @@ class RealGitTest(unittest.TestCase):
         self.git("commit", "-q", "-m", "one")
         self.sha = self.git("rev-parse", "HEAD").strip()
         self.git("update-ref", "refs/remotes/origin/main", "HEAD")
-        self.git("remote", "add", "origin", "https://github.com/acme/widget.git")
         self.git("checkout", "-q", "-b", "side")
         self.git("commit", "-q", "--allow-empty", "-m", "side")
         self.side = self.git("rev-parse", "HEAD").strip()
 
     def git(self, *args):
-        return subprocess.run(["git", "-C", self.repo, *args], capture_output=True, text=True, check=True, env=GIT_ENV).stdout
+        return harness.git(*args, cwd=self.repo, env=GIT_ENV)
 
     def runner(self, argv, cwd=None, env=None, timeout=300):
         if argv[0] == "gh":
@@ -273,13 +273,13 @@ class RealGitTest(unittest.TestCase):
     def test_on_main_and_smoke_pass_on_real_repo(self):
         lines = []
         env = {"PATH": os.environ["PATH"], **{k: v for k, v in GIT_ENV.items() if k.startswith("GIT_")}}
-        code = rc.main([self.sha, "--version", "0.3.1"], run=self.runner, probe=lambda a, e, p: (True, "HTTP 200 on /"),
+        code = rc.main([self.sha, "--version", "0.3.1", "--repo", "acme/widget"], run=self.runner, probe=lambda a, e, p: (True, "HTTP 200 on /"),
                        root=self.repo, out=lines.append, env=env)
         self.assertEqual((status(lines, "on-main"), status(lines, "fresh-install-smoke"), code), ("PASS", "PASS", 0), lines)
 
     def test_commit_off_main_fails_on_main_real_repo(self):
         lines = []
-        code = rc.main([self.side, "--version", "0.3.1"], run=self.runner, probe=lambda a, e, p: (True, "ok"),
+        code = rc.main([self.side, "--version", "0.3.1", "--repo", "acme/widget"], run=self.runner, probe=lambda a, e, p: (True, "ok"),
                        root=self.repo, out=lines.append, env=dict(os.environ))
         self.assertEqual((status(lines, "on-main"), code), ("FAIL", 1))
         self.assertFalse([ln for ln in lines if "tag -a" in ln])
@@ -290,7 +290,7 @@ class RealGitTest(unittest.TestCase):
         self.git("update-ref", "refs/remotes/origin/main", "HEAD")
         sha = self.git("rev-parse", "HEAD").strip()
         lines = []
-        code = rc.main([sha, "--version", "0.3.1"], run=self.runner, probe=lambda a, e, p: (True, "ok"),
+        code = rc.main([sha, "--version", "0.3.1", "--repo", "acme/widget"], run=self.runner, probe=lambda a, e, p: (True, "ok"),
                        root=self.repo, out=lines.append, env=dict(os.environ))
         self.assertEqual(status(lines, "fresh-install-smoke"), "FAIL")
         self.assertEqual(code, 1)
