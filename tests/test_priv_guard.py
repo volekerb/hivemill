@@ -7,6 +7,8 @@ import sqlite3
 import sys
 import pwd
 import tempfile
+import shutil
+from unittest import mock
 import unittest
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
@@ -53,6 +55,21 @@ HQ_ONLY_ALLOWED = [
     "$X y", "setsid -f sleep 1", "FACTORY_AGENT=director factory agents", "unset FACTORY_ROLE",
     "python3 -W ignore bin/factory tick", "bash -c 'echo `date`'", "echo `git log -1`",
 ]
+
+
+_HOME_PATCH = None
+
+
+def setUpModule():
+    """Root cause T-0636: the hook reads public_text_repos from $FACTORY_HOME's DB. A pane exports the live home, whose
+    config turns the public-text rule on, so plain `git -c alias.*` / quoted-backtick commands block; CI has no DB. Run
+    against an empty temp home so the result does not depend on the caller's environment."""
+    global _HOME_PATCH
+    tmp = tempfile.mkdtemp(prefix="zz-test-factory-guardhome-")
+    _HOME_PATCH = mock.patch.dict(os.environ, {"FACTORY_HOME": tmp})
+    _HOME_PATCH.start()
+    unittest.addModuleCleanup(shutil.rmtree, tmp, True)
+    unittest.addModuleCleanup(_HOME_PATCH.stop)
 
 
 def run_hook(cmd, mode=None, role=None, env=None):
