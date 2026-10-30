@@ -141,6 +141,35 @@ class PromptRulesCoder(unittest.TestCase):
             if "opus" in line.lower() or "fable" in line.lower():
                 self.assertIn("Never", line, "opus/fable outside a never sentence")
 
+    def test_workflow_fallback_marks_errored_slot(self):
+        js = SCRIPT.read_text(encoding="utf-8")
+        fb = [l for l in js.splitlines() if l.startswith("const results = checked.map")][0]
+        self.assertIn("errored: true", fb)
+        self.assertIn("found: null", fb)
+        self.assertNotRegex(fb, r"found: 0[^}]*\}\)\s*$")
+        self.assertIn("errored: results.filter", js)
+        self.assertIn("lands in the final fallback", js)
+
+    def test_workflow_rules_role_neutral(self):
+        js = SCRIPT.read_text(encoding="utf-8")
+        rules = [l for l in js.splitlines() if l.startswith("const RULES")][0]
+        self.assertNotIn("reviewer's worktree", rules)
+        self.assertIn("the current worktree", rules)
+
+    def test_reviewer_skill_hand_reviews_any_errored_angle(self):
+        path = os.path.join(ROOT, "roles", "plugins", "reviewer", "reviewer-skills",
+                            "skills", "multi-angle-review", "SKILL.md")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        line = [l for l in text.splitlines() if l.startswith("5. ")][0]
+        for marker in ("any `error`", '"review"', '"verify"', "fallback", "hand-review"):
+            self.assertIn(marker, line)
+
+    def test_self_review_requires_open_pr(self):
+        step = self._skill().split("\n6. ", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("must already be open", step)
+        self.assertIn("before `factory task update <T> --status in_review`", step)
+
     def _run_script(self, args, review):
         node = subprocess.run(["which", "node"], capture_output=True, text=True)
         if node.returncode:

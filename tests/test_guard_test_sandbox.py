@@ -12,6 +12,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 
 
+AT = "@"  # built apart: the public-text guard reads name-at-word as an email
+
+
 class TestSandboxRoutingExtra(unittest.TestCase):
     def setUp(self):
         self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="zz-test-tsb2-"))
@@ -131,6 +134,52 @@ class TestSandboxRoutingExtra(unittest.TestCase):
             self.assertIn("full suite", p.stderr, cmd)
         for cmd in ("python3 -W error -m unittest tests.test_x", "python3 -X dev -m unittest discover -s tests -p test_x.py"):
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    # T-0745: one test per form, same classification as T-0735
+    def _denied(self, *cmds):
+        self.seed("1")
+        for cmd in cmds:
+            p = self.run_hook(cmd)
+            self.assertEqual(p.returncode, 2, cmd)
+            self.assertIn("factory test", p.stderr, cmd)
+
+    def test_t0745_coverage_run_long_module_option(self):
+        self._denied("coverage run --module pytest", "coverage run --branch --module unittest tests.test_x",
+                     "coverage run --module=pytest x")
+        self.seed("1")
+        self.assertEqual(self.run_hook("coverage run --module http.server").returncode, 0)
+
+    def test_t0745_python_m_coverage_run_m(self):
+        self._denied("python3 -m coverage run -m pytest", "python3 -m coverage run --module unittest tests.test_x",
+                     "python3 -W error -m coverage run -m pytest")
+        self.seed("1")
+        for cmd in ("python3 -m coverage report", "python3 -m coverage run script.py"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0745_uvx_and_uv_tool_run_pytest(self):
+        self._denied("uvx pytest", "uvx pytest -q tests", "uv tool run pytest", "uv tool run --with foo pytest tests",
+                     "uvx pytest" + AT + "8.3.0 tests", "uvx pytest" + AT + "latest", "uv tool run pytest" + AT + "latest",
+                     "uvx --from 'pytest<9' pytest")
+        self.seed("1")
+        for cmd in ("uvx ruff check .", "uv tool run ruff check .", "uv tool list"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0745_coverage_module_flag_then_options(self):
+        self._denied("coverage run --module --branch pytest", "coverage run -m --branch pytest", "coverage run -mp pytest",
+                     "python3 -m coverage run --module --branch pytest",
+                     "coverage run -pm pytest", "coverage run -am pytest", "python3 -m coverage run -pm pytest",
+                     "coverage run -m --pylib pytest", "coverage run -m --concurrency thread pytest",
+                     "coverage run -m --save-signal USR1 pytest", "coverage run .venv/bin/pytest",
+                     "coverage run -m unittest tests.test_x", "coverage run -mpytest")
+        self.seed("1")
+        for cmd in ("coverage run --module --branch myapp", "coverage run -mp myapp", "coverage run app.py",
+                    "coverage run -m mypkg", "python3 -m coverage run app.py"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0745_go_double_dash_C(self):
+        self._denied("go --C sub test ./...", "go --C sub -v test ./...")
+        self.seed("1")
+        self.assertEqual(self.run_hook("go --C sub build ./...").returncode, 0)
 
 
 if __name__ == "__main__":

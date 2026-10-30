@@ -57,6 +57,10 @@ jobs:
           python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # docs mode: the aggregator runs the docs check; the shards report success without the suite.
+      # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
+      - name: Install zsh
+        if: steps.tier.outputs.mode != 'docs'
+        run: sudo apt-get install -y zsh
       - run: python -m py_compile bin/factory bin/factory_cli.py
         if: steps.tier.outputs.mode != 'docs'
       - run: python bin/factory --help >/dev/null

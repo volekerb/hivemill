@@ -4,7 +4,7 @@ export const meta = {
   phases: [{ title: 'Review' }, { title: 'Verify' }],
 }
 
-// Returns {confirmed, unverified, dropped, angles}; angles[].error is 'review' or 'verify' when a subagent died.
+// Returns {confirmed, unverified, dropped, angles}; angles[].error is 'review' or 'verify' when a subagent died; errored lists those angles, and a slot with found null never ran cleanly.
 // args: {pr, base, spec_task}. Run by the namespaced name <plugin>:multi-angle-review (reviewer-skills, qa-skills, coder-skills); the plugin dir is the main checkout, never a PR worktree.
 // Coder mode (args.mode === 'coder', also needs pr; optional task, acceptance): a coder's self-review of its own PR.
 // Angles security/spec/tests, all Sonnet, NO verifier agents (3 agents in total); the findings come back in
@@ -12,7 +12,7 @@ export const meta = {
 const { pr, base = 'origin/main', spec_task } = args
 const coder = args.mode === 'coder'
 
-const RULES = `HARD RULES (read-only agent). You must not edit or write any file. You must not run git write commands (commit, push, checkout, reset, merge, rebase, stash, branch -D, worktree). You must not run gh pr merge, gh pr review or gh pr comment. You must not run any factory command (no 'factory ...' at all, not even task show). Read only: use 'gh pr diff ${pr}', 'gh pr view ${pr}', 'git diff ${base}...HEAD', 'git log', grep and file reads in the current working directory (the reviewer's worktree). If a command is denied, do not retry it in another form; report it.`
+const RULES = `HARD RULES (read-only agent). You must not edit or write any file. You must not run git write commands (commit, push, checkout, reset, merge, rebase, stash, branch -D, worktree). You must not run gh pr merge, gh pr review or gh pr comment. You must not run any factory command (no 'factory ...' at all, not even task show). Read only: use 'gh pr diff ${pr}', 'gh pr view ${pr}', 'git diff ${base}...HEAD', 'git log', grep and file reads in the current working directory (the current worktree). If a command is denied, do not retry it in another form; report it.`
 
 const SPEC = coder
   ? (args.acceptance ? `Task ${args.task || '(unnamed)'} acceptance text, verbatim:\n${args.acceptance}` : `No acceptance text was given; say so and review against the diff alone.`)
@@ -96,7 +96,8 @@ const reviews = await parallel(ANGLES.map(a => () =>
 
 // Verify: at most 3 agents (one per angle with findings), 3 in parallel.
 // a dead subagent makes the agent call return null: a dead reviewer is an errored angle (not a clean one),
-// a dead verifier leaves its findings unverified (not dropped).
+// a dead verifier leaves its findings unverified (not dropped). A thunk that dies outside the agent call, also after a
+// successful review, lands in the final fallback below: found null, errored, never a clean 0.
 phase('Verify')
 const checked = await parallel(ANGLES.map((a, i) => async () => {
   if (!reviews[i] || !Array.isArray(reviews[i].findings)) return { angle: a.key, found: 0, kept: [], unverified: [], error: 'review' }
@@ -112,14 +113,15 @@ const checked = await parallel(ANGLES.map((a, i) => async () => {
   return { angle: a.key, found: found.length, kept: found.filter((_, j) => ok.has(j)), unverified: [] }
 }))
 
-const results = checked.map((c, i) => c || { angle: ANGLES[i].key, found: 0, kept: [], unverified: [], error: 'review' })
+const results = checked.map((c, i) => c || { angle: ANGLES[i].key, found: null, kept: [], unverified: [], error: 'review', errored: true })
 const confirmed = results.flatMap(c => c.kept)
 const unverified = results.flatMap(c => c.unverified)
-const total = results.reduce((n, c) => n + c.found, 0)
+const total = results.reduce((n, c) => n + (c.found || 0), 0)
 return {
   confirmed,
   unverified,
   dropped: total - confirmed.length - unverified.length,
+  errored: results.filter(c => c.error).map(c => c.angle),
   angles: results.map(c => ({
     angle: c.angle, found: c.found, confirmed: c.kept.length, unverified: c.unverified.length,
     ...(c.error ? { error: c.error } : {}),

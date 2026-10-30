@@ -194,7 +194,10 @@ class GoldenTests(unittest.TestCase):
         got = record(lambda env: env.run("config", "sandbox_roles", "reviewer"))
         for role in ("lead", "qa", "coder"):
             self.assertEqual(got[role], self.golden[role], role)
-        stripped = [strip_path_env(a) for a in got["reviewer"]]
+        # T-0746: the PATH is also re-exported in the pane shell (one extra `pane run`) after the pane is placed
+        reexport = [a for a in got["reviewer"] if a[:2] == ["pane", "run"] and a[3].startswith("export PATH=")]
+        self.assertEqual(len(reexport), 1, got["reviewer"])
+        stripped = [strip_path_env(a) for a in got["reviewer"] if a not in reexport]
         self.assertEqual([a for a, _ in stripped], self.golden["reviewer"])
         gone = [g for _, gs in stripped for g in gs]
         self.assertEqual(len(gone), 1, gone)
@@ -701,6 +704,104 @@ sys.exit(run("inbox") or run("msg", "zz-lead", "hello from inside", "body") or r
         msgs = env.sql("SELECT sender, recipient, subject FROM messages WHERE subject='hello from inside'")
         self.assertEqual([tuple(m) for m in msgs], [("zz-reviewer", "zz-lead", "hello from inside")])
         self.assertEqual(env.sql("SELECT status FROM agents WHERE name='zz-reviewer'")[0][0], "done")
+
+
+class LaunchLineOnlyTests(SandboxCase):
+    """T-0749: a sandbox spawn starts claude only through `herdr agent start --kind claude --pane P -- <flags>`, so the
+    pane PATH (shim first, checked by sandbox_path_ok) is the only thing that picks the binary. No per-pane command
+    override (a herdr --cmd/--command flag, a pane/tab/workspace argument carrying a program) is passed anywhere."""
+
+    def test_sandbox_spawn_has_one_claude_launch_and_no_command_override(self):
+        self.set_roles("reviewer")
+        p = self.spawn("reviewer")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        calls = [c["argv"] for c in self.env.calls("herdr")]
+        starts = [a for a in calls if a[:2] == ["agent", "start"]]
+        self.assertEqual(len(starts), 1, starts)
+        start = starts[0]
+        self.assertEqual(start[start.index("--kind") + 1], "claude")
+        self.assertIn("--", start)
+        tail = start[start.index("--") + 1:]
+        self.assertTrue(tail and tail[0].startswith("--"), f"launch args must be flags only, got {tail[:2]}")
+        head = start[:start.index("--")]
+        for flag in ("--cmd", "--command", "--exec", "--program", "--bin"):
+            self.assertNotIn(flag, head + calls_flags(calls))
+        for a in calls:  # no creation call carries a program to run: only cwd/env/label/focus options
+            if a[:2] in (["pane", "split"], ["tab", "create"], ["workspace", "create"]):
+                self.assertFalse({"--cmd", "--command", "--exec", "--program", "--bin"} & set(a), a)
+        for a in self.mux("pane", "run"):  # the only text run in a pane is the env export, never a claude launch
+            self.assertNotRegex(" ".join(a[3:]), r"(^|[\s;&|/])claude(\s|$)")
+        agent_dir = self.env.user_home / ".local" / "state" / "factory" / "workers" / "zz-reviewer"
+        exports = [" ".join(a[3:]) for a in self.mux("pane", "run")]
+        self.assertTrue(any(f"PATH={agent_dir}/bin:" in e for e in exports), exports)
+
+
+def calls_flags(calls):
+    return [w for a in calls for w in a if w.startswith("--cmd") or w.startswith("--command")]
+
+
+class PathOrderBase:
+    """T-0746: a shell startup file prepends ~/.local/bin (the real claude), so the pane --env PATH alone loses.
+    Subclasses name the pane shell and the startup file it reads; bash (BASH_ENV) runs wherever bash exists, zsh (.zshenv) is the live case."""
+    SHELL_NAME = None
+
+    def setUp(self):
+        super().setUp()
+        self.set_roles("reviewer")
+        fake = self.env.user_home / ".local" / "bin" / "claude"
+        fake.write_text("#!/bin/sh\nexit 0\n")
+        fake.chmod(0o755)
+        self.startup_env = {}
+        self.no_shell = False
+
+    def startup(self, text):
+        raise NotImplementedError
+
+    def spawn(self, role, name=None, cwd=True):
+        extra = {"SHELL": "" if self.no_shell else shutil.which(self.SHELL_NAME)}
+        return self.env.run(*spawn_args(self.env, role, name, cwd), extra_env={**extra, **self.startup_env})
+
+    def test_startup_file_prepending_local_bin_still_gets_the_shim_exported_in_the_pane(self):
+        self.startup('export PATH="$HOME/.local/bin:$PATH"\n')
+        p = self.spawn("reviewer")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        agent_dir = self.env.user_home / ".local" / "state" / "factory" / "workers" / "zz-reviewer"
+        runs = [" ".join(a[3:]) for a in self.mux("pane", "run")]
+        self.assertTrue(any(r.startswith(f"export PATH={agent_dir}/bin:") and "&& hash -r" in r for r in runs), runs)
+        order = [c["argv"][:2] for c in self.env.calls("herdr")]
+        self.assertLess(order.index(["pane", "run"]), order.index(["agent", "start"]))
+
+    def test_a_startup_file_that_shadows_claude_after_the_export_is_refused(self):
+        self.startup("claude() { :; }\n")
+        self.assert_refused("reviewer", "path")
+
+    def test_an_unset_pane_shell_is_refused_not_passed(self):
+        self.no_shell = True
+        self.assert_refused("reviewer", "path")
+
+
+@unittest.skipUnless(shutil.which("bash"), "needs bash")
+class BashEnvPathOrderTests(PathOrderBase, SandboxCase):
+    SHELL_NAME = "bash"
+
+    def startup(self, text):
+        f = self.env.user_home / "bashenv"
+        f.write_text(text)
+        self.startup_env = {"BASH_ENV": str(f)}
+
+
+@unittest.skipUnless(shutil.which("zsh") or os.environ.get("CI"), "needs zsh to read a .zshenv")
+class ZshenvPathOrderTests(PathOrderBase, SandboxCase):
+    SHELL_NAME = "zsh"
+
+    def setUp(self):
+        # CI installs zsh; a missing zsh there is a failure, never a skip.
+        if not shutil.which("zsh"):
+            self.fail("zsh missing in CI: install zsh on the runner")
+        super().setUp()
+
+    def startup(self, text):
+        (self.env.user_home / ".zshenv").write_text(text)
 
 
 if __name__ == "__main__":
