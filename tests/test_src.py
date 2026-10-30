@@ -123,7 +123,9 @@ class SrcTests(FactoryTestCase):
         """Positive control: the marker tests above are not vacuous."""
         self.evil_config(self.env.user_home / ".gitconfig")
         subprocess.run(["git", "-C", str(self.repo), "archive", "--format=tar", "-o", str(self.env.home / "x.tar"), "main"],
-                       env={**os.environ, "HOME": str(self.env.user_home), "GIT_CONFIG_NOSYSTEM": "1"}, check=True,
+                       env={**os.environ, "HOME": str(self.env.user_home), "GIT_CONFIG_NOSYSTEM": "1",
+                            "GIT_CONFIG_GLOBAL": str(self.env.user_home / ".gitconfig")},  # _gitenv points it at devnull
+                       check=True,
                        capture_output=True)
         self.assertTrue(self.marker.exists())
 
