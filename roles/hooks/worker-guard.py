@@ -1864,17 +1864,23 @@ class Analyzer:
     def python_m_module(rest):
         """T-0675: walk CPython argv like the interpreter. Returns the -m module name, None when the command runs a
         script, stdin or -c (or has no -m), or "?" for an option this walker does not know."""
+        return Analyzer.python_m_split(rest)[0]
+
+    @staticmethod
+    def python_m_split(rest):
+        """T-0735: the one CPython argv walker. Returns (module, args after the module); (None, []) when the command
+        runs a script, stdin or -c (or has no -m); ("?", tokens after the unknown option) for an option it does not know."""
         i = 0
         while i < len(rest):
             tok = rest[i]
             i += 1
             if tok == "--" or tok == "-" or not tok.startswith("-"):
-                return None
+                return None, []
             if tok.startswith("--"):
                 if tok == "--check-hash-based-pycs":
                     i += 1
                 elif not (tok.startswith("--check-hash-based-pycs=") or tok == "--version" or tok.startswith("--help")):
-                    return "?"
+                    return "?", rest[i:]
                 continue
             for k, ch in enumerate(tok[1:], 1):
                 if ch in "bBdEhiIOPqRsSuvVx?":
@@ -1884,11 +1890,13 @@ class Analyzer:
                         i += 1  # value is the next token, even one that starts with "-"
                     break
                 if ch == "m":
-                    return tok[k + 1:] or (rest[i] if i < len(rest) else None)
+                    if tok[k + 1:]:
+                        return tok[k + 1:], rest[i:]
+                    return (rest[i], rest[i + 1:]) if i < len(rest) else (None, [])
                 if ch == "c":
-                    return None
-                return "?"
-        return None
+                    return None, []
+                return "?", rest[i:]
+        return None, []
 
     def sandbox_route(self, name, rest):
         """T-0675 (ADR M11673 T-d): with test_sandbox=1, coder and qa run test runners through `factory test <cmd>`,
@@ -1906,11 +1914,56 @@ class Analyzer:
                 runner = f"python3 -m {mod}"
         elif name in ("pytest", "py.test"):
             runner = name
-        elif name == "go" and next((a for a in rest if not a.startswith("-")), None) == "test":
+        elif name == "go" and self.go_subcommand(rest) == "test":
             runner = "go test"
+        elif name == "tox":
+            runner = "tox"
+        elif name == "coverage" and rest[:1] == ["run"]:
+            mod = next((t[2:] if t.startswith("-m") and len(t) > 2 else rest[j + 2] if rest[j + 2:j + 3] else None
+                        for j, t in enumerate(rest[1:]) if t.startswith("-m")), None)
+            if mod and mod.split(".")[0] in ("unittest", "pytest"):
+                runner = f"coverage run -m {mod}"
+        elif name == "uv" and rest[:1] == ["run"]:
+            runner = self.uv_run_runner(rest[1:])
         if runner and self.test_sandbox_on():
             raise Block(f"bare test runner `{runner}` with test_sandbox=1: run it as `factory test {name} {' '.join(rest)}` "
                         "(runs under the test sandbox, T-0675)")
+
+    @staticmethod
+    def go_subcommand(rest):
+        """T-0735: first go word that is not an option; `-C <dir>` takes a value."""
+        i = 0
+        while i < len(rest):
+            a = rest[i]
+            i += 2 if a == "-C" else 1
+            if not a.startswith("-"):
+                return a
+        return None
+
+    def uv_run_runner(self, rest):
+        """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""
+        valued = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--extra", "--group",
+                  "--env-file", "--package", "--only-group", "--no-group", "--with-editable", "-w", "--index", "--config-file"}
+        i = 0
+        while i < len(rest):
+            a = rest[i]
+            i += 1
+            if a == "-m" and i < len(rest):
+                a, rest = "python", ["-m"] + rest[i:]
+                i = 0
+            elif a in valued:
+                i += 1
+                continue
+            elif a.startswith("-"):
+                continue
+            if a in ("pytest", "py.test"):
+                return f"uv run {a}"
+            if re.fullmatch(r"python[\d.]*", a):
+                mod = self.python_m_module(rest[i:])
+                if mod and mod.split(".")[0] in ("unittest", "pytest"):
+                    return f"uv run {a} -m {mod}"
+            return None
+        return None
 
     def unittest_full(self, name, rest):
         """T-0642: coder, qa and reviewer run no full suite locally (CI is the full gate). Blocked: `python -m unittest`
@@ -1918,19 +1971,10 @@ class Analyzer:
         `python -m unittest tests.test_x` and `unittest discover -s tests -p test_x.py`."""
         if self.role not in ("coder", "qa", "reviewer") or not re.fullmatch(r"python[\d.]*", name):
             return
-        args = None
-        for i, tok in enumerate(rest):
-            mm = re.fullmatch(r"-([A-Za-z]*m)(.*)", tok) if not tok.startswith("--") else None
-            if tok == "-m" and rest[i + 1:i + 2]:
-                mod, after = rest[i + 1], rest[i + 2:]
-            elif mm and mm.group(2):  # attached form: -munittest
-                mod, after = mm.group(2), rest[i + 1:]
-            else:
-                continue
-            if mod in ("unittest", "unittest.__main__"):
-                args = after
-                break
-        if args is None:
+        mod, args = self.python_m_split(rest)
+        while mod == "?":  # unknown interpreter option: keep looking for a later -m
+            mod, args = self.python_m_split(args)
+        if mod not in ("unittest", "unittest.__main__"):
             return
         advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
                   "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
