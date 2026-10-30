@@ -3,6 +3,7 @@ import glob
 import json
 import os
 import subprocess
+import sqlite3
 import sys
 import pwd
 import tempfile
@@ -346,7 +347,17 @@ class CleanerBranchDeleteTests(Base):
                     self.allowed(cmd, role=role)
         for cmd in ("git push -u origin HEAD", "git push origin factory/t-1", "git push"):
             with self.subTest(cmd=cmd):
-                self.allowed(cmd, role="coder")
+                self.allowed(cmd, role="qa")
+        # T-0743: the coder push pin resolves the own worktree (here the hook cwd) from tasks.worktree in the DB
+        with tempfile.TemporaryDirectory() as home:
+            os.makedirs(os.path.join(home, "db"))
+            con = sqlite3.connect(os.path.join(home, "db", "factory.db"))
+            con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+            con.execute("INSERT INTO tasks VALUES ('T-1', ?)", (os.getcwd(),))
+            con.commit()
+            con.close()
+            self.allowed("git push origin HEAD:factory/t-1", role="coder",
+                         env={**os.environ, "FACTORY_AGENT": "coder-t-1", "FACTORY_HOME": home})
 
     def test_hq_unaffected(self):
         self.allowed("git branch -D main", mode="hq")

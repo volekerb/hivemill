@@ -4,11 +4,11 @@ gh stub written here (tests/stubs/gh is not used) and a real bare git remote for
 import json
 import os
 import stat
-import subprocess
 import textwrap
 import unittest
 
-from harness import PR_URL, FactoryTestCase, gates_summary
+from harness import PR_URL, FactoryTestCase, _check_remotes, gates_summary
+from harness import git as harness_git
 
 GH_STUB = textwrap.dedent('''\
     #!/usr/bin/env python3
@@ -64,10 +64,7 @@ FAILED = check("COMPLETED", "FAILURE")
 
 def git(cwd, *args):
     # identity via -c, not repo config: the judge refuses repo config outside the allow-list (docs/git-hardening.md)
-    p = subprocess.run(["git", "-c", "user.email=zz-test@example.invalid", "-c", "user.name=zz-test", *args], cwd=cwd, capture_output=True, text=True)
-    if p.returncode != 0:
-        raise AssertionError(f"git {args}: {p.stderr}")
-    return p.stdout.strip()
+    return harness_git("-c", "user.email=zz-test@example.invalid", "-c", "user.name=zz-test", *args, cwd=cwd)
 
 
 class JudgeWaitTests(FactoryTestCase):
@@ -223,6 +220,7 @@ class JudgeWaitTests(FactoryTestCase):
         (other / "main.txt").write_text("m\n")
         git(other, "add", "main.txt")
         git(other, "commit", "-q", "-m", "main moves")
+        _check_remotes(["push", "origin", "HEAD:main"], other)  # the stub runs this argv later; vet its remote now
         push = ["git", "-C", str(other), "push", "-q", "origin", "HEAD:main"]
         self.stub([self.pr(self.x, GREEN)], merges=[{"exit": 1, "stderr": BASE_MODIFIED, "run": push}, {"exit": 0}])
         p = self.judge()

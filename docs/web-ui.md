@@ -51,15 +51,17 @@ The unit runs with `Nice=10`, `MemoryMax=200M`, `MemoryHigh=150M`, `CPUQuota=50%
 
 ## Pages
 
-- `/` Home: overview of active goals, running agents and recent activity.
-- `/goals` and `/goal/<id>`: all goals with status, and one goal's tasks and progress.
-- `/tasks` and `/task/<id>`: all tasks, and one task's status, PR, verdicts and history.
-- `/agents`: teams and agents, who is alive, and what each works on.
-- `/resources`: memory, swap, load, agent caps, queue, and whether the spawn gate is likely open or closed (derived, not live).
-- `/throughput`: tasks merged over time and how long they take. "Open tasks now" counts tasks in progress or in review; "Live workers now" counts live agents with a task. Bars scaled to the largest row show their count (aria-label "n of max m"), not a percentage.
-- `/quality`: merged PRs, merged first try, merged after at least one rejection, rejections (reviewer, QA and judge fail/reject verdicts) with rejections per merged PR, gate refusals (judge-blocked and merge-failed events, counted apart), a per-source table, rejections by cause (n/a until G-013), CI pass rate, retries and the per-team table (merged, rejections, rejections per merged PR, gate refusals; team-less tasks are added before the ratios are computed).
-- `/changelog`: recently merged work.
-- `/tokens`: estimated token usage and cost by model and day.
+Shell. Every page shares one frame. From 1024 px wide a grouped sidebar lists Work (Overview, Goals, Tasks, Agents), Insights (Throughput, Quality, Tokens, Changelog) and System (Resources). Below 640 px it becomes a top bar, a tab bar with four tabs (Overview, Goals, Tasks, Agents) plus More, which opens every section and the theme control. The status header shows "Updated hh:mm", a health pill and a "Needs you" badge with the number of items waiting for the owner. The pill reads, worst first: "Memory low", "Usage cap reached", "Gate closed" (with the queued count), "Claude usage n%", "Weekly usage n%", "Usage unknown" or "All normal". The theme control offers Auto, Light and Dark (Auto follows the system setting). Pages refresh every 60 s and keep the scroll position and the open sections.
+
+- `/` Overview, in this order: "Needs you" (blocked tasks, escalations and requests, merges waiting for an OK, blocked or proposed goals), "System" (gauges for agents against the cap, available memory, load and Claude usage, with a link to Resources), "Open goals", "Agents running", "Shipped" (recent merges, linking to the changelog) and "Quality" (headline tiles and what is bouncing now, linking to /quality).
+- `/goals` and `/goal/<id>`: open goals with status, priority and progress, sortable, with "Needs you" and a collapsed "Done" list; one goal shows what is blocking it, its success criteria (met or open, linked to the tasks), its tasks grouped by status, its intent, and a side rail with teams, plan version and dates.
+- `/tasks` and `/task/<id>`: all tasks as a table (status, ID, task, goal, assignee, PR with its CI state, rejections, updated), filterable by status and goal; one task shows its meta, verdicts, total time, rejections and attempts, the PR cycle and follow-ups.
+- `/agents`: agents running (grouped by team), queued with the reason, teams with their lead state, then an "Ended" list; filter chips for status, role and goal.
+- `/resources`: the spawn gate (open or closed, derived, not live), capacity gauges (agents, memory, load, Claude usage), the checks behind the gate, spawns, queued, merges and escalations per day, recent events and the caps and config.
+- `/throughput`: a range of 7, 14 or 30 days (default 14). Tiles for merges (a task counts once, on the day of its last merge), median and p90 time from spawn to merge, and agents running now (workers, leads, HQ); a note under the tiles, "n tasks open now (in progress or in review), m agents working on a task", where tasks open now counts tasks in progress or in review and agents working on a task counts live agents with a task; a column chart of merges per day; where the time goes (coding, review / QA wait, judge, rework); per goal; and the 10 slowest tasks.
+- `/quality`: headline tiles with the change against the previous 14 days: rejections per merged PR, first-try merge rate, CI-blocked merges and median attempts. "Bouncing now" lists the tasks being rejected. Then, in this order: per team (merged, rejections, rejections per merged PR; team-less tasks are added before the ratios are computed), rejections by source (reviewer, QA, judge) with gate refusals (judge-blocked and merge-failed events, counted apart), rejections per week, and "More metrics": merged PRs, merged first try, merged after at least one rejection, rejections (reviewer, QA and judge fail/reject verdicts) with rejections per merged PR, gate refusals, rejections by cause (not measured yet), retries per merged task, CI pass rate and the latest team scores.
+- `/changelog`: merged work, grouped by date or by goal, filterable by goal.
+- `/tokens`: a range (today, 7 days, 30 days, all time) with Claude usage, tiles for total tokens, cost estimate, cache read share and requests, a column chart by day, a breakdown by goal, task, agent or model, and the attribution quality of the sessions.
 - `/healthz`: plain "ok" for health checks. `/api/<page>.json` returns a page's data as JSON.
 
 ## Security

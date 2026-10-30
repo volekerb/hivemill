@@ -6,6 +6,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+import harness
 
 ROOT = Path(__file__).resolve().parent.parent
 TOOL = str(ROOT / "ci" / "changelog.py")
@@ -16,7 +18,7 @@ HOME_SUBJECT = "T-0004: read /ho" + "me/alice/notes (#4)"  # split: not a scrub 
 
 
 def git(repo, *args):
-    subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True, env=GIT_ENV)
+    harness.git(*args, cwd=repo, env=GIT_ENV)
 
 
 def make_repo(root, subjects):
