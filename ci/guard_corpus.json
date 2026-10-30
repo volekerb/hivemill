@@ -1222,7 +1222,27 @@
   "echo x >> .git/config.worktree",
   "echo x >> .git/info/attributes",
   "echo x >> ../../.git/config",
-  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x"
+  "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x",
+ {"cmd": "uvx pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx --from x pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx pytest==8.0", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv tool run pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv --quiet tool run py.test", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx 'pytest[testing]'", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx --index-url https://pypi.example.org/simple pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "python3 -m unittest discover -s tests -p test_X.py", "config": {"test_sandbox": "1"}},
+ {"cmd": "python3 -m unittest tests.test_x", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx pytest\u3000tests", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx pytest\u2028tests", "config": {"test_sandbox": "1"}},
+ {"cmd": "pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "python3 -m pytest tests/", "config": {"test_sandbox": "1"}},
+ {"cmd": "py.test", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv run pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv run python -m pytest", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx pytest", "role": "qa", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv tool run pytest", "role": "qa", "config": {"test_sandbox": "1"}},
+ {"cmd": "python3 -m pytest", "role": "qa", "config": {"test_sandbox": "1"}},
+ {"cmd": "pytest", "role": "qa", "config": {"test_sandbox": "1"}}
  ],
  "must_allow": [
   "awk 1 ~/.zshrc",
@@ -1486,6 +1506,13 @@
   "uvx ruff check .",
   "uv tool run black --check .",
   "uvx pytest",
-  "uv tool run pytest"
+  "uv tool run pytest",
+ {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},
+ {"cmd": "factory test", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx ruff check .", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv tool run ruff check .", "config": {"test_sandbox": "1"}},
+ {"cmd": "uv pip list", "config": {"test_sandbox": "1"}},
+ {"cmd": "factory test tests/test_x.py", "role": "qa", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx ruff check .", "role": "qa", "config": {"test_sandbox": "1"}}
  ]
 }
