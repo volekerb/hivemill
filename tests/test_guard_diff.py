@@ -390,10 +390,10 @@ class CorpusSanityTests(unittest.TestCase):
                 modes = ["worker", "hq"]
             jobs += [(cmd, m, role or "coder") for m in modes]
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
-            got = [hook_rc(j[0], j[1], j[2], home if j[2] == "evaluator" else None) for j in jobs]
+            got = [hook_rc(j[0], j[1], j[2], home) for j in jobs]
             for i in range(0, len(jobs), 17):  # the real entry point on a sample of the same jobs
                 j = jobs[i]
-                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], home if j[2] == "evaluator" else None), got[i], j)
+                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], home), got[i], j)
         wrong = [(j, g) for j, g in zip(jobs, got) if g != want]
         self.assertEqual(wrong, [], f"{key}: expected exit {want} on the current hook")
         return len(jobs)
@@ -420,8 +420,10 @@ class CorpusSanityTests(unittest.TestCase):
     @unittest.skipUnless(IN_GIT_WORK_TREE, "ROOT is not a git work tree (archive tree); the corpus check needs git")
     def test_real_corpus_against_origin_main_hook_is_clean(self):
         # the shipped corpus against the hook in this checkout, base = HEAD: the hook is the same file
-        p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
-                           capture_output=True, text=True, timeout=300)
+        # T-0745: an empty FACTORY_HOME, else the live DB's public_text_repos makes the hook block corpus commit text
+        with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
+            p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
+                               capture_output=True, text=True, timeout=300, env={**os.environ, "FACTORY_HOME": home})
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("0 loosened", p.stdout)
 
