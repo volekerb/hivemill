@@ -93,6 +93,7 @@ func dispatch(tool string, data map[string]any, role string, hq bool, stderr io.
 		// Python passes any other value to Analyzer, where a truthy one crashes and fails closed.
 		return failClosed(stderr, "hook error, failing closed: cwd is not a string")
 	}
+	guard.SessionID, _ = data["session_id"].(string)
 	if err := guard.Check(cmd, cwd, role, hq); err != nil {
 		fmt.Fprint(stderr, guard.Explain(err))
 		return 2

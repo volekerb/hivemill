@@ -27,6 +27,10 @@ type Analyzer struct {
 	Role string
 	HQ   bool
 
+	gcwd string // directory a git command would run in, moved by `cd` (git rule only)
+	gdyn bool   // true after a `cd` into a directory that is only known at run time
+	pt   bool   // Analyzer.pt is set: the public-text rule would look at git/gh writes (a stub, T6d)
+
 	skipPriv         bool
 	unitRule         bool // HQ mode: block mutating systemctl (workers keep the factory unit rule)
 	text             string
@@ -44,7 +48,7 @@ func NewAnalyzer(cwd, role string, hq bool) (*Analyzer, error) {
 		}
 		cwd = wd
 	}
-	return &Analyzer{Cwd: cwd, Role: role, HQ: hq}, nil
+	return &Analyzer{Cwd: cwd, Role: role, HQ: hq, gcwd: cwd}, nil
 }
 
 // soft is a port of Analyzer.soft applied to the result of the call: in HQ mode only a PRIV block (and a

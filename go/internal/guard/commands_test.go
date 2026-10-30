@@ -446,7 +446,7 @@ func TestCommandsRawBackstop(t *testing.T) {
 
 func TestCommandsStubsFailClosed(t *testing.T) {
 	clearTermsEnv(t)
-	for _, c := range []string{"git status", "env git log", "gh pr list", "echo x > f", "python3 x.py", "rm -f x", "FACTORY_AGENT=x ls",
+	for _, c := range []string{"git commit -m x", "env git commit -m x", "gh pr list", "echo x > f", "python3 x.py", "rm -f x", "FACTORY_AGENT=x ls",
 		"factory spawn", "factory res", "factory config"} {
 		err := checkRole(c, "coder")
 		if !IsNotPorted(err) {

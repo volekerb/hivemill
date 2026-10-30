@@ -174,6 +174,7 @@ func Check(cmd, cwd, role string, hq bool) error {
 		return err
 	}
 	an.unitRule = hq
+	an.pt = hq
 	if err := an.script(cmd, 0); err != nil {
 		switch {
 		case IsPrivBlock(err):
@@ -229,6 +230,7 @@ func Check(cmd, cwd, role string, hq bool) error {
 	if err != nil {
 		return err
 	}
+	an2.pt = true
 	if err := an2.script(cmd, 0); err != nil {
 		if IsPrivBlock(err) {
 			if cerr := claudeOverPriv(cmd, cwd, role); cerr != nil {
