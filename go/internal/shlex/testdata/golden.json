@@ -27385,6 +27385,5609 @@
 "src": "corpus"
 },
 {
+"input": "gh release create -R acme/old v1 --notes x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/old v1 --notes x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/old v1 --notes x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/old v1 --notes x",
+"mode": "quote",
+"quoted": "'gh release create -R acme/old v1 --notes x'",
+"src": "corpus"
+},
+{
+"input": "gh release edit -R acme/old v1 --notes x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release edit -R acme/old v1 --notes x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release edit -R acme/old v1 --notes x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release edit -R acme/old v1 --notes x",
+"mode": "quote",
+"quoted": "'gh release edit -R acme/old v1 --notes x'",
+"src": "corpus"
+},
+{
+"input": "gh release create --repo acme/old v1 --notes x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create --repo acme/old v1 --notes x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create --repo acme/old v1 --notes x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create --repo acme/old v1 --notes x",
+"mode": "quote",
+"quoted": "'gh release create --repo acme/old v1 --notes x'",
+"src": "corpus"
+},
+{
+"input": "gh release create --repo=acme/old v1 --notes x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create --repo=acme/old v1 --notes x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create --repo=acme/old v1 --notes x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create --repo=acme/old v1 --notes x",
+"mode": "quote",
+"quoted": "'gh release create --repo=acme/old v1 --notes x'",
+"src": "corpus"
+},
+{
+"input": "gh pr create -R acme/old --title t --body b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+},
+{
+"input": "gh pr create -R acme/old --title t --body b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+},
+{
+"input": "gh pr create -R acme/old --title t --body b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+},
+{
+"input": "gh pr create -R acme/old --title t --body b",
+"mode": "quote",
+"quoted": "'gh pr create -R acme/old --title t --body b'",
+"src": "corpus"
+},
+{
+"input": "gh issue comment 1 -R acme/old --body x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+},
+{
+"input": "gh issue comment 1 -R acme/old --body x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+},
+{
+"input": "gh issue comment 1 -R acme/old --body x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+},
+{
+"input": "gh issue comment 1 -R acme/old --body x",
+"mode": "quote",
+"quoted": "'gh issue comment 1 -R acme/old --body x'",
+"src": "corpus"
+},
+{
+"input": "git tag -a v1 -m x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+},
+{
+"input": "git tag -a v1 -m x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+},
+{
+"input": "git tag -a v1 -m x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+},
+{
+"input": "git tag -a v1 -m x",
+"mode": "quote",
+"quoted": "'git tag -a v1 -m x'",
+"src": "corpus"
+},
+{
+"input": "git tag v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"v1"
+]
+},
+{
+"input": "git tag v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"v1"
+]
+},
+{
+"input": "git tag v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"v1"
+]
+},
+{
+"input": "git tag v1",
+"mode": "quote",
+"quoted": "'git tag v1'",
+"src": "corpus"
+},
+{
+"input": "git tag -d v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-d",
+"v1"
+]
+},
+{
+"input": "git tag -d v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-d",
+"v1"
+]
+},
+{
+"input": "git tag -d v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-d",
+"v1"
+]
+},
+{
+"input": "git tag -d v1",
+"mode": "quote",
+"quoted": "'git tag -d v1'",
+"src": "corpus"
+},
+{
+"input": "git tag -s v1 -m x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+},
+{
+"input": "git tag -s v1 -m x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+},
+{
+"input": "git tag -s v1 -m x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+},
+{
+"input": "git tag -s v1 -m x",
+"mode": "quote",
+"quoted": "'git tag -s v1 -m x'",
+"src": "corpus"
+},
+{
+"input": "factory agents",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"agents"
+]
+},
+{
+"input": "factory agents",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"agents"
+]
+},
+{
+"input": "factory agents",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"agents"
+]
+},
+{
+"input": "factory agents",
+"mode": "quote",
+"quoted": "'factory agents'",
+"src": "corpus"
+},
+{
+"input": "factory goal list",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"goal",
+"list"
+]
+},
+{
+"input": "factory goal list",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"goal",
+"list"
+]
+},
+{
+"input": "factory goal list",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"goal",
+"list"
+]
+},
+{
+"input": "factory goal list",
+"mode": "quote",
+"quoted": "'factory goal list'",
+"src": "corpus"
+},
+{
+"input": "factory task list",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"task",
+"list"
+]
+},
+{
+"input": "factory task list",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"task",
+"list"
+]
+},
+{
+"input": "factory task list",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"task",
+"list"
+]
+},
+{
+"input": "factory task list",
+"mode": "quote",
+"quoted": "'factory task list'",
+"src": "corpus"
+},
+{
+"input": "git push origin HEAD:factory/t-0001",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0001",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-0001"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0001",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-0001",
+"mode": "quote",
+"quoted": "'git push origin HEAD:factory/t-0001'",
+"src": "corpus"
+},
+{
+"input": "git push -f origin HEAD:factory/t-0001",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"-f",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git push -f origin HEAD:factory/t-0001",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"-f",
+"origin",
+"HEAD",
+":",
+"factory/t-0001"
+]
+},
+{
+"input": "git push -f origin HEAD:factory/t-0001",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"-f",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git push -f origin HEAD:factory/t-0001",
+"mode": "quote",
+"quoted": "'git push -f origin HEAD:factory/t-0001'",
+"src": "corpus"
+},
+{
+"input": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-0001"
+]
+},
+{
+"input": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mode": "quote",
+"quoted": "'git -c push.default=matching push origin HEAD:factory/t-0001'",
+"src": "corpus"
+},
+{
+"input": "git send-pack origin HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git send-pack origin HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git send-pack origin HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+},
+{
+"input": "git send-pack origin HEAD",
+"mode": "quote",
+"quoted": "'git send-pack origin HEAD'",
+"src": "corpus"
+},
+{
+"input": "FOO=1 git push origin HEAD:factory/t-0001",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "FOO=1 git push origin HEAD:factory/t-0001",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-0001"
+]
+},
+{
+"input": "FOO=1 git push origin HEAD:factory/t-0001",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "FOO=1 git push origin HEAD:factory/t-0001",
+"mode": "quote",
+"quoted": "'FOO=1 git push origin HEAD:factory/t-0001'",
+"src": "corpus"
+},
+{
+"input": "git -C /tmp push origin HEAD:factory/t-0001",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git -C /tmp push origin HEAD:factory/t-0001",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-0001"
+]
+},
+{
+"input": "git -C /tmp push origin HEAD:factory/t-0001",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+},
+{
+"input": "git -C /tmp push origin HEAD:factory/t-0001",
+"mode": "quote",
+"quoted": "'git -C /tmp push origin HEAD:factory/t-0001'",
+"src": "corpus"
+},
+{
+"input": "uvx PyTest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PyTest"
+]
+},
+{
+"input": "uvx PyTest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PyTest"
+]
+},
+{
+"input": "uvx PyTest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PyTest"
+]
+},
+{
+"input": "uvx PyTest",
+"mode": "quote",
+"quoted": "'uvx PyTest'",
+"src": "corpus"
+},
+{
+"input": "uvx Pytest tests/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"Pytest",
+"tests/"
+]
+},
+{
+"input": "uvx Pytest tests/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"Pytest",
+"tests/"
+]
+},
+{
+"input": "uvx Pytest tests/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"Pytest",
+"tests/"
+]
+},
+{
+"input": "uvx Pytest tests/",
+"mode": "quote",
+"quoted": "'uvx Pytest tests/'",
+"src": "corpus"
+},
+{
+"input": "uv tool run Py.Test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+},
+{
+"input": "uv tool run Py.Test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+},
+{
+"input": "uv tool run Py.Test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+},
+{
+"input": "uv tool run Py.Test",
+"mode": "quote",
+"quoted": "'uv tool run Py.Test'",
+"src": "corpus"
+},
+{
+"input": "uvx PYTEST -x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PYTEST",
+"-x"
+]
+},
+{
+"input": "uvx PYTEST -x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PYTEST",
+"-x"
+]
+},
+{
+"input": "uvx PYTEST -x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PYTEST",
+"-x"
+]
+},
+{
+"input": "uvx PYTEST -x",
+"mode": "quote",
+"quoted": "'uvx PYTEST -x'",
+"src": "corpus"
+},
+{
+"input": "uv tool run PyTest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+},
+{
+"input": "uv tool run PyTest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+},
+{
+"input": "uv tool run PyTest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+},
+{
+"input": "uv tool run PyTest",
+"mode": "quote",
+"quoted": "'uv tool run PyTest'",
+"src": "corpus"
+},
+{
+"input": "uvx pytest@8 -q",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest@8",
+"-q"
+]
+},
+{
+"input": "uvx pytest@8 -q",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest",
+"@",
+"8",
+"-q"
+]
+},
+{
+"input": "uvx pytest@8 -q",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest@8",
+"-q"
+]
+},
+{
+"input": "uvx pytest@8 -q",
+"mode": "quote",
+"quoted": "'uvx pytest@8 -q'",
+"src": "corpus"
+},
+{
+"input": "uvx PyTest@8",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PyTest@8"
+]
+},
+{
+"input": "uvx PyTest@8",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PyTest",
+"@",
+"8"
+]
+},
+{
+"input": "uvx PyTest@8",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"PyTest@8"
+]
+},
+{
+"input": "uvx PyTest@8",
+"mode": "quote",
+"quoted": "'uvx PyTest@8'",
+"src": "corpus"
+},
+{
+"input": "uvx --from pytest PyTest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+},
+{
+"input": "uvx --from pytest PyTest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+},
+{
+"input": "uvx --from pytest PyTest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+},
+{
+"input": "uvx --from pytest PyTest",
+"mode": "quote",
+"quoted": "'uvx --from pytest PyTest'",
+"src": "corpus"
+},
+{
+"input": "uvx UnitTest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"UnitTest"
+]
+},
+{
+"input": "uvx UnitTest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"UnitTest"
+]
+},
+{
+"input": "uvx UnitTest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"UnitTest"
+]
+},
+{
+"input": "uvx UnitTest",
+"mode": "quote",
+"quoted": "'uvx UnitTest'",
+"src": "corpus"
+},
+{
+"input": "uv tool run UNITTEST",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+},
+{
+"input": "uv tool run UNITTEST",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+},
+{
+"input": "uv tool run UNITTEST",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+},
+{
+"input": "uv tool run UNITTEST",
+"mode": "quote",
+"quoted": "'uv tool run UNITTEST'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'echo x >> @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'echo x | tee @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'cp f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "mv f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'mv f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'ln -s f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "install f @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'install f @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"touch",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'touch @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'sed -i s/a/b/ @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"dd",
+"of=",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'dd of=@SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config.worktree"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/config.worktree'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks/pre-commit"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/hooks/pre-commit'",
+"src": "corpus"
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks/pre-push"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+},
+{
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mode": "quote",
+"quoted": "'cp f @SCRATCH@/r/.git/hooks/pre-push'",
+"src": "corpus"
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"touch",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks/post-commit"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+},
+{
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mode": "quote",
+"quoted": "'touch @SCRATCH@/r/.git/hooks/post-commit'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/info/attributes"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/info/attributes'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/info/exclude"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/.git/info/exclude'",
+"src": "corpus"
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mode": "quote",
+"quoted": "'git config --file @SCRATCH@/r/.git/config core.fsmonitor '\"'\"'touch m'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"touch m"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config core.fsmonitor '\"'\"'touch m'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config --local core.hooksPath /x'",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"core.sshCommand",
+"x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config core.sshCommand x'",
+"src": "corpus"
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.fsmonitor=touch m",
+"status"
+]
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.fsmonitor=touch m",
+"status"
+]
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.fsmonitor=touch m",
+"status"
+]
+},
+{
+"input": "git -c core.fsmonitor='touch m' status",
+"mode": "quote",
+"quoted": "'git -c core.fsmonitor='\"'\"'touch m'\"'\"' status'",
+"src": "corpus"
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+},
+{
+"input": "git -c core.hooksPath=/x status",
+"mode": "quote",
+"quoted": "'git -c core.hooksPath=/x status'",
+"src": "corpus"
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git -c core.sshCommand=x fetch origin",
+"mode": "quote",
+"quoted": "'git -c core.sshCommand=x fetch origin'",
+"src": "corpus"
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@",
+"SCRATCH",
+"@",
+"/r2"
+]
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+},
+{
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mode": "quote",
+"quoted": "'git init -c core.fsmonitor=x @SCRATCH@/r2'",
+"src": "corpus"
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--template=/x",
+"https",
+":",
+"//example.com/a.git",
+"@",
+"SCRATCH",
+"@",
+"/r3"
+]
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+},
+{
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mode": "quote",
+"quoted": "'git clone --template=/x https://example.com/a.git @SCRATCH@/r3'",
+"src": "corpus"
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+},
+{
+"input": "echo x >> ~/.config/git/config",
+"mode": "quote",
+"quoted": "'echo x >> ~/.config/git/config'",
+"src": "corpus"
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+},
+{
+"input": "cp f ~/.config/git/ignore",
+"mode": "quote",
+"quoted": "'cp f ~/.config/git/ignore'",
+"src": "corpus"
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open('@SCRATCH@/r/.git/config','w').write('x')"
+]
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open('@SCRATCH@/r/.git/config','w').write('x')"
+]
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open('@SCRATCH@/r/.git/config','w').write('x')"
+]
+},
+{
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mode": "quote",
+"quoted": "'python3 -c \"open('\"'\"'@SCRATCH@/r/.git/config'\"'\"','\"'\"'w'\"'\"').write('\"'\"'x'\"'\"')\"'",
+"src": "corpus"
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v HOME d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "mapfile -t HOME < f; git log -1",
+"mode": "quote",
+"quoted": "'mapfile -t HOME < f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"readarray",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"readarray",
+"HOME",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"readarray",
+"HOME",
+"<",
+"f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "readarray HOME < f; git log -1",
+"mode": "quote",
+"quoted": "'readarray HOME < f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"HOME",
+"in",
+"d",
+";",
+"do",
+":",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"HOME",
+"in",
+"d",
+";",
+"do",
+":",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"HOME",
+"in",
+"d;",
+"do",
+":;",
+"done;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "for HOME in d; do :; done; git log -1",
+"mode": "quote",
+"quoted": "'for HOME in d; do :; done; git log -1'",
+"src": "corpus"
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"getopts",
+"HOME",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"getopts",
+"HOME",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"getopts",
+"HOME",
+"x;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts HOME x; git log -1",
+"mode": "quote",
+"quoted": "'getopts HOME x; git log -1'",
+"src": "corpus"
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"GIT_DIR",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab",
+":",
+"GIT_DIR",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"GIT_DIR;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "getopts ab: GIT_DIR; git log -1",
+"mode": "quote",
+"quoted": "'getopts ab: GIT_DIR; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read XDG_CONFIG_HOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -r -a PATH <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -r -a PATH <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"GIT_DIR",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"GIT_DIR",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"GIT_DIR",
+"x;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v GIT_DIR x; git log -1",
+"mode": "quote",
+"quoted": "'printf -v GIT_DIR x; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-vPAGER",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-vPAGER",
+"x",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-vPAGER",
+"x;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -vPAGER x; git log -1",
+"mode": "quote",
+"quoted": "'printf -vPAGER x; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${HOME:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"HOME",
+":",
+"=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${HOME:=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${HOME:=d}; git log -1",
+"mode": "quote",
+"quoted": "': ${HOME:=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${XDG_CONFIG_HOME=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"XDG_CONFIG_HOME=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${XDG_CONFIG_HOME=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mode": "quote",
+"quoted": "': ${XDG_CONFIG_HOME=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME=d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME=d; git log -1",
+"mode": "quote",
+"quoted": "'local HOME=d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"let",
+"HOME=1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"let",
+"HOME=1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"let",
+"HOME=1;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "let HOME=1; git log -1",
+"mode": "quote",
+"quoted": "'let HOME=1; git log -1'",
+"src": "corpus"
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"select",
+"PAGER",
+"in",
+"a",
+";",
+"do",
+"break",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"select",
+"PAGER",
+"in",
+"a",
+";",
+"do",
+"break",
+";",
+"done",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"select",
+"PAGER",
+"in",
+"a;",
+"do",
+"break;",
+"done;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "select PAGER in a; do break; done; git log -1",
+"mode": "quote",
+"quoted": "'select PAGER in a; do break; done; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"$v",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"$v",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"$v",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v \"$v\" d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v \"$v\" d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"$v",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"$v",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"$v",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read \"$v\" <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read \"$v\" <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"$v=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"$v=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"$v=d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local \"$v\"=d; git log -1",
+"mode": "quote",
+"quoted": "'local \"$v\"=d; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${!v:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"!",
+"v",
+":",
+"=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${!v:=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": ${!v:=d}; git log -1",
+"mode": "quote",
+"quoted": "': ${!v:=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-aHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-aHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-aHOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -aHOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -aHOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-raHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-raHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-raHOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -raHOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -raHOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-eaHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-eaHOME",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-eaHOME",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read -eaHOME <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read -eaHOME <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME[0]",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME",
+"[",
+"0",
+"]",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"HOME[0]",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v HOME[0] d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v HOME[0] d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME[0]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME",
+"[",
+"0",
+"]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOME[0]",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOME[0] <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOME[0] <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME[0]=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME",
+"[",
+"0",
+"]",
+"=d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"HOME[0]=d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local HOME[0]=d; git log -1",
+"mode": "quote",
+"quoted": "'local HOME[0]=d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM[E]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM",
+"[",
+"E",
+"]",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM[E]",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM[E] <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOM[E] <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM?",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM?",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM?",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM? <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOM? <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM*",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM*",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"HOM*",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read HOM* <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read HOM* <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"{HOME,x}",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"{",
+"HOME",
+",",
+"x",
+"}",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"{HOME,x}",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "read {HOME,x} <<< d; git log -1",
+"mode": "quote",
+"quoted": "'read {HOME,x} <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"{HOME,x}",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"{",
+"HOME",
+",",
+"x",
+"}",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"{HOME,x}",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "printf -v {HOME,x} d; git log -1",
+"mode": "quote",
+"quoted": "'printf -v {HOME,x} d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=HOME; git log -1",
+"mode": "quote",
+"quoted": "'declare -n r=HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r=HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r=HOME; git log -1",
+"mode": "quote",
+"quoted": "'local -n r=HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r=HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r=HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r=HOME; git log -1",
+"mode": "quote",
+"quoted": "'typeset -n r=HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=$v",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=$v",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=$v;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r=\"$v\"; git log -1",
+"mode": "quote",
+"quoted": "'declare -n r=\"$v\"; git log -1'",
+"src": "corpus"
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r;",
+"r=HOME;",
+"read",
+"r",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mode": "quote",
+"quoted": "'declare -n r; r=HOME; read r <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r",
+";",
+"r=HOME",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"-n",
+"r;",
+"r=HOME;",
+"read",
+"r",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mode": "quote",
+"quoted": "'local -n r; r=HOME; read r <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r",
+";",
+"r=GIT_DIR",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r",
+";",
+"r=GIT_DIR",
+";",
+"read",
+"r",
+"<<<",
+"d",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-n",
+"r;",
+"r=GIT_DIR;",
+"read",
+"r",
+"<<<",
+"d;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mode": "quote",
+"quoted": "'typeset -n r; r=GIT_DIR; read r <<< d; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME:=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME:=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mode": "quote",
+"quoted": "': <<< '\"'\"'${HOME:=d}'\"'\"'; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME=d}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"$",
+"{",
+"HOME=d",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${HOME=d};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<< ${HOME=d}; git log -1",
+"mode": "quote",
+"quoted": "': <<< ${HOME=d}; git log -1'",
+"src": "corpus"
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<",
+"EOF",
+"${HOME:=d}",
+"EOF",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<",
+"EOF",
+"$",
+"{",
+"HOME",
+":",
+"=d",
+"}",
+"EOF",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<EOF",
+"${HOME:=d}",
+"EOF;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mode": "quote",
+"quoted": "': <<EOF\n${HOME:=d}\nEOF; git log -1'",
+"src": "corpus"
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -n -p HOME; git log -1",
+"mode": "quote",
+"quoted": "'wait -n -p HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"HOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"HOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -p HOME; git log -1",
+"mode": "quote",
+"quoted": "'wait -p HOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-pHOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-pHOME",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-pHOME;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "wait -pHOME; git log -1",
+"mode": "quote",
+"quoted": "'wait -pHOME; git log -1'",
+"src": "corpus"
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"{",
+":",
+";",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"{",
+":",
+";",
+"}",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"{",
+":;",
+"};",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME { :; }; git log -1",
+"mode": "quote",
+"quoted": "'coproc HOME { :; }; git log -1'",
+"src": "corpus"
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"sleep",
+"1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"sleep",
+"1",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"HOME",
+"sleep",
+"1;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "coproc HOME sleep 1; git log -1",
+"mode": "quote",
+"quoted": "'coproc HOME sleep 1; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"HOME",
+"}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}>f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}>f; git log -1",
+"mode": "quote",
+"quoted": "'exec {HOME}>f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{XDG_CONFIG_HOME}",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"XDG_CONFIG_HOME",
+"}",
+"<",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{XDG_CONFIG_HOME}<f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mode": "quote",
+"quoted": "'exec {XDG_CONFIG_HOME}<f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{GIT_DIR}",
+">&",
+"2",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"GIT_DIR",
+"}",
+">&",
+"2",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{GIT_DIR}>&2;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mode": "quote",
+"quoted": "'exec {GIT_DIR}>&2; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}",
+"<>",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"HOME",
+"}",
+"<>",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{HOME}<>f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {HOME}<>f; git log -1",
+"mode": "quote",
+"quoted": "'exec {HOME}<>f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{$v}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"$v",
+"}",
+">",
+"f",
+";",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{$v}>f;",
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "exec {\"$v\"}>f; git log -1",
+"mode": "quote",
+"quoted": "'exec {\"$v\"}>f; git log -1'",
+"src": "corpus"
+},
+{
+"input": "p=push; git \"$p\" origin HEAD:main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$p",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "p=push; git \"$p\" origin HEAD:main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$p",
+"origin",
+"HEAD",
+":",
+"main"
+]
+},
+{
+"input": "p=push; git \"$p\" origin HEAD:main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"p=push;",
+"git",
+"$p",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "p=push; git \"$p\" origin HEAD:main",
+"mode": "quote",
+"quoted": "'p=push; git \"$p\" origin HEAD:main'",
+"src": "corpus"
+},
+{
+"input": "git ${p:-push} origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"${p:-push}",
+"origin",
+"main"
+]
+},
+{
+"input": "git ${p:-push} origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"$",
+"{",
+"p",
+":",
+"-push",
+"}",
+"origin",
+"main"
+]
+},
+{
+"input": "git ${p:-push} origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"${p:-push}",
+"origin",
+"main"
+]
+},
+{
+"input": "git ${p:-push} origin main",
+"mode": "quote",
+"quoted": "'git ${p:-push} origin main'",
+"src": "corpus"
+},
+{
+"input": "git $(echo push) origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"$",
+"(",
+"echo",
+"push",
+")",
+"origin",
+"main"
+]
+},
+{
+"input": "git $(echo push) origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"$",
+"(",
+"echo",
+"push",
+")",
+"origin",
+"main"
+]
+},
+{
+"input": "git $(echo push) origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"$(echo",
+"push)",
+"origin",
+"main"
+]
+},
+{
+"input": "git $(echo push) origin main",
+"mode": "quote",
+"quoted": "'git $(echo push) origin main'",
+"src": "corpus"
+},
+{
+"input": "x=(push origin main); git \"${x[@]}\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"x=",
+"(",
+"push",
+"origin",
+"main",
+");",
+"git",
+"${x[@]}"
+]
+},
+{
+"input": "x=(push origin main); git \"${x[@]}\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"x=",
+"(",
+"push",
+"origin",
+"main",
+");",
+"git",
+"${x[@]}"
+]
+},
+{
+"input": "x=(push origin main); git \"${x[@]}\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"x=(push",
+"origin",
+"main);",
+"git",
+"${x[@]}"
+]
+},
+{
+"input": "x=(push origin main); git \"${x[@]}\"",
+"mode": "quote",
+"quoted": "'x=(push origin main); git \"${x[@]}\"'",
+"src": "corpus"
+},
+{
+"input": "git -C . $p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "git -C . $p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"$",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git -C . $p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "git -C . $p origin main",
+"mode": "quote",
+"quoted": "'git -C . $p origin main'",
+"src": "corpus"
+},
+{
+"input": "p=push; git -C . $p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git -C . $p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"-C",
+".",
+"$",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git -C . $p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"p=push;",
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git -C . $p origin main",
+"mode": "quote",
+"quoted": "'p=push; git -C . $p origin main'",
+"src": "corpus"
+},
+{
+"input": "f(){ git \"$@\"; }; f push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"f",
+"()",
+"{",
+"git",
+"$@",
+";",
+"}",
+";",
+"f",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "f(){ git \"$@\"; }; f push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"f",
+"()",
+"{",
+"git",
+"$@",
+";",
+"}",
+";",
+"f",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "f(){ git \"$@\"; }; f push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"f(){",
+"git",
+"$@;",
+"};",
+"f",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "f(){ git \"$@\"; }; f push origin main",
+"mode": "quote",
+"quoted": "'f(){ git \"$@\"; }; f push origin main'",
+"src": "corpus"
+},
+{
+"input": "alias gp='git $p'; gp origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"alias",
+"gp=git $p",
+";",
+"gp",
+"origin",
+"main"
+]
+},
+{
+"input": "alias gp='git $p'; gp origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"alias",
+"gp=git $p",
+";",
+"gp",
+"origin",
+"main"
+]
+},
+{
+"input": "alias gp='git $p'; gp origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"alias",
+"gp=git $p;",
+"gp",
+"origin",
+"main"
+]
+},
+{
+"input": "alias gp='git $p'; gp origin main",
+"mode": "quote",
+"quoted": "'alias gp='\"'\"'git $p'\"'\"'; gp origin main'",
+"src": "corpus"
+},
+{
+"input": "git \"$1\" origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"$1",
+"origin",
+"main"
+]
+},
+{
+"input": "git \"$1\" origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"$1",
+"origin",
+"main"
+]
+},
+{
+"input": "git \"$1\" origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"$1",
+"origin",
+"main"
+]
+},
+{
+"input": "git \"$1\" origin main",
+"mode": "quote",
+"quoted": "'git \"$1\" origin main'",
+"src": "corpus"
+},
+{
+"input": "git $* origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"$*",
+"origin",
+"main"
+]
+},
+{
+"input": "git $* origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"$",
+"*",
+"origin",
+"main"
+]
+},
+{
+"input": "git $* origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"$*",
+"origin",
+"main"
+]
+},
+{
+"input": "git $* origin main",
+"mode": "quote",
+"quoted": "'git $* origin main'",
+"src": "corpus"
+},
+{
+"input": "git {push,} origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"{push,}",
+"origin",
+"main"
+]
+},
+{
+"input": "git {push,} origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"{",
+"push",
+",",
+"}",
+"origin",
+"main"
+]
+},
+{
+"input": "git {push,} origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"{push,}",
+"origin",
+"main"
+]
+},
+{
+"input": "git {push,} origin main",
+"mode": "quote",
+"quoted": "'git {push,} origin main'",
+"src": "corpus"
+},
+{
+"input": "git pus? origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"pus?",
+"origin",
+"main"
+]
+},
+{
+"input": "git pus? origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"pus?",
+"origin",
+"main"
+]
+},
+{
+"input": "git pus? origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"pus?",
+"origin",
+"main"
+]
+},
+{
+"input": "git pus? origin main",
+"mode": "quote",
+"quoted": "'git pus? origin main'",
+"src": "corpus"
+},
+{
+"input": "git p*h origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"p*h",
+"origin",
+"main"
+]
+},
+{
+"input": "git p*h origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"p*h",
+"origin",
+"main"
+]
+},
+{
+"input": "git p*h origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"p*h",
+"origin",
+"main"
+]
+},
+{
+"input": "git p*h origin main",
+"mode": "quote",
+"quoted": "'git p*h origin main'",
+"src": "corpus"
+},
+{
+"input": "git pu[s]h origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"pu[s]h",
+"origin",
+"main"
+]
+},
+{
+"input": "git pu[s]h origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"pu",
+"[",
+"s",
+"]",
+"h",
+"origin",
+"main"
+]
+},
+{
+"input": "git pu[s]h origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"pu[s]h",
+"origin",
+"main"
+]
+},
+{
+"input": "git pu[s]h origin main",
+"mode": "quote",
+"quoted": "'git pu[s]h origin main'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -38283,6 +43886,1978 @@
 "src": "corpus"
 },
 {
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "quote",
+"quoted": "'gh release create -R acme/new v1 --notes x'",
+"src": "corpus"
+},
+{
+"input": "gh release list -R acme/old",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release list -R acme/old",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release list -R acme/old",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release list -R acme/old",
+"mode": "quote",
+"quoted": "'gh release list -R acme/old'",
+"src": "corpus"
+},
+{
+"input": "gh release view v1 -R acme/old",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release view v1 -R acme/old",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release view v1 -R acme/old",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release view v1 -R acme/old",
+"mode": "quote",
+"quoted": "'gh release view v1 -R acme/old'",
+"src": "corpus"
+},
+{
+"input": "gh release download v1 -R acme/old",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release download v1 -R acme/old",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release download v1 -R acme/old",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh release download v1 -R acme/old",
+"mode": "quote",
+"quoted": "'gh release download v1 -R acme/old'",
+"src": "corpus"
+},
+{
+"input": "gh pr view 1 -R acme/old",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh pr view 1 -R acme/old",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh pr view 1 -R acme/old",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh pr view 1 -R acme/old",
+"mode": "quote",
+"quoted": "'gh pr view 1 -R acme/old'",
+"src": "corpus"
+},
+{
+"input": "gh issue list -R acme/old",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh issue list -R acme/old",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh issue list -R acme/old",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+},
+{
+"input": "gh issue list -R acme/old",
+"mode": "quote",
+"quoted": "'gh issue list -R acme/old'",
+"src": "corpus"
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"frozen repos are listed in config"
+]
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"frozen repos are listed in config"
+]
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"frozen repos are listed in config"
+]
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "quote",
+"quoted": "'gh release create -R acme/new v2 --notes '\"'\"'frozen repos are listed in config'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "gh release list",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"list"
+]
+},
+{
+"input": "gh release list",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"list"
+]
+},
+{
+"input": "gh release list",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"list"
+]
+},
+{
+"input": "gh release list",
+"mode": "quote",
+"quoted": "'gh release list'",
+"src": "corpus"
+},
+{
+"input": "gh release view v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"view",
+"v1"
+]
+},
+{
+"input": "gh release view v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"view",
+"v1"
+]
+},
+{
+"input": "gh release view v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"view",
+"v1"
+]
+},
+{
+"input": "gh release view v1",
+"mode": "quote",
+"quoted": "'gh release view v1'",
+"src": "corpus"
+},
+{
+"input": "git tag",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag"
+]
+},
+{
+"input": "git tag",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag"
+]
+},
+{
+"input": "git tag",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag"
+]
+},
+{
+"input": "git tag",
+"mode": "quote",
+"quoted": "'git tag'",
+"src": "corpus"
+},
+{
+"input": "git tag -l",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-l"
+]
+},
+{
+"input": "git tag -l",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-l"
+]
+},
+{
+"input": "git tag -l",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-l"
+]
+},
+{
+"input": "git tag -l",
+"mode": "quote",
+"quoted": "'git tag -l'",
+"src": "corpus"
+},
+{
+"input": "git tag --list 'v*'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"--list",
+"v*"
+]
+},
+{
+"input": "git tag --list 'v*'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"--list",
+"v*"
+]
+},
+{
+"input": "git tag --list 'v*'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"--list",
+"v*"
+]
+},
+{
+"input": "git tag --list 'v*'",
+"mode": "quote",
+"quoted": "'git tag --list '\"'\"'v*'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git tag -n",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-n"
+]
+},
+{
+"input": "git tag -n",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-n"
+]
+},
+{
+"input": "git tag -n",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"-n"
+]
+},
+{
+"input": "git tag -n",
+"mode": "quote",
+"quoted": "'git tag -n'",
+"src": "corpus"
+},
+{
+"input": "git tag --contains HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+},
+{
+"input": "git tag --contains HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+},
+{
+"input": "git tag --contains HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+},
+{
+"input": "git tag --contains HEAD",
+"mode": "quote",
+"quoted": "'git tag --contains HEAD'",
+"src": "corpus"
+},
+{
+"input": "git log --oneline -3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--oneline",
+"-3"
+]
+},
+{
+"input": "git log --oneline -3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--oneline",
+"-3"
+]
+},
+{
+"input": "git log --oneline -3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--oneline",
+"-3"
+]
+},
+{
+"input": "git log --oneline -3",
+"mode": "quote",
+"quoted": "'git log --oneline -3'",
+"src": "corpus"
+},
+{
+"input": "git -C /tmp log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C /tmp log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C /tmp log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C /tmp log -1",
+"mode": "quote",
+"quoted": "'git -C /tmp log -1'",
+"src": "corpus"
+},
+{
+"input": "git diff --stat",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--stat"
+]
+},
+{
+"input": "git diff --stat",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--stat"
+]
+},
+{
+"input": "git diff --stat",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--stat"
+]
+},
+{
+"input": "git diff --stat",
+"mode": "quote",
+"quoted": "'git diff --stat'",
+"src": "corpus"
+},
+{
+"input": "uvx Ruff check .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"Ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx Ruff check .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"Ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx Ruff check .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"Ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx Ruff check .",
+"mode": "quote",
+"quoted": "'uvx Ruff check .'",
+"src": "corpus"
+},
+{
+"input": "uv tool run black .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+},
+{
+"input": "uv tool run black .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+},
+{
+"input": "uv tool run black .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+},
+{
+"input": "uv tool run black .",
+"mode": "quote",
+"quoted": "'uv tool run black .'",
+"src": "corpus"
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "cat @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'cat @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"grep",
+"-n",
+"url",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/config"
+]
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+},
+{
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mode": "quote",
+"quoted": "'grep -n url @SCRATCH@/r/.git/config'",
+"src": "corpus"
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"@",
+"SCRATCH",
+"@",
+"/r/.git/hooks"
+]
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+},
+{
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mode": "quote",
+"quoted": "'ls @SCRATCH@/r/.git/hooks'",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"config",
+"--get",
+"core.bare"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+},
+{
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r config --get core.bare'",
+"src": "corpus"
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/r",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+},
+{
+"input": "git -C @SCRATCH@/r log -1",
+"mode": "quote",
+"quoted": "'git -C @SCRATCH@/r log -1'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/notes.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/notes.txt",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/notes.txt'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SCRATCH",
+"@",
+"/r/file.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+},
+{
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mode": "quote",
+"quoted": "'echo x > @SCRATCH@/r/file.txt'",
+"src": "corpus"
+},
+{
+"input": "read x <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read x <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read x <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read x <<< y",
+"mode": "quote",
+"quoted": "'read x <<< y'",
+"src": "corpus"
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -r -p prompt x <<< y",
+"mode": "quote",
+"quoted": "'read -r -p prompt x <<< y'",
+"src": "corpus"
+},
+{
+"input": "printf -v x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"x",
+"y"
+]
+},
+{
+"input": "printf -v x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"x",
+"y"
+]
+},
+{
+"input": "printf -v x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"-v",
+"x",
+"y"
+]
+},
+{
+"input": "printf -v x y",
+"mode": "quote",
+"quoted": "'printf -v x y'",
+"src": "corpus"
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+},
+{
+"input": "mapfile -t arr < f",
+"mode": "quote",
+"quoted": "'mapfile -t arr < f'",
+"src": "corpus"
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"f",
+"in",
+"a",
+"b",
+";",
+"do",
+"git",
+"log",
+"-1",
+";",
+"done"
+]
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"f",
+"in",
+"a",
+"b",
+";",
+"do",
+"git",
+"log",
+"-1",
+";",
+"done"
+]
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"f",
+"in",
+"a",
+"b;",
+"do",
+"git",
+"log",
+"-1;",
+"done"
+]
+},
+{
+"input": "for f in a b; do git log -1; done",
+"mode": "quote",
+"quoted": "'for f in a b; do git log -1; done'",
+"src": "corpus"
+},
+{
+"input": "getopts ab: opt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"opt"
+]
+},
+{
+"input": "getopts ab: opt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab",
+":",
+"opt"
+]
+},
+{
+"input": "getopts ab: opt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"getopts",
+"ab:",
+"opt"
+]
+},
+{
+"input": "getopts ab: opt",
+"mode": "quote",
+"quoted": "'getopts ab: opt'",
+"src": "corpus"
+},
+{
+"input": ": ${x:=d}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${x:=d}"
+]
+},
+{
+"input": ": ${x:=d}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"x",
+":",
+"=d",
+"}"
+]
+},
+{
+"input": ": ${x:=d}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${x:=d}"
+]
+},
+{
+"input": ": ${x:=d}",
+"mode": "quote",
+"quoted": "': ${x:=d}'",
+"src": "corpus"
+},
+{
+"input": "let n=1+2",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"let",
+"n=1+2"
+]
+},
+{
+"input": "let n=1+2",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"let",
+"n=1",
+"+",
+"2"
+]
+},
+{
+"input": "let n=1+2",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"let",
+"n=1+2"
+]
+},
+{
+"input": "let n=1+2",
+"mode": "quote",
+"quoted": "'let n=1+2'",
+"src": "corpus"
+},
+{
+"input": "local y=1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"local",
+"y=1"
+]
+},
+{
+"input": "local y=1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"local",
+"y=1"
+]
+},
+{
+"input": "local y=1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"local",
+"y=1"
+]
+},
+{
+"input": "local y=1",
+"mode": "quote",
+"quoted": "'local y=1'",
+"src": "corpus"
+},
+{
+"input": "read -a arr <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -a arr <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -a arr <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -a arr <<< y",
+"mode": "quote",
+"quoted": "'read -a arr <<< y'",
+"src": "corpus"
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+},
+{
+"input": "read -ra arr <<< y",
+"mode": "quote",
+"quoted": "'read -ra arr <<< y'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x"
+]
+},
+{
+"input": "declare -n r=x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x"
+]
+},
+{
+"input": "declare -n r=x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x"
+]
+},
+{
+"input": "declare -n r=x",
+"mode": "quote",
+"quoted": "'declare -n r=x'",
+"src": "corpus"
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"arr[0]",
+"<<<",
+"y"
+]
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"arr",
+"[",
+"0",
+"]",
+"<<<",
+"y"
+]
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"arr[0]",
+"<<<",
+"y"
+]
+},
+{
+"input": "read arr[0] <<< y",
+"mode": "quote",
+"quoted": "'read arr[0] <<< y'",
+"src": "corpus"
+},
+{
+"input": "wait -p x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"x"
+]
+},
+{
+"input": "wait -p x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"x"
+]
+},
+{
+"input": "wait -p x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-p",
+"x"
+]
+},
+{
+"input": "wait -p x",
+"mode": "quote",
+"quoted": "'wait -p x'",
+"src": "corpus"
+},
+{
+"input": "wait -n -p pid",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"pid"
+]
+},
+{
+"input": "wait -n -p pid",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"pid"
+]
+},
+{
+"input": "wait -n -p pid",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wait",
+"-n",
+"-p",
+"pid"
+]
+},
+{
+"input": "wait -n -p pid",
+"mode": "quote",
+"quoted": "'wait -n -p pid'",
+"src": "corpus"
+},
+{
+"input": "coproc foo { :; }",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"foo",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc foo { :; }",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"foo",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc foo { :; }",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"foo",
+"{",
+":;",
+"}"
+]
+},
+{
+"input": "coproc foo { :; }",
+"mode": "quote",
+"quoted": "'coproc foo { :; }'",
+"src": "corpus"
+},
+{
+"input": "coproc { :; }",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"coproc",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc { :; }",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"coproc",
+"{",
+":",
+";",
+"}"
+]
+},
+{
+"input": "coproc { :; }",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"coproc",
+"{",
+":;",
+"}"
+]
+},
+{
+"input": "coproc { :; }",
+"mode": "quote",
+"quoted": "'coproc { :; }'",
+"src": "corpus"
+},
+{
+"input": "exec {fd}>f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"{fd}",
+">",
+"f"
+]
+},
+{
+"input": "exec {fd}>f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"{",
+"fd",
+"}",
+">",
+"f"
+]
+},
+{
+"input": "exec {fd}>f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"{fd}>f"
+]
+},
+{
+"input": "exec {fd}>f",
+"mode": "quote",
+"quoted": "'exec {fd}>f'",
+"src": "corpus"
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x",
+";",
+"r=y"
+]
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x",
+";",
+"r=y"
+]
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-n",
+"r=x;",
+"r=y"
+]
+},
+{
+"input": "declare -n r=x; r=y",
+"mode": "quote",
+"quoted": "'declare -n r=x; r=y'",
+"src": "corpus"
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${x:=d}"
+]
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"$",
+"{",
+"x",
+":",
+"=d",
+"}"
+]
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"<<<",
+"${x:=d}"
+]
+},
+{
+"input": ": <<< ${x:=d}",
+"mode": "quote",
+"quoted": "': <<< ${x:=d}'",
+"src": "corpus"
+},
+{
+"input": "git log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "git log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "git log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"-1"
+]
+},
+{
+"input": "git log -1",
+"mode": "quote",
+"quoted": "'git log -1'",
+"src": "corpus"
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"(",
+"git",
+"merge-base",
+"origin/main",
+"HEAD",
+")",
+"..HEAD"
+]
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$",
+"(",
+"git",
+"merge-base",
+"origin/main",
+"HEAD",
+")",
+"..HEAD"
+]
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"$(git",
+"merge-base",
+"origin/main",
+"HEAD)..HEAD"
+]
+},
+{
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mode": "quote",
+"quoted": "'git diff $(git merge-base origin/main HEAD)..HEAD'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -42314,7 +49889,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 942,
+"corpus_commands": 1112,
 "edge_inputs": 123,
 "python": "3.13"
 }

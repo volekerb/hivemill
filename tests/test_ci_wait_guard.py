@@ -5,6 +5,7 @@ import sys
 import unittest
 
 from harness import rendered_settings
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -16,8 +17,7 @@ def hook(command, background):
     if background:
         ti["run_in_background"] = True
     payload = json.dumps({"tool_name": "Bash", "tool_input": ti})
-    return subprocess.run([sys.executable, HOOK, "--role", "coder"], input=payload,
-                          capture_output=True, text=True, timeout=30)
+    return hook_run(payload, ["--role", "coder"])
 
 
 class CiWaitGuardTests(unittest.TestCase):

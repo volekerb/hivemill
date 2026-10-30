@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -82,9 +83,8 @@ class RepoProtTests(unittest.TestCase):
         args = ["--hq"] if role in HQ_ROLES else ["--role", role]
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
         env["FACTORY_HOME"] = self.tmp  # no DB there: the public-text rule stays off, so only R-a decides
-        return subprocess.run([sys.executable, HOOK, *args], input=json.dumps(
-            {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": ROOT}), capture_output=True, text=True,
-            timeout=30, env=env)
+        return hook_run(json.dumps(
+            {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": ROOT}), [*args], env=env)
 
     def test_every_role_is_refused_each_changing_shape(self):
         for role in WORKER_ROLES + HQ_ROLES:

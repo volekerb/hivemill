@@ -314,7 +314,7 @@ func firstDot(m string) string { return strings.SplitN(m, ".", 2)[0] }
 func goSubcommand(rest []string) (string, bool) {
 	for i := 0; i < len(rest); {
 		x := rest[i]
-		if x == "-C" {
+		if x == "-C" || x == "--C" { // T-0735: `-C <dir>` / `--C <dir>` takes a value
 			i += 2
 		} else {
 			i++
@@ -374,6 +374,7 @@ func uvxScan(words []string, prefix string) string {
 		if i := strings.IndexFunc(base, func(r rune) bool { return pyIsSpace(r) || strings.ContainsRune("[@=<>~!;(", r) }); i >= 0 {
 			base = base[:i]
 		}
+		base = strings.ToLower(base)
 		if base == "pytest" || base == "py.test" || base == "unittest" {
 			return prefix + " " + base
 		}
@@ -408,6 +409,16 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 		}
 		if mod != "" && isRunner(mod) {
 			runner = "python3 -m " + mod
+		} else { // T-0745: python3 -m coverage run -m pytest
+			cmod, cargs, _ := pythonMSplit(rest)
+			for cmod == "?" {
+				cmod, cargs, _ = pythonMSplit(cargs)
+			}
+			if cmod == "coverage" && len(cargs) > 0 && cargs[0] == "run" {
+				if cov, ok := coverageRunModule(cargs[1:]); ok {
+					runner = "python3 -m coverage run -m " + cov
+				}
+			}
 		}
 	case name == "pytest" || name == "py.test":
 		runner = name
@@ -418,20 +429,8 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	case name == "tox":
 		runner = "tox"
 	case name == "coverage" && len(rest) > 0 && rest[0] == "run":
-		for j, t := range rest[1:] {
-			if !strings.HasPrefix(t, "-m") {
-				continue
-			}
-			mod := ""
-			if len(t) > 2 {
-				mod = t[2:]
-			} else if j+2 < len(rest) {
-				mod = rest[j+2]
-			}
-			if mod != "" && isRunner(mod) {
-				runner = "coverage run -m " + mod
-			}
-			break // next() takes the first -m word, whatever it yields
+		if cov, ok := coverageRunModule(rest[1:]); ok {
+			runner = "coverage run -m " + cov
 		}
 	case name == "uv" && len(rest) > 0 && rest[0] == "run":
 		runner = uvRunRunner(rest[1:])
@@ -444,6 +443,31 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 		return delegate("sandbox_route: config test_sandbox is in the factory DB")
 	}
 	return nil
+}
+
+// coverageRunModule is a port of Analyzer.coverage_run_module (T-0745): fail closed. Any word after `coverage run`
+// naming pytest/py.test/unittest is the runner; no option model, so flags, valued options and clusters cannot hide it.
+func coverageRunModule(args []string) (string, bool) {
+	for _, t := range args {
+		var cand string
+		switch {
+		case strings.HasPrefix(t, "--module="):
+			cand = t[9:]
+		case strings.HasPrefix(t, "-") && !strings.HasPrefix(t, "--"):
+			if i := strings.Index(t, "m"); i >= 0 {
+				cand = t[i+1:] // -mpytest, -pmpytest
+			}
+		case strings.HasPrefix(t, "-"):
+			_, cand, _ = strings.Cut(t, "=")
+		default:
+			cand = t
+		}
+		base := pyBasename(cand)
+		if base == "py.test" || firstDot(base) == "pytest" || firstDot(base) == "unittest" {
+			return cand, true
+		}
+	}
+	return "", false
 }
 
 var reTestModule = regexp.MustCompile(`^test_(.+)\.py$`)
@@ -564,6 +588,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	words = stripped
 	if a.noPush() {
 		if err := a.gitConfigEnv(assigns, words); err != nil {
+			return err
+		}
+		if err := a.builtinAssign(assigns, words, hstrs); err != nil {
 			return err
 		}
 		if err := a.gitLaunch(assigns, words); err != nil {
@@ -1156,9 +1183,10 @@ func (a *Analyzer) systemctl(rest []string) error {
 
 // R2PathHit is a port of worker-guard.py:r2_path_hit.
 func R2PathHit(cmd string) bool {
+	runes := []rune(cmd) // once: RuneSlice per segment would make a long command quadratic
 	for _, s := range Segments(cmd) {
 		if len(s.Words) == 0 || !in(DataCmds, pyBasename(s.Words[0])) {
-			if hasR2Path(RuneSlice(cmd, s.Start, s.End)) {
+			if hasR2Path(string(runes[s.Start:s.End])) {
 				return true
 			}
 		} else if hasR2Path(strings.Join(s.Words, " ")) { // unquoted occurrences only
@@ -1177,7 +1205,7 @@ func hasR2Path(s string) bool {
 func claudeOverPriv(cmd, cwd, role string) error {
 	an, err := NewAnalyzer(cwd, role, false)
 	if err != nil {
-		return nil // unreachable: Check built an Analyzer for this cwd first and already failed closed
+		return err // fail closed: a block, never "no claude block found"
 	}
 	an.skipPriv = true
 	err = an.script(cmd, 0)
@@ -1238,11 +1266,41 @@ func replaceInvalidUTF8(b []byte) string {
 		r, n := utf8.DecodeRune(b)
 		if r == utf8.RuneError && n <= 1 {
 			sb.WriteRune(utf8.RuneError)
-			b = b[1:]
+			b = b[badUTF8Len(b):]
 			continue
 		}
 		sb.Write(b[:n])
 		b = b[n:]
 	}
 	return sb.String()
+}
+
+// badUTF8Len is the length of the maximal ill-formed subpart at the start of b: Python's errors="replace" writes ONE
+// U+FFFD for a truncated or otherwise invalid multi-byte sequence, not one per byte.
+func badUTF8Len(b []byte) int {
+	need, lo, hi := 1, byte(0x80), byte(0xBF)
+	switch c := b[0]; {
+	case c >= 0xC2 && c <= 0xDF:
+		need = 2
+	case c == 0xE0:
+		need, lo = 3, 0xA0
+	case c == 0xED:
+		need, hi = 3, 0x9F
+	case c >= 0xE1 && c <= 0xEF:
+		need = 3
+	case c == 0xF0:
+		need, lo = 4, 0x90
+	case c >= 0xF1 && c <= 0xF3:
+		need = 4
+	case c == 0xF4:
+		need, hi = 4, 0x8F
+	default:
+		return 1
+	}
+	n := 1
+	for n < need && n < len(b) && b[n] >= lo && b[n] <= hi {
+		n++
+		lo, hi = 0x80, 0xBF
+	}
+	return n
 }

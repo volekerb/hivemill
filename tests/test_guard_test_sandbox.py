@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -36,8 +37,7 @@ class TestSandboxRoutingExtra(unittest.TestCase):
         env.update(WORKER_GUARD_LIVE_HOME=os.path.join(self.tmp, "live"), WORKER_GUARD_SCRATCH=self.scratch,
                    FACTORY_HOME=self.home, FACTORY_AGENT="zz-agent")
         payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.scratch}
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload),
-                              capture_output=True, text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role], env=env)
 
     def test_deny_message_suggests_same_command(self):
         self.seed("1")

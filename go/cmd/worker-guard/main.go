@@ -10,8 +10,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"unicode/utf8"
 
@@ -52,18 +54,23 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	if !utf8.Valid(raw) {
 		return failClosed(stderr, "hook error, failing closed: stdin is not valid UTF-8")
 	}
+	// Python's json.load error text is reproduced (guard.PyJSONError) so stderr matches the Python hook's.
+	if msg := guard.PyJSONError(string(raw)); msg != "" {
+		return failClosed(stderr, "hook error, failing closed: "+msg)
+	}
 	var data map[string]any // json.Unmarshal also refuses trailing data, as json.load does
 	if err := json.Unmarshal(raw, &data); err != nil || data == nil {
-		reason := "not an object"
-		if err != nil {
-			reason = err.Error()
+		reason := "ValueError: not an object"
+		var ute *json.UnmarshalTypeError
+		if err != nil && !errors.As(err, &ute) {
+			reason = "invalid payload: " + err.Error()
 		}
-		return failClosed(stderr, "hook error, failing closed: invalid payload: "+reason)
+		return failClosed(stderr, "hook error, failing closed: "+reason)
 	}
 	switch tool := data["tool_name"].(type) {
 	case []any, map[string]any:
 		// Python: `tool_name in {set}` raises TypeError on an unhashable value, which fails closed.
-		return failClosed(stderr, "hook error, failing closed: tool_name is not a string")
+		return failClosed(stderr, "hook error, failing closed: TypeError: unhashable type: '"+pyTypeName(tool)+"'")
 	case string:
 		return dispatch(tool, data, role, hq, passArgs, raw, stdout, stderr)
 	}
@@ -73,7 +80,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 func dispatch(tool string, data map[string]any, role string, hq bool, passArgs []string, raw []byte, stdout, stderr io.Writer) int {
 	switch {
 	case !hq && guard.IsPersistEditTool(tool):
-		return finish(guard.PersistEdit(data))(stderr)
+		return finish(guard.PersistEdit(data, role))(stderr)
 	case !hq && (tool == "Read" || tool == "Grep"):
 		if guard.IsTermsRole(role) {
 			code, msg, py := guard.TermsTool(data)
@@ -86,10 +93,14 @@ func dispatch(tool string, data map[string]any, role string, hq bool, passArgs [
 	case tool != "Bash":
 		return 0
 	}
-	ti, _ := data["tool_input"].(map[string]any)
+	// (data.get("tool_input") or {}).get("command"): a truthy non-dict has no .get
+	ti, isMap := data["tool_input"].(map[string]any)
+	if v := data["tool_input"]; !isMap && pyTruthy(v) {
+		return failClosed(stderr, "hook error, failing closed: AttributeError: '"+pyTypeName(v)+"' object has no attribute 'get'")
+	}
 	cmd, ok := ti["command"].(string)
 	if !ok {
-		return failClosed(stderr, "hook error, failing closed: no command string")
+		return failClosed(stderr, "hook error, failing closed: ValueError: no command string")
 	}
 	cwd := ""
 	switch c := data["cwd"].(type) {
@@ -97,8 +108,14 @@ func dispatch(tool string, data map[string]any, role string, hq bool, passArgs [
 	case string:
 		cwd = c
 	default:
-		// Python passes any other value to Analyzer, where a truthy one crashes and fails closed.
-		return failClosed(stderr, "hook error, failing closed: cwd is not a string")
+		// Python passes any other value to Analyzer, where a truthy one crashes and fails closed; a falsy one is no cwd.
+		if pyTruthy(c) {
+			why := "expected str, bytes or os.PathLike object, not " + pyTypeName(c)
+			if t := pyTypeName(c); t == "list" || t == "dict" {
+				why = "unhashable type: '" + t + "'"
+			}
+			return failClosed(stderr, "hook error, failing closed: TypeError: "+why)
+		}
 	}
 	guard.SessionID, _ = data["session_id"].(string)
 	if err := guard.Check(cmd, cwd, role, hq); err != nil {
@@ -152,4 +169,43 @@ func failClosed(stderr io.Writer, why string) int {
 	fmt.Fprintf(stderr, "worker-guard(go): blocked (%s). Workers may not run herdr or manage factory/herdr systemd units "+
 		"directly; use the factory CLI (factory done, factory msg, ...). Tell your lead if this is wrong.\n", why)
 	return 2
+}
+
+// pyTypeName is type(v).__name__ for a decoded JSON value (an integral number is an int, any other a float).
+func pyTypeName(v any) string {
+	switch n := v.(type) {
+	case string:
+		return "str"
+	case bool:
+		return "bool"
+	case float64:
+		if n == math.Trunc(n) {
+			return "int"
+		}
+		return "float"
+	case []any:
+		return "list"
+	case map[string]any:
+		return "dict"
+	}
+	return "NoneType"
+}
+
+// pyTruthy is bool(v) for a decoded JSON value.
+func pyTruthy(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case string:
+		return x != ""
+	case bool:
+		return x
+	case float64:
+		return x != 0
+	case []any:
+		return len(x) > 0
+	case map[string]any:
+		return len(x) > 0
+	}
+	return true
 }

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -40,8 +41,7 @@ class RepoCfgTests(unittest.TestCase):
     def run_hook(self, payload, role):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
         env.update(WORKER_GUARD_LIVE_HOME=self.home, WORKER_GUARD_SCRATCH=self.scratch)
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload), capture_output=True,
-                              text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role], env=env)
 
     def bash(self, cmd, role="coder", cwd=None):
         return self.run_hook({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt}, role)

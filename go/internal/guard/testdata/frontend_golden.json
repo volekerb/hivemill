@@ -34813,6 +34813,7163 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh release create -R acme/old v1 --notes x",
+"mask_quotes_pre": "gh release create -R acme/old v1 --notes x",
+"mask_quotes_raw": "gh release create -R acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release edit -R acme/old v1 --notes x",
+"mask_quotes_pre": "gh release edit -R acme/old v1 --notes x",
+"mask_quotes_raw": "gh release edit -R acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release edit -R acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release edit -R acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create --repo acme/old v1 --notes x",
+"mask_quotes_pre": "gh release create --repo acme/old v1 --notes x",
+"mask_quotes_raw": "gh release create --repo acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create --repo=acme/old v1 --notes x",
+"mask_quotes_pre": "gh release create --repo=acme/old v1 --notes x",
+"mask_quotes_raw": "gh release create --repo=acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo=acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo=acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr create -R acme/old --title t --body b",
+"mask_quotes_pre": "gh pr create -R acme/old --title t --body b",
+"mask_quotes_raw": "gh pr create -R acme/old --title t --body b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create -R acme/old --title t --body b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create -R acme/old --title t --body b"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh issue comment 1 -R acme/old --body x",
+"mask_quotes_pre": "gh issue comment 1 -R acme/old --body x",
+"mask_quotes_raw": "gh issue comment 1 -R acme/old --body x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh issue comment 1 -R acme/old --body x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh issue comment 1 -R acme/old --body x"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -a v1 -m x",
+"mask_quotes_pre": "git tag -a v1 -m x",
+"mask_quotes_raw": "git tag -a v1 -m x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -a v1 -m x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -a v1 -m x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag v1",
+"mask_quotes_pre": "git tag v1",
+"mask_quotes_raw": "git tag v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag v1"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -d v1",
+"mask_quotes_pre": "git tag -d v1",
+"mask_quotes_raw": "git tag -d v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -d v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -d v1"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"tag",
+"-d",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"git",
+"tag",
+"-d",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -s v1 -m x",
+"mask_quotes_pre": "git tag -s v1 -m x",
+"mask_quotes_raw": "git tag -s v1 -m x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -s v1 -m x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -s v1 -m x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory agents",
+"mask_quotes_pre": "factory agents",
+"mask_quotes_raw": "factory agents",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory agents"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory agents"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"factory",
+"agents"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"factory",
+"agents"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory goal list",
+"mask_quotes_pre": "factory goal list",
+"mask_quotes_raw": "factory goal list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory goal list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory goal list"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"factory",
+"goal",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"factory",
+"goal",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory task list",
+"mask_quotes_pre": "factory task list",
+"mask_quotes_raw": "factory task list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory task list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory task list"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"factory",
+"task",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"factory",
+"task",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push -f origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git push -f origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git push -f origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push -f origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push -f origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"push",
+"-f",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"push",
+"-f",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c push.default=matching push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c push.default=matching push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git send-pack origin HEAD",
+"mask_quotes_pre": "git send-pack origin HEAD",
+"mask_quotes_raw": "git send-pack origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git send-pack origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git send-pack origin HEAD"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "FOO=1 git push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "FOO=1 git push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "FOO=1 git push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "FOO=1 git push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "FOO=1 git push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C /tmp push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git -C /tmp push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git -C /tmp push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx PyTest",
+"mask_quotes_pre": "uvx PyTest",
+"mask_quotes_raw": "uvx PyTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"uvx",
+"PyTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"uvx",
+"PyTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx Pytest tests/",
+"mask_quotes_pre": "uvx Pytest tests/",
+"mask_quotes_raw": "uvx Pytest tests/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx Pytest tests/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx Pytest tests/"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"uvx",
+"Pytest",
+"tests/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"uvx",
+"Pytest",
+"tests/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run Py.Test",
+"mask_quotes_pre": "uv tool run Py.Test",
+"mask_quotes_raw": "uv tool run Py.Test",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run Py.Test"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run Py.Test"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx PYTEST -x",
+"mask_quotes_pre": "uvx PYTEST -x",
+"mask_quotes_raw": "uvx PYTEST -x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx PYTEST -x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx PYTEST -x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"uvx",
+"PYTEST",
+"-x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"uvx",
+"PYTEST",
+"-x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run PyTest",
+"mask_quotes_pre": "uv tool run PyTest",
+"mask_quotes_raw": "uv tool run PyTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run PyTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run PyTest"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx pytest@8 -q",
+"mask_quotes_pre": "uvx pytest@8 -q",
+"mask_quotes_raw": "uvx pytest@8 -q",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest@8 -q"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest@8 -q"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"uvx",
+"pytest@8",
+"-q"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"uvx",
+"pytest@8",
+"-q"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx PyTest@8",
+"mask_quotes_pre": "uvx PyTest@8",
+"mask_quotes_raw": "uvx PyTest@8",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest@8"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest@8"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"uvx",
+"PyTest@8"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"uvx",
+"PyTest@8"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx --from pytest PyTest",
+"mask_quotes_pre": "uvx --from pytest PyTest",
+"mask_quotes_raw": "uvx --from pytest PyTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from pytest PyTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from pytest PyTest"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx UnitTest",
+"mask_quotes_pre": "uvx UnitTest",
+"mask_quotes_raw": "uvx UnitTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx UnitTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx UnitTest"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"uvx",
+"UnitTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"uvx",
+"UnitTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run UNITTEST",
+"mask_quotes_pre": "uv tool run UNITTEST",
+"mask_quotes_raw": "uv tool run UNITTEST",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run UNITTEST"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run UNITTEST"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x >> @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "echo x >> @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "echo x >> @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"echo",
+"x",
+">>",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | tee @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "echo x | tee @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "echo x | tee @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | tee @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | tee @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+36,
+[
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+36,
+[
+"tee",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "cp f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "cp f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "mv f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "mv f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"mv",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "ln -s f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "ln -s f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"ln",
+"-s",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "install f @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "install f @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "install f @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "install f @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "install f @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"install",
+"f",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "touch @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "touch @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "touch @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"touch",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "sed -i s/a/b/ @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "sed -i s/a/b/ @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "sed -i s/a/b/ @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"sed",
+"-i",
+"s/a/b/",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "dd of=@SCRATCH@/r/.git/config",
+"mask_quotes_pre": "dd of=@SCRATCH@/r/.git/config",
+"mask_quotes_raw": "dd of=@SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "dd of=@SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "dd of=@SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"dd",
+"of=@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/config.worktree",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/config.worktree",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config.worktree"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/config.worktree"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/config.worktree"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/hooks/pre-commit",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/hooks/pre-commit"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/hooks/pre-commit"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/hooks/pre-commit"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mask_quotes_pre": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"mask_quotes_raw": "cp f @SCRATCH@/r/.git/hooks/pre-push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/hooks/pre-push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp f @SCRATCH@/r/.git/hooks/pre-push"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"cp",
+"f",
+"@SCRATCH@/r/.git/hooks/pre-push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mask_quotes_pre": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"mask_quotes_raw": "touch @SCRATCH@/r/.git/hooks/post-commit",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/hooks/post-commit"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "touch @SCRATCH@/r/.git/hooks/post-commit"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"touch",
+"@SCRATCH@/r/.git/hooks/post-commit"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/info/attributes",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/info/attributes",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/attributes"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/attributes"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/attributes"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/.git/info/exclude",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/.git/info/exclude",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/exclude"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/.git/info/exclude"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/.git/info/exclude"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'",
+"mask_quotes_pre": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'QQQQQQQ'",
+"mask_quotes_raw": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'QQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --file @SCRATCH@/r/.git/config core.fsmonitor 'touch m'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"git",
+"config",
+"--file",
+"@SCRATCH@/r/.git/config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'",
+"mask_quotes_pre": "git -C @SCRATCH@/r config core.fsmonitor 'QQQQQQQ'",
+"mask_quotes_raw": "git -C @SCRATCH@/r config core.fsmonitor 'QQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.fsmonitor 'touch m'"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.fsmonitor",
+"'QQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mask_quotes_pre": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"mask_quotes_raw": "git -C @SCRATCH@/r config --local core.hooksPath /x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --local core.hooksPath /x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --local core.hooksPath /x"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--local",
+"core.hooksPath",
+"/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config core.sshCommand x",
+"mask_quotes_pre": "git -C @SCRATCH@/r config core.sshCommand x",
+"mask_quotes_raw": "git -C @SCRATCH@/r config core.sshCommand x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.sshCommand x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config core.sshCommand x"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"core.sshCommand",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.fsmonitor='touch m' status",
+"mask_quotes_pre": "git -c core.fsmonitor='QQQQQQQ' status",
+"mask_quotes_raw": "git -c core.fsmonitor='QQQQQQQ' status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.fsmonitor='touch m' status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.fsmonitor='touch m' status"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"-c",
+"core.fsmonitor='QQQQQQQ'",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"-c",
+"core.fsmonitor='QQQQQQQ'",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.hooksPath=/x status",
+"mask_quotes_pre": "git -c core.hooksPath=/x status",
+"mask_quotes_raw": "git -c core.hooksPath=/x status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.hooksPath=/x status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.hooksPath=/x status"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"git",
+"-c",
+"core.hooksPath=/x",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c core.sshCommand=x fetch origin",
+"mask_quotes_pre": "git -c core.sshCommand=x fetch origin",
+"mask_quotes_raw": "git -c core.sshCommand=x fetch origin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.sshCommand=x fetch origin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c core.sshCommand=x fetch origin"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"git",
+"-c",
+"core.sshCommand=x",
+"fetch",
+"origin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mask_quotes_pre": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"mask_quotes_raw": "git init -c core.fsmonitor=x @SCRATCH@/r2",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init -c core.fsmonitor=x @SCRATCH@/r2"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init -c core.fsmonitor=x @SCRATCH@/r2"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"git",
+"init",
+"-c",
+"core.fsmonitor=x",
+"@SCRATCH@/r2"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mask_quotes_pre": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"mask_quotes_raw": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone --template=/x https://example.com/a.git @SCRATCH@/r3"
+},
+"segments_pre": [
+[
+0,
+62,
+[
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+62,
+[
+"git",
+"clone",
+"--template=/x",
+"https://example.com/a.git",
+"@SCRATCH@/r3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x >> ~/.config/git/config",
+"mask_quotes_pre": "echo x >> ~/.config/git/config",
+"mask_quotes_raw": "echo x >> ~/.config/git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> ~/.config/git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x >> ~/.config/git/config"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"echo",
+"x",
+">>",
+"~/.config/git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp f ~/.config/git/ignore",
+"mask_quotes_pre": "cp f ~/.config/git/ignore",
+"mask_quotes_raw": "cp f ~/.config/git/ignore",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp f ~/.config/git/ignore"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp f ~/.config/git/ignore"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"cp",
+"f",
+"~/.config/git/ignore"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\"",
+"mask_quotes_pre": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open('@SCRATCH@/r/.git/config','w').write('x')\""
+},
+"segments_pre": [
+[
+0,
+59,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+59,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read HOME <<< d; git log -1",
+"mask_quotes_pre": "read HOME <<< d; git log -1",
+"mask_quotes_raw": "read HOME <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read HOME <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read HOME <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"read",
+"HOME",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"read",
+"HOME",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -v HOME d; git log -1",
+"mask_quotes_pre": "printf -v HOME d; git log -1",
+"mask_quotes_raw": "printf -v HOME d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -v HOME d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -v HOME d; git log -1"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"printf",
+"-v",
+"HOME",
+"d"
+]
+],
+[
+17,
+28,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"printf",
+"-v",
+"HOME",
+"d"
+]
+],
+[
+17,
+28,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mapfile -t HOME < f; git log -1",
+"mask_quotes_pre": "mapfile -t HOME < f; git log -1",
+"mask_quotes_raw": "mapfile -t HOME < f; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mapfile -t HOME < f; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mapfile -t HOME < f; git log -1"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"mapfile",
+"-t",
+"HOME",
+"<",
+"f"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "readarray HOME < f; git log -1",
+"mask_quotes_pre": "readarray HOME < f; git log -1",
+"mask_quotes_raw": "readarray HOME < f; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "readarray HOME < f; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "readarray HOME < f; git log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"readarray",
+"HOME",
+"<",
+"f"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"readarray",
+"HOME",
+"<",
+"f"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "for HOME in d; do :; done; git log -1",
+"mask_quotes_pre": "for HOME in d; do :; done; git log -1",
+"mask_quotes_raw": "for HOME in d; do :; done; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "for HOME in d; do :; done; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "for HOME in d; do :; done; git log -1"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"for",
+"HOME",
+"in",
+"d"
+]
+],
+[
+14,
+19,
+[
+"do",
+":"
+]
+],
+[
+20,
+25,
+[
+"done"
+]
+],
+[
+26,
+37,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"for",
+"HOME",
+"in",
+"d"
+]
+],
+[
+14,
+19,
+[
+"do",
+":"
+]
+],
+[
+20,
+25,
+[
+"done"
+]
+],
+[
+26,
+37,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "getopts HOME x; git log -1",
+"mask_quotes_pre": "getopts HOME x; git log -1",
+"mask_quotes_raw": "getopts HOME x; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "getopts HOME x; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "getopts HOME x; git log -1"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"getopts",
+"HOME",
+"x"
+]
+],
+[
+15,
+26,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"getopts",
+"HOME",
+"x"
+]
+],
+[
+15,
+26,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "getopts ab: GIT_DIR; git log -1",
+"mask_quotes_pre": "getopts ab: GIT_DIR; git log -1",
+"mask_quotes_raw": "getopts ab: GIT_DIR; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "getopts ab: GIT_DIR; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "getopts ab: GIT_DIR; git log -1"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"getopts",
+"ab:",
+"GIT_DIR"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"getopts",
+"ab:",
+"GIT_DIR"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mask_quotes_pre": "read XDG_CONFIG_HOME <<< d; git log -1",
+"mask_quotes_raw": "read XDG_CONFIG_HOME <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read XDG_CONFIG_HOME <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read XDG_CONFIG_HOME <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d"
+]
+],
+[
+27,
+38,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"read",
+"XDG_CONFIG_HOME",
+"<<<",
+"d"
+]
+],
+[
+27,
+38,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -r -a PATH <<< d; git log -1",
+"mask_quotes_pre": "read -r -a PATH <<< d; git log -1",
+"mask_quotes_raw": "read -r -a PATH <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -r -a PATH <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -r -a PATH <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d"
+]
+],
+[
+22,
+33,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"read",
+"-r",
+"-a",
+"PATH",
+"<<<",
+"d"
+]
+],
+[
+22,
+33,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -v GIT_DIR x; git log -1",
+"mask_quotes_pre": "printf -v GIT_DIR x; git log -1",
+"mask_quotes_raw": "printf -v GIT_DIR x; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -v GIT_DIR x; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -v GIT_DIR x; git log -1"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"printf",
+"-v",
+"GIT_DIR",
+"x"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"printf",
+"-v",
+"GIT_DIR",
+"x"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -vPAGER x; git log -1",
+"mask_quotes_pre": "printf -vPAGER x; git log -1",
+"mask_quotes_raw": "printf -vPAGER x; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -vPAGER x; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -vPAGER x; git log -1"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"printf",
+"-vPAGER",
+"x"
+]
+],
+[
+17,
+28,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"printf",
+"-vPAGER",
+"x"
+]
+],
+[
+17,
+28,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${HOME:=d}; git log -1",
+"mask_quotes_pre": ": ${HOME:=d}; git log -1",
+"mask_quotes_raw": ": ${HOME:=d}; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${HOME:=d}; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${HOME:=d}; git log -1"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+11,
+[
+"HOME:=d"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+11,
+[
+"HOME:=d"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mask_quotes_pre": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"mask_quotes_raw": ": ${XDG_CONFIG_HOME=d}; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${XDG_CONFIG_HOME=d}; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${XDG_CONFIG_HOME=d}; git log -1"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+21,
+[
+"XDG_CONFIG_HOME=d"
+]
+],
+[
+23,
+34,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+21,
+[
+"XDG_CONFIG_HOME=d"
+]
+],
+[
+23,
+34,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "local HOME=d; git log -1",
+"mask_quotes_pre": "local HOME=d; git log -1",
+"mask_quotes_raw": "local HOME=d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "local HOME=d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "local HOME=d; git log -1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"local",
+"HOME=d"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"local",
+"HOME=d"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "let HOME=1; git log -1",
+"mask_quotes_pre": "let HOME=1; git log -1",
+"mask_quotes_raw": "let HOME=1; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "let HOME=1; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "let HOME=1; git log -1"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"let",
+"HOME=1"
+]
+],
+[
+11,
+22,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"let",
+"HOME=1"
+]
+],
+[
+11,
+22,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "select PAGER in a; do break; done; git log -1",
+"mask_quotes_pre": "select PAGER in a; do break; done; git log -1",
+"mask_quotes_raw": "select PAGER in a; do break; done; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "select PAGER in a; do break; done; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "select PAGER in a; do break; done; git log -1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"select",
+"PAGER",
+"in",
+"a"
+]
+],
+[
+18,
+27,
+[
+"do",
+"break"
+]
+],
+[
+28,
+33,
+[
+"done"
+]
+],
+[
+34,
+45,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"select",
+"PAGER",
+"in",
+"a"
+]
+],
+[
+18,
+27,
+[
+"do",
+"break"
+]
+],
+[
+28,
+33,
+[
+"done"
+]
+],
+[
+34,
+45,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -v \"$v\" d; git log -1",
+"mask_quotes_pre": "printf -v \"QQ\" d; git log -1",
+"mask_quotes_raw": "printf -v \"QQ\" d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -v \"$v\" d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -v \"$v\" d; git log -1"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"printf",
+"-v",
+"\"QQ\"",
+"d"
+]
+],
+[
+17,
+28,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"printf",
+"-v",
+"\"QQ\"",
+"d"
+]
+],
+[
+17,
+28,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read \"$v\" <<< d; git log -1",
+"mask_quotes_pre": "read \"QQ\" <<< d; git log -1",
+"mask_quotes_raw": "read \"QQ\" <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read \"$v\" <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read \"$v\" <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"read",
+"\"QQ\"",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"read",
+"\"QQ\"",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "local \"$v\"=d; git log -1",
+"mask_quotes_pre": "local \"QQ\"=d; git log -1",
+"mask_quotes_raw": "local \"QQ\"=d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "local \"$v\"=d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "local \"$v\"=d; git log -1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"local",
+"\"QQ\"=d"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"local",
+"\"QQ\"=d"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${!v:=d}; git log -1",
+"mask_quotes_pre": ": ${!v:=d}; git log -1",
+"mask_quotes_raw": ": ${!v:=d}; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${!v:=d}; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${!v:=d}; git log -1"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+9,
+[
+"!v:=d"
+]
+],
+[
+11,
+22,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+9,
+[
+"!v:=d"
+]
+],
+[
+11,
+22,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -aHOME <<< d; git log -1",
+"mask_quotes_pre": "read -aHOME <<< d; git log -1",
+"mask_quotes_raw": "read -aHOME <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -aHOME <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -aHOME <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"read",
+"-aHOME",
+"<<<",
+"d"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"read",
+"-aHOME",
+"<<<",
+"d"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -raHOME <<< d; git log -1",
+"mask_quotes_pre": "read -raHOME <<< d; git log -1",
+"mask_quotes_raw": "read -raHOME <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -raHOME <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -raHOME <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"read",
+"-raHOME",
+"<<<",
+"d"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"read",
+"-raHOME",
+"<<<",
+"d"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -eaHOME <<< d; git log -1",
+"mask_quotes_pre": "read -eaHOME <<< d; git log -1",
+"mask_quotes_raw": "read -eaHOME <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -eaHOME <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -eaHOME <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"read",
+"-eaHOME",
+"<<<",
+"d"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"read",
+"-eaHOME",
+"<<<",
+"d"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -v HOME[0] d; git log -1",
+"mask_quotes_pre": "printf -v HOME[0] d; git log -1",
+"mask_quotes_raw": "printf -v HOME[0] d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -v HOME[0] d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -v HOME[0] d; git log -1"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"printf",
+"-v",
+"HOME[0]",
+"d"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"printf",
+"-v",
+"HOME[0]",
+"d"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read HOME[0] <<< d; git log -1",
+"mask_quotes_pre": "read HOME[0] <<< d; git log -1",
+"mask_quotes_raw": "read HOME[0] <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read HOME[0] <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read HOME[0] <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"read",
+"HOME[0]",
+"<<<",
+"d"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"read",
+"HOME[0]",
+"<<<",
+"d"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "local HOME[0]=d; git log -1",
+"mask_quotes_pre": "local HOME[0]=d; git log -1",
+"mask_quotes_raw": "local HOME[0]=d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "local HOME[0]=d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "local HOME[0]=d; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"local",
+"HOME[0]=d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"local",
+"HOME[0]=d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read HOM[E] <<< d; git log -1",
+"mask_quotes_pre": "read HOM[E] <<< d; git log -1",
+"mask_quotes_raw": "read HOM[E] <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read HOM[E] <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read HOM[E] <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"read",
+"HOM[E]",
+"<<<",
+"d"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"read",
+"HOM[E]",
+"<<<",
+"d"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read HOM? <<< d; git log -1",
+"mask_quotes_pre": "read HOM? <<< d; git log -1",
+"mask_quotes_raw": "read HOM? <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read HOM? <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read HOM? <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"read",
+"HOM?",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"read",
+"HOM?",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read HOM* <<< d; git log -1",
+"mask_quotes_pre": "read HOM* <<< d; git log -1",
+"mask_quotes_raw": "read HOM* <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read HOM* <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read HOM* <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"read",
+"HOM*",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"read",
+"HOM*",
+"<<<",
+"d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read {HOME,x} <<< d; git log -1",
+"mask_quotes_pre": "read {HOME,x} <<< d; git log -1",
+"mask_quotes_raw": "read {HOME,x} <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read {HOME,x} <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read {HOME,x} <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"read"
+]
+],
+[
+6,
+12,
+[
+"HOME,x"
+]
+],
+[
+13,
+19,
+[
+"<<<",
+"d"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"read"
+]
+],
+[
+6,
+12,
+[
+"HOME,x"
+]
+],
+[
+13,
+19,
+[
+"<<<",
+"d"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -v {HOME,x} d; git log -1",
+"mask_quotes_pre": "printf -v {HOME,x} d; git log -1",
+"mask_quotes_raw": "printf -v {HOME,x} d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -v {HOME,x} d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -v {HOME,x} d; git log -1"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"printf",
+"-v"
+]
+],
+[
+11,
+17,
+[
+"HOME,x"
+]
+],
+[
+18,
+20,
+[
+"d"
+]
+],
+[
+21,
+32,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"printf",
+"-v"
+]
+],
+[
+11,
+17,
+[
+"HOME,x"
+]
+],
+[
+18,
+20,
+[
+"d"
+]
+],
+[
+21,
+32,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "declare -n r=HOME; git log -1",
+"mask_quotes_pre": "declare -n r=HOME; git log -1",
+"mask_quotes_raw": "declare -n r=HOME; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=HOME; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=HOME; git log -1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"declare",
+"-n",
+"r=HOME"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"declare",
+"-n",
+"r=HOME"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "local -n r=HOME; git log -1",
+"mask_quotes_pre": "local -n r=HOME; git log -1",
+"mask_quotes_raw": "local -n r=HOME; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "local -n r=HOME; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "local -n r=HOME; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"local",
+"-n",
+"r=HOME"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"local",
+"-n",
+"r=HOME"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "typeset -n r=HOME; git log -1",
+"mask_quotes_pre": "typeset -n r=HOME; git log -1",
+"mask_quotes_raw": "typeset -n r=HOME; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "typeset -n r=HOME; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "typeset -n r=HOME; git log -1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"typeset",
+"-n",
+"r=HOME"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"typeset",
+"-n",
+"r=HOME"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "declare -n r=\"$v\"; git log -1",
+"mask_quotes_pre": "declare -n r=\"QQ\"; git log -1",
+"mask_quotes_raw": "declare -n r=\"QQ\"; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=\"$v\"; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=\"$v\"; git log -1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"declare",
+"-n",
+"r=\"QQ\""
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"declare",
+"-n",
+"r=\"QQ\""
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mask_quotes_pre": "declare -n r; r=HOME; read r <<< d; git log -1",
+"mask_quotes_raw": "declare -n r; r=HOME; read r <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r; r=HOME; read r <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r; r=HOME; read r <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"declare",
+"-n",
+"r"
+]
+],
+[
+13,
+20,
+[
+"r=HOME"
+]
+],
+[
+21,
+34,
+[
+"read",
+"r",
+"<<<",
+"d"
+]
+],
+[
+35,
+46,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"declare",
+"-n",
+"r"
+]
+],
+[
+13,
+20,
+[
+"r=HOME"
+]
+],
+[
+21,
+34,
+[
+"read",
+"r",
+"<<<",
+"d"
+]
+],
+[
+35,
+46,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "local -n r; r=HOME; read r <<< d; git log -1",
+"mask_quotes_pre": "local -n r; r=HOME; read r <<< d; git log -1",
+"mask_quotes_raw": "local -n r; r=HOME; read r <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "local -n r; r=HOME; read r <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "local -n r; r=HOME; read r <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"local",
+"-n",
+"r"
+]
+],
+[
+11,
+18,
+[
+"r=HOME"
+]
+],
+[
+19,
+32,
+[
+"read",
+"r",
+"<<<",
+"d"
+]
+],
+[
+33,
+44,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"local",
+"-n",
+"r"
+]
+],
+[
+11,
+18,
+[
+"r=HOME"
+]
+],
+[
+19,
+32,
+[
+"read",
+"r",
+"<<<",
+"d"
+]
+],
+[
+33,
+44,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mask_quotes_pre": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"mask_quotes_raw": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "typeset -n r; r=GIT_DIR; read r <<< d; git log -1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"typeset",
+"-n",
+"r"
+]
+],
+[
+13,
+23,
+[
+"r=GIT_DIR"
+]
+],
+[
+24,
+37,
+[
+"read",
+"r",
+"<<<",
+"d"
+]
+],
+[
+38,
+49,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"typeset",
+"-n",
+"r"
+]
+],
+[
+13,
+23,
+[
+"r=GIT_DIR"
+]
+],
+[
+24,
+37,
+[
+"read",
+"r",
+"<<<",
+"d"
+]
+],
+[
+38,
+49,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": <<< '${HOME:=d}'; git log -1",
+"mask_quotes_pre": ": <<< 'QQQQQQQQQQ'; git log -1",
+"mask_quotes_raw": ": <<< 'QQQQQQQQQQ'; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": <<< '${HOME:=d}'; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": <<< '${HOME:=d}'; git log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+":",
+"<<<",
+"'QQQQQQQQQQ'"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+":",
+"<<<",
+"'QQQQQQQQQQ'"
+]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": <<< ${HOME=d}; git log -1",
+"mask_quotes_pre": ": <<< ${HOME=d}; git log -1",
+"mask_quotes_raw": ": <<< ${HOME=d}; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": <<< ${HOME=d}; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": <<< ${HOME=d}; git log -1"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+":",
+"<<<",
+"$"
+]
+],
+[
+8,
+14,
+[
+"HOME=d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+":",
+"<<<",
+"$"
+]
+],
+[
+8,
+14,
+[
+"HOME=d"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"mask_quotes_pre": ": <<EOF ; ",
+"mask_quotes_raw": ": <<EOF\n${HOME:=d}\nEOF; git log -1",
+"preprocess": {
+"bodies": [
+[
+": <<EOF",
+"${HOME:=d}\nEOF; git log -1"
+]
+],
+"extras": [],
+"text": ": <<EOF ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+": <<EOF",
+"${HOME:=d}\nEOF; git log -1"
+]
+],
+"extras": [],
+"text": ": <<EOF ; "
+},
+"segments_pre": [
+[
+0,
+8,
+[
+":",
+"<<EOF"
+]
+],
+[
+9,
+10,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+":",
+"<<EOF"
+]
+],
+[
+8,
+9,
+[
+"$"
+]
+],
+[
+10,
+17,
+[
+"HOME:=d"
+]
+],
+[
+19,
+22,
+[
+"EOF"
+]
+],
+[
+23,
+34,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "wait -n -p HOME; git log -1",
+"mask_quotes_pre": "wait -n -p HOME; git log -1",
+"mask_quotes_raw": "wait -n -p HOME; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "wait -n -p HOME; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "wait -n -p HOME; git log -1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"wait",
+"-n",
+"-p",
+"HOME"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"wait",
+"-n",
+"-p",
+"HOME"
+]
+],
+[
+16,
+27,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "wait -p HOME; git log -1",
+"mask_quotes_pre": "wait -p HOME; git log -1",
+"mask_quotes_raw": "wait -p HOME; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "wait -p HOME; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "wait -p HOME; git log -1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"wait",
+"-p",
+"HOME"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"wait",
+"-p",
+"HOME"
+]
+],
+[
+13,
+24,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "wait -pHOME; git log -1",
+"mask_quotes_pre": "wait -pHOME; git log -1",
+"mask_quotes_raw": "wait -pHOME; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "wait -pHOME; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "wait -pHOME; git log -1"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"wait",
+"-pHOME"
+]
+],
+[
+12,
+23,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"wait",
+"-pHOME"
+]
+],
+[
+12,
+23,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "coproc HOME { :; }; git log -1",
+"mask_quotes_pre": "coproc HOME { :; }; git log -1",
+"mask_quotes_raw": "coproc HOME { :; }; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "coproc HOME { :; }; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "coproc HOME { :; }; git log -1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"coproc",
+"HOME"
+]
+],
+[
+13,
+15,
+[
+":"
+]
+],
+[
+16,
+17,
+[]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"coproc",
+"HOME"
+]
+],
+[
+13,
+15,
+[
+":"
+]
+],
+[
+16,
+17,
+[]
+],
+[
+19,
+30,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "coproc HOME sleep 1; git log -1",
+"mask_quotes_pre": "coproc HOME sleep 1; git log -1",
+"mask_quotes_raw": "coproc HOME sleep 1; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "coproc HOME sleep 1; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "coproc HOME sleep 1; git log -1"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"coproc",
+"HOME",
+"sleep",
+"1"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"coproc",
+"HOME",
+"sleep",
+"1"
+]
+],
+[
+20,
+31,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec {HOME}>f; git log -1",
+"mask_quotes_pre": "exec {HOME}>f; git log -1",
+"mask_quotes_raw": "exec {HOME}>f; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec {HOME}>f; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec {HOME}>f; git log -1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+10,
+[
+"HOME"
+]
+],
+[
+11,
+13,
+[
+">f"
+]
+],
+[
+14,
+25,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+10,
+[
+"HOME"
+]
+],
+[
+11,
+13,
+[
+">f"
+]
+],
+[
+14,
+25,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mask_quotes_pre": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"mask_quotes_raw": "exec {XDG_CONFIG_HOME}<f; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec {XDG_CONFIG_HOME}<f; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec {XDG_CONFIG_HOME}<f; git log -1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+21,
+[
+"XDG_CONFIG_HOME"
+]
+],
+[
+22,
+24,
+[
+"<f"
+]
+],
+[
+25,
+36,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+21,
+[
+"XDG_CONFIG_HOME"
+]
+],
+[
+22,
+24,
+[
+"<f"
+]
+],
+[
+25,
+36,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec {GIT_DIR}>&2; git log -1",
+"mask_quotes_pre": "exec {GIT_DIR}>&2; git log -1",
+"mask_quotes_raw": "exec {GIT_DIR}>&2; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec {GIT_DIR}>&2; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec {GIT_DIR}>&2; git log -1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+13,
+[
+"GIT_DIR"
+]
+],
+[
+14,
+15,
+[
+">"
+]
+],
+[
+16,
+17,
+[
+"2"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+13,
+[
+"GIT_DIR"
+]
+],
+[
+14,
+15,
+[
+">"
+]
+],
+[
+16,
+17,
+[
+"2"
+]
+],
+[
+18,
+29,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec {HOME}<>f; git log -1",
+"mask_quotes_pre": "exec {HOME}<>f; git log -1",
+"mask_quotes_raw": "exec {HOME}<>f; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec {HOME}<>f; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec {HOME}<>f; git log -1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+10,
+[
+"HOME"
+]
+],
+[
+11,
+14,
+[
+"<>f"
+]
+],
+[
+15,
+26,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+10,
+[
+"HOME"
+]
+],
+[
+11,
+14,
+[
+"<>f"
+]
+],
+[
+15,
+26,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec {\"$v\"}>f; git log -1",
+"mask_quotes_pre": "exec {\"QQ\"}>f; git log -1",
+"mask_quotes_raw": "exec {\"QQ\"}>f; git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec {\"$v\"}>f; git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec {\"$v\"}>f; git log -1"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+10,
+[
+"\"QQ\""
+]
+],
+[
+11,
+13,
+[
+">f"
+]
+],
+[
+14,
+25,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+10,
+[
+"\"QQ\""
+]
+],
+[
+11,
+13,
+[
+">f"
+]
+],
+[
+14,
+25,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "p=push; git \"$p\" origin HEAD:main",
+"mask_quotes_pre": "p=push; git \"QQ\" origin HEAD:main",
+"mask_quotes_raw": "p=push; git \"QQ\" origin HEAD:main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "p=push; git \"$p\" origin HEAD:main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "p=push; git \"$p\" origin HEAD:main"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"p=push"
+]
+],
+[
+7,
+33,
+[
+"git",
+"\"QQ\"",
+"origin",
+"HEAD:main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"p=push"
+]
+],
+[
+7,
+33,
+[
+"git",
+"\"QQ\"",
+"origin",
+"HEAD:main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git ${p:-push} origin main",
+"mask_quotes_pre": "git ${p:-push} origin main",
+"mask_quotes_raw": "git ${p:-push} origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git ${p:-push} origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git ${p:-push} origin main"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"git",
+"$"
+]
+],
+[
+6,
+13,
+[
+"p:-push"
+]
+],
+[
+14,
+26,
+[
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"git",
+"$"
+]
+],
+[
+6,
+13,
+[
+"p:-push"
+]
+],
+[
+14,
+26,
+[
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git $(echo push) origin main",
+"mask_quotes_pre": "git $(echo push) origin main",
+"mask_quotes_raw": "git $(echo push) origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git $(echo push) origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git $(echo push) origin main"
+},
+"segments_pre": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+6,
+15,
+[
+"echo",
+"push"
+]
+],
+[
+16,
+28,
+[
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+6,
+15,
+[
+"echo",
+"push"
+]
+],
+[
+16,
+28,
+[
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "x=(push origin main); git \"${x[@]}\"",
+"mask_quotes_pre": "x=(push origin main); git \"QQQQQQQ\"",
+"mask_quotes_raw": "x=(push origin main); git \"QQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "x=(push origin main); git \"${x[@]}\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "x=(push origin main); git \"${x[@]}\""
+},
+"segments_pre": [
+[
+0,
+2,
+[
+"x="
+]
+],
+[
+3,
+19,
+[
+"push",
+"origin",
+"main"
+]
+],
+[
+21,
+35,
+[
+"git",
+"\"QQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+2,
+[
+"x="
+]
+],
+[
+3,
+19,
+[
+"push",
+"origin",
+"main"
+]
+],
+[
+21,
+35,
+[
+"git",
+"\"QQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C . $p origin main",
+"mask_quotes_pre": "git -C . $p origin main",
+"mask_quotes_raw": "git -C . $p origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C . $p origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C . $p origin main"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "p=push; git -C . $p origin main",
+"mask_quotes_pre": "p=push; git -C . $p origin main",
+"mask_quotes_raw": "p=push; git -C . $p origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "p=push; git -C . $p origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "p=push; git -C . $p origin main"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"p=push"
+]
+],
+[
+7,
+31,
+[
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"p=push"
+]
+],
+[
+7,
+31,
+[
+"git",
+"-C",
+".",
+"$p",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "f(){ git \"$@\"; }; f push origin main",
+"mask_quotes_pre": "f(){ git \"QQ\"; }; f push origin main",
+"mask_quotes_raw": "f(){ git \"QQ\"; }; f push origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "f(){ git \"$@\"; }; f push origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "f(){ git \"$@\"; }; f push origin main"
+},
+"segments_pre": [
+[
+0,
+1,
+[
+"f"
+]
+],
+[
+4,
+13,
+[
+"git",
+"\"QQ\""
+]
+],
+[
+14,
+15,
+[]
+],
+[
+17,
+36,
+[
+"f",
+"push",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+1,
+[
+"f"
+]
+],
+[
+4,
+13,
+[
+"git",
+"\"QQ\""
+]
+],
+[
+14,
+15,
+[]
+],
+[
+17,
+36,
+[
+"f",
+"push",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "alias gp='git $p'; gp origin main",
+"mask_quotes_pre": "alias gp='QQQQQQ'; gp origin main",
+"mask_quotes_raw": "alias gp='QQQQQQ'; gp origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "alias gp='git $p'; gp origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "alias gp='git $p'; gp origin main"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"alias",
+"gp='QQQQQQ'"
+]
+],
+[
+18,
+33,
+[
+"gp",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"alias",
+"gp='QQQQQQ'"
+]
+],
+[
+18,
+33,
+[
+"gp",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git \"$1\" origin main",
+"mask_quotes_pre": "git \"QQ\" origin main",
+"mask_quotes_raw": "git \"QQ\" origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git \"$1\" origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git \"$1\" origin main"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"\"QQ\"",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"\"QQ\"",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git $* origin main",
+"mask_quotes_pre": "git $* origin main",
+"mask_quotes_raw": "git $* origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git $* origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git $* origin main"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"$*",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"$*",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git {push,} origin main",
+"mask_quotes_pre": "git {push,} origin main",
+"mask_quotes_raw": "git {push,} origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git {push,} origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git {push,} origin main"
+},
+"segments_pre": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+5,
+10,
+[
+"push,"
+]
+],
+[
+11,
+23,
+[
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+4,
+[
+"git"
+]
+],
+[
+5,
+10,
+[
+"push,"
+]
+],
+[
+11,
+23,
+[
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git pus? origin main",
+"mask_quotes_pre": "git pus? origin main",
+"mask_quotes_raw": "git pus? origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git pus? origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git pus? origin main"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"pus?",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"pus?",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git p*h origin main",
+"mask_quotes_pre": "git p*h origin main",
+"mask_quotes_raw": "git p*h origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git p*h origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git p*h origin main"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"p*h",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"p*h",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git pu[s]h origin main",
+"mask_quotes_pre": "git pu[s]h origin main",
+"mask_quotes_raw": "git pu[s]h origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git pu[s]h origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git pu[s]h origin main"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"git",
+"pu[s]h",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"git",
+"pu[s]h",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -48223,6 +55380,2432 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_pre": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_raw": "gh release create -R acme/new v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release list -R acme/old",
+"mask_quotes_pre": "gh release list -R acme/old",
+"mask_quotes_raw": "gh release list -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release list -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release list -R acme/old"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release view v1 -R acme/old",
+"mask_quotes_pre": "gh release view v1 -R acme/old",
+"mask_quotes_raw": "gh release view v1 -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1 -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1 -R acme/old"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release download v1 -R acme/old",
+"mask_quotes_pre": "gh release download v1 -R acme/old",
+"mask_quotes_raw": "gh release download v1 -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release download v1 -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release download v1 -R acme/old"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr view 1 -R acme/old",
+"mask_quotes_pre": "gh pr view 1 -R acme/old",
+"mask_quotes_raw": "gh pr view 1 -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1 -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1 -R acme/old"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh issue list -R acme/old",
+"mask_quotes_pre": "gh issue list -R acme/old",
+"mask_quotes_raw": "gh issue list -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh issue list -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh issue list -R acme/old"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mask_quotes_pre": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"segments_pre": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release list",
+"mask_quotes_pre": "gh release list",
+"mask_quotes_raw": "gh release list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release list"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"gh",
+"release",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"gh",
+"release",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release view v1",
+"mask_quotes_pre": "gh release view v1",
+"mask_quotes_raw": "gh release view v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"gh",
+"release",
+"view",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"gh",
+"release",
+"view",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag",
+"mask_quotes_pre": "git tag",
+"mask_quotes_raw": "git tag",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"git",
+"tag"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"git",
+"tag"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -l",
+"mask_quotes_pre": "git tag -l",
+"mask_quotes_raw": "git tag -l",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -l"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -l"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-l"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-l"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag --list 'v*'",
+"mask_quotes_pre": "git tag --list 'QQ'",
+"mask_quotes_raw": "git tag --list 'QQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag --list 'v*'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag --list 'v*'"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"tag",
+"--list",
+"'QQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"tag",
+"--list",
+"'QQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -n",
+"mask_quotes_pre": "git tag -n",
+"mask_quotes_raw": "git tag -n",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -n"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -n"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-n"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-n"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag --contains HEAD",
+"mask_quotes_pre": "git tag --contains HEAD",
+"mask_quotes_raw": "git tag --contains HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag --contains HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag --contains HEAD"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log --oneline -3",
+"mask_quotes_pre": "git log --oneline -3",
+"mask_quotes_raw": "git log --oneline -3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log --oneline -3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log --oneline -3"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"log",
+"--oneline",
+"-3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"log",
+"--oneline",
+"-3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C /tmp log -1",
+"mask_quotes_pre": "git -C /tmp log -1",
+"mask_quotes_raw": "git -C /tmp log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff --stat",
+"mask_quotes_pre": "git diff --stat",
+"mask_quotes_raw": "git diff --stat",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff --stat"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff --stat"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"git",
+"diff",
+"--stat"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"git",
+"diff",
+"--stat"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx Ruff check .",
+"mask_quotes_pre": "uvx Ruff check .",
+"mask_quotes_raw": "uvx Ruff check .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx Ruff check ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx Ruff check ."
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"uvx",
+"Ruff",
+"check",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"uvx",
+"Ruff",
+"check",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run black .",
+"mask_quotes_pre": "uv tool run black .",
+"mask_quotes_raw": "uv tool run black .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run black ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run black ."
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "cat @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "cat @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"cat",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "grep -n url @SCRATCH@/r/.git/config",
+"mask_quotes_pre": "grep -n url @SCRATCH@/r/.git/config",
+"mask_quotes_raw": "grep -n url @SCRATCH@/r/.git/config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "grep -n url @SCRATCH@/r/.git/config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "grep -n url @SCRATCH@/r/.git/config"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"grep",
+"-n",
+"url",
+"@SCRATCH@/r/.git/config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ls @SCRATCH@/r/.git/hooks",
+"mask_quotes_pre": "ls @SCRATCH@/r/.git/hooks",
+"mask_quotes_raw": "ls @SCRATCH@/r/.git/hooks",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ls @SCRATCH@/r/.git/hooks"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ls @SCRATCH@/r/.git/hooks"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"ls",
+"@SCRATCH@/r/.git/hooks"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r config --get core.bare",
+"mask_quotes_pre": "git -C @SCRATCH@/r config --get core.bare",
+"mask_quotes_raw": "git -C @SCRATCH@/r config --get core.bare",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --get core.bare"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r config --get core.bare"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"config",
+"--get",
+"core.bare"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C @SCRATCH@/r log -1",
+"mask_quotes_pre": "git -C @SCRATCH@/r log -1",
+"mask_quotes_raw": "git -C @SCRATCH@/r log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C @SCRATCH@/r log -1"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"-C",
+"@SCRATCH@/r",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/notes.txt",
+"mask_quotes_pre": "echo x > @SCRATCH@/notes.txt",
+"mask_quotes_raw": "echo x > @SCRATCH@/notes.txt",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/notes.txt"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/notes.txt"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/notes.txt"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > @SCRATCH@/r/file.txt",
+"mask_quotes_pre": "echo x > @SCRATCH@/r/file.txt",
+"mask_quotes_raw": "echo x > @SCRATCH@/r/file.txt",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/file.txt"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > @SCRATCH@/r/file.txt"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"echo",
+"x",
+">",
+"@SCRATCH@/r/file.txt"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read x <<< y",
+"mask_quotes_pre": "read x <<< y",
+"mask_quotes_raw": "read x <<< y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read x <<< y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read x <<< y"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"read",
+"x",
+"<<<",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"read",
+"x",
+"<<<",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -r -p prompt x <<< y",
+"mask_quotes_pre": "read -r -p prompt x <<< y",
+"mask_quotes_raw": "read -r -p prompt x <<< y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -r -p prompt x <<< y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -r -p prompt x <<< y"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"read",
+"-r",
+"-p",
+"prompt",
+"x",
+"<<<",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf -v x y",
+"mask_quotes_pre": "printf -v x y",
+"mask_quotes_raw": "printf -v x y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf -v x y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf -v x y"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"printf",
+"-v",
+"x",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"printf",
+"-v",
+"x",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mapfile -t arr < f",
+"mask_quotes_pre": "mapfile -t arr < f",
+"mask_quotes_raw": "mapfile -t arr < f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mapfile -t arr < f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mapfile -t arr < f"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"mapfile",
+"-t",
+"arr",
+"<",
+"f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "for f in a b; do git log -1; done",
+"mask_quotes_pre": "for f in a b; do git log -1; done",
+"mask_quotes_raw": "for f in a b; do git log -1; done",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "for f in a b; do git log -1; done"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "for f in a b; do git log -1; done"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"for",
+"f",
+"in",
+"a",
+"b"
+]
+],
+[
+13,
+27,
+[
+"do",
+"git",
+"log",
+"-1"
+]
+],
+[
+28,
+33,
+[
+"done"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"for",
+"f",
+"in",
+"a",
+"b"
+]
+],
+[
+13,
+27,
+[
+"do",
+"git",
+"log",
+"-1"
+]
+],
+[
+28,
+33,
+[
+"done"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "getopts ab: opt",
+"mask_quotes_pre": "getopts ab: opt",
+"mask_quotes_raw": "getopts ab: opt",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "getopts ab: opt"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "getopts ab: opt"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"getopts",
+"ab:",
+"opt"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"getopts",
+"ab:",
+"opt"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${x:=d}",
+"mask_quotes_pre": ": ${x:=d}",
+"mask_quotes_raw": ": ${x:=d}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${x:=d}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${x:=d}"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+8,
+[
+"x:=d"
+]
+],
+[
+9,
+9,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+8,
+[
+"x:=d"
+]
+],
+[
+9,
+9,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "let n=1+2",
+"mask_quotes_pre": "let n=1+2",
+"mask_quotes_raw": "let n=1+2",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "let n=1+2"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "let n=1+2"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"let",
+"n=1+2"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"let",
+"n=1+2"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "local y=1",
+"mask_quotes_pre": "local y=1",
+"mask_quotes_raw": "local y=1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "local y=1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "local y=1"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"local",
+"y=1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"local",
+"y=1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -a arr <<< y",
+"mask_quotes_pre": "read -a arr <<< y",
+"mask_quotes_raw": "read -a arr <<< y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -a arr <<< y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -a arr <<< y"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"read",
+"-a",
+"arr",
+"<<<",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -ra arr <<< y",
+"mask_quotes_pre": "read -ra arr <<< y",
+"mask_quotes_raw": "read -ra arr <<< y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -ra arr <<< y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -ra arr <<< y"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"read",
+"-ra",
+"arr",
+"<<<",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "declare -n r=x",
+"mask_quotes_pre": "declare -n r=x",
+"mask_quotes_raw": "declare -n r=x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=x"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"declare",
+"-n",
+"r=x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"declare",
+"-n",
+"r=x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read arr[0] <<< y",
+"mask_quotes_pre": "read arr[0] <<< y",
+"mask_quotes_raw": "read arr[0] <<< y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read arr[0] <<< y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read arr[0] <<< y"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"read",
+"arr[0]",
+"<<<",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"read",
+"arr[0]",
+"<<<",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "wait -p x",
+"mask_quotes_pre": "wait -p x",
+"mask_quotes_raw": "wait -p x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "wait -p x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "wait -p x"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"wait",
+"-p",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"wait",
+"-p",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "wait -n -p pid",
+"mask_quotes_pre": "wait -n -p pid",
+"mask_quotes_raw": "wait -n -p pid",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "wait -n -p pid"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "wait -n -p pid"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"wait",
+"-n",
+"-p",
+"pid"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"wait",
+"-n",
+"-p",
+"pid"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "coproc foo { :; }",
+"mask_quotes_pre": "coproc foo { :; }",
+"mask_quotes_raw": "coproc foo { :; }",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "coproc foo { :; }"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "coproc foo { :; }"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"coproc",
+"foo"
+]
+],
+[
+12,
+14,
+[
+":"
+]
+],
+[
+15,
+16,
+[]
+],
+[
+17,
+17,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"coproc",
+"foo"
+]
+],
+[
+12,
+14,
+[
+":"
+]
+],
+[
+15,
+16,
+[]
+],
+[
+17,
+17,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "coproc { :; }",
+"mask_quotes_pre": "coproc { :; }",
+"mask_quotes_raw": "coproc { :; }",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "coproc { :; }"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "coproc { :; }"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"coproc"
+]
+],
+[
+8,
+10,
+[
+":"
+]
+],
+[
+11,
+12,
+[]
+],
+[
+13,
+13,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"coproc"
+]
+],
+[
+8,
+10,
+[
+":"
+]
+],
+[
+11,
+12,
+[]
+],
+[
+13,
+13,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec {fd}>f",
+"mask_quotes_pre": "exec {fd}>f",
+"mask_quotes_raw": "exec {fd}>f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "exec {fd}>f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "exec {fd}>f"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+8,
+[
+"fd"
+]
+],
+[
+9,
+11,
+[
+">f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"exec"
+]
+],
+[
+6,
+8,
+[
+"fd"
+]
+],
+[
+9,
+11,
+[
+">f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "declare -n r=x; r=y",
+"mask_quotes_pre": "declare -n r=x; r=y",
+"mask_quotes_raw": "declare -n r=x; r=y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=x; r=y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "declare -n r=x; r=y"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"declare",
+"-n",
+"r=x"
+]
+],
+[
+15,
+19,
+[
+"r=y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"declare",
+"-n",
+"r=x"
+]
+],
+[
+15,
+19,
+[
+"r=y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": <<< ${x:=d}",
+"mask_quotes_pre": ": <<< ${x:=d}",
+"mask_quotes_raw": ": <<< ${x:=d}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": <<< ${x:=d}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": <<< ${x:=d}"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+":",
+"<<<",
+"$"
+]
+],
+[
+8,
+12,
+[
+"x:=d"
+]
+],
+[
+13,
+13,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+":",
+"<<<",
+"$"
+]
+],
+[
+8,
+12,
+[
+"x:=d"
+]
+],
+[
+13,
+13,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log -1",
+"mask_quotes_pre": "git log -1",
+"mask_quotes_raw": "git log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log -1"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mask_quotes_pre": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"mask_quotes_raw": "git diff $(git merge-base origin/main HEAD)..HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(git merge-base origin/main HEAD)..HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff $(git merge-base origin/main HEAD)..HEAD"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+11,
+42,
+[
+"git",
+"merge-base",
+"origin/main",
+"HEAD"
+]
+],
+[
+43,
+49,
+[
+"..HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"git",
+"diff"
+]
+],
+[
+11,
+42,
+[
+"git",
+"merge-base",
+"origin/main",
+"HEAD"
+]
+],
+[
+43,
+49,
+[
+"..HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -55335,7 +64918,7 @@
 ]
 }
 },
-"corpus_commands": 942,
+"corpus_commands": 1112,
 "edge_inputs": 97,
 "python": "3.13"
 }

@@ -46,7 +46,7 @@ func payloadCwd(data map[string]any) string {
 
 // PersistEdit is a port of persist_edit (T-0334): an Edit/Write/MultiEdit/NotebookEdit call on a protected
 // config/init file is refused. A payload without a readable path cannot be decided and fails closed.
-func PersistEdit(data map[string]any) (int, string) {
+func PersistEdit(data map[string]any, role string) (int, string) {
 	ti := toolInput(data)
 	path := ti["file_path"]
 	if !pyTruthy(path) {
@@ -61,9 +61,10 @@ func PersistEdit(data map[string]any) (int, string) {
 	if !strings.HasPrefix(p, "/") {
 		p = pyJoin(cwd, p)
 	}
-	if persistPath(p, false) || (strings.Contains(p, "$") && PersistCode(p)) {
+	noPush := in(noPushRoles, role) // T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
+	if persistPath(p, false, !noPush) || (noPush && gitHooksPath(p, false)) || (strings.Contains(p, "$") && PersistCode(p)) {
 		why := persistWhy
-		if repoCfgPath(pyRealpath(p)) || repoCfgPath(pyNormpath(p)) {
+		if repoCfgPath(pyRealpath(p), true) || repoCfgPath(pyNormpath(p), true) {
 			why = repoCfgWhy
 		}
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + why + ". Tell your lead if this is wrong.\n"

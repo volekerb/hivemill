@@ -2442,7 +2442,7 @@ class Analyzer:
         for t in words:
             if t.startswith("-"):
                 t = t.split("=", 1)[1] if "=" in t else ""
-            base = re.split(r"[\s\[@=<>~!;(]", os.path.basename(t), maxsplit=1)[0]
+            base = re.split(r"[\s\[@=<>~!;(]", os.path.basename(t), maxsplit=1)[0].lower()  # uvx PyTest is pytest
             if base in ("pytest", "py.test", "unittest"):
                 return f"{prefix} {base}"
         return None

@@ -643,14 +643,38 @@ func TestCommandsExecPathReadErrorFailsClosed(t *testing.T) {
 	}
 }
 
-// Python reads scripts with errors="replace": one U+FFFD per undecodable byte.
-func TestReplaceInvalidUTF8PerByte(t *testing.T) {
-	got := replaceInvalidUTF8([]byte("a\xff\xfe\xc3b\xe2\x82"))
-	if want := "a\ufffd\ufffd\ufffdb\ufffd\ufffd"; got != want {
-		t.Errorf("replaceInvalidUTF8 = %q, want %q", got, want)
+// Python reads scripts with errors="replace": one U+FFFD per maximal ill-formed subpart (expected values taken from
+// bytes.decode("utf-8", "replace") in CPython).
+func TestReplaceInvalidUTF8MatchesPython(t *testing.T) {
+	cases := map[string]string{
+		"a\xff\xfe\xc3b\xe2\x82": "a\ufffd\ufffd\ufffdb\ufffd",
+		"\xf0\x9f\x98":           "\ufffd",
+		"\xed\xa0\x80":           "\ufffd\ufffd\ufffd",
+		"\xe0\x80\x80":           "\ufffd\ufffd\ufffd",
+		"\xe2\x82x":              "\ufffdx",
+		"\xf4\x90\x80\x80":       "\ufffd\ufffd\ufffd\ufffd",
+		"ok \u00e9\ufffd":        "ok \u00e9\ufffd",
 	}
-	if got := replaceInvalidUTF8([]byte("ok \u00e9\ufffd")); got != "ok \u00e9\ufffd" {
-		t.Errorf("valid text changed: %q", got)
+	for in, want := range cases {
+		if got := replaceInvalidUTF8([]byte(in)); got != want {
+			t.Errorf("replaceInvalidUTF8(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// claudeOverPriv fails closed when the Analyzer cannot be built (the working directory is gone).
+func TestClaudeOverPrivFailsClosed(t *testing.T) {
+	dir := t.TempDir()
+	gone := filepath.Join(dir, "gone")
+	if err := os.Mkdir(gone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(gone)
+	if err := os.Remove(gone); err != nil {
+		t.Skip("cannot remove the cwd on this platform")
+	}
+	if err := claudeOverPriv("echo hi", "", "coder"); err == nil {
+		t.Error("claudeOverPriv with an unusable cwd = nil, want a block")
 	}
 }
 

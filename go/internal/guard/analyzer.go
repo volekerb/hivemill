@@ -275,9 +275,19 @@ func (a *Analyzer) script(text string, depth int) error {
 			}
 		}
 	}
-	text, extras, err := Preprocess(text, a.HQ, nil)
+	var nbodies []Heredoc // T-0771: the heredoc bodies of this call only
+	text, extras, err := Preprocess(text, a.HQ, &nbodies)
 	if err != nil {
 		return err
+	}
+	if a.noPush() {
+		bodies := make([]string, len(nbodies))
+		for i, b := range nbodies {
+			bodies[i] = b.Body
+		}
+		if err := a.callAssign(text, bodies); err != nil {
+			return err
+		}
 	}
 	for _, x := range extras {
 		switch {
@@ -356,7 +366,7 @@ func (a *Analyzer) script(text string, depth int) error {
 			}
 		}
 		if !IsPunct(tok) {
-			cur = append(cur[:len(cur):len(cur)], tok)
+			cur = append(cur, tok)
 			i++
 			continue
 		}
@@ -385,7 +395,7 @@ func (a *Analyzer) script(text string, depth int) error {
 					stack = stack[:len(stack)-1]
 					cur, piped, hs = top.words, top.piped, top.hs
 					if anyOf(cur, func(w string) bool { return !assignOrReserved(w) }) {
-						cur = append(cur[:len(cur):len(cur)], "$SUB") // the substitution's value is an argument of that command
+						cur = append(cur, "$SUB") // the substitution's value is an argument of that command
 					}
 				default:
 					cmds = append(cmds, pcmd{cur, piped, hs})

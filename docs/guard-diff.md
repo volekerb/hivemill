@@ -85,3 +85,19 @@ python3 ci/guard_diff.py --impl go --roles all --mode both --strict
 - `--allow-loosen` is refused together with `--impl go` (exit 2, `no --allow-loosen with --impl go`); so are `--go-bin` and `--strict` without `--impl go`.
 - A missing `go`, a failed build or an unusable `--go-bin` exits 2 and names the cause.
 - Known TIGHTENED cases that are not behaviour bugs: a payload above 1 MiB, NaN/Infinity and lone-surrogate JSON inputs. Differences in stderr text are not behaviour; the exit code decides.
+
+## GUARD_IMPL in the test suite
+
+Every unit test that runs the worker-guard hook goes through `tests/guard_impl.py` (`hook_run(payload, argv_tail, env=None, cwd=None, timeout=30)`), which picks the implementation from the `GUARD_IMPL` environment variable:
+
+- unset or `python`: `roles/hooks/worker-guard.py`, as before (the default; nothing here flips it).
+- `go`: the Go binary from `GUARD_GO_BIN`, else built once per process from `go/cmd/worker-guard` into a temp dir (called with `--py-hook <the Python hook>`). A missing `go` or a failed build raises, so the test errors; it never skips.
+- `diff`: runs both. Differing exit codes, or differing stderr, raise `AssertionError` naming the arguments and payload. Stderr must be identical except that Go's internal-error lines start `worker-guard(go)` where Python's start `worker-guard`; only that prefix is normalized. (`ci/guard_diff.py` stays exit-code only.) The Python result is returned, so the test's own assertions still run.
+- A test helper that runs the hook in-process (loads the hook module and calls `main()`) must branch on `guard_impl.impl()` and call `hook_run` when it is not `python`; `tests/test_guard_impl_coverage.py` fails a guard test module that calls `main()` in-process without it.
+
+```
+GUARD_IMPL=diff python3 -m unittest tests.test_worker_guard tests.test_priv_guard tests.test_guard_diff
+GUARD_IMPL=go python3 -m unittest tests.test_worker_guard_git
+```
+
+`tests/test_guard_impl_coverage.py` scans `tests/test_*.py`: a module that names `worker-guard` must import `hook_run`, set a module-level `GUARD_IMPL_PYTHON_ONLY = "<reason>"` (it tests Python-only machinery, such as a pwd patch or the copied hook of a skill-eval trial), or be in the test's `ALLOWLIST` (it only mentions the path as text). It also pins the set of guard test modules: a new one fails until it uses the helper and is added to `KNOWN`.

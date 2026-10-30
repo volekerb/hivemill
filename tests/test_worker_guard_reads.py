@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
 
@@ -39,9 +40,9 @@ class ReadsBase(unittest.TestCase):
         env["FACTORY_HOME"] = home or self.home
         if agent:
             env["FACTORY_AGENT"] = agent
-        argv = [sys.executable, HOOK] + (["--role", role] if role else [])
+        argv = (["--role", role] if role else [])
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
-        return subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=30, env=env)
+        return hook_run(payload, argv, env=env)
 
     def blocked(self, cmd, **kw):
         p = self.run_hook(cmd, **kw)

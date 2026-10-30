@@ -16,6 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 from harness import rendered_settings_dir  # noqa: E402
+from guard_impl import hook_run
 
 SETTINGS = sorted(glob.glob(os.path.join(str(rendered_settings_dir()), "*.json")))
 DENY = ["Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)", "Bash(docker:*)"]
@@ -73,9 +74,9 @@ def setUpModule():
 
 
 def run_hook(cmd, mode=None, role=None, env=None):
-    argv = [sys.executable, HOOK] + (MODES[mode] if mode else []) + (["--role", role] if role else [])
+    argv = (MODES[mode] if mode else []) + (["--role", role] if role else [])
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
-    return subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=30, env=env)
+    return hook_run(payload, argv, env=env)
 
 
 class Base(unittest.TestCase):
@@ -141,13 +142,13 @@ class PrivTests(Base):
         self.blocked("$X --version", mode="worker")
 
     def test_hq_bad_json_fails_closed(self):
-        p = subprocess.run([sys.executable, HOOK, "--hq"], input="{not json", capture_output=True, text=True)
+        p = hook_run("{not json", ["--hq"])
         self.assertEqual(p.returncode, 2)
 
     def test_non_bash_tool_allowed(self):
         payload = json.dumps({"tool_name": "Read", "tool_input": {"file_path": "/x"}})
         for argv in (["--hq"], ["--role", "coder"]):
-            p = subprocess.run([sys.executable, HOOK] + argv, input=payload, capture_output=True, text=True)
+            p = hook_run(payload, argv)
             self.assertEqual(p.returncode, 0)
 
     def test_script_on_disk_with_sudo_blocked_in_hq(self):

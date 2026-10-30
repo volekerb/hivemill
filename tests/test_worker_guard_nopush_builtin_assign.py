@@ -2,9 +2,11 @@
 for/select, getopts, let, declare-like builtins or ${VAR:=x} defaults, nor through a dynamic target name."""
 import json
 import os
-import subprocess
 import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from guard_impl import hook_run  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -98,8 +100,7 @@ class BuiltinAssignTests(unittest.TestCase):
     def run_hook(self, cmd, role):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
         payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": ROOT}
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload), capture_output=True,
-                              text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role], env=env)
 
     def test_denied_for_every_no_push_role(self):
         for role in NO_PUSH:

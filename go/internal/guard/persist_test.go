@@ -293,13 +293,13 @@ func TestPersistHQModeUnchanged(t *testing.T) {
 		}
 	}
 	// HQ settings do not route the Edit tools to the hook (main skips PersistEdit with --hq), the rule itself blocks
-	if code, _ := PersistEdit(map[string]any{"tool_name": "Write", "tool_input": map[string]any{"file_path": pw + "/.bashrc"}}); code != 2 {
+	if code, _ := PersistEdit(map[string]any{"tool_name": "Write", "tool_input": map[string]any{"file_path": pw + "/.bashrc"}}, "coder"); code != 2 {
 		t.Errorf("PersistEdit on the rc file: exit %d, want 2", code)
 	}
 }
 
 func editCall(tool, key, path, cwd string) (int, string) {
-	return PersistEdit(map[string]any{"tool_name": tool, "cwd": cwd, "tool_input": map[string]any{key: path}})
+	return PersistEdit(map[string]any{"tool_name": tool, "cwd": cwd, "tool_input": map[string]any{key: path}}, "coder")
 }
 
 func TestPersistEditWritePayloadsToProtectedPathsBlocked(t *testing.T) {
@@ -363,12 +363,12 @@ func TestPersistEditOtherPathsAllowedAndUnreadablePayloadFailsClosed(t *testing.
 		{"tool_name": "Edit"},
 		{"tool_name": "Edit", "tool_input": map[string]any{"file_path": "", "notebook_path": ""}},
 	} {
-		if code, msg := PersistEdit(data); code != 2 || !strings.Contains(msg, "without a readable file_path") {
+		if code, msg := PersistEdit(data, "coder"); code != 2 || !strings.Contains(msg, "without a readable file_path") {
 			t.Errorf("%v: exit %d %q, want 2 failing closed", data, code, msg)
 		}
 	}
 	// the falsy file_path falls through to notebook_path, as `or` does
-	if code, _ := PersistEdit(map[string]any{"tool_input": map[string]any{"file_path": "", "notebook_path": pw + "/.bashrc"}}); code != 2 {
+	if code, _ := PersistEdit(map[string]any{"tool_input": map[string]any{"file_path": "", "notebook_path": pw + "/.bashrc"}}, "coder"); code != 2 {
 		t.Error("empty file_path with a protected notebook_path allowed")
 	}
 }
@@ -487,7 +487,7 @@ func TestRepoCfgEditWriteAndRedirectsToRepoConfigBlocked(t *testing.T) {
 	for _, role := range []string{"coder", "qa"} {
 		for _, target := range targets {
 			for _, tool := range []string{"Edit", "Write", "MultiEdit"} {
-				code, msg := PersistEdit(map[string]any{"tool_name": tool, "tool_input": map[string]any{"file_path": target}})
+				code, msg := PersistEdit(map[string]any{"tool_name": tool, "tool_input": map[string]any{"file_path": target}}, "coder")
 				if code != 2 || !strings.Contains(msg, "accident prevention") {
 					t.Errorf("%s %s: exit %d %q, want 2 with the repo-config reason", tool, target, code, msg)
 				}
@@ -512,7 +512,7 @@ func TestRepoCfgBareRepoConfigBlockedOutsideScratchpadOnly(t *testing.T) {
 	c.blocked("echo x >> "+bare+"/info/attributes", "coder", f.wt)
 	c.allowed("echo x >> "+f.scratch+"/bare.git/config", "coder", f.wt)
 	c.allowed("echo x >> "+f.clone+"/.git/config", "coder", f.wt)
-	if code, msg := PersistEdit(map[string]any{"tool_name": "Write", "tool_input": map[string]any{"file_path": f.clone + "/.git/config"}}); code != 0 {
+	if code, msg := PersistEdit(map[string]any{"tool_name": "Write", "tool_input": map[string]any{"file_path": f.clone + "/.git/config"}}, "coder"); code != 0 {
 		t.Errorf("Write into the scratchpad clone: exit %d %q, want 0", code, msg)
 	}
 }
