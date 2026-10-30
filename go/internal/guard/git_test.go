@@ -525,14 +525,14 @@ func TestGitDelegations(t *testing.T) {
 		block = "block"
 	)
 	for _, c := range []struct{ cmd, role, want string }{
-		{"git push origin HEAD:factory/t-7", "coder", deleg}, {"git push origin x", "qa", deleg},
+		{"git push origin HEAD:factory/t-7", "coder", deleg}, {"git push origin x", "judge", deleg},
 		{"git -C . send-pack x", "coder", block}, {"git push origin x", "coder", block},
-		{"git commit -m x", "coder", deleg}, {"git tag v1", "qa", allow}, {"git tag -a v1 -m x", "qa", deleg},
+		{"git commit -m x", "coder", deleg}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", deleg},
 		{"git merge x", "judge", deleg}, {"git notes add", "coder", deleg}, {"git commit-tree x", "coder", deleg},
 		{"git -c alias.c=commit c", "coder", deleg}, {"git -C x commit -m y", "coder", deleg},
 		{"git status", "coder", allow}, {"git add -A", "coder", allow}, {"git log commit", "coder", allow},
 		{"git rebase main", "coder", allow}, {"git branch -a", "coder", allow}, {"git checkout x", "coder", allow},
-		{"git --git-dir=x status", "coder", allow}, {"git stash", "pm", allow},
+		{"git --git-dir=x status", "coder", allow}, {"git stash", "judge", allow},
 	} {
 		err := f.check(c.cmd, f.wt, c.role)
 		got := allow

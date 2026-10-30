@@ -197,7 +197,7 @@ func (a *Analyzer) persistHit(word string, ancestor bool) bool {
 			}
 			t = pyJoin(a.ccwd, t)
 		}
-		if persistPath(t, ancestor) {
+		if persistPath(t, ancestor) || (a.noPush() && gitHooksPath(t)) {
 			return true
 		}
 	}

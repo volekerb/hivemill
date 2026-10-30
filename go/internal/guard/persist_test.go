@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,9 @@ func pwHome(t *testing.T) string {
 
 var protectedRel = []string{".gitconfig", ".config/git/config", ".config/git/attributes", ".config/git/ignore", ".bashrc", ".zshrc",
 	".zshenv", ".profile", ".bash_profile", ".zprofile"}
+
+// noPushConfigRead is NO_PUSH_CONFIG_READ of tests/test_worker_guard_persist.py.
+var noPushConfigRead = regexp.MustCompile(`--get|--list| -l(?: |$)`)
 
 var persistRoles = []string{"coder", "qa", "reviewer"}
 
@@ -195,6 +199,10 @@ func TestPersistReadOnlyAndRepoLocalFormsAllowed(t *testing.T) {
 			"echo x > .bashrc.sample", "echo x > notes.profile", "echo x > ~/.bashrc.d.txt",
 			"echo x > /tmp/gitconfig", "echo x > ~/.config/gitx", "echo x > ~/.config/gitkraken/c",
 			"sed -i s/a/b/ src/.profile.in", "echo x >> out.txt", "tee notes.txt"} {
+			if (role == "qa" || role == "reviewer") && strings.HasPrefix(cmd, "git") &&
+				(strings.HasPrefix(cmd, "git -c") || !noPushConfigRead.MatchString(cmd)) {
+				continue // T-0755: read-only roles run only the --get/--list forms of git config (allow-list)
+			}
 			c.allowed(cmd, role, "")
 		}
 	}
@@ -431,7 +439,7 @@ func TestRepoCfgReadsAllowed(t *testing.T) {
 		"git config --list", "git config -l", "git config get user.name", "git config list",
 		"git config --local --get a.b", "git config --show-origin --list", "git config user.name",
 		"git -C " + f.home + " config --get remote.origin.url", "git --git-dir=" + f.home + "/.git config --list"} {
-		for _, role := range []string{"coder", "qa"} {
+		for _, role := range []string{"coder", "judge"} {
 			c.allowed(cmd, role, f.wt)
 		}
 	}
@@ -439,7 +447,7 @@ func TestRepoCfgReadsAllowed(t *testing.T) {
 
 func TestRepoCfgFileInsideScratchpadAllowed(t *testing.T) {
 	f, c := newRepoFix(t)
-	for _, role := range []string{"coder", "qa"} {
+	for _, role := range []string{"coder", "judge"} {
 		c.allowed("git config --file "+f.scratch+"/x.cfg k v", role, f.wt)
 		c.allowed("git config -f "+f.scratch+"/x.cfg --add k v", role, f.wt)
 		c.allowed("cd "+f.scratch+" && git config --file x.cfg k v", role, f.wt)
@@ -448,7 +456,7 @@ func TestRepoCfgFileInsideScratchpadAllowed(t *testing.T) {
 
 func TestRepoCfgCloneInsideScratchpadAllowedLinkedWorktreeNot(t *testing.T) {
 	f, c := newRepoFix(t)
-	for _, role := range []string{"coder", "qa"} {
+	for _, role := range []string{"coder", "judge"} {
 		c.allowed("git -C "+f.clone+" config user.name x", role, f.wt)
 		c.allowed("git -C "+f.clone+" remote add o ../elsewhere", role, f.wt)
 		c.allowed("cd "+f.clone+" && git config core.autocrlf false", role, f.wt)

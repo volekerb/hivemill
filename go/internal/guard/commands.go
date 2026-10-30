@@ -562,6 +562,14 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	}
 	words = stripped
+	if a.noPush() {
+		if err := a.gitConfigEnv(assigns, words); err != nil {
+			return err
+		}
+		if err := a.gitLaunch(assigns, words); err != nil {
+			return err
+		}
+	}
 	if len(words) == 0 {
 		for _, x := range assigns { // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
 			if IsAssign(x) {
@@ -721,6 +729,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 		if err := a.gitDelete(rest); err != nil {
 			return err
+		}
+		if a.noPush() { // T-0755: after gitDelete, whose reason names the branch-deletion rule
+			if err := a.gitAllow(rest); err != nil {
+				return err
+			}
 		}
 		if err := a.gitPersist(rest, depth); err != nil {
 			return err
@@ -1072,6 +1085,16 @@ func (a *Analyzer) execPath(path string, depth int) error {
 	}
 	if strings.HasPrefix(first, "#!") && shShebang(first) {
 		text, err := a.read(path)
+		if err != nil {
+			return err
+		}
+		return a.script(text, depth+1)
+	}
+	if a.noPush() && !strings.HasPrefix(string(head[:n]), "\x7fELF") {
+		if strings.HasPrefix(first, "#!") {
+			return a.gitDeny(path + " is a script for another interpreter, whose body this hook does not inspect")
+		}
+		text, err := a.read(path) // no shebang: the kernel hands it to sh, so read it as sh
 		if err != nil {
 			return err
 		}

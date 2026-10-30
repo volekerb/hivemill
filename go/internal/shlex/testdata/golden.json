@@ -20838,6 +20838,6553 @@
 "src": "corpus"
 },
 {
+"input": "p=push; git $p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git $p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git $p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"p=push;",
+"git",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git $p origin main",
+"mode": "quote",
+"quoted": "'p=push; git $p origin main'",
+"src": "corpus"
+},
+{
+"input": "p=push; git ${p} x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"${p}",
+"x"
+]
+},
+{
+"input": "p=push; git ${p} x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$",
+"{",
+"p",
+"}",
+"x"
+]
+},
+{
+"input": "p=push; git ${p} x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"p=push;",
+"git",
+"${p}",
+"x"
+]
+},
+{
+"input": "p=push; git ${p} x",
+"mode": "quote",
+"quoted": "'p=push; git ${p} x'",
+"src": "corpus"
+},
+{
+"input": "p=push; git \"$p\" origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git \"$p\" origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git \"$p\" origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"p=push;",
+"git",
+"$p",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git \"$p\" origin main",
+"mode": "quote",
+"quoted": "'p=push; git \"$p\" origin main'",
+"src": "corpus"
+},
+{
+"input": "git `echo push` origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"`echo",
+"push`",
+"origin",
+"main"
+]
+},
+{
+"input": "git `echo push` origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"`",
+"echo",
+"push",
+"`",
+"origin",
+"main"
+]
+},
+{
+"input": "git `echo push` origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"`echo",
+"push`",
+"origin",
+"main"
+]
+},
+{
+"input": "git `echo push` origin main",
+"mode": "quote",
+"quoted": "'git `echo push` origin main'",
+"src": "corpus"
+},
+{
+"input": "p=push; git $p --dry-run origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$p",
+"--dry-run",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git $p --dry-run origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"p=push",
+";",
+"git",
+"$",
+"p",
+"--dry-run",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git $p --dry-run origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"p=push;",
+"git",
+"$p",
+"--dry-run",
+"origin",
+"main"
+]
+},
+{
+"input": "p=push; git $p --dry-run origin main",
+"mode": "quote",
+"quoted": "'p=push; git $p --dry-run origin main'",
+"src": "corpus"
+},
+{
+"input": "GIT_CONFIG_GLOBAL=f git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_GLOBAL=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_GLOBAL=f git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_GLOBAL=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_GLOBAL=f git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_GLOBAL=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_GLOBAL=f git p origin main",
+"mode": "quote",
+"quoted": "'GIT_CONFIG_GLOBAL=f git p origin main'",
+"src": "corpus"
+},
+{
+"input": "GIT_CONFIG_SYSTEM=f git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_SYSTEM=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_SYSTEM=f git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_SYSTEM=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_SYSTEM=f git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_SYSTEM=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_SYSTEM=f git p origin main",
+"mode": "quote",
+"quoted": "'GIT_CONFIG_SYSTEM=f git p origin main'",
+"src": "corpus"
+},
+{
+"input": "GIT_CONFIG=f git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG=f git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG=f git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG=f",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG=f git p origin main",
+"mode": "quote",
+"quoted": "'GIT_CONFIG=f git p origin main'",
+"src": "corpus"
+},
+{
+"input": "HOME=d git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=d",
+"git",
+"p"
+]
+},
+{
+"input": "HOME=d git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=d",
+"git",
+"p"
+]
+},
+{
+"input": "HOME=d git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=d",
+"git",
+"p"
+]
+},
+{
+"input": "HOME=d git p",
+"mode": "quote",
+"quoted": "'HOME=d git p'",
+"src": "corpus"
+},
+{
+"input": "env HOME=d git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"HOME=d",
+"git",
+"p"
+]
+},
+{
+"input": "env HOME=d git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"HOME=d",
+"git",
+"p"
+]
+},
+{
+"input": "env HOME=d git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"HOME=d",
+"git",
+"p"
+]
+},
+{
+"input": "env HOME=d git p",
+"mode": "quote",
+"quoted": "'env HOME=d git p'",
+"src": "corpus"
+},
+{
+"input": "export HOME=d; git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=d",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "export HOME=d; git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=d",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "export HOME=d; git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=d;",
+"git",
+"p"
+]
+},
+{
+"input": "export HOME=d; git p",
+"mode": "quote",
+"quoted": "'export HOME=d; git p'",
+"src": "corpus"
+},
+{
+"input": "export GIT_CONFIG_GLOBAL=f; git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_GLOBAL=f",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "export GIT_CONFIG_GLOBAL=f; git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_GLOBAL=f",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "export GIT_CONFIG_GLOBAL=f; git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_GLOBAL=f;",
+"git",
+"p"
+]
+},
+{
+"input": "export GIT_CONFIG_GLOBAL=f; git p",
+"mode": "quote",
+"quoted": "'export GIT_CONFIG_GLOBAL=f; git p'",
+"src": "corpus"
+},
+{
+"input": "unset HOME; git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"HOME",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "unset HOME; git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"HOME",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "unset HOME; git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"HOME;",
+"git",
+"p"
+]
+},
+{
+"input": "unset HOME; git p",
+"mode": "quote",
+"quoted": "'unset HOME; git p'",
+"src": "corpus"
+},
+{
+"input": "HOME=d; git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=d",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "HOME=d; git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=d",
+";",
+"git",
+"p"
+]
+},
+{
+"input": "HOME=d; git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=d;",
+"git",
+"p"
+]
+},
+{
+"input": "HOME=d; git p",
+"mode": "quote",
+"quoted": "'HOME=d; git p'",
+"src": "corpus"
+},
+{
+"input": "PATH=/x:$PATH git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"PATH=/x:$PATH",
+"git",
+"status"
+]
+},
+{
+"input": "PATH=/x:$PATH git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"PATH=/x",
+":",
+"$",
+"PATH",
+"git",
+"status"
+]
+},
+{
+"input": "PATH=/x:$PATH git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"PATH=/x:$PATH",
+"git",
+"status"
+]
+},
+{
+"input": "PATH=/x:$PATH git status",
+"mode": "quote",
+"quoted": "'PATH=/x:$PATH git status'",
+"src": "corpus"
+},
+{
+"input": "git -c include.path=f p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"include.path=f",
+"p"
+]
+},
+{
+"input": "git -c include.path=f p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"include.path=f",
+"p"
+]
+},
+{
+"input": "git -c include.path=f p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"include.path=f",
+"p"
+]
+},
+{
+"input": "git -c include.path=f p",
+"mode": "quote",
+"quoted": "'git -c include.path=f p'",
+"src": "corpus"
+},
+{
+"input": "git -c includeIf.x.path=f p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"includeIf.x.path=f",
+"p"
+]
+},
+{
+"input": "git -c includeIf.x.path=f p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"includeIf.x.path=f",
+"p"
+]
+},
+{
+"input": "git -c includeIf.x.path=f p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"includeIf.x.path=f",
+"p"
+]
+},
+{
+"input": "git -c includeIf.x.path=f p",
+"mode": "quote",
+"quoted": "'git -c includeIf.x.path=f p'",
+"src": "corpus"
+},
+{
+"input": "git -c core.pager=cat log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.pager=cat",
+"log"
+]
+},
+{
+"input": "git -c core.pager=cat log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.pager=cat",
+"log"
+]
+},
+{
+"input": "git -c core.pager=cat log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"core.pager=cat",
+"log"
+]
+},
+{
+"input": "git -c core.pager=cat log",
+"mode": "quote",
+"quoted": "'git -c core.pager=cat log'",
+"src": "corpus"
+},
+{
+"input": "git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"p"
+]
+},
+{
+"input": "git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"p"
+]
+},
+{
+"input": "git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"p"
+]
+},
+{
+"input": "git p",
+"mode": "quote",
+"quoted": "'git p'",
+"src": "corpus"
+},
+{
+"input": "git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git p origin main",
+"mode": "quote",
+"quoted": "'git p origin main'",
+"src": "corpus"
+},
+{
+"input": "git fetch --upload-pack='x' .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--upload-pack=x",
+"."
+]
+},
+{
+"input": "git fetch --upload-pack='x' .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--upload-pack=x",
+"."
+]
+},
+{
+"input": "git fetch --upload-pack='x' .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--upload-pack=x",
+"."
+]
+},
+{
+"input": "git fetch --upload-pack='x' .",
+"mode": "quote",
+"quoted": "'git fetch --upload-pack='\"'\"'x'\"'\"' .'",
+"src": "corpus"
+},
+{
+"input": "git fetch --upload-pack=x origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--upload-pack=x",
+"origin"
+]
+},
+{
+"input": "git fetch --upload-pack=x origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--upload-pack=x",
+"origin"
+]
+},
+{
+"input": "git fetch --upload-pack=x origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--upload-pack=x",
+"origin"
+]
+},
+{
+"input": "git fetch --upload-pack=x origin",
+"mode": "quote",
+"quoted": "'git fetch --upload-pack=x origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch -u x origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"-u",
+"x",
+"origin"
+]
+},
+{
+"input": "git fetch -u x origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"-u",
+"x",
+"origin"
+]
+},
+{
+"input": "git fetch -u x origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"-u",
+"x",
+"origin"
+]
+},
+{
+"input": "git fetch -u x origin",
+"mode": "quote",
+"quoted": "'git fetch -u x origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch 'ext::sh -c x'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"ext::sh -c x"
+]
+},
+{
+"input": "git fetch 'ext::sh -c x'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"ext::sh -c x"
+]
+},
+{
+"input": "git fetch 'ext::sh -c x'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"ext::sh -c x"
+]
+},
+{
+"input": "git fetch 'ext::sh -c x'",
+"mode": "quote",
+"quoted": "'git fetch '\"'\"'ext::sh -c x'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git fetch origin 'ext::sh -c x'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"ext::sh -c x"
+]
+},
+{
+"input": "git fetch origin 'ext::sh -c x'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"ext::sh -c x"
+]
+},
+{
+"input": "git fetch origin 'ext::sh -c x'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"ext::sh -c x"
+]
+},
+{
+"input": "git fetch origin 'ext::sh -c x'",
+"mode": "quote",
+"quoted": "'git fetch origin '\"'\"'ext::sh -c x'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git fetch https://example.com/x.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"https://example.com/x.git"
+]
+},
+{
+"input": "git fetch https://example.com/x.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"https",
+":",
+"//example.com/x.git"
+]
+},
+{
+"input": "git fetch https://example.com/x.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"https://example.com/x.git"
+]
+},
+{
+"input": "git fetch https://example.com/x.git",
+"mode": "quote",
+"quoted": "'git fetch https://example.com/x.git'",
+"src": "corpus"
+},
+{
+"input": "git fetch /tmp/other",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"/tmp/other"
+]
+},
+{
+"input": "git fetch /tmp/other",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"/tmp/other"
+]
+},
+{
+"input": "git fetch /tmp/other",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"/tmp/other"
+]
+},
+{
+"input": "git fetch /tmp/other",
+"mode": "quote",
+"quoted": "'git fetch /tmp/other'",
+"src": "corpus"
+},
+{
+"input": "git ls-remote --upload-pack=x origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"--upload-pack=x",
+"origin"
+]
+},
+{
+"input": "git ls-remote --upload-pack=x origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"--upload-pack=x",
+"origin"
+]
+},
+{
+"input": "git ls-remote --upload-pack=x origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"--upload-pack=x",
+"origin"
+]
+},
+{
+"input": "git ls-remote --upload-pack=x origin",
+"mode": "quote",
+"quoted": "'git ls-remote --upload-pack=x origin'",
+"src": "corpus"
+},
+{
+"input": "git ls-remote git@example.com:x/y.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"git@example.com:x/y.git"
+]
+},
+{
+"input": "git ls-remote git@example.com:x/y.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"git",
+"@",
+"example.com",
+":",
+"x/y.git"
+]
+},
+{
+"input": "git ls-remote git@example.com:x/y.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"git@example.com:x/y.git"
+]
+},
+{
+"input": "git ls-remote git@example.com:x/y.git",
+"mode": "quote",
+"quoted": "'git ls-remote git@example.com:x/y.git'",
+"src": "corpus"
+},
+{
+"input": "git fetch --server-option=x origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--server-option=x",
+"origin"
+]
+},
+{
+"input": "git fetch --server-option=x origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--server-option=x",
+"origin"
+]
+},
+{
+"input": "git fetch --server-option=x origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--server-option=x",
+"origin"
+]
+},
+{
+"input": "git fetch --server-option=x origin",
+"mode": "quote",
+"quoted": "'git fetch --server-option=x origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch $r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$r"
+]
+},
+{
+"input": "git fetch $r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$",
+"r"
+]
+},
+{
+"input": "git fetch $r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"$r"
+]
+},
+{
+"input": "git fetch $r",
+"mode": "quote",
+"quoted": "'git fetch $r'",
+"src": "corpus"
+},
+{
+"input": "git ls-remote $r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"$r"
+]
+},
+{
+"input": "git ls-remote $r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"$",
+"r"
+]
+},
+{
+"input": "git ls-remote $r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"$r"
+]
+},
+{
+"input": "git ls-remote $r",
+"mode": "quote",
+"quoted": "'git ls-remote $r'",
+"src": "corpus"
+},
+{
+"input": "o=--output=y; git diff $o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"o=--output=y",
+";",
+"git",
+"diff",
+"$o"
+]
+},
+{
+"input": "o=--output=y; git diff $o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"o=--output=y",
+";",
+"git",
+"diff",
+"$",
+"o"
+]
+},
+{
+"input": "o=--output=y; git diff $o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"o=--output=y;",
+"git",
+"diff",
+"$o"
+]
+},
+{
+"input": "o=--output=y; git diff $o",
+"mode": "quote",
+"quoted": "'o=--output=y; git diff $o'",
+"src": "corpus"
+},
+{
+"input": "o=--ext-diff; git log -1 $o",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"o=--ext-diff",
+";",
+"git",
+"log",
+"-1",
+"$o"
+]
+},
+{
+"input": "o=--ext-diff; git log -1 $o",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"o=--ext-diff",
+";",
+"git",
+"log",
+"-1",
+"$",
+"o"
+]
+},
+{
+"input": "o=--ext-diff; git log -1 $o",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"o=--ext-diff;",
+"git",
+"log",
+"-1",
+"$o"
+]
+},
+{
+"input": "o=--ext-diff; git log -1 $o",
+"mode": "quote",
+"quoted": "'o=--ext-diff; git log -1 $o'",
+"src": "corpus"
+},
+{
+"input": "git log -1 --format=x $(echo --output=y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"-1",
+"--format=x",
+"$",
+"(",
+"echo",
+"--output=y",
+")"
+]
+},
+{
+"input": "git log -1 --format=x $(echo --output=y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"-1",
+"--format=x",
+"$",
+"(",
+"echo",
+"--output=y",
+")"
+]
+},
+{
+"input": "git log -1 --format=x $(echo --output=y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"-1",
+"--format=x",
+"$(echo",
+"--output=y)"
+]
+},
+{
+"input": "git log -1 --format=x $(echo --output=y)",
+"mode": "quote",
+"quoted": "'git log -1 --format=x $(echo --output=y)'",
+"src": "corpus"
+},
+{
+"input": "git fetch origin main:refs/heads/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"main:refs/heads/x"
+]
+},
+{
+"input": "git fetch origin main:refs/heads/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"main",
+":",
+"refs/heads/x"
+]
+},
+{
+"input": "git fetch origin main:refs/heads/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"main:refs/heads/x"
+]
+},
+{
+"input": "git fetch origin main:refs/heads/x",
+"mode": "quote",
+"quoted": "'git fetch origin main:refs/heads/x'",
+"src": "corpus"
+},
+{
+"input": "git fetch origin +main:main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"+main:main"
+]
+},
+{
+"input": "git fetch origin +main:main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"+",
+"main",
+":",
+"main"
+]
+},
+{
+"input": "git fetch origin +main:main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"+main:main"
+]
+},
+{
+"input": "git fetch origin +main:main",
+"mode": "quote",
+"quoted": "'git fetch origin +main:main'",
+"src": "corpus"
+},
+{
+"input": "git grep -O x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-O",
+"x"
+]
+},
+{
+"input": "git grep -O x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-O",
+"x"
+]
+},
+{
+"input": "git grep -O x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-O",
+"x"
+]
+},
+{
+"input": "git grep -O x",
+"mode": "quote",
+"quoted": "'git grep -O x'",
+"src": "corpus"
+},
+{
+"input": "git grep -nO x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-nO",
+"x"
+]
+},
+{
+"input": "git grep -nO x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-nO",
+"x"
+]
+},
+{
+"input": "git grep -nO x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-nO",
+"x"
+]
+},
+{
+"input": "git grep -nO x",
+"mode": "quote",
+"quoted": "'git grep -nO x'",
+"src": "corpus"
+},
+{
+"input": "git grep --open-files-in-pager=x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"--open-files-in-pager=x",
+"y"
+]
+},
+{
+"input": "git grep --open-files-in-pager=x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"--open-files-in-pager=x",
+"y"
+]
+},
+{
+"input": "git grep --open-files-in-pager=x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"--open-files-in-pager=x",
+"y"
+]
+},
+{
+"input": "git grep --open-files-in-pager=x y",
+"mode": "quote",
+"quoted": "'git grep --open-files-in-pager=x y'",
+"src": "corpus"
+},
+{
+"input": "git grep --open-f=x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"--open-f=x",
+"y"
+]
+},
+{
+"input": "git grep --open-f=x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"--open-f=x",
+"y"
+]
+},
+{
+"input": "git grep --open-f=x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"--open-f=x",
+"y"
+]
+},
+{
+"input": "git grep --open-f=x y",
+"mode": "quote",
+"quoted": "'git grep --open-f=x y'",
+"src": "corpus"
+},
+{
+"input": "git grep $pat",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"$pat"
+]
+},
+{
+"input": "git grep $pat",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"$",
+"pat"
+]
+},
+{
+"input": "git grep $pat",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"$pat"
+]
+},
+{
+"input": "git grep $pat",
+"mode": "quote",
+"quoted": "'git grep $pat'",
+"src": "corpus"
+},
+{
+"input": "git log --ext-diff",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--ext-diff"
+]
+},
+{
+"input": "git log --ext-diff",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--ext-diff"
+]
+},
+{
+"input": "git log --ext-diff",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--ext-diff"
+]
+},
+{
+"input": "git log --ext-diff",
+"mode": "quote",
+"quoted": "'git log --ext-diff'",
+"src": "corpus"
+},
+{
+"input": "git diff --ext-diff",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--ext-diff"
+]
+},
+{
+"input": "git diff --ext-diff",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--ext-diff"
+]
+},
+{
+"input": "git diff --ext-diff",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--ext-diff"
+]
+},
+{
+"input": "git diff --ext-diff",
+"mode": "quote",
+"quoted": "'git diff --ext-diff'",
+"src": "corpus"
+},
+{
+"input": "git show --output=f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"--output=f"
+]
+},
+{
+"input": "git show --output=f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"--output=f"
+]
+},
+{
+"input": "git show --output=f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"--output=f"
+]
+},
+{
+"input": "git show --output=f",
+"mode": "quote",
+"quoted": "'git show --output=f'",
+"src": "corpus"
+},
+{
+"input": "git log --output f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--output",
+"f"
+]
+},
+{
+"input": "git log --output f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--output",
+"f"
+]
+},
+{
+"input": "git log --output f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--output",
+"f"
+]
+},
+{
+"input": "git log --output f",
+"mode": "quote",
+"quoted": "'git log --output f'",
+"src": "corpus"
+},
+{
+"input": "git diff --outp=f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--outp=f"
+]
+},
+{
+"input": "git diff --outp=f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--outp=f"
+]
+},
+{
+"input": "git diff --outp=f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--outp=f"
+]
+},
+{
+"input": "git diff --outp=f",
+"mode": "quote",
+"quoted": "'git diff --outp=f'",
+"src": "corpus"
+},
+{
+"input": "git -p log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-p",
+"log"
+]
+},
+{
+"input": "git -p log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-p",
+"log"
+]
+},
+{
+"input": "git -p log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-p",
+"log"
+]
+},
+{
+"input": "git -p log",
+"mode": "quote",
+"quoted": "'git -p log'",
+"src": "corpus"
+},
+{
+"input": "git --paginate log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--paginate",
+"log"
+]
+},
+{
+"input": "git --paginate log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--paginate",
+"log"
+]
+},
+{
+"input": "git --paginate log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--paginate",
+"log"
+]
+},
+{
+"input": "git --paginate log",
+"mode": "quote",
+"quoted": "'git --paginate log'",
+"src": "corpus"
+},
+{
+"input": "echo '[alias] p=push' >> .git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"[alias] p=push",
+">>",
+".git/config"
+]
+},
+{
+"input": "echo '[alias] p=push' >> .git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"[alias] p=push",
+">>",
+".git/config"
+]
+},
+{
+"input": "echo '[alias] p=push' >> .git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"[alias] p=push",
+">>",
+".git/config"
+]
+},
+{
+"input": "echo '[alias] p=push' >> .git/config",
+"mode": "quote",
+"quoted": "'echo '\"'\"'[alias] p=push'\"'\"' >> .git/config'",
+"src": "corpus"
+},
+{
+"input": "tee -a .git/config < /dev/null",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tee",
+"-a",
+".git/config",
+"<",
+"/dev/null"
+]
+},
+{
+"input": "tee -a .git/config < /dev/null",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tee",
+"-a",
+".git/config",
+"<",
+"/dev/null"
+]
+},
+{
+"input": "tee -a .git/config < /dev/null",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tee",
+"-a",
+".git/config",
+"<",
+"/dev/null"
+]
+},
+{
+"input": "tee -a .git/config < /dev/null",
+"mode": "quote",
+"quoted": "'tee -a .git/config < /dev/null'",
+"src": "corpus"
+},
+{
+"input": "cp /dev/null .git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/dev/null",
+".git/config"
+]
+},
+{
+"input": "cp /dev/null .git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/dev/null",
+".git/config"
+]
+},
+{
+"input": "cp /dev/null .git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/dev/null",
+".git/config"
+]
+},
+{
+"input": "cp /dev/null .git/config",
+"mode": "quote",
+"quoted": "'cp /dev/null .git/config'",
+"src": "corpus"
+},
+{
+"input": "sed -i s/a/b/ .git/config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+".git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ .git/config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+".git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ .git/config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+".git/config"
+]
+},
+{
+"input": "sed -i s/a/b/ .git/config",
+"mode": "quote",
+"quoted": "'sed -i s/a/b/ .git/config'",
+"src": "corpus"
+},
+{
+"input": "echo x > .git/hooks/pre-push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+".git/hooks/pre-push"
+]
+},
+{
+"input": "echo x > .git/hooks/pre-push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+".git/hooks/pre-push"
+]
+},
+{
+"input": "echo x > .git/hooks/pre-push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+".git/hooks/pre-push"
+]
+},
+{
+"input": "echo x > .git/hooks/pre-push",
+"mode": "quote",
+"quoted": "'echo x > .git/hooks/pre-push'",
+"src": "corpus"
+},
+{
+"input": "echo x > .git/info/attributes",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+".git/info/attributes"
+]
+},
+{
+"input": "echo x > .git/info/attributes",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+".git/info/attributes"
+]
+},
+{
+"input": "echo x > .git/info/attributes",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+".git/info/attributes"
+]
+},
+{
+"input": "echo x > .git/info/attributes",
+"mode": "quote",
+"quoted": "'echo x > .git/info/attributes'",
+"src": "corpus"
+},
+{
+"input": "echo '[alias]' >> ~/.gitconfig",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"[alias]",
+">>",
+"~/.gitconfig"
+]
+},
+{
+"input": "echo '[alias]' >> ~/.gitconfig",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"[alias]",
+">>",
+"~/.gitconfig"
+]
+},
+{
+"input": "echo '[alias]' >> ~/.gitconfig",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"[alias]",
+">>",
+"~/.gitconfig"
+]
+},
+{
+"input": "echo '[alias]' >> ~/.gitconfig",
+"mode": "quote",
+"quoted": "'echo '\"'\"'[alias]'\"'\"' >> ~/.gitconfig'",
+"src": "corpus"
+},
+{
+"input": "git config --file .git/config alias.p push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+".git/config",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config --file .git/config alias.p push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+".git/config",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config --file .git/config alias.p push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+".git/config",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config --file .git/config alias.p push",
+"mode": "quote",
+"quoted": "'git config --file .git/config alias.p push'",
+"src": "corpus"
+},
+{
+"input": "printf push | xargs git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"push",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "printf push | xargs git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"push",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "printf push | xargs git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"push",
+"|",
+"xargs",
+"git"
+]
+},
+{
+"input": "printf push | xargs git",
+"mode": "quote",
+"quoted": "'printf push | xargs git'",
+"src": "corpus"
+},
+{
+"input": "echo push | xargs -n1 git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"|",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "echo push | xargs -n1 git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"|",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "echo push | xargs -n1 git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"push",
+"|",
+"xargs",
+"-n1",
+"git"
+]
+},
+{
+"input": "echo push | xargs -n1 git",
+"mode": "quote",
+"quoted": "'echo push | xargs -n1 git'",
+"src": "corpus"
+},
+{
+"input": "find . -maxdepth 0 -exec git push \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"push",
+";"
+]
+},
+{
+"input": "find . -maxdepth 0 -exec git push \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"push",
+";"
+]
+},
+{
+"input": "find . -maxdepth 0 -exec git push \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"push",
+";"
+]
+},
+{
+"input": "find . -maxdepth 0 -exec git push \\;",
+"mode": "quote",
+"quoted": "'find . -maxdepth 0 -exec git push \\;'",
+"src": "corpus"
+},
+{
+"input": "find . -maxdepth 0 -execdir git p \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-maxdepth",
+"0",
+"-execdir",
+"git",
+"p",
+";"
+]
+},
+{
+"input": "find . -maxdepth 0 -execdir git p \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-maxdepth",
+"0",
+"-execdir",
+"git",
+"p",
+";"
+]
+},
+{
+"input": "find . -maxdepth 0 -execdir git p \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-maxdepth",
+"0",
+"-execdir",
+"git",
+"p",
+";"
+]
+},
+{
+"input": "find . -maxdepth 0 -execdir git p \\;",
+"mode": "quote",
+"quoted": "'find . -maxdepth 0 -execdir git p \\;'",
+"src": "corpus"
+},
+{
+"input": "find . -ok git p \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-ok",
+"git",
+"p",
+";"
+]
+},
+{
+"input": "find . -ok git p \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-ok",
+"git",
+"p",
+";"
+]
+},
+{
+"input": "find . -ok git p \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-ok",
+"git",
+"p",
+";"
+]
+},
+{
+"input": "find . -ok git p \\;",
+"mode": "quote",
+"quoted": "'find . -ok git p \\;'",
+"src": "corpus"
+},
+{
+"input": "git-push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git-push",
+"origin",
+"main"
+]
+},
+{
+"input": "git-push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git-push",
+"origin",
+"main"
+]
+},
+{
+"input": "git-push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git-push",
+"origin",
+"main"
+]
+},
+{
+"input": "git-push origin main",
+"mode": "quote",
+"quoted": "'git-push origin main'",
+"src": "corpus"
+},
+{
+"input": "/usr/lib/git-core/git-push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"/usr/lib/git-core/git-push"
+]
+},
+{
+"input": "/usr/lib/git-core/git-push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"/usr/lib/git-core/git-push"
+]
+},
+{
+"input": "/usr/lib/git-core/git-push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"/usr/lib/git-core/git-push"
+]
+},
+{
+"input": "/usr/lib/git-core/git-push",
+"mode": "quote",
+"quoted": "/usr/lib/git-core/git-push",
+"src": "corpus"
+},
+{
+"input": "/usr/lib/git-core/git push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"/usr/lib/git-core/git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "/usr/lib/git-core/git push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"/usr/lib/git-core/git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "/usr/lib/git-core/git push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"/usr/lib/git-core/git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "/usr/lib/git-core/git push origin main",
+"mode": "quote",
+"quoted": "'/usr/lib/git-core/git push origin main'",
+"src": "corpus"
+},
+{
+"input": "./git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"./git",
+"push"
+]
+},
+{
+"input": "./git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"./git",
+"push"
+]
+},
+{
+"input": "./git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"./git",
+"push"
+]
+},
+{
+"input": "./git push",
+"mode": "quote",
+"quoted": "'./git push'",
+"src": "corpus"
+},
+{
+"input": "$G push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"$G",
+"push"
+]
+},
+{
+"input": "$G push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"$",
+"G",
+"push"
+]
+},
+{
+"input": "$G push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"$G",
+"push"
+]
+},
+{
+"input": "$G push",
+"mode": "quote",
+"quoted": "'$G push'",
+"src": "corpus"
+},
+{
+"input": "\\git p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"p"
+]
+},
+{
+"input": "\\git p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"p"
+]
+},
+{
+"input": "\\git p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"p"
+]
+},
+{
+"input": "\\git p",
+"mode": "quote",
+"quoted": "'\\git p'",
+"src": "corpus"
+},
+{
+"input": "git rebase --exec 'git push' HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"git push",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'git push' HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"git push",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'git push' HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"--exec",
+"git push",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase --exec 'git push' HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase --exec '\"'\"'git push'\"'\"' HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git rebase -x p HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"p",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x p HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"p",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x p HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rebase",
+"-x",
+"p",
+"HEAD~1"
+]
+},
+{
+"input": "git rebase -x p HEAD~1",
+"mode": "quote",
+"quoted": "'git rebase -x p HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git bisect run p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"p"
+]
+},
+{
+"input": "git bisect run p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"p"
+]
+},
+{
+"input": "git bisect run p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"bisect",
+"run",
+"p"
+]
+},
+{
+"input": "git bisect run p",
+"mode": "quote",
+"quoted": "'git bisect run p'",
+"src": "corpus"
+},
+{
+"input": "git submodule foreach git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git",
+"push"
+]
+},
+{
+"input": "git submodule foreach git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git",
+"push"
+]
+},
+{
+"input": "git submodule foreach git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"submodule",
+"foreach",
+"git",
+"push"
+]
+},
+{
+"input": "git submodule foreach git push",
+"mode": "quote",
+"quoted": "'git submodule foreach git push'",
+"src": "corpus"
+},
+{
+"input": "git filter-branch -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"filter-branch",
+"-f"
+]
+},
+{
+"input": "git filter-branch -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"filter-branch",
+"-f"
+]
+},
+{
+"input": "git filter-branch -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"filter-branch",
+"-f"
+]
+},
+{
+"input": "git filter-branch -f",
+"mode": "quote",
+"quoted": "'git filter-branch -f'",
+"src": "corpus"
+},
+{
+"input": "git difftool",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool"
+]
+},
+{
+"input": "git difftool",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool"
+]
+},
+{
+"input": "git difftool",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"difftool"
+]
+},
+{
+"input": "git difftool",
+"mode": "quote",
+"quoted": "'git difftool'",
+"src": "corpus"
+},
+{
+"input": "git archive --remote=x HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"archive",
+"--remote=x",
+"HEAD"
+]
+},
+{
+"input": "git archive --remote=x HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"archive",
+"--remote=x",
+"HEAD"
+]
+},
+{
+"input": "git archive --remote=x HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"archive",
+"--remote=x",
+"HEAD"
+]
+},
+{
+"input": "git archive --remote=x HEAD",
+"mode": "quote",
+"quoted": "'git archive --remote=x HEAD'",
+"src": "corpus"
+},
+{
+"input": "git push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git push origin main",
+"mode": "quote",
+"quoted": "'git push origin main'",
+"src": "corpus"
+},
+{
+"input": "git stash",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"stash"
+]
+},
+{
+"input": "git stash",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"stash"
+]
+},
+{
+"input": "git stash",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"stash"
+]
+},
+{
+"input": "git stash",
+"mode": "quote",
+"quoted": "'git stash'",
+"src": "corpus"
+},
+{
+"input": "git commit -m x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"commit",
+"-m",
+"x"
+]
+},
+{
+"input": "git commit -m x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"commit",
+"-m",
+"x"
+]
+},
+{
+"input": "git commit -m x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"commit",
+"-m",
+"x"
+]
+},
+{
+"input": "git commit -m x",
+"mode": "quote",
+"quoted": "'git commit -m x'",
+"src": "corpus"
+},
+{
+"input": "git checkout -b x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"checkout",
+"-b",
+"x"
+]
+},
+{
+"input": "git checkout -b x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"checkout",
+"-b",
+"x"
+]
+},
+{
+"input": "git checkout -b x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"checkout",
+"-b",
+"x"
+]
+},
+{
+"input": "git checkout -b x",
+"mode": "quote",
+"quoted": "'git checkout -b x'",
+"src": "corpus"
+},
+{
+"input": "git reset --hard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"reset",
+"--hard"
+]
+},
+{
+"input": "git reset --hard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"reset",
+"--hard"
+]
+},
+{
+"input": "git reset --hard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"reset",
+"--hard"
+]
+},
+{
+"input": "git reset --hard",
+"mode": "quote",
+"quoted": "'git reset --hard'",
+"src": "corpus"
+},
+{
+"input": "git add .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"add",
+"."
+]
+},
+{
+"input": "git add .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"add",
+"."
+]
+},
+{
+"input": "git add .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"add",
+"."
+]
+},
+{
+"input": "git add .",
+"mode": "quote",
+"quoted": "'git add .'",
+"src": "corpus"
+},
+{
+"input": "git branch -D x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"-D",
+"x"
+]
+},
+{
+"input": "git branch -D x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"-D",
+"x"
+]
+},
+{
+"input": "git branch -D x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"-D",
+"x"
+]
+},
+{
+"input": "git branch -D x",
+"mode": "quote",
+"quoted": "'git branch -D x'",
+"src": "corpus"
+},
+{
+"input": "git branch new",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"new"
+]
+},
+{
+"input": "git branch new",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"new"
+]
+},
+{
+"input": "git branch new",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"new"
+]
+},
+{
+"input": "git branch new",
+"mode": "quote",
+"quoted": "'git branch new'",
+"src": "corpus"
+},
+{
+"input": "git remote add x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"add",
+"x",
+"y"
+]
+},
+{
+"input": "git remote add x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"add",
+"x",
+"y"
+]
+},
+{
+"input": "git remote add x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"add",
+"x",
+"y"
+]
+},
+{
+"input": "git remote add x y",
+"mode": "quote",
+"quoted": "'git remote add x y'",
+"src": "corpus"
+},
+{
+"input": "git remote set-url origin y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote set-url origin y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote set-url origin y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote set-url origin y",
+"mode": "quote",
+"quoted": "'git remote set-url origin y'",
+"src": "corpus"
+},
+{
+"input": "git worktree add ../x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"../x"
+]
+},
+{
+"input": "git worktree add ../x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"../x"
+]
+},
+{
+"input": "git worktree add ../x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"../x"
+]
+},
+{
+"input": "git worktree add ../x",
+"mode": "quote",
+"quoted": "'git worktree add ../x'",
+"src": "corpus"
+},
+{
+"input": "git config alias.p push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config alias.p push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config alias.p push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config alias.p push",
+"mode": "quote",
+"quoted": "'git config alias.p push'",
+"src": "corpus"
+},
+{
+"input": "git config --unset alias.p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--unset",
+"alias.p"
+]
+},
+{
+"input": "git config --unset alias.p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--unset",
+"alias.p"
+]
+},
+{
+"input": "git config --unset alias.p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--unset",
+"alias.p"
+]
+},
+{
+"input": "git config --unset alias.p",
+"mode": "quote",
+"quoted": "'git config --unset alias.p'",
+"src": "corpus"
+},
+{
+"input": "git config --list --edit",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--list",
+"--edit"
+]
+},
+{
+"input": "git config --list --edit",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--list",
+"--edit"
+]
+},
+{
+"input": "git config --list --edit",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--list",
+"--edit"
+]
+},
+{
+"input": "git config --list --edit",
+"mode": "quote",
+"quoted": "'git config --list --edit'",
+"src": "corpus"
+},
+{
+"input": "git config --global alias.p push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--global",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config --global alias.p push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--global",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config --global alias.p push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--global",
+"alias.p",
+"push"
+]
+},
+{
+"input": "git config --global alias.p push",
+"mode": "quote",
+"quoted": "'git config --global alias.p push'",
+"src": "corpus"
+},
+{
+"input": "git send-pack /x HEAD:main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"/x",
+"HEAD:main"
+]
+},
+{
+"input": "git send-pack /x HEAD:main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"/x",
+"HEAD",
+":",
+"main"
+]
+},
+{
+"input": "git send-pack /x HEAD:main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"/x",
+"HEAD:main"
+]
+},
+{
+"input": "git send-pack /x HEAD:main",
+"mode": "quote",
+"quoted": "'git send-pack /x HEAD:main'",
+"src": "corpus"
+},
+{
+"input": "git subtree push --prefix=a origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"subtree",
+"push",
+"--prefix=a",
+"origin",
+"main"
+]
+},
+{
+"input": "git subtree push --prefix=a origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"subtree",
+"push",
+"--prefix=a",
+"origin",
+"main"
+]
+},
+{
+"input": "git subtree push --prefix=a origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"subtree",
+"push",
+"--prefix=a",
+"origin",
+"main"
+]
+},
+{
+"input": "git subtree push --prefix=a origin main",
+"mode": "quote",
+"quoted": "'git subtree push --prefix=a origin main'",
+"src": "corpus"
+},
+{
+"input": "git daemon",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"daemon"
+]
+},
+{
+"input": "git daemon",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"daemon"
+]
+},
+{
+"input": "git daemon",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"daemon"
+]
+},
+{
+"input": "git daemon",
+"mode": "quote",
+"quoted": "'git daemon'",
+"src": "corpus"
+},
+{
+"input": "git var GIT_PAGER",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"var",
+"GIT_PAGER"
+]
+},
+{
+"input": "git var GIT_PAGER",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"var",
+"GIT_PAGER"
+]
+},
+{
+"input": "git var GIT_PAGER",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"var",
+"GIT_PAGER"
+]
+},
+{
+"input": "git var GIT_PAGER",
+"mode": "quote",
+"quoted": "'git var GIT_PAGER'",
+"src": "corpus"
+},
+{
+"input": "git remote update",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"update"
+]
+},
+{
+"input": "git remote update",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"update"
+]
+},
+{
+"input": "git remote update",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"update"
+]
+},
+{
+"input": "git remote update",
+"mode": "quote",
+"quoted": "'git remote update'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source HEAD push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --attr-source HEAD push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --attr-source HEAD push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --attr-source HEAD push origin main",
+"mode": "quote",
+"quoted": "'git --attr-source HEAD push origin main'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source=HEAD push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source=HEAD",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --attr-source=HEAD push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source=HEAD",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --attr-source=HEAD push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source=HEAD",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --attr-source=HEAD push origin main",
+"mode": "quote",
+"quoted": "'git --attr-source=HEAD push origin main'",
+"src": "corpus"
+},
+{
+"input": "git --namespace ns push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--namespace",
+"ns",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --namespace ns push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--namespace",
+"ns",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --namespace ns push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--namespace",
+"ns",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --namespace ns push origin main",
+"mode": "quote",
+"quoted": "'git --namespace ns push origin main'",
+"src": "corpus"
+},
+{
+"input": "git --git-dir /x/.git push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir",
+"/x/.git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --git-dir /x/.git push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir",
+"/x/.git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --git-dir /x/.git push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--git-dir",
+"/x/.git",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --git-dir /x/.git push origin main",
+"mode": "quote",
+"quoted": "'git --git-dir /x/.git push origin main'",
+"src": "corpus"
+},
+{
+"input": "git --work-tree /x push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--work-tree",
+"/x",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --work-tree /x push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--work-tree",
+"/x",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --work-tree /x push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--work-tree",
+"/x",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --work-tree /x push origin main",
+"mode": "quote",
+"quoted": "'git --work-tree /x push origin main'",
+"src": "corpus"
+},
+{
+"input": "git -p push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-p",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git -p push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-p",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git -p push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-p",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git -p push origin main",
+"mode": "quote",
+"quoted": "'git -p push origin main'",
+"src": "corpus"
+},
+{
+"input": "git --future-option push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--future-option",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --future-option push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--future-option",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --future-option push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--future-option",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git --future-option push origin main",
+"mode": "quote",
+"quoted": "'git --future-option push origin main'",
+"src": "corpus"
+},
+{
+"input": "git --config-env=alias.p=PUSHVAR p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env=alias.p=PUSHVAR",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git --config-env=alias.p=PUSHVAR p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env=alias.p=PUSHVAR",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git --config-env=alias.p=PUSHVAR p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--config-env=alias.p=PUSHVAR",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git --config-env=alias.p=PUSHVAR p origin main",
+"mode": "quote",
+"quoted": "'git --config-env=alias.p=PUSHVAR p origin main'",
+"src": "corpus"
+},
+{
+"input": "git -c alias.s=send-pack s origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.s=send-pack",
+"s",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.s=send-pack s origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.s=send-pack",
+"s",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.s=send-pack s origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.s=send-pack",
+"s",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.s=send-pack s origin main",
+"mode": "quote",
+"quoted": "'git -c alias.s=send-pack s origin main'",
+"src": "corpus"
+},
+{
+"input": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_COUNT=1",
+"GIT_CONFIG_KEY_0=alias.p",
+"GIT_CONFIG_VALUE_0=push",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_COUNT=1",
+"GIT_CONFIG_KEY_0=alias.p",
+"GIT_CONFIG_VALUE_0=push",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_COUNT=1",
+"GIT_CONFIG_KEY_0=alias.p",
+"GIT_CONFIG_VALUE_0=push",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main",
+"mode": "quote",
+"quoted": "'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main'",
+"src": "corpus"
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=\"'alias.p=push'\" git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_PARAMETERS='alias.p=push'",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=\"'alias.p=push'\" git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_PARAMETERS='alias.p=push'",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=\"'alias.p=push'\" git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_PARAMETERS='alias.p=push'",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=\"'alias.p=push'\" git p origin main",
+"mode": "quote",
+"quoted": "'GIT_CONFIG_PARAMETERS=\"'\"'\"'alias.p=push'\"'\"'\" git p origin main'",
+"src": "corpus"
+},
+{
+"input": "export GIT_CONFIG_COUNT=1; git p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_COUNT=1",
+";",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "export GIT_CONFIG_COUNT=1; git p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_COUNT=1",
+";",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "export GIT_CONFIG_COUNT=1; git p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_COUNT=1;",
+"git",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "export GIT_CONFIG_COUNT=1; git p origin main",
+"mode": "quote",
+"quoted": "'export GIT_CONFIG_COUNT=1; git p origin main'",
+"src": "corpus"
+},
+{
+"input": "export GIT_CONFIG_KEY_0=alias.p",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_KEY_0=alias.p"
+]
+},
+{
+"input": "export GIT_CONFIG_KEY_0=alias.p",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_KEY_0=alias.p"
+]
+},
+{
+"input": "export GIT_CONFIG_KEY_0=alias.p",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"GIT_CONFIG_KEY_0=alias.p"
+]
+},
+{
+"input": "export GIT_CONFIG_KEY_0=alias.p",
+"mode": "quote",
+"quoted": "'export GIT_CONFIG_KEY_0=alias.p'",
+"src": "corpus"
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_PARAMETERS=x"
+]
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_PARAMETERS=x"
+]
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GIT_CONFIG_PARAMETERS=x"
+]
+},
+{
+"input": "GIT_CONFIG_PARAMETERS=x",
+"mode": "quote",
+"quoted": "GIT_CONFIG_PARAMETERS=x",
+"src": "corpus"
+},
+{
+"input": "git push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push"
+]
+},
+{
+"input": "git push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push"
+]
+},
+{
+"input": "git push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push"
+]
+},
+{
+"input": "git push",
+"mode": "quote",
+"quoted": "'git push'",
+"src": "corpus"
+},
+{
+"input": "git push origin HEAD:main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "git push origin HEAD:main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"main"
+]
+},
+{
+"input": "git push origin HEAD:main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "git push origin HEAD:main",
+"mode": "quote",
+"quoted": "'git push origin HEAD:main'",
+"src": "corpus"
+},
+{
+"input": "git push --dry-run origin HEAD:main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"--dry-run",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "git push --dry-run origin HEAD:main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"--dry-run",
+"origin",
+"HEAD",
+":",
+"main"
+]
+},
+{
+"input": "git push --dry-run origin HEAD:main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"--dry-run",
+"origin",
+"HEAD:main"
+]
+},
+{
+"input": "git push --dry-run origin HEAD:main",
+"mode": "quote",
+"quoted": "'git push --dry-run origin HEAD:main'",
+"src": "corpus"
+},
+{
+"input": "git -c alias.p=push p origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.p=push",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.p=push p origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.p=push",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.p=push p origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-c",
+"alias.p=push",
+"p",
+"origin",
+"main"
+]
+},
+{
+"input": "git -c alias.p=push p origin main",
+"mode": "quote",
+"quoted": "'git -c alias.p=push p origin main'",
+"src": "corpus"
+},
+{
+"input": "git send-pack origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"origin",
+"main"
+]
+},
+{
+"input": "git send-pack origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"origin",
+"main"
+]
+},
+{
+"input": "git send-pack origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"send-pack",
+"origin",
+"main"
+]
+},
+{
+"input": "git send-pack origin main",
+"mode": "quote",
+"quoted": "'git send-pack origin main'",
+"src": "corpus"
+},
+{
+"input": "echo p | xargs 'a\u2003git p'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"p",
+"|",
+"xargs",
+"a\u2003git p"
+]
+},
+{
+"input": "echo p | xargs 'a\u2003git p'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"p",
+"|",
+"xargs",
+"a\u2003git p"
+]
+},
+{
+"input": "echo p | xargs 'a\u2003git p'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"p",
+"|",
+"xargs",
+"a\u2003git p"
+]
+},
+{
+"input": "echo p | xargs 'a\u2003git p'",
+"mode": "quote",
+"quoted": "'echo p | xargs '\"'\"'a\u2003git p'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo x | xargs 'a\u3000git p'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"a\u3000git p"
+]
+},
+{
+"input": "echo x | xargs 'a\u3000git p'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"a\u3000git p"
+]
+},
+{
+"input": "echo x | xargs 'a\u3000git p'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"xargs",
+"a\u3000git p"
+]
+},
+{
+"input": "echo x | xargs 'a\u3000git p'",
+"mode": "quote",
+"quoted": "'echo x | xargs '\"'\"'a\u3000git p'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "find . -exec 'a\u00a0git p' \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-exec",
+"a\u00a0git p",
+";"
+]
+},
+{
+"input": "find . -exec 'a\u00a0git p' \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-exec",
+"a\u00a0git p",
+";"
+]
+},
+{
+"input": "find . -exec 'a\u00a0git p' \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+".",
+"-exec",
+"a\u00a0git p",
+";"
+]
+},
+{
+"input": "find . -exec 'a\u00a0git p' \\;",
+"mode": "quote",
+"quoted": "'find . -exec '\"'\"'a\u00a0git p'\"'\"' \\;'",
+"src": "corpus"
+},
+{
+"input": "git remote -v set-url origin y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote -v set-url origin y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote -v set-url origin y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote -v set-url origin y",
+"mode": "quote",
+"quoted": "'git remote -v set-url origin y'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose add x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"add",
+"x",
+"y"
+]
+},
+{
+"input": "git remote --verbose add x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"add",
+"x",
+"y"
+]
+},
+{
+"input": "git remote --verbose add x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"add",
+"x",
+"y"
+]
+},
+{
+"input": "git remote --verbose add x y",
+"mode": "quote",
+"quoted": "'git remote --verbose add x y'",
+"src": "corpus"
+},
+{
+"input": "git remote show origin extra",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote show origin extra",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote show origin extra",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote show origin extra",
+"mode": "quote",
+"quoted": "'git remote show origin extra'",
+"src": "corpus"
+},
+{
+"input": "cat y > .git/info/exclude",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"y",
+">",
+".git/info/exclude"
+]
+},
+{
+"input": "cat y > .git/info/exclude",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"y",
+">",
+".git/info/exclude"
+]
+},
+{
+"input": "cat y > .git/info/exclude",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"y",
+">",
+".git/info/exclude"
+]
+},
+{
+"input": "cat y > .git/info/exclude",
+"mode": "quote",
+"quoted": "'cat y > .git/info/exclude'",
+"src": "corpus"
+},
+{
+"input": "git remote set-url origin https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote set-url origin https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"origin",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote set-url origin https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote set-url origin https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote set-url origin https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote -v set-url origin https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote -v set-url origin https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"origin",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote -v set-url origin https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote -v set-url origin https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote -v set-url origin https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose set-url origin https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-url",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose set-url origin https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-url",
+"origin",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose set-url origin https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-url",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose set-url origin https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote --verbose set-url origin https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote add x https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"add",
+"x",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote add x https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"add",
+"x",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote add x https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"add",
+"x",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote add x https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote add x https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote -v add x https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"add",
+"x",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote -v add x https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"add",
+"x",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote -v add x https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"add",
+"x",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote -v add x https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote -v add x https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose add x https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"add",
+"x",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose add x https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"add",
+"x",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose add x https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"add",
+"x",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose add x https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote --verbose add x https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote rename origin y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote rename origin y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote rename origin y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote rename origin y",
+"mode": "quote",
+"quoted": "'git remote rename origin y'",
+"src": "corpus"
+},
+{
+"input": "git remote -v rename origin y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote -v rename origin y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote -v rename origin y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote -v rename origin y",
+"mode": "quote",
+"quoted": "'git remote -v rename origin y'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose rename origin y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote --verbose rename origin y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote --verbose rename origin y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"rename",
+"origin",
+"y"
+]
+},
+{
+"input": "git remote --verbose rename origin y",
+"mode": "quote",
+"quoted": "'git remote --verbose rename origin y'",
+"src": "corpus"
+},
+{
+"input": "git remote -v remove origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"remove",
+"origin"
+]
+},
+{
+"input": "git remote -v remove origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"remove",
+"origin"
+]
+},
+{
+"input": "git remote -v remove origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"remove",
+"origin"
+]
+},
+{
+"input": "git remote -v remove origin",
+"mode": "quote",
+"quoted": "'git remote -v remove origin'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose remove origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"remove",
+"origin"
+]
+},
+{
+"input": "git remote --verbose remove origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"remove",
+"origin"
+]
+},
+{
+"input": "git remote --verbose remove origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"remove",
+"origin"
+]
+},
+{
+"input": "git remote --verbose remove origin",
+"mode": "quote",
+"quoted": "'git remote --verbose remove origin'",
+"src": "corpus"
+},
+{
+"input": "git remote -v rm origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"rm",
+"origin"
+]
+},
+{
+"input": "git remote -v rm origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"rm",
+"origin"
+]
+},
+{
+"input": "git remote -v rm origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"rm",
+"origin"
+]
+},
+{
+"input": "git remote -v rm origin",
+"mode": "quote",
+"quoted": "'git remote -v rm origin'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose rm origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"rm",
+"origin"
+]
+},
+{
+"input": "git remote --verbose rm origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"rm",
+"origin"
+]
+},
+{
+"input": "git remote --verbose rm origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"rm",
+"origin"
+]
+},
+{
+"input": "git remote --verbose rm origin",
+"mode": "quote",
+"quoted": "'git remote --verbose rm origin'",
+"src": "corpus"
+},
+{
+"input": "git remote set-head origin -a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote set-head origin -a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote set-head origin -a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote set-head origin -a",
+"mode": "quote",
+"quoted": "'git remote set-head origin -a'",
+"src": "corpus"
+},
+{
+"input": "git remote -v set-head origin -a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote -v set-head origin -a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote -v set-head origin -a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote -v set-head origin -a",
+"mode": "quote",
+"quoted": "'git remote -v set-head origin -a'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose set-head origin -a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote --verbose set-head origin -a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote --verbose set-head origin -a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-head",
+"origin",
+"-a"
+]
+},
+{
+"input": "git remote --verbose set-head origin -a",
+"mode": "quote",
+"quoted": "'git remote --verbose set-head origin -a'",
+"src": "corpus"
+},
+{
+"input": "git remote -v set-branches origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-branches",
+"origin",
+"main"
+]
+},
+{
+"input": "git remote -v set-branches origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-branches",
+"origin",
+"main"
+]
+},
+{
+"input": "git remote -v set-branches origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-branches",
+"origin",
+"main"
+]
+},
+{
+"input": "git remote -v set-branches origin main",
+"mode": "quote",
+"quoted": "'git remote -v set-branches origin main'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose set-branches origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-branches",
+"origin",
+"main"
+]
+},
+{
+"input": "git remote --verbose set-branches origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-branches",
+"origin",
+"main"
+]
+},
+{
+"input": "git remote --verbose set-branches origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-branches",
+"origin",
+"main"
+]
+},
+{
+"input": "git remote --verbose set-branches origin main",
+"mode": "quote",
+"quoted": "'git remote --verbose set-branches origin main'",
+"src": "corpus"
+},
+{
+"input": "git remote prune origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote prune origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote prune origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote prune origin",
+"mode": "quote",
+"quoted": "'git remote prune origin'",
+"src": "corpus"
+},
+{
+"input": "git remote -v prune origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote -v prune origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote -v prune origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote -v prune origin",
+"mode": "quote",
+"quoted": "'git remote -v prune origin'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose prune origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote --verbose prune origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote --verbose prune origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"prune",
+"origin"
+]
+},
+{
+"input": "git remote --verbose prune origin",
+"mode": "quote",
+"quoted": "'git remote --verbose prune origin'",
+"src": "corpus"
+},
+{
+"input": "git remote -v update",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"update"
+]
+},
+{
+"input": "git remote -v update",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"update"
+]
+},
+{
+"input": "git remote -v update",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"update"
+]
+},
+{
+"input": "git remote -v update",
+"mode": "quote",
+"quoted": "'git remote -v update'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose update",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"update"
+]
+},
+{
+"input": "git remote --verbose update",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"update"
+]
+},
+{
+"input": "git remote --verbose update",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"update"
+]
+},
+{
+"input": "git remote --verbose update",
+"mode": "quote",
+"quoted": "'git remote --verbose update'",
+"src": "corpus"
+},
+{
+"input": "git remote set-url --push origin https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"--push",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote set-url --push origin https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"--push",
+"origin",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote set-url --push origin https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"set-url",
+"--push",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote set-url --push origin https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote set-url --push origin https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote -v set-url --push origin https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"--push",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote -v set-url --push origin https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"--push",
+"origin",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote -v set-url --push origin https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"set-url",
+"--push",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote -v set-url --push origin https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote -v set-url --push origin https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose set-url --push origin https://example.com/evil.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-url",
+"--push",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose set-url --push origin https://example.com/evil.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-url",
+"--push",
+"origin",
+"https",
+":",
+"//example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose set-url --push origin https://example.com/evil.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"set-url",
+"--push",
+"origin",
+"https://example.com/evil.git"
+]
+},
+{
+"input": "git remote --verbose set-url --push origin https://example.com/evil.git",
+"mode": "quote",
+"quoted": "'git remote --verbose set-url --push origin https://example.com/evil.git'",
+"src": "corpus"
+},
+{
+"input": "git remote bogus",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"bogus"
+]
+},
+{
+"input": "git remote bogus",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"bogus"
+]
+},
+{
+"input": "git remote bogus",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"bogus"
+]
+},
+{
+"input": "git remote bogus",
+"mode": "quote",
+"quoted": "'git remote bogus'",
+"src": "corpus"
+},
+{
+"input": "git remote -v bogus",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"bogus"
+]
+},
+{
+"input": "git remote -v bogus",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"bogus"
+]
+},
+{
+"input": "git remote -v bogus",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"bogus"
+]
+},
+{
+"input": "git remote -v bogus",
+"mode": "quote",
+"quoted": "'git remote -v bogus'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose bogus",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"bogus"
+]
+},
+{
+"input": "git remote --verbose bogus",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"bogus"
+]
+},
+{
+"input": "git remote --verbose bogus",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"bogus"
+]
+},
+{
+"input": "git remote --verbose bogus",
+"mode": "quote",
+"quoted": "'git remote --verbose bogus'",
+"src": "corpus"
+},
+{
+"input": "git remote show",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show"
+]
+},
+{
+"input": "git remote show",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show"
+]
+},
+{
+"input": "git remote show",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show"
+]
+},
+{
+"input": "git remote show",
+"mode": "quote",
+"quoted": "'git remote show'",
+"src": "corpus"
+},
+{
+"input": "git remote -v show",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show"
+]
+},
+{
+"input": "git remote -v show",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show"
+]
+},
+{
+"input": "git remote -v show",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show"
+]
+},
+{
+"input": "git remote -v show",
+"mode": "quote",
+"quoted": "'git remote -v show'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose show",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show"
+]
+},
+{
+"input": "git remote --verbose show",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show"
+]
+},
+{
+"input": "git remote --verbose show",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show"
+]
+},
+{
+"input": "git remote --verbose show",
+"mode": "quote",
+"quoted": "'git remote --verbose show'",
+"src": "corpus"
+},
+{
+"input": "git remote get-url",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url"
+]
+},
+{
+"input": "git remote get-url",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url"
+]
+},
+{
+"input": "git remote get-url",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url"
+]
+},
+{
+"input": "git remote get-url",
+"mode": "quote",
+"quoted": "'git remote get-url'",
+"src": "corpus"
+},
+{
+"input": "git remote -v get-url",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"get-url"
+]
+},
+{
+"input": "git remote -v get-url",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"get-url"
+]
+},
+{
+"input": "git remote -v get-url",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"get-url"
+]
+},
+{
+"input": "git remote -v get-url",
+"mode": "quote",
+"quoted": "'git remote -v get-url'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose get-url",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"get-url"
+]
+},
+{
+"input": "git remote --verbose get-url",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"get-url"
+]
+},
+{
+"input": "git remote --verbose get-url",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"get-url"
+]
+},
+{
+"input": "git remote --verbose get-url",
+"mode": "quote",
+"quoted": "'git remote --verbose get-url'",
+"src": "corpus"
+},
+{
+"input": "git remote -v show origin extra",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote -v show origin extra",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote -v show origin extra",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote -v show origin extra",
+"mode": "quote",
+"quoted": "'git remote -v show origin extra'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose show origin extra",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote --verbose show origin extra",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote --verbose show origin extra",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote --verbose show origin extra",
+"mode": "quote",
+"quoted": "'git remote --verbose show origin extra'",
+"src": "corpus"
+},
+{
+"input": "git remote get-url origin extra",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote get-url origin extra",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote get-url origin extra",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote get-url origin extra",
+"mode": "quote",
+"quoted": "'git remote get-url origin extra'",
+"src": "corpus"
+},
+{
+"input": "git remote -v get-url origin extra",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote -v get-url origin extra",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote -v get-url origin extra",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote -v get-url origin extra",
+"mode": "quote",
+"quoted": "'git remote -v get-url origin extra'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose get-url origin extra",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote --verbose get-url origin extra",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote --verbose get-url origin extra",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"get-url",
+"origin",
+"extra"
+]
+},
+{
+"input": "git remote --verbose get-url origin extra",
+"mode": "quote",
+"quoted": "'git remote --verbose get-url origin extra'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -30466,6 +37013,1276 @@
 "src": "corpus"
 },
 {
+"input": "git log --oneline -5",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--oneline",
+"-5"
+]
+},
+{
+"input": "git log --oneline -5",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--oneline",
+"-5"
+]
+},
+{
+"input": "git log --oneline -5",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--oneline",
+"-5"
+]
+},
+{
+"input": "git log --oneline -5",
+"mode": "quote",
+"quoted": "'git log --oneline -5'",
+"src": "corpus"
+},
+{
+"input": "git show origin/x:f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"origin/x:f"
+]
+},
+{
+"input": "git show origin/x:f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"origin/x",
+":",
+"f"
+]
+},
+{
+"input": "git show origin/x:f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show",
+"origin/x:f"
+]
+},
+{
+"input": "git show origin/x:f",
+"mode": "quote",
+"quoted": "'git show origin/x:f'",
+"src": "corpus"
+},
+{
+"input": "git fetch origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git fetch origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git fetch origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin"
+]
+},
+{
+"input": "git fetch origin",
+"mode": "quote",
+"quoted": "'git fetch origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"main"
+]
+},
+{
+"input": "git fetch origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"main"
+]
+},
+{
+"input": "git fetch origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"main"
+]
+},
+{
+"input": "git fetch origin main",
+"mode": "quote",
+"quoted": "'git fetch origin main'",
+"src": "corpus"
+},
+{
+"input": "git blame f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"blame",
+"f"
+]
+},
+{
+"input": "git blame f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"blame",
+"f"
+]
+},
+{
+"input": "git blame f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"blame",
+"f"
+]
+},
+{
+"input": "git blame f",
+"mode": "quote",
+"quoted": "'git blame f'",
+"src": "corpus"
+},
+{
+"input": "git grep -n x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-n",
+"x"
+]
+},
+{
+"input": "git grep -n x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-n",
+"x"
+]
+},
+{
+"input": "git grep -n x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"grep",
+"-n",
+"x"
+]
+},
+{
+"input": "git grep -n x",
+"mode": "quote",
+"quoted": "'git grep -n x'",
+"src": "corpus"
+},
+{
+"input": "git merge-tree --write-tree origin/main HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"merge-tree",
+"--write-tree",
+"origin/main",
+"HEAD"
+]
+},
+{
+"input": "git merge-tree --write-tree origin/main HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"merge-tree",
+"--write-tree",
+"origin/main",
+"HEAD"
+]
+},
+{
+"input": "git merge-tree --write-tree origin/main HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"merge-tree",
+"--write-tree",
+"origin/main",
+"HEAD"
+]
+},
+{
+"input": "git merge-tree --write-tree origin/main HEAD",
+"mode": "quote",
+"quoted": "'git merge-tree --write-tree origin/main HEAD'",
+"src": "corpus"
+},
+{
+"input": "git rev-parse HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"rev-parse",
+"HEAD"
+]
+},
+{
+"input": "git rev-parse HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"rev-parse",
+"HEAD"
+]
+},
+{
+"input": "git rev-parse HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"rev-parse",
+"HEAD"
+]
+},
+{
+"input": "git rev-parse HEAD",
+"mode": "quote",
+"quoted": "'git rev-parse HEAD'",
+"src": "corpus"
+},
+{
+"input": "git ls-remote origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"origin"
+]
+},
+{
+"input": "git ls-remote origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"origin"
+]
+},
+{
+"input": "git ls-remote origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"origin"
+]
+},
+{
+"input": "git ls-remote origin",
+"mode": "quote",
+"quoted": "'git ls-remote origin'",
+"src": "corpus"
+},
+{
+"input": "git fetch origin refs/heads/main:refs/remotes/origin/main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"refs/heads/main:refs/remotes/origin/main"
+]
+},
+{
+"input": "git fetch origin refs/heads/main:refs/remotes/origin/main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"refs/heads/main",
+":",
+"refs/remotes/origin/main"
+]
+},
+{
+"input": "git fetch origin refs/heads/main:refs/remotes/origin/main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"origin",
+"refs/heads/main:refs/remotes/origin/main"
+]
+},
+{
+"input": "git fetch origin refs/heads/main:refs/remotes/origin/main",
+"mode": "quote",
+"quoted": "'git fetch origin refs/heads/main:refs/remotes/origin/main'",
+"src": "corpus"
+},
+{
+"input": "git fetch --prune origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--prune",
+"origin"
+]
+},
+{
+"input": "git fetch --prune origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--prune",
+"origin"
+]
+},
+{
+"input": "git fetch --prune origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"fetch",
+"--prune",
+"origin"
+]
+},
+{
+"input": "git fetch --prune origin",
+"mode": "quote",
+"quoted": "'git fetch --prune origin'",
+"src": "corpus"
+},
+{
+"input": "git ls-remote --heads origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"--heads",
+"origin"
+]
+},
+{
+"input": "git ls-remote --heads origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"--heads",
+"origin"
+]
+},
+{
+"input": "git ls-remote --heads origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"ls-remote",
+"--heads",
+"origin"
+]
+},
+{
+"input": "git ls-remote --heads origin",
+"mode": "quote",
+"quoted": "'git ls-remote --heads origin'",
+"src": "corpus"
+},
+{
+"input": "git diff --stat HEAD~1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--stat",
+"HEAD~1"
+]
+},
+{
+"input": "git diff --stat HEAD~1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--stat",
+"HEAD~1"
+]
+},
+{
+"input": "git diff --stat HEAD~1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"diff",
+"--stat",
+"HEAD~1"
+]
+},
+{
+"input": "git diff --stat HEAD~1",
+"mode": "quote",
+"quoted": "'git diff --stat HEAD~1'",
+"src": "corpus"
+},
+{
+"input": "git log --no-ext-diff -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--no-ext-diff",
+"-1"
+]
+},
+{
+"input": "git log --no-ext-diff -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--no-ext-diff",
+"-1"
+]
+},
+{
+"input": "git log --no-ext-diff -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--no-ext-diff",
+"-1"
+]
+},
+{
+"input": "git log --no-ext-diff -1",
+"mode": "quote",
+"quoted": "'git log --no-ext-diff -1'",
+"src": "corpus"
+},
+{
+"input": "git remote",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote"
+]
+},
+{
+"input": "git remote",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote"
+]
+},
+{
+"input": "git remote",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote"
+]
+},
+{
+"input": "git remote",
+"mode": "quote",
+"quoted": "'git remote'",
+"src": "corpus"
+},
+{
+"input": "git worktree list",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"list"
+]
+},
+{
+"input": "git worktree list",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"list"
+]
+},
+{
+"input": "git worktree list",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"list"
+]
+},
+{
+"input": "git worktree list",
+"mode": "quote",
+"quoted": "'git worktree list'",
+"src": "corpus"
+},
+{
+"input": "git config --get-regexp remote",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get-regexp",
+"remote"
+]
+},
+{
+"input": "git config --get-regexp remote",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get-regexp",
+"remote"
+]
+},
+{
+"input": "git config --get-regexp remote",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get-regexp",
+"remote"
+]
+},
+{
+"input": "git config --get-regexp remote",
+"mode": "quote",
+"quoted": "'git config --get-regexp remote'",
+"src": "corpus"
+},
+{
+"input": "git branch --list 'f*'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"--list",
+"f*"
+]
+},
+{
+"input": "git branch --list 'f*'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"--list",
+"f*"
+]
+},
+{
+"input": "git branch --list 'f*'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"branch",
+"--list",
+"f*"
+]
+},
+{
+"input": "git branch --list 'f*'",
+"mode": "quote",
+"quoted": "'git branch --list '\"'\"'f*'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git cat-file -p HEAD",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"cat-file",
+"-p",
+"HEAD"
+]
+},
+{
+"input": "git cat-file -p HEAD",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"cat-file",
+"-p",
+"HEAD"
+]
+},
+{
+"input": "git cat-file -p HEAD",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"cat-file",
+"-p",
+"HEAD"
+]
+},
+{
+"input": "git cat-file -p HEAD",
+"mode": "quote",
+"quoted": "'git cat-file -p HEAD'",
+"src": "corpus"
+},
+{
+"input": "git show-ref",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"show-ref"
+]
+},
+{
+"input": "git show-ref",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"show-ref"
+]
+},
+{
+"input": "git show-ref",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"show-ref"
+]
+},
+{
+"input": "git show-ref",
+"mode": "quote",
+"quoted": "'git show-ref'",
+"src": "corpus"
+},
+{
+"input": "git describe --tags --always",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"describe",
+"--tags",
+"--always"
+]
+},
+{
+"input": "git describe --tags --always",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"describe",
+"--tags",
+"--always"
+]
+},
+{
+"input": "git describe --tags --always",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"describe",
+"--tags",
+"--always"
+]
+},
+{
+"input": "git describe --tags --always",
+"mode": "quote",
+"quoted": "'git describe --tags --always'",
+"src": "corpus"
+},
+{
+"input": "git --version",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--version"
+]
+},
+{
+"input": "git --version",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--version"
+]
+},
+{
+"input": "git --version",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--version"
+]
+},
+{
+"input": "git --version",
+"mode": "quote",
+"quoted": "'git --version'",
+"src": "corpus"
+},
+{
+"input": "git --no-pager log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--no-pager",
+"log",
+"-1"
+]
+},
+{
+"input": "git --no-pager log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--no-pager",
+"log",
+"-1"
+]
+},
+{
+"input": "git --no-pager log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--no-pager",
+"log",
+"-1"
+]
+},
+{
+"input": "git --no-pager log -1",
+"mode": "quote",
+"quoted": "'git --no-pager log -1'",
+"src": "corpus"
+},
+{
+"input": "git -P log -1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-P",
+"log",
+"-1"
+]
+},
+{
+"input": "git -P log -1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-P",
+"log",
+"-1"
+]
+},
+{
+"input": "git -P log -1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-P",
+"log",
+"-1"
+]
+},
+{
+"input": "git -P log -1",
+"mode": "quote",
+"quoted": "'git -P log -1'",
+"src": "corpus"
+},
+{
+"input": "git --no-optional-locks status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--no-optional-locks",
+"status"
+]
+},
+{
+"input": "git --no-optional-locks status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--no-optional-locks",
+"status"
+]
+},
+{
+"input": "git --no-optional-locks status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--no-optional-locks",
+"status"
+]
+},
+{
+"input": "git --no-optional-locks status",
+"mode": "quote",
+"quoted": "'git --no-optional-locks status'",
+"src": "corpus"
+},
+{
+"input": "git remote -v show -n origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote -v show -n origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote -v show -n origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote -v show -n origin",
+"mode": "quote",
+"quoted": "'git remote -v show -n origin'",
+"src": "corpus"
+},
+{
+"input": "echo hi",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"hi"
+]
+},
+{
+"input": "echo hi",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"hi"
+]
+},
+{
+"input": "echo hi",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"hi"
+]
+},
+{
+"input": "echo hi",
+"mode": "quote",
+"quoted": "'echo hi'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose"
+]
+},
+{
+"input": "git remote --verbose",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose"
+]
+},
+{
+"input": "git remote --verbose",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose"
+]
+},
+{
+"input": "git remote --verbose",
+"mode": "quote",
+"quoted": "'git remote --verbose'",
+"src": "corpus"
+},
+{
+"input": "git remote get-url --push origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"--push",
+"origin"
+]
+},
+{
+"input": "git remote get-url --push origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"--push",
+"origin"
+]
+},
+{
+"input": "git remote get-url --push origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"--push",
+"origin"
+]
+},
+{
+"input": "git remote get-url --push origin",
+"mode": "quote",
+"quoted": "'git remote get-url --push origin'",
+"src": "corpus"
+},
+{
+"input": "git remote get-url --all origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"--all",
+"origin"
+]
+},
+{
+"input": "git remote get-url --all origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"--all",
+"origin"
+]
+},
+{
+"input": "git remote get-url --all origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"get-url",
+"--all",
+"origin"
+]
+},
+{
+"input": "git remote get-url --all origin",
+"mode": "quote",
+"quoted": "'git remote get-url --all origin'",
+"src": "corpus"
+},
+{
+"input": "git remote show -n origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote show -n origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote show -n origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote show -n origin",
+"mode": "quote",
+"quoted": "'git remote show -n origin'",
+"src": "corpus"
+},
+{
+"input": "git remote -v show origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"origin"
+]
+},
+{
+"input": "git remote -v show origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"origin"
+]
+},
+{
+"input": "git remote -v show origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"-v",
+"show",
+"origin"
+]
+},
+{
+"input": "git remote -v show origin",
+"mode": "quote",
+"quoted": "'git remote -v show origin'",
+"src": "corpus"
+},
+{
+"input": "git remote --verbose show -n origin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote --verbose show -n origin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote --verbose show -n origin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"remote",
+"--verbose",
+"show",
+"-n",
+"origin"
+]
+},
+{
+"input": "git remote --verbose show -n origin",
+"mode": "quote",
+"quoted": "'git remote --verbose show -n origin'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -34497,7 +42314,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 748,
+"corpus_commands": 942,
 "edge_inputs": 123,
 "python": "3.13"
 }
