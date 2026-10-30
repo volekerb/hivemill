@@ -19,6 +19,7 @@ class DynamicSubcommandTests(unittest.TestCase):
             "git $(echo push) origin main", "git `echo push` origin main", 'x=(push origin main); git "${x[@]}"',
             "git -C . $p origin main", "p=push; git -C . $p origin main", 'f(){ git "$@"; }; f push origin main',
             "alias gp='git $p'; gp origin main", 'git "$1" origin main', "git $* origin main",
+            "git {push,} origin main", "git pus? origin main", "git p*h origin main", "git pu[s]h origin main",
         ):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
