@@ -57,7 +57,8 @@ func TestIOContract(t *testing.T) {
 		{"sudo blocked", `{"tool_name":"Bash","tool_input":{"command":"sudo ls"}}`, coder, 2, "privilege escalation (`sudo`)"},
 		{"sudo blocked in hq mode", `{"tool_name":"Bash","tool_input":{"command":"sudo ls"}}`, []string{"--hq"}, 2, "privilege escalation (`sudo`)"},
 		{"direct herdr blocked", `{"tool_name":"Bash","tool_input":{"command":"herdr server stop"}}`, coder, 2, "direct herdr invocation"},
-		{"git is a stub of a later section", `{"tool_name":"Bash","tool_input":{"command":"git status"}}`, coder, 2, "not ported"},
+		{"git commit is a stub of a later section", `{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}`, coder, 2, "not ported"},
+		{"git status is ported and allowed", `{"tool_name":"Bash","tool_input":{"command":"git status"}}`, coder, 0, ""},
 		{"cwd not a string", `{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":5}`, coder, 2, "cwd is not a string"},
 		{"cwd null", `{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":null}`, coder, 0, ""},
 		{"bad json", `not json`, coder, 2, "failing closed"},
@@ -136,5 +137,25 @@ func TestParseArgs(t *testing.T) {
 		if role, hq := parseArgs(c.args); role != c.role || hq != c.hq {
 			t.Errorf("parseArgs(%q) = (%q, %v), want (%q, %v)", c.args, role, hq, c.role, c.hq)
 		}
+	}
+}
+
+// A mutating git command aimed at the shared checkout is refused by the real git rule (not the stub of a later
+// section) and a read-only one is allowed; WORKER_GUARD_LIVE_HOME stands in for ~/factory, as in the Python tests.
+func TestSharedCheckoutThroughBinary(t *testing.T) {
+	live := t.TempDir()
+	if err := os.Mkdir(live+"/.git", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"WORKER_GUARD_LIVE_HOME=" + live}
+	payload := func(cmd string) []byte {
+		return []byte(`{"tool_name":"Bash","tool_input":{"command":"` + cmd + `"},"cwd":"` + live + `"}`)
+	}
+	code, stderr := call(t, payload("git -C "+live+" commit -m x"), env, "--role", "coder")
+	if code != 2 || !strings.Contains(stderr, "workers never change the shared checkout") {
+		t.Errorf("commit in the shared checkout: exit %d %q, want 2 naming the shared checkout", code, stderr)
+	}
+	if code, stderr := call(t, payload("git log --oneline -3"), env, "--role", "coder"); code != 0 {
+		t.Errorf("git log in the shared checkout: exit %d %q, want 0", code, stderr)
 	}
 }

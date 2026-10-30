@@ -477,6 +477,33 @@ func uvRunRunner(rest []string) string {
 	return ""
 }
 
+// uvxScan is a port of worker-guard.py:uvx_scan (T-0748): fail closed. Any word after uvx / `uv [global opts] tool run`
+// naming pytest/py.test/unittest is the runner, after stripping extras, specifiers and version suffixes.
+func uvxScan(words []string, prefix string) string {
+	if prefix == "uv tool run" {
+		for i, w := range words {
+			if w == "tool" {
+				words = words[i+1:]
+				break
+			}
+		}
+	}
+	for _, t := range words {
+		if strings.HasPrefix(t, "-") {
+			_, t, _ = strings.Cut(t, "=")
+		}
+		// re.split(r"[\s\[@=<>~!;(]", basename, maxsplit=1)[0]
+		base := pyBasename(t)
+		if i := strings.IndexFunc(base, func(r rune) bool { return pyIsSpace(r) || strings.ContainsRune("[@=<>~!;(", r) }); i >= 0 {
+			base = base[:i]
+		}
+		if base == "pytest" || base == "py.test" || base == "unittest" {
+			return prefix + " " + base
+		}
+	}
+	return ""
+}
+
 // sandboxRoute is a port of Analyzer.sandbox_route up to the test_sandbox read of the factory DB, which is a stub.
 func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	if a.Role != "coder" && a.Role != "qa" {
@@ -531,6 +558,10 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 		}
 	case name == "uv" && len(rest) > 0 && rest[0] == "run":
 		runner = uvRunRunner(rest[1:])
+	case name == "uv" && in(set(rest...), "tool"): // T-0745, T-0748: global options may sit between tool and run
+		runner = uvxScan(rest, "uv tool run")
+	case name == "uvx": // T-0745, T-0748
+		runner = uvxScan(rest, "uvx")
 	}
 	if runner != "" {
 		return notPorted("sandbox_route test_sandbox read of the factory DB (T6d)")
@@ -611,6 +642,16 @@ func singleModulePattern(x string) bool {
 // ptName is the command word worker-guard.py:PublicText.command looks at: in HQ mode the wrappers with a
 // modelled option set are peeled first. The public-text rule reads the factory DB, so a git or gh command is a stub.
 func ptName(words []string, hq bool) string {
+	words = ptPeel(words, hq)
+	if len(words) == 0 {
+		return ""
+	}
+	return pyBasename(words[0])
+}
+
+// ptPeel is the wrapper peeling at the top of PublicText.command: in HQ mode the wrappers with a modelled option
+// set are skipped, so the command word comes first.
+func ptPeel(words []string, hq bool) []string {
 	words = append([]string(nil), words...)
 	for hq && len(words) > 0 && WrapValueOpts[pyBasename(words[0])] != nil {
 		name := pyBasename(words[0])
@@ -624,10 +665,7 @@ func ptName(words []string, hq bool) string {
 			}
 		}
 	}
-	if len(words) == 0 {
-		return ""
-	}
-	return pyBasename(words[0])
+	return words
 }
 
 // isDurationWord is re.fullmatch(r"[\d.]+[smhd]?", w).
@@ -663,18 +701,31 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 		return nil
 	}
-	if n := pyBasename(words[0]); n == "git" || ptName(words, a.HQ) == "git" {
-		return notPorted("git rules: git_push_pin, public text, git_shared (T6c)")
+	// git_push_pin and the public-text rule read the factory DB (T6d): stubs, reported after the git rules they must
+	// not mask. The pin only acts in the worker pass (the PRIV pass swallows its Block), the public text where a.pt.
+	var pinStub, stub error
+	if pyBasename(words[0]) == "git" {
+		pinStub = gitPushPinStub(a.Role, words[1:])
 	}
-	if ptName(words, a.HQ) == "gh" {
-		return notPorted("gh rules: public text, gh_repo_change (T6c)")
+	if a.pt {
+		if pw := ptPeel(words, a.HQ); len(pw) > 0 {
+			switch pyBasename(pw[0]) {
+			case "git":
+				stub = gitPublicTextStub(pw[1:])
+			case "gh":
+				return notPorted("gh rules: public text, gh_repo_change (T6c)")
+			}
+		}
+	}
+	if pyBasename(words[0]) == "gh" {
+		return notPorted("gh rules: gh_repo_change (T6c)")
 	}
 	if !inLoose {
 		if err := a.priv(words, depth, piped, hstrs); err != nil {
 			return err
 		}
 		if a.HQ {
-			return nil
+			return stub // HQ mode runs no git rule beyond priv: only the public-text stub is left
 		}
 	}
 	w, rest := words[0], words[1:]
@@ -715,6 +766,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if IsClaude(w) {
 		return &ClaudeBlock{Msg: "direct claude invocation"}
 	}
+	if (name == "cd" || name == "pushd" || name == "popd") && !inLoose {
+		a.gitCd(name, rest) // cfg_cd (the CFG_DIR write detector's cwd) is T6d's
+	}
 	if err := a.claudeLaunchers(name, rest); err != nil {
 		return err
 	}
@@ -742,7 +796,10 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	switch {
 	case in(Shells, name):
-		if err := a.shell(rest, depth, piped, hstrs); err != nil {
+		savedCwd, savedDyn := a.gcwd, a.gdyn // a cd inside `sh -c` does not move the caller
+		err := a.shell(rest, depth, piped, hstrs)
+		a.gcwd, a.gdyn = savedCwd, savedDyn
+		if err != nil {
 			return err
 		}
 	case name == "eval":
@@ -783,6 +840,25 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			if strings.Contains(x, "herdr") && sedHerdr(x) {
 				return blockf("herdr in a sed e command")
 			}
+		}
+	case name == "git":
+		if err := a.gitShared(words, assigns); err != nil { // first: its reason names the own-worktree advice
+			return err
+		}
+		if err := a.gitDelete(rest); err != nil {
+			return err
+		}
+		if err := a.gitPersist(rest, depth); err != nil {
+			return err
+		}
+		if err := gitHerdrInConfig(rest); err != nil {
+			return err
+		}
+		if pinStub != nil {
+			return pinStub
+		}
+		if stub != nil {
+			return stub
 		}
 	case name == "pkill" || name == "killall":
 		return blockf(name + ": pattern kills hit other agents' processes (G-008 M1932); kill your own job " +

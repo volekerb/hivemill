@@ -28963,6 +28963,162 @@
 "src": "corpus"
 },
 {
+"input": "uvx ruff check .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx ruff check .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx ruff check .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx ruff check .",
+"mode": "quote",
+"quoted": "'uvx ruff check .'",
+"src": "corpus"
+},
+{
+"input": "uv tool run black --check .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"black",
+"--check",
+"."
+]
+},
+{
+"input": "uv tool run black --check .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"black",
+"--check",
+"."
+]
+},
+{
+"input": "uv tool run black --check .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"black",
+"--check",
+"."
+]
+},
+{
+"input": "uv tool run black --check .",
+"mode": "quote",
+"quoted": "'uv tool run black --check .'",
+"src": "corpus"
+},
+{
+"input": "uvx pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "quote",
+"quoted": "'uvx pytest'",
+"src": "corpus"
+},
+{
+"input": "uv tool run pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "quote",
+"quoted": "'uv tool run pytest'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -32994,7 +33150,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 710,
+"corpus_commands": 714,
 "edge_inputs": 123,
 "python": "3.13"
 }
