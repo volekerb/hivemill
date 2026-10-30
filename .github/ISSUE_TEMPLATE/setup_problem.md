@@ -2,7 +2,7 @@
 name: Setup problem
 about: Installing or adopting the factory failed or got stuck
 title: "[Setup] "
-labels: setup
+labels: setup, triage
 ---
 
 ## Where it failed

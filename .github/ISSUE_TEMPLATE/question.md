@@ -2,7 +2,7 @@
 name: Question
 about: Ask how something works or how to use it
 title: "[Question] "
-labels: question
+labels: question, triage
 ---
 
 Please check [Discussions](https://github.com/volekerb/hivemill/discussions) first. Open an issue here only if your question is about a specific command or doc that behaves unexpectedly.

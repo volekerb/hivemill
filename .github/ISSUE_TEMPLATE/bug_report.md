@@ -2,7 +2,7 @@
 name: Bug report
 about: Something in the factory does not work as documented
 title: "[Bug] "
-labels: bug
+labels: bug, triage
 ---
 
 ## What happened
