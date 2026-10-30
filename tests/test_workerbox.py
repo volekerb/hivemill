@@ -32,6 +32,7 @@ USERNS_OK, USERNS_WHY = nsbox.userns_available()
 NEEDS_USERNS = unittest.skipUnless(USERNS_OK, f"user namespaces unavailable: {USERNS_WHY}")
 PY = sys.executable
 OAUTH = "oauth-" + "A1b2" * 8
+TERMS_BODY = "dummy-term-one\ndummy-term-two\n"
 GH_RO = "ghro-" + "C3d4" * 8
 GH_RW = "ghrw-" + "E5f6" * 8
 SLUGS = ["volekerb/hivemill"]
@@ -162,6 +163,7 @@ class World:
         self.tokens = self.home / ".config/factory"
         for name, tok in (("worker-oauth-token", OAUTH), ("gh-worker-ro-token", GH_RO), ("gh-worker-rw-token", GH_RW)):
             put(self.tokens / name, tok + "\n", 0o600)
+        put(self.tokens / workerbox.TERMS_NAME, TERMS_BODY, 0o600)
         self.bus = self.listen(self.runtime / "bus")
         self.control = self.listen(self.home / CONTROL_REL)
         self.agent_sock = self.listen(self.home / AGENT_REL)
@@ -261,6 +263,22 @@ class AgentDirTests(unittest.TestCase):
         self.assertNotIn("tmpfs_size", ns)
         self.assertEqual(cfg["gh_token"], str(self.w.tokens / "gh-worker-rw-token"))
         self.assertEqual(cfg["oauth_token"], str(self.w.tokens / "worker-oauth-token"))
+
+    def test_terms_file_is_the_one_extra_ro_path(self):
+        t = str(self.w.tokens / workerbox.TERMS_NAME)
+        ro = json.loads(_shim_cfg_literal(self.w.prepare(rw_cwd=False)))["ns"]["ro"]
+        self.assertIn(t, ro)
+        self.assertNotIn(str(self.w.tokens), ro)
+        (self.w.tokens / workerbox.TERMS_NAME).unlink()
+        ro = json.loads(_shim_cfg_literal(self.w.prepare(rw_cwd=False)))["ns"]["ro"]
+        self.assertNotIn(t, ro)
+
+    def test_symlinked_terms_file_is_refused(self):
+        t = self.w.tokens / workerbox.TERMS_NAME
+        t.unlink()
+        t.symlink_to(self.w.fh / "roles/settings.json")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            self.w.prepare()
 
     def test_gitconfig_has_only_identity_and_the_credential_helper(self):
         d = self.w.prepare()
@@ -678,6 +696,29 @@ class SandboxTests(unittest.TestCase):
         self.assertEqual({str(f): sha(f) for f in files}, before)
         self.assertEqual(sorted(p.name for p in d.iterdir()), listing)
         self.assertTrue((d / "bin").is_dir())
+
+    def test_terms_file_is_readable_and_immutable_and_siblings_stay_hidden(self):
+        t = self.w.tokens / workerbox.TERMS_NAME
+        before = sha(t)
+        res = self.probe([{"op": "read", "path": str(t)}, {"op": "write", "path": str(t), "data": "evil"},
+                          {"op": "rename", "src": str(t), "dst": f"{t}.old"}, {"op": "unlink", "path": str(t)},
+                          {"op": "open", "path": str(self.w.tokens / "gh-worker-ro-token")},
+                          {"op": "open", "path": str(self.w.tokens / "worker-oauth-token")}])
+        self.assertEqual((res[0]["ok"], res[0]["val"]), (True, TERMS_BODY))
+        for r in res[1:4]:
+            self.assertFalse(r["ok"])
+            self.assertIn(r["err"], ("EROFS", "EBUSY", "EXDEV"))
+        for r in res[4:]:
+            self.assertEqual((r["ok"], r["err"]), (False, "ENOENT"))
+        self.assertEqual(sha(t), before)
+        self.assertTrue(t.is_file())
+
+    def test_missing_terms_file_still_starts_the_sandbox(self):
+        (self.w.tokens / workerbox.TERMS_NAME).unlink()
+        d = self.w.prepare(agent="coder-t-2")
+        p, res = self.w.run(d, [{"op": "open", "path": str(self.w.tokens / workerbox.TERMS_NAME)}])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual((res[0]["ok"], res[0]["err"]), (False, "ENOENT"))
 
     def test_new_files_in_agent_dir_do_not_reach_the_host(self):
         self.probe([{"op": "write", "path": str(self.d / "evil.sh")}, {"op": "write", "path": str(self.d / "bin/evil")}])
