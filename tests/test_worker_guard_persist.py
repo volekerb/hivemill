@@ -9,6 +9,7 @@ import pwd
 import subprocess
 import sys
 import tempfile
+import shutil
 import unittest
 from unittest import mock
 
@@ -71,6 +72,21 @@ def assert_in_process_matches_real_hook(test):
 
 def bash(cmd, role="coder", hq=False, cwd=None):
     return hook({"tool_name": "Bash", "tool_input": {"command": cmd}, **({"cwd": cwd} if cwd else {})}, role, hq)
+
+
+_HOME_PATCH = None
+
+
+def setUpModule():
+    """Root cause T-0636: the hook reads public_text_repos from $FACTORY_HOME's DB. A pane exports the live home, whose
+    config turns the public-text rule on, so plain `git -c alias.*` / quoted-backtick commands block; CI has no DB. Run
+    against an empty temp home so the result does not depend on the caller's environment."""
+    global _HOME_PATCH
+    tmp = tempfile.mkdtemp(prefix="zz-test-factory-guardhome-")
+    _HOME_PATCH = mock.patch.dict(os.environ, {"FACTORY_HOME": tmp})
+    _HOME_PATCH.start()
+    unittest.addModuleCleanup(shutil.rmtree, tmp, True)
+    unittest.addModuleCleanup(_HOME_PATCH.stop)
 
 
 class PersistGuardTests(unittest.TestCase):
