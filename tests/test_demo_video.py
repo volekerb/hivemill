@@ -66,6 +66,20 @@ class ArgBuilders(unittest.TestCase):
                          ("libvpx-vp9", "34", "0", "1", "4"))
         self.assertIn("-an", a)
 
+    def test_default_export_has_no_scale_filter(self):
+        self.assertNotIn("-vf", dv.mp4_args("l.txt", "o.mp4"))
+        self.assertNotIn("-vf", dv.webm_args("l.txt", "o.webm"))
+
+    def test_scaled_capture_is_exported_at_1080p_with_lanczos(self):
+        for a in (dv.mp4_args("l.txt", "o.mp4", 30, 2), dv.webm_args("l.txt", "o.webm", 30, 1.333)):
+            self.assertEqual(self.pairs(a)["-vf"], "scale=1920:1080:flags=lanczos")
+            self.assertLess(a.index("-i"), a.index("-vf"))  # an output option, after the input
+        # the output check still demands 1920x1080
+        probe = {"streams": [{"codec_name": "h264", "width": 3840, "height": 2160, "avg_frame_rate": "30/1"}],
+                 "format": {"duration": "80"}}
+        res = dict((l, ok) for l, ok, _ in dv.check_video("demo.mp4", probe, 1000, "h264"))
+        self.assertFalse(res["demo.mp4 resolution"])
+
     def test_hero_args(self):
         a = dv.hero_args("hero.webp")
         p = self.pairs(a)
@@ -174,6 +188,25 @@ class Guards(unittest.TestCase):
         self.assertEqual(rc, 3)
         self.assertIn("1499 MB", err)
 
+    def test_memory_floor_grows_with_capture_scale(self):
+        self.assertEqual(dv.mem_floor(1), 1500)
+        self.assertEqual(dv.mem_floor(2), 3000)
+        self.assertEqual(dv.mem_floor(1.333), 1888)
+        with mock.patch.object(dv, "mem_available_mb", lambda: 2999):
+            rc, _, err = run_main("build", "--draft", "--scale", "2", "--out", "/nonexistent-disk/out")
+        self.assertEqual(rc, 3)
+        self.assertIn("2999 MB", err)
+        self.assertIn("3000 MB", err)
+        with mock.patch.object(dv, "mem_available_mb", lambda: 2999):  # same RAM is fine at 1x
+            rc, _, err = run_main("build", "--draft", "--out", "/tmp/x")
+        self.assertIn("/tmp", err)  # got past the memory check to the dir check
+
+    def test_scale_out_of_range_is_refused(self):
+        for bad in ("0.9", "2.5"):
+            rc, _, err = run_main("build", "--draft", "--scale", bad, "--out", "/nonexistent-disk/out")
+            self.assertEqual(rc, 3, bad)
+            self.assertIn("--scale", err)
+
     def test_meminfo_reader(self):
         p = Path(self.tmp.name) / "meminfo"
         p.write_text("MemTotal: 8000000 kB\nMemAvailable:    1536000 kB\n")
@@ -218,7 +251,7 @@ class SceneOrder(unittest.TestCase):
         board = dv.load_board()
         events = []
 
-        def fake_record(scene, board_, browser, work, sink, hero=False, tour_ctx=None):
+        def fake_record(scene, board_, browser, work, sink, hero=False, tour_ctx=None, scale=1.0):
             events.append(("record", scene["id"], hero))
             return 1
 
@@ -251,6 +284,40 @@ class SceneOrder(unittest.TestCase):
                    ("start", "hero.webp"), ("record", board["hero"]["scene"], True), ("end", "hero.webp")]
         self.assertEqual(events, expect)
         self.assertFalse(clips_left, "clips are removed after a successful build")
+
+    def test_scale_reaches_the_recorder_and_the_exports(self):
+        seen, runs = [], []
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(dv, "record_one", lambda s, *a, **k: seen.append(k.get("scale")) or 1), \
+                mock.patch.object(dv, "stream", lambda args, feed, cwd=None: feed(mock.Mock())), \
+                mock.patch.object(dv, "run", lambda args, cwd=None: runs.append(args) or ""), \
+                mock.patch.object(dv.demo_tour, "prepare_demo_dir"), mock.patch.object(dv.demo_record, "check_dirs"), \
+                mock.patch.object(dv.demo_cdp, "seed_demo"), mock.patch.object(dv.demo_cdp, "stop"), \
+                mock.patch.object(dv.demo_cdp, "serve_demo", return_value=(1234, mock.Mock())), \
+                mock.patch.object(dv.demo_cdp.screenshots, "current_hour", return_value="2026-01-01T00:00:00"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                dv.build(Path(d) / "out", Path(d) / "work", None, scale=2.0)
+        self.assertEqual(set(seen), {2.0})
+        self.assertEqual(len(runs), 2)
+        for a in runs:
+            self.assertIn("scale=1920:1080:flags=lanczos", a)
+
+    def test_default_scale_comes_from_the_storyboard_else_one(self):
+        seen = []
+        for board_scale, want in ((None, 1.0), (1.5, 1.5)):
+            board = dict(dv.load_board())
+            if board_scale:
+                board["scale"] = board_scale
+            with tempfile.TemporaryDirectory() as d, mock.patch.object(dv, "load_board", lambda b=board: b), \
+                    mock.patch.object(dv, "record_one", lambda s, *a, **k: seen.append(k.get("scale")) or 1), \
+                    mock.patch.object(dv, "stream", lambda args, feed, cwd=None: feed(mock.Mock())), \
+                    mock.patch.object(dv.demo_tour, "prepare_demo_dir"), mock.patch.object(dv.demo_record, "check_dirs"), \
+                    mock.patch.object(dv.demo_cdp, "seed_demo"), mock.patch.object(dv.demo_cdp, "stop"), \
+                    mock.patch.object(dv.demo_cdp, "serve_demo", return_value=(1234, mock.Mock())), \
+                    mock.patch.object(dv.demo_cdp.screenshots, "current_hour", return_value="x"):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    dv.build(Path(d) / "out", Path(d) / "work", None, only="hook")
+            self.assertEqual(seen[-1], want)
 
     def test_only_records_one_clip_and_skips_encode(self):
         calls = []

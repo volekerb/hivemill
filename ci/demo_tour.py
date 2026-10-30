@@ -2,8 +2,10 @@
 """Web UI tour recorder (storyboard beat 6): seeds the demo home, serves it, records each page of the tour scene.
 
     python3 ci/demo_tour.py --out DIR [--browser PATH] [--max-frames N] [--pages /,/goals] [--work DIR]
+                            [--scene ID] [--scale S]
 
-Pages are addressed by URL path only. Each page is checked for HTTP 200 first (a failing page stops the run), then
+A page of the storyboard is a URL path or an object {"path", "duration", "hold", "scroll_to", "fade_in", "push_in",
+"label"}; see docs/demo/README.md. Each page is checked for HTTP 200 first (a failing page stops the run), then
 recorded with a smooth scroll, a fade through the background colour and the shared caption bar. --max-frames N
 limits the whole tour to N frames, split evenly over the pages. Python 3 stdlib only.
 Exit codes: 0 ok, 1 failed, 2 usage error, 3 refused (a work or output dir in RAM-backed /tmp).
@@ -41,7 +43,7 @@ CAPTION_CSS = ("position:fixed;left:120px;right:120px;bottom:%dpx;z-index:214748
                "border-radius:18px;padding:%dpx 40px;font:46px/1.25 'DejaVu Sans',sans-serif;color:#fff;"
                "text-align:center;max-height:%dpx;overflow:hidden" % (CAPTION_BOTTOM, CAPTION_PAD, CAPTION_MAX))
 PAGE_CSS = ("position:fixed;left:0;top:0;right:0;bottom:%dpx;overflow:hidden;background:#fff" % CAPTION_RESERVE)
-ZOOM_CSS = "zoom:%s" % ZOOM
+ZOOM_CSS = "zoom:%s;transform-origin:50%% 0" % ZOOM
 # the page label sits at the top of the caption band, so it covers no page content either
 LABEL_CSS = ("position:fixed;left:48px;top:%dpx;z-index:2147483646;background:rgba(5,8,16,0.7);color:#fff;"
              "border-radius:14px;padding:10px 26px;font:bold 36px 'DejaVu Sans',sans-serif" % (1080 - CAPTION_RESERVE + 8))
@@ -68,20 +70,57 @@ def caption_top(height=1080):
     return height - CAPTION_BOTTOM - CAPTION_MAX - 2 * CAPTION_PAD
 
 
-def scroll_target(scroll_height, height=1080):
-    return max(0, min(SCROLL_MAX, scroll_height - height))
+def scroll_target(scroll_height, height=1080, scroll_to=None):
+    """Where the page scrolls to: `scroll_to` px (capped at the end of the page), default min(SCROLL_MAX, end)."""
+    end = max(0, scroll_height - height)
+    if scroll_to is None:
+        return min(SCROLL_MAX, end)
+    return min(end, max(0, scroll_to))
 
 
-def scroll_y(t, seconds, scroll_height, height=1080):
-    """scrollY at time t of a page that lasts `seconds`: 0 at t=0, the target at the end, monotonic."""
-    return scroll_target(scroll_height, height) * ease(t / seconds)
+def scroll_y(t, seconds, scroll_height, height=1080, hold=0.0, scroll_to=None):
+    """scrollY at time t of a page that lasts `seconds`: 0 until `hold`, then eased to the target at the end."""
+    span = seconds - hold
+    u = (t - hold) / span if span > 0 else 1.0
+    return scroll_target(scroll_height, height, scroll_to) * ease(u)
 
 
-def fade(t, seconds, edge=FADE):
-    """Page visibility at time t: 0 at both page edges, 1 after `edge` seconds, and back to 0 at the end."""
-    if t <= 0 or t >= seconds:
+def fade(t, seconds, edge=FADE, fade_in=True):
+    """Page visibility at time t: 0 at both page edges, 1 after `edge` seconds, and back to 0 at the end.
+    fade_in=False starts fully visible on frame 0 (a hard open) and only fades out."""
+    if t >= seconds or (fade_in and t <= 0):
         return 0.0
-    return min(1.0, t / edge, (seconds - t) / edge)
+    return min(1.0, (t / edge) if fade_in else 1.0, (seconds - t) / edge)
+
+
+def push_scale(t, seconds, push_in=1.0):
+    """Scale of the page at time t: 1.0 at t=0, eased to `push_in` at the end."""
+    return 1.0 + (push_in - 1.0) * ease(t / seconds)
+
+
+def shots(pages, labels=None, duration=4):
+    """Normalise a storyboard page list (path strings or objects) to one dict per page with every option set."""
+    labels = labels or []
+    out = []
+    for i, p in enumerate(pages):
+        o = {"path": p} if isinstance(p, str) else dict(p)
+        if not isinstance(o.get("path"), str):
+            raise PageError("page %d has no 'path'; give a URL path or an object with a 'path'." % i)
+        label = o.get("label", labels[i] if i < len(labels) else "")
+        shot = {"path": o["path"], "label": label, "duration": o.get("duration", duration), "hold": o.get("hold", 0),
+                "scroll_to": o.get("scroll_to"), "fade_in": o.get("fade_in", True), "push_in": o.get("push_in", 1.0)}
+        if not shot["duration"] > 0:
+            raise PageError("page %s: duration must be > 0 seconds." % shot["path"])
+        if not 0 <= shot["hold"] < shot["duration"]:
+            raise PageError("page %s: hold must be >= 0 and shorter than its duration." % shot["path"])
+        if not isinstance(shot["scroll_to"], (int, float, str, type(None))) or isinstance(shot["scroll_to"], bool):
+            raise PageError("page %s: scroll_to must be a pixel count or a CSS selector." % shot["path"])
+        if not isinstance(shot["fade_in"], bool):
+            raise PageError("page %s: fade_in must be true or false." % shot["path"])
+        if not 1.0 <= shot["push_in"] <= 2.0:
+            raise PageError("page %s: push_in must be between 1.0 and 2.0 (end scale)." % shot["path"])
+        out.append(shot)
+    return out
 
 
 def caption_at(captions, t):
@@ -91,17 +130,25 @@ def caption_at(captions, t):
     return ""
 
 
-def load_tour():
+def load_tour(scene_id=None):
+    """The storyboard and its tour scene: the one named `scene_id`, else the first 'ui:' scene."""
     board = json.loads((DEMO / "storyboard.json").read_text())
-    scene = next((s for s in board["scenes"] if s.get("source", "").startswith("ui:")), None)
-    if scene is None:
+    ui = [s for s in board["scenes"] if s.get("source", "").startswith("ui:")]
+    if scene_id is not None:
+        scene = next((s for s in ui if s["id"] == scene_id), None)
+        if scene is None:
+            raise SystemExit(_usage("storyboard.json has no 'ui:' scene '%s' (have: %s)."
+                                    % (scene_id, ", ".join(s["id"] for s in ui) or "none")))
+    elif ui:
+        scene = ui[0]
+    else:
         raise SystemExit(_usage("storyboard.json has no 'ui:' tour scene."))
     return board, scene
 
 
 def check_pages(base_url, pages):
     """Fail on the first page that does not answer HTTP 200."""
-    for path in pages:
+    for path in (p if isinstance(p, str) else p["path"] for p in pages):
         try:
             with urllib.request.urlopen(base_url + path, timeout=HTTP_TIMEOUT) as r:
                 status = r.status
@@ -114,32 +161,49 @@ def check_pages(base_url, pages):
                             "list in docs/demo/storyboard.json." % (path, status))
 
 
+def selector_top(browser, selector):
+    """scrollTop that puts the first element matching `selector` at the top of the page box."""
+    y = browser.evaluate(
+        "(function(s){var e=document.querySelector(s);if(!e)return null;var p=document.getElementById('demo-page');"
+        "return Math.round(e.getBoundingClientRect().top-p.getBoundingClientRect().top+p.scrollTop)})(%s)"
+        % json.dumps(selector))
+    if y is None:
+        raise PageError("scroll_to selector %r matched nothing on the page; fix it in docs/demo/storyboard.json." % selector)
+    return y
+
+
 def record_tour(browser, base_url, pages, seconds_per_page, fps, sink, text_dir, labels=None, captions=(),
                 frames_per_page=None):
-    """Record every page of `pages` (URL paths under base_url) to sink(i, png). Returns the number of frames."""
-    check_pages(base_url, pages)
-    labels = labels or [""] * len(pages)
-    per_page = round(seconds_per_page * fps)
-    if frames_per_page is not None:
-        per_page = min(per_page, frames_per_page)
+    """Record every page of `pages` (URL paths or page objects, see shots()) to sink(i, png). Returns the frame count."""
+    plan = shots(pages, labels, seconds_per_page)
+    check_pages(base_url, [s["path"] for s in plan])
     if text_dir is not None:
         Path(text_dir).mkdir(parents=True, exist_ok=True)
         for old in Path(text_dir).glob("tour-*.txt"):
             old.unlink()  # dumps of an earlier run must not leak into this one
     n = 0
-    for path, label in zip(pages, labels):
-        browser.new_page(base_url + path)
-        browser.evaluate(_inject_js(label))
+    for shot in plan:
+        seconds = shot["duration"]
+        per_page = round(seconds * fps)
+        if frames_per_page is not None:
+            per_page = min(per_page, frames_per_page)
+        browser.new_page(base_url + shot["path"])
+        browser.evaluate(_inject_js(shot["label"]))
         height = browser.evaluate("document.getElementById('demo-page').clientHeight") or page_height()
         scroll_height = browser.evaluate("document.getElementById('demo-page').scrollHeight") or height
+        scroll_to = shot["scroll_to"]
+        if isinstance(scroll_to, str):
+            scroll_to = selector_top(browser, scroll_to)
         for k in range(per_page):
             t = k / fps
-            y = scroll_y(t, seconds_per_page, scroll_height, height)
+            y = scroll_y(t, seconds, scroll_height, height, shot["hold"], scroll_to)
             cap = caption_at(captions, n / fps)
             browser.evaluate("document.getElementById('demo-page').scrollTop=%s;document.getElementById('demo-fade').style.opacity=%s;"
+                             "document.getElementById('demo-zoom').style.transform='scale(%s)';"
                              "document.getElementById('demo-cap').textContent=%s;"
                              "document.getElementById('demo-cap').style.display=%s"
-                             % (json.dumps(y), json.dumps(1 - fade(t, seconds_per_page)), json.dumps(cap),
+                             % (json.dumps(y), json.dumps(1 - fade(t, seconds, fade_in=shot["fade_in"])),
+                                round(push_scale(t, seconds, shot["push_in"]), 5), json.dumps(cap),
                                 json.dumps("block" if cap else "none")))
             sink(n, browser.screenshot("png"))
             if text_dir is not None and (k == 0 or n % TEXT_EVERY == 0):  # each page is dumped once at least
@@ -153,7 +217,7 @@ def _inject_js(label):
     return ("(function(){function mk(id,css,txt){var d=document.createElement('div');d.id=id;d.style.cssText=css;"
             "if(txt)d.textContent=txt;document.body.appendChild(d);}"
             "var pg=document.createElement('div');pg.id='demo-page';pg.style.cssText=%s;"
-            "var z=document.createElement('div');z.style.cssText=%s;"
+            "var z=document.createElement('div');z.id='demo-zoom';z.style.cssText=%s;"
             "while(document.body.firstChild)z.appendChild(document.body.firstChild);"
             "pg.appendChild(z);document.body.appendChild(pg);"
             "mk('demo-label',%s,%s);mk('demo-cap',%s);mk('demo-fade',%s);"
@@ -187,6 +251,8 @@ def main(argv=None):
     ap.add_argument("--pages", help="comma list of URL paths (default: the tour pages of storyboard.json)")
     ap.add_argument("--work", default=str(demo_record.DEFAULT_WORK), help="work dir: demo home, profile, text dumps")
     ap.add_argument("--demo-dir", default=str(DEFAULT_DEMO), help="demo home to seed and serve (outside the checkout)")
+    ap.add_argument("--scene", help="id of the 'ui:' scene to record (default: the first one)")
+    ap.add_argument("--scale", type=float, help="capture scale (deviceScaleFactor, 1-2); default: storyboard 'scale' or 1")
     ap.add_argument("--now", help="demo seed reference time (ISO); default: the current UTC hour")
     args = ap.parse_args(argv)
     try:
@@ -196,15 +262,24 @@ def main(argv=None):
         print("demo_tour: refused: %s" % e, file=sys.stderr)
         return 3
     try:
-        board, scene = load_tour()
+        board, scene = load_tour(args.scene)
     except (OSError, ValueError) as e:
         print("demo_tour: cannot read docs/demo/storyboard.json: %s" % e, file=sys.stderr)
         return 1
-    pages = [p for p in args.pages.split(",") if p] if args.pages else scene["pages"]
-    if not pages or any(not p.startswith("/") for p in pages):
-        return _usage("--pages must be a comma list of URL paths starting with /.")
-    known = dict(zip(scene["pages"], scene.get("labels", [])))
-    labels = [known.get(p, "") for p in pages]
+    try:
+        plan = shots(scene["pages"], scene.get("labels"), scene["page_duration"])
+    except PageError as e:
+        return _usage(str(e))
+    if args.pages:
+        known = {s["path"]: s for s in plan}
+        paths = [p for p in args.pages.split(",") if p]
+        if not paths or any(not p.startswith("/") for p in paths):
+            return _usage("--pages must be a comma list of URL paths starting with /.")
+        plan = [known.get(p, {"path": p}) for p in paths]
+    pages = [{k: v for k, v in s.items() if v is not None} for s in plan]
+    scale = args.scale if args.scale is not None else board.get("scale", 1)
+    if not 1 <= scale <= 2:
+        return _usage("--scale must be between 1 and 2 (2 = 3840x2160 capture of the 1920x1080 layout).")
     per_page = None
     if args.max_frames is not None:
         if args.max_frames < len(pages):
@@ -222,8 +297,9 @@ def main(argv=None):
         port, server = demo_cdp.serve_demo(demo)
         binary = demo_cdp.browser_binary(work, args.browser)
         browser = demo_cdp.Browser.launch(binary, board["width"], board["height"], work)
+        browser.scale = scale
         n = record_tour(browser, "http://127.0.0.1:%d" % port, pages, scene["page_duration"], board["fps"],
-                        demo_record.DirSink(args.out), work / "text", labels, scene.get("captions", []), per_page)
+                        demo_record.DirSink(args.out), work / "text", None, scene.get("captions", []), per_page)
     except demo_record.Refused as e:
         print("demo_tour: refused: %s" % e, file=sys.stderr)
         return 3

@@ -48,6 +48,130 @@ class Maths(unittest.TestCase):
         self.assertEqual(demo_tour.caption_at(caps, 99), "")
 
 
+class PageOptions(unittest.TestCase):
+    def test_defaults_match_the_old_behaviour(self):
+        # regression: hold 0, no scroll_to, fade_in true, no push-in == the pre-T-0776 curves
+        for t in (0, 0.5, 2, 3.9):
+            self.assertEqual(demo_tour.scroll_y(t, 4, 2000, 960),
+                             demo_tour.scroll_target(2000, 960) * demo_tour.ease(t / 4))
+            self.assertEqual(demo_tour.fade(t, 4), demo_tour.fade(t, 4, demo_tour.FADE, True))
+        self.assertEqual(demo_tour.fade(0, 4), 0.0)
+        self.assertEqual(demo_tour.push_scale(2, 4), 1.0)
+        s = demo_tour.shots(["/", "/goals"], ["A", "B"], 4)
+        self.assertEqual([(x["path"], x["label"], x["duration"], x["hold"], x["scroll_to"], x["fade_in"], x["push_in"])
+                          for x in s], [("/", "A", 4, 0, None, True, 1.0), ("/goals", "B", 4, 0, None, True, 1.0)])
+
+    def test_hold_keeps_the_page_still_then_scrolls_to_the_end(self):
+        self.assertEqual(demo_tour.scroll_y(1.5, 6, 2000, 960, hold=1.5), 0)
+        self.assertEqual(demo_tour.scroll_y(0.0, 6, 2000, 960, hold=1.5), 0)
+        self.assertGreater(demo_tour.scroll_y(3, 6, 2000, 960, hold=1.5), 0)
+        self.assertAlmostEqual(demo_tour.scroll_y(6, 6, 2000, 960, hold=1.5), demo_tour.SCROLL_MAX)
+
+    def test_scroll_to_px_beats_the_default_cap_but_not_the_page_end(self):
+        self.assertEqual(demo_tour.scroll_target(3000, 1000, 900), 900)
+        self.assertEqual(demo_tour.scroll_target(3000, 1000), demo_tour.SCROLL_MAX)
+        self.assertEqual(demo_tour.scroll_target(1500, 1000, 900), 500)
+        self.assertEqual(demo_tour.scroll_target(900, 1000, 100), 0)
+
+    def test_fade_in_false_is_visible_on_frame_zero_and_still_fades_out(self):
+        self.assertEqual(demo_tour.fade(0, 4, fade_in=False), 1.0)
+        self.assertEqual(demo_tour.fade(2, 4, fade_in=False), 1.0)
+        self.assertAlmostEqual(demo_tour.fade(3.8, 4, fade_in=False), 0.5)
+        self.assertEqual(demo_tour.fade(4, 4, fade_in=False), 0.0)
+
+    def test_push_in_scales_from_one_to_the_end_scale(self):
+        self.assertEqual(demo_tour.push_scale(0, 5, 1.04), 1.0)
+        self.assertAlmostEqual(demo_tour.push_scale(2.5, 5, 1.04), 1.02)
+        self.assertAlmostEqual(demo_tour.push_scale(5, 5, 1.04), 1.04)
+
+    def test_bad_options_are_refused_with_the_page_named(self):
+        for bad in ({"duration": 0}, {"hold": 9}, {"hold": -1}, {"fade_in": "no"}, {"push_in": 0.9}, {"scroll_to": True},
+                    {"scroll_to": ["x"]}):
+            with self.assertRaises(demo_tour.PageError, msg=bad) as cm:
+                demo_tour.shots([dict(path="/x", **bad)], None, 4)
+            self.assertIn("/x", str(cm.exception))
+        with self.assertRaises(demo_tour.PageError):
+            demo_tour.shots([{"duration": 3}], None, 4)
+
+
+class FakeBrowser:
+    """Stands in for demo_cdp.Browser: records what the tour sets on the page for each frame."""
+
+    def __init__(self, scroll_height=2000, selector_top=777):
+        self.frames, self.scroll_height, self.selector_top, self.calls = [], scroll_height, selector_top, []
+
+    def new_page(self, url):
+        self.calls.append(url)
+
+    def evaluate(self, expr):
+        import re
+        if "scrollTop=" in expr and "demo-fade" in expr:
+            g = lambda pat: re.search(pat, expr).group(1)  # noqa: E731
+            self.frames.append((float(g(r"scrollTop=([\d.]+)")), float(g(r"opacity=([\d.]+)")),
+                                float(g(r"scale\(([\d.]+)\)"))))
+        elif "querySelector" in expr:
+            return self.selector_top if "#verdicts" in expr else None
+        elif "clientHeight" in expr:
+            return 900
+        elif "scrollHeight" in expr:
+            return self.scroll_height
+        return None
+
+    def screenshot(self, fmt):
+        return b"png"
+
+
+class TourOptions(unittest.TestCase):
+    def setUp(self):
+        self.base = start_stub(self)
+
+    def record(self, pages, fb=None, fps=10, default=2, **kw):
+        fb = fb or FakeBrowser()
+        n = demo_tour.record_tour(fb, self.base, pages, default, fps, lambda i, p: None, None, **kw)
+        return fb, n
+
+    def test_per_page_duration_decides_the_frame_count(self):
+        fb, n = self.record([{"path": "/ok", "duration": 1}, "/ok", {"path": "/ok", "duration": 3}])
+        self.assertEqual(n, 10 + 20 + 30)
+
+    def test_hold_then_scroll_to_px_and_hard_open(self):
+        fb, _ = self.record([{"path": "/ok", "duration": 4, "hold": 2, "scroll_to": 1000, "fade_in": False}])
+        scrolls = [f[0] for f in fb.frames]
+        self.assertEqual(scrolls[:21], [0.0] * 21)  # held through t = 2.0
+        self.assertEqual(fb.frames[0][1], 0.0)  # opacity of the fade layer: page fully visible on frame 0
+        self.assertGreater(scrolls[30], 0)
+        self.assertLessEqual(max(scrolls), 1000)
+        self.assertEqual(scrolls, sorted(scrolls))
+
+    def test_selector_scroll_target(self):
+        fb, _ = self.record([{"path": "/ok", "duration": 4, "scroll_to": "#verdicts"}], FakeBrowser(selector_top=777))
+        self.assertAlmostEqual(max(f[0] for f in fb.frames), 777 * demo_tour.ease(39 / 40), places=3)
+
+    def test_unknown_selector_is_a_page_error(self):
+        with self.assertRaises(demo_tour.PageError) as cm:
+            self.record([{"path": "/ok", "scroll_to": "#nope"}])
+        self.assertIn("#nope", str(cm.exception))
+
+    def test_default_page_fades_in_from_the_background(self):
+        fb, _ = self.record(["/ok"])
+        self.assertEqual(fb.frames[0][1], 1.0)
+
+    def test_push_in_reaches_the_end_scale(self):
+        fb, _ = self.record([{"path": "/ok", "duration": 4, "push_in": 1.04}, "/ok"])
+        scales = [f[2] for f in fb.frames]
+        self.assertEqual(scales[0], 1.0)
+        self.assertGreater(scales[39], 1.039)
+        self.assertEqual(set(scales[40:]), {1.0})  # the next page starts unscaled
+
+    def test_max_frames_cap_applies_per_page(self):
+        _, n = self.record([{"path": "/ok", "duration": 4}, "/ok"], frames_per_page=3)
+        self.assertEqual(n, 6)
+
+    def test_labels_come_from_the_page_object_before_the_list(self):
+        s = demo_tour.shots([{"path": "/a", "label": "Own"}, "/b"], ["X", "Y"], 4)
+        self.assertEqual([x["label"] for x in s], ["Own", "Y"])
+
+
 class Layout(unittest.TestCase):
     def test_caption_bar_starts_below_the_page_box(self):
         self.assertGreaterEqual(demo_tour.caption_top(1080), demo_tour.page_height(1080))
@@ -85,6 +209,14 @@ class Stub(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+
+def start_stub(case):
+    srv = http.server.HTTPServer(("127.0.0.1", 0), Stub)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    case.addCleanup(srv.server_close)
+    case.addCleanup(srv.shutdown)
+    return "http://127.0.0.1:%d" % srv.server_port
 
 
 class NonOk(unittest.TestCase):
@@ -186,6 +318,48 @@ class Cli(unittest.TestCase):
     def test_bad_pages_is_usage_error(self):
         r = self.run_tour("--out", str(REPO / "docs/demo/out/x"), "--pages", "goals")
         self.assertEqual(r.returncode, 2, r.stderr)
+
+
+class SceneAndScale(unittest.TestCase):
+    def board(self, tmp):
+        board = {"fps": 30, "width": 1920, "height": 1080, "scenes": [
+            {"id": "a", "source": "ui:/", "duration": 8, "pages": ["/"], "page_duration": 8},
+            {"id": "html", "source": "scenes/x.html", "duration": 5},
+            {"id": "b", "source": "ui:/", "duration": 6, "pages": [{"path": "/goals", "duration": 6, "hold": 1}],
+             "page_duration": 6}]}
+        (Path(tmp) / "storyboard.json").write_text(json.dumps(board))
+
+    def test_load_tour_picks_the_named_ui_scene(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.board(d)
+            with mock.patch.object(demo_tour, "DEMO", Path(d)):
+                self.assertEqual(demo_tour.load_tour()[1]["id"], "a")
+                self.assertEqual(demo_tour.load_tour("b")[1]["id"], "b")
+                for bad in ("html", "nope"):  # a non-ui scene is not a tour scene
+                    with self.assertRaises(SystemExit):
+                        demo_tour.load_tour(bad)
+
+    def cli(self, *args):
+        return subprocess.run([sys.executable, str(TOUR), "--out", str(REPO / "docs" / "demo" / "out" / "t"), *args],
+                              capture_output=True, text=True, timeout=60)
+
+    def test_unknown_scene_is_a_usage_error(self):
+        r = self.cli("--scene", "nope")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("'nope'", r.stderr)
+        self.assertIn("tour", r.stderr)  # lists the ui scenes that exist
+
+    def test_scale_outside_range_is_a_usage_error(self):
+        for bad in ("0.5", "3"):
+            r = self.cli("--scale", bad)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("--scale", r.stderr)
+
+    def test_repo_storyboard_tour_has_default_page_options(self):
+        _, scene = demo_tour.load_tour()
+        for shot in demo_tour.shots(scene["pages"], scene["labels"], scene["page_duration"]):
+            self.assertEqual((shot["duration"], shot["hold"], shot["scroll_to"], shot["fade_in"], shot["push_in"]),
+                             (4, 0, None, True, 1.0))
 
 
 class DemoDir(unittest.TestCase):
