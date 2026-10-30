@@ -13110,7 +13110,7 @@ def main():
                 parser.exit(0)
             sha = ""
             try:
-                r = subprocess.run(["git", "-C", root, "rev-parse", "--short=12", "HEAD"], capture_output=True, text=True, timeout=10)
+                r = subprocess.run(git_argv(root, "rev-parse", "--short=12", "HEAD"), capture_output=True, text=True, timeout=10)
                 if r.returncode == 0:
                     sha = r.stdout.strip()
             except (OSError, subprocess.SubprocessError):
