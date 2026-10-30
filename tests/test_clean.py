@@ -402,17 +402,68 @@ class CleanTests(FactoryTestCase):
         self.assertTrue(wt.exists())
         self.assertIn("agent live", p.stdout)
 
+    def pane_at(self, pane_id, wt):
+        self.env.set_herdr(panes=[{"pane_id": pane_id, "tab_id": "t9", "workspace_id": "w9", "cwd": str(wt), "foreground_cwd": str(wt)}])
+
+    def ended_agent(self, name, pane, wt, task="T-0001", status="exited"):
+        self.env.seed_agent(name, "coder", goal="G-001", task=task, status=status, pane_id=pane)
+        self.env.sql("UPDATE agents SET cwd=? WHERE name=?", (str(wt), name))
+
     def test_three_reported_cases_removable_in_one_dry_run(self):
         w1, _, _ = self.task(1)
         w2, _, _ = self.task(2, url=URL2)
-        self.live_agent("zz-test-a1", "p1", "T-0001")
-        self.live_agent("zz-test-a2", "p2", "T-0002")
+        self.ended_agent("zz-test-a1", "p1", w1)  # exited, but its pane id is still listed in the worktree
+        self.ended_agent("zz-test-a2", "p2", w2, task="T-0002")
+        self.env.set_herdr(panes=[{"pane_id": p, "tab_id": "t9", "workspace_id": "w9", "cwd": str(w), "foreground_cwd": str(w)}
+                                  for p, w in (("p1", w1), ("p2", w2))])
         self.list_agents(("zz-test-n1", "p1"), ("zz-test-n2", "p2"))
         w3, b3, _ = self.task(3, pr_state="CLOSED", url="https://github.com/zz-test/repo/pull/3")
         self.land(b3, n=3)
         self.assertIn("3 would remove", self.clean("--dry-run").stdout)
         for w in (w1, w2, w3):
             self.assertTrue(w.exists())
+
+    def test_exited_agent_pane_reused_by_another_does_not_protect_by_pane_cwd(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
+        self.env.sql("UPDATE agents SET cwd=NULL")  # only the pane cwd is left to hold it
+        self.pane_at("p1", wt)
+        self.list_agents(("zz-test-other", "p1"))
+        p = self.clean("--dry-run")
+        self.assertNotIn("protected", p.stdout)
+        self.assertIn("1 would remove", p.stdout)
+
+    def test_stale_live_row_with_recorded_cwd_does_not_protect(self):
+        wt, _, _ = self.task()
+        self.ended_agent("zz-test-c2", "p1", wt, status="live")  # spawn recorded cwd=wt; p1 now belongs to another agent
+        self.list_agents(("zz-test-other", "p1"))
+        p = self.clean("--dry-run")
+        self.assertNotIn("protected", p.stdout)
+        self.assertIn("1 would remove", p.stdout)
+
+    def test_pane_cwd_kept_when_owner_unknown_or_running(self):
+        wt, _, _ = self.task()
+        self.pane_at("p9", wt)  # no agent row owns p9
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+        self.live_agent("zz-test-c2", "p9", task="T-0002")  # a running agent of another task owns the pane
+        self.list_agents(("zz-test-c2", "p9"))
+        self.assertIn("protected: cwd of a live pane", self.clean("--dry-run").stdout)
+
+    def test_live_row_with_recorded_cwd_kept_when_listed_or_agents_unknown(self):
+        wt, _, _ = self.task()
+        self.env.seed_agent("zz-test-lead", "lead", goal="G-001", status="live", pane_id="p1")
+        self.env.sql("UPDATE agents SET cwd=? WHERE name='zz-test-lead'", (str(wt),))
+        self.list_agents(("zz-test-lead", "p1"))
+        self.assertIn("protected: cwd of agent zz-test-lead", self.clean("--dry-run").stdout)
+        self.env.set_herdr(agents=None)
+        self.assertIn("protected: cwd of agent zz-test-lead", self.clean("--dry-run").stdout)
+
+    def test_live_row_listed_by_name_under_another_pane_is_still_live(self):
+        wt, _, _ = self.task()
+        self.live_agent(pane="p1")
+        self.list_agents(("zz-test-c2", "p7"), ("zz-test-other", "p1"))
+        self.assertIn("agent live", self.clean("--dry-run").stdout)
+        self.assertTrue(wt.exists())
 
 
 if __name__ == "__main__":
