@@ -190,8 +190,12 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
             work.append(("worker", r, c, seed))
     work = list(dict.fromkeys(work))
     seed_tmp = tempfile.TemporaryDirectory(prefix="guard-diff-seed-")
-    seed_homes = {s: make_seed_home(seed_tmp.name, s, i)
-                  for i, s in enumerate(dict.fromkeys(w[3] for w in work if w[3]))}
+    try:
+        seed_homes = {s: make_seed_home(seed_tmp.name, s, i)
+                      for i, s in enumerate(dict.fromkeys(w[3] for w in work if w[3]))}
+    except BaseException:
+        seed_tmp.cleanup()
+        raise
 
     def one(item):
         m, r, c, seed = item
@@ -210,9 +214,11 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
         return (label, c, run_hook(base_hook, argv, c, timeout, env),
                 run_hook(pr_hook, [*argv, *pr_extra], c, timeout, env, pr_exe))
 
-    with ThreadPoolExecutor(max_workers=jobs) as ex:
-        results = list(ex.map(one, work))
-    seed_tmp.cleanup()
+    try:
+        with ThreadPoolExecutor(max_workers=jobs) as ex:
+            results = list(ex.map(one, work))
+    finally:
+        seed_tmp.cleanup()
     lines, loosened, bad = [], [], []
     tight = 0
     for m, c, b, p in results:
