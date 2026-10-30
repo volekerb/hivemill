@@ -47,7 +47,7 @@ class ChangelogTest(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^## ", out, re.M)), 2)
         self.assertIn("## [0.1.0] - Initial public release\n\nFirst public release of the factory, published from a fresh repository.", out)
         self.assertIn("v0.1.0 summarises the changes merged during private development.", out)
-        self.assertIn("## [0.2.0] - Unreleased\n", out)
+        self.assertIn("## [0.2.0] - 2026-10-30\n", out)
         self.assertRegex(out, r"(?m)^#### Added\n\n- T-0001: add widget\n")
         self.assertRegex(out, r"(?m)^#### Fixed\n\n- T-0002: fix crash on\n")
         self.assertRegex(out, r"(?m)^#### Security\n\n- T-0005: tighten deny rule\n")
@@ -129,8 +129,9 @@ class ChangelogTest(unittest.TestCase):
         text = (ROOT / "ci" / "release-notes" / "0.2.0.md").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"\b[GT]-\d{3,4}\b", text))
         for needle in ("Hivemill v0.2.0", "New web UI", "Faster pull request loop", "Opt-in worker sandbox", "Go quick win",
-                       "Known limits", "VIDEO-PLACEHOLDER"):
+                       "Known limits"):
             self.assertIn(needle, text)
+        self.assertNotIn("VIDEO-PLACEHOLDER", text)
         r = changelog(self.repo, "--release-notes", "0.2.0")
         self.assertEqual((r.returncode, r.stdout), (0, text.strip() + "\n"))
         self.assertEqual(changelog(self.repo, "--prerelease", "0.2.0").stdout.strip(), "true")

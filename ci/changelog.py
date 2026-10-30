@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-10-30
 """
 # Older releases sit below the generated lists of the newest one; each carries only its curated notes.
 OLDER = """
