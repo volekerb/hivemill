@@ -140,6 +140,7 @@ class Browser:
             pipe = Pipe(from_browser[0], to_browser[1], timeout)
             self = cls(proc, pipe, profile)
             self.width, self.height = width, height
+            self.scale = 1  # deviceScaleFactor of new pages; set by the recorder before new_page
             return self
         except BaseException:
             os.close(to_browser[1])
@@ -158,7 +159,7 @@ class Browser:
         self.session = self.send("Target.attachToTarget", {"targetId": tid, "flatten": True}, session="")["sessionId"]
         self.send("Page.enable")
         self.send("Emulation.setDeviceMetricsOverride", {"width": self.width, "height": self.height,
-                                                         "deviceScaleFactor": 1, "mobile": False})
+                                                         "deviceScaleFactor": self.scale, "mobile": False})
         self.send("Page.navigate", {"url": url})
         end = time.monotonic() + self.pipe.timeout
         while self.evaluate("document.readyState") != "complete":
