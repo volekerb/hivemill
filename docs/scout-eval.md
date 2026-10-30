@@ -133,4 +133,5 @@ Three false positives hit every real plugin, so the pre-screen has three allowan
 
 - 0 hits: `VENDOR.json` records no hits, status goes back to `triaged`, event `vendor-rescreen-clear` names the old hit count and the rules that cleared (e.g. `url x3, requests x1`).
 - any hit: status stays `needs-owner`, the hits are printed, exit 4. A rescreen never clears a hit by itself and never partially clears.
+- Before the scan the kept files are checked against the per-file sha256 recorded in `VENDOR.json` at vendor time. A file that differs, has no recorded sha, or is missing is refused (exit 2, the file is named); so is a legacy `VENDOR.json` with no `files` map. Remove the kept copy and run `factory skilleval vendor C-xxxx` again.
 - refused with exit 2, status unchanged: a candidate that is not `needs-owner` (dismissed, new, …), one held for another reason (`risk_detail` is not a list of pre-screen hits), or one with no valid vendored copy.
