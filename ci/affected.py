@@ -11,6 +11,7 @@ word FULL with the rule that triggered it. --run executes the selection (all mod
   3 bin/factory -> top-level defs whose source changed (ast, base vs head). SCHEMA, DEFAULT_CONFIG, main, db, an
     unnamed top-level statement or a def with >= 15 call sites -> FULL; else modules mentioning a changed def name
     (cmd_judge also "judge") as a whole word.
+  3b any other .py file also selects modules that import it (`from web.views import home`, `import web.views.home`).
   4 roles/** -> modules mentioning "roles/" or the role file name; docs/** and *.md -> the smoke set.
   5 smoke set (config key affected_smoke, default below) is always added; over 40% of the modules -> FULL.
 Quick mode (T-0642): `--quick` (or `--budget SECONDS`, default 120) is the role-facing form: one process, only the
@@ -34,7 +35,7 @@ DEFAULT_SMOKE = "test_db_layout.py test_inbox.py test_judge.py"
 CAP = 0.40
 HUB_CALLS = 15
 FULL_DEFS = {"SCHEMA", "DEFAULT_CONFIG", "main", "db"}
-BIN = "bin/factory"
+BIN = "bin/factory_cli.py"
 
 
 class AffectedError(Exception):
@@ -93,6 +94,28 @@ def mentions(tests_dir, modules, needle, word=False):
         with open(os.path.join(tests_dir, m), encoding="utf-8", errors="replace") as f:
             text = f.read()
         if (pat.search(text) if pat else needle in text):
+            hit.add(m)
+    return hit
+
+
+def imports_module(tests_dir, modules, path):
+    """Modules that import the python file `path` as a package member: `from web.views import home` (also in a name
+    list or parentheses, `as` aliases included) or `import web.views.home` (T-0665: a bare path/file-name needle misses it)."""
+    if not path.endswith(".py"):
+        return set()
+    parts = path[:-3].split("/")
+    if parts[-1] == "__init__":
+        parts.pop()
+    if len(parts) < 2:
+        return set()
+    pkg, name = ".".join(parts[:-1]), parts[-1]
+    pats = [re.compile(r"^[ \t]*from[ \t]+%s[ \t]+import[ \t]+(?:\([^)]*|[^#\n]*)(?<![A-Za-z0-9_])%s(?![A-Za-z0-9_])" % (re.escape(pkg), re.escape(name)), re.M),
+            re.compile(r"^[ \t]*import[ \t]+[^#\n]*(?<![A-Za-z0-9_.])%s\.%s(?![A-Za-z0-9_])" % (re.escape(pkg), re.escape(name)), re.M)]
+    hit = set()
+    for m in modules:
+        with open(os.path.join(tests_dir, m), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        if any(p.search(text) for p in pats):
             hit.add(m)
     return hit
 
@@ -213,6 +236,7 @@ def _select(root, base, head, tests_dir, modules):
         stem = path[:-3] if path.endswith(".py") else path
         for needle in {path, os.path.basename(path), stem.replace("/", ".")}:
             hit |= mentions(tests_dir, modules, needle)
+        hit |= imports_module(tests_dir, modules, path)
         if not hit:
             raise Full("no test module mentions %s; run the full suite" % path)
         sel |= hit

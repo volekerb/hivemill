@@ -18,6 +18,7 @@ import sqlite3
 import statistics
 import stat
 import sys
+import unicodedata
 from pathlib import Path
 
 try:
@@ -31,7 +32,8 @@ except ImportError:  # run as a script by path
 CHECK_TIMEOUT_S = 60
 OUTPUT_MAX = 2048
 REASONS = ("timeout", "over-budget", "cancelled")
-TERMINAL = ("passed", "failed", "timeout", "over-budget", "error", "cancelled")
+TERMINAL = ("passed", "failed", "timeout", "over-budget", "error", "cancelled", "voided")
+VOIDABLE = ("passed", "failed", "timeout", "over-budget", "error")
 DELETE_SANDBOX = ("passed", "failed", "cancelled")  # error / timeout / over-budget are kept for T9 to clean later
 
 
@@ -294,7 +296,8 @@ def trial_line(r):
     tok = None if r["tokens_in"] is None and r["tokens_out"] is None else (r["tokens_in"] or 0) + (r["tokens_out"] or 0)
     return (f"{r['candidate_id']} {r['task']} {r['condition']}: trial {r['id']} status={r['status']} "
             f"passed={_cell(r['passed'])} tokens={_cell(tok)} wall_s={_cell(r['wall_s'])} "
-            f"skill_invoked={_cell(r['skill_invoked'])}")
+            f"skill_invoked={_cell(r['skill_invoked'])}"
+            + (f" void_reason={r['void_reason']} void_why={r['void_why']!r}" if r["status"] == "voided" else ""))
 
 
 def _median(vals):
@@ -305,14 +308,67 @@ def _median(vals):
 def summary_line(cid, rows):
     parts = []
     for cond in ("with", "without"):
-        rs = [r for r in rows if r["condition"] == cond and r["status"] in TERMINAL]
+        rs = [r for r in rows if r["condition"] == cond and r["status"] in TERMINAL and r["status"] != "voided"]
         passed = sum(1 for r in rs if r["status"] == "passed")
         tok = _median([None if r["tokens_in"] is None and r["tokens_out"] is None
                        else (r["tokens_in"] or 0) + (r["tokens_out"] or 0) for r in rs])
         parts.append(f"{cond}: passed {passed}/{len(rs)} tasks, median tokens {_cell(tok)}, "
                      f"median wall_s {_cell(_median([r['wall_s'] for r in rs]))}")
-    parts += [f"{st} {n}" for st in ("pending", "running") if (n := sum(1 for r in rows if r["status"] == st))]
+    parts += [f"{st} {n}" for st in ("pending", "running", "voided") if (n := sum(1 for r in rows if r["status"] == st))]
     return f"{cid} summary: " + "; ".join(parts)
+
+
+START_TAIL = 20
+_RC = re.compile(r"\brc=(-?\d+)")
+
+
+def needs_start_log(r):
+    """error / lost trials, and running ones that have burned no tokens yet (the stuck-start signature)."""
+    no_tokens = r["tokens_in"] is None and r["tokens_out"] is None
+    return r["status"] in ("error", "lost") or (r["status"] == "running" and no_tokens)
+
+
+_CTRL = re.compile("[\x00-\x08\x0a-\x1f\x7f-\x9f\ufffd]")
+# ESC, C0 except \t, DEL, C1 and U+FFFD (invalid UTF-8 decodes to it), plus every Unicode format char (category Cf:
+# U+200B-U+200F, U+2060, U+FEFF, ...): the sandbox writes this log and any of them inside a token defeats the shape match
+
+
+def _clean(line):
+    return "".join(c for c in _CTRL.sub("", line) if unicodedata.category(c) != "Cf")
+
+
+def start_log_lines(r, tail=START_TAIL):
+    """Indented last rc and <= `tail` lines of <trial>/log/start.log, token-shaped strings redacted. [] when the trial
+    needs none or has no regular-file log (symlinks are not followed)."""
+    if not needs_start_log(r) or not r["sandbox"]:
+        return []
+    dfd = fd = None
+    try:
+        dfd = nsbox.open_log_dir(r["sandbox"])
+        if dfd is None:
+            return []
+        fd = os.open("start.log", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return []
+        size = os.fstat(fd).st_size
+        raw = os.pread(fd, 64 * 1024, max(0, size - 64 * 1024))
+    except OSError:
+        return []
+    finally:
+        for f in (fd, dfd):
+            if f is not None:
+                os.close(f)
+    # split on \n only (str.splitlines also breaks on \x0b \x0c \x1c-\x1e \x85), strip controls/format chars, and only then redact
+    lines = [c for l in raw.decode("utf-8", "replace").split("\n") if (c := _clean(l)).strip()]
+    if not lines:
+        return []
+    shown = [nsbox._TOKEN_SHAPE.sub("[redacted-token]", l)[:300] for l in lines[-tail:]]
+    out = ["  start.log:"] + ["    " + l for l in shown]
+    if not any(_RC.search(l) for l in shown):
+        rcs = [m.group(1) for l in lines if (m := _RC.search(l))]
+        if rcs:
+            out.insert(1, f"    last rc={rcs[-1]}")
+    return out
 
 
 def list_lines(con, candidate=None):
@@ -327,7 +383,9 @@ def result_lines(con, candidate=None):
     out = []
     for cid in sorted({r["candidate_id"] for r in rows}):
         mine = [r for r in rows if r["candidate_id"] == cid]
-        out += [trial_line(r) for r in mine] + [summary_line(cid, mine)]
+        for r in mine:
+            out += [trial_line(r)] + start_log_lines(r)
+        out.append(summary_line(cid, mine))
     return out
 
 
@@ -409,6 +467,27 @@ def cancel(con, target, root, api, *, home=None, unshare="unshare"):
             errors.append(f"trial {r['id']}: is starting right now; retry the cancel in a minute")
         # a terminal trial is left as it is
     return lines, errors
+
+
+def void(con, target, reason, why):
+    """Void one finished trial (id or trNNNN) whose result says nothing about the skill (reason infra): status becomes
+    voided, every recorded field is kept, summaries ignore it and `try` may re-run it. Returns the row plus 'prev'."""
+    m = re.fullmatch(r"(?:tr0*)?(\d+)", target or "")
+    if not m:
+        raise CollectError("usage: factory skilleval void <trial id|trNNNN> --reason infra --why <text>")
+    if reason != "infra":
+        raise CollectError("void needs --reason infra")
+    r = con.execute("SELECT * FROM skill_trials WHERE id=?", (int(m.group(1)),)).fetchone()
+    if r is None:
+        raise CollectError(f"no trial {target}")
+    if r["status"] not in VOIDABLE:
+        hint = "use `factory skilleval cancel`" if r["status"] in ("pending", "running", "starting") else "nothing to do"
+        raise CollectError(f"trial {r['id']} is {r['status']}: only a finished trial ({', '.join(VOIDABLE)}) can be voided; {hint}")
+    if not transition(con, r["id"], "voided", r["status"], void_reason=reason, void_why=why):
+        raise CollectError(f"trial {r['id']} changed meanwhile; look at `factory skilleval list` and retry")
+    out = dict(con.execute("SELECT * FROM skill_trials WHERE id=?", (r["id"],)).fetchone())
+    out["prev"] = r["status"]
+    return out
 
 
 def _tokens(d):
@@ -512,7 +591,7 @@ def _cleanup(con, root, clock, keep_h):
     trials = Path(root).resolve() / "trials"
     if not trials.is_dir():
         return
-    for r in con.execute("SELECT * FROM skill_trials WHERE status IN ('error','timeout','over-budget')").fetchall():
+    for r in con.execute("SELECT * FROM skill_trials WHERE status IN ('error','timeout','over-budget','voided')").fetchall():
         ended = _ts(r["ended"])
         d = trial_dir(root, r)
         if d and ended and (clock - ended).total_seconds() > keep_h * 3600:

@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # Adding an entry needs a '# readme-section: <reason>' comment on the same or
 # the previous line (checked by test_added_sections_have_reason).
 README_SECTIONS = [
+    "What you get",  # readme-section: G-023 T-0712 README v2 feature grid (owner "A+C is great", M13225)
+    "One change, five steps",  # readme-section: G-023 T-0712 README v2 headline loop (owner "A+C is great", M13225)
     "Quickstart",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
     "A task's life in commands",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)
     "How it works",  # readme-section: G-012 T-0525 README v1 (owner M8819/M8828)

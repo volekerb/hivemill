@@ -4,6 +4,7 @@ Capture of tests/fixtures/spawn_golden_main.json (done once, on origin/main, bef
     git archive origin/main | tar -x -C <empty dir>; cp tests/test_sandbox_spawn.py <dir>/tests/
     cd <dir> && python3 tests/test_sandbox_spawn.py --capture > tests/fixtures/spawn_golden_main.json
 """
+import ast
 import json
 import os
 import re
@@ -44,6 +45,9 @@ def prep(env, fake_unshare=True):
     for name in ("worker-oauth-token", "gh-worker-ro-token", "gh-worker-rw-token"):
         (tdir / name).write_text(MARKER + "\n")
         (tdir / name).chmod(0o600)
+    # the repo the helper is scoped to is set here, not read from the checkout's origin (a CI checkout has another URL shape)
+    env.sql("INSERT INTO config(key,value) VALUES('worker_gh_repos','volekerb/hivemill') "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
     env.seed_goal()
     env.seed_team(lead="zz-lead")
     for role in ("reviewer", "qa", "coder"):
@@ -139,7 +143,7 @@ class SandboxCase(FactoryTestCase):
 
 class ConfigGuardTests(FactoryTestCase):
     def value(self):
-        out = self.ok("config", "sandbox_roles").stdout
+        out = self.ok("config").stdout
         return re.search(r"^sandbox_roles = (.*)$", out, re.M).group(1)
 
     def test_blocked_roles_exit_2_value_unchanged(self):
@@ -323,6 +327,61 @@ class PreflightAllowedTests(SandboxCase):
         self.assertTrue(args["sandbox"])
         ev = [json.loads(r["detail"]) for r in self.env.sql("SELECT detail FROM events WHERE action='spawn' AND entity_id='zz-reviewer'")]
         self.assertTrue(ev[0]["sandbox"])
+
+    def shim_cfg(self, name):
+        """The cfg literal of the spawned agent's shim (what workerbox.shim_main reads)."""
+        shim = (self.env.user_home / ".local/state/factory/workers" / name / "bin/claude").read_text()
+        return json.loads(ast.literal_eval(re.search(r"json\.loads\((.*)\), sys\.argv", shim).group(1)))
+
+    def test_default_config_keeps_todays_token_paths(self):
+        self.set_roles("reviewer,coder")
+        tokens = self.env.user_home / ".config" / "factory"
+        for role, token in (("reviewer", "gh-worker-ro-token"), ("coder", "gh-worker-rw-token")):
+            self.assertEqual(self.spawn(role).returncode, 0)
+            self.assertEqual(self.shim_cfg(ROLE_NAMES[role])["gh_token"], str(tokens / token))
+
+    def test_gh_token_rw_config_names_the_token_the_shim_reads(self):
+        self.set_roles("coder")
+        other = self.env.user_home / ".config" / "factory" / "gh-other-token"
+        other.write_text(MARKER + "\n")
+        other.chmod(0o600)
+        self.ok("config", "gh_token_rw", str(other))
+        self.assertEqual(self.spawn("coder").returncode, 0)
+        self.assertEqual(self.shim_cfg("zz-coder")["gh_token"], str(other))
+
+    def test_gh_token_ro_config_names_the_token_for_a_reviewer(self):
+        self.set_roles("reviewer")
+        other = self.env.user_home / ".config" / "factory" / "gh-other-ro"
+        other.write_text(MARKER + "\n")
+        other.chmod(0o600)
+        self.ok("config", "gh_token_ro", str(other))
+        self.assertEqual(self.spawn("reviewer").returncode, 0)
+        self.assertEqual(self.shim_cfg("zz-reviewer")["gh_token"], str(other))
+
+    def test_gh_rw_roles_picks_the_rw_token_for_a_reviewer(self):
+        self.set_roles("reviewer")
+        self.ok("config", "gh_rw_roles", "reviewer")
+        self.assertEqual(self.spawn("reviewer").returncode, 0)
+        self.assertTrue(self.shim_cfg("zz-reviewer")["gh_token"].endswith("gh-worker-rw-token"))
+
+    def test_gh_token_config_outside_the_config_dir_is_refused(self):
+        self.set_roles("coder")
+        elsewhere = self.env.home / "elsewhere-token"
+        elsewhere.write_text(MARKER + "\n")
+        elsewhere.chmod(0o600)
+        self.ok("config", "gh_token_rw", str(elsewhere))
+        p = self.assert_refused("coder", "token")
+        self.assertIn("gh_token_rw", p.stderr)
+        self.assertNotIn(str(elsewhere), p.stderr)
+
+    def test_the_gitconfig_helper_is_scoped_to_the_worker_repos(self):
+        self.set_roles("reviewer")
+        self.ok("config", "worker_gh_repos", "own/one,own/two")
+        self.assertEqual(self.spawn("reviewer").returncode, 0)
+        gitconfig = self.env.user_home / ".local/state/factory/workers/zz-reviewer/gitconfig"
+        got = subprocess.run(["git", "config", "-f", str(gitconfig), "--get", "credential.https://github.com.helper"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        self.assertTrue(got.endswith("scout/ghcred.py git-credential own/one,own/two"), got)
 
     def test_the_shim_imports_from_the_factory_home(self):
         self.set_roles("reviewer")

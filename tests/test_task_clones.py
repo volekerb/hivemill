@@ -203,19 +203,18 @@ class TaskCloneTests(FactoryTestCase):
             if step == "commit":
                 self.assertIsNotNone(a[2])
 
-    def test_clean_skips_a_clone_and_leaves_it(self):
+    def test_clean_removes_a_finished_clone(self):
+        """T-0166: a cancelled task with nothing unpushed loses its clone (docs/git-hardening.md); dry run keeps it."""
         wt = self.make_clone()
         self.env.sql("UPDATE tasks SET status='cancelled', pr_url=NULL, branch='factory/t-0001' WHERE id='T-0001'")
         self.env.seed_agent("zz-test-cleaner", "cleaner", goal="G-001")
-        for args in (("clean", "--dry-run"), ("clean",)):
-            p = self.ok(*args, agent="zz-test-cleaner")
-            self.assertIn("per-task clone", p.stdout)
-            self.assertNotIn("removed", p.stdout.replace("0 removed", ""))
-            self.assertTrue(wt.is_dir())
-        self.assertEqual(git("rev-parse", "--abbrev-ref", "HEAD", cwd=wt), "factory/t-0001")
+        self.assertIn("would remove", self.ok("clean", "--dry-run", agent="zz-test-cleaner").stdout)
+        self.assertTrue(wt.is_dir())
+        self.assertIn("1 removed", self.ok("clean", agent="zz-test-cleaner").stdout)
+        self.assertFalse(wt.exists())
 
     def test_no_direct_git_calls_outside_the_helper(self):
-        src = (Path(__file__).resolve().parent.parent / "bin" / "factory").read_text().splitlines()
+        src = (Path(__file__).resolve().parent.parent / "bin" / "factory_cli.py").read_text().splitlines()
         hits = [l.strip() for l in src if '["git"' in l or "['git'" in l]
         self.assertEqual(len(hits), 1, hits)  # only git_argv builds a git command line
 

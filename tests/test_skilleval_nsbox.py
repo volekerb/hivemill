@@ -28,6 +28,8 @@ TOKEN = "sk-ant-" + "oat01-DUMMYTOKEN-RANDOM"  # split so the repo secret scan d
 UNSHARE = os.environ.get("NSBOX_TEST_UNSHARE", "unshare")  # seam: a bogus path forces the clean-skip branch
 USERNS_OK, USERNS_WHY = nsbox.userns_available(UNSHARE)
 SKIP_MSG = f"user namespaces unavailable: {USERNS_WHY}"
+IN_GATEBOX = os.environ.get("FACTORY_GATEBOX") == "1"  # set by scout/gatebox.py (T-0652); never set in CI or a normal run
+GATEBOX_SKIP = "inside the gate box (FACTORY_GATEBOX=1): the outer box already hides $HOME and /proc, so this nested-userns check cannot observe what it asserts; CI runs it unboxed"
 
 
 def tmpdir(case):
@@ -156,6 +158,55 @@ class ProxyTests(unittest.TestCase):
         with connect_via(sock, b"CONNECT example.com:443 HTTP/1.1\r\n\r\n") as s:
             self.assertIn(b" 403 ", s.recv(100))
         self.assertEqual(seen, [])
+
+
+class WorkerAllowListTests(unittest.TestCase):
+    """egress.WORKER_ALLOW (ADR M11673 T-e): a host set for worker panes; eval trials keep the single-host ALLOW."""
+    HOSTS = ["api.anthropic.com", "github.com", "api.github.com", "codeload.githubusercontent.com",
+             "objects.githubusercontent.com", "pypi.org", "files.pythonhosted.org"]
+
+    def setUp(self):
+        self.tmp = tmpdir(self)
+        self.up = FakeUpstream(self.tmp / "up.sock")
+        self.addCleanup(self.up.close)
+        self.sock = self.tmp / "proxy.sock"
+        ready = threading.Event()
+        resolver = egress.upstream_resolver({f"{h}:443": self.up.path for h in self.HOSTS})
+        threading.Thread(target=egress.serve, daemon=True, kwargs=dict(
+            sock_path=str(self.sock), allow=egress.WORKER_ALLOW, resolver=resolver, max_life=30, ready=ready)).start()
+        self.assertTrue(ready.wait(5))
+
+    def status(self, request):
+        with connect_via(self.sock, request) as s:
+            return s.recv(4096).split(b"\r\n")[0]
+
+    def test_set_is_exactly_the_spec_hosts_on_443(self):
+        self.assertEqual(sorted(egress.WORKER_ALLOW), sorted(f"{h}:443" for h in self.HOSTS))
+        self.assertEqual(egress.ALLOW, "api.anthropic.com:443")
+
+    def test_every_listed_host_is_relayed(self):
+        for h in self.HOSTS:
+            with connect_via(self.sock, f"CONNECT {h}:443 HTTP/1.1\r\n\r\n".encode()) as s:
+                self.assertIn(b" 200 ", s.recv(100), h)
+                s.sendall(b"x")
+                self.assertEqual(s.recv(10), b"UP:x", h)
+
+    def test_unlisted_lookalikes_ports_and_methods_are_denied(self):
+        for req in (b"CONNECT example.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT github.com:80 HTTP/1.1\r\n\r\n",
+                    b"CONNECT github.com:22 HTTP/1.1\r\n\r\n",
+                    b"CONNECT github.com.evil.test:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT evilgithub.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT gist.github.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT raw.githubusercontent.com:443 HTTP/1.1\r\n\r\n",
+                    b"CONNECT pypi.org:8443 HTTP/1.1\r\n\r\n",
+                    b"GET http://github.com/ HTTP/1.1\r\nHost: github.com\r\n\r\n"):
+            self.assertEqual(self.status(req), b"HTTP/1.1 403 Forbidden", req)
+
+    def test_single_host_default_still_denies_the_extra_hosts(self):
+        self.assertIsNone(egress.allowed_target("CONNECT github.com:443 HTTP/1.1", egress.ALLOW))
+        self.assertEqual(egress.allowed_target("CONNECT GitHub.com:443 HTTP/1.1", egress.WORKER_ALLOW),
+                         ("GitHub.com", 443))
 
 
 class ProxyLifetimeTests(unittest.TestCase):
@@ -575,6 +626,7 @@ class NsboxNamespaceTests(unittest.TestCase):
     def test_unix_sockets_unreachable(self):
         self.assertEqual(self.obs["sockets"], {"user_bus": "failed", "herdr": "failed"})
 
+    @unittest.skipIf(IN_GATEBOX, GATEBOX_SKIP)
     def test_own_pid_namespace_with_fresh_proc(self):
         self.assertFalse(self.obs["outer_pid_visible"])
         self.assertNotIn(self.sentinel.pid, self.obs["proc_pids"])
@@ -608,6 +660,7 @@ class RunContainedTests(unittest.TestCase):
         p.write_text(body)
         return [sys.executable, str(p)]
 
+    @unittest.skipIf(IN_GATEBOX, GATEBOX_SKIP)
     def test_hiding_no_network_no_secrets_and_output_returned(self):
         real = Path(nsbox.real_home())
         body = f"""
@@ -630,10 +683,10 @@ raise SystemExit(7)
         self.assertEqual(r.returncode, 7, r.output)
         self.assertFalse(r.timed_out)
         obs = json.loads(r.output.strip().splitlines()[-1])
-        self.assertEqual(obs["claude"], [])
-        self.assertEqual(obs["fac"], [])
+        self.assertEqual(obs["claude"], "ERR")  # allow-list: ~/.claude is not bound back, so it does not exist
+        self.assertEqual(obs["fac"], "ERR")
         self.assertFalse(obs["db"])
-        self.assertEqual(obs["sib"], [])
+        self.assertEqual(obs["sib"], "ERR")  # masked: the sibling dir does not exist
         self.assertEqual(obs["fetch"], "fail")
         self.assertEqual(obs["uid"], os.getuid())
         self.assertEqual(obs["env"], [None, None, None])
@@ -825,6 +878,66 @@ class CwdEscapeTests(unittest.TestCase):
         self.assertEqual(env["LC_ALL"], "C.UTF-8")
         self.assertEqual(env["EXTRA_OK"], "1")
         self.assertIn("PATH", env)
+
+
+@unittest.skipUnless(USERNS_OK, SKIP_MSG)
+class RunContainedAllowListTests(unittest.TestCase):
+    """run_contained uses the allow-list view: of $HOME only the trial (rw) and the vendored plugin (ro) are visible."""
+
+    def setUp(self):
+        self.tmp = tmpdir(self)
+        self.home = self.tmp / "home"
+        self.trials = self.home / "factory" / "trials"
+        self.trial = self.trials / "t1"
+        self.plugin = self.home / "vendor" / "plug"
+        for d in (self.trial / "work", self.plugin, self.home / "notes", self.trials / "t2"):
+            d.mkdir(parents=True)
+        (self.home / "notes" / "todo.txt").write_text("PRIVATE-NOTE")
+        (self.plugin / "SKILL.md").write_text("skill")
+        (self.trials / "t2" / "secret").write_text("x")
+
+    def run_probe(self, body, **kw):
+        probe = self.trial / "probe.py"
+        probe.write_text(body)
+        return nsbox.run_contained(self.trial, [sys.executable, str(probe)], cwd=self.trial / "work", timeout=30,
+                                   home=self.home, trials_root=self.trials, unshare=UNSHARE, **kw)
+
+    def test_unlisted_home_subdir_is_absent_trial_is_writable_plugin_is_read_only(self):
+        body = f"""
+import json, os
+def w(p):
+    try:
+        open(p, "w").write("x"); return "written"
+    except OSError as e:
+        return e.errno
+print(json.dumps(dict(notes=os.path.exists({str(self.home / 'notes')!r}),
+    home=sorted(os.listdir({str(self.home)!r})), sib=os.path.exists({str(self.trials / 't2')!r}),
+    trial=w({str(self.trial / 'work' / 'out.txt')!r}), plugin_read=os.path.exists({str(self.plugin / 'SKILL.md')!r}),
+    plugin_write=w({str(self.plugin / 'new.txt')!r}))))
+"""
+        r = self.run_probe(body, vendor_dir=str(self.plugin))
+        self.assertEqual(r.returncode, 0, r.output)
+        obs = json.loads(r.output.strip().splitlines()[-1])
+        self.assertFalse(obs["notes"])
+        self.assertEqual(obs["home"], ["factory", "vendor"])  # only the path prefixes of what is bound back
+        self.assertFalse(obs["sib"])
+        self.assertEqual(obs["trial"], "written")
+        self.assertTrue((self.trial / "work" / "out.txt").exists())
+        self.assertTrue(obs["plugin_read"])
+        self.assertEqual(obs["plugin_write"], 30)  # EROFS
+        self.assertFalse((self.plugin / "new.txt").exists())
+
+    def test_plugin_is_not_visible_when_not_listed(self):
+        r = self.run_probe(f"import os\nprint(os.path.exists({str(self.plugin)!r}))\n")
+        self.assertEqual(r.returncode, 0, r.output)
+        self.assertEqual(r.output.strip(), "False")
+
+    def test_fail_closed_when_a_bind_source_is_missing(self):
+        marker = self.trial / "ran"
+        r = self.run_probe(f"open({str(marker)!r}, 'w').write('x')\n", vendor_dir=str(self.home / "vendor" / "gone"))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("gone", r.output)
+        self.assertFalse(marker.exists(), "the target must not run with a partial view")
 
 
 class EnvAllowListComposeTests(unittest.TestCase):

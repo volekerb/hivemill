@@ -4,6 +4,7 @@ from harness import FactoryTestCase
 
 
 class ResumeTestCase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
@@ -140,6 +141,21 @@ class FlaglessTests(ResumeTestCase):
         self.okr("tick")
         self.assertEqual(self.flagless("zz-test-director"), (0, None))
         self.assertEqual(self.status("zz-test-director"), "live")
+
+    def test_tick_skips_flagless_evaluator_but_alerts_other_roles(self):
+        for n, sess, role in (("zz-test-eval", "sess-eval", "evaluator"), ("zz-test-coder", "sess-coder", "coder")):
+            self.env.seed_agent(n, role, status="live")
+            self.env.sql("UPDATE agents SET session_id=?, pane_id='px0' WHERE name=?", (sess, n))
+            self.fake_proc(110 if role == "evaluator" else 111, sess)  # bare claude, no role flags
+        self.set_agents(("zz-test-eval", "sess-eval"), ("zz-test-coder", "sess-coder"))
+        self.okr("tick")
+        self.assertEqual(self.flagless("zz-test-eval"), (0, None))
+        self.assertEqual(self.flagless("zz-test-coder")[0], 1)
+        msgs = self.flagless_msgs()
+        self.assertEqual(len(msgs), 1)
+        self.assertIn("zz-test-coder", msgs[0]["body"])
+        self.assertNotIn("zz-test-eval", msgs[0]["body"])
+        self.assertEqual(self.env.sql("SELECT count(*) FROM events WHERE action='flagless' AND detail LIKE '%zz-test-eval%'")[0][0], 0)
 
     def test_throttle_keys_stay_out_of_config_and_state_dump(self):
         self.env.sql("UPDATE agents SET status='live', pane_id='px0' WHERE name='zz-test-director'")

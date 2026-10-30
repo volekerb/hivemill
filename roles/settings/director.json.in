@@ -1,4 +1,5 @@
 {
+  "attribution": {"pr": ""},
   "permissions": {
     "deny": [
       "Advisor",
@@ -54,7 +55,77 @@
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(factory spawn cleaner)",
+      "Bash(factory spawn cleaner *)",
+      "Bash(factory spawn pm *)",
+      "Bash(factory spawn coder *)",
+      "Bash(factory spawn qa *)",
+      "Bash(factory spawn reviewer *)",
+      "Bash(factory spawn judge *)",
+      "Bash(factory project update * --gh *)",
+      "Bash(factory config nudge_cooldown_s *)",
+      "Bash(factory config director_cycle_s *)",
+      "Bash(factory config blocked_alert_s *)",
+      "Bash(factory config hq_unblock_s *)",
+      "Bash(factory config stop_timeout_s *)",
+      "Bash(factory config judge_ci_wait_s *)",
+      "Bash(factory config judge_max_refreshes *)",
+      "Bash(factory config dispatch_max_per_tick *)",
+      "Bash(factory config dispatch_max_team_workers *)",
+      "Bash(factory config test_slots *)",
+      "Bash(factory config gate_max_parallel *)",
+      "Bash(factory config scout_triage_per_run *)",
+      "Bash(factory config scout_max_minutes *)",
+      "Bash(factory config recycle_context_tokens *)",
+      "Bash(factory stop *)",
+      "Bash(factory task update *)",
+      "Bash(factory task add *)",
+      "Bash(factory task note *)",
+      "Bash(factory task reopen *)",
+      "Bash(factory relaunch *)",
+      "Bash(factory dequeue *)",
+      "Bash(factory unblock *)",
+      "Bash(factory team *)",
+      "Bash(factory eval *)",
+      "Bash(factory goal signoff *)",
+      "Bash(factory goal close *)",
+      "Bash(factory goal status *)",
+      "Bash(factory clean)",
+      "Bash(factory clean --dry-run)",
+      "Bash(factory clean --remote-branch factory/*)",
+      "Bash(factory judge * --record-merged *)",
+      "Bash(factory msg *)",
+      "Bash(factory digest *)",
+      "Bash(factory inbox)",
+      "Bash(factory inbox *)",
+      "Bash(factory res)",
+      "Bash(factory agents)",
+      "Bash(factory agents *)",
+      "Bash(factory goal list)",
+      "Bash(factory goal show *)",
+      "Bash(factory task show *)",
+      "Bash(factory task ready *)",
+      "Bash(factory task list *)",
+      "Bash(factory scorecard *)",
+      "Bash(factory config)"
+    ],
+    "ask": [
+      "Bash(factory project * --gate-cmd*)",
+      "Bash(factory project * --gate-count-cmd*)",
+      "Bash(factory project * --gate-c*)",
+      "Bash(factory project * --rep*)"
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Organization: single-owner AI agent factory on one Proxmox VM; agents run unattended overnight while the owner sleeps.",
+      "Org-specific CLIs: `factory` (~/factory/bin/factory) is the factory's trusted orchestration CLI. It enforces role permissions, owner caps, the resource spawn gate and the head-SHA merge gate itself. `factory spawn` is the only sanctioned way to start agents."
+    ],
+    "allow": [
+      "$defaults",
+      "Factory orchestration: the director running `factory spawn` (pm, coder, qa, reviewer, judge, cleaner), `factory stop`, `factory relaunch`, `factory dequeue`, `factory task|team|goal` updates, `factory project update <id> --gh OWNER/NAME` and `factory config` on non-cap tuning keys is routine and allowed. Changing owner caps (max_live_*, max_total_claude, *_pct, min_mem_available_mb, reserved_worker_slots, lead_parking, gate_max_load_ratio) is NOT covered."
     ]
   },
   "env": {

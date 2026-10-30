@@ -5,6 +5,7 @@ dir, and `herdr` / `gh` on PATH are the stubs from tests/stubs. The live DB is n
 """
 import ast
 import contextlib
+import io
 import importlib.machinery
 import importlib.util
 import json
@@ -15,20 +16,24 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
+import warnings
 import unittest
 from pathlib import Path
 
+import _gitenv  # hermetic git: tests/_gitenv.py
 import _slot
 
 REPO = Path(__file__).resolve().parent.parent
-FACTORY = REPO / "bin" / "factory"
+FACTORY = REPO / "bin" / "factory"  # the stub: run it
+FACTORY_SRC = REPO / "bin" / "factory_cli.py"  # the code: read or import it
 STUBS = Path(__file__).resolve().parent / "stubs"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def _literal(name):
     """Read a module-level literal from bin/factory without importing it (no side effects)."""
-    for node in ast.parse(FACTORY.read_text()).body:
+    for node in ast.parse(FACTORY_SRC.read_text()).body:
         if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == name for t in node.targets):
             return ast.literal_eval(node.value)
     raise KeyError(name)
@@ -68,8 +73,83 @@ def ancestor_pids(me, n=2, start=2001):
     return [x for x in range(start, start + n + 1) if x != me][:n]
 
 
-def git(*args, cwd):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
+_OPTS_WITH_VALUE = {"-b", "--branch", "--depth", "-o", "--origin", "--reference", "-c", "--config", "-j", "--push-option"}
+_REMOTE_CMDS = {"push", "fetch", "pull", "ls-remote", "clone"}
+
+
+def _remote_urls(name, cwd, env):
+    """Every URL git would use for remote `name`: fetch url(s), pushurl(s) and insteadOf rewrites (get-url applies them)."""
+    urls = []
+    for flags in (["--push", "--all"], ["--all"]):
+        out = subprocess.run(["git", "remote", "get-url", *flags, name], cwd=cwd, capture_output=True, text=True,
+                             check=True, env=env).stdout
+        urls += out.split()
+    return urls
+
+
+def _subcommand(args):
+    """args without leading `-c key=value` pairs."""
+    args = tuple(args)
+    while args[:1] == ("-c",):
+        args = args[2:]
+    return args
+
+
+def _check_remotes(args, cwd, env=None):
+    """Refuse a git call whose remote is not a local path under the test tmp dir (R-b: fixtures once reached public main)."""
+    env = {**os.environ, **(env or {})}
+    pos, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+        elif a in _OPTS_WITH_VALUE:
+            skip = True
+        elif not a.startswith("-"):
+            pos.append(a)
+    if not pos:
+        return
+    if pos[0] == "remote" and len(pos) >= 4 and pos[1] in ("add", "set-url"):
+        _gitenv.assert_local_remote(pos[3])
+    elif pos[0] == "submodule":
+        urls = [pos[2]] if pos[1:2] == ["add"] and len(pos) > 2 else []
+        if (Path(cwd) / ".gitmodules").is_file():
+            out = subprocess.run(["git", "config", "-f", ".gitmodules", "--get-regexp", r"^submodule\..*\.url$"], cwd=cwd,
+                                 capture_output=True, text=True, env=env).stdout
+            urls += [line.split(None, 1)[1] for line in out.splitlines() if " " in line]
+        for url in urls:
+            _gitenv.assert_local_remote(url)
+    elif pos[0] in _REMOTE_CMDS:
+        if "--all" in args and pos[0] in ("fetch", "push"):
+            names = subprocess.run(["git", "remote"], cwd=cwd, capture_output=True, text=True, check=True,
+                                   env=env).stdout.split()
+            targets = [u for n in names for u in _remote_urls(n, cwd, env)]
+        else:
+            target = pos[1] if len(pos) > 1 else "origin"
+            if pos[0] == "clone" or _gitenv.URL_LIKE.match(target) or "/" in target:
+                targets = [target]
+            else:
+                targets = _remote_urls(target, cwd, env)
+        for url in targets:
+            _gitenv.assert_local_remote(url)
+
+
+def git(*args, cwd, env=None, inert_remote=False, local_clone_of=None, check=True):
+    """Run git in cwd. `env` is merged over the scrubbed process env (identity vars etc.); a repo-pointing GIT_* in it is
+    refused. `inert_remote=True` lets `remote add|set-url` record a fake network URL for tests that only parse
+    the configured URL; it never excuses a push/fetch/clone (those are refused). `local_clone_of=<dir>` lets `clone` read an
+    existing local directory outside the tmp dir (a read-only source, e.g. this checkout); it excuses nothing else."""
+    bad = [k for k in _gitenv.leaked(env or {}) if k not in _gitenv.CONFIG_ISOLATION]
+    if bad:
+        raise _gitenv.GitEnvLeak("harness.git env= must not set %s" % ", ".join(bad))
+    if local_clone_of is not None:
+        if args[:1] != ("clone",) or str(local_clone_of) not in args or not Path(local_clone_of).is_dir():
+            raise _gitenv.RemoteRefused("local_clone_of is only for `clone` of an existing local directory")
+    elif not (inert_remote and _subcommand(args)[:2] in (("remote", "add"), ("remote", "set-url"))):
+        _check_remotes(args, cwd, env)
+    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env={**os.environ, **(env or {})})
+    if check and p.returncode != 0:
+        raise AssertionError(f"git {args}: {p.stderr}")
+    return p.stdout.strip()
 
 
 _RENDERED = {}
@@ -84,7 +164,7 @@ def rendered_settings_dir():
         atexit.register(shutil.rmtree, d, True)
         old, os.environ["FACTORY_HOME"] = os.environ.get("FACTORY_HOME"), str(REPO)
         try:
-            loader = importlib.machinery.SourceFileLoader("factory_render_settings", str(FACTORY))
+            loader = importlib.machinery.SourceFileLoader("factory_render_settings", str(FACTORY_SRC))
             mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
             loader.exec_module(mod)
         finally:
@@ -137,8 +217,27 @@ def _template_home():
     return _TEMPLATE["env"].home_dir
 
 
+def assert_hermetic(home_dir, stub_bin):
+    """Raise unless this process would run the CLI against the temp home with the stub binary first on PATH:
+    FACTORY_HOME inside the temp dir (never ~/factory) and the first agent-multiplexer binary on PATH being the stub (T-0647)."""
+    tmp = Path(tempfile.gettempdir()).resolve()
+    raw = os.environ.get("FACTORY_HOME", "")
+    home = Path(raw).expanduser().resolve()
+    if not raw or tmp not in home.parents or home != Path(home_dir).resolve():
+        raise RuntimeError(f"FACTORY_HOME={raw!r} is not the temp test home {home_dir}; "
+                           "a test would act on a real factory home. Use FactoryEnv.")
+    found = shutil.which("herdr")
+    if not found or Path(found).resolve().parent != Path(stub_bin).resolve():
+        raise RuntimeError(f"the binary on PATH is {found!r}, not the stub in {stub_bin}; a test would reach the real one. "
+                           "Put the harness stub_bin first on PATH.")
+
+
+_FACTORY_CODE = None  # bin/factory_cli.py compiled once per process, for FactoryEnv.run_inproc
+
+
 class FactoryEnv:
     def __init__(self, _build_template=False):
+        self.inproc = False  # FactoryTestCase.INPROC: route run() through run_inproc
         self.home = Path(tempfile.mkdtemp(prefix="zz-test-factory-")).resolve()
         live = Path("~/factory").expanduser().resolve()
         for bad in (live, REPO):
@@ -211,6 +310,9 @@ class FactoryEnv:
             "FACTORY_TMP_DIR": str(self.home / "faketmp"),
             "FACTORY_LOADAVG": "0",  # the box's real load must not decide whether a spawn test passes
             "FACTORY_KICKOFF_DELAY_S": "0",  # spawn() waits 2 s for the TUI; no test needs to
+            "FACTORY_SHELL_SETTLE_S": "0.01",  # export_in_shell waits 1 s for the shell
+            "FACTORY_RELAUNCH_POLL_S": "0.02",  # relaunch polls 0.5 s for the closed pane / dead process
+            "FACTORY_STOP_CONFIRM_S": "0.2",  # force_stop polls the host up to 10 s for the pane/process to go
         }
         if "TZ" in os.environ:  # a TZ override in the parent must reach the CLI (clock-independence tests)
             env["TZ"] = os.environ["TZ"]
@@ -219,11 +321,54 @@ class FactoryEnv:
         env.update(extra or {})
         return env
 
-    def run(self, *args, agent=None, stdin=None, extra_env=None):
+    def run(self, *args, agent=None, stdin=None, extra_env=None, inproc=None):
         if self.auto_sha and args[:1] == ("verdict",) and "--pass" in args and "--sha" not in args:
             args += self.pr_head_args(agent, extra_env)
+        if self.inproc if inproc is None else inproc:
+            return self.run_inproc(*args, agent=agent, stdin=stdin, extra_env=extra_env)
         return subprocess.run([sys.executable, str(FACTORY), *args], input=stdin, capture_output=True,
                               text=True, env=self.env(agent, extra_env), cwd=self.home, timeout=60)
+
+    def run_inproc(self, *args, agent=None, stdin=None, extra_env=None):
+        """`run` without the interpreter start-up: bin/factory main() runs in this process, in a fresh module namespace
+        (compiled once), with os.environ, cwd, argv and stdio swapped for this env and restored afterwards. For tests that
+        make many CLI calls and do not test process-level behaviour: pid/ppid identity (ancestor lookup), signals, the
+        real exit status of the interpreter. Those stay on subprocess (`inproc=False`)."""
+        global _FACTORY_CODE
+        if _FACTORY_CODE is None:
+            _FACTORY_CODE = compile(FACTORY_SRC.read_text(), str(FACTORY_SRC), "exec")
+        env = self.env(agent, extra_env)
+        saved = (dict(os.environ), os.getcwd(), sys.argv, sys.stdin, sys.path[:])
+        out, err, rc = io.StringIO(), io.StringIO(), 0
+        try:
+            os.environ.clear()
+            os.environ.update(env)
+            time.tzset()  # the CLI's TZ, not the test runner's
+            os.chdir(self.home)
+            sys.argv = [str(FACTORY), *args]
+            sys.stdin = io.StringIO(stdin or "")
+            ns = {"__name__": "factory_inproc", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), warnings.catch_warnings():
+                warnings.simplefilter("ignore", ResourceWarning)  # a fresh interpreter hides them; unittest shows them
+                try:
+                    exec(_FACTORY_CODE, ns)
+                    ns["main"]()
+                except SystemExit as e:
+                    if e.code is None or isinstance(e.code, int):
+                        rc = e.code or 0
+                    else:
+                        print(e.code, file=sys.stderr)
+                        rc = 1
+                except Exception:
+                    traceback.print_exc()
+                    rc = 1
+        finally:
+            os.environ.clear()
+            os.environ.update(saved[0])
+            time.tzset()
+            os.chdir(saved[1])
+            sys.argv, sys.stdin, sys.path[:] = saved[2], saved[3], saved[4]
+        return subprocess.CompletedProcess([sys.executable, str(FACTORY), *args], rc, out.getvalue(), err.getvalue())
 
     def pr_head_args(self, agent, extra_env):
         """`--sha <PR head>` read through whatever gh the test put on PATH (some tests bring their own stub)."""
@@ -302,6 +447,8 @@ class FactoryEnv:
         self.gh_state.write_text(json.dumps(st))
 
     def set_gh(self, **kw):
+        if kw.get("repo_url"):
+            _gitenv.assert_local_remote(kw["repo_url"])
         st = json.loads(self.gh_state.read_text())
         st.update(kw)
         self.gh_state.write_text(json.dumps(st))
@@ -334,14 +481,17 @@ class FactoryEnv:
             os.environ.pop(k, None)
         os.environ.update(self.env())
         try:
-            loader = importlib.machinery.SourceFileLoader("factory_under_test", str(FACTORY))
+            assert_hermetic(self.home_dir, self.stub_bin)
+            loader = importlib.machinery.SourceFileLoader("factory_under_test", str(FACTORY_SRC))
             spec = importlib.util.spec_from_loader(loader.name, loader)
             mod = importlib.util.module_from_spec(spec)
             loader.exec_module(mod)
             opened, real_db = [], mod.db
             mod.db = lambda *a, **k: opened.append(real_db(*a, **k)) or opened[-1]
             try:
-                yield mod
+                # in-process spawn() prints SPAWNED/QUEUED lines: keep them out of the test runner's output (T-0647)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    yield mod
             finally:
                 for con in opened:
                     con.close()
@@ -365,8 +515,11 @@ class FactoryTestCase(unittest.TestCase):
         super().__init_subclass__(**kw)
         _slot.note_module(cls.__module__)  # a full-suite run waits here, at load time, for a host-wide test slot
 
+    INPROC = False  # True: env.run() calls bin/factory in-process (see FactoryEnv.run_inproc); inproc=False opts one call out
+
     def setUp(self):
         self.env = FactoryEnv()
+        self.env.inproc = self.INPROC
         self.addCleanup(self.env.cleanup)
 
     def ok(self, *args, **kw):

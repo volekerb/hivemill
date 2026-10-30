@@ -7,6 +7,7 @@ and queue code, which must re-check before a vendored copy is handed to an agent
 """
 import base64
 import hashlib
+import collections
 import ipaddress
 import json
 import os
@@ -145,7 +146,18 @@ BARE_HOST = re.compile(r"""(?<![\w.-])(?://)?((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?
 # bare IPv4 / IPv6 literal (validated with ipaddress), with or without scheme, port or brackets
 IPV4_TOKEN = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w])")
 IPV6_TOKEN = re.compile(r"(?<![\w:.])\[?([0-9a-f:]{2,}(?:\d{1,3}(?:\.\d{1,3}){3})?)\]?(?![\w])", re.I)
-FILE_EXTS = {"md", "txt", "py", "sh", "json", "yml", "yaml", "js", "cjs", "mjs", "ts", "csv", "toml", "html", "css", "rb", "go", "rs", "ini", "cfg", "lock", "log"}
+# an integer-form IP right after a scheme or `@`: 0x7f000001, 2130706433 (the dotted forms are caught above)
+INT_IP = re.compile(r"(?://|@)(0x0*[0-9a-f]{1,8}|\d{8,10})(?!\w)(?!\.\d)", re.I)
+# separators that can sit between wrapped base64 chunks: quote marks, quote prefixes, comment marks, a lone `+`
+CHUNK_SEP = re.compile(r"""["'`,;>|#*()<>:.\\!?\[\]{}]+|(?<=\s)\+(?=\s)|^\+(?=\s)""")
+B64_TOKEN = re.compile(r"[A-Za-z0-9+/=_-]+")
+# a chunk with real base64 traits: mixed case plus a digit or symbol. Prose, versions, dates and plain numbers lack one.
+B64_ISH = re.compile(r"(?=.*[0-9+=])(?=.*[a-z])(?=.*[A-Z])")
+HEX_COLOR = re.compile(r"#[0-9a-f]{3,8}\b", re.I)  # css colours are not wrapped blobs
+LINE_LABEL = re.compile(r"^\s*[A-Za-z_]{1,12}:\s+")  # `data: <chunk>`: a one-word label per line is not blob content
+MAX_PROSE_GAP = 3  # prose lines tolerated inside one wrapped blob
+DOTS = {0x3002: ".", 0xFF0E: ".", 0xFF61: "."}  # ideographic and fullwidth full stops
+FILE_EXTS = {"tsx", "jsx", "java", "cpp", "c", "h", "hpp", "php", "rst", "mdx", "webp", "gz", "tgz", "env", "xml", "sql", "bat", "ps1", "lua", "swift", "kt", "png", "jpg", "jpeg", "gif", "svg", "pdf", "md", "txt", "py", "sh", "json", "yml", "yaml", "js", "cjs", "mjs", "ts", "csv", "toml", "html", "css", "rb", "go", "rs", "ini", "cfg", "lock", "log"}
 DOC_HOSTS = {"docs.anthropic.com", "docs.claude.com", "code.claude.com", "anthropic.com"}
 # (id, regex): one table, one id per pattern. Hits are cheap evidence for the owner, not a verdict.
 PATTERNS = (
@@ -170,7 +182,81 @@ def _fold(text):
     BOM) so fullwidth or split keywords match the patterns."""
     if text.isascii():
         return text
-    return "".join(c for c in unicodedata.normalize("NFKC", text) if unicodedata.category(c) != "Cf")
+    return "".join(c for c in unicodedata.normalize("NFKC", text) if unicodedata.category(c) != "Cf").translate(DOTS)
+
+
+def _random_case(joined):
+    """True when `joined` has the letter mix of random base64 (about 41% upper, 41% lower, 16% digits), which
+    prose, code, version lists and timestamp lists lack."""
+    n = len(joined)
+    up = sum(c.isupper() for c in joined)
+    low = sum(c.islower() for c in joined)
+    dig = sum(c.isdigit() for c in joined)
+    return up * 10 >= n * 2.5 and low * 10 >= n * 2.5 and dig * 20 >= n
+
+
+PLAIN_TOKEN = re.compile(r"[A-Z]?[a-z]+|[A-Z]+|\d+")
+
+
+def _wordy(run):
+    """True when over a third of the chunks are plain words or numbers (`word`, `Word`, `WORD`, `123`): code,
+    prose and version lists. Random base64 chunks of any width rarely look like that (about 10% at 3-7 chars),
+    so the check does not depend on how the attacker cuts the blob."""
+    long = [t for t in run if len(t) > 1]  # a single character is plain whatever it is
+    return sum(bool(PLAIN_TOKEN.fullmatch(t)) for t in long) * 3 > len(long)
+
+
+def _small_chunk_blobs(lines):
+    """0-based first line of each blob split into short chunks (under 8 chars) or wrapped with per-line
+    prefixes (`> `, quoted string concatenation). Linear: one pass over the tokens. Each stretch of base64-alphabet
+    tokens on a line is scored on its own: a prose stretch is skipped (it neither joins the run nor, up to MAX_PROSE_GAP in a row, ends it), so
+    adjacent prose cannot dilute the blob; a token outside the alphabet ends the run."""
+    out = set()
+    run = []  # chunks of the current run
+    start = gap = 0  # gap: prose stretches skipped since the last blob stretch
+
+    def close():
+        nonlocal run, gap
+        gap = 0
+        joined = "".join(run)
+        if len(joined) >= 200 and len(set(joined)) > 8 and _random_case(joined) and not _wordy(run):
+            out.add(start)
+        run = []
+
+    def take(seg, i):
+        nonlocal start, gap
+        if not seg:
+            return
+        joined = "".join(seg)
+        if len(joined) < 8 * len(seg):  # chunks too short to show word shape: ask for random-looking case
+            blobby = sum(c.isupper() for c in joined) * 4 >= len(joined) or \
+                (sum(c.isupper() for c in joined) * 7 >= len(joined) and bool(B64_ISH.match(joined)))
+        else:
+            blobby = sum(bool(B64_ISH.match(t)) for t in seg) * 10 >= len(seg) * 3
+        if blobby:
+            if not run:
+                start = i
+            run.extend(seg)
+            gap = 0
+        elif run:
+            gap += 1
+            if gap > MAX_PROSE_GAP:  # a long stretch of prose: not one blob (keeps scattered code lines apart)
+                close()
+
+    for i, line in enumerate(lines):
+        seg = []
+        for tok in CHUNK_SEP.sub(" ", HEX_COLOR.sub(" ", LINE_LABEL.sub("", line, 1))).split():
+            if len(tok) > 1 and len(set(tok)) == 1:
+                continue  # a rule of dashes or equals
+            if B64_TOKEN.fullmatch(tok):
+                seg.append(tok)
+                continue
+            take(seg, i)
+            seg = []
+            close()
+        take(seg, i)
+    close()
+    return out
 
 
 def _is_ip(host):
@@ -214,6 +300,10 @@ def _bare_host_bad(line, own_repo):
     for m in IPV6_TOKEN.finditer(line):
         if m.group(1).count(":") >= 2 and _is_ip(m.group(1)):
             return True
+    for m in INT_IP.finditer(line):
+        tok = m.group(1)
+        if int(tok, 16 if tok[:2].lower() == "0x" else 10) <= 0xFFFFFFFF:
+            return True
     for m in BARE_HOST.finditer(line):
         tok = m.group(1).rstrip(".,;:")
         host = re.split(r"[/:]", tok, maxsplit=1)[0]
@@ -221,12 +311,43 @@ def _bare_host_bad(line, own_repo):
         if before.endswith("@"):
             return True  # userinfo or e-mail: never docs
         scheme_ctx = before.endswith("//") or m.group().startswith("//")
-        path_ctx = before.endswith("/") and not scheme_ctx
-        if (path_ctx or (host.rsplit(".", 1)[1].lower() in FILE_EXTS and not scheme_ctx)) and "/" not in tok and ":" not in tok:
-            continue  # SKILL.md, run.py, images/logo.png: a file name, not a host
+        if host.rsplit(".", 1)[1].lower() in FILE_EXTS and not scheme_ctx and "/" not in tok and ":" not in tok:
+            continue  # SKILL.md, run.py, images/logo.png: a file name (last segment), not a host
         if not _url_allowed("https://" + tok, own_repo):
             return True
     return False
+
+
+# Narrow allowances for false positives on every real plugin (T-0728). Each is scoped by file kind AND exact pattern;
+# anything outside the scope keeps hitting.
+APACHE_URL = re.compile(r"https?://www\.apache\.org/licenses/(?:LICENSE-2\.0)?")  # Apache-2.0 boilerplate, exactly
+EMAIL = re.compile(r"[A-Za-z0-9._+-]+@([A-Za-z0-9.-]+)")
+PROSE_EXTS = {".md", ".txt"}
+LICENSE_NAME = re.compile(r"(?:license|notice)(?:[-_.][^/]*)?", re.I)  # LICENSE, LICENSE.txt, LICENSE-APACHE, NOTICE.md
+
+
+def _doc_email(addr):
+    m = EMAIL.fullmatch(addr) if isinstance(addr, str) else None
+    host = m.group(1).lower() if m else ""
+    return bool(m) and (host in DOC_HOSTS or (host.startswith("www.") and host[4:] in DOC_HOSTS))
+
+
+def _plugin_json_emails(text):
+    """Addresses a plugin.json may carry without a hit: the `author.email`, `support` or `support.email` value, at a
+    DOC_HOSTS host, written on one line and nowhere else in the file. Anything unparseable or ambiguous gives none."""
+    # ASCII + no backslash: raw == folded == parsed literals. `text` must be the raw file; never parse the folded text.
+    if not text.isascii() or "\\" in text:
+        return set()
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    author, support = data.get("author"), data.get("support")
+    cands = [author.get("email") if isinstance(author, dict) else None, support,
+             support.get("email") if isinstance(support, dict) else None]
+    return {a for a in cands if _doc_email(a) and text.count(a) == 1}
 
 
 def prescreen(path, own_repo=None):
@@ -245,16 +366,74 @@ def prescreen(path, own_repo=None):
                 joined = re.sub(r"\s+", "", m.group())
                 if len(joined) >= 200 and len(set(joined)) > 8 and re.search(r"[0-9+/=]", joined):
                     wrapped.add(m.string.count("\n", 0, m.start()))
+            wrapped |= _small_chunk_blobs(lines)
+            license_file = bool(LICENSE_NAME.fullmatch(n)) and full.suffix.lower() in ("", ".md", ".txt")
+            prose = full.suffix.lower() in PROSE_EXTS
+            emails = _plugin_json_emails(_read_text(full)) if n == "plugin.json" else set()
             for ln, line in enumerate(lines, 1):
-                found = [pid for pid, rx in PATTERNS if rx.search(line)]
+                found = [pid for pid, rx in PATTERNS if rx.search(line) and not (pid == "requests" and prose)]
                 if any(len(set(m.group())) > 8 for m in B64_RUN.finditer(line)) or ln - 1 in wrapped:
                     found.append("base64-run")  # not a rule of dashes/equals
-                if any(not _url_allowed(m.group().rstrip(".,;:"), own_repo) for m in URL.finditer(line)) or \
-                        _bare_host_bad(line, own_repo):
+                bare = line
+                for addr in emails:  # only the whole `"email": "addr"` / `"support": "addr"` line is exempt
+                    if re.fullmatch(r'\s*"(?:email|support)"\s*:\s*"' + re.escape(addr) + r'"\s*,?\s*', line):
+                        bare = ""
+                if any(not _url_allowed(m.group().rstrip(".,;:"), own_repo) and
+                       not (license_file and APACHE_URL.fullmatch(m.group().rstrip(".,;:")))
+                       for m in URL.finditer(line)) or _bare_host_bad(bare, own_repo):
                     found.append("url")
                 hits += [{"file": rel, "line": ln, "pattern": pid} for pid in found]
     hits.sort(key=lambda h: (h["file"], h["line"], h["pattern"]))
     return hits
+
+
+def rescreen(root, cand):
+    """Re-run the current prescreen on the kept copy of `cand` (same sha). Returns (meta, hits, copy dir); a missing or
+    invalid copy raises VendorError. Writes nothing: `clear_hits` records a clean result."""
+    d = vendor_dir(root, cand["id"], cand["head_sha"])
+    meta = vendored(root, cand["id"], cand["head_sha"])
+    if not meta:
+        _raise_missing_file(d, cand)
+        raise VendorError(f"{cand['id']}: no valid vendored copy at {cand['head_sha']}; run `factory skilleval vendor` first")
+    _check_files(d, meta, cand["id"])
+    return meta, prescreen(d / meta["plugin"], meta.get("repo")), d
+
+
+def _raise_missing_file(d, cand):
+    """The copy failed `vendored`: if VENDOR.json records files that are gone, name the first one."""
+    try:
+        meta = json.loads((d / "VENDOR.json").read_text())
+        plugin = d / meta["plugin"]
+        for rel in sorted(meta["files"]):
+            if not (plugin / rel).is_file():
+                raise VendorError(f"{cand['id']}: recorded file {rel} is missing from the kept copy; "
+                                  f"re-vendor it with `factory skilleval vendor {cand['id']}` (after removing the copy)")
+    except (OSError, ValueError, KeyError, TypeError):
+        return
+
+
+def _check_files(d, meta, cid):
+    """Refuse unless every kept file has a recorded sha256 in VENDOR.json and still matches it."""
+    files = meta.get("files")
+    redo = f"re-vendor the candidate (remove the kept copy, then `factory skilleval vendor {cid}`)"
+    if not isinstance(files, dict) or not files:
+        raise VendorError(f"{cid}: VENDOR.json has no per-file sha256 (vendored before shas were recorded); {redo}")
+    plugin = d / meta["plugin"]
+    for rel in sorted(meta.get("copied", [])):
+        if rel not in files:
+            raise VendorError(f"{cid}: {rel} has no recorded sha256 in VENDOR.json; {redo}")
+    for rel, want in sorted(files.items()):
+        try:
+            got = hashlib.sha256((plugin / rel).read_bytes()).hexdigest()
+        except OSError:
+            raise VendorError(f"{cid}: recorded file {rel} is missing from the kept copy; {redo}") from None
+        if got != want:
+            raise VendorError(f"{cid}: {rel} differs from the sha256 recorded at vendor time (modified after vendoring); {redo}")
+
+
+def clear_hits(d, meta):
+    """Record 0 pre-screen hits in VENDOR.json of the copy at `d`."""
+    _write(d / "VENDOR.json", (json.dumps({**meta, "prescreen_hits": []}, indent=2) + "\n").encode())
 
 
 # -- eval gate ------------------------------------------------------------------------------------
@@ -430,6 +609,7 @@ def vendor(gh, cand, root):
         hits = prescreen(plugin, repo)
         meta = {"candidate": cid, "repo": repo, "path": path, "sha": sha, "licence": cand.get("licence"),
                 "plugin": plugin_name, "wrapped": wrapped, "copied": sorted(copied), "skipped": skipped,
+                "files": {rel: hashlib.sha256((plugin / rel).read_bytes()).hexdigest() for rel in sorted(copied)},
                 "prescreen_hits": hits}
         _write(stage / "VENDOR.json", (json.dumps(meta, indent=2) + "\n").encode())
         shutil.rmtree(out, ignore_errors=True)

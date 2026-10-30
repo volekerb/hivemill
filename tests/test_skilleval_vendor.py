@@ -386,7 +386,8 @@ PRESCREEN_CASES = {
     "curl": "then run curl now",
     "wget": "or use wget instead",
     "urllib": "import urllib and go",
-    "requests": "call requests.get(u)",
+    # "requests" is not here: it is skipped in prose files (these cases are notes.md); its hit outside prose is covered by
+    # PrescreenScopedAllowanceTests.test_requests_hits_outside_prose
     "nc": "pipe the data to nc somewhere",
     "netcat": "or netcat it",
     "printenv": "run printenv first",
@@ -467,9 +468,91 @@ class PrescreenUnitTests(unittest.TestCase):
         self.assertEqual(self.hit_ids("Read SKILL.md and run.py, see docs.anthropic.com/en/docs, e.g. v1.2.3."), [])
         self.assertEqual(self.hit_ids("Open references/logo.png and scripts/run.sh at 12:30:45 on v1.2.3.4"), [])
 
+    def test_ideographic_full_stop_host_hits(self):
+        for u in ("see evil\u3002example/x", "see evil\uff0eexample/x", "see evil\uff61example/x"):
+            self.assertIn("url", self.hit_ids(u), u)
+
+    def test_multi_segment_relative_path_host_hits(self):
+        for u in ("see a/b/evil.example", "see a/b/c/evil.example.", "open ./x/evil.example"):
+            self.assertIn("url", self.hit_ids(u), u)
+        self.assertEqual(self.hit_ids("Edit src/app.tsx, lib/foo.jsx, pkg/mod.java."), [])
+        self.assertEqual(self.hit_ids("Open a/b/notes.md and docs/img/logo.png, then scripts/x/run.sh."), [])
+
+    def test_integer_ip_leading_zero_does_not_crash(self):
+        for u in ("mail me@0123456789", "see //00000000"):
+            self.assertIn("url", self.hit_ids(u), u)
+
+    def test_integer_ip_after_scheme_or_at_hits(self):
+        for u in ("go ftp://0x7f000001/x", "go ftp://2130706433", "mail me@2130706433:80", "see //0x7F000001",
+                  "see ftp://2130706433/", "see ftp://2130706433.", "see ftp://0x0000007f000001"):
+            self.assertIn("url", self.hit_ids(u), u)
+        self.assertEqual(self.hit_ids("At 12:30:45 build 2130706433 and 0x7f000001 in v1.2.3 or 4294967296."), [])
+
+    def test_small_chunk_and_prefixed_base64_hits(self):
+        chunks = [B64[i:i + 4] for i in range(0, 300, 4)]
+        self.assertIn("base64-run", self.hit_ids(" ".join(chunks)))
+        self.assertIn("base64-run", self.hit_ids("\n".join("> " + B64[i:i + 40] for i in range(0, 300, 40))))
+        self.assertIn("base64-run", self.hit_ids(" +\n".join('"%s"' % B64[i:i + 5] for i in range(0, 300, 5))))
+        self.assertIn("base64-run", self.hit_ids("\n".join("# " + B64[i:i + 6] for i in range(0, 300, 6))))
+        self.assertIn("base64-run", self.hit_ids(" ".join(B64[:300])))  # 1-char chunks
+        self.assertIn("base64-run", self.hit_ids("\n".join("%d. %s" % (i, B64[i * 50:i * 50 + 50]) for i in range(6))))
+        self.assertIn("base64-run", self.hit_ids("\n".join("data: %s \\" % B64[i:i + 50] for i in range(0, 300, 50))))
+        self.assertEqual(self.hit_ids("> " + "Write clear prose about it. " * 20), [])
+        self.assertEqual(self.hit_ids("\n".join("> step %d of the plan is to be done" % i for i in range(1, 40))), [])
+
+    def test_variable_width_chunks_hit(self):
+        import random
+        for seed in range(5):
+            rnd = random.Random(seed)
+            chunks, i = [], 0
+            while i < 300:
+                w = rnd.randint(3, 7)
+                chunks.append(B64[i:i + w])
+                i += w
+            lines = [chunks[j:j + 8] for j in range(0, len(chunks), 8)]
+            for text in (" ".join(chunks), "\n".join(" ".join(x) for x in lines),
+                         "\n".join("> " + " ".join(x) for x in lines)):
+                self.assertIn("base64-run", self.hit_ids(text), (seed, text[:60]))
+            wide, i = [], 0
+            while i < 300:
+                w = rnd.randint(20, 60)
+                wide.append(B64[i:i + w])
+                i += w
+            for prefix in ("> ", "# "):
+                self.assertIn("base64-run", self.hit_ids("\n".join(prefix + c for c in wide)), (seed, prefix))
+
+    def test_small_chunk_base64_survives_adjacent_prose(self):
+        prose = "\n".join(["This skill helps you write better commit messages for your team and project."] * 3)
+        blob = "\n".join("> " + B64[i:i + 40] for i in range(0, 320, 40))
+        small = " ".join(B64[i:i + 4] for i in range(0, 320, 4))
+        for text in (prose + "\n" + blob, blob + "\n" + prose, prose + "\n\n" + blob + "\n\n" + prose,
+                     prose + "\n" + small, small + "\n" + prose):
+            self.assertIn("base64-run", self.hit_ids(text), text[:60])
+
+    def test_timestamp_version_and_code_lists_are_not_base64(self):
+        history = "\n".join("- 2026-10-%02dT22:%02d:00+00:00 agent-%d updated the task" % (i % 28 + 1, i, i) for i in range(20))
+        table = "\n".join("| pkg%d | v1.%d.%d | 2026-01-0%d |" % (i, i, i * 3, i % 9 + 1) for i in range(20))
+        code = "\n".join("GH_TIMEOUT_%d = %d  # seconds, see HTTP/1.1 and CONNECT %d" % (i, i * 30, i) for i in range(20))
+        colors = "\n".join("%d,Name %d,#2563EB,#FFFFFF,#3B82F6,#000000,#EA580C,#F8FAFC,#1E293B" % (i, i) for i in range(20))
+        for text in (history, table, code, colors):
+            self.assertEqual(self.hit_ids(text), [], text[:50])
+
+    def test_tracked_repo_files_have_no_small_chunk_base64(self):
+        import subprocess
+        root = Path(__file__).resolve().parent.parent
+        names = subprocess.run(["git", "ls-files", "*.md", "*.py", "*.csv", "*.json", "*.jsonl", "*.html"],
+                               cwd=root, capture_output=True, text=True, check=True).stdout.split("\n")
+        bad = [n for n in names if n and vendor._small_chunk_blobs(
+            [vendor._fold(x) for x in (root / n).read_text(errors="replace").splitlines()])]
+        self.assertEqual(bad, [])
+
+    def test_zip_domain_is_not_a_file_name(self):
+        self.assertIn("url", self.hit_ids("see attacker.zip"))
+
     def test_long_single_run_scans_in_linear_time(self):
         import time
-        for text in ("A" * 200_000, "A" * 100_000 + " " + "B" * 100_000, "a." * 100_000):
+        for text in ("A" * 200_000, "A" * 100_000 + " " + "B" * 100_000, "a." * 100_000,
+                     "ab " * 70_000, "a/" * 100_000, "@12345678 " * 20_000):
             t0 = time.monotonic()
             self.scan(text)
             self.assertLess(time.monotonic() - t0, 1.0, text[:3])
@@ -526,6 +609,244 @@ class PrescreenVendorTests(VendorBase):
         row = self.cand()
         self.assertEqual(row["status"], "new")
         self.assertTrue(vendor.is_eval_allowed(row, self.root))
+
+
+def at(local, host):
+    """An address without a literal one in the source (the public-text guard refuses those)."""
+    return local + chr(64) + host
+
+
+class PrescreenScopedAllowanceTests(unittest.TestCase):
+    """T-0728: three narrow allowances (Apache URL in LICENSE/NOTICE, doc-host author email in plugin.json, `requests.`
+    in prose). Each one has a case that stays clean and cases outside its scope that keep hitting."""
+    APACHE = "http://www.apache.org/licenses/LICENSE-2.0"
+
+    def scan(self, files):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        for name, text in files.items():
+            (d / name).parent.mkdir(parents=True, exist_ok=True)
+            (d / name).write_text(text)
+        return vendor.prescreen(d, "zz-owner/zz-repo")
+
+    def pj(self, **kw):
+        return json.dumps({"name": "demo", **kw}, indent=2) + "\n"
+
+    def test_c0078_fixture_lines_are_clean(self):
+        hits = self.scan({
+            ".claude-plugin/plugin.json": self.pj(author={"name": "Anthropic", "email": at("support", "anthropic.com")}),
+            "LICENSE": f"Apache License\n   {self.APACHE.rsplit('/', 1)[0]}/\n   {self.APACHE}\n",
+            "agents/code-simplifier.md": "Work without requiring explicit requests. Your goal is clarity.\n"})
+        self.assertEqual(hits, [])
+
+    def test_support_field_and_www_form_and_notice_file_are_clean(self):
+        self.assertEqual(self.scan({"plugin.json": self.pj(support=at("help", "www.anthropic.com"))}), [])
+        self.assertEqual(self.scan({"plugin.json": self.pj(support={"email": at("a", "docs.claude.com")})}), [])
+        self.assertEqual(self.scan({"NOTICE.txt": f"see {self.APACHE}\n"}), [])
+
+    def test_apache_url_outside_license_still_hits(self):
+        for name in ("run.py", "notes.md", "plugin.json", "LICENSEX/other.py"):
+            hits = self.scan({name: f"see {self.APACHE}\n"})
+            self.assertIn("url", {h["pattern"] for h in hits}, name)
+
+    def test_license_lookalike_names_still_hit(self):
+        for name in ("LICENSE.py", "LICENSE-x.sh", "LICENSEfoo", "NOTICES"):
+            self.assertIn("url", {h["pattern"] for h in self.scan({name: f"see {self.APACHE}\n"})}, name)
+        for name in ("LICENSE-APACHE", "license.txt", "NOTICE.md"):
+            self.assertEqual(self.scan({name: f"see {self.APACHE}\n"}), [], name)
+
+    def test_other_urls_in_license_still_hit(self):
+        for url in ("http://www.apache.org/licenses/evil", "http://evil.example/licenses/LICENSE-2.0",
+                    "http://www.apache.org/licenses/LICENSE-2.0/x", "http://www.apache.org.evil.example/licenses/"):
+            self.assertIn("url", {h["pattern"] for h in self.scan({"LICENSE": f"{url}\n"})}, url)
+
+    def test_doc_email_elsewhere_still_hits(self):
+        addr = at("support", "anthropic.com")
+        cases = {"run.py": f'MAIL = "{addr}"\n', "notes.md": f"mail {addr}\n",
+                 "plugin.json": self.pj(homepage=addr), "other.json": self.pj(author={"email": addr}),
+                 "x/plugin.json.txt": self.pj(author={"email": addr})}
+        for name, text in cases.items():
+            self.assertIn("url", {h["pattern"] for h in self.scan({name: text})}, name)
+
+    def test_plugin_json_email_in_other_key_or_twice_hits(self):
+        addr = at("support", "anthropic.com")
+        for data in ({"contributors": [{"email": addr}]}, {"author": {"email": addr}, "homepage": addr},
+                     {"author": {"email": addr, "name": addr}}, {"author": addr}):
+            self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": self.pj(**data)})}, str(data))
+
+    def test_plugin_json_escaped_author_email_cannot_move_allowance(self):
+        # author.email is written with a JSON escape, so the one literal address sits under mcpServers.x.email
+        text = ('{"author": {"email": "' + at("support", "anthropic\\u002ecom") + '"},\n'
+                ' "mcpServers": {"x": {\n  "email": "' + at("support", "anthropic.com") + '"\n}}}\n')
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
+
+    def test_plugin_json_fullwidth_quote_cannot_move_allowance(self):
+        # U+FF02 inside a raw string folds (NFKC) to a real quote. Parsed folded, the address sits at author.email on
+        # its own (exempt-looking) line; raw, it sits at mcpServers.email
+        q, addr = "\uff02", at("support", "anthropic.com")
+        text = ('{"mcpServers": {"a": "' + q + '}, ' + q + 'author' + q + ': {' + q + 'b' + q + ': ' + q + '",\n'
+                '  "email": "' + addr + '"\n}}\n')
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
+
+    def test_plugin_json_any_non_ascii_byte_gives_no_allowance(self):
+        author = {"name": "Zoë", "email": at("support", "anthropic.com")}
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": self.pj(author=author)})})
+        text = self.pj(author={"email": at("support", "anthropic.com")}).replace('"demo"', '"démo"')
+        self.assertIn("url", {h["pattern"] for h in self.scan({"plugin.json": text})})
+
+    def test_plugin_json_author_email_other_domain_hits(self):
+        for addr in (at("me", h) for h in ("evil.example", "anthropic.com.evil.example", "notanthropic.com", "sub.anthropic.com")):
+            hits = self.scan({"plugin.json": self.pj(author={"email": addr})})
+            self.assertIn("url", {h["pattern"] for h in hits}, addr)
+
+    def test_userinfo_url_still_hits(self):
+        for name in ("plugin.json", "notes.md", "LICENSE"):
+            self.assertIn("url", {h["pattern"] for h in self.scan({name: "see https://" + at("user", "anthropic.com") + "/x\n"})}, name)
+
+    def test_requests_hits_outside_prose(self):
+        for name, text in (("a.py", "requests.get(u)\n"), ("b.py", "import requests\n# requests.\n"),
+                           ("c.py", "from requests import get\nrequests.\n"), ("d.py", "x requests. y\n"),
+                           ("e.json", '{"a": "requests."}\n'), ("f.sh", "requests. x\n"), ("README", "requests. x\n")):
+            self.assertIn("requests", {h["pattern"] for h in self.scan({name: text})}, name)
+
+    def test_requests_in_prose_is_clean_but_other_rules_still_fire(self):
+        for name in ("a.md", "A.MD", "notes.txt"):
+            self.assertEqual(self.scan({name: "without explicit requests. Your goal\n"}), [], name)
+        self.assertEqual({h["pattern"] for h in self.scan({"a.md": "requests. and curl\n"})}, {"curl"})
+
+
+class RescreenTests(VendorBase):
+    def held(self, cid="C-0001"):
+        """Vendor a copy that hits (an Apache URL in notes.md) and leave it needs-owner."""
+        self.tree({**PLUGIN_TREE, "plugins/p/skills/foo/notes.md": "see http://www.apache.org/licenses/LICENSE-2.0\n"},
+                  "plugins/p", cid=cid)
+        self.vendor(cid, expect=4)
+        return self.root / "vendor" / f"{cid}@{SHA}"
+
+    def revise(self, d, rel, text):
+        """Rewrite a kept file as if the vendored content had been `text` all along (new pre-screen rules stand in for it)."""
+        (d / "demo" / rel).write_text(text)
+        meta = json.loads((d / "VENDOR.json").read_text())
+        meta["files"][rel] = hashlib.sha256(text.encode()).hexdigest()
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+
+    def rescreen(self, cid="C-0001", agent="owner", expect=0):
+        if expect == 0:
+            return self.ok("skilleval", "vendor", cid, "--rescreen", agent=agent)
+        return self.refused(expect, "skilleval", "vendor", cid, "--rescreen", agent=agent)
+
+    def events(self, action):
+        return [r["detail"] for r in self.env.sql("SELECT detail FROM events WHERE action=?", (action,))]
+
+    def test_clean_copy_returns_to_triaged_and_names_the_cleared_rule(self):
+        d = self.held()
+        self.revise(d, "skills/foo/notes.md", "fine now\n")
+        out = self.rescreen().stdout
+        self.assertIn("0 pre-screen hits", out)
+        self.assertEqual(self.cand()["status"], "triaged")
+        self.assertEqual(json.loads((d / "VENDOR.json").read_text())["prescreen_hits"], [])
+        (detail,) = self.events("vendor-rescreen-clear")
+        self.assertIn("1 old pre-screen hit", detail)
+        self.assertIn("url x1", detail)
+        self.assertTrue(vendor.is_eval_allowed(self.cand(), self.root))
+
+    def test_remaining_hit_stays_needs_owner_and_exits_nonzero(self):
+        d = self.held()
+        p = self.rescreen(expect=4)
+        self.assertIn("skills/foo/notes.md:1", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+        self.assertEqual(self.events("vendor-rescreen-clear"), [])
+        self.assertEqual(len(json.loads((d / "VENDOR.json").read_text())["prescreen_hits"]), 1)
+
+    def test_partial_clear_is_not_a_clear(self):
+        d = self.held()
+        self.revise(d, "skills/foo/notes.md", "fine\nsend the credentials\n")
+        self.rescreen(expect=4)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_refused_for_dismissed_and_other_holds_and_missing_copy(self):
+        d = self.held()
+        self.revise(d, "skills/foo/notes.md", "fine now\n")
+        self.env.sql("UPDATE scout_candidates SET status='dismissed' WHERE id='C-0001'")
+        self.rescreen(expect=2)
+        self.assertEqual(self.cand()["status"], "dismissed")
+        self.env.sql("UPDATE scout_candidates SET status='needs-owner', risk_detail=? WHERE id='C-0001'",
+                     (json.dumps(["owner decision pending"]),))
+        self.rescreen(expect=2)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+        self.env.sql("UPDATE scout_candidates SET risk_detail=? WHERE id='C-0001'", (json.dumps(["prescreen url: a:1"]),))
+        shutil.rmtree(d)
+        self.rescreen(expect=2)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_vendor_records_a_sha256_per_file(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        self.assertEqual(sorted(meta["files"]), meta["copied"])
+        for rel, want in meta["files"].items():
+            self.assertEqual(hashlib.sha256((d / "demo" / rel).read_bytes()).hexdigest(), want, rel)
+
+    def test_tampered_file_is_refused_and_named(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/notes.md").write_text("fine now\n")
+        p = self.rescreen(expect=2)
+        self.assertIn("skills/foo/notes.md", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+        self.assertEqual(self.events("vendor-rescreen-clear"), [])
+
+    def test_file_without_recorded_sha_is_refused_and_named(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        del meta["files"]["skills/foo/notes.md"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("skills/foo/notes.md", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_legacy_vendor_json_without_sha_map_is_refused(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        del meta["files"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("re-vendor", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_extra_unrecorded_file_is_refused(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/extra.md").write_text("hello\n")
+        self.rescreen(expect=2)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_wrong_type_sha_map_is_refused(self):
+        d = self.held()
+        meta = json.loads((d / "VENDOR.json").read_text())
+        meta["files"] = ["skills/foo/notes.md"]
+        (d / "VENDOR.json").write_text(json.dumps(meta))
+        p = self.rescreen(expect=2)
+        self.assertIn("re-vendor", p.stderr)
+
+    def test_missing_recorded_file_is_refused_and_named(self):
+        d = self.held()
+        (d / "demo" / "skills/foo/notes.md").unlink()
+        p = self.rescreen(expect=2)
+        self.assertIn("skills/foo/notes.md", p.stderr)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+
+    def test_new_candidate_is_refused(self):
+        self.seed("C-0002")
+        self.rescreen("C-0002", expect=2)
+        self.assertEqual(self.cand("C-0002")["status"], "new")
+
+    def test_worker_roles_are_refused(self):
+        d = self.held()
+        self.revise(d, "skills/foo/notes.md", "fine now\n")
+        for role in ("coder", "qa", "reviewer", "pm", "evaluator"):
+            self.rescreen(agent=f"zz-test-{role}", expect=3)
+        self.assertEqual(self.cand()["status"], "needs-owner")
+        self.rescreen(agent="zz-test-lead")
+        self.assertEqual(self.cand()["status"], "triaged")
 
 
 class EvalAllowedTests(VendorBase):

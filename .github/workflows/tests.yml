@@ -9,8 +9,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: tests-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Pushes get a group per sha: a shared main group would still cancel a *pending* run when a newer one queues.
+  group: "tests-${{ github.event_name == 'push' && github.sha || github.event.pull_request.number || github.ref }}"
+  # PR runs cancel older ones; push-to-main runs finish so every main commit gets a completed run (red-main detection)
+  cancel-in-progress: "${{ github.event_name != 'push' }}"
 
 permissions:
   contents: read
@@ -55,7 +57,7 @@ jobs:
           python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # docs mode: the aggregator runs the docs check; the shards report success without the suite.
-      - run: python -m py_compile bin/factory
+      - run: python -m py_compile bin/factory bin/factory_cli.py
         if: steps.tier.outputs.mode != 'docs'
       - run: python bin/factory --help >/dev/null
         if: steps.tier.outputs.mode != 'docs'

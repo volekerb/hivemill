@@ -4,7 +4,7 @@ import re
 import shutil
 import unittest
 
-from harness import FactoryTestCase, FACTORY
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC
 
 LEAD = "zz-lead-x"
 SESS = "sess-zz-lead-x"  # the herdr stub reports "sess-<name>" for a started agent, so a relaunch keeps the id
@@ -12,6 +12,7 @@ PANE = "px9"
 
 
 class RelaunchIdleCase(FactoryTestCase):
+    INPROC = True
     def setUp(self):
         super().setUp()
         e = self.env
@@ -267,7 +268,7 @@ class SnapshotFlagTests(RelaunchIdleCase):
         self.assertEqual(argv[argv.index("--system-prompt-snapshot") + 1], "off")
 
     def test_snapshot_flag_lives_in_one_constant(self):
-        src = FACTORY.read_text()
+        src = FACTORY_SRC.read_text()
         self.assertEqual(len(re.findall(r'"--system-prompt-snapshot"', src)), 1)
 
 
@@ -309,7 +310,7 @@ class PromptFileTests(RelaunchIdleCase):
         self.assertEqual(self.starts(), [])
 
     def test_nothing_deletes_prompt_files(self):
-        for line in FACTORY.read_text().splitlines():
+        for line in FACTORY_SRC.read_text().splitlines():
             if "prompt.md" in line:
                 self.assertNotRegex(line, r"unlink|rmtree|os\.remove|rm -")
 

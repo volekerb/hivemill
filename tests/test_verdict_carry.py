@@ -8,15 +8,13 @@ from pathlib import Path
 from unittest import mock
 
 from harness import FactoryTestCase, gates_summary
+from harness import git as harness_git
 
 GREEN = [{"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}]
 
 
 def git(cwd, *args, check=True):
-    p = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    if check and p.returncode != 0:
-        raise AssertionError(f"git {args}: {p.stderr}")
-    return p.stdout.strip()
+    return harness_git(*args, cwd=cwd, check=check)
 
 
 class VerdictCarryTests(FactoryTestCase):
@@ -511,7 +509,7 @@ class VerdictCarryTests(FactoryTestCase):
             self.assertTrue(mod.git_config_refusal(self.wt))
 
     def test_no_direct_git_calls_outside_helper(self):
-        src = (Path(__file__).resolve().parent.parent / "bin" / "factory").read_text().splitlines()
+        src = (Path(__file__).resolve().parent.parent / "bin" / "factory_cli.py").read_text().splitlines()
         direct = [i + 1 for i, l in enumerate(src) if re.search(r"""[\[(]\s*["']git["']\s*,""", l)]  # an argv starting with git
         self.assertEqual(len(direct), 1, direct)  # git_argv itself
         self.assertIn("def git_argv", src[direct[0] - 2])

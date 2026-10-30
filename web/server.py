@@ -26,13 +26,13 @@ from web.views import ROUTES
 
 STATIC = Path(__file__).resolve().parent / "static"
 STATIC_TYPES = {".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".js": "text/javascript; charset=utf-8",
-                ".png": "image/png", ".ico": "image/x-icon"}
+                ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2"}
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
        "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 MAX_CONCURRENT = 8
 REQUEST_TIMEOUT_S = 10
 _ID_RE = re.compile(r"^/(goal|task)/([A-Z]-\d+)$")
-_STATIC_NAME_RE = re.compile(r"^[\w][\w.-]*$")
+_STATIC_NAME_RE = re.compile(r"^(?:fonts/)?[\w][\w.-]*$")  # one level: static/fonts/
 RELOAD_INTERVAL_S = 60     # FACTORY_SERVE_RELOAD_INTERVAL overrides it (tests)
 ROOT = Path(__file__).resolve().parent.parent
 # callables a view may append at import; each runs once in a daemon thread when the server starts
@@ -228,10 +228,10 @@ def make_server(db_path, bind, port, hostnames=(), tokens=None, usage_fn=None, m
 
 
 def code_signature(root=ROOT):
-    """(mtime_ns, size) of every web/**/*.py, scout/**/*.py (bin/factory imports it) and bin/factory under root:
+    """(mtime_ns, size) of every web/**/*.py, scout/**/*.py (bin/factory_cli.py imports it) and bin/factory_cli.py under root:
     what the running process imported."""
     sig = {}
-    for f in [*sorted((root / "web").rglob("*.py")), *sorted((root / "scout").rglob("*.py")), root / "bin" / "factory"]:
+    for f in [*sorted((root / "web").rglob("*.py")), *sorted((root / "scout").rglob("*.py")), root / "bin" / "factory_cli.py"]:
         try:
             st = f.stat()
         except OSError:
@@ -242,7 +242,7 @@ def code_signature(root=ROOT):
 
 def import_check(root=ROOT):
     """None if the code under root imports and bin/factory compiles in a fresh interpreter, else a one-line reason."""
-    code = "import web.server; compile(open('bin/factory').read(), 'bin/factory', 'exec')"
+    code = "import web.server; compile(open('bin/factory_cli.py').read(), 'bin/factory_cli.py', 'exec')"
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     try:
         r = subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True, text=True, timeout=30)

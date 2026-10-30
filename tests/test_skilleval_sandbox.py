@@ -8,6 +8,7 @@ import ast
 import builtins
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -18,7 +19,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import FactoryTestCase, FACTORY, REPO  # noqa: E402
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC, REPO  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 from scout import nsbox, sandbox  # noqa: E402
@@ -134,7 +135,7 @@ class LayoutTests(SandboxBase):
         self.assertEqual(subprocess.run(["git", "-C", str(work), "remote"], capture_output=True, text=True).stdout.strip(), "")
         self.assertTrue((work / "taskdeps.py").is_file())
         self.assertFalse((work / "solution").exists() or (work / "hidden").exists())
-        self.assertEqual(list((d / "home").iterdir()), [])
+        self.assertEqual([x.name for x in (d / "home").iterdir()], [sandbox.HOME_RC[0]])
         seed = json.loads((d / "cfg" / ".claude.json").read_text())
         self.assertEqual(seed, {"hasCompletedOnboarding": True, "theme": "dark",
                                 "projects": {os.path.realpath(work): {"hasTrustDialogAccepted": True,
@@ -354,6 +355,40 @@ class SpawnTests(SandboxBase):
         self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "live")
         self.assertEqual(self.trial_state()["status"], "running")
 
+    def fail_tick(self):
+        with self.env.load_factory() as f:
+            with mock.patch.object(f, "_spawn_start", side_effect=SystemExit(1)):
+                f.cmd_tick(mock.Mock(), locked=True)
+
+    def test_persistent_spawn_failure_ends_the_trial_after_the_cap(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+            cap = f.EVALUATOR_SPAWN_RETRY_MAX
+        self.queue_running_trial(info)
+        for _ in range(cap - 1):
+            self.fail_tick()
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "queued")
+        self.assertEqual(self.trial_state()["status"], "running")
+        self.fail_tick()
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "cancelled")
+        t = self.trial_state()
+        self.assertEqual((t["status"], t["passed"]), ("error", 0))
+        self.assertTrue(t["ended"])
+        self.assertIn("giving up", t["check_output"])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='evaluator-spawn-failed'",
+                                          (info["agent"],))), 1)
+
+    def test_transient_failures_below_the_cap_then_success_keeps_the_trial_running(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+            cap = f.EVALUATOR_SPAWN_RETRY_MAX
+        self.queue_running_trial(info)
+        for _ in range(cap - 1):
+            self.fail_tick()
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (info["agent"],))[0]["status"], "live")
+        self.assertEqual(self.trial_state()["status"], "running")
+
     def test_shim_must_be_executable(self):
         with self.env.load_factory() as f:
             info = self.build(f.db())
@@ -385,7 +420,7 @@ class SpawnTests(SandboxBase):
             self.assertEqual(cm.exception.code, 3)
 
     def test_skilleval_try_resolves_the_root_once(self):
-        src = FACTORY.read_text()
+        src = FACTORY_SRC.read_text()
         fn = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == "skilleval_try")
         self.assertEqual(ast.get_source_segment(src, fn).count("resolve_root("), 1)
 
@@ -427,8 +462,8 @@ class SpawnTests(SandboxBase):
             con.close()
         self.assertNotIn(TOKEN, dump)
         self.assertIn(info["agent"], dump)  # the dump does contain the agent: the grep is meaningful
-        tree = ast.parse(FACTORY.read_text())
-        spawn_src = [ast.get_source_segment(FACTORY.read_text(), n) for n in tree.body
+        tree = ast.parse(FACTORY_SRC.read_text())
+        spawn_src = [ast.get_source_segment(FACTORY_SRC.read_text(), n) for n in tree.body
                      if isinstance(n, ast.FunctionDef) and n.name in ("spawn", "_spawn_start", "check_evaluator_spawn")]
         self.assertEqual(len(spawn_src), 3)
         for src in spawn_src:
@@ -513,6 +548,20 @@ class NamespaceTests(SandboxBase):
         self.assertEqual(row["agent"], start[2])
         self.assertTrue(row["agent"].startswith("eval-"))
 
+    def test_try_is_refused_for_a_finished_trial_until_it_is_voided_then_reruns_it(self):
+        self.ok("skilleval", "try", "fix-bug", "--candidate", "none", extra_env=self.extra())
+        tid = self.env.sql("SELECT id FROM skill_trials")[0]["id"]
+        self.env.sql("UPDATE skill_trials SET status='timeout', passed=0, wall_s=900 WHERE id=?", (tid,))
+        refused = self.env.run("skilleval", "try", "fix-bug", "--candidate", "none", extra_env=self.extra())
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertIn("already exists (status timeout)", refused.stderr)
+        self.ok("skilleval", "void", str(tid), "--reason", "infra", "--why", "hook bug", agent="owner")
+        self.env.sql("UPDATE agents SET status='done' WHERE name LIKE 'eval-%'")  # the first evaluator has exited
+        again = self.env.run("skilleval", "try", "fix-bug", "--candidate", "none", extra_env=self.extra())
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        row = self.env.sql("SELECT * FROM skill_trials")[0]
+        self.assertEqual((row["id"], row["status"], row["void_reason"]), (tid, "running", None))
+
     def test_try_with_candidate_vendors_nothing_new_and_passes_one_plugin_dir(self):
         p = self.env.run("skilleval", "try", "fix-bug", "--candidate", "C-0001", extra_env=self.extra())
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -595,6 +644,49 @@ class NsboxFixTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             nsbox.run_contained(self.real / "own", ["true"], cwd=str(self.link / "other"), home=str(self.tmp),
                                 trials_root=str(self.link))
+
+
+class TrialHomeZshTests(SandboxBase):
+    """T-0699: an empty trial HOME made zsh-newuser-install eat the first key of the pane launch line."""
+
+    def run_zsh(self, home):
+        keys = "(sleep 2; printf 'echo MARKER\\n'; sleep 1; printf 'exit\\n') | script -qc 'zsh -i' /dev/null"
+        r = subprocess.run(["sh", "-c", keys], capture_output=True, text=True, timeout=30,
+                           env={"PATH": os.environ["PATH"], "HOME": str(home), "LC_ALL": "C.UTF-8", "TERM": "dumb"})
+        return r.stdout
+
+    @staticmethod
+    def launch_ok(out):
+        """MARKER as its own output line (not the echoed keystrokes) and no shell error."""
+        return bool(re.search(r"(?m)^MARKER\r?$", out)) and "command not found" not in out
+
+    def setUp(self):
+        super().setUp()
+        if not shutil.which("zsh") or not shutil.which("script"):
+            self.skipTest("zsh or script (pty) not available")
+
+    def test_trial_home_rc_is_comment_only_file(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+        rc = Path(info["dir"]) / "home" / sandbox.HOME_RC[0]
+        self.assertTrue(rc.is_file() and not rc.is_symlink())
+        self.assertEqual(stat.S_IMODE(rc.lstat().st_mode), 0o644)
+        lines = [x for x in rc.read_text().splitlines() if x.strip()]
+        self.assertTrue(lines and all(x.startswith("#") for x in lines))
+
+    def test_launch_line_survives_in_built_home(self):
+        with self.env.load_factory() as f:
+            info = self.build(f.db())
+        out = self.run_zsh(Path(info["dir"]) / "home")
+        self.assertTrue(self.launch_ok(out), out)
+        self.assertNotIn("zsh-newuser-install", out)
+
+    def test_empty_home_is_detected(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, True)
+        out = self.run_zsh(d)
+        self.assertIn("zsh-newuser-install", out)
+        self.assertFalse(self.launch_ok(out), out)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness import FactoryTestCase, FACTORY, REPO  # noqa: E402
+from harness import FactoryTestCase, FACTORY, FACTORY_SRC, REPO  # noqa: E402
 from test_skilleval_collect import CollectBase, FakeApi, PASS_OUT, SHA  # noqa: E402
 
 sys.path.insert(0, str(REPO))
@@ -550,6 +550,93 @@ class CancelCliTests(CliBase):
         self.refused(2, "skilleval", "cancel", "tr0099", agent="owner")
 
 
+class VoidCliTests(CliBase):
+    def add(self, status, cond="without", task="fix-bug"):
+        self.env.sql("INSERT INTO skill_trials(candidate_id,vendor_sha,task,condition,status,queued,passed,wall_s,tokens_in,"
+                     "tokens_out,agent) VALUES('C-0001',?,?,?,?,'t',0,900,120,30,'eval-tr0001')", (SHA, task, cond, status))
+        return self.trials()[-1]["id"]
+
+    def events(self):
+        return self.env.sql("SELECT * FROM events WHERE action='void'")
+
+    def test_void_a_timeout_trial_keeps_the_row_and_records_reason_and_why(self):
+        tid = self.add("timeout")
+        before = self.trials()[0]
+        out = self.ok("skilleval", "void", str(tid), "--reason", "infra", "--why", "T-0718 hook bug", agent="owner").stdout
+        self.assertIn("status=voided", out)
+        after = self.trials()[0]
+        self.assertEqual(after["status"], "voided")
+        self.assertEqual((after["void_reason"], after["void_why"]), ("infra", "T-0718 hook bug"))
+        for k in ("passed", "wall_s", "tokens_in", "tokens_out", "agent", "task", "condition"):
+            self.assertEqual(after[k], before[k], k)
+        (ev,) = self.events()
+        self.assertIn("was timeout", ev["detail"])
+        self.assertIn("T-0718 hook bug", ev["detail"])
+        for verb in ("list", "results"):
+            shown = self.ok("skilleval", verb, agent="owner").stdout
+            self.assertIn("status=voided", shown)
+            self.assertIn("void_reason=infra", shown)
+            self.assertIn("T-0718 hook bug", shown)
+
+    def test_void_accepts_the_trNNNN_form_and_every_finished_status(self):
+        self.env.seed_agent("lead-zz", "lead")
+        for st in ("passed", "failed", "timeout", "over-budget", "error"):
+            tid = self.add(st, task=f"t-{st}")
+            self.ok("skilleval", "void", f"tr{tid:04d}", "--reason", "infra", "--why", "x", agent="lead-zz")
+        self.assertEqual({r["status"] for r in self.trials()}, {"voided"})
+
+    def test_void_of_an_unfinished_trial_is_refused_and_leaves_the_row(self):
+        for st in ("pending", "running", "starting", "cancelled", "voided"):
+            tid = self.add(st, task=f"t-{st}")
+            before = self.trials()[-1]
+            p = self.refused(2, "skilleval", "void", str(tid), "--reason", "infra", "--why", "x", agent="owner")
+            self.assertIn(f"is {st}", p.stderr)
+            self.assertEqual(self.trials()[-1], before)
+        self.assertEqual(self.events(), [])
+
+    def test_void_needs_reason_infra_and_a_why(self):
+        tid = self.add("timeout")
+        before = self.trials()
+        self.refused(2, "skilleval", "void", str(tid), "--why", "x", agent="owner")
+        self.refused(2, "skilleval", "void", str(tid), "--reason", "timeout", "--why", "x", agent="owner")
+        self.refused(2, "skilleval", "void", str(tid), "--reason", "infra", agent="owner")
+        self.refused(2, "skilleval", "void", str(tid), "--reason", "infra", "--why", "  ", agent="owner")
+        self.refused(2, "skilleval", "void", "tr0099", "--reason", "infra", "--why", "x", agent="owner")
+        self.assertEqual(self.trials(), before)
+
+    def test_collect_still_refuses_reason_infra(self):
+        tid = self.add("timeout")
+        self.refused(2, "skilleval", "collect", str(tid), "--reason", "infra", agent="owner")
+        self.assertEqual(self.trials()[0]["status"], "timeout")
+
+    def test_workers_and_the_boss_cannot_void(self):
+        tid = self.add("timeout")
+        for r in ("coder", "qa", "reviewer", "pm"):
+            self.env.seed_agent(f"zz-{r}", r)
+            self.refused(3, "skilleval", "void", str(tid), "--reason", "infra", "--why", "x", agent=f"zz-{r}")
+        self.refused(3, "skilleval", "void", str(tid), "--reason", "infra", "--why", "x", agent="boss")
+        self.assertEqual(self.trials()[0]["status"], "timeout")
+        self.assertEqual(self.events(), [])
+
+    def test_summaries_exclude_a_voided_trial(self):
+        a = self.add("timeout", task="fix-bug")
+        self.add("passed", task="add-feature")
+        self.ok("skilleval", "void", str(a), "--reason", "infra", "--why", "x", agent="owner")
+        summary = self.ok("skilleval", "results", agent="owner").stdout.splitlines()[-1]
+        self.assertIn("without: passed 1/1 tasks", summary)
+        self.assertIn("voided 1", summary)
+
+    def test_an_old_skill_trials_table_gains_the_void_columns_without_losing_rows(self):
+        tid = self.add("timeout")
+        con = sqlite3.connect(self.env.db_path)
+        con.executescript("ALTER TABLE skill_trials DROP COLUMN void_reason; ALTER TABLE skill_trials DROP COLUMN void_why;")
+        con.commit()
+        con.close()
+        self.ok("skilleval", "void", str(tid), "--reason", "infra", "--why", "after migration", agent="owner")
+        row = self.trials()[0]
+        self.assertEqual((row["status"], row["void_why"], row["tokens_in"]), ("voided", "after migration", 120))
+
+
 class EntryPointTests(CliBase):
     def tick(self, now="2026-10-26T10:00:00"):
         p = self.env.run("tick", extra_env={"FACTORY_NOW": now})
@@ -565,7 +652,7 @@ class EntryPointTests(CliBase):
             self.assertIn(f"{k} = {v}", out)
 
     def test_cmd_tick_calls_skilleval_tick_once_right_after_scout_tick(self):
-        src = FACTORY.read_text()
+        src = FACTORY_SRC.read_text()
         body = src[src.index("def cmd_tick"):]
         body = body[:body.index("\ndef ", 1)]
         self.assertEqual(body.count("skilleval_tick(con)"), 1)

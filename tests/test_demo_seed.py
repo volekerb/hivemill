@@ -18,10 +18,15 @@ import unittest
 import unittest.mock
 import urllib.request
 from pathlib import Path
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import envcheck  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "ci" / "demo_seed.py"
 FACTORY = ROOT / "bin" / "factory"
+FACTORY_SRC = ROOT / "bin" / "factory_cli.py"
 NOW = "2026-10-25T12:00:00+00:00"
 PAGES = ["/", "/goals", "/goal/G-002", "/tasks", "/task/T-0004", "/agents", "/throughput", "/quality", "/resources",
          "/tokens", "/changelog"]
@@ -30,7 +35,7 @@ PREFIXES = ("FACTORY_", "HERDR_", "SCRUB_")
 
 def default_hostname():
     """The DEFAULT_CONFIG serve_hostnames value, read from bin/factory (never a literal here)."""
-    m = re.search(r'"serve_hostnames":\s*"([^"]*)"', FACTORY.read_text(encoding="utf-8"))
+    m = re.search(r'"serve_hostnames":\s*"([^"]*)"', FACTORY_SRC.read_text(encoding="utf-8"))
     assert m, "serve_hostnames default not found in bin/factory"
     return m.group(1)
 
@@ -132,6 +137,7 @@ class Guard(Base):
             self.assertIn("refusing to seed the live factory home", err)
         self.assertFalse((repo / "sub").exists())
 
+    @envcheck.skip_without_git()
     def test_live_home_refused_under_a_temp_home(self):
         """$HOME is a temp dir (the QA setup): the passwd home, main checkout and $FACTORY_HOME stay protected."""
         mod = load_seed_module()

@@ -1,8 +1,11 @@
 {
+  "attribution": {"pr": ""},
   "permissions": {
     "deny": [
       "Advisor",
       "Bash(gh pr merge:*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr ready*)",
       "Bash(sqlite3:*)",
       "Bash(herdr server stop:*)",
       "Bash(herdr workspace close:*)",
@@ -16,6 +19,7 @@
       "Bash(git push origin HEAD:main:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
+      "Bash(git push origin HEAD:factory/* *)",
       "Bash(rm -rf ~/factory:*)",
       "Bash(rm -rf @FACTORY_LIVE_HOME@:*)",
       "Edit(/@FACTORY_LIVE_HOME@/factory.db*)",
@@ -168,12 +172,15 @@
     ],
     "allow": [
       "Bash(factory:*)",
+      "Bash(factory pr create *)",
+      "Bash(factory pr ready)",
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git push origin HEAD:factory/*)"
     ]
   },
   "env": {
@@ -187,6 +194,15 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role coder"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep",
         "hooks": [
           {
             "type": "command",
