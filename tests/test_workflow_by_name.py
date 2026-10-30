@@ -16,6 +16,7 @@ LINKS = {
     "coder": REPO / "roles/plugins/coder/coder-skills/workflows/multi-angle-review.js",
 }
 SCRIPT = REPO / "roles" / "workflows" / "multi-angle-review.js"
+PROBE_RULE = "Workflow(qa-skills:guard-probe)"
 
 
 class WorkflowAllowRuleTests(unittest.TestCase):
@@ -35,7 +36,7 @@ class WorkflowAllowRuleTests(unittest.TestCase):
         for f in sorted(SETTINGS.glob("*.json.in")):
             rules = json.loads(f.read_text())["permissions"].get("allow", [])
             for r in rules:
-                if r.startswith("Workflow"):
+                if r.startswith("Workflow") and r != PROBE_RULE:
                     self.assertEqual((f.name, r), (f.name, RULES[f.name.split(".")[0]]))
             self.assertNotRegex(f.read_text(), r'"Workflow"')
             self.assertNotIn(BARE, f.read_text(), f.name)

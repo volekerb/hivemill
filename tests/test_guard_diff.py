@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 from concurrent.futures import ThreadPoolExecutor
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `-m unittest tests.test_guard_diff` has no tests/ on the path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 import harness
 
