@@ -317,6 +317,7 @@ GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VA
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(\+?=.*)?$")
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)$")
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):?=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
@@ -797,6 +798,7 @@ class Analyzer:
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
         self.text = ""
         self.ran_factory = False
+        self.fs_changed = False  # T-0783: an earlier command on this line may have changed the filesystem
         self.scrub_with_factory = None
         self.gcwd = self.cwd  # directory a git command would run in, moved by `cd` (git rule only)
         self.gdyn = False  # True after a `cd` into a directory that is only known at run time
@@ -1097,6 +1099,8 @@ class Analyzer:
                     self.cfg_redirect(target)
                     self.persist_redirect(target)
             self.soft(self.cmd, words, depth, piped, False, hstrs)
+            if any(r[0] == n and r[1] != "/dev/null" for r in reds):
+                self.fs_changed = True
 
     def soft(self, fn, *args):
         """Run fn; in HQ mode only a PRIV block counts, so parse trouble never blocks (no false positives)."""
@@ -1399,19 +1403,25 @@ class Analyzer:
         if not in_scratchpad(t):
             raise Block(f"`{name}` into {d!r}: extraction may only target a directory inside your scratchpad (an archive "
                         f"member .git/config or hook elsewhere runs as git): {PERSIST_WHY}")
+        if self.fs_changed:
+            raise Block(f"`{name}` into {d!r}: an earlier command on this line may have planted a symlink or .git under the "
+                        "target (ln, mv, cp, install, chmod, a write or redirect); extract in its own command, first")
         if ".git" in t.split(os.sep) or self.has_git_below(t):
             raise Block(f"`{name}` into {d!r}: a .git dir (or a dir holding one at any depth) would receive config/hooks "
                         f"that run as git: {PERSIST_WHY}")
 
     @staticmethod
     def has_git_below(top):
-        """True when `top` or anything below it is named .git, or the walk exceeds ARCHIVE_WALK_MAX entries (unknown)."""
-        seen = 0
-        for _, dirs, files in os.walk(top, followlinks=False):
+        """True when `top` or anything below it is named .git or is a symlink (never followed: it may point at a .git
+        dir), the walk fails (unreadable dir) or exceeds ARCHIVE_WALK_MAX entries (unknown)."""
+        seen, failed = 0, []
+        for root, dirs, files in os.walk(top, followlinks=False, onerror=failed.append):
             seen += len(dirs) + len(files)
-            if ".git" in dirs or ".git" in files or seen > ARCHIVE_WALK_MAX:
+            if failed or ".git" in dirs or ".git" in files or seen > ARCHIVE_WALK_MAX:
                 return True
-        return False
+            if any(os.path.islink(os.path.join(root, n)) for n in dirs + files):
+                return True
+        return bool(failed)
 
     def archive_extract(self, name, rest):
         """T-0783: NO_PUSH_ROLES extract tar/bsdtar/unzip/cpio/rsync only into a named directory that is not, under or
@@ -1461,22 +1471,49 @@ class Analyzer:
             extract = bool(args[:1]) and args[0] in ("x", "e")
             dirs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
         elif re.match(r"^python[\d.]*$", name):
-            mod = next((args[j + 1] if a == "-m" and j + 1 < len(args) else a[2:] for j, a in enumerate(args)
-                        if a == "-m" or a.startswith("-m")), None)
+            mod, k = None, 0
+            while k < len(args) and args[k].startswith("-") and not args[k].startswith("--") and len(args[k]) > 1:
+                cl = args[k]  # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile
+                k += 1
+                for i, ch in enumerate(cl[1:], 1):
+                    tail = cl[i + 1:]
+                    if ch == "m":
+                        mod = tail or (args[k] if k < len(args) else None)
+                        k += 0 if tail else 1
+                        break
+                    if ch == "c":
+                        break
+                    if ch in "WXQ":  # takes a value
+                        k += 0 if tail else 1
+                        break
+                if mod is not None or "c" in cl:
+                    break
             if mod in ("zipfile", "tarfile"):
-                for j, a in enumerate(args):
+                for j, a in enumerate(args[k:], k):
                     if a in ("-e", "--extract"):
                         extract = True
                         dirs += args[j + 2:j + 3]
         elif name == "ar":
-            op = next((a for a in args if not a.startswith("--") or a == "--extract"), "")
-            if op == "--extract" or (re.match(r"^-?[A-Za-z]+$", op) and "x" in op):
+            ops, k, outs, opseen = [], 0, [], False
+            while k < len(args):
+                a = args[k]
+                k += 1
+                if a in ("--plugin", "--target", "--output"):
+                    if a == "--output" and k < len(args):
+                        outs.append(args[k])
+                    k += 1
+                elif a.startswith("--output="):
+                    outs.append(a.split("=", 1)[1])
+                elif a == "--extract":
+                    ops.append("x")
+                elif a.startswith("--"):
+                    continue
+                elif not opseen:  # -x, -xv, -X32_64: any cluster naming x counts; the first non-option argument is the operation
+                    ops.append(a)
+                    opseen = not a.startswith("-")
+            if any("x" in o for o in ops):
                 extract = True
-                for j, a in enumerate(args):
-                    if a == "--output" and j + 1 < len(args):
-                        dirs.append(args[j + 1])
-                    elif a.startswith("--output="):
-                        dirs.append(a.split("=", 1)[1])
+                dirs += outs
                 if not dirs:  # members land in the current directory
                     dirs = [self.ccwd] if self.ccwd else []
         elif name == "pax":
@@ -1493,12 +1530,13 @@ class Analyzer:
             raise Block(f"`{name}` option that rewrites member names (-P, --transform, --to-command) can escape the -C target "
                         f"into a .git dir: {why}")
         if not extract:
-            return
+            return False
         if not dirs:
             raise Block(f"`{name}` extracting without a target directory cannot be bounded (an archive may carry .git/config "
                         f"or hooks): {why}")
         for d in dirs:
             self.archive_target(name, d)
+        return True
 
     @staticmethod
     def config_args_write(args):
@@ -2209,7 +2247,8 @@ class Analyzer:
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
-            self.archive_extract(name, rest)
+            if self.archive_extract(name, rest) or name in FS_MUTATORS:
+                self.fs_changed = True
         self.factory_unit(name, rest, assigns)
         if name in COPIERS:  # R3: no copying/encoding/reading the real herdr binary
             for a in rest:

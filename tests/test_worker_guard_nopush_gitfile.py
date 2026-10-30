@@ -222,6 +222,71 @@ class NoPushGitFileTests(unittest.TestCase):
                     self.allowed(c, role)
             self.allowed("ar x a.a", role, cwd=self.out)
 
+    def test_symlink_walk_error_and_earlier_mutation_refused(self):
+        """Review B1: a symlink under the target, an unreadable dir, or an earlier ln/mv/cp/install/chmod/redirect on the
+        same line fails closed; a clean target and a lone extraction stay allowed."""
+        s, o = self.scratch, self.out
+        link = os.path.join(s, "linked")
+        os.makedirs(link)
+        os.symlink(self.repo, os.path.join(link, "l"))
+        locked = os.path.join(s, "locked")
+        os.makedirs(os.path.join(locked, "sub"))
+        os.chmod(locked, 0)
+        self.addCleanup(os.chmod, locked, 0o755)
+        chained = [
+            f"ln -s {self.home} {o}/l && tar -xf a.tar -C {o}",
+            f"mv {s}/x {o}/l; tar -xf a.tar -C {o}",
+            f"cp -r {s}/x {o}/l && unzip a.zip -d {o}",
+            f"install -d {o}/l && tar -xf a.tar -C {o}",
+            f"chmod 755 {o} && tar -xf a.tar -C {o}",
+            f"echo x > {o}/f && tar -xf a.tar -C {o}",
+            f"tee {o}/f < a && tar -xf a.tar -C {o}",
+            f"tar -xf a.tar -C {o}; tar -xf b.tar -C {o}",
+        ]
+        for role in NO_PUSH:
+            self.blocked(f"tar -xf a.tar -C {link}", role)
+            if os.geteuid() != 0:
+                self.blocked(f"tar -xf a.tar -C {locked}", role)
+            for c in chained:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+            self.allowed(f"tar -xf a.tar -C {o}", role)
+            self.allowed(f"tar -tf a.tar && tar -xf a.tar -C {o}", role)
+
+    def test_symlink_walk_error_unit(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("wg", HOOK)
+        wg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wg)
+        top = os.path.join(self.scratch, "u")
+        os.makedirs(os.path.join(top, "d"))
+        self.assertFalse(wg.Analyzer.has_git_below(top))
+        os.symlink("/", os.path.join(top, "d", "l"))
+        self.assertTrue(wg.Analyzer.has_git_below(top))
+
+    def test_python_flag_clusters_and_ar_options_refused(self):
+        """Review B2/B3: interpreter flags before -m and ar options that take a value."""
+        git, o = os.path.join(self.repo, ".git"), self.out
+        bad = [
+            f"python3 -Im zipfile -e a.zip {git}", f"python3 -Bm tarfile -e a.tar {git}",
+            f"python3 -I -m zipfile -e a.zip {git}", f"python3 -IBm zipfile -e a.zip {git}",
+            f"python3 -B -I -m tarfile --extract a.tar {git}", f"python3 -Imzipfile -e a.zip {git}",
+            f"python3 -W ignore -m zipfile -e a.zip {git}", "python3 -Im zipfile -e a.zip",
+            f"ar --output={git} --plugin x.so x a.a", f"ar --output {git} --plugin x.so x a.a",
+            f"ar --plugin x.so --output={git} x a.a", f"ar --target elf64 --output={git} x a.a",
+            f"ar -D --output={git} xv a.a", f"ar --plugin x.so x a.a",
+        ]
+        for role in NO_PUSH:
+            for c in bad:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+            for c in (f"python3 -Im zipfile -e a.zip {o}", f"python3 -I -m tarfile -e a.tar {o}", "python3 -Im zipfile -l a.zip",
+                      f"ar --plugin x.so --output={o} x a.a", "ar --plugin x.so t a.a", "ar --target elf64 p a.a m"):
+                with self.subTest(role=role, cmd=c):
+                    self.allowed(c, role)
+        self.allowed(f"python3 -Im zipfile -e a.zip {git}", "coder")
+        self.allowed(f"ar --output={git} --plugin x.so x a.a", "coder")
+
     def test_other_roles_unchanged(self):
         s = self.scratch
         for role in ("coder", "judge", "cleaner"):
