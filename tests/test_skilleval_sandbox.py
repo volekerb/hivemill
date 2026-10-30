@@ -652,7 +652,9 @@ class TrialHomeZshTests(SandboxBase):
     def run_zsh(self, home):
         keys = "(sleep 2; printf 'echo MARKER\\n'; sleep 1; printf 'exit\\n') | script -qc 'zsh -i' /dev/null"
         r = subprocess.run(["sh", "-c", keys], capture_output=True, text=True, timeout=30,
-                           env={"PATH": os.environ["PATH"], "HOME": str(home), "LC_ALL": "C.UTF-8", "TERM": "dumb"})
+                           env={"PATH": os.environ["PATH"], "HOME": str(home), "LC_ALL": "C.UTF-8", "TERM": "dumb",
+                                # Debian/Ubuntu's global zshrc runs compinit, which prompts on insecure dirs (CI runner) and eats keys.
+                                "skip_global_compinit": "1"})
         return r.stdout
 
     @staticmethod
