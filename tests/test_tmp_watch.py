@@ -43,17 +43,24 @@ class TmpBase(FactoryTestCase):
 class ResAndGate(TmpBase):
     def test_res_line(self):
         out = self.ok("res", extra_env={"FACTORY_TMP_STATVFS": "1048576000,524288000"}).stdout
-        self.assertRegex(out, r"tmp used 500 MB / 1000 MB \(50%\)")
+        self.assertRegex(out, r"tmp used 500 MB / 1000 MB \(50\.0%\)")
         self.assertIn("gate closes at 90%", out)
+
+    def test_res_and_gate_show_one_decimal_and_gate_admits_below_threshold(self):
+        out = self.ok("res", extra_env={"FACTORY_TMP_STATVFS": "1000000000,104000000"}).stdout   # 89.6% used
+        self.assertIn("(89.6%)", out)
+        self.assertIn("spawn gate: OPEN", out)
+        out = self.ok("res", extra_env={"FACTORY_TMP_STATVFS": "1000000000,99000000"}).stdout   # 90.1% used
+        self.assertRegex(out, r"CLOSED — /tmp \d+/\d+ MB used \(90\.1%\) ≥ 90%")
 
     def test_res_names_filesystem_of_real_tmp(self):
         out = self.ok("res", extra_env={"FACTORY_TMP_STATVFS": "", "FACTORY_TMP_DIR": "/tmp"}).stdout
-        self.assertRegex(out, r"tmp used \d+ MB / \d+ MB \(\d+%\)( on \w+)?")
+        self.assertRegex(out, r"tmp used \d+ MB / \d+ MB \(\d+\.\d%\)( on \w+)?")
 
     def test_gate_closed_at_threshold_with_reason(self):
         out = self.ok("res", extra_env={"FACTORY_TMP_STATVFS": FULL}).stdout
         self.assertIn("spawn gate: CLOSED", out)
-        self.assertRegex(out, r"CLOSED — /tmp \d+/\d+ MB used \(95%\) ≥ 90%")
+        self.assertRegex(out, r"CLOSED — /tmp \d+/\d+ MB used \(95\.0%\) ≥ 90%")
 
     def test_spawn_queued_with_reason(self):
         self.env.set_herdr(agents=[])
@@ -138,7 +145,7 @@ class CleanerExempt(TmpBase):
 
 class Alert(TmpBase):
     def alerts(self):
-        return self.env.sql("SELECT subject FROM messages WHERE sender='tick' AND subject LIKE '/tmp%'")
+        return self.env.sql("SELECT subject, recipient FROM messages WHERE sender='tick' AND subject LIKE '/tmp%'")
 
     def test_one_alert_per_crossing(self):
         self.env.seed_agent("zz-director", "director", goal="G-001")
@@ -147,6 +154,7 @@ class Alert(TmpBase):
         self.tick(FULL)
         self.tick(FULL)
         self.assertEqual(len(self.alerts()), 1)
+        self.assertEqual(self.alerts()[0]["recipient"], "director")
         self.tick(ROOMY)   # re-arms
         self.tick(FULL)
         self.assertEqual(len(self.alerts()), 2)
@@ -241,6 +249,13 @@ class Clean(TmpBase):
         self.finish()
         self.tick()
         self.assertTrue((real / f"{self.slug}G-001-T-0001").exists())
+
+    def test_name_with_trailing_newline_is_not_matched(self):
+        d = self.pad(name=f"{self.slug}G-001-T-0001\n")
+        self.finish()
+        self.tick()
+        self.assertTrue(d.exists())
+        self.assertEqual(self.cleaned(), [])
 
     def test_runs_at_most_hourly(self):
         self.finish()
