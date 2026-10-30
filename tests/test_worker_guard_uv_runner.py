@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -35,8 +36,7 @@ class UvRunnerRouting(unittest.TestCase):
         env.update(WORKER_GUARD_LIVE_HOME=os.path.join(self.tmp, "live"), WORKER_GUARD_SCRATCH=self.scratch,
                    FACTORY_HOME=self.home, FACTORY_AGENT="zz-agent")
         payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.scratch}
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload),
-                              capture_output=True, text=True, timeout=30, env=env)
+        return hook_run(json.dumps(payload), ["--role", role], env=env)
 
     def assert_routed(self, cmd):
         for role in ("coder", "qa"):
@@ -64,6 +64,10 @@ class UvRunnerRouting(unittest.TestCase):
 
     def test_global_option_before_tool_run(self):
         self.assert_routed("uv -q tool run pytest")
+
+    def test_mixed_case_runner_names(self):  # M14762: the runner name is matched case-insensitively (also GUARD_IMPL=diff)
+        for cmd in ("uvx PyTest", "uvx Pytest tests/", "uv tool run Py.Test", "uvx PYTEST -x", "uvx UnitTest"):
+            self.assert_routed(cmd)
 
     def test_negative_other_tools_allowed(self):
         for cmd in ("uvx ruff", "uv tool run black", f"uvx --index-url {URL} ruff", "uv -q tool run black"):

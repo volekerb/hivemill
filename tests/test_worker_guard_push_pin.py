@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from harness import git
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -55,8 +56,7 @@ class PushPinTests(unittest.TestCase):
         if agent:
             env["FACTORY_AGENT"] = agent
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=payload, capture_output=True,
-                              text=True, timeout=30, env=env)
+        return hook_run(payload, ["--role", role], env=env)
 
     def pinned(self, cmd, **kw):
         """True when the pin itself refused (its message names the exact allowed push)."""
@@ -345,7 +345,7 @@ class PushPinTests(unittest.TestCase):
         self.assertNotIn("may not run git push", p.stderr)
         env = dict(os.environ, HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home, FACTORY_AGENT="lead-g-1")
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git push origin HEAD:main"}, "cwd": self.wt})
-        h = subprocess.run([sys.executable, HOOK, "--hq"], input=payload, capture_output=True, text=True, timeout=30, env=env)
+        h = hook_run(payload, ["--hq"], env=env)
         self.assertNotIn("may not run git push", h.stderr)
         c = self.run_hook("git push origin HEAD:main", role="cleaner", agent="cleaner-1")
         self.assertEqual(c.returncode, 2)

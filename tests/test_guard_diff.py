@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `-m unittest tests.test_guard_diff` has no tests/ on the path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 import harness
+from guard_impl import hook_run
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
 
@@ -180,9 +181,7 @@ def hook_rc_subprocess(cmd, mode, role="coder", home=None):
     args = ["--role", role] if mode == "worker" else ["--hq"]
     env = {**os.environ, "FACTORY_HOME": home} if home else None
     env = guard_diff.hook_env(cmd, env)
-    p = subprocess.run([sys.executable, HOOK, *args],
-                       input=json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}),
-                       capture_output=True, text=True, timeout=30, env=env)
+    p = hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}), list(args), env=env)
     return p.returncode
 
 

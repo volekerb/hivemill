@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 from harness import rendered_settings
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -33,8 +34,8 @@ def settings_groups(role):
 
 
 def hook_subprocess(payload, role="coder", hq=False):
-    argv = [sys.executable, HOOK] + (["--hq"] if hq else ["--role", role])
-    return subprocess.run(argv, input=json.dumps(payload), capture_output=True, text=True, timeout=30)
+    argv = (["--hq"] if hq else ["--role", role])
+    return hook_run(json.dumps(payload), argv)
 
 
 _HOOK_MOD = []

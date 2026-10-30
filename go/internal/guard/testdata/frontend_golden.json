@@ -34813,6 +34813,1380 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh release create -R acme/old v1 --notes x",
+"mask_quotes_pre": "gh release create -R acme/old v1 --notes x",
+"mask_quotes_raw": "gh release create -R acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release edit -R acme/old v1 --notes x",
+"mask_quotes_pre": "gh release edit -R acme/old v1 --notes x",
+"mask_quotes_raw": "gh release edit -R acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release edit -R acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release edit -R acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"gh",
+"release",
+"edit",
+"-R",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create --repo acme/old v1 --notes x",
+"mask_quotes_pre": "gh release create --repo acme/old v1 --notes x",
+"mask_quotes_raw": "gh release create --repo acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo",
+"acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create --repo=acme/old v1 --notes x",
+"mask_quotes_pre": "gh release create --repo=acme/old v1 --notes x",
+"mask_quotes_raw": "gh release create --repo=acme/old v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo=acme/old v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create --repo=acme/old v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"gh",
+"release",
+"create",
+"--repo=acme/old",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr create -R acme/old --title t --body b",
+"mask_quotes_pre": "gh pr create -R acme/old --title t --body b",
+"mask_quotes_raw": "gh pr create -R acme/old --title t --body b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create -R acme/old --title t --body b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create -R acme/old --title t --body b"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"gh",
+"pr",
+"create",
+"-R",
+"acme/old",
+"--title",
+"t",
+"--body",
+"b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh issue comment 1 -R acme/old --body x",
+"mask_quotes_pre": "gh issue comment 1 -R acme/old --body x",
+"mask_quotes_raw": "gh issue comment 1 -R acme/old --body x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh issue comment 1 -R acme/old --body x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh issue comment 1 -R acme/old --body x"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"gh",
+"issue",
+"comment",
+"1",
+"-R",
+"acme/old",
+"--body",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -a v1 -m x",
+"mask_quotes_pre": "git tag -a v1 -m x",
+"mask_quotes_raw": "git tag -a v1 -m x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -a v1 -m x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -a v1 -m x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-a",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag v1",
+"mask_quotes_pre": "git tag v1",
+"mask_quotes_raw": "git tag v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag v1"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -d v1",
+"mask_quotes_pre": "git tag -d v1",
+"mask_quotes_raw": "git tag -d v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -d v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -d v1"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"tag",
+"-d",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"git",
+"tag",
+"-d",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -s v1 -m x",
+"mask_quotes_pre": "git tag -s v1 -m x",
+"mask_quotes_raw": "git tag -s v1 -m x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -s v1 -m x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -s v1 -m x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"tag",
+"-s",
+"v1",
+"-m",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory agents",
+"mask_quotes_pre": "factory agents",
+"mask_quotes_raw": "factory agents",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory agents"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory agents"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"factory",
+"agents"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"factory",
+"agents"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory goal list",
+"mask_quotes_pre": "factory goal list",
+"mask_quotes_raw": "factory goal list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory goal list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory goal list"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"factory",
+"goal",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"factory",
+"goal",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory task list",
+"mask_quotes_pre": "factory task list",
+"mask_quotes_raw": "factory task list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory task list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory task list"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"factory",
+"task",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"factory",
+"task",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push -f origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git push -f origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git push -f origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push -f origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push -f origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"git",
+"push",
+"-f",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"git",
+"push",
+"-f",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git -c push.default=matching push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c push.default=matching push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c push.default=matching push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"git",
+"-c",
+"push.default=matching",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git send-pack origin HEAD",
+"mask_quotes_pre": "git send-pack origin HEAD",
+"mask_quotes_raw": "git send-pack origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git send-pack origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git send-pack origin HEAD"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"send-pack",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "FOO=1 git push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "FOO=1 git push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "FOO=1 git push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "FOO=1 git push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "FOO=1 git push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"FOO=1",
+"git",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C /tmp push origin HEAD:factory/t-0001",
+"mask_quotes_pre": "git -C /tmp push origin HEAD:factory/t-0001",
+"mask_quotes_raw": "git -C /tmp push origin HEAD:factory/t-0001",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp push origin HEAD:factory/t-0001"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp push origin HEAD:factory/t-0001"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"git",
+"-C",
+"/tmp",
+"push",
+"origin",
+"HEAD:factory/t-0001"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx PyTest",
+"mask_quotes_pre": "uvx PyTest",
+"mask_quotes_raw": "uvx PyTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"uvx",
+"PyTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"uvx",
+"PyTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx Pytest tests/",
+"mask_quotes_pre": "uvx Pytest tests/",
+"mask_quotes_raw": "uvx Pytest tests/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx Pytest tests/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx Pytest tests/"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"uvx",
+"Pytest",
+"tests/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"uvx",
+"Pytest",
+"tests/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run Py.Test",
+"mask_quotes_pre": "uv tool run Py.Test",
+"mask_quotes_raw": "uv tool run Py.Test",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run Py.Test"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run Py.Test"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"Py.Test"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx PYTEST -x",
+"mask_quotes_pre": "uvx PYTEST -x",
+"mask_quotes_raw": "uvx PYTEST -x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx PYTEST -x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx PYTEST -x"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"uvx",
+"PYTEST",
+"-x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"uvx",
+"PYTEST",
+"-x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run PyTest",
+"mask_quotes_pre": "uv tool run PyTest",
+"mask_quotes_raw": "uv tool run PyTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run PyTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run PyTest"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"uv",
+"tool",
+"run",
+"PyTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx pytest@8 -q",
+"mask_quotes_pre": "uvx pytest@8 -q",
+"mask_quotes_raw": "uvx pytest@8 -q",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest@8 -q"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx pytest@8 -q"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"uvx",
+"pytest@8",
+"-q"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"uvx",
+"pytest@8",
+"-q"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx PyTest@8",
+"mask_quotes_pre": "uvx PyTest@8",
+"mask_quotes_raw": "uvx PyTest@8",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest@8"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx PyTest@8"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"uvx",
+"PyTest@8"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"uvx",
+"PyTest@8"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx --from pytest PyTest",
+"mask_quotes_pre": "uvx --from pytest PyTest",
+"mask_quotes_raw": "uvx --from pytest PyTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from pytest PyTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from pytest PyTest"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"uvx",
+"--from",
+"pytest",
+"PyTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx UnitTest",
+"mask_quotes_pre": "uvx UnitTest",
+"mask_quotes_raw": "uvx UnitTest",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx UnitTest"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx UnitTest"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"uvx",
+"UnitTest"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"uvx",
+"UnitTest"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run UNITTEST",
+"mask_quotes_pre": "uv tool run UNITTEST",
+"mask_quotes_raw": "uv tool run UNITTEST",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run UNITTEST"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run UNITTEST"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"uv",
+"tool",
+"run",
+"UNITTEST"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -48223,6 +49597,904 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_pre": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_raw": "gh release create -R acme/new v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release list -R acme/old",
+"mask_quotes_pre": "gh release list -R acme/old",
+"mask_quotes_raw": "gh release list -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release list -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release list -R acme/old"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"gh",
+"release",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release view v1 -R acme/old",
+"mask_quotes_pre": "gh release view v1 -R acme/old",
+"mask_quotes_raw": "gh release view v1 -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1 -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1 -R acme/old"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"gh",
+"release",
+"view",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release download v1 -R acme/old",
+"mask_quotes_pre": "gh release download v1 -R acme/old",
+"mask_quotes_raw": "gh release download v1 -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release download v1 -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release download v1 -R acme/old"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"gh",
+"release",
+"download",
+"v1",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr view 1 -R acme/old",
+"mask_quotes_pre": "gh pr view 1 -R acme/old",
+"mask_quotes_raw": "gh pr view 1 -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1 -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1 -R acme/old"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"gh",
+"pr",
+"view",
+"1",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh issue list -R acme/old",
+"mask_quotes_pre": "gh issue list -R acme/old",
+"mask_quotes_raw": "gh issue list -R acme/old",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh issue list -R acme/old"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh issue list -R acme/old"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"gh",
+"issue",
+"list",
+"-R",
+"acme/old"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mask_quotes_pre": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"segments_pre": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release list",
+"mask_quotes_pre": "gh release list",
+"mask_quotes_raw": "gh release list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release list"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"gh",
+"release",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"gh",
+"release",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release view v1",
+"mask_quotes_pre": "gh release view v1",
+"mask_quotes_raw": "gh release view v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release view v1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"gh",
+"release",
+"view",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"gh",
+"release",
+"view",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag",
+"mask_quotes_pre": "git tag",
+"mask_quotes_raw": "git tag",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"git",
+"tag"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"git",
+"tag"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -l",
+"mask_quotes_pre": "git tag -l",
+"mask_quotes_raw": "git tag -l",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -l"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -l"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-l"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-l"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag --list 'v*'",
+"mask_quotes_pre": "git tag --list 'QQ'",
+"mask_quotes_raw": "git tag --list 'QQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag --list 'v*'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag --list 'v*'"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"tag",
+"--list",
+"'QQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"tag",
+"--list",
+"'QQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag -n",
+"mask_quotes_pre": "git tag -n",
+"mask_quotes_raw": "git tag -n",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag -n"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag -n"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-n"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"tag",
+"-n"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git tag --contains HEAD",
+"mask_quotes_pre": "git tag --contains HEAD",
+"mask_quotes_raw": "git tag --contains HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git tag --contains HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git tag --contains HEAD"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"tag",
+"--contains",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log --oneline -3",
+"mask_quotes_pre": "git log --oneline -3",
+"mask_quotes_raw": "git log --oneline -3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log --oneline -3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log --oneline -3"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"log",
+"--oneline",
+"-3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"log",
+"--oneline",
+"-3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C /tmp log -1",
+"mask_quotes_pre": "git -C /tmp log -1",
+"mask_quotes_raw": "git -C /tmp log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp log -1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"-C",
+"/tmp",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git diff --stat",
+"mask_quotes_pre": "git diff --stat",
+"mask_quotes_raw": "git diff --stat",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git diff --stat"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git diff --stat"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"git",
+"diff",
+"--stat"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"git",
+"diff",
+"--stat"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx Ruff check .",
+"mask_quotes_pre": "uvx Ruff check .",
+"mask_quotes_raw": "uvx Ruff check .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx Ruff check ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx Ruff check ."
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"uvx",
+"Ruff",
+"check",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"uvx",
+"Ruff",
+"check",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run black .",
+"mask_quotes_pre": "uv tool run black .",
+"mask_quotes_raw": "uv tool run black .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run black ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run black ."
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"uv",
+"tool",
+"run",
+"black",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -55335,7 +57607,7 @@
 ]
 }
 },
-"corpus_commands": 942,
+"corpus_commands": 990,
 "edge_inputs": 97,
 "python": "3.13"
 }

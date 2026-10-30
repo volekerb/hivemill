@@ -137,7 +137,7 @@ func TestGhRepoChangeHelpers(t *testing.T) {
 		}
 	}
 	for _, c := range []struct{ in, want string }{
-		{"a%2Fb", "a/b"}, {"%70rotection", "protection"}, {"%zz", "%zz"}, {"%e2%82", "��"}, {"a%", "a%"}, {"%2", "%2"},
+		{"a%2Fb", "a/b"}, {"%70rotection", "protection"}, {"%zz", "%zz"}, {"%e2%82", "�"}, {"a%", "a%"}, {"%2", "%2"},
 	} {
 		if got := pyUnquote(c.in); got != c.want {
 			t.Errorf("pyUnquote(%q) = %q, want %q", c.in, got, c.want)

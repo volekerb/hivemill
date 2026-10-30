@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,8 +46,7 @@ class GitGuardBase(unittest.TestCase):
         if override:
             env["WORKER_GUARD_LIVE_HOME"] = self.home
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=payload, capture_output=True,
-                              text=True, timeout=30, env=env)
+        return hook_run(payload, ["--role", role], env=env)
 
     def blocked(self, cmd, **kw):
         p = self.run_hook(cmd, **kw)
@@ -171,8 +171,7 @@ class ArchiveInitTests(GitGuardBase):
             data = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.home}
             if sid:
                 data["session_id"] = sid
-            return subprocess.run([sys.executable, HOOK, "--role", "coder"], input=json.dumps(data),
-                                  capture_output=True, text=True, timeout=30, env=env).returncode
+            return hook_run(json.dumps(data), ["--role", "coder"], env=env).returncode
         self.assertEqual(rc("git init %s/abc/scratchpad/r" % base, "abc"), 0)
         for cmd, sid in (("git init %s/abc/scratchpad/r" % base, "other"), ("git init %s/abc/scratchpad/r" % base, None),
                          ("git init %s/abc/r" % base, "abc"), ("git init %s/abc/scratchpad/../r" % base, "abc"),
@@ -201,9 +200,7 @@ class ArchiveInitTests(GitGuardBase):
         for cmd in ("git archive -o %s/x.tar origin/main" % self.home, "git archive --remote=origin main",
                     "git init %s/r" % self.scratch):
             with self.subTest(cmd=cmd):
-                p = subprocess.run([sys.executable, HOOK, "--hq"], capture_output=True, text=True, timeout=30,
-                                   input=json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.home}),
-                                   env={**os.environ, "HOME": self.tmp, "WORKER_GUARD_LIVE_HOME": self.home})
+                p = hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.home}), ["--hq"], env={**os.environ, "HOME": self.tmp, "WORKER_GUARD_LIVE_HOME": self.home})
                 self.assertEqual(p.returncode, 0, p.stderr)
 
 
@@ -290,8 +287,7 @@ class RealHookTests(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k != "WORKER_GUARD_LIVE_HOME"}
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git status"},
                               "cwd": LIVE_HOME})
-        p = subprocess.run([sys.executable, HOOK, "--role", "coder"], input=payload, capture_output=True,
-                           text=True, timeout=30, env=env)
+        p = hook_run(payload, ["--role", "coder"], env=env)
         self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_real_live_home_commit_blocked(self):
@@ -300,8 +296,7 @@ class RealHookTests(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k != "WORKER_GUARD_LIVE_HOME"}
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"},
                               "cwd": LIVE_HOME})
-        p = subprocess.run([sys.executable, HOOK, "--role", "coder"], input=payload, capture_output=True,
-                           text=True, timeout=30, env=env)
+        p = hook_run(payload, ["--role", "coder"], env=env)
         self.assertEqual(p.returncode, 2, p.stderr)  # the hook only inspects the text; nothing is run
 
 

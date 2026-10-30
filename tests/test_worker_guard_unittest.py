@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import unittest
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -43,9 +44,9 @@ ALLOWED = (
 
 
 def run_hook(command, role):
-    argv = [sys.executable, HOOK] + (["--role", role] if role else [])
+    argv = (["--role", role] if role else [])
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
-    return subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=30)
+    return hook_run(payload, argv)
 
 
 class UnittestFullRunGuard(unittest.TestCase):

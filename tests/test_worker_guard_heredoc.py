@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -15,9 +16,9 @@ PAYLOAD = "HERDR_" + "SESSION=x touch MARK"
 
 
 def hook(cmd, hq=False):
-    argv = [sys.executable, HOOK] + (["--hq"] if hq else [])
+    argv = (["--hq"] if hq else [])
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
-    return subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=30).returncode
+    return hook_run(payload, argv).returncode
 
 
 def bash_runs_marker(cmd, prelude=""):

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
@@ -38,8 +39,7 @@ class TermsReadTests(unittest.TestCase):
         if env_terms:
             env["SCRUB_TERMS_FILE"] = self.terms
         payload = {"cwd": self.tmp, **payload}
-        return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload),
-                              capture_output=True, text=True, timeout=60, env=env)
+        return hook_run(json.dumps(payload), ["--role", role], env=env, timeout=60)
 
     def bash(self, cmd, **kw):
         return self.hook({"tool_name": "Bash", "tool_input": {"command": cmd}}, **kw)
