@@ -48,9 +48,9 @@ class ChangelogTest(unittest.TestCase):
         self.assertIn("## [0.1.0] - Initial public release\n\nFirst public release of the factory, published from a fresh repository.", out)
         self.assertIn("v0.1.0 summarises the changes merged during private development.", out)
         self.assertIn("## [0.2.0] - Unreleased\n", out)
-        self.assertRegex(out, r"### Added\n\n- T-0001: add widget\n")
-        self.assertRegex(out, r"### Fixed\n\n- T-0002: fix crash on\n")
-        self.assertRegex(out, r"### Security\n\n- T-0005: tighten deny rule\n")
+        self.assertRegex(out, r"(?m)^#### Added\n\n- T-0001: add widget\n")
+        self.assertRegex(out, r"(?m)^#### Fixed\n\n- T-0002: fix crash on\n")
+        self.assertRegex(out, r"(?m)^#### Security\n\n- T-0005: tighten deny rule\n")
         self.assertNotIn("### Changed", out)
         self.assertNotIn("T-0003", out)  # no (#N): not a merged PR
         self.assertNotIn("alice", out)  # scrub hit dropped

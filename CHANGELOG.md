@@ -16,25 +16,25 @@ Demo video: _link added when the v2 recording is approved._
 
 ### Highlights
 
-- **New web UI.** A redesigned cockpit with an overview page, goal, task and agent pages, and new insight pages for quality, throughput, resources and token use. Self-hosted font, no external requests, and a phone layout. See [docs/web-ui.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/web-ui.md).
+- **New web UI.** A redesigned cockpit with an overview page, goal, task and agent pages, and new insight pages for quality, throughput, resources and token use. Self-hosted font, no external requests, and a phone layout. See [docs/web-ui.md](https://github.com/volekerb/hivemill/blob/main/docs/web-ui.md).
 - **Faster pull request loop.** Review and QA can start the moment a PR opens (opt-in), the merge queue refreshes only its head, agents start without blocking the tick, and an opt-in mechanical merger can land low-risk PRs without a judge agent. A project can run its tests on your own machine through a local gate (set per project), and CI runs in tiers so a docs change does not run the full suite.
-- **Opt-in worker sandbox.** Workers can run in an unprivileged user and mount namespace with an allow-list view of the home directory, a worker-only Claude login and sandboxed test and gate runners. It is off by default (`sandbox_roles` is empty). See [docs/worker-sandbox.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/worker-sandbox.md).
+- **Opt-in worker sandbox.** Workers can run in an unprivileged user and mount namespace with an allow-list view of the home directory, a worker-only Claude login and sandboxed test and gate runners. It is off by default (`sandbox_roles` is empty). See [docs/worker-sandbox.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-sandbox.md).
 - **Go quick win.** The first pieces of the worker guard move to Go: a byte-exact port of Python's `shlex`, the guard front end and command analyser, and the git rules. The Go guard is built and tested but not wired in yet; Python stays the default.
 - **A new README.** New layout, fresh screenshots and a social preview image.
 
 ### New and changed
 
-- **Insight pages.** `/quality`, `/throughput`, `/resources` and `/tokens` show how the factory is doing. Every page renders on the demo database in the render-time benchmark. See [docs/web-ui.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/web-ui.md).
-- **Review autospawn.** Opt-in (`review_autospawn`, off by default): the tick starts the reviewer and QA at PR open and reserves review slots. See [docs/review-autospawn.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/review-autospawn.md).
-- **Mechanical merger.** Opt-in (`mech_merge`, default `off`, with a shadow mode first): the tick merges tier T0 to T2 PRs through the same gate checks the judge uses. See [docs/mech-merge.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/mech-merge.md).
-- **Local gate.** `factory gate run` runs a project's gate command and records the result per PR head; it applies once a project sets `gate_cmd`. `factory test` runs tests in a sandboxed runner with resource caps (`test_sandbox`, default `0`). See [docs/local-gate.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/local-gate.md).
+- **Insight pages.** `/quality`, `/throughput`, `/resources` and `/tokens` show how the factory is doing. Every page renders on the demo database in the render-time benchmark. See [docs/web-ui.md](https://github.com/volekerb/hivemill/blob/main/docs/web-ui.md).
+- **Review autospawn.** Opt-in (`review_autospawn`, off by default): the tick starts the reviewer and QA at PR open and reserves review slots. See [docs/review-autospawn.md](https://github.com/volekerb/hivemill/blob/main/docs/review-autospawn.md).
+- **Mechanical merger.** Opt-in (`mech_merge`, default `off`, with a shadow mode first): the tick merges tier T0 to T2 PRs through the same gate checks the judge uses. See [docs/mech-merge.md](https://github.com/volekerb/hivemill/blob/main/docs/mech-merge.md).
+- **Local gate.** `factory gate run` runs a project's gate command and records the result per PR head; it applies once a project sets `gate_cmd`. `factory test` runs tests in a sandboxed runner with resource caps (`test_sandbox`, default `0`). See [docs/local-gate.md](https://github.com/volekerb/hivemill/blob/main/docs/local-gate.md).
 - **`factory prcheck`.** Catches the usual PR misses before review. `prcheck_required` (default `0`) makes `factory done` require it.
-- **Red-main freeze.** Opt-in (`red_main_freeze`, default `0`): merges stop while `main` is red. See [docs/red-main.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/red-main.md).
-- **Contributor flow.** How an outside PR is gated and why forks are safe. See [docs/contributor-flow.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/contributor-flow.md).
+- **Red-main freeze.** Opt-in (`red_main_freeze`, default `0`): merges stop while `main` is red. See [docs/red-main.md](https://github.com/volekerb/hivemill/blob/main/docs/red-main.md).
+- **Contributor flow.** How an outside PR is gated and why forks are safe. See [docs/contributor-flow.md](https://github.com/volekerb/hivemill/blob/main/docs/contributor-flow.md).
 
 ### Security
 
-- **Opt-in worker sandbox.** Namespace allow-list view, worker-only login, masked `/run` and detection of sandbox escapes. Per-role GitHub token files are supported; scoping those tokens is part of your own setup, see [SECURITY.md](https://github.com/__PUBLIC_REPO__/blob/main/SECURITY.md) and [docs/worker-sandbox.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/worker-sandbox.md). Design: [ADR 0002](https://github.com/__PUBLIC_REPO__/blob/main/docs/adr/0002-sandbox-runtime-v3.md).
+- **Opt-in worker sandbox.** Namespace allow-list view, worker-only login, masked `/run` and detection of sandbox escapes. Per-role GitHub token files are supported; scoping those tokens is part of your own setup, see [SECURITY.md](https://github.com/volekerb/hivemill/blob/main/SECURITY.md) and [docs/worker-sandbox.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-sandbox.md). Design: [ADR 0002](https://github.com/volekerb/hivemill/blob/main/docs/adr/0002-sandbox-runtime-v3.md).
 - **Public text guard.** Pull request text, commits and pushed diffs are scanned for private data, with a pre-push hook installed in task worktrees and a check again at merge.
 - **Branch protection.** The publish script sets admin enforcement on the public `main`, and the tick alerts when it is missing.
 - **Worker guard.** Coder pushes are pinned to the coder's own task branch, and more launcher and test-runner routes fail closed.
@@ -42,13 +42,13 @@ Demo video: _link added when the v2 recording is approved._
 ### Known limits
 
 - **Pre-release.** Interfaces and behaviour may change before 1.0.
-- **Worker sandbox.** Opt-in and not a security boundary: it is a tripwire, not a boundary against a determined adversary, and it has no egress filter. Read [SECURITY.md](https://github.com/__PUBLIC_REPO__/blob/main/SECURITY.md) first.
+- **Worker sandbox.** Opt-in and not a security boundary: it is a tripwire, not a boundary against a determined adversary, and it has no egress filter. Read [SECURITY.md](https://github.com/volekerb/hivemill/blob/main/SECURITY.md) first.
 - **Go guard.** The Go port of the worker guard is partial and not used by default.
 - **Single box.** It is built for one machine, and it needs herdr and Claude Code.
 
 ### Upgrade
 
-- **From v0.1.0.** Pull `main` and follow [docs/SETUP.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/SETUP.md). Nothing above changes behaviour until you turn it on; the sandbox needs the prerequisites listed in that guide.
+- **From v0.1.0.** Pull `main` and follow [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md). The opt-in features above (sandbox, review autospawn, mechanical merger, local gate, `prcheck_required`, red-main freeze) stay off until you turn them on. The guard and CI changes apply on upgrade: the pre-push public-text hook is installed on every spawn, coder pushes are pinned, CI tiers and the branch-protection alert are active, agent start is non-blocking and the merge queue refreshes head-only. The sandbox needs the prerequisites listed in that guide.
 
 ### All merged changes since v0.1.0
 
@@ -261,21 +261,21 @@ Hivemill v0.1.0 is a pre-release: the first public cut of an AI factory that run
 
 ### Features
 
-- **Setup and operations.** Install, boot units and reboot recovery are described in [docs/SETUP.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/SETUP.md) and [docs/operations.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/operations.md).
-- **Verdict gates.** The rules for reviewer, QA and judge verdicts are in [docs/verdict-gates.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/verdict-gates.md).
-- **Goal lifecycle.** A request becomes a goal with a plan and success criteria, see [docs/goal-lifecycle.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/goal-lifecycle.md).
-- **Worker guard.** Hooks block actions outside a role's job, see [docs/worker-guard.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/worker-guard.md).
-- **Web UI.** Pages for goals, tasks and agents are covered in [docs/web-ui.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/web-ui.md).
-- **State branch.** Markdown exports and a database dump are pushed to a state branch, see [docs/state-branch.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/state-branch.md).
+- **Setup and operations.** Install, boot units and reboot recovery are described in [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md) and [docs/operations.md](https://github.com/volekerb/hivemill/blob/main/docs/operations.md).
+- **Verdict gates.** The rules for reviewer, QA and judge verdicts are in [docs/verdict-gates.md](https://github.com/volekerb/hivemill/blob/main/docs/verdict-gates.md).
+- **Goal lifecycle.** A request becomes a goal with a plan and success criteria, see [docs/goal-lifecycle.md](https://github.com/volekerb/hivemill/blob/main/docs/goal-lifecycle.md).
+- **Worker guard.** Hooks block actions outside a role's job, see [docs/worker-guard.md](https://github.com/volekerb/hivemill/blob/main/docs/worker-guard.md).
+- **Web UI.** Pages for goals, tasks and agents are covered in [docs/web-ui.md](https://github.com/volekerb/hivemill/blob/main/docs/web-ui.md).
+- **State branch.** Markdown exports and a database dump are pushed to a state branch, see [docs/state-branch.md](https://github.com/volekerb/hivemill/blob/main/docs/state-branch.md).
 
 ### Known limits
 
 - **Pre-release.** Interfaces and behaviour may change before 1.0.
-- **Worker sandbox.** The per-agent worker sandbox is unfinished. Agent isolation is a tripwire, not a sandbox: it stops honest mistakes and makes bypasses visible, but it does not contain a determined adversary. Read [SECURITY.md](https://github.com/__PUBLIC_REPO__/blob/main/SECURITY.md) first.
+- **Worker sandbox.** The per-agent worker sandbox is unfinished. Agent isolation is a tripwire, not a sandbox: it stops honest mistakes and makes bypasses visible, but it does not contain a determined adversary. Read [SECURITY.md](https://github.com/volekerb/hivemill/blob/main/SECURITY.md) first.
 - **On-demand agents.** Starting agents on demand is not done yet.
 - **Single box.** It is built for one machine, and it needs herdr and Claude Code.
 
 ### Install
 
 - **Requirements.** Python 3.11+, git, gh, herdr and Claude Code.
-- **Steps.** Follow [docs/SETUP.md](https://github.com/__PUBLIC_REPO__/blob/main/docs/SETUP.md) and the quickstart in the [README](https://github.com/__PUBLIC_REPO__/blob/main/README.md). The command line tool is `factory`.
+- **Steps.** Follow [docs/SETUP.md](https://github.com/volekerb/hivemill/blob/main/docs/SETUP.md) and the quickstart in the [README](https://github.com/volekerb/hivemill/blob/main/README.md). The command line tool is `factory`.
