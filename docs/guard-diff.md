@@ -68,3 +68,18 @@ The tool also diffs the permission rules of `roles/settings/<role>.json.in` agai
 5. For a retry, check that the variants listed per class include the sibling forms of the reported bypass.
 
 The coder procedure is the `guard-change` skill in `roles/plugins/coder/`.
+
+## Go implementation (--impl go)
+
+`--impl go` is the G-016 differential gate for the Go port of the hook (`go/cmd/worker-guard`). The reference is the Python hook in the working tree (`--hook`); the candidate is the Go binary, built once per run with `go build ./cmd/worker-guard` in `go/`, or taken from `--go-bin PATH`. The same corpus, tokens, environment and modes apply, and the candidate is invoked as `worker-guard --role <role>|--hq --py-hook <abs path of the reference hook>`.
+
+```
+python3 ci/guard_diff.py --impl go --roles all --mode both --strict
+```
+
+- `--base` is not needed; the settings diff is skipped and the output says `settings diff: skipped (--impl go)`. In the lines, `base=` is the Python hook and `pr=` the Go binary.
+- `--roles all`: worker mode runs under every role whose `roles/settings/<role>.json.in` calls the hook with `--role` (derived from the templates, not a list in the tool), plus `hq`. Lines read `worker role=<role>`.
+- `--strict`: TIGHTENED and CHANGED lines also exit 1, because the gate is zero in both directions. Without it, only LOOSENED and TIMEOUT exit 1.
+- `--allow-loosen` is refused together with `--impl go` (exit 2, `no --allow-loosen with --impl go`); so are `--go-bin` and `--strict` without `--impl go`.
+- A missing `go`, a failed build or an unusable `--go-bin` exits 2 and names the cause.
+- Known TIGHTENED cases that are not behaviour bugs: a payload above 1 MiB, NaN/Infinity and lone-surrogate JSON inputs. Differences in stderr text are not behaviour; the exit code decides.
