@@ -1950,7 +1950,7 @@ class Analyzer:
                 runner = f"coverage run -m {mod}"
         elif name == "uv" and rest[:1] == ["run"]:
             runner = self.uv_run_runner(rest[1:])
-        elif name == "uv" and any(rest[i:i + 2] == ["tool", "run"] for i in range(len(rest))):  # T-0745, T-0748
+        elif name == "uv" and "tool" in rest:  # T-0745, T-0748: global options may sit between tool and run
             runner = self.uvx_scan(rest, "uv tool run")
         elif name == "uvx":  # T-0745, T-0748
             runner = self.uvx_scan(rest, "uvx")
@@ -1994,12 +1994,11 @@ class Analyzer:
         is the runner, after stripping extras ([..]) and version suffixes (at-sign, ==). No option model, so index
         options, valued flags and global options cannot hide it. Accepted false positive: `uvx ruff pytest`."""
         if prefix == "uv tool run":
-            i = next(i for i in range(len(words)) if words[i:i + 2] == ["tool", "run"])
-            words = words[i + 2:]
+            words = words[words.index("tool") + 1:]
         for t in words:
             if t.startswith("-"):
                 t = t.split("=", 1)[1] if "=" in t else ""
-            base = re.split(r"[\[@=<>~!]", os.path.basename(t), 1)[0]
+            base = re.split(r"[\s\[@=<>~!;(]", os.path.basename(t), maxsplit=1)[0]
             if base in ("pytest", "py.test", "unittest"):
                 return f"{prefix} {base}"
         return None

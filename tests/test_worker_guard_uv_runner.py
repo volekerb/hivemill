@@ -69,6 +69,25 @@ class UvRunnerRouting(unittest.TestCase):
         for cmd in ("uvx ruff", "uv tool run black", f"uvx --index-url {URL} ruff", "uv -q tool run black"):
             p = self.run_hook(cmd)
             self.assertEqual(p.returncode, 0, f"{cmd}: {p.stderr}")
+    def test_global_option_between_tool_and_run(self):
+        self.assert_routed("uv tool -q run pytest")
+
+    def test_hidden_alias_uvx_under_tool(self):
+        self.assert_routed("uv tool uvx pytest")
+
+    def test_pep508_whitespace_specifier(self):
+        self.assert_routed("uvx 'pytest >=8'")
+
+    def test_pep508_parenthesised_specifier(self):
+        self.assert_routed("uvx 'pytest (>=8)'")
+
+    def test_pep508_marker(self):
+        self.assert_routed("uvx 'pytest ; python_version>\"3\"'")
+
+    def test_negative_global_option_after_tool(self):
+        for cmd in ("uv tool -q run black", "uv tool uvx ruff", "uvx 'ruff >=0.5'"):
+            p = self.run_hook(cmd)
+            self.assertEqual(p.returncode, 0, f"{cmd}: {p.stderr}")
 
 
 if __name__ == "__main__":
