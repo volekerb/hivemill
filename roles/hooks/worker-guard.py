@@ -311,6 +311,8 @@ GIT_LSREMOTE_FLAGS = {"--heads", "--refs", "--symref", "--exit-code", "--get-url
 GIT_WORD = re.compile(r"(?:^|[\s/;&|])git(?:-\S*)?(?:\s|$)")
 GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=")
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(\+?=.*)?$")
+PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)$")
+PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):?=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
@@ -1910,6 +1912,58 @@ class Analyzer:
             raise Block(f"{self.role} may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select "
                         "the git config, helpers and pager (an alias there hides a push); ask your lead")
 
+    def builtin_assign(self, assigns, words):
+        """T-0771: NO_PUSH_ROLES may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* through a builtin either (read,
+        printf -v, mapfile/readarray, for/select, getopts, let, declare-like, `${VAR:=x}` / `${VAR=x}`), and fail closed
+        when the target name is dynamic."""
+        def bad(name):
+            return bool(PROTECTED_NAME.match(name))
+
+        def dyn(name):
+            return bool(re.search(r"[$`!]", name))
+
+        def deny(what, name):
+            why = "dynamic target name" if dyn(name) else "it selects the git config, helpers or pager"
+            raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with {what} ({name!r}: {why}); "
+                        "use a plain variable name, or ask your lead")
+
+        for w in [*assigns, *words]:
+            m = PARAM_DEFAULT.search(w)
+            if m and (bad(m.group(1)) or dyn(m.group(1))):
+                deny("a ${VAR:=...} default", m.group(1))
+        if not words:
+            return
+        name, rest = os.path.basename(words[0]), words[1:]
+        targets = []
+        if name in ("read", "mapfile", "readarray"):
+            argopt = set("pdnNtui") if name == "read" else set("dnOsuCc")
+            skip = False
+            for a in rest:
+                if skip:
+                    skip = False
+                elif a.startswith("-") and len(a) > 1:
+                    skip = a[-1] in argopt
+                else:
+                    targets.append(a)
+        elif name == "printf":
+            for j, a in enumerate(rest):
+                if a == "-v" and j + 1 < len(rest):
+                    targets.append(rest[j + 1])
+                elif a.startswith("-v") and len(a) > 2:
+                    targets.append(a[2:])
+        elif name in ("for", "select") and rest:
+            targets.append(rest[0])
+        elif name == "getopts":
+            targets += [a for a in rest if not a.startswith("-")][:2]  # optstring too: fail closed
+        elif name == "let":
+            for a in rest:
+                targets += re.findall(r"[A-Za-z_]\w*|\$\S*", a.split("=", 1)[0] if "=" in a else a)
+        elif name in DECLARERS:
+            targets += [a.split("=", 1)[0] for a in rest if not a.startswith("-")]
+        for t in targets:
+            if bad(t) or dyn(t):
+                deny(name, t)
+
     def task_worktree(self, task):
         """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
         try:
@@ -1930,6 +1984,7 @@ class Analyzer:
         words = stripped
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.git_config_env(assigns, words)
+            self.builtin_assign(assigns, words)
             self.git_launch(assigns, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":
