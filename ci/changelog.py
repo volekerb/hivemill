@@ -8,7 +8,7 @@ keyword. Subjects that ci/scrub_scan.py would flag are dropped; their count is p
   changelog.py                 print the changelog to stdout
   changelog.py --write         write it to CHANGELOG.md
   changelog.py --check         exit 1 if CHANGELOG.md differs from what would be generated
-  changelog.py --since SHA     only commits after SHA
+  changelog.py --since SHA     only commits after SHA (default: the previous release commit, SINCE)
   changelog.py --release-notes VERSION  print the curated ci/release-notes/VERSION.md
   changelog.py --prerelease VERSION     print "true" for 0.x or -suffixed versions, else "false"
   changelog.py --check-version VERSION  exit 1 unless the VERSION file equals VERSION, ci/release-notes/VERSION.md exists
@@ -45,10 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
-## [0.2.0] - 2026-10-30
+## [0.3.0] - 2026-10-30
 """
+# The previous release (tag v0.2.0); the generated list covers the commits after it. Update it with HEADER at each release.
+SINCE = "3b1d99516"
 # Older releases sit below the generated lists of the newest one; each carries only its curated notes.
 OLDER = """
+## [0.2.0] - 2026-10-30
+
 ## [0.1.0] - Initial public release
 
 First public release of the factory, published from a fresh repository.
@@ -90,7 +94,13 @@ def with_curated_notes(header):
     return "".join(out)
 
 
+def known_commit(sha, repo):
+    return subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode == 0
+
+
 def merged_subjects(ref, since=None, repo="."):
+    if since is None and known_commit(SINCE, repo):  # a repo without the release commit (a test repo) lists its whole history
+        since = SINCE
     rng = f"{since}..{ref}" if since else ref
     proc = subprocess.run(["git", "-C", repo, "log", "--first-parent", "--format=%H%x09%cs%x09%s", rng],
                           capture_output=True, text=True)
@@ -122,7 +132,7 @@ def render(subjects):
             continue
         groups[section_of(subj)].append(f"- {subj}")
     out = [with_curated_notes(HEADER)]
-    out.append("### All merged changes since v0.1.0\n")
+    out.append("### All merged changes since v0.2.0\n")
     for name in SECTIONS:
         if groups[name]:
             out.append(f"#### {name}\n\n" + "\n".join(groups[name]) + "\n")
@@ -159,7 +169,7 @@ def version_problems(version, root):
 def build_parser():
     p = argparse.ArgumentParser(description="Generate CHANGELOG.md from first-parent squash-merge commits.")
     p.add_argument("--ref", default="origin/main", help="ref to read (default origin/main)")
-    p.add_argument("--since", metavar="SHA", help="only commits after SHA")
+    p.add_argument("--since", metavar="SHA", help=f"only commits after SHA (default {SINCE} when the repo has it)")
     p.add_argument("--repo", default=".", help="git repository (default .)")
     p.add_argument("--file", default="CHANGELOG.md", help="changelog file for --write/--check (default CHANGELOG.md)")
     p.add_argument("--release-notes", metavar="VERSION", help="print the curated notes of VERSION and exit")
