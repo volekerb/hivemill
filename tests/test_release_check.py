@@ -68,6 +68,8 @@ class Fake:
 def go(fake, *args):
     lines = []
     code = rc.main([SHA, *args], run=fake, probe=fake.probe, out=lines.append, env={"PATH": "/usr/bin", "FACTORY_AGENT": "x"})
+    if code != 0:
+        assert not [ln for ln in lines if "tag -a" in ln], lines  # no owner commands unless every check passed
     return code, lines
 
 
@@ -124,7 +126,7 @@ class CheckTest(unittest.TestCase):
     def test_version_flag_overrides_default(self):
         fake = Fake("0.3.1", {"git-show": (0, "0.2.0\n", "")})
         code, lines = go(fake, "--version", "0.3.1")
-        self.assertEqual(status(lines, "version"), "FAIL")  # equals VERSION at the SHA is still required
+        self.assertEqual((status(lines, "version"), code), ("FAIL", 1))  # equals VERSION at the SHA is still required
 
     def test_ci_green_fail_no_run(self):
         self.assert_fail("ci-green", {"gh": (0, "[]", "")})
@@ -215,7 +217,7 @@ class CheckTest(unittest.TestCase):
         lines = []
         rc.main([SHA], run=fake, probe=fake.probe, out=lines.append,
                 env={"PATH": "/usr/bin", "HOME": "/live/home", "FACTORY_HOME": live, "FACTORY_AGENT": "coder-x"})
-        smoke_envs = [e for argv, e in zip(fake.calls, fake.envs) if e and "bin/factory" in " ".join(argv) or "demo_seed.py" in " ".join(argv)]
+        smoke_envs = [e for argv, e in zip(fake.calls, fake.envs) if e and ("bin/factory" in " ".join(argv) or "demo_seed.py" in " ".join(argv))]
         self.assertEqual(len(smoke_envs), 3)  # --version, demo_seed, serve
         tmp = None
         for e in smoke_envs:
@@ -292,6 +294,7 @@ class RealGitTest(unittest.TestCase):
                        root=self.repo, out=lines.append, env=dict(os.environ))
         self.assertEqual(status(lines, "fresh-install-smoke"), "FAIL")
         self.assertEqual(code, 1)
+        self.assertFalse([ln for ln in lines if "tag -a" in ln])
 
 
 class EntryPointTest(unittest.TestCase):
