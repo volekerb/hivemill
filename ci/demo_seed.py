@@ -28,6 +28,8 @@ SCAN = ROOT / "ci" / "scrub_scan.py"
 REFUSE = "refusing to seed the live factory home"
 DUMP_NAME = ".scrub-dump.sql"
 SEED = 20261025
+USAGE_FRESH_AHEAD_S = 12 * 3600   # usage-limits.json is stamped this far ahead of --now: the demo is served later and must not read "Stale"
+HEADROOM = 5   # max_live_agents = live agents + HEADROOM
 
 
 def db_path(home):
@@ -611,8 +613,8 @@ def build(now):
             ev(H(goal_upd[goal] - 2), "director", "agent", lead, "done")
     ev(D(14.2), "owner", "agent", "boss", "spawn", "role=boss")
     ev(D(14.1), "boss", "agent", "director", "spawn", "role=director")
-    ev(D(13), "director", "config", "max_live_agents", "set", str(n_live))
-    ev(D(5), "director", "config", "max_total_claude", "set", str(n_live + 6))
+    ev(D(13), "director", "config", "max_live_agents", "set", str(cap(n_live)))
+    ev(D(5), "director", "config", "max_total_claude", "set", str(cap(n_live) + 6))
 
     # task lifecycles
     for tid, goal, team, role, title, status, deps, prn, attempts, who in all_tasks:
@@ -733,8 +735,8 @@ def build(now):
     ev(H(14), "lead-g-002-a", "agent", "staff-engineer", "stopped")
     agent("pm-t-0030", "pm", "G-004", "g-004-a", None, "queued", None, None, None, None, H(2))
     agent("qa-t-0010", "qa", "G-002", "g-002-a", "T-0010", "queued", None, None, None, None, H(1))
-    ev(H(1), "director", "agent", "qa-t-0010", "queued", f"agents live {n_live}/{n_live}: spawn gate closed")
-    ev(H(2), "director", "agent", "pm-t-0030", "queued", f"agents live {n_live}/{n_live}: spawn gate closed")
+    ev(H(1), "director", "agent", "qa-t-0010", "queued", "waiting for a free slot on the team")
+    ev(H(2), "director", "agent", "pm-t-0030", "queued", "waiting for a free slot on the team")
     # evaluations
     evals = [("g-001-a", 5, "Clean delivery, one reviewer rejection.", D(8)), ("g-002-a", 4, "Good pace, two QA rejections.", D(2)),
              ("g-003-a", 4, "Steady, one reviewer rejection.", D(1)),
@@ -808,6 +810,23 @@ def messages(now):
 
 # ───────────────────────────── DB + logs ─────────────────────────────
 
+def cap(n_live):
+    """The seeded max_live_agents: headroom over the live agents, so the demo shows a busy but healthy factory (spawn gate open)."""
+    return n_live + HEADROOM
+
+
+def util_sample(con, now, agents, cap_):
+    """One tick utilization row at `now` (the Overview System card reads it while it is fresh, 5 min)."""
+    live = [a for a in agents if a[5] == "live"]
+    count = lambda *roles: sum(1 for a in live if a[1] in roles)  # noqa: E731
+    leads, judges, hq, workers = count("lead"), count("judge"), count("boss", "director"), count("coder", "pm", "qa", "reviewer", "cleaner")
+    queued = sum(1 for a in agents if a[5] == "queued")
+    con.execute("INSERT INTO util_samples(ts,live,workers,leads,judges,hq,other,queued,queued_workers,cap,target,demand,p1_starved,p2_starved) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (iso(now), len(live), workers, leads, judges, hq, len(live) - workers - leads - judges - hq, queued, queued, cap_,
+                 min(workers, cap_), 0, "[]", "[]"))
+
+
 def fill_db(db, now):
     events, verdicts, agents, evals, task, pr_url = build(now)
     msgs = messages(now)
@@ -861,8 +880,9 @@ def fill_db(db, now):
                             (s, r, k, subj, body, goal, tid, iso(ts), iso(ts + dt.timedelta(minutes=5)) if read else None))
             for team, score, notes, ts in evals:
                 con.execute("INSERT INTO evaluations(team_id,score,notes,author,created) VALUES(?,?,?,?,?)", (team, score, notes, "director", iso(ts)))
-            con.execute("INSERT INTO config(key,value) VALUES('max_live_agents',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(W.n_live),))
-            con.execute("INSERT INTO config(key,value) VALUES('max_total_claude',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(W.n_live + 6),))
+            con.execute("INSERT INTO config(key,value) VALUES('max_live_agents',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(cap(W.n_live)),))
+            con.execute("INSERT INTO config(key,value) VALUES('max_total_claude',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(cap(W.n_live) + 6),))
+            util_sample(con, now, agents.values(), cap(W.n_live))
             # init copies DEFAULT_CONFIG, whose serve_hostnames is the owner's local DNS name: replace it
             con.execute("INSERT INTO config(key,value) VALUES('serve_hostnames','demo.example') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
         con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -919,7 +939,7 @@ def write_logs(home, now, sessions):
                 "message": {"id": f"msg_demo_{s['log_sid'][:8]}_{k}", "model": s["model"], "usage": usage}}))
         (d / f"{s['log_sid']}.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (claude / "usage-limits.json").write_text(json.dumps({
-        "updated_at": int(now.timestamp()), "five_hour_pct": 38, "seven_day_pct": 54,
+        "updated_at": int(now.timestamp()) + USAGE_FRESH_AHEAD_S, "five_hour_pct": 38, "seven_day_pct": 54,
         "five_hour_resets_at": int(now.timestamp()) + 3 * 3600, "seven_day_resets_at": int(now.timestamp()) + 3 * 86400}) + "\n",
         encoding="utf-8")
 

@@ -1394,6 +1394,15 @@ def mem_available_mb():
     return 0
 
 
+def serve_mem_available_mb():
+    """mem_fn of `factory serve` only (display): $FACTORY_MEM_AVAILABLE_MB pins it for the demo shots. gate() never calls this."""
+    pinned = os.environ.get("FACTORY_MEM_AVAILABLE_MB")
+    try:
+        return int(pinned) if pinned else mem_available_mb()
+    except ValueError:
+        return mem_available_mb()
+
+
 def tmp_dir():
     """The directory whose filesystem the tmp watch measures and cleans under: /tmp ($FACTORY_TMP_DIR for tests)."""
     return Path(os.environ.get("FACTORY_TMP_DIR") or "/tmp")
@@ -8422,8 +8431,8 @@ def _within(path, root):
     return path == root or root in path.parents
 
 
-def live_pane_cwds():
-    """Every cwd/foreground_cwd of the live panes as real paths, or None when they cannot be listed."""
+def live_panes():
+    """(pane_id, real cwd) for every cwd/foreground_cwd of the live panes, or None when they cannot be listed."""
     r = herdr("pane", "list", check=False)
     if r is None or "panes" not in r:  # a server that wants --workspace: list per workspace
         ws = herdr("workspace", "list", check=False)
@@ -8437,28 +8446,94 @@ def live_pane_cwds():
             panes += r["panes"]
     else:
         panes = r["panes"]
-    return [_real(p[k]) for p in panes for k in ("cwd", "foreground_cwd") if isinstance(p.get(k), str) and p[k]]
+    return [(p.get("pane_id"), _real(p[k])) for p in panes for k in ("cwd", "foreground_cwd") if isinstance(p.get(k), str) and p[k]]
 
 
-def protected_by(con, wt, pane_cwds):
-    """Reason if an agent's recorded cwd or a live pane sits in the worktree, else None."""
-    for r in con.execute("SELECT name,cwd FROM agents WHERE status IN ('live','starting','queued','done','stopped') AND cwd IS NOT NULL AND cwd!=''"):
+def agent_row_live(r, listed):
+    """True when a live/starting/queued agent row is still a running agent. A 'live' row counts while herdr lists an agent
+    under its name; a pane id now used by another name does not count. `listed` is herdr_agents() (None = cannot tell:
+    live, fail safe). A row herdr lists nowhere counts only within the start grace (still_starting)."""
+    if r["status"] != "live" or listed is None:
+        return True
+    if any(x.get("name") == r["name"] for x in listed):
+        return True
+    return not any(r["pane_id"] and x.get("pane_id") == r["pane_id"] for x in listed) and still_starting(r)
+
+
+def pane_reused(r, listed):
+    """True only with proof: a 'live' row whose pane herdr lists under another name and which is listed under none. An
+    unlisted row, no agent list or any other status is not proof (the cwd then still holds the worktree)."""
+    return (r["status"] == "live" and listed is not None and bool(r["pane_id"])
+            and not any(x.get("name") == r["name"] for x in listed)
+            and any(x.get("pane_id") == r["pane_id"] for x in listed))
+
+
+def pane_holds(con, pane_id, listed):
+    """True unless the pane is a leftover: no listed agent sits on it and its DB owner, if any, is not running. No pane
+    id, no agent list, no owner row, or ANY listed agent on the pane (even one with no DB row or a starting row without
+    a pane id) = unknown owner = holds (fail safe)."""
+    if not pane_id or listed is None or any(x.get("pane_id") == pane_id for x in listed):
+        return True
+    rows = con.execute("SELECT * FROM agents WHERE pane_id=?", (pane_id,)).fetchall()
+    if not rows:
+        return True
+    return any(r["status"] in ("live", "starting", "queued") and not pane_reused(r, listed) for r in rows)
+
+
+def protected_by(con, wt, panes, listed=None):
+    """Reason if an agent's recorded cwd or a live pane sits in the worktree, else None. A stale live row (its pane now
+    used by another agent) and a pane whose owner ended no longer hold it; unknown owners and running agents do."""
+    for r in con.execute("SELECT * FROM agents WHERE status IN ('live','starting','queued','done','stopped') AND cwd IS NOT NULL AND cwd!=''"):
         if _within(_real(r["cwd"]), wt):
+            if pane_reused(r, listed):
+                continue
             return f"protected: cwd of agent {r['name']}"
-    for c in pane_cwds:
-        if _within(c, wt):
+    for pane_id, c in panes:
+        if _within(c, wt) and pane_holds(con, pane_id, listed):
             return "protected: cwd of a live pane"
     return None
 
 
-def clean_verdict(con, t, repo, base, pane_cwds=()):
+def task_agent_live(con, task_id, listed):
+    """True when an agent row of THIS task is live/starting/queued and still running (agent_row_live)."""
+    return any(agent_row_live(r, listed) for r in
+               con.execute("SELECT * FROM agents WHERE task_id=? AND status IN ('live','starting','queued')", (task_id,)))
+
+
+def landed_on_main(con, t, repo, base, head):
+    """True only with proof the finished work is on origin/<base>: task done, a 'merged' event naming a commit that is an
+    ancestor of origin/<base>, and the branch head either an ancestor of it or already contained in its tree (merging
+    the head into origin/<base> changes nothing). Any missing piece or git failure is False."""
+    if t["status"] != "done" or not head:
+        return False
+    ref = f"origin/{base}"
+    shown = None
+    for e in con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='merged' ORDER BY id DESC",
+                         (t["id"],)):
+        m = re.match(r"@([0-9a-f]{7,40})\b", e["detail"] or "")
+        if m:
+            shown = m.group(1)
+            break
+    if not shown:
+        return False
+    r = _git(repo, "rev-parse", "--verify", "-q", f"{shown}^{{commit}}")
+    if r.returncode != 0 or _git(repo, "merge-base", "--is-ancestor", r.stdout.strip(), ref).returncode != 0:
+        return False
+    if _git(repo, "cat-file", "-e", f"{head}^{{commit}}").returncode != 0:
+        return False
+    if _git(repo, "merge-base", "--is-ancestor", head, ref).returncode == 0:
+        return True
+    mt = _git(repo, "merge-tree", "--write-tree", ref, head)
+    main_tree = _git(repo, "rev-parse", f"{ref}^{{tree}}")
+    return mt.returncode == 0 and main_tree.returncode == 0 and mt.stdout.strip() == main_tree.stdout.strip()
+
+
+def clean_verdict(con, t, repo, base, panes=(), listed=None):
     """Return (skip_reason or None, worktree path or None, branch exists locally). Never changes anything."""
     status = t["status"]
     if status not in ("done", "cancelled"):
         return f"task {status}", None, False
-    live = con.execute("SELECT count(*) c FROM agents WHERE task_id=? AND status IN ('live','starting','queued')",
-                       (t["id"],)).fetchone()["c"]
-    if live:
+    if task_agent_live(con, t["id"], listed):
         return "agent live", None, False
     branch = t["branch"]
     if branch and not branch.startswith("factory/"):
@@ -8478,9 +8553,11 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
         except SystemExit:
             return "PR lookup failed", None, tip is not None
         want = {"MERGED"} if status == "done" else {"MERGED", "CLOSED"}
-        if pr.get("state") not in want:
-            return f"PR {pr.get('state')}", None, tip is not None
         head = pr.get("headRefOid")
+        if pr.get("state") == "CLOSED" and status == "done" and landed_on_main(con, t, repo, base, head):
+            pass  # closed by judge --record-merged: the work is on main
+        elif pr.get("state") not in want:
+            return f"PR {pr.get('state')}", None, tip is not None
     elif status == "done":
         return "PR none", None, tip is not None
     wt = None
@@ -8511,7 +8588,7 @@ def clean_verdict(con, t, repo, base, pane_cwds=()):
             stray = [f for f in un.stdout.splitlines() if "__pycache__" not in Path(f).parts]
             if un.returncode != 0 or stray:
                 return "untracked files: " + ", ".join(stray[:5]), None, tip is not None
-            why = protected_by(con, wt, pane_cwds)
+            why = protected_by(con, wt, panes, listed)
             if why:
                 return why, None, tip is not None
     # everything that would be lost must already be on the PR head (or on base, for a cancelled task with no PR)
@@ -8599,9 +8676,12 @@ def cmd_clean(a):
     require_role(con, "cleaner", "director")
     if a.remote_branch:
         return cmd_clean_remote_branch(con, [n for grp in a.remote_branch for n in grp], a.dry_run)
-    pane_cwds = live_pane_cwds()
+    panes = live_panes()
+    pane_cwds = None if panes is None else [c for _, c in panes]
     if pane_cwds is None:
         die("cannot verify live panes; refusing to remove anything", 4)
+    r = herdr("agent", "list", check=False)  # no usable agents list = None: every task with a live agent row is kept
+    listed = r["agents"] if isinstance(r, dict) and isinstance(r.get("agents"), list) else None
     rows = []
     known = set()
     repos = {}
@@ -8623,7 +8703,7 @@ def cmd_clean(a):
                 continue
             _git(repo, "fetch", "-q", "origin")
             repos[repo] = base
-        why, wt, has_branch = clean_verdict(con, t, repo, base, pane_cwds)
+        why, wt, has_branch = clean_verdict(con, t, repo, base, panes, listed)
         if why:
             row["reason"] = why
             continue
@@ -12994,7 +13074,7 @@ def cmd_serve(a):
     g = lambda k: cfg.get(k, DEFAULT_CONFIG[k])  # noqa: E731
     server.run(db_path=resolve_db, bind=a.bind or g("serve_bind") or None, port=a.port if a.port is not None else int(g("serve_port")),
                hostnames=[n.strip() for n in g("serve_hostnames").split(",") if n.strip()],
-               usage_fn=usage, mem_fn=mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
+               usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
 
 
 # ───────────────────────────── cli ─────────────────────────────

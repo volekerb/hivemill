@@ -315,6 +315,21 @@ class Seeded(unittest.TestCase):
         self.assertEqual({s for (s,) in rows(db, "SELECT status FROM tasks")},
                          {"todo", "in_progress", "in_review", "done", "cancelled", "blocked"})
 
+    def test_healthy_busy_state_gate_open_and_a_fresh_tick_sample(self):
+        """The Overview System card in the demo: busy but below the cap (gate open), no 'gate closed' stress text, and a
+        tick utilization row at --now so the card never shows the 'no sample' line while it is fresh."""
+        db = self.a / "db" / "factory.db"
+        live = rows(db, "SELECT COUNT(*) FROM agents WHERE status='live'")[0][0]
+        cap = int(rows(db, "SELECT value FROM config WHERE key='max_live_agents'")[0][0])
+        self.assertGreaterEqual(live, 12)
+        self.assertGreaterEqual(cap - live, 3, "headroom: live %d of cap %d" % (live, cap))
+        self.assertLess(live / cap, 0.9)
+        self.assertEqual(rows(db, "SELECT COUNT(*) FROM events WHERE detail LIKE '%gate closed%'"), [(0,)])
+        sample = rows(db, "SELECT ts, live, cap FROM util_samples")
+        self.assertEqual(sample, [(NOW, live, cap)])
+        usage = json.loads((self.a / "home" / ".claude" / "usage-limits.json").read_text())
+        self.assertGreaterEqual(usage["updated_at"], int(dt.datetime.fromisoformat(NOW).timestamp()), "usage is fresh when served hours after --now")
+
     def test_minimum_counts(self):
         """The same numbers the acceptance walk checks through the CLI: goals, live agents, tasks, merges in 21 days."""
         db = self.a / "db" / "factory.db"

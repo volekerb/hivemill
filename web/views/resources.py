@@ -121,9 +121,10 @@ def machine():
                 mi[k] = int(v.split()[0]) // 1024
     except (OSError, ValueError, IndexError):
         pass
+    pinned = os.environ.get("FACTORY_LOADAVG")   # the screenshot/demo server pins it so the shots do not depend on the host
     try:
-        load = [round(x, 2) for x in os.getloadavg()]
-    except OSError:
+        load = [float(pinned)] * 3 if pinned else [round(x, 2) for x in os.getloadavg()]
+    except (OSError, ValueError):
         load = None
     swap_used = mi["SwapTotal"] - mi["SwapFree"] if "SwapTotal" in mi and "SwapFree" in mi else None
     return {"mem_available_mb": mi.get("MemAvailable"), "mem_total_mb": mi.get("MemTotal"), "swap_used_mb": swap_used,

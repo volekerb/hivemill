@@ -63,11 +63,12 @@ CHECK_ROWS = 400  # the text and theme checks only look at the top 400 px of eac
 MIN_COLOURS = 200
 # Mean luminance (0-255, top 400 px): the real pages measured 25-29 vs 247-249 (a gap of about 220); 40 is well under.
 MIN_LUMA_GAP = 40
+SETTLE_MS = 4000  # virtual time the browser runs before the screenshot, so the web fonts (Inter) are loaded and applied
 WIDTH = 1280  # CSS px
 SCALE = 2  # device pixel ratio: a PNG is WIDTH * SCALE px wide
 DPR_FLAG = "--force-device-scale-factor=%d" % SCALE
 HMAX = 1600  # CSS px: the capture window height; a page taller than this is truncated here (see crop_to_content)
-PAGE_HEIGHT = {"tasks": 960}  # CSS px: a page-specific capture height below HMAX; /tasks at HMAX is over MAX_PNG_BYTES
+PAGE_HEIGHT = {"tasks": 936}  # CSS px: a page-specific capture height below HMAX (tasks: just under the 'To do' group heading, a table has no gaps to cut in); /tasks at HMAX is over MAX_PNG_BYTES
 MARGIN_CSS = 32  # CSS px of page background kept below the last content row
 MIN_HEIGHT_CSS = 400  # a cropped image is never shorter than this
 CROP_TOL = 8  # per channel: a pixel within this of the page background counts as background
@@ -78,6 +79,8 @@ SIDEBAR_CSS_PX = 232
 SIDEBAR_BREAKPOINT_CSS_PX = 1024
 BLANK_PIXEL_FRAC = 0.99  # a row is blank when this share of its (main column) pixels is background
 BLANK_LIMIT_PCT = 35  # abort when more than this share of an image's rows are blank
+WINDOW_TAIL = 160  # rows (80 CSS px): a capture whose background tail is shorter than this did not end on its own, the window cut it
+SECTION_GAP_MIN = 32  # rows (16 CSS px at 2x): the gap between a card and the next section heading (about 40); a heading sits closer (about 20) to its own card
 # Text and line spacing leave single blank rows between lines; only a run of at least this many consecutive blank rows
 # (24 CSS px at 2x) is empty space that counts.
 BLANK_RUN_MIN = 48
@@ -90,6 +93,7 @@ SOCIAL_W, SOCIAL_H = 1280, 640  # GitHub social preview size
 SOCIAL_BAND = 160  # px: the top band with wordmark and tagline; the hero fills the other SOCIAL_H - SOCIAL_BAND rows
 SOCIAL_MAX_BYTES = 1048576  # GitHub's limit for the social preview
 SOCIAL_TAGLINE = "A team of Claude Code agents with roles, independent review and a merge gate"
+INTER_SEMIBOLD = ROOT / "web" / "static" / "fonts" / "Inter-SemiBold.woff2"  # inlined in the social page: the tagline is set in Inter
 WORDMARK = "wordmark-light.svg"
 WORDMARK_VIEWBOX = "0 0 275 80"  # the file's viewBox is 360 wide but the ink ends near x=268
 CHILDREN = []  # Popen objects to terminate in cleanup
@@ -310,9 +314,13 @@ def free_port():
         return s.getsockname()[1]
 
 
+# the System card reads the host's load and free memory: pin a calm machine so the shots show "OK" on any host
+DEMO_MACHINE = {"FACTORY_LOADAVG": "1.4", "FACTORY_MEM_AVAILABLE_MB": "3900"}
+
+
 def serve(demo):
     port = free_port()
-    env = clean_env(demo / "home", demo)
+    env = {**clean_env(demo / "home", demo), **DEMO_MACHINE}
     proc = spawn([str(ROOT / "bin" / "factory"), "serve", "--bind", "127.0.0.1", "--port", str(port)], env=env,
                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     end = time.monotonic() + 30
@@ -359,7 +367,7 @@ def browser_args(binary, theme, dest, url, height, profile, dpr=False):
     """The headless browser command line for one page in one theme (light/dark -> THEMES). dpr adds DPR_FLAG."""
     return [str(binary), "--headless", "--disable-gpu", "--no-sandbox", "--hide-scrollbars"]\
         + ([DPR_FLAG] if dpr else []) \
-        + ["--window-size=%d,%d" % (WIDTH, height), "--user-data-dir=" + str(profile),
+        + ["--window-size=%d,%d" % (WIDTH, height), "--virtual-time-budget=%d" % SETTLE_MS, "--user-data-dir=" + str(profile),
            "--blink-settings=preferredColorScheme=" + THEMES[theme], "--screenshot=" + str(dest), url]
 
 
@@ -525,16 +533,41 @@ def row_bad(row, x0, x1, bg):
                if abs(r - r0) > CROP_TOL or abs(g - g0) > CROP_TOL or abs(b - b0) > CROP_TOL)
 
 
-def crop_to_content(rows, x0, bg):
+def section_end(rows, x0, bg):
+    """Row count to keep for a page taller than the capture: cut in the last gap between sections (a run of at least
+    SECTION_GAP_MIN background rows on the main column, kept with a bottom margin of at most MARGIN_CSS and half the gap), not through a section.
+    Everything is kept when no gap leaves at least MIN_HEIGHT_CSS above it."""
+    width = len(rows[0]) // 3
+    # the last row is inside a section here, so `bg` is not trusted: the page background is what the main column's left
+    # gutter (inside the page padding, outside every card) shows most often
+    gutter = x0 + SCALE
+    bg = collections.Counter(bytes(r[gutter * 3:gutter * 3 + 3]) for r in rows).most_common(1)[0][0]
+    bg = tuple(bg)
+    y = len(rows) - 1
+    while y >= MIN_HEIGHT_CSS * SCALE:
+        if row_bad(rows[y], x0, width, bg) == 0:
+            end = y
+            while end > 0 and row_bad(rows[end - 1], x0, width, bg) == 0:
+                end -= 1
+            if y - end + 1 >= SECTION_GAP_MIN and end >= MIN_HEIGHT_CSS * SCALE:
+                return min(len(rows), end + min(MARGIN_CSS * SCALE, (y - end + 1) // 2))   # never into the next heading
+            y = end - 1
+        else:
+            y -= 1
+    return len(rows)
+
+
+def crop_to_content(rows, x0, bg, window=None, sections=True):
     """(rows, truncated). Drops the trailing rows that are background on the main column, keeping a MARGIN_CSS bottom
     margin and at least MIN_HEIGHT_CSS. When content reaches the last row of the capture (a page taller than HMAX) all
-    rows are kept and truncated is True."""
+    rows are kept and truncated is True. A capture as tall as the `window` (rows) whose trailing background is shorter than WINDOW_TAIL rows is cut at a
+    section boundary too (`sections`; off for a flat table, whose rows have blank gaps of their own): its last rows are a gap above a section the window did not reach."""
     width = len(rows[0]) // 3
     y = len(rows) - 1
     while y >= 0 and row_bad(rows[y], x0, width, bg) == 0:
         y -= 1
-    if y == len(rows) - 1:
-        return rows, True
+    if y == len(rows) - 1 or (window and len(rows) >= window and len(rows) - 1 - y < WINDOW_TAIL):
+        return (rows[:section_end(rows, x0, bg)] if sections else rows), True
     return rows[:min(len(rows), max(y + 1 + MARGIN_CSS * SCALE, MIN_HEIGHT_CSS * SCALE))], False
 
 
@@ -624,20 +657,14 @@ def downscale2(rows):
 
 
 def compose_hero(left, right):
-    """Left half of the light image next to the right half of the dark one, with a HERO_DIVIDER_PX divider between.
-    Height is the smaller of the two."""
+    """The light home image next to the dark one, each downscaled by 2 (the page text is then at 1x), with a
+    HERO_DIVIDER_PX divider in the gap between them, so the divider never crosses page content. Height is the
+    smaller of the two."""
     width = len(left[0]) // 3
     if len(right[0]) // 3 != width:
         raise Failed("the light and dark home images differ in width (%d vs %d)." % (width, len(right[0]) // 3))
-    half = width // 2
-    d0 = half - HERO_DIVIDER_PX // 2
     divider = bytes(HERO_DIVIDER_RGB) * HERO_DIVIDER_PX
-    rows = []
-    for lrow, rrow in zip(left, right):
-        row = bytearray(lrow[:half * 3] + rrow[half * 3:])
-        row[d0 * 3:(d0 + HERO_DIVIDER_PX) * 3] = divider
-        rows.append(row)
-    return rows
+    return [bytearray(lrow + divider + rrow) for lrow, rrow in zip(downscale2(left), downscale2(right))]
 
 
 def social_html(hero_small_png, bg, tagline=SOCIAL_TAGLINE):
@@ -657,22 +684,23 @@ def social_html(hero_small_png, bg, tagline=SOCIAL_TAGLINE):
 html, body { margin: 0; padding: 0; width: %(w)dpx; height: %(h)dpx; overflow: hidden; background: %(bg)s; }
 .band { box-sizing: border-box; height: %(band)dpx; display: flex; align-items: center; gap: 32px; padding: 0 32px; background: %(bg)s; }
 .band svg { flex: none; display: block; }
-.tag { font: 600 21px/1.35 "DejaVu Sans", sans-serif; color: #1f2328; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url(data:font/woff2;base64,%(font)s) format("woff2"); }
+.tag { font: 600 21px/1.35 "Inter", "DejaVu Sans", sans-serif; color: #1f2328; }
 img { display: block; width: %(w)dpx; height: %(img)dpx; }
 </style></head><body>
 <div class="band">%(svg)s<div class="tag">%(tag)s</div></div>
 <img alt="" src="data:image/png;base64,%(b64)s">
 </body></html>
 ''' % {"w": SOCIAL_W, "h": SOCIAL_H, "bg": colour, "band": SOCIAL_BAND, "img": SOCIAL_H - SOCIAL_BAND, "svg": svg,
-       "tag": html.escape(tagline), "b64": base64.b64encode(hero_small_png).decode("ascii")})
+       "tag": html.escape(tagline), "font": base64.b64encode(INTER_SEMIBOLD.read_bytes()).decode("ascii"), "b64": base64.b64encode(hero_small_png).decode("ascii")})
 
 
 def hero_small(hero_rows, bg):
-    """The hero downscaled by 2 to fill the SOCIAL_H - SOCIAL_BAND rows under the band: cropped from the top, padded
-    with the background colour when it is shorter."""
+    """The hero cropped to 2 * SOCIAL_W px wide and 2 * (SOCIAL_H - SOCIAL_BAND) rows (from the top and the left,
+    padded with the background colour when shorter), then downscaled by 2 to fill the space under the band."""
     need = (SOCIAL_H - SOCIAL_BAND) * 2
-    rows = [bytearray(r) for r in hero_rows[:need]]
-    pad = bytearray(bytes(bg) * (len(hero_rows[0]) // 3))
+    rows = [bytearray(r[:SOCIAL_W * 6]) for r in hero_rows[:need]]
+    pad = bytearray(bytes(bg) * (SOCIAL_W * 2))
     rows += [bytearray(pad) for _ in range(need - len(rows))]
     return downscale2(rows)
 
@@ -719,7 +747,8 @@ def capture_all(binary, tmp, port, pages):
             width, rows = read_rows(shots / fname)
             x0 = main_x0(width)
             bg = background(rows, x0)
-            rows, truncated = crop_to_content(rows, x0, bg)
+            rows, truncated = crop_to_content(rows, x0, bg, window=min(HMAX, PAGE_HEIGHT.get(name, HMAX)) * SCALE,
+                                              sections=name not in PAGE_HEIGHT)   # a fixed-height page is a flat table: no section gaps
             if truncated:
                 print("INFO %s: truncated at HMAX (%d CSS px)" % (fname, min(HMAX, PAGE_HEIGHT.get(name, HMAX))))
             write_png(outdir / fname, rows)
@@ -735,8 +764,8 @@ def capture_all(binary, tmp, port, pages):
         _wl, left = read_rows(outdir / "home-light.png")
         _wr, right = read_rows(outdir / "home-dark.png")
         hero = compose_hero(left, right)
-        half = width // 2
-        regions = [(main_x0(width), half - HERO_DIVIDER_PX // 2, bgl), (half + HERO_DIVIDER_PX // 2, width, bgr)]
+        half = width // 2   # each half of the hero is one downscaled home image
+        regions = [(main_x0(width) // 2, half, bgl), (half + HERO_DIVIDER_PX, 2 * half + HERO_DIVIDER_PX, bgr)]
         check_blank("hero.png", blank_percent(hero, regions))
         write_png(outdir / "hero.png", hero)
         small = encode_png(hero_small(hero, bgl))
