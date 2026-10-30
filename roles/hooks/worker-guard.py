@@ -172,10 +172,11 @@ REPO_CFG_WHY = ("every worktree shares the repo's .git/config, so a key such as 
                 "accident prevention, not a security boundary (T-0226)")
 
 
-def repo_cfg_path(c):
+def repo_cfg_path(c, scratch_ok=True):
     """T-0226: True when normalised absolute path `c` is repo git config outside the worker's scratchpad: <x>/.git/config*,
-    <x>/.git/worktrees/<n>/config*, <x>/.git/info/attributes, or the same files of a bare repo (HEAD and objects/ beside)."""
-    if in_scratchpad(c):
+    <x>/.git/worktrees/<n>/config*, <x>/.git/info/attributes, or the same files of a bare repo (HEAD and objects/ beside).
+    T-0770: scratch_ok=False (NO_PUSH_ROLES) drops the scratchpad exemption: a scratchpad repo's config runs as git too."""
+    if scratch_ok and in_scratchpad(c):
         return False
     parts = c.split(os.sep)
     base, parent = parts[-1], parts[-2] if len(parts) > 1 else ""
@@ -192,11 +193,11 @@ def repo_cfg_path(c):
     return bool(gd) and os.path.isfile(os.path.join(gd, "HEAD")) and os.path.isdir(os.path.join(gd, "objects"))
 
 
-def git_hooks_path(p):
+def git_hooks_path(p, scratch_ok=False):
     """T-0755: True when `p` is <x>/.git/hooks, <x>/.git/info or anything under them, outside the worker's scratchpad
-    (a hook or a pager there runs as git, so a read-only role never writes it)."""
+    (a hook or a pager there runs as git, so a read-only role never writes it). T-0770: the scratchpad is no longer exempt."""
     for c in {os.path.normpath(p), os.path.realpath(p)}:
-        if in_scratchpad(c):
+        if scratch_ok and in_scratchpad(c):
             continue
         parts = c.split(os.sep)
         if any(a == ".git" and b in ("hooks", "info") for a, b in zip(parts, parts[1:])):
@@ -204,7 +205,7 @@ def git_hooks_path(p):
     return False
 
 
-def persist_path(p, ancestor=False):
+def persist_path(p, ancestor=False, scratch_ok=True):
     """True when path `p` (absolute; `..` and symlinks resolved, glob patterns matched) is a protected file or inside a
     protected tree."""
     for t in brace_expand(p):
@@ -214,7 +215,7 @@ def persist_path(p, ancestor=False):
         for c in cands:
             if ancestor and c in PERSIST_ANCESTORS:
                 return True
-            if repo_cfg_path(c):
+            if repo_cfg_path(c, scratch_ok):
                 return True
             if GLOB.search(c):
                 parts = c.strip("/").split("/")
@@ -1328,7 +1329,8 @@ class Analyzer:
                         return True
                     continue
                 t = os.path.join(self.ccwd, t)
-            if persist_path(t, ancestor) or (self.role in NO_PUSH_ROLES and not self.hq and git_hooks_path(t)):
+            nopush = self.role in NO_PUSH_ROLES and not self.hq  # T-0770: no scratchpad exemption for git config/hooks
+            if persist_path(t, ancestor, not nopush) or (nopush and git_hooks_path(t)):
                 return True
         return False
 
