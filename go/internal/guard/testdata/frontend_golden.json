@@ -26568,6 +26568,431 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"mask_quotes_pre": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"mask_quotes_raw": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PUT repos/acme/widgets/branches/main/protection"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PUT repos/acme/widgets/branches/main/protection"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/widgets/branches/main/protection"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/widgets/branches/main/protection"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"mask_quotes_pre": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"mask_quotes_raw": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method DELETE repos/acme/widgets/branches/main/protection"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method DELETE repos/acme/widgets/branches/main/protection"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/widgets/branches/main/protection"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/widgets/branches/main/protection"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X PATCH repos/acme/widgets -f private=true",
+"mask_quotes_pre": "gh api -X PATCH repos/acme/widgets -f private=true",
+"mask_quotes_raw": "gh api -X PATCH repos/acme/widgets -f private=true",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PATCH repos/acme/widgets -f private=true"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PATCH repos/acme/widgets -f private=true"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/widgets",
+"-f",
+"private=true"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/widgets",
+"-f",
+"private=true"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"mask_quotes_pre": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"mask_quotes_raw": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/widgets/branches/main/protection -X PUT"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/widgets/branches/main/protection -X PUT"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection",
+"-X",
+"PUT"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection",
+"-X",
+"PUT"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"date"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"date"
+]
+},
+"input": "gh pr create --repo acme/widgets --title t --body \"$(date)\"",
+"mask_quotes_pre": "gh pr create --repo acme/widgets --title t --body \"QQQQQQQ\"",
+"mask_quotes_raw": "gh pr create --repo acme/widgets --title t --body \"QQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create --repo acme/widgets --title t --body \"$(date)\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create --repo acme/widgets --title t --body \"$(date)\""
+},
+"segments_pre": [
+[
+0,
+59,
+[
+"gh",
+"pr",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"\"QQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+59,
+[
+"gh",
+"pr",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"\"QQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git commit -m 'unterminated",
+"mask_quotes_raw": "git commit -m 'QQQQQQQQQQQQ",
+"preprocess": {
+"error": "unbalanced quote"
+},
+"preprocess_fold": {
+"error": "unbalanced quote"
+},
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"commit",
+"-m",
+"'QQQQQQQQQQQQ"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr create --title 'x",
+"mask_quotes_raw": "gh pr create --title 'Q",
+"preprocess": {
+"error": "unbalanced quote"
+},
+"preprocess_fold": {
+"error": "unbalanced quote"
+},
+"segments_raw": [
+[
+0,
+23,
+[
+"gh",
+"pr",
+"create",
+"--title",
+"'Q"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr create -R acme/widgets --title t --body-file -",
+"mask_quotes_pre": "gh pr create -R acme/widgets --title t --body-file -",
+"mask_quotes_raw": "gh pr create -R acme/widgets --title t --body-file -",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create -R acme/widgets --title t --body-file -"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create -R acme/widgets --title t --body-file -"
+},
+"segments_pre": [
+[
+0,
+52,
+[
+"gh",
+"pr",
+"create",
+"-R",
+"acme/widgets",
+"--title",
+"t",
+"--body-file",
+"-"
+]
+]
+],
+"segments_raw": [
+[
+0,
+52,
+[
+"gh",
+"pr",
+"create",
+"-R",
+"acme/widgets",
+"--title",
+"t",
+"--body-file",
+"-"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"date"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"date"
+]
+},
+"input": "gh issue create --repo acme/widgets --title t --body \"$(date)\"",
+"mask_quotes_pre": "gh issue create --repo acme/widgets --title t --body \"QQQQQQQ\"",
+"mask_quotes_raw": "gh issue create --repo acme/widgets --title t --body \"QQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh issue create --repo acme/widgets --title t --body \"$(date)\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh issue create --repo acme/widgets --title t --body \"$(date)\""
+},
+"segments_pre": [
+[
+0,
+62,
+[
+"gh",
+"issue",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"\"QQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+62,
+[
+"gh",
+"issue",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"\"QQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -38182,6 +38607,298 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api repos/acme/widgets/branches/main/protection",
+"mask_quotes_pre": "gh api repos/acme/widgets/branches/main/protection",
+"mask_quotes_raw": "gh api repos/acme/widgets/branches/main/protection",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/widgets/branches/main/protection"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/widgets/branches/main/protection"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api repos/acme/widgets",
+"mask_quotes_pre": "gh api repos/acme/widgets",
+"mask_quotes_raw": "gh api repos/acme/widgets",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/widgets"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/widgets"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"gh",
+"api",
+"repos/acme/widgets"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"gh",
+"api",
+"repos/acme/widgets"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh repo view acme/widgets",
+"mask_quotes_pre": "gh repo view acme/widgets",
+"mask_quotes_raw": "gh repo view acme/widgets",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh repo view acme/widgets"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh repo view acme/widgets"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"gh",
+"repo",
+"view",
+"acme/widgets"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"gh",
+"repo",
+"view",
+"acme/widgets"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr list --repo acme/widgets",
+"mask_quotes_pre": "gh pr list --repo acme/widgets",
+"mask_quotes_raw": "gh pr list --repo acme/widgets",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr list --repo acme/widgets"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr list --repo acme/widgets"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"gh",
+"pr",
+"list",
+"--repo",
+"acme/widgets"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"gh",
+"pr",
+"list",
+"--repo",
+"acme/widgets"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": [
+"date"
+]
+},
+"extract_subs_raw": {
+"subs": [
+"date"
+]
+},
+"input": "gh pr create --repo other/repo --title t --body \"$(date)\"",
+"mask_quotes_pre": "gh pr create --repo other/repo --title t --body \"QQQQQQQ\"",
+"mask_quotes_raw": "gh pr create --repo other/repo --title t --body \"QQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create --repo other/repo --title t --body \"$(date)\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create --repo other/repo --title t --body \"$(date)\""
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"gh",
+"pr",
+"create",
+"--repo",
+"other/repo",
+"--title",
+"t",
+"--body",
+"\"QQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"gh",
+"pr",
+"create",
+"--repo",
+"other/repo",
+"--title",
+"t",
+"--body",
+"\"QQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr view 3 --repo acme/widgets",
+"mask_quotes_pre": "gh pr view 3 --repo acme/widgets",
+"mask_quotes_raw": "gh pr view 3 --repo acme/widgets",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 3 --repo acme/widgets"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 3 --repo acme/widgets"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"gh",
+"pr",
+"view",
+"3",
+"--repo",
+"acme/widgets"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"gh",
+"pr",
+"view",
+"3",
+"--repo",
+"acme/widgets"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -45294,7 +46011,7 @@
 ]
 }
 },
-"corpus_commands": 733,
+"corpus_commands": 748,
 "edge_inputs": 97,
 "python": "3.13"
 }

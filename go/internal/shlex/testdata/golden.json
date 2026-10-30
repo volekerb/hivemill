@@ -20454,6 +20454,390 @@
 "src": "corpus"
 },
 {
+"input": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api -X PUT repos/acme/widgets/branches/main/protection",
+"mode": "quote",
+"quoted": "'gh api -X PUT repos/acme/widgets/branches/main/protection'",
+"src": "corpus"
+},
+{
+"input": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api --method DELETE repos/acme/widgets/branches/main/protection",
+"mode": "quote",
+"quoted": "'gh api --method DELETE repos/acme/widgets/branches/main/protection'",
+"src": "corpus"
+},
+{
+"input": "gh api -X PATCH repos/acme/widgets -f private=true",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/widgets",
+"-f",
+"private=true"
+]
+},
+{
+"input": "gh api -X PATCH repos/acme/widgets -f private=true",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/widgets",
+"-f",
+"private=true"
+]
+},
+{
+"input": "gh api -X PATCH repos/acme/widgets -f private=true",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/widgets",
+"-f",
+"private=true"
+]
+},
+{
+"input": "gh api -X PATCH repos/acme/widgets -f private=true",
+"mode": "quote",
+"quoted": "'gh api -X PATCH repos/acme/widgets -f private=true'",
+"src": "corpus"
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection",
+"-X",
+"PUT"
+]
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection",
+"-X",
+"PUT"
+]
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection",
+"-X",
+"PUT"
+]
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection -X PUT",
+"mode": "quote",
+"quoted": "'gh api repos/acme/widgets/branches/main/protection -X PUT'",
+"src": "corpus"
+},
+{
+"input": "gh pr create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh pr create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh pr create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh pr create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "quote",
+"quoted": "'gh pr create --repo acme/widgets --title t --body \"$(date)\"'",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "git commit -m 'unterminated",
+"mode": "script",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "git commit -m 'unterminated",
+"mode": "default",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "git commit -m 'unterminated",
+"mode": "split",
+"src": "corpus"
+},
+{
+"input": "git commit -m 'unterminated",
+"mode": "quote",
+"quoted": "'git commit -m '\"'\"'unterminated'",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "gh pr create --title 'x",
+"mode": "script",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "gh pr create --title 'x",
+"mode": "default",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "gh pr create --title 'x",
+"mode": "split",
+"src": "corpus"
+},
+{
+"input": "gh pr create --title 'x",
+"mode": "quote",
+"quoted": "'gh pr create --title '\"'\"'x'",
+"src": "corpus"
+},
+{
+"input": "gh pr create -R acme/widgets --title t --body-file -",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"-R",
+"acme/widgets",
+"--title",
+"t",
+"--body-file",
+"-"
+]
+},
+{
+"input": "gh pr create -R acme/widgets --title t --body-file -",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"-R",
+"acme/widgets",
+"--title",
+"t",
+"--body-file",
+"-"
+]
+},
+{
+"input": "gh pr create -R acme/widgets --title t --body-file -",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"-R",
+"acme/widgets",
+"--title",
+"t",
+"--body-file",
+"-"
+]
+},
+{
+"input": "gh pr create -R acme/widgets --title t --body-file -",
+"mode": "quote",
+"quoted": "'gh pr create -R acme/widgets --title t --body-file -'",
+"src": "corpus"
+},
+{
+"input": "gh issue create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh issue create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh issue create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"issue",
+"create",
+"--repo",
+"acme/widgets",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh issue create --repo acme/widgets --title t --body \"$(date)\"",
+"mode": "quote",
+"quoted": "'gh issue create --repo acme/widgets --title t --body \"$(date)\"'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -29830,6 +30214,258 @@
 "src": "corpus"
 },
 {
+"input": "gh api repos/acme/widgets/branches/main/protection",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets/branches/main/protection"
+]
+},
+{
+"input": "gh api repos/acme/widgets/branches/main/protection",
+"mode": "quote",
+"quoted": "'gh api repos/acme/widgets/branches/main/protection'",
+"src": "corpus"
+},
+{
+"input": "gh api repos/acme/widgets",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets"
+]
+},
+{
+"input": "gh api repos/acme/widgets",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets"
+]
+},
+{
+"input": "gh api repos/acme/widgets",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/widgets"
+]
+},
+{
+"input": "gh api repos/acme/widgets",
+"mode": "quote",
+"quoted": "'gh api repos/acme/widgets'",
+"src": "corpus"
+},
+{
+"input": "gh repo view acme/widgets",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"repo",
+"view",
+"acme/widgets"
+]
+},
+{
+"input": "gh repo view acme/widgets",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"repo",
+"view",
+"acme/widgets"
+]
+},
+{
+"input": "gh repo view acme/widgets",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"repo",
+"view",
+"acme/widgets"
+]
+},
+{
+"input": "gh repo view acme/widgets",
+"mode": "quote",
+"quoted": "'gh repo view acme/widgets'",
+"src": "corpus"
+},
+{
+"input": "gh pr list --repo acme/widgets",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"list",
+"--repo",
+"acme/widgets"
+]
+},
+{
+"input": "gh pr list --repo acme/widgets",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"list",
+"--repo",
+"acme/widgets"
+]
+},
+{
+"input": "gh pr list --repo acme/widgets",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"list",
+"--repo",
+"acme/widgets"
+]
+},
+{
+"input": "gh pr list --repo acme/widgets",
+"mode": "quote",
+"quoted": "'gh pr list --repo acme/widgets'",
+"src": "corpus"
+},
+{
+"input": "gh pr create --repo other/repo --title t --body \"$(date)\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"--repo",
+"other/repo",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh pr create --repo other/repo --title t --body \"$(date)\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"--repo",
+"other/repo",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh pr create --repo other/repo --title t --body \"$(date)\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"create",
+"--repo",
+"other/repo",
+"--title",
+"t",
+"--body",
+"$(date)"
+]
+},
+{
+"input": "gh pr create --repo other/repo --title t --body \"$(date)\"",
+"mode": "quote",
+"quoted": "'gh pr create --repo other/repo --title t --body \"$(date)\"'",
+"src": "corpus"
+},
+{
+"input": "gh pr view 3 --repo acme/widgets",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"3",
+"--repo",
+"acme/widgets"
+]
+},
+{
+"input": "gh pr view 3 --repo acme/widgets",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"3",
+"--repo",
+"acme/widgets"
+]
+},
+{
+"input": "gh pr view 3 --repo acme/widgets",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"3",
+"--repo",
+"acme/widgets"
+]
+},
+{
+"input": "gh pr view 3 --repo acme/widgets",
+"mode": "quote",
+"quoted": "'gh pr view 3 --repo acme/widgets'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -33861,7 +34497,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 733,
+"corpus_commands": 748,
 "edge_inputs": 123,
 "python": "3.13"
 }
