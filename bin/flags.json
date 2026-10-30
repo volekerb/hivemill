@@ -199,6 +199,15 @@
    "doc": ""
   },
   {
+   "key": "issue_intake_repos",
+   "kind": "flag",
+   "default": "",
+   "summary": "comma list OWNER/NAME: the tick messages the director once per new open public issue",
+   "goal": "G-026",
+   "doc": "docs/ISSUES.md",
+   "state": "off"
+  },
+  {
    "key": "judge_ci_wait_s",
    "kind": "setting",
    "default": "2400",

@@ -20,7 +20,7 @@ FLAGS = {
     "git_push", "state_push", "mech_merge", "risk_tiers", "red_main_freeze", "gate_sandbox", "test_sandbox",
     "test_cgroup", "test_sandbox_subuid", "gate_post_status", "sandbox_roles", "worker_gh_roles", "task_clones",
     "tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
-    "gate_fast_projects",
+    "gate_fast_projects", "issue_intake_repos",
 }
 BASELINE_ON = {"git_push", "stale_policy", "scout_enabled", "gate_fast_projects"}
 

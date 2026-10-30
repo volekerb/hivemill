@@ -88,6 +88,11 @@ elif argv[:2] == ["run", "list"]:  # st["runs"]: {OWNER/NAME: [run json, newest 
         print("gh: run list failed", file=sys.stderr)
         sys.exit(st["run_list_exit"])
     print(json.dumps(st.get("runs", {}).get(argv[argv.index("-R") + 1], [])))
+elif argv[:2] == ["issue", "list"]:  # st["issues"]: {OWNER/NAME: [issue json]}; issue_list_exit forces a failure
+    if st.get("issue_list_exit"):
+        print("gh: issue list failed", file=sys.stderr)
+        sys.exit(st["issue_list_exit"])
+    print(json.dumps(st.get("issues", {}).get(argv[argv.index("-R") + 1], [])))
 elif argv[:2] == ["repo", "view"]:
     print(json.dumps({"url": st.get("repo_url", "/nonexistent/zz-test-remote.git")}))
 elif argv[:1] == ["api"]:
