@@ -334,6 +334,47 @@ class AutoClear(UnblockBase):
         done = self.env.sql("SELECT detail FROM events WHERE action='nudge-done'")
         self.assertEqual([json.loads(d["detail"])["outcome"] for d in done], ["dropped"])
 
+    def idle_all(self):
+        agents = json.loads(self.env.herdr_state.read_text())["agents"]
+        for a in agents:
+            a["agent_status"] = "idle"
+        self.env.set_herdr(agents=agents)
+
+    def test_nudge_dropped_for_same_name_relaunch_new_pane(self):
+        self.pane("zz-coder", PERM)
+        self.block("zz-coder")
+        self.tick()
+        pend = json.loads(self.env.sql("SELECT detail FROM events WHERE action='nudge-pending'")[0]["detail"])
+        self.assertTrue(pend["pane_id"])
+        self.assertTrue(pend["started"])
+        self.env.sql("UPDATE agents SET pane_id='p-new', started='2099-01-01T00:00:00+00:00' WHERE name='zz-coder'")
+        self.idle_all()
+        self.tick()
+        self.assertEqual(self.nudges(), [])
+        done = self.env.sql("SELECT detail FROM events WHERE action='nudge-done'")
+        self.assertEqual([json.loads(d["detail"])["outcome"] for d in done], ["dropped"])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='nudge-mismatch'")), 1)
+
+    def test_nudge_dropped_for_same_pane_new_start(self):
+        self.pane("zz-coder", PERM)
+        self.block("zz-coder")
+        self.tick()
+        self.env.sql("UPDATE agents SET started='2099-01-01T00:00:00+00:00' WHERE name='zz-coder'")
+        self.idle_all()
+        self.tick()
+        self.assertEqual(self.nudges(), [])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='nudge-mismatch'")), 1)
+
+    def test_nudge_sent_when_same_pane_and_start_and_idle(self):
+        self.pane("zz-coder", PERM)
+        self.block("zz-coder")
+        self.tick()
+        self.idle_all()
+        self.tick()
+        self.assertEqual([p[2] for p in self.nudges()], ["zz-coder"])
+        done = self.env.sql("SELECT detail FROM events WHERE action='nudge-done'")
+        self.assertEqual([json.loads(d["detail"])["outcome"] for d in done], ["sent"])
+
 
 if __name__ == "__main__":
     unittest.main()
