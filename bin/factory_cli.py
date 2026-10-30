@@ -1066,10 +1066,15 @@ def _relaunch_poll_s():
     return float(os.environ.get("FACTORY_RELAUNCH_POLL_S") or 0.5)  # tests set a tiny value
 
 
+def export_cmd(env):
+    """The shell text that exports env and drops the shell's command-hash cache (hash -r)."""
+    return "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items()) + " && hash -r"
+
+
 def export_in_shell(pane, env, cwd):
-    """An idle shell lacks the agent's env: export it before the agent launches."""
-    herdr("pane", "run", pane, "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
-          + f" && cd {shlex.quote(cwd)} && clear")
+    """An idle shell lacks the agent's env: export it before the agent launches. hash -r: a PATH set after the
+    shell's startup files (~/.zshenv may prepend ~/.local/bin) must win over what the shell already resolved."""
+    herdr("pane", "run", pane, export_cmd(env) + f" && cd {shlex.quote(cwd)} && clear")
     time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
 
 
@@ -6693,6 +6698,31 @@ def sandbox_gh_token(con, role):
     return path, slugs
 
 
+def pane_resolves(env, cmd, expect, home):
+    """True when `cmd` resolves to `expect` in the pane's shell after the pane runs export_cmd(env). Runs the shell
+    named by $SHELL (sh when unset) with the real startup files under `home`, so a ~/.zshenv that prepends
+    ~/.local/bin is part of the check. A shell that cannot run or an answer that is not exactly `expect` is False."""
+    sh = shutil.which(os.path.basename(os.environ.get("SHELL") or "sh")) or shutil.which("sh")
+    if not sh:
+        return False
+    try:
+        p = subprocess.run([sh, "-c", f"{export_cmd(env)} && command -v {shlex.quote(cmd)}"], capture_output=True, text=True,
+                           timeout=20, env={**os.environ, "HOME": str(home)})
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return p.returncode == 0 and p.stdout.strip().splitlines()[-1:] == [expect]
+
+
+def sandbox_path_ok(agent_dir, env, home):
+    """(reason, why) or None: in the pane, `claude` must resolve to the workerbox shim <agent_dir>/bin/claude (the real
+    one lives in ~/.local/bin, which ~/.zshenv puts ahead of the pane PATH), and so must `gh` when the ghcred shim
+    is installed (the same PATH-order class). Pure: nothing is created."""
+    shim = os.path.join(agent_dir, "bin", "claude")
+    if not pane_resolves(env, "claude", shim, home):
+        return "path", "claude does not resolve to the sandbox shim in the pane shell (a shell startup file puts another claude first on PATH)"
+    return None
+
+
 def sandbox_preflight(role, cwd, name, con=None):
     """(reason, why) of the first failed check, or None. Pure checks: nothing is created, no token is read.
     cwd None: only the checks that do not depend on the cwd (run before a worktree is prepared).
@@ -6789,11 +6819,17 @@ def sandbox_prepare(con, role, name, cwd):
     home = sandbox_home()
     gh_path, slugs = sandbox_gh_token(con, role)  # preflight passed, so this cannot raise
     try:  # repo=HOME pins the shim's imports to the factory checkout, never to wherever this bin/factory was run from
-        return workerbox.prepare_agent(name, role, cwd, str(HOME), str(DB.parent), sandbox_real_claude(home)[0],
-                                       role in ("qa", "coder"), home=home, repo=str(HOME),
-                                       gh_token_path=gh_path, gh_slugs=slugs)
+        agent_dir = workerbox.prepare_agent(name, role, cwd, str(HOME), str(DB.parent), sandbox_real_claude(home)[0],
+                                            role in ("qa", "coder"), home=home, repo=str(HOME),
+                                            gh_token_path=gh_path, gh_slugs=slugs)
     except (ValueError, OSError) as e:
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
+    # the pane re-exports this PATH after its startup files (see _spawn_start): the shim must win then
+    bad = sandbox_path_ok(agent_dir, {"PATH": f"{agent_dir}/bin{os.pathsep}{sandbox_real_claude(home)[1]}"},
+                          home or workerbox.nsbox.real_home())
+    if bad:
+        sandbox_refuse(con, role, name, *bad)
+    return agent_dir
 
 
 SCRUB_TERMS_ROLES = ("coder", "reviewer", "qa", "judge")  # roles that run owner-term scans (ci/public_text_guard.py)
@@ -6883,7 +6919,13 @@ def gh_cred_env(con, role, name):
     scrub = {k: "" for k in GH_SCRUB_ENV}
     scrub.update({k: "" for k in os.environ if GIT_CONFIG_PAIR_RE.fullmatch(k)})
     scrub["GIT_CONFIG_COUNT"] = "0"  # git dies on an empty count
-    return {**scrub, **ghcred.pane_env(agent_dir, path)}
+    pane = ghcred.pane_env(agent_dir, path)
+    shim = os.path.join(agent_dir, "bin", "gh")
+    # the pane re-exports PATH after its startup files (_spawn_start): gh must then be the shim, not a gh a startup file put first
+    if os.path.exists(shim) and not pane_resolves({"PATH": pane["PATH"]}, "gh", shim, home):
+        gh_cred_refuse(con, role, name, "gh does not resolve to the worker gh shim in the pane shell "
+                       "(a shell startup file puts another gh first on PATH)")
+    return {**scrub, **pane}
 
 
 ASYNC_START_TIMEOUT_MS = "1"  # tick_async_start: the shortest agent-start --timeout; the tick checks readiness itself
@@ -6959,6 +7001,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         export_in_shell(pane, env, cwd)
     else:
         ws, tab, pane = place(con, role, goal, team, name, cwd, env)
+        if sandboxed or ghcred_on:  # pane --env lands before the shell's startup files, which may reorder PATH
+            export_in_shell(pane, {"PATH": env["PATH"]}, cwd)
     sysprompt = RUN / f"{name}.prompt.md"
     prompt_text = (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
