@@ -1950,10 +1950,10 @@ class Analyzer:
                 runner = f"coverage run -m {mod}"
         elif name == "uv" and rest[:1] == ["run"]:
             runner = self.uv_run_runner(rest[1:])
-        elif name == "uv" and rest[:2] == ["tool", "run"]:  # T-0745
-            runner = self.uv_run_runner(rest[2:], "uv tool run")
-        elif name == "uvx":  # T-0745
-            runner = self.uv_run_runner(rest, "uvx")
+        elif name == "uv" and "tool" in rest:  # T-0745, T-0748: global options may sit between tool and run
+            runner = self.uvx_scan(rest, "uv tool run")
+        elif name == "uvx":  # T-0745, T-0748
+            runner = self.uvx_scan(rest, "uvx")
         if runner and self.test_sandbox_on():
             raise Block(f"bare test runner `{runner}` with test_sandbox=1: run it as `factory test {name} {' '.join(rest)}` "
                         "(runs under the test sandbox, T-0675)")
@@ -1986,6 +1986,21 @@ class Analyzer:
             i += 2 if a in ("-C", "--C") else 1
             if not a.startswith("-"):
                 return a
+        return None
+
+    @staticmethod
+    def uvx_scan(words, prefix):
+        """T-0748: fail closed. Any word after uvx / `uv [global opts] tool run` naming pytest/py.test/unittest
+        is the runner, after stripping extras ([..]) and version suffixes (at-sign, ==). No option model, so index
+        options, valued flags and global options cannot hide it. Accepted false positive: `uvx ruff pytest`."""
+        if prefix == "uv tool run":
+            words = words[words.index("tool") + 1:]
+        for t in words:
+            if t.startswith("-"):
+                t = t.split("=", 1)[1] if "=" in t else ""
+            base = re.split(r"[\s\[@=<>~!;(]", os.path.basename(t), maxsplit=1)[0]
+            if base in ("pytest", "py.test", "unittest"):
+                return f"{prefix} {base}"
         return None
 
     def uv_run_runner(self, rest, prefix="uv run"):
