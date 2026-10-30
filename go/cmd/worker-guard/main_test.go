@@ -23,6 +23,12 @@ func TestMain(m *testing.M) {
 
 func call(t *testing.T, stdin []byte, env []string, args ...string) (int, string) {
 	t.Helper()
+	if !hasEnv(env, "FACTORY_HOME") { // no live home, no DB file: the rules that read the DB take their "no DB" branch
+		env = append([]string{"FACTORY_HOME=" + t.TempDir()}, env...)
+	}
+	if !hasEnv(env, "PATH") { // the delegation runs python3 from the PATH
+		env = append([]string{"PATH=" + os.Getenv("PATH")}, env...)
+	}
 	cmd := exec.Command(os.Args[0], args...)
 	cmd.Env = append([]string{runMainEnv + "=1"}, env...)
 	cmd.Stdin = bytes.NewReader(stdin)
@@ -57,7 +63,7 @@ func TestIOContract(t *testing.T) {
 		{"sudo blocked", `{"tool_name":"Bash","tool_input":{"command":"sudo ls"}}`, coder, 2, "privilege escalation (`sudo`)"},
 		{"sudo blocked in hq mode", `{"tool_name":"Bash","tool_input":{"command":"sudo ls"}}`, []string{"--hq"}, 2, "privilege escalation (`sudo`)"},
 		{"direct herdr blocked", `{"tool_name":"Bash","tool_input":{"command":"herdr server stop"}}`, coder, 2, "direct herdr invocation"},
-		{"git commit is a stub of a later section", `{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}`, coder, 2, "not ported"},
+		{"git commit outside the shared checkout is allowed", `{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}`, coder, 0, ""},
 		{"git status is ported and allowed", `{"tool_name":"Bash","tool_input":{"command":"git status"}}`, coder, 0, ""},
 		{"cwd not a string", `{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":5}`, coder, 2, "cwd is not a string"},
 		{"cwd null", `{"tool_name":"Bash","tool_input":{"command":"ls"},"cwd":null}`, coder, 0, ""},
@@ -75,10 +81,10 @@ func TestIOContract(t *testing.T) {
 		{"command not a string", `{"tool_name":"Bash","tool_input":{"command":5}}`, coder, 2, "no command string"},
 		{"tool_input not an object", `{"tool_name":"Bash","tool_input":"x"}`, coder, 2, "no command string"},
 		{"unbalanced quote", `{"tool_name":"Bash","tool_input":{"command":"echo 'a"}}`, coder, 2, "unbalanced quote"},
-		{"edit not ported", `{"tool_name":"Edit","tool_input":{"file_path":"/x"}}`, coder, 2, "not ported"},
-		{"write not ported", `{"tool_name":"Write","tool_input":{}}`, coder, 2, "not ported"},
+		{"edit of an unprotected path", `{"tool_name":"Edit","tool_input":{"file_path":"/x"}}`, coder, 0, ""},
+		{"write without a path fails closed", `{"tool_name":"Write","tool_input":{}}`, coder, 2, "without a readable file_path"},
 		{"edit in hq mode allowed", `{"tool_name":"Edit","tool_input":{}}`, []string{"--hq"}, 0, ""},
-		{"read by a terms role not ported", `{"tool_name":"Read","tool_input":{}}`, coder, 2, "not ported"},
+		{"read by a terms role with no terms file configured", `{"tool_name":"Read","tool_input":{}}`, coder, 0, ""},
 		{"read by another role allowed", `{"tool_name":"Read","tool_input":{}}`, []string{"--role", "scout"}, 0, ""},
 		{"read without a role allowed", `{"tool_name":"Read","tool_input":{}}`, nil, 0, ""},
 		{"--role as the last argument is no role", `{"tool_name":"Read","tool_input":{}}`, []string{"--role"}, 0, ""},

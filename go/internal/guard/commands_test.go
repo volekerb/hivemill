@@ -14,7 +14,7 @@ import (
 // The expected exits in testdata/commands_cases.json are those of roles/hooks/worker-guard.py on origin/main:
 // every Bash call the Python test modules below send to the hook was replayed against the Python hook and the
 // exit recorded (the command text is verbatim from the tests). A Go result differs from Python only by a stub of
-// a later section (a NotPorted error), and only in the blocking direction.
+// the Python hook (a Delegate error: the decision reads the factory DB), where Python decides.
 
 type pyCase struct {
 	Module string            `json:"module"`
@@ -72,20 +72,32 @@ func TestCommandsPythonCases(t *testing.T) {
 	cases := loadPyCases(t)
 	perModule := map[string]int{}
 	stubs := map[string]int{}
+	// The exits were recorded against a factory DB: the home has a DB file, so a decision that reads it is
+	// delegated (Python decides); one the DB does not touch must match the recorded exit.
+	home := dbHome(t)
+	missing := filepath.Join(t.TempDir(), "missing")
 	for _, c := range cases {
 		perModule[c.Module]++
+		t.Setenv("FACTORY_HOME", home)
 		for k, v := range c.Env {
+			if k == "FACTORY_HOME" {
+				if strings.HasSuffix(v, "/missing") {
+					v = missing
+				} else {
+					v = home
+				}
+			}
 			t.Setenv(k, v)
 		}
 		err := Check(c.Cmd, "", c.Role, c.HQ)
 		got := exitOf(err)
 		switch {
+		case IsDelegate(err):
+			stubs[c.Module]++
 		case c.Exit == 2 && got != 2:
 			t.Errorf("%s: LOOSENED %q (role %q hq %v): python blocks, go allows", c.Module, c.Cmd, c.Role, c.HQ)
-		case c.Exit == 0 && got == 2 && !IsNotPorted(err):
-			t.Errorf("%s: %q (role %q hq %v): python allows, go blocks without a stub: %v", c.Module, c.Cmd, c.Role, c.HQ, err)
 		case c.Exit == 0 && got == 2:
-			stubs[c.Module]++
+			t.Errorf("%s: TIGHTENED %q (role %q hq %v): python allows, go blocks: %v", c.Module, c.Cmd, c.Role, c.HQ, err)
 		}
 		for k := range c.Env {
 			unsetEnv(t, k)
@@ -94,13 +106,14 @@ func TestCommandsPythonCases(t *testing.T) {
 	if !reflect.DeepEqual(perModule, casesPerModule) {
 		t.Errorf("cases per module = %v, want %v", perModule, casesPerModule)
 	}
-	t.Logf("cases per module %v; python-allowed cases that reach a later section's stub: %v", perModule, stubs)
+	t.Logf("cases per module %v; cases delegated to the Python hook: %v", perModule, stubs)
 }
 
 // TestCommandsAgreeOnTheCore pins how much of the corpus the port decides on its own: the number of
 // python-allowed cases that go also allows must not fall (a stub added by mistake would shrink it).
 func TestCommandsAgreeOnTheCore(t *testing.T) {
 	clearTermsEnv(t)
+	t.Setenv("FACTORY_HOME", dbHome(t))
 	allowed, agree := 0, 0
 	for _, c := range loadPyCases(t) {
 		if c.Exit != 0 || len(c.Env) > 0 {
@@ -211,7 +224,7 @@ func TestPrivRuleBlocksPrivilegeWords(t *testing.T) {
 		}
 	}
 	for _, cmd := range []string{"echo sudo", "grep -r sudo .", "ls -la", "printf 'su -' > /dev/null", "pseudo ls", "git log --grep=sudo"} {
-		if err := checkRole(cmd, "coder"); err != nil && !IsNotPorted(err) {
+		if err := checkRole(cmd, "coder"); err != nil && !IsDelegate(err) {
 			t.Errorf("%q blocked: %v", cmd, err)
 		}
 	}
@@ -295,7 +308,7 @@ func TestShellPayloadsAreAnalysed(t *testing.T) {
 		if c.blocked && err == nil {
 			t.Errorf("%q allowed", c.cmd)
 		}
-		if !c.blocked && err != nil && !IsNotPorted(err) {
+		if !c.blocked && err != nil && !IsDelegate(err) {
 			t.Errorf("%q blocked: %v", c.cmd, err)
 		}
 	}
@@ -413,7 +426,7 @@ func TestCommandsClaudeRule(t *testing.T) {
 		t.Errorf("Explain = %q", Explain(err))
 	}
 	for _, c := range []string{"echo claude", "grep claude README.md", "ls claude-code"} {
-		if err := checkRole(c, "coder"); err != nil && !IsNotPorted(err) {
+		if err := checkRole(c, "coder"); err != nil && !IsDelegate(err) {
 			t.Errorf("%q: %v", c, err)
 		}
 	}
@@ -438,34 +451,67 @@ func TestCommandsRawBackstop(t *testing.T) {
 		}
 	}
 	for _, c := range []string{"echo 'cat ~/.config/herdr'", "git commit -m 'herdr pane close'", "grep 'herdr.sock' notes.md"} {
-		if err := checkRole(c, "coder"); err != nil && !IsNotPorted(err) {
+		if err := checkRole(c, "coder"); err != nil && !IsDelegate(err) {
 			t.Errorf("%q: %v", c, err)
 		}
 	}
 }
 
-func TestCommandsStubsFailClosed(t *testing.T) {
+// A decision that reads the factory DB is delegated to the Python hook when the DB file exists; without one the hook
+// takes its "no DB" branch and so does Go.
+func TestCommandsDelegation(t *testing.T) {
 	clearTermsEnv(t)
-	for _, c := range []string{"git commit -m x", "env git commit -m x", "gh pr list", "echo x > f", "python3 x.py", "rm -f x", "FACTORY_AGENT=x ls",
-		"factory spawn", "factory res", "factory config"} {
-		err := checkRole(c, "coder")
-		if !IsNotPorted(err) {
-			t.Errorf("%q: err = %v, want a NotPorted stub", c, err)
-			continue
+	t.Setenv("FACTORY_AGENT", "coder-t-9")
+	for _, c := range []string{"git commit -m x", "env git commit -m x", "gh pr create --title x", "git tag -a v1 -m x",
+		"factory goal show G-005", "git push origin HEAD:factory/t-9", "uvx pytest", "python3 -m pytest"} {
+		t.Setenv("FACTORY_HOME", t.TempDir()) // no DB file
+		if err := checkRole(c, "coder"); IsDelegate(err) {
+			t.Errorf("%q without a DB file: delegated (%v)", c, err)
 		}
-		if !strings.Contains(Explain(err), "not ported") {
-			t.Errorf("Explain(%q) = %q", c, Explain(err))
+		t.Setenv("FACTORY_HOME", dbHome(t))
+		err := checkRole(c, "coder")
+		if !IsDelegate(err) {
+			t.Errorf("%q with a DB file: err = %v, want a delegation", c, err)
 		}
 	}
-	// HQ mode runs git and gh through the public-text rule, which reads the factory DB: stub too
-	if err := Check("git push", "", "", true); !IsNotPorted(err) {
+	// HQ mode runs git and gh through the public-text rule, which reads the factory DB
+	t.Setenv("FACTORY_HOME", dbHome(t))
+	if err := Check("git push", "", "", true); !IsDelegate(err) {
 		t.Errorf("hq git push: %v", err)
 	}
-	// but nothing else stubs: ls, factory task show, a pure factory read
-	for _, c := range []string{"ls -la", "factory task show T-1", "factory inbox", "cat README.md"} {
-		if err := checkRole(c, "coder"); err != nil {
-			t.Errorf("%q: %v", c, err)
+	if err := Check("bash -c 'git commit -m x'", "", "", true); !IsDelegate(err) {
+		t.Errorf("hq bash -c git commit: %v", err)
+	}
+	// commands that cannot reach a DB read are decided by Go whatever the DB file says
+	for _, c := range []string{"ls -la", "factory task show T-1", "factory inbox", "cat README.md", "git status", "git tag v1",
+		"gh pr list", "gh api repos/o/r", "factory goal show", "git push --version"} {
+		if err := checkRole(c, "coder"); IsDelegate(err) {
+			t.Errorf("%q: delegated (%v)", c, err)
 		}
+	}
+	// the terms roles: with no exported terms file the scrub_terms_file key of the DB may name it, so Python decides
+	unsetEnv(t, termsVar)
+	for _, role := range []string{"coder", "qa", "reviewer", "judge", "pm"} {
+		if err := checkRole("ls -la", role); !IsDelegate(err) {
+			t.Errorf("%s: ls without an exported terms file and with a DB: %v, want a delegation", role, err)
+		}
+	}
+	if err := checkRole("ls -la", "cleaner"); err != nil {
+		t.Errorf("cleaner ls: %v", err)
+	}
+	t.Setenv(termsVar, filepath.Join(t.TempDir(), "t.txt"))
+	if err := checkRole("ls -la", "coder"); err != nil {
+		t.Errorf("coder ls with an exported terms file: %v", err)
+	}
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	unsetEnv(t, termsVar)
+	if err := checkRole("ls -la", "coder"); err != nil {
+		t.Errorf("coder ls with no terms file and no DB: %v", err)
+	}
+	// FACTORY_AGENT unset: own_goal is None without a DB read
+	unsetEnv(t, "FACTORY_AGENT")
+	if err := checkRole("factory goal show G-005", "coder"); IsDelegate(err) || err == nil {
+		t.Errorf("goal show without FACTORY_AGENT: %v, want the broad-read block", err)
 	}
 }
 
@@ -483,12 +529,12 @@ func TestCommandsOwnerTermsFile(t *testing.T) {
 		}
 	}
 	for _, c := range []string{"ls -la", "python3 ci/scrub_scan.py " + terms, "echo hi"} {
-		if err := Check(c, dir, "coder", false); err != nil && !IsNotPorted(err) {
+		if err := Check(c, dir, "coder", false); err != nil && !IsDelegate(err) {
 			t.Errorf("%q: %v", c, err)
 		}
 	}
 	// roles outside TERMS_ROLES and HQ mode do not run the rule
-	if err := Check("cat "+terms, dir, "cleaner", false); err != nil && !IsNotPorted(err) {
+	if err := Check("cat "+terms, dir, "cleaner", false); err != nil && !IsDelegate(err) {
 		t.Errorf("cleaner: %v", err)
 	}
 	if err := Check("cat "+terms, dir, "", true); err != nil {
@@ -515,7 +561,7 @@ func TestCommandsUnicodeCommandWords(t *testing.T) {
 	clearTermsEnv(t)
 	// Python's \w, \s and \d are Unicode-aware: a word glued to a PRIV word by a non-ASCII letter is not that word
 	for _, c := range []string{"echo ésudo", "python3 -c 'print(\"ésudo\")'", "echo ٣ sudo"} {
-		if err := checkRole(c, "coder"); err != nil && !IsNotPorted(err) {
+		if err := checkRole(c, "coder"); err != nil && !IsDelegate(err) {
 			t.Errorf("%q blocked: %v", c, err)
 		}
 	}
@@ -570,7 +616,7 @@ func TestCommandsGetwdErrorFailsClosed(t *testing.T) {
 		t.Error("TermsBash with a removed cwd = nil, want a block")
 	}
 	// an explicit cwd never needs os.Getwd
-	if err := Check("ls -la", t.TempDir(), "coder", false); err != nil && !IsNotPorted(err) {
+	if err := Check("ls -la", t.TempDir(), "coder", false); err != nil && !IsDelegate(err) {
 		t.Errorf("Check with an explicit cwd = %v, want allow", err)
 	}
 }
@@ -612,6 +658,7 @@ func TestReplaceInvalidUTF8PerByte(t *testing.T) {
 // from the Python hook with test_sandbox=1): the routed runners reach the test_sandbox stub (exit 2), the others pass.
 func TestUvxRunnerRouting(t *testing.T) {
 	clearTermsEnv(t)
+	t.Setenv("FACTORY_HOME", dbHome(t))
 	const url = "https://pypi.example.org/simple"
 	routed := []string{
 		"uvx --index-url " + url + " pytest",
@@ -638,8 +685,8 @@ func TestUvxRunnerRouting(t *testing.T) {
 	}
 	for _, role := range []string{"coder", "qa"} {
 		for _, c := range routed {
-			if err := checkRole(c, role); !IsNotPorted(err) {
-				t.Errorf("%s: %q: err = %v, want the test_sandbox stub (exit 2)", role, c, err)
+			if err := checkRole(c, role); !IsDelegate(err) {
+				t.Errorf("%s: %q: err = %v, want a delegation (test_sandbox is read by the Python hook)", role, c, err)
 			}
 		}
 		for _, c := range allowed {

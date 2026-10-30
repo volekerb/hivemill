@@ -10,9 +10,9 @@ import (
 )
 
 // Section 3 tests: the cases of tests/test_worker_guard_git.py (plus the git cases of test_worker_guard.py and
-// test_worker_guard_persist.py), run through Check. The expected exit is the Python one; where Python allows a
-// command that a later-section rule (git_push_pin, public text, repo-config file rules) still stubs, the test
-// accepts the fail-closed "not ported" stub and refuses every other block.
+// test_worker_guard_persist.py), run through Check. The expected exit is the Python one; where the decision reads the
+// factory DB (git_push_pin, public text) and the DB file exists, Go delegates to the Python hook, which the tests
+// accept as a decision (the delegation itself is tested with the real hook in cmd/worker-guard).
 
 type gitFix struct {
 	tmp, home, wt, scratch, link string
@@ -57,7 +57,7 @@ func (f *gitFix) check(cmd, cwd, role string) error { return Check(cmd, cwd, rol
 func (f *gitFix) blocked(t *testing.T, cmd, cwd, role string) error {
 	t.Helper()
 	err := f.check(cmd, cwd, role)
-	if err == nil || IsNotPorted(err) {
+	if err == nil || IsDelegate(err) {
 		t.Errorf("should block: %q (cwd %s, role %s): err = %v", cmd, cwd, role, err)
 	}
 	return err
@@ -66,7 +66,7 @@ func (f *gitFix) blocked(t *testing.T, cmd, cwd, role string) error {
 // allowed asserts exit 0, or the fail-closed stub of a rule another task owns; never a git/shared-checkout block.
 func (f *gitFix) allowed(t *testing.T, cmd, cwd, role string) {
 	t.Helper()
-	if err := f.check(cmd, cwd, role); err != nil && !IsNotPorted(err) {
+	if err := f.check(cmd, cwd, role); err != nil && !IsDelegate(err) {
 		t.Errorf("should allow: %q (cwd %s, role %s): %v", cmd, cwd, role, err)
 	}
 }
@@ -206,7 +206,7 @@ func TestGitInitScratchpadFromSessionID(t *testing.T) {
 		{fmt.Sprintf("git init /tmp/claude-%d/abc/scratchpad/r", os.Getuid()+1), "abc"},
 		{"git init " + base + "/../scratchpad/r", ".."}, {"git init " + base + "/a b/scratchpad/r", "a b"},
 	} {
-		if err := run(c[0], c[1]); err == nil || IsNotPorted(err) {
+		if err := run(c[0], c[1]); err == nil || IsDelegate(err) {
 			t.Errorf("%q with session %q: err = %v, want a block", c[0], c[1], err)
 		}
 	}
@@ -243,9 +243,10 @@ func TestGitHQModeUnchanged(t *testing.T) {
 
 func TestGitLinkedWorktreeAllowed(t *testing.T) {
 	f := newGitFix(t)
-	for _, cmd := range []string{"git commit -m x", "git push origin HEAD:factory/t-7"} {
-		f.allowed(t, cmd, f.wt, "coder")
-	}
+	f.allowed(t, "git commit -m x", f.wt, "coder")
+	t.Setenv("FACTORY_HOME", dbHome(t)) // the pin reads the recorded worktree of the task: Python's decision
+	f.allowed(t, "git push origin HEAD:factory/t-7", f.wt, "coder")
+	t.Setenv("FACTORY_HOME", t.TempDir())
 	if err := os.MkdirAll(filepath.Join(f.wt, "sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +265,7 @@ func TestGitRedirections(t *testing.T) {
 		f.blocked(t, cmd, f.wt, "coder")
 	}
 	for _, cmd := range []string{"cd " + f.wt + " && git commit -m x", "git -C . commit -m x",
-		"git -C " + f.wt + " push origin HEAD:factory/t-7", "bash -c 'cd " + h + " && git status'",
+		"bash -c 'cd " + h + " && git status'",
 		"env GIT_DIR=x git status",
 		"bash -c 'cd " + h + "' && git commit -m x", // a cd inside sh -c does not move the caller
 		"cd " + h + " && cd " + f.wt + " && git commit -m x"} {
@@ -301,7 +302,7 @@ func TestGitRoles(t *testing.T) {
 func TestGitNoFalsePositives(t *testing.T) {
 	f := newGitFix(t)
 	cmds := []string{"git status", "git diff", "git log --oneline -5", "git add -A", "git commit -F /tmp/m",
-		"git push origin HEAD:factory/t-7", "git fetch origin", "git checkout --detach origin/x", "git rebase origin/main",
+		"git fetch origin", "git checkout --detach origin/x", "git rebase origin/main",
 		"git merge origin/main", "git stash list", "git worktree list", "git branch -a", "git remote -v",
 		"git config --get user.name", `grep "git commit" README.md`, "echo git reset --hard", "echo cd /x && echo git commit"}
 	if len(cmds) < 12 {
@@ -413,7 +414,7 @@ func TestGitDeleteBranches(t *testing.T) {
 	}
 	ok := func(role string, cmds ...string) {
 		for _, cmd := range cmds {
-			if err := f.check(cmd, f.wt, role); err != nil && !IsNotPorted(err) {
+			if err := f.check(cmd, f.wt, role); err != nil && !IsDelegate(err) {
 				t.Errorf("%s %q: %v", role, cmd, err)
 			}
 		}
@@ -466,13 +467,25 @@ func TestGitPersistConfig(t *testing.T) {
 			t.Errorf("%q: stderr %q", cmd, Explain(err))
 		}
 	}
-	// repo-config and --file writes reach the file rules of T6d: fail-closed stubs
-	for _, cmd := range []string{"git config user.name x", "git config --file " + f.scratch + "/c k v", "git config -f " + f.scratch + "/c k v",
-		"git config -f" + f.scratch + "/c k v", "git config --file=" + f.scratch + "/c k v", "git remote add o u", "git remote set-url o u",
-		"git -c alias.x=config x k v", "git -c alias.x='config k v' x"} {
-		if err := f.check(cmd, f.wt, "coder"); !IsNotPorted(err) {
-			t.Errorf("%q: err = %v, want a NotPorted stub (T6d)", cmd, err)
+	// repo-config writes: refused outside the scratchpad (T-0226), allowed with --file inside it
+	for _, cmd := range []string{"git config user.name x", "git remote add o u", "git remote set-url o u",
+		"git -c alias.x=config x k v", "git -c alias.x='config k v' x", "git config --file " + f.wt + "/c k v",
+		"git -C " + f.home + " config k v", "git --git-dir=" + f.home + "/.git config k v"} {
+		err := f.blocked(t, cmd, f.wt, "coder")
+		var g *GitBlock
+		if err != nil && !errors.As(err, &g) {
+			t.Errorf("%q: err = %v, want a GitBlock", cmd, err)
 		}
+	}
+	for _, cmd := range []string{"git config --file " + f.scratch + "/c k v", "git config -f " + f.scratch + "/c k v",
+		"git config -f" + f.scratch + "/c k v", "git config --file=" + f.scratch + "/c k v"} {
+		if err := f.check(cmd, f.wt, "coder"); err != nil {
+			t.Errorf("%q: %v", cmd, err)
+		}
+	}
+	// --file naming a protected file is refused as a persist write whatever the scope
+	for _, cmd := range []string{"git config --file ~/.gitconfig k v", "git config -f ~/.config/git/config k v"} {
+		f.blocked(t, cmd, f.wt, "coder")
 	}
 	// the alias forms: a `!` body is analysed as a script, a config alias recurses
 	f.blocked(t, "git -c 'alias.x=!sudo id' x", f.wt, "coder")
@@ -501,38 +514,58 @@ func TestGitPrivKeys(t *testing.T) {
 	f.allowed(t, "git log --grep herdr", f.wt, "coder")
 }
 
-func TestGitStubsOfLaterSections(t *testing.T) {
+func TestGitDelegations(t *testing.T) {
 	f := newGitFix(t)
-	// git_push_pin (a coder's push) and the public-text rule (commit/tag/push/merge/commit-tree/notes, -c alias.*)
-	// read the factory DB: T6d. They fail closed, only for what Python's rule would look at.
-	for _, c := range []struct {
-		cmd, role string
-		stub      bool
-	}{
-		{"git push origin HEAD:factory/t-7", "coder", true}, {"git push origin x", "qa", true}, // pt
-		{"git -C . send-pack x", "coder", true}, {"git commit -m x", "coder", true}, {"git tag v1", "qa", true},
-		{"git merge x", "judge", true}, {"git notes add", "coder", true}, {"git commit-tree x", "coder", true},
-		{"git -c alias.c=commit c", "coder", true}, {"git -C x commit -m y", "coder", true},
-		{"git status", "coder", false}, {"git add -A", "coder", false}, {"git log commit", "coder", false},
-		{"git rebase main", "coder", false}, {"git branch -a", "coder", false}, {"git checkout x", "coder", false},
-		{"git --git-dir=x status", "coder", false}, {"git stash", "pm", false},
+	t.Setenv("FACTORY_HOME", dbHome(t))
+	// git_push_pin (a coder's push, after its own refusals) and the public-text rule (commit/tag -a/push/merge/
+	// commit-tree/notes, -c alias.*) read the factory DB: with a DB file Python decides, only for what its rule looks at.
+	const (
+		deleg = "delegate"
+		allow = "allow"
+		block = "block"
+	)
+	for _, c := range []struct{ cmd, role, want string }{
+		{"git push origin HEAD:factory/t-7", "coder", deleg}, {"git push origin x", "judge", deleg},
+		{"git -C . send-pack x", "coder", block}, {"git push origin x", "coder", block},
+		{"git commit -m x", "coder", deleg}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", deleg},
+		{"git merge x", "judge", deleg}, {"git notes add", "coder", deleg}, {"git commit-tree x", "coder", deleg},
+		{"git -c alias.c=commit c", "coder", deleg}, {"git -C x commit -m y", "coder", deleg},
+		{"git status", "coder", allow}, {"git add -A", "coder", allow}, {"git log commit", "coder", allow},
+		{"git rebase main", "coder", allow}, {"git branch -a", "coder", allow}, {"git checkout x", "coder", allow},
+		{"git --git-dir=x status", "coder", allow}, {"git stash", "judge", allow},
 	} {
 		err := f.check(c.cmd, f.wt, c.role)
-		if c.stub != IsNotPorted(err) || (!c.stub && err != nil) {
-			t.Errorf("%q (%s): err = %v, want stub=%v", c.cmd, c.role, err, c.stub)
+		got := allow
+		switch {
+		case IsDelegate(err):
+			got = deleg
+		case err != nil:
+			got = block
+		}
+		if got != c.want {
+			t.Errorf("%q (%s): %s (%v), want %s", c.cmd, c.role, got, err, c.want)
 		}
 	}
 	// HQ mode: only the PRIV pass and public text run; the rest of the git rules are not part of it
-	if err := Check("git commit -m x", f.wt, "", true); !IsNotPorted(err) {
-		t.Errorf("hq git commit: %v, want the public-text stub", err)
+	if err := Check("git commit -m x", f.wt, "", true); !IsDelegate(err) {
+		t.Errorf("hq git commit: %v, want a delegation", err)
 	}
 	for _, cmd := range []string{"git status", "git add -A", "git -C " + f.home + " reset --hard"} {
 		if err := Check(cmd, f.wt, "", true); err != nil {
 			t.Errorf("hq %q: %v", cmd, err)
 		}
 	}
-	if err := Check("nohup git commit -m x", f.wt, "", true); !IsNotPorted(err) {
-		t.Errorf("hq nohup git commit: %v, want the public-text stub (wrapper peeled)", err)
+	if err := Check("nohup git commit -m x", f.wt, "", true); !IsDelegate(err) {
+		t.Errorf("hq nohup git commit: %v, want a delegation (wrapper peeled)", err)
+	}
+	// without a DB file the public-text rule is off and a push has no recorded worktree: Go decides
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	if err := f.check("git commit -m x", f.wt, "coder"); err != nil {
+		t.Errorf("commit without a DB file: %v", err)
+	}
+	err := f.check("git push origin HEAD:factory/t-7", f.wt, "coder")
+	if err == nil || IsDelegate(err) || !strings.Contains(err.Error(), "cannot resolve the worktree recorded for t-7") {
+		t.Errorf("push without a DB file: %v, want the unresolvable-worktree refusal", err)
 	}
 }
 
@@ -589,6 +622,23 @@ func TestGitTopSharedWalksForDotGit(t *testing.T) {
 		got, err := gitTopShared(c.path)
 		if err != nil || got != c.want {
 			t.Errorf("gitTopShared(%s) = %v, %v; want %v", c.path, got, err, c.want)
+		}
+	}
+}
+
+// port of worker-guard.py:PT_WRITE_HINT in HQ mode: the one HQ rule that blocks on parse trouble is the public-text
+// rule, so an unparseable git/gh write is the Python hook's decision (delegate) and other parse trouble allows.
+func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
+	f := newGitFix(t)
+	t.Setenv("FACTORY_HOME", dbHome(t))
+	for _, cmd := range []string{"git commit -m 'unterminated", "gh pr create --title 'x"} {
+		if err := Check(cmd, f.wt, "", true); !IsDelegate(err) {
+			t.Errorf("hq %q: %v, want a delegation", cmd, err)
+		}
+	}
+	for _, cmd := range []string{"echo 'unterminated", "ls 'x"} {
+		if err := Check(cmd, f.wt, "", true); err != nil {
+			t.Errorf("hq %q: %v, want allow", cmd, err)
 		}
 	}
 }

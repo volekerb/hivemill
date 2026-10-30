@@ -16,8 +16,9 @@ type PublicBlock struct{ Msg string }
 func (b *PublicBlock) Error() string { return b.Msg }
 
 // Port of worker-guard.py:terms_bash and its helpers (T-0600): a Bash command that would read the owner-terms
-// file. The only source of the terms path here is the exported SCRUB_TERMS_FILE; Python also reads the
-// `scrub_terms_file` key of the factory DB, which needs sqlite and stays with T6d (see docs/worker-guard-go.md).
+// file. The source of the terms path here is the exported terms-file variable (spawn exports the configured path to
+// every worker); Python also reads the `scrub_terms_file` key of the factory DB, which Go cannot (no sqlite): with no
+// variable and a DB file the decision is the Python hook's (termsFromDBOnly, see docs/worker-guard-go.md).
 
 const (
 	termsVar = "SCRUB_TERMS_FILE"
@@ -104,6 +105,10 @@ func pyRealpath(p string) string {
 	}
 	return resolved
 }
+
+// termsFromDBOnly is true when terms_paths(cwd) may hold a path only the factory DB knows: no exported terms-file
+// variable and a DB file that could carry the scrub_terms_file key.
+func termsFromDBOnly() bool { return len(termsPaths()) == 0 && !dbMissing() }
 
 // termsPaths is a port of terms_paths(cwd) for the environment source.
 func termsPaths() map[string]struct{} {

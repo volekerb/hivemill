@@ -2,9 +2,10 @@
 // anywhere yet). It keeps the hook's I/O contract: argv (--role ROLE | --hq), a PreToolUse JSON payload on
 // stdin, exit 0 = allow, exit 2 = block with the reason on stderr.
 //
-// The command analyser (T-0349) is ported; the git rules (T6c) and the config/persist/factory rules (T6d) are
-// still fail-closed stubs: a command that would reach one is refused with "not ported", so a partial port never
-// allows more than Python. A panic or any internal error also exits 2.
+// Every rule is ported. The decisions that read the factory DB (own goal, test_sandbox, public-text repos, the
+// coder's task worktree) are the Python hook's: the binary re-runs the payload through it (--py-hook <path>, given
+// by the shim) and returns its exit code and stderr, or exits 2 when that cannot be done. A panic or any internal
+// error also exits 2.
 package main
 
 import (
@@ -24,10 +25,10 @@ const maxInput = 1 << 20
 // testPanicEnv makes run panic, to prove the recover below fails closed. A panic only ever blocks.
 const testPanicEnv = "WORKER_GUARD_GO_TEST_PANIC"
 
-func main() { os.Exit(run(os.Args[1:], os.Stdin, os.Stderr)) }
+func main() { os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 
 // run is main() of worker-guard.py with the arguments and streams passed in.
-func run(args []string, stdin io.Reader, stderr io.Writer) (code int) {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(stderr, "worker-guard(go): internal error: %v\n", r)
@@ -35,6 +36,8 @@ func run(args []string, stdin io.Reader, stderr io.Writer) (code int) {
 		}
 	}()
 	role, hq := parseArgs(args)
+	pyHook, passArgs := splitPyHook(args)
+	guard.SetPyHook(pyHook)
 	raw, err := io.ReadAll(io.LimitReader(stdin, maxInput+1))
 	if err != nil {
 		return failClosed(stderr, "hook error, failing closed: reading stdin: "+err.Error())
@@ -62,18 +65,22 @@ func run(args []string, stdin io.Reader, stderr io.Writer) (code int) {
 		// Python: `tool_name in {set}` raises TypeError on an unhashable value, which fails closed.
 		return failClosed(stderr, "hook error, failing closed: tool_name is not a string")
 	case string:
-		return dispatch(tool, data, role, hq, stderr)
+		return dispatch(tool, data, role, hq, passArgs, raw, stdout, stderr)
 	}
 	return 0 // no tool name, or a non-string scalar: Python allows (it is not Bash)
 }
 
-func dispatch(tool string, data map[string]any, role string, hq bool, stderr io.Writer) int {
+func dispatch(tool string, data map[string]any, role string, hq bool, passArgs []string, raw []byte, stdout, stderr io.Writer) int {
 	switch {
 	case !hq && guard.IsPersistEditTool(tool):
-		return notPorted(stderr, "persist_edit (T6d)")
+		return finish(guard.PersistEdit(data))(stderr)
 	case !hq && (tool == "Read" || tool == "Grep"):
 		if guard.IsTermsRole(role) {
-			return notPorted(stderr, "terms_tool (T6d)")
+			code, msg, py := guard.TermsTool(data)
+			if py {
+				return guard.RunPython(passArgs, raw, stdout, stderr)
+			}
+			return finish(code, msg)(stderr)
 		}
 		return 0
 	case tool != "Bash":
@@ -95,10 +102,35 @@ func dispatch(tool string, data map[string]any, role string, hq bool, stderr io.
 	}
 	guard.SessionID, _ = data["session_id"].(string)
 	if err := guard.Check(cmd, cwd, role, hq); err != nil {
+		if guard.IsDelegate(err) {
+			return guard.RunPython(passArgs, raw, stdout, stderr)
+		}
 		fmt.Fprint(stderr, guard.Explain(err))
 		return 2
 	}
 	return 0
+}
+
+// finish writes the stderr text of a tool rule and returns its exit code.
+func finish(code int, msg string) func(io.Writer) int {
+	return func(stderr io.Writer) int {
+		fmt.Fprint(stderr, msg)
+		return code
+	}
+}
+
+// splitPyHook takes `--py-hook <path>` out of the arguments: the path of roles/hooks/worker-guard.py (the binary
+// lives outside the repo and cannot find it), and the arguments the Python hook itself is run with.
+func splitPyHook(args []string) (path string, rest []string) {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--py-hook" && i+1 < len(args) {
+			path = args[i+1]
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+	return path, rest
 }
 
 // parseArgs is the argv handling of worker-guard.py:main: --hq anywhere, --role VALUE not in last position.
@@ -119,10 +151,5 @@ func parseArgs(args []string) (role string, hq bool) {
 func failClosed(stderr io.Writer, why string) int {
 	fmt.Fprintf(stderr, "worker-guard(go): blocked (%s). Workers may not run herdr or manage factory/herdr systemd units "+
 		"directly; use the factory CLI (factory done, factory msg, ...). Tell your lead if this is wrong.\n", why)
-	return 2
-}
-
-func notPorted(stderr io.Writer, section string) int {
-	fmt.Fprintf(stderr, "worker-guard(go): not ported: %s; failing closed. Use the Python hook (guard_impl=python).\n", section)
 	return 2
 }

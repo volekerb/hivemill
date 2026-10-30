@@ -57,6 +57,33 @@ class AutospawnTests(Base):
         fyi = self.env.sql("SELECT kind, recipient FROM messages WHERE kind='fyi'")
         self.assertEqual([(r["kind"], r["recipient"]) for r in fyi], [("fyi", LEAD)])
 
+    def test_teamless_task_gets_reviewer_qa_and_director_fyi(self):
+        self.on()
+        self.task("T-0001", team=None)
+        self.task("T-0002")
+        calls = self.tick_step()
+        self.assertEqual([(c["role"], c["team"], c["task"]) for c in calls],
+                         [("reviewer", None, "T-0001"), ("qa", None, "T-0001"),
+                          ("reviewer", TEAM, "T-0002"), ("qa", TEAM, "T-0002")])
+        self.assertIn("director gets an FYI", calls[0]["prompt"])
+        self.assertNotIn("lead:None", calls[0]["prompt"])
+        self.assertIn(f"lead:{TEAM} gets an FYI", calls[2]["prompt"])
+        fyi = self.env.sql("SELECT recipient, task_id FROM messages WHERE kind='fyi' ORDER BY task_id")
+        self.assertEqual([(r["recipient"], r["task_id"]) for r in fyi], [("director", "T-0001"), (LEAD, "T-0002")])
+
+    def test_teamless_task_with_director_spawned_review_not_doubled(self):
+        self.on()
+        self.task("T-0001", team=None)
+        self.env.seed_agent("reviewer-t-0001", "reviewer", goal="G-001", task="T-0001")
+        self.env.seed_agent("qa-t-0001", "qa", goal="G-001", task="T-0001")
+        self.assertEqual(self.tick_step(), [])
+
+    def test_teamless_task_on_inactive_goal_skipped(self):
+        self.on()
+        self.task("T-0001", team=None)
+        self.env.sql("UPDATE goals SET status='paused' WHERE id='G-001'")
+        self.assertEqual(self.tick_step(), [])
+
     def test_team_worker_cap_not_consulted(self):
         self.on()
         self.task()
