@@ -34,3 +34,5 @@ Evasion handling (fail closed): every line is NFKC-normalised and stripped of ze
 Any hit: the copy stays on disk, `VENDOR.json` lists the hits, the candidate status becomes `needs-owner`, `risk_detail` holds the hits (`prescreen <id>: <file>:<line>`), and vendor exits 4 naming the hit count. There is no override switch. Note that `scout/risk.py` already flags `curl`/`wget` in SKILL.md, commands and agents as `network` (exit 2 earlier); the pre-screen covers every other file.
 
 `is_eval_allowed(candidate, root=None)` is the one gate for queueing or trying an evaluation: false for `needs-owner` and `dismissed` candidates and for any `install_risk` other than exactly `prompt-only`; with `root`, the vendored copy must also exist, pass the tree check and carry no hits.
+
+The three scoped pre-screen allowances (Apache URL in LICENSE/NOTICE, doc-host author e-mail in plugin.json, `requests.` in prose) and `factory skilleval vendor C-xxxx --rescreen` are in [scout-eval.md](scout-eval.md#scoped-allowances-and---rescreen-t-0728).

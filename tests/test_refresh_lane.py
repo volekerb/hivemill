@@ -82,8 +82,8 @@ class RefreshLane(DequeueBase):
 
     def test_on_an_owner_that_makes_no_progress_loses_the_lane_after_the_ttl(self):
         self.ok("config", "refresh_lane", "on")
-        red = [{"__typename": "CheckRun", "name": "unit", "status": "COMPLETED", "conclusion": "FAILURE"}]
-        self.env.seed_pr(url=URL % 2, checks=red)  # the owner's CI went red after its refresh; its judge stays queued
+        run = [{"__typename": "CheckRun", "name": "unit", "status": "IN_PROGRESS", "conclusion": ""}]
+        self.env.seed_pr(url=URL % 2, checks=run)  # the owner's CI is still running (red/DIRTY release at once, see below)
         self.set_state(URL % 2, "BEHIND")
         self.env.sql("INSERT INTO config(key,value) VALUES('refresh_lane_owner','T-0002|%f')" % (time.time() - 10))
         self.tick()
@@ -93,3 +93,44 @@ class RefreshLane(DequeueBase):
         self.tick()
         self.assertEqual(self.prechecks(), ["T-0003"])
         self.assertEqual(self.events("lane-hold")["T-0004"], "lane: position 2")
+
+    def own(self):
+        self.ok("config", "refresh_lane", "on")
+        self.env.sql("INSERT INTO config(key,value) VALUES('refresh_lane_owner','T-0002|%f')" % (time.time() - 10))
+
+    def test_on_owner_with_red_ci_releases_the_lane_at_once(self):
+        self.own()
+        red = [{"__typename": "CheckRun", "name": "unit", "status": "COMPLETED", "conclusion": "FAILURE"}]
+        self.env.seed_pr(url=URL % 2, checks=red)
+        self.set_state(URL % 2, "BEHIND")
+        self.tick()
+        self.assertEqual(self.prechecks(), ["T-0003"])  # well inside the TTL
+        self.assertIn("CI not green", self.events("lane-release")["T-0002"])
+
+    def test_on_owner_with_dirty_head_releases_the_lane_at_once(self):
+        self.own()
+        self.set_state(URL % 2, "DIRTY")
+        self.tick()
+        self.assertEqual(self.prechecks(), ["T-0003"])
+        self.assertEqual(self.events("lane-release")["T-0002"], "refresh lane released: PR is DIRTY")
+
+    def test_on_owner_with_pending_ci_keeps_the_lane(self):
+        self.own()
+        run = [{"__typename": "CheckRun", "name": "unit", "status": "IN_PROGRESS", "conclusion": ""}]
+        self.env.seed_pr(url=URL % 2, checks=run)
+        self.set_state(URL % 2, "BEHIND")
+        self.tick()
+        self.assertEqual(self.prechecks(), [])
+        self.assertEqual(self.events("lane-release"), {})
+
+    def lane_rows(self):
+        return sorted(r["key"] for r in self.env.sql("SELECT key FROM throttle WHERE key LIKE 'lane:%'"))
+
+    def test_lane_throttle_rows_go_when_the_lane_is_released_or_the_task_finishes(self):
+        self.ok("config", "refresh_lane", "on")
+        self.tick()
+        self.assertEqual(self.lane_rows(), ["lane:T-0003", "lane:T-0004"])
+        self.env.sql("UPDATE tasks SET status='done' WHERE id='T-0003'")  # finished while held
+        self.set_state(URL % 4, "CLEAN")  # no longer needs the lane
+        self.tick()
+        self.assertEqual(self.lane_rows(), [])
