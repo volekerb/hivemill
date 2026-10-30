@@ -2,7 +2,7 @@
 
 `factory judge --train T-a T-b [T-c T-d] --dry-run` plans a batch merge train and changes nothing. It is the first
 step of G-018's throughput work: a train merges up to N PRs per CI cycle while keeping "merged main tree == tested tree".
-Pushing the train ref and merging are later steps; `--train` without `--dry-run` is refused.
+Merging the train is described in [merge-queue.md](merge-queue.md); `--train` without `--dry-run` needs a project with a `gate_cmd`.
 
 - Takes 2 to 4 distinct task ids (exit 2 otherwise; duplicates refused). No task argument or `--reason`. Judge role only. `--dry-run` on any other `judge` call is refused (exit 2).
 - Per task, the same checks as `judge --merge` except staleness: PR open, not a draft, base `main`; reviewer and QA
