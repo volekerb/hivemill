@@ -154,11 +154,80 @@ class NoPushGitFileTests(unittest.TestCase):
                                  "cwd": self.scratch}, role)
             self.assertEqual(res.returncode, 0, res.stderr)
 
+    def test_nested_and_outside_scratchpad_targets_refused(self):
+        """Fail closed unless the target is in the scratchpad and has no .git at any depth (nested repo, home, worktrees)."""
+        wt = os.path.join(self.tmp, "factory", "worktrees")
+        os.makedirs(wt)
+        cmds = [
+            f"tar -xf a.tar -C {self.scratch}",  # scratch/r/.git exists below
+            f"unzip a.zip -d {self.scratch}",
+            f"unzip a.zip -d {wt}",
+            f"tar -xf a.tar -C {wt}",
+            f"unzip a.zip -d {self.home}",
+            "unzip a.zip -d ~",
+            f"cpio -id -D {self.tmp} < a.cpio",
+        ]
+        for role in NO_PUSH:
+            for c in cmds:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+
+    def test_walk_bound_and_gitfile_below_refused(self):
+        deep = os.path.join(self.scratch, "deep", "a", "b")
+        os.makedirs(deep)
+        open(os.path.join(deep, ".git"), "w").close()  # a gitfile, not a dir
+        big = os.path.join(self.scratch, "big")
+        os.makedirs(big)
+        for role in NO_PUSH:
+            self.blocked(f"tar -xf a.tar -C {self.scratch}/deep", role)
+            self.allowed(f"tar -xf a.tar -C {big}", role)
+
+    def test_walk_bound_unit(self):
+        """A tree larger than ARCHIVE_WALK_MAX is refused (unknown), a small clean tree is not."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("wg", HOOK)
+        wg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wg)
+        big = os.path.join(self.scratch, "many")
+        os.makedirs(big)
+        for i in range(5):
+            open(os.path.join(big, f"f{i}"), "w").close()
+        self.assertFalse(wg.Analyzer.has_git_below(big))
+        wg.ARCHIVE_WALK_MAX = 3
+        self.assertTrue(wg.Analyzer.has_git_below(big))
+
+    def test_python_and_ar_extractors_refused(self):
+        git, o = os.path.join(self.repo, ".git"), self.out
+        bad = [
+            f"python3 -m zipfile -e a.zip {git}",
+            f"python -m tarfile -e a.tar {git}",
+            f"python3 -m tarfile --extract a.tar {git}",
+            f"python3 -m zipfile -e a.zip {self.repo}",
+            f"python3 -m zipfile -e a.zip {self.home}",
+            "python3 -m zipfile -e a.zip",
+            f"ar x --output={git} a.a",
+            f"ar x --output {git} a.a",
+            f"ar xv --output={self.repo} a.a",
+            "ar x a.a",  # cwd target: scratch holds r/.git
+            f"ar --extract --output={self.home} a.a",
+        ]
+        for role in NO_PUSH:
+            for c in bad:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+            self.blocked("ar x a.a", role, cwd=self.repo)
+            for c in (f"python3 -m zipfile -e a.zip {o}", f"python3 -m tarfile -e a.tar {o}", f"ar x --output={o} a.a",
+                      "python3 -m zipfile -l a.zip", "python3 -m tarfile -l a.tar", "ar t a.a", "ar p a.a m"):
+                with self.subTest(role=role, cmd=c):
+                    self.allowed(c, role)
+            self.allowed("ar x a.a", role, cwd=self.out)
+
     def test_other_roles_unchanged(self):
         s = self.scratch
         for role in ("coder", "judge", "cleaner"):
             for c in (f"echo 'gitdir: x' > {s}/n/.git", f"tar -xf a.tar -C {self.repo}/.git", "tar -xf a.tar",
-                      f"unzip a.zip -d {self.repo}/.git"):
+                      f"unzip a.zip -d {self.repo}/.git", f"unzip a.zip -d {self.home}", f"python3 -m zipfile -e a.zip {self.home}",
+                      f"ar x --output={self.home} a.a"):
                 with self.subTest(role=role, cmd=c):
                     self.allowed(c, role)
 

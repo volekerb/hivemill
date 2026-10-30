@@ -317,6 +317,7 @@ GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VA
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(\+?=.*)?$")
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)$")
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):?=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
@@ -1387,16 +1388,30 @@ class Analyzer:
                             f"with cat): {PERSIST_WHY}")
 
     def archive_target(self, name, d):
-        """T-0783: refuse an extraction directory that is or sits under a .git dir, already holds one, or that the hook
-        cannot resolve."""
+        """T-0783: NO_PUSH_ROLES extract only into a directory inside their scratchpad that is not under a .git dir and
+        holds no .git (file or dir) at any depth. A target the hook cannot resolve, outside the scratchpad, or whose walk
+        hits ARCHIVE_WALK_MAX entries fails closed."""
         t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), d))
         if any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
             raise Block(f"`{name}` into {d!r}: the target cannot be resolved, so it may be a .git dir; "
                         "give a literal directory in your scratchpad")
         t = os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
-        if ".git" in t.split(os.sep) or os.path.lexists(os.path.join(t, ".git")):
-            raise Block(f"`{name}` into {d!r}: a .git dir (or a dir holding one) would receive config/hooks that run as "
-                        f"git: {PERSIST_WHY}")
+        if not in_scratchpad(t):
+            raise Block(f"`{name}` into {d!r}: extraction may only target a directory inside your scratchpad (an archive "
+                        f"member .git/config or hook elsewhere runs as git): {PERSIST_WHY}")
+        if ".git" in t.split(os.sep) or self.has_git_below(t):
+            raise Block(f"`{name}` into {d!r}: a .git dir (or a dir holding one at any depth) would receive config/hooks "
+                        f"that run as git: {PERSIST_WHY}")
+
+    @staticmethod
+    def has_git_below(top):
+        """True when `top` or anything below it is named .git, or the walk exceeds ARCHIVE_WALK_MAX entries (unknown)."""
+        seen = 0
+        for _, dirs, files in os.walk(top, followlinks=False):
+            seen += len(dirs) + len(files)
+            if ".git" in dirs or ".git" in files or seen > ARCHIVE_WALK_MAX:
+                return True
+        return False
 
     def archive_extract(self, name, rest):
         """T-0783: NO_PUSH_ROLES extract tar/bsdtar/unzip/cpio/rsync only into a named directory that is not, under or
@@ -1445,6 +1460,25 @@ class Analyzer:
         elif name in ("7z", "7za", "7zr"):
             extract = bool(args[:1]) and args[0] in ("x", "e")
             dirs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
+        elif re.match(r"^python[\d.]*$", name):
+            mod = next((args[j + 1] if a == "-m" and j + 1 < len(args) else a[2:] for j, a in enumerate(args)
+                        if a == "-m" or a.startswith("-m")), None)
+            if mod in ("zipfile", "tarfile"):
+                for j, a in enumerate(args):
+                    if a in ("-e", "--extract"):
+                        extract = True
+                        dirs += args[j + 2:j + 3]
+        elif name == "ar":
+            op = next((a for a in args if not a.startswith("--") or a == "--extract"), "")
+            if op == "--extract" or (re.match(r"^-?[A-Za-z]+$", op) and "x" in op):
+                extract = True
+                for j, a in enumerate(args):
+                    if a == "--output" and j + 1 < len(args):
+                        dirs.append(args[j + 1])
+                    elif a.startswith("--output="):
+                        dirs.append(a.split("=", 1)[1])
+                if not dirs:  # members land in the current directory
+                    dirs = [self.ccwd] if self.ccwd else []
         elif name == "pax":
             extract = any(a == "-r" or (re.match(r"^-[A-Za-z]+$", a) and "r" in a) for a in args)
         elif name == "jar":
