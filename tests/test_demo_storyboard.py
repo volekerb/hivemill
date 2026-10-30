@@ -13,58 +13,127 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "docs" / "demo"
 STILLS = ROOT / "ci" / "demo_stills.py"
 BRAND_KEYS = {"name", "wordmark_svg", "tagline", "install", "github_url"}
-SCENE_IDS = ["hook", "request", "orgchart", "panes", "mergegate", "tour", "close"]
+# G-024 pitch v1 (owner-approved script M15107, owner M15130): 12 shots in 8 scenes, 80 s README cut
+SCENE_IDS = ["open", "problem", "request", "orgchart", "work", "mergegate", "result", "close"]
+LINKEDIN = DEMO / "storyboard-linkedin.json"
+# the captions of the approved script, verbatim, in order (S1-S12)
+SCRIPT_CAPTIONS = [
+    "This whole software team is AI agents.",
+    "One AI coder is fast. It also says \u201cdone\u201d when it isn't.",
+    "So you talk to one agent, the boss. Plain English.",
+    "The boss briefs a director. The director staffs a team.",
+    "pm, coder, QA, reviewer, judge. One job each.",
+    "The pm splits the goal into small tasks, each tied to a success criterion.",
+    "They work in parallel: own pane, own git worktree, own permissions.",
+    "QA tried postcode ABCDE for Germany. It passed. Bug.",
+    "Sent back, fixed, checked again, merged.",
+    "Nothing merges on an agent's word.",
+    "Reviewer and QA bring evidence. The judge holds the gate.",
+    "Every merge lands in a changelog you can read.",
+    "Merges per day, and where the time goes.",
+    "Every rejection is counted, by source, so you see what bounces.",
+    "Self-hosted. Open source (MIT). Claude Code underneath.",
+]
 
 
-def board():
-    return json.loads((DEMO / "storyboard.json").read_text())
+def board(path=DEMO / "storyboard.json"):
+    return json.loads(Path(path).read_text())
+
+
+def page_seconds(scene):
+    return sum(p.get("duration", scene["page_duration"]) if isinstance(p, dict) else scene["page_duration"]
+               for p in scene["pages"])
 
 
 class StoryboardTests(unittest.TestCase):
     def test_top_level_schema(self):
         b = board()
         self.assertEqual((b["fps"], b["width"], b["height"]), (30, 1920, 1080))
-        self.assertEqual(set(b), {"fps", "width", "height", "scenes", "hero"})
+        self.assertEqual(set(b), {"fps", "width", "height", "scale", "scenes", "hero"})
+        self.assertEqual(b["scale"], 2)  # captured at 3840x2160, exported at 1920x1080
 
-    def test_scenes_in_order_with_beats_1_to_7_once(self):
+    def test_scenes_in_order_with_beats_1_to_8_once(self):
         scenes = board()["scenes"]
         self.assertEqual([s["id"] for s in scenes], SCENE_IDS)
-        self.assertEqual(sorted(s["beat"] for s in scenes), [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(sorted(s["beat"] for s in scenes), list(range(1, 9)))
         for s in scenes:
             self.assertTrue({"id", "beat", "source", "duration", "captions"} <= set(s), s["id"])
             self.assertTrue(s["source"].startswith(("scenes/%s.html" % s["id"], "ui:/")), s["source"])
-        self.assertEqual([s["duration"] for s in scenes], [6, 8, 14, 12, 12, 16, 8])
+            self.assertTrue((DEMO / s["source"]).is_file() or s["source"].startswith("ui:"), s["source"])
+        self.assertEqual([s["duration"] for s in scenes], [5, 6, 6, 10, 23, 8, 17, 5])
 
     def test_total_duration_in_range(self):
         total = sum(s["duration"] for s in board()["scenes"])
-        self.assertEqual(total, 76)
+        self.assertEqual(total, 80)
         self.assertTrue(60 <= total <= 90)
+
+    def test_real_ui_on_frame_zero(self):
+        first = board()["scenes"][0]
+        self.assertTrue(first["source"].startswith("ui:"))
+        page = first["pages"][0]
+        self.assertEqual((page["path"], page["fade_in"]), ("/", False))  # hard open, no fade from black
+
+    def test_captions_are_the_approved_script_verbatim(self):
+        texts = [c["text"] for s in board()["scenes"] for c in s["captions"]]
+        self.assertEqual(texts, SCRIPT_CAPTIONS)
+
+    def test_ui_shots_use_the_seeded_story(self):
+        paths = [p["path"] for s in board()["scenes"] if s["source"].startswith("ui:") for p in s["pages"]]
+        self.assertEqual(paths, ["/", "/goal/G-002", "/agents", "/task/T-0008", "/changelog", "/throughput", "/quality"])
+
+    def test_scene_caption_bar_clears_the_player_controls(self):
+        css = (DEMO / "scenes" / "theme.css").read_text()
+        rule = re.search(r"\.caption-bar \{([^}]*)\}", css).group(1)
+        self.assertGreaterEqual(int(re.search(r"bottom: (\d+)px", rule).group(1)), 70)
 
     def test_hero_inside_its_scene(self):
         b = board()
         hero = b["hero"]
         scene = {s["id"]: s for s in b["scenes"]}[hero["scene"]]
         self.assertEqual(hero["scene"], "orgchart")
+        self.assertEqual((hero["start"], hero["end"]), (0.0, 10.0))
         self.assertTrue(10 <= hero["end"] - hero["start"] <= 15)
         self.assertTrue(0 <= hero["start"] < hero["end"] <= scene["duration"])
-        self.assertEqual((hero["width"], hero["fps"]), (1600, 18))
+        self.assertEqual((hero["width"], hero["fps"]), (1600, 20))  # 50 ms frames: a 10 s loop times as 10.000 s (18 fps: 9.999)
 
     def test_captions_inside_scene_and_long_enough(self):
-        for s in board()["scenes"]:
-            for c in s["captions"]:
-                self.assertTrue(0 <= c["at"] < c["until"] <= s["duration"], (s["id"], c))
-                self.assertGreaterEqual(c["until"] - c["at"], 2.5, (s["id"], c))
-                self.assertTrue(c["text"].strip())
+        for path in (DEMO / "storyboard.json", LINKEDIN):
+            for s in board(path)["scenes"]:
+                for c in s["captions"]:
+                    self.assertTrue(0 <= c["at"] < c["until"] <= s["duration"], (path.name, s["id"], c))
+                    self.assertGreaterEqual(c["until"] - c["at"], 2.5, (path.name, s["id"], c))
+                    self.assertTrue(c["text"].strip())
 
-    def test_hook_caption_exact(self):
-        hook = board()["scenes"][0]
-        self.assertEqual(hook["captions"][0]["text"], "Talk to one agent. A whole team ships your PRs.")
+    def test_ui_scene_pages_fill_the_scene(self):
+        for path in (DEMO / "storyboard.json", LINKEDIN):
+            for s in board(path)["scenes"]:
+                if s["source"].startswith("ui:"):
+                    self.assertEqual(s["source"], "ui:" + s["pages"][0]["path"], s["id"])
+                    self.assertEqual(page_seconds(s), s["duration"], (path.name, s["id"]))
 
-    def test_tour_pages(self):
-        tour = {s["id"]: s for s in board()["scenes"]}["tour"]
-        self.assertEqual(tour["source"], "ui:/")
-        self.assertEqual(tour["pages"], ["/", "/goals", "/agents", "/quality"])
-        self.assertEqual(tour["page_duration"] * len(tour["pages"]), tour["duration"])
+
+class LinkedinCutTests(unittest.TestCase):
+    """Owner M15130 Q3: the LinkedIn cut drops S10 + S11 and trims S4 (org chart) to 8 s. That recipe sums to 67 s, not
+    the nominal 60 s; the director kept 67 s (M15153)."""
+
+    def test_same_scenes_shorter_cut(self):
+        full, cut = board(), board(LINKEDIN)
+        self.assertEqual([s["id"] for s in cut["scenes"]], SCENE_IDS)
+        self.assertNotIn("hero", cut)
+        self.assertEqual({k: v for k, v in cut.items() if k != "scenes"},
+                         {k: v for k, v in full.items() if k not in ("scenes", "hero")})
+        self.assertEqual([s["duration"] for s in cut["scenes"]], [5, 6, 6, 8, 23, 8, 6, 5])
+        self.assertTrue(60 <= sum(s["duration"] for s in cut["scenes"]) <= 90)
+
+    def test_drops_throughput_and_quality_only(self):
+        full, cut = board(), board(LINKEDIN)
+        texts = [c["text"] for s in cut["scenes"] for c in s["captions"]]
+        self.assertEqual(texts, [t for t in SCRIPT_CAPTIONS if t not in SCRIPT_CAPTIONS[12:14]])
+        result = {s["id"]: s for s in cut["scenes"]}["result"]
+        self.assertEqual([p["path"] for p in result["pages"]], ["/changelog"])
+        for a, b in zip(full["scenes"], cut["scenes"]):
+            if a["id"] not in ("orgchart", "result"):
+                self.assertEqual(a, b, a["id"])
 
 
 class BrandTests(unittest.TestCase):
@@ -170,14 +239,16 @@ class NoExternalAssetsTests(unittest.TestCase):
             self.assertNotRegex(text, r"@font-face[^}]*url\((?!\"\.\./fonts/[\w-]+\.woff2\")", str(p))
             self.assertNotRegex(text, r"@import\s+url\(", str(p))
 
-    def test_frames_use_embedded_data_matching_storyboard(self):
-        b = {s["id"]: s for s in board()["scenes"]}
+    def test_frames_use_embedded_data_matching_their_scene(self):
+        # style frames are the G-020 look reference; they match the scene file they were drawn from, which the
+        # storyboard may since have retimed or retired (hook, panes)
         frames = sorted((DEMO / "style").glob("*.html"))
         self.assertEqual(len(frames), 5)
         for f in frames:
             m = re.search(r'id="demo-data">(.*?)</script>', f.read_text(), re.S)
             d = json.loads(m.group(1))
-            self.assertEqual(d["captions"], b[d["scene"]]["captions"], f.name)
+            self.assertTrue((DEMO / "scenes" / (d["scene"] + ".html")).is_file(), f.name)
+            self.assertTrue(isinstance(d["captions"], list) and all(c["text"].strip() for c in d["captions"]), f.name)
             self.assertEqual(set(d["brand"]), BRAND_KEYS)
 
     def test_png_cap(self):

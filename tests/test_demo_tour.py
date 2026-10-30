@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
@@ -43,8 +44,8 @@ class Maths(unittest.TestCase):
         self.assertAlmostEqual(demo_tour.fade(3.8, 4), 0.5)
 
     def test_caption_lookup(self):
-        caps = BOARD["scenes"][5]["captions"]
-        self.assertIn("dashboard", demo_tour.caption_at(caps, 3.0))
+        caps = next(s for s in BOARD["scenes"] if s["id"] == "work")["captions"]
+        self.assertIn("splits the goal", demo_tour.caption_at(caps, 3.0))
         self.assertEqual(demo_tour.caption_at(caps, 99), "")
 
 
@@ -103,6 +104,9 @@ class FakeBrowser:
 
     def new_page(self, url):
         self.calls.append(url)
+
+    def send(self, method, params=None):
+        self.calls.append((method, params, len(self.frames)))
 
     def evaluate(self, expr):
         import re
@@ -164,6 +168,13 @@ class TourOptions(unittest.TestCase):
         self.assertGreater(scales[39], 1.039)
         self.assertEqual(set(scales[40:]), {1.0})  # the next page starts unscaled
 
+    def test_every_page_is_frozen_before_its_first_frame(self):
+        # the UI's 60 s meta refresh would reload the page (and drop the overlay) during a slow 2x capture
+        fb, _ = self.record([{"path": "/ok", "duration": 1}, "/ok"])
+        pauses = [c for c in fb.calls if isinstance(c, tuple)]
+        self.assertEqual(pauses, [("Emulation.setVirtualTimePolicy", {"policy": "pause"}, 0),
+                                  ("Emulation.setVirtualTimePolicy", {"policy": "pause"}, 10)])
+
     def test_max_frames_cap_applies_per_page(self):
         _, n = self.record([{"path": "/ok", "duration": 4}, "/ok"], frames_per_page=3)
         self.assertEqual(n, 6)
@@ -181,6 +192,7 @@ class Layout(unittest.TestCase):
     def test_page_box_css_stops_where_the_caption_band_starts(self):
         self.assertIn("bottom:%dpx" % demo_tour.CAPTION_RESERVE, demo_tour.PAGE_CSS)
         self.assertIn("bottom:%dpx" % demo_tour.CAPTION_BOTTOM, demo_tour.CAPTION_CSS)
+        self.assertGreaterEqual(demo_tour.CAPTION_BOTTOM, 70)  # the README player draws controls over the bottom 60 px
 
     def test_page_is_zoomed_so_the_column_fills_the_frame(self):
         self.assertGreaterEqual(demo_tour.ZOOM, 1.5)  # 14px body text -> 21px at 1080p
@@ -196,9 +208,10 @@ class Layout(unittest.TestCase):
 class Storyboard(unittest.TestCase):
     def test_pages_and_labels_come_from_storyboard(self):
         _, scene = demo_tour.load_tour()
-        self.assertEqual(scene["pages"], ["/", "/goals", "/agents", "/quality"])
-        self.assertEqual(scene["labels"], ["Overview", "Goals", "Agents", "Quality"])
-        self.assertEqual(scene["page_duration"], 4)
+        self.assertEqual([(p["path"], p["label"]) for p in scene["pages"]], [("/", "Overview")])
+        _, scene = demo_tour.load_tour("work")
+        self.assertEqual([(p["path"], p["label"]) for p in scene["pages"]],
+                         [("/goal/G-002", "Goal"), ("/agents", "Agents"), ("/task/T-0008", "Task")])
 
 
 class Stub(http.server.BaseHTTPRequestHandler):
@@ -348,7 +361,7 @@ class SceneAndScale(unittest.TestCase):
         r = self.cli("--scene", "nope")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("'nope'", r.stderr)
-        self.assertIn("tour", r.stderr)  # lists the ui scenes that exist
+        self.assertIn("open, work, result", r.stderr)  # lists the ui scenes that exist
 
     def test_scale_outside_range_is_a_usage_error(self):
         for bad in ("0.5", "3"):
@@ -356,11 +369,14 @@ class SceneAndScale(unittest.TestCase):
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertIn("--scale", r.stderr)
 
-    def test_repo_storyboard_tour_has_default_page_options(self):
-        _, scene = demo_tour.load_tour()
-        for shot in demo_tour.shots(scene["pages"], scene["labels"], scene["page_duration"]):
-            self.assertEqual((shot["duration"], shot["hold"], shot["scroll_to"], shot["fade_in"], shot["push_in"]),
-                             (4, 0, None, True, 1.0))
+    def test_repo_storyboard_ui_scenes_are_valid_shots(self):
+        for sid in ("open", "work", "result"):
+            _, scene = demo_tour.load_tour(sid)
+            plan = demo_tour.shots(scene["pages"], scene.get("labels"), scene["page_duration"])
+            self.assertEqual(sum(s["duration"] for s in plan), scene["duration"], sid)
+        _, scene = demo_tour.load_tour("open")
+        first = demo_tour.shots(scene["pages"])[0]
+        self.assertEqual((first["fade_in"], first["scroll_to"], first["push_in"]), (False, 0, 1.04))
 
 
 class DemoDir(unittest.TestCase):
@@ -423,7 +439,7 @@ class Integration(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=REPO / "docs" / "demo") as d:  # on disk, not RAM-backed /tmp
             out, work = Path(d) / "frames", Path(d) / "work"
             r = subprocess.run([sys.executable, str(TOUR), "--out", str(out), "--work", str(work), "--max-frames", "6",
-                                "--pages", "/,/goals", "--browser", os.environ["DEMO_BROWSER"]],
+                                "--pages", "/,/goals", "--scale", "1", "--browser", os.environ["DEMO_BROWSER"]],
                                capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stderr)
             pngs = sorted(out.glob("*.png"))
@@ -435,6 +451,23 @@ class Integration(unittest.TestCase):
             text = "".join(f.read_text() for f in (work / "text").glob("*.txt"))
             self.assertIn("Build the checkout flow", text)  # seed data (acme-web goal G-002)
             self.assertNotIn(os.path.expanduser("~"), text)
+
+    def test_selector_target_clears_a_sticky_title_bar(self):
+        page = ("<body style='margin:0'><div style='position:sticky;top:0;height:52px;background:#ccc'>bar</div>"
+                "<div style='height:800px'></div><h2 id='t' style='margin:0'>target</h2>"
+                "<div style='height:3000px'></div></body>")
+        with tempfile.TemporaryDirectory(dir=REPO / "docs" / "demo") as d:
+            b = demo_cdp.Browser.launch(os.environ["DEMO_BROWSER"], 1920, 1080, d)
+            try:
+                b.new_page("data:text/html," + urllib.parse.quote(page))
+                b.evaluate(demo_tour._inject_js(""))
+                y = demo_tour.selector_top(b, "#t")
+                b.evaluate("document.getElementById('demo-page').scrollTop=%d" % y)
+                top = b.evaluate("Math.round(document.getElementById('t').getBoundingClientRect().top)")
+            finally:
+                b.close()
+        bar = round(52 * demo_tour.ZOOM)
+        self.assertEqual(top, bar + demo_tour.SCROLL_GAP)  # the heading sits just below the bar, not under it
 
 
 if __name__ == "__main__":

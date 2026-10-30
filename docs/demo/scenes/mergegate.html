@@ -24,19 +24,19 @@
 <body data-scene="mergegate">
 <div class="stage">
 <div class="wordmark"><span data-brand="wordmark_svg"></span><span data-brand="name"></span></div>
-<div class="pr card" id="pr"><h2>#42 Add CSV export</h2><p>acme-web · factory/T-0042 · example-org</p><span class="chip" id="prchip">open</span></div>
+<div class="pr card" id="pr"><h2>#105 Add shipping form</h2><p>acme-web · factory/T-0008</p><span class="chip" id="prchip">open</span></div>
 <div class="role-reviewer badge card" id="b-rev" style="top:170px"><span class="chip" style="color:var(--accent)">reviewer</span><b>PASS</b><div class="ev mono" id="e-rev">diff read, 0 findings</div></div>
-<div class="role-qa badge card" id="b-qa" style="top:330px"><span class="chip" style="color:var(--accent)">qa</span><b>PASS</b><div class="ev mono" id="e-qa">tests: 42 passed · acceptance 1-5 checked</div></div>
+<div class="role-qa badge card" id="b-qa" style="top:330px"><span class="chip" style="color:var(--accent)">qa</span><b>PASS</b><div class="ev mono" id="e-qa">postcodes DE, FR, NL · acceptance 1-3 checked</div></div>
 <div class="line" style="left:100px;width:1720px"></div>
 <div class="fill" id="f1" style="left:100px"></div>
 <div class="fill" id="f2" style="left:1300px"></div>
 <div class="dotp" id="dp"></div>
 <div class="gate role-judge card" id="gate"><h3>judge</h3><small id="gtxt">waiting 0/2</small><div class="door l" id="dl"></div><div class="door r" id="dr"></div></div>
 <div class="stamp" id="stamp">merged</div>
-<div class="lbl mono" style="left:100px">factory/T-0042</div><div class="lbl mono" style="left:1440px">main</div>
+<div class="lbl mono" style="left:100px">factory/T-0008</div><div class="lbl mono" style="left:1440px">main</div>
 <div class="caption-bar"><span></span></div>
 </div>
-<script type="application/json" id="demo-data">{"scene": "mergegate", "duration": 12, "captions": [{"at": 0.0, "until": 6.0, "text": "Nothing merges on an agent's word."}, {"at": 6.0, "until": 12.0, "text": "Reviewer and QA check the evidence. The judge holds the gate."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
+<script type="application/json" id="demo-data">{"scene": "mergegate", "duration": 8, "captions": [{"at": 0.0, "until": 4.0, "text": "Nothing merges on an agent's word."}, {"at": 4.0, "until": 8.0, "text": "Reviewer and QA bring evidence. The judge holds the gate."}], "brand": {"name": "Hivemill", "wordmark_svg": "../images/wordmark-dark.svg", "tagline": "Talk to one agent. A whole team ships your PRs.", "install": "gh repo clone volekerb/hivemill ~/factory", "github_url": "github.com/volekerb/hivemill"}}</script>
 <script src="demo.js"></script>
 <script>
 /* Every visual is a pure function of t (set from demo.on), so seek(t) is deterministic. */
@@ -45,30 +45,30 @@
   function ramp(t, a, b) { return clamp((t - a) / (b - a)); }
   function $(id) { return document.getElementById(id); }
   demo.on(function (t) {
-    var pr = ramp(t, 0.0, 0.6);
+    var pr = ramp(t, 0.0, 0.4);
     $("pr").style.opacity = pr;
-    $("f1").style.width = Math.round(900 * ramp(t, 0.8, 3.0)) + "px";           /* branch grows to the gate */
-    [["b-rev", "e-rev", 2.0], ["b-qa", "e-qa", 3.6]].forEach(function (b) {
+    $("f1").style.width = Math.round(900 * ramp(t, 0.5, 2.0)) + "px";           /* branch grows to the gate */
+    [["b-rev", "e-rev", 1.0], ["b-qa", "e-qa", 2.0]].forEach(function (b) {
       var a = ramp(t, b[2], b[2] + 0.5), el = $(b[0]);
       el.style.opacity = a; el.style.transform = "translateX(" + Math.round((1 - a) * 60) + "px)";
       $(b[1]).style.opacity = ramp(t, b[2] + 0.6, b[2] + 1.0);
     });
-    var both = t >= 5.0;
-    $("gtxt").textContent = both ? "2/2 PASS" : t >= 2.6 ? "waiting 1/2" : "waiting 0/2";
-    var open = ramp(t, 5.5, 6.5);
+    var both = t >= 2.9;
+    $("gtxt").textContent = both ? "2/2 PASS" : t >= 1.5 ? "waiting 1/2" : "waiting 0/2";
+    var open = ramp(t, 3.2, 3.9);
     $("dl").style.transform = "translateX(" + Math.round(-100 * open) + "%)";
     $("dr").style.transform = "translateX(" + Math.round(100 * open) + "%)";
     $("gate").style.boxShadow = both ? "0 0 " + Math.round(10 + 24 * (0.5 + 0.5 * Math.sin(2 * Math.PI * t / 2.4))) + "px 4px var(--judge)" : "";
-    var run = ramp(t, 6.6, 8.4);
+    var run = ramp(t, 4.0, 5.2);
     $("f2").style.width = Math.round(520 * run) + "px";                         /* main line continues past the gate */
     var dp = $("dp");
     dp.style.opacity = run > 0 && run < 1 ? 1 : 0;
     dp.style.left = Math.round(1300 + 520 * run) + "px";
-    var s = ramp(t, 8.4, 9.0);
+    var s = ramp(t, 5.2, 5.7);
     $("stamp").style.opacity = s;
     $("stamp").style.transform = "rotate(-6deg) scale(" + (1.4 - 0.4 * s).toFixed(3) + ")";
-    $("prchip").textContent = t >= 8.6 ? "merged" : "open";
-    $("prchip").style.color = t >= 8.6 ? "var(--ok)" : "var(--lead)";
+    $("prchip").textContent = t >= 5.4 ? "merged" : "open";
+    $("prchip").style.color = t >= 5.4 ? "var(--ok)" : "var(--lead)";
   });
   demo.seek(0);
 })();

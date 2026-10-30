@@ -5,7 +5,7 @@ The README is laid out so its images and video can be replaced without touching 
 
 | Slot | Where | What to change | Size and format |
 |---|---|---|---|
-| `SLOT:VIDEO` | Under the nav links | The bare `https://github.com/user-attachments/assets/...` URL on its own line (GitHub renders it as a player) and the MP4 link under it | 60-90 s, 1080p, no audio |
+| `SLOT:VIDEO` | Under the nav links | The bare `https://github.com/user-attachments/assets/...` URL on its own line (GitHub renders it as a player) | 60-90 s, 1080p, no audio |
 | `SLOT:HERO` | Under the video | The two paths in the `<picture>` (light in `img src`, dark in `source srcset`) and the `alt` text | Light and dark PNG of the overview page, shown at 860 px wide |
 | `SLOT:GALLERY` | The web UI section | The six page images in the table (same pattern as the hero) and their alt text | Light and dark PNG per page, shown at 280 px wide |
 

@@ -23,10 +23,10 @@
   <a href="https://github.com/volekerb/hivemill/discussions">Discussions</a>
 </p>
 
-<!-- SLOT:VIDEO (T-0708): replace only the bare user-attachments URL on the next line and the MP4 link below it. -->
-https://github.com/user-attachments/assets/7615b7c0-48b0-4b44-ad01-aacd7f692583
+<!-- SLOT:VIDEO (T-0708): replace only the bare user-attachments URL on the next line and keep the links below it. -->
+https://github.com/user-attachments/assets/dfec91f4-de05-4592-aaec-3662ce674c4a
 
-<p align="center"><a href="https://github.com/volekerb/hivemill/releases/download/v0.1.0/demo.mp4">Download the MP4</a> · <a href="docs/demo/README.md">how it was made</a> · seeded demo data only</p>
+<p align="center"><a href="docs/demo/README.md">how it was made</a> · seeded demo data only</p>
 
 <!-- SLOT:HERO (T-0480): one big screenshot. Swap the two paths (light in img src, dark in source srcset) and the alt text. -->
 <p align="center">

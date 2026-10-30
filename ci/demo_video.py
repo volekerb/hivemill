@@ -2,11 +2,14 @@
 """One-command demo video build (G-020): record every storyboard scene, encode MP4 + WebM + hero WebP, check them.
 
     python3 ci/demo_video.py [build|check] [--draft] [--browser PATH] [--out DIR] [--only SCENE] [--keep-work]
+                             [--board FILE]
 
 build  records the scenes of docs/demo/storyboard.json one at a time, streaming the PNG frames straight into ffmpeg
        (a near-lossless clip per scene under <work>/clips), then concatenates them into demo.mp4 and demo.webm and
        records the hero loop (the orgchart scene again, captions hidden) into hero.webp.
 check  ffprobes the three outputs against the limits of G-020 SC2/SC3 and runs the demo scrub over the frame text.
+--board FILE records another storyboard (default docs/demo/storyboard.json), e.g. a shorter cut; a board without a
+"hero" entry builds and checks no hero loop.
 No subcommand = build, then check. Needs ffmpeg and ffprobe on PATH. Python 3 stdlib only.
 Exit codes: 0 ok, 1 failed (build error or a FAIL check), 2 usage error, 3 refused (preflight).
 """
@@ -29,6 +32,7 @@ import demo_tour  # noqa: E402
 
 DEMO = demo_record.DEMO
 DEFAULT_OUT = DEMO / "out"
+DEFAULT_BOARD = DEMO / "storyboard.json"
 MIN_MEM_MB = 1500  # at capture scale 1; mem_floor() grows it with the pixel count of the capture
 MEM_PER_EXTRA_PIXEL_MB = 500  # per (scale^2 - 1): 2x capture = 3000 MB (4x PNGs in the browser and the pipe)
 SCALE_RANGE = (1.0, 2.0)
@@ -268,8 +272,8 @@ def probe(path):
         raise BuildError("ffprobe printed no JSON for %s: %s" % (path, e))
 
 
-def check(out, work):
-    """Run every check, print one ok/FAIL line each; returns 0 when all ok, else 1."""
+def check(out, work, hero=True):
+    """Run every check, print one ok/FAIL line each; returns 0 when all ok, else 1. hero=False skips hero.webp."""
     results = []
     out = Path(out)
     for name, codec in (("demo.mp4", "h264"), ("demo.webm", "vp9")):
@@ -281,10 +285,10 @@ def check(out, work):
             results += check_video(name, probe(path), path.stat().st_size, codec)
         except BuildError as e:
             results.append((name, False, str(e)))
-    hero = out / "hero.webp"
-    if not hero.is_file():
+    hero = out / "hero.webp" if hero else None
+    if hero is not None and not hero.is_file():
         results.append(("hero.webp", False, "missing: run build first"))
-    else:
+    elif hero is not None:
         try:
             seconds, frames = webp_animation(hero)
             results += check_hero(probe(hero), hero.stat().st_size, seconds, frames)
@@ -303,16 +307,24 @@ def check(out, work):
 
 # ---- build ----
 
-def load_board():
-    return json.loads((DEMO / "storyboard.json").read_text())
+def load_board(path=DEFAULT_BOARD):
+    return json.loads(Path(path).read_text())
 
 
-def board_scale():
-    """Capture scale from storyboard.json; 1 when it is absent (build then reports an unreadable storyboard)."""
+def board_scale(path=DEFAULT_BOARD):
+    """Capture scale from the storyboard; 1 when it is absent (build then reports an unreadable storyboard)."""
     try:
-        return float(load_board().get("scale", 1))
+        return float(load_board(path).get("scale", 1))
     except (OSError, ValueError):
         return 1.0
+
+
+def board_has_hero(path=DEFAULT_BOARD):
+    """True when the storyboard has a hero entry; True when it cannot be read, so check still demands hero.webp."""
+    try:
+        return "hero" in load_board(path)
+    except (OSError, ValueError):
+        return True
 
 
 def record_one(scene, board, browser_path, work, sink, hero=False, tour_ctx=None, scale=1.0):
@@ -336,14 +348,16 @@ def record_one(scene, board, browser_path, work, sink, hero=False, tour_ctx=None
             first = round(board["hero"]["start"] * fps)
             inner = sink
             sink = lambda i, png: inner(i, png) if i >= first else None  # noqa: E731
-        return demo_record.record_scene(browser, url, duration, fps, sink, text_dir=text_dir, scene_id=scene["id"])
+        # the storyboard being recorded owns the caption timing, so one scene file serves every cut
+        return demo_record.record_scene(browser, url, duration, fps, sink, text_dir=text_dir, scene_id=scene["id"],
+                                        captions=scene.get("captions", []))
     finally:
         if browser is not None:
             browser.close()
 
 
-def build(out, work, browser_path, only=None, keep_work=False, scale=None):
-    board = load_board()
+def build(out, work, browser_path, only=None, keep_work=False, scale=None, board_path=DEFAULT_BOARD):
+    board = load_board(board_path)
     scale = float(board.get("scale", 1)) if scale is None else scale
     check_scale(scale)
     scenes = board["scenes"]
@@ -390,11 +404,14 @@ def build(out, work, browser_path, only=None, keep_work=False, scale=None):
         run(mp4_args(listing, out / "demo.mp4", board["fps"], scale), cwd=work)
         print("encoding demo.webm", flush=True)
         run(webm_args(listing, out / "demo.webm", board["fps"], scale), cwd=work)
-        hero = board["hero"]
-        scene = next(s for s in board["scenes"] if s["id"] == hero["scene"])
-        print("recording hero loop (%s %.1f-%.1f s)" % (scene["id"], hero["start"], hero["end"]), flush=True)
-        stream(hero_args(out / "hero.webp", hero["width"], hero["fps"], board["fps"], hero["quality"]),
-               lambda sink: record_one(scene, board, browser_path, work, sink, hero=True, scale=scale), cwd=work)
+        hero = board.get("hero")
+        if hero is None:
+            print("no hero entry in %s: no hero loop" % board_path, flush=True)
+        else:
+            scene = next(s for s in board["scenes"] if s["id"] == hero["scene"])
+            print("recording hero loop (%s %.1f-%.1f s)" % (scene["id"], hero["start"], hero["end"]), flush=True)
+            stream(hero_args(out / "hero.webp", hero["width"], hero["fps"], board["fps"], hero["quality"]),
+                   lambda sink: record_one(scene, board, browser_path, work, sink, hero=True, scale=scale), cwd=work)
     finally:
         if server is not None:
             demo_cdp.stop(server)
@@ -416,6 +433,8 @@ def main(argv=None):
     ap.add_argument("--scale", type=float, help="build: capture scale, 1-2 (2 = 3840x2160); exports stay 1920x1080 "
                     "(default: 'scale' in storyboard.json, else 1)")
     ap.add_argument("--keep-work", action="store_true", help="build: keep the per-scene clips")
+    ap.add_argument("--board", default=str(DEFAULT_BOARD), help="storyboard to record and check (default "
+                    "docs/demo/storyboard.json); without a 'hero' entry no hero loop is built or checked")
     args = ap.parse_args(argv)
     out = Path(args.out).resolve()  # ffmpeg runs with cwd=work, so every path it gets must be absolute
     work = Path(args.work).resolve() if args.work else out / "work"
@@ -423,11 +442,11 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, demo_record._interrupt)
     try:
         if cmd in ("build", "all"):
-            scale = args.scale if args.scale is not None else board_scale()
+            scale = args.scale if args.scale is not None else board_scale(args.board)
             preflight(work, out, args.draft, scale=scale)
-            build(out, work, args.browser, args.only, args.keep_work, scale)
+            build(out, work, args.browser, args.only, args.keep_work, scale, args.board)
         if cmd == "check" or (cmd == "all" and not args.only):
-            return check(out, work)
+            return check(out, work, board_has_hero(args.board))
     except Refused as e:
         print("demo_video: refused: %s" % e, file=sys.stderr)
         return 3

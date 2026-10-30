@@ -55,10 +55,10 @@ class StaticTests(unittest.TestCase):
             self.assertEqual(data["scene"], scene)
 
     def test_durations_equal_storyboard(self):
-        self.assertEqual(storyboard_scene("orgchart")["duration"], 14)
-        self.assertEqual(storyboard_scene("mergegate")["duration"], 12)
+        self.assertEqual(storyboard_scene("orgchart")["duration"], 10)
+        self.assertEqual(storyboard_scene("mergegate")["duration"], 8)
         self.assertEqual(BOARD["hero"]["scene"], "orgchart")
-        self.assertEqual(BOARD["hero"]["end"], 13.0)
+        self.assertEqual(BOARD["hero"]["end"], 10.0)
 
     def test_orgchart_shows_all_roles(self):
         text = read("orgchart")
@@ -69,14 +69,29 @@ class StaticTests(unittest.TestCase):
     def test_orgchart_loop_returns_to_start_state(self):
         # the seam contract is in the source: the envelope is 0 from t=13 on and nothing is lit before the first spawn
         text = read("orgchart")
-        self.assertIn("var LOOP = 13;", text)
+        self.assertIn("var LOOP = 10;", text)
         self.assertIn("t >= LOOP ? 0", text)
+
+    def test_orgchart_team_is_complete_inside_the_8s_linkedin_cut(self):
+        text = read("orgchart")
+        spawn = json.loads(re.search(r"var SPAWN = (\{.*?\});", text).group(1))
+        pulses = json.loads(re.search(r"var PULSES = (\[.*?\]);", text).group(1))
+        self.assertEqual(set(spawn), set(ROLES))
+        self.assertLessEqual(max(spawn.values()) + 0.5, 8.0)  # every node lit
+        self.assertLessEqual(max(p[0] for p in pulses) + 0.9, 8.0)  # every pulse done
+
+    def test_orgchart_tells_the_seeded_story(self):
+        text = read("orgchart")
+        for needle in ("g-002-a", "PR #105", "goal G-002"):
+            self.assertIn(needle, text)
+        self.assertNotIn("G-004", text)
 
     def test_mergegate_content(self):
         text = read("mergegate")
-        for needle in ["#42 Add CSV export", "reviewer", "qa", "PASS", "judge", "merged", "main",
-                       "tests: 42 passed", "acceptance 1-5 checked"]:
+        for needle in ["#105 Add shipping form", "acme-web · factory/T-0008", "reviewer", "qa", "PASS", "judge",
+                       "merged", "main", "acceptance 1-3 checked"]:
             self.assertIn(needle, text)
+        self.assertNotIn("T-0042", text)
 
     def test_merged_stamp_right_of_judge_gate(self):
         text = read("mergegate")
@@ -121,7 +136,7 @@ class RenderTests(unittest.TestCase):
 
     def test_loop_seam_frames_identical_without_captions(self):
         a = self.shot("orgchart", 0.0, False, "seam0")
-        b = self.shot("orgchart", 13.0, False, "seam13")
+        b = self.shot("orgchart", 10.0, False, "seam10")
         self.assertEqual(a, b)
 
     def test_same_t_frames_identical(self):
