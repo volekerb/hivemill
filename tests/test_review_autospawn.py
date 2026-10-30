@@ -346,6 +346,27 @@ class NewHeadTests(Base):
         self.env.sql("UPDATE agents SET status='exited'")
         self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
 
+    def test_gate_refused_qa_still_sends_fyi_for_started_reviewer_once(self):
+        self.reviewed_on_h1()
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.spawn = lambda con, role, goal=None, team=None, task=None, name=None, prompt=None, **kw: con.execute(
+                "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,started) VALUES(?,?,?,?,?,'live','t')",
+                (name, role, goal, team, task))
+            f.gate = lambda con, role=None, **k: (role != "qa", "full", {})
+            f._ci_remote_head = lambda branch, batch=None: H2
+            f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": H2, "mergeStateStatus": "CLEAN",
+                                                      "statusCheckRollup": GREEN}
+            f.review_autospawn_tick(con)
+            con.commit()
+        self.assertEqual([r["name"] for r in self.env.sql("SELECT name FROM agents WHERE name LIKE '%22222222'")],
+                         ["reviewer-t-0001-22222222"])
+        fyi = self.env.sql("SELECT subject, body FROM messages WHERE kind='fyi'")
+        self.assertEqual(len(fyi), 1)
+        self.assertIn("@22222222", fyi[0]["subject"])
+        self.assertIn("reviewer-t-0001-22222222", fyi[0]["body"])
+        self.assertNotIn("qa-t-0001-22222222", fyi[0]["body"])
+
 
 if __name__ == "__main__":
     unittest.main()
