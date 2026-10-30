@@ -1,6 +1,7 @@
 """G-019 B6: the insights pages /quality, /throughput, /resources and /tokens (web/views/{quality,throughput,resources,tokens}.py)
 and the queries appended to web/queries.py for them. Seeded temp DBs only; time is the fixed NOW of test_web_queries."""
 import ast
+import datetime as dt
 import json
 import re
 import subprocess
@@ -10,6 +11,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -59,6 +61,12 @@ class InsightServer(ServerCase):
 
     def setUp(self):
         super().setUp()
+        # pin the clock the request handler stamps pages with (HH:MM in the header): two renders must not straddle a minute
+        frozen = dt.datetime.now().astimezone()
+        clock = type("FrozenDatetime", (dt.datetime,), {"now": classmethod(lambda cls, tz=None: frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None))})
+        patcher = mock.patch.object(server, "dt", SimpleNamespace(datetime=clock))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.httpd.server_close()
         self.httpd = server.make_server(self.db_path, "127.0.0.1", 0, (), tokens=lambda: SNAP,
                                         usage_fn=lambda: {"five_hour": 10.0, "seven_day": 20.0, "fresh": True, "age_min": 1},

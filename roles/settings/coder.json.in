@@ -180,7 +180,8 @@
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
-      "Bash(git push origin HEAD:factory/*)"
+      "Bash(git push origin HEAD:factory/*)",
+      "Workflow(coder-skills:multi-angle-review)"
     ]
   },
   "env": {

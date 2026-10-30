@@ -105,7 +105,7 @@ MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
     "staff-engineer": "claude-opus-5-5",
-    "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-sonnet-5-5",
+    "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
 PERSISTENT_ROLES = {"boss", "director", "lead"}  # never reaped; everyone else is one task, one pane
@@ -133,6 +133,7 @@ TASK_WAITS = ["owner", "internal"]
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
+    "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
     "max_live_agents": "6",
@@ -163,6 +164,7 @@ DEFAULT_CONFIG = {
     "director_cycle_s": "900",
     "blocked_alert_s": "600",
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
+    "prcheck_required": "0",     # 1 = a coder's `factory done` (task with a PR) needs a passing `factory prcheck` on its HEAD (G-022)
     "git_push": "1",
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
@@ -1642,6 +1644,16 @@ def check_sandbox_roles(value):
     return ",".join(dict.fromkeys(names))
 
 
+CONFIG_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
+
+
+def check_model_override(key, value):
+    """Exit 2 unless value is empty or one of CONFIG_MODELS (never a Fable id)."""
+    if value.strip() not in ("",) + CONFIG_MODELS:
+        die(f"config {key}: {value!r} is not allowed; use one of {', '.join(CONFIG_MODELS)} or empty for the default: "
+            f"fix it with `factory config {key} claude-sonnet-5-5`", 2)
+
+
 def check_gh_roles(key, value):
     """The normalised comma list, or exit 2: every name must be a worker role ghcred can serve ("" = none)."""
     names = [x.strip() for x in value.split(",") if x.strip()]
@@ -1666,6 +1678,9 @@ def cmd_config(a):
             check_effort_level(a.value.strip())
         if a.key == "scout_triage_per_run":
             triage_per_run(a.value)
+        if a.key == "model_cleaner":
+            check_model_override(a.key, a.value)
+            a.value = a.value.strip()
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -6642,6 +6657,13 @@ def check_effort_level(level):
             "fix it with `factory config opus_effort medium`")
 
 
+def role_model(con, role):
+    """The model a role starts on: config model_<role> when that key exists and is set (only cleaner has one), else MODELS."""
+    key = f"model_{role}"
+    override = (cfg(con, key) or "").strip() if key in DEFAULT_CONFIG else ""
+    return override or MODELS[role]
+
+
 def effort_args(con, model):
     """['--effort', <level>] for an Opus model (config opus_effort), [] for any other model or an empty setting."""
     level = (cfg(con, "opus_effort") or "").strip()
@@ -6993,7 +7015,7 @@ def start_confirm(con, agents):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    model = model or MODELS[role]
+    model = model or role_model(con, role)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
     optin = args.get("sandbox_optin") is True
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
@@ -7236,6 +7258,197 @@ def coder_done_findings(con, r, force=False):
     return dirty, untracked, unpushed, ci
 
 
+# ── prcheck (G-022 item 7): a coder's pre-PR check, and the `factory done` gate on it ──
+
+PRCHECK_AFFECTED_TIMEOUT_S = 3600
+_TEST_DEF = "^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_"
+_RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
+_TESTS_REMOVED = re.compile(r"^\W*tests? removed:\s*\S", re.I | re.M)
+_PR_SECTION = re.compile(r"^## ", re.M)
+
+
+def prcheck_target(con, me):
+    """(agent row, task row with the project's base branch) of the calling coder; dies when it has no task."""
+    r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone()
+    if not r or r["role"] != "coder" or not r["task_id"]:
+        die("prcheck is for a coder with a task; run it from your task worktree", 3)
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, t.pr_url, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (r["task_id"],)).fetchone()
+    if not t or not t["worktree"] or not Path(t["worktree"]).is_dir():
+        die(f"{r['task_id']} has no worktree directory; ask your lead", 3)
+    return t
+
+
+def prcheck_fresh(wt, base):
+    """Check 1: HEAD holds origin/<base>, or a merge of it would be conflict-free. (ok, note)."""
+    ref = f"origin/{base}"
+    f = git_run(wt, "fetch", "origin", base, timeout=180)
+    if f.returncode != 0:
+        return False, f"cannot fetch origin {base}: {f.stderr.strip()[:200]}; retry in a minute"
+    if git_run(wt, "merge-base", "--is-ancestor", ref, "HEAD").returncode == 0:
+        return True, f"HEAD contains {ref}"
+    behind = _git_out(wt, "rev-list", "--count", f"HEAD..{ref}")[1]
+    m = git_run(wt, "merge-tree", "--write-tree", "--name-only", ref, "HEAD")
+    if m.returncode == 0:
+        return True, f"behind {ref} by {behind}; a merge is clean (git fetch origin && git merge {ref} keeps it fresh)"
+    if m.returncode == 1:
+        names = m.stdout.split("\n\n", 1)[0].splitlines()[1:]  # tree id, then the conflicted paths (--name-only)
+        files = sorted(set(names))
+        return False, (f"merging {ref} conflicts ({', '.join(files[:10]) or 'see git merge'}): "
+                       f"run git merge {ref}, resolve, rerun the tests, push")
+    return False, f"cannot test a merge of {ref}: {m.stderr.strip()[:200]}"
+
+
+def prcheck_identity(wt, base):
+    """Check 2: author and committer of every commit in origin/<base>..HEAD are noreply addresses. (ok, note)."""
+    p = git_run(wt, "log", "--format=%H%x09%ae%x09%ce", f"origin/{base}..HEAD")
+    if p.returncode != 0:
+        return False, f"cannot read the commits: {p.stderr.strip()[:200]}"
+    rows = [ln.split("\t") for ln in p.stdout.splitlines() if ln]
+    if not rows:
+        return False, f"no commits beyond origin/{base}: commit your work"
+    bad = [f"{h[:9]} {'+'.join(_email_problems(ae, ce))}" for h, ae, ce in rows if _email_problems(ae, ce)]
+    if bad:
+        return False, (f"non-noreply identity in {', '.join(bad[:5])}: set the repo-local user.email to your "
+                       f"{NOREPLY_SUFFIX} address and rewrite those commits (git rebase -r --exec 'git commit --amend --reset-author --no-edit')")
+    return True, f"{len(rows)} commit(s), author and committer noreply"
+
+
+def prcheck_test_count(wt, ref):
+    """Number of `def test_` lines under tests/ at `ref`; None when git cannot say."""
+    p = git_run(wt, "grep", "-h", "-E", _TEST_DEF, ref, "--", "tests")
+    return len(p.stdout.splitlines()) if p.returncode in (0, 1) else None
+
+
+def prcheck_body(wt, base, pr_url):
+    """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
+    if not pr_url:
+        return False, "no PR for this task yet: open it (gh pr create --body-file F) or pass --pr <url>, then rerun"
+    try:
+        p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
+                           env=gh_git_env())
+        body = json.loads(p.stdout)["body"] if p.returncode == 0 else None
+        err = p.stderr.strip()
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
+        body, err = None, str(e)
+    if body is None:
+        return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
+    problems = pr_body_problems(body, pr_template_headings())
+    outside = pr_outside_details(body)
+    sec = outside.split("## Test evidence", 1)[-1] if "## Test evidence" in outside else ""
+    sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
+    if not re.search(r"`[^`\n]+`", sec):
+        problems.append("`## Test evidence` has no command in backticks (e.g. `python3 -m unittest discover -s tests -v`)")
+    # count against the merge-base, so tests main gained since the branch point do not look like removals
+    mb = _git_out(wt, "merge-base", "HEAD", f"origin/{base}")
+    n_head = prcheck_test_count(wt, "HEAD")
+    n_base = prcheck_test_count(wt, mb[1]) if mb[0] == 0 and mb[1] else None
+    if n_head is None or n_base is None:
+        problems.append("cannot count the tests (git grep failed)")
+    elif n_head < n_base and not _TESTS_REMOVED.search(outside):
+        problems.append(f"the test count drops ({n_base} at the merge base with origin/{base}, {n_head} on HEAD): add a line "
+                        "`Tests removed: <which and why>` outside <details>")
+    if problems:
+        return False, f"PR body of {pr_url}:\n" + "\n".join(f"      - {x}" for x in problems)
+    return True, f"PR body follows {PR_TEMPLATE}"
+
+
+def prcheck_public(con, t, wt, base):
+    """Check 4: the G-021 public-text guard over the diff, as the judge runs it. (ok, note)."""
+    m = re.match(r"https?://[^/]+/([^/]+/[^/]+)/pull/", t["pr_url"] or "")
+    slug = m and m.group(1)
+    if not _judge_is_public(con, t, slug):
+        return True, "n/a: the repo is not in public_text_repos"
+    if not t["pr_url"]:
+        return False, "no PR url: the guard reads the PR text too; open the PR first"
+    msg = judge_public_text_refusal(con, t, slug, wt, f"origin/{base}", "HEAD")
+    if msg:
+        return False, msg.replace("judge: refused ", "") + ("; remove or rephrase them" if " hits:" in msg else "")
+    return True, "no hits"
+
+
+def prcheck_affected(wt, base):
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note)."""
+    script = Path(wt) / "ci" / "affected.py"
+    if not script.is_file():
+        return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
+    try:
+        p = subprocess.run([sys.executable, str(script), "--base", f"origin/{base}", "--run"], cwd=wt, capture_output=True,
+                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return False, f"ci/affected.py --run timed out after {PRCHECK_AFFECTED_TIMEOUT_S}s"
+    except OSError as e:
+        return False, f"cannot run ci/affected.py: {e}"
+    out = (p.stdout + p.stderr).strip()
+    tail = "\n".join("      " + ln for ln in out.splitlines()[-8:])
+    if p.returncode != 0:
+        return False, f"ci/affected.py --run exited {p.returncode}; fix and rerun:\n{tail}"
+    ran = _RAN_RE.findall(out)
+    if not ran or not any(int(x) for x in ran):
+        return False, f"ci/affected.py --run exited 0 but reported no tests run:\n{tail}"
+    return True, f"ci/affected.py --run ok, ran {sum(int(x) for x in ran)} tests"
+
+
+def prcheck_tier(wt, base):
+    """Check 6 (informational): the risk tier of the diff, from the classifier when this build has one."""
+    fn = globals().get("risk_tier")
+    if fn is None:
+        return True, "tier: unavailable (no risk classifier in this build)"
+    try:
+        return True, f"tier: {fn(wt, f'origin/{base}', 'HEAD')}"
+    except (TypeError, ValueError, OSError) as e:  # informational only: a classifier with another signature must not break prcheck
+        return True, f"tier: unavailable ({type(e).__name__}: {str(e)[:80]})"
+
+
+def cmd_prcheck(a):
+    con = db()
+    require_role(con, "coder")
+    t = prcheck_target(con, actor())
+    wt, base = t["worktree"], t["base_branch"] or "main"
+    pr_url = a.pr or t["pr_url"]
+    t = {**dict(t), "pr_url": pr_url}
+    if _git_out(wt, "status", "--porcelain", "--untracked-files=no")[1]:
+        die("uncommitted tracked changes: commit them (a WIP commit is fine), then rerun prcheck", 3)
+    rc, head = _git_out(wt, "rev-parse", "HEAD")
+    if rc != 0:
+        die(f"cannot read HEAD of {wt}", 3)
+    results = []
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
+                     ("affected", lambda: prcheck_affected(wt, base)), ("tier", lambda: prcheck_tier(wt, base))):
+        ok, note = fn()
+        results.append((name, ok, note))
+        print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
+    ok = all(x[1] for x in results)
+    event(con, "task", t["id"], "prcheck", {"head": head, "ok": ok, "failed": [n for n, k, _ in results if not k]})
+    print(f"prcheck {'passed' if ok else 'FAILED'} on {head[:9]}" + ("" if ok else ": fix the FAIL lines, commit, rerun"))
+    sys.exit(0 if ok else 1)
+
+
+def prcheck_done_refusal(con, r, t):
+    """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
+    worktree's current HEAD. Cannot read HEAD or the record = refuse."""
+    if cfg(con, "prcheck_required") != "1" or not t or not t["pr_url"]:
+        return
+    row = con.execute("SELECT worktree FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    wt = row and row["worktree"]
+    rc, head = _git_out(wt, "rev-parse", "HEAD") if wt and Path(wt).is_dir() else (1, "")
+    if rc != 0 or not head:
+        die(f"prcheck_required is on and the HEAD of {r['task_id']}'s worktree cannot be read; ask your lead", 3)
+    for e in con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='prcheck' ORDER BY id DESC",
+                         (r["task_id"],)):
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if d.get("head") == head:
+            if d.get("ok"):
+                return
+            break
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+        "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
+
+
 JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject")  # what cmd_judge records
 
 
@@ -7299,6 +7512,7 @@ def cmd_done(a):
         t = con.execute("SELECT status, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
         if t and t["status"] == "in_review" and t["pr_url"]:
             require_acceptance_walk(t["pr_url"])
+        prcheck_done_refusal(con, r, t)
         unclean = "; ".join(found)
         if untracked:
             print("WARNING: untracked files left in the worktree: " + ", ".join(untracked[:10]), file=sys.stderr)
@@ -10978,10 +11192,10 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     else:
         steps.append("place a new pane")
     sess = "--session-id <new uuid>" if fresh else f"--resume {r['session_id']}"
-    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or MODELS[r['role']]} "
+    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or role_model(con, r['role'])} "
                  f"--permission-mode auto --settings {RUN / 'settings' / (r['role'] + '.json')} "
                  f"--append-system-prompt-file {RUN / (r['name'] + '.prompt.md')} {sess} "
-                 f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or MODELS[r['role']]))} ...")
+                 f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or role_model(con, r['role'])))} ...")
     if fresh:
         steps.append(f"kickoff: whoami + inbox + a re-orient one-pager from the DB ({len(reorient_onepager(con, r))} chars); "
                      "the old context is dropped")
@@ -12489,6 +12703,8 @@ def main():
     x.add_argument("action", choices=["create", "ready"])
     x.add_argument("--title"); x.add_argument("--body", help="create: must be - (body on stdin)")
     x.set_defaults(fn=cmd_pr)
+    x = sp.add_parser("prcheck", help="coder: pre-PR check (fresh vs main, noreply identity, PR body, public text, affected tests, tier)")
+    x.add_argument("--pr", help="PR url (default: the task's)"); x.set_defaults(fn=cmd_prcheck)
     x = sp.add_parser("stop", help="owner/director/lead: STOP a busy worker (message + Esc + nudge, then a hard fallback)")
     x.add_argument("agent"); x.add_argument("--reason")
     x.add_argument("--now", action="store_true", help="skip the Esc/wait/nudge and close the pane now")

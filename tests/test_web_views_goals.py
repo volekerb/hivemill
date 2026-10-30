@@ -290,24 +290,36 @@ class TestTaskDetail(ViewCase):
 
 
 class TestPerformance(ViewCase):
-    def test_pages_fast_on_bigger_data(self):
+    def bulk(self, lo, hi):
         x = self.w.execute
-        for i in range(300):
+        for i in range(lo, hi):
             x("INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,status,attempts,created,updated,pr_url) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
               (f"T-{1000 + i}", "G-1", f"[SC1] bulk {i}", "s", "a", "coder", "done", 1, ts(8, 0), ts(9, 0), None))
             x("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?, 'judge','task',?,'merged','@abcdef12')", (ts(9, 0), f"T-{1000 + i}"))
-        for view, params in ((goals, {}), (goals.detail, {"id": "G-1"}), (tasks, {}), (tasks.detail, {"id": "T-1"})):
-            # Shard neighbours leave a heavy process behind (large heaps, cold
-            # caches), so the first call is slow: warm up, collect, then take
-            # the best of 3 against the unchanged 1.0 s budget.
+
+    def best(self, view, params):
+        # best of 5 after a warm-up: a shared runner only ever adds time
+        self.page(view, **params)
+        gc.collect()
+        best = float("inf")
+        for _ in range(5):
+            t = time.perf_counter()
             self.page(view, **params)
-            gc.collect()
-            best = float("inf")
-            for _ in range(3):
-                t = time.perf_counter()
-                self.page(view, **params)
-                best = min(best, time.perf_counter() - t)
-            self.assertLess(best, 1.0, view)
+            best = min(best, time.perf_counter() - t)
+        return best
+
+    def test_pages_scale_linearly(self):
+        # Relative bound, not wall clock: 4x the rows may cost ~4x (linear);
+        # an O(n^2) view costs ~16x. 8x leaves room for noise. The absolute
+        # cap only catches a real hang.
+        views = ((goals, {}), (goals.detail, {"id": "G-1"}), (tasks, {}), (tasks.detail, {"id": "T-1"}))
+        self.bulk(0, 100)
+        small = [self.best(v, p) for v, p in views]
+        self.bulk(100, 400)
+        for (view, params), base in zip(views, small):
+            big = self.best(view, params)
+            self.assertLess(big, 10.0, view)
+            self.assertLess(big, 8 * max(base, 0.005), "%s: %.4fs vs %.4fs at 1/4 the rows" % (view, big, base))
 
 
 class TestRoutes(unittest.TestCase):
