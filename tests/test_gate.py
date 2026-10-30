@@ -1,6 +1,7 @@
 import json
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from harness import MODELS, FactoryTestCase
@@ -131,6 +132,25 @@ class GateTests(FactoryTestCase):
     def test_gate_mem(self):
         self.ok("config", "min_mem_available_mb", "999999999")
         self.assert_queued(self.spawn(), "MemAvailable")
+
+    def test_gate_ignores_the_demo_mem_pin(self):
+        """$FACTORY_MEM_AVAILABLE_MB only pins what `factory serve` shows; it never opens or breaks the spawn gate."""
+        self.ok("config", "min_mem_available_mb", "999999999")
+        for pin in ("99999999999", "not-a-number"):
+            with self.subTest(pin=pin):
+                self.assert_queued(self.ok("spawn", "coder", "--goal", "G-001", "--task", "T-0001", "--name", "zz-test-c1",
+                                           extra_env={"FACTORY_MEM_AVAILABLE_MB": pin}), "MemAvailable")
+
+    def test_serve_mem_fn_honours_the_pin(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+        self.addCleanup(sys.path.pop, 0)
+        import factory_cli
+        with mock.patch.dict("os.environ", {"FACTORY_MEM_AVAILABLE_MB": "3900"}):
+            self.assertEqual(factory_cli.serve_mem_available_mb(), 3900)
+            self.assertNotEqual(factory_cli.mem_available_mb(), 3900)
+        with mock.patch.dict("os.environ", {"FACTORY_MEM_AVAILABLE_MB": "junk"}):
+            self.assertEqual(factory_cli.serve_mem_available_mb(), factory_cli.mem_available_mb())
 
     def test_gate_usage(self):
         self.env.write_usage(five_hour=95)

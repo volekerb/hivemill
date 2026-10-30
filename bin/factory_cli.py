@@ -1394,6 +1394,15 @@ def mem_available_mb():
     return 0
 
 
+def serve_mem_available_mb():
+    """mem_fn of `factory serve` only (display): $FACTORY_MEM_AVAILABLE_MB pins it for the demo shots. gate() never calls this."""
+    pinned = os.environ.get("FACTORY_MEM_AVAILABLE_MB")
+    try:
+        return int(pinned) if pinned else mem_available_mb()
+    except ValueError:
+        return mem_available_mb()
+
+
 def tmp_dir():
     """The directory whose filesystem the tmp watch measures and cleans under: /tmp ($FACTORY_TMP_DIR for tests)."""
     return Path(os.environ.get("FACTORY_TMP_DIR") or "/tmp")
@@ -13065,7 +13074,7 @@ def cmd_serve(a):
     g = lambda k: cfg.get(k, DEFAULT_CONFIG[k])  # noqa: E731
     server.run(db_path=resolve_db, bind=a.bind or g("serve_bind") or None, port=a.port if a.port is not None else int(g("serve_port")),
                hostnames=[n.strip() for n in g("serve_hostnames").split(",") if n.strip()],
-               usage_fn=usage, mem_fn=mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
+               usage_fn=usage, mem_fn=serve_mem_available_mb, defaults=DEFAULT_CONFIG, factory_home=HOME, ttl_minutes=serve_ttl(getattr(a, "ttl", None)))
 
 
 # ───────────────────────────── cli ─────────────────────────────
