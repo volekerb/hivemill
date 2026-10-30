@@ -756,9 +756,15 @@ class BashEnvPathOrderTests(PathOrderBase, SandboxCase):
         self.startup_env = {"BASH_ENV": str(f)}
 
 
-@unittest.skipUnless(shutil.which("zsh"), "needs zsh to read a .zshenv")
+@unittest.skipUnless(shutil.which("zsh") or os.environ.get("CI"), "needs zsh to read a .zshenv")
 class ZshenvPathOrderTests(PathOrderBase, SandboxCase):
     SHELL_NAME = "zsh"
+
+    def setUp(self):
+        # CI installs zsh; a missing zsh there is a failure, never a skip.
+        if not shutil.which("zsh"):
+            self.fail("zsh missing in CI: install zsh on the runner")
+        super().setUp()
 
     def startup(self, text):
         (self.env.user_home / ".zshenv").write_text(text)
