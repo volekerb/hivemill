@@ -48,7 +48,8 @@ Exit codes: 0 ok, 1 build error or a failed check, 2 usage error, 3 refused (a p
 ## How it works
 
 Scenes are HTML/CSS pages in `docs/demo/scenes/`. A recorder drives a headless browser over a pipe, seeks the page to
-frame `i/30` and takes a PNG, so the result is smooth however slow the machine is. The PNGs are streamed straight
+frame `i/30` and takes a PNG (`optimizeForSpeed`: still lossless, about 4x faster at a 2x capture), so the result is
+smooth however slow the machine is. The PNGs are streamed straight
 into `ffmpeg` (no frame files on disk), one scene at a time, into a clip per scene. The clips are concatenated into
 the MP4 and the WebM. The hero loop records the org chart scene a second time with the captions hidden. The web UI
 scenes (`ui:`) are recorded against the demo seed (`ci/demo_seed.py`), re-seeded for each such scene. One browser and

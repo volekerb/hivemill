@@ -8,6 +8,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "ci"))
@@ -102,6 +103,15 @@ class FakeBrowser:
         return b"png%d" % len(self.seeks)
 
 
+class ScreenshotTests(unittest.TestCase):
+    def test_screenshot_asks_for_fast_lossless_png(self):
+        b = demo_cdp.Browser(None, mock.Mock(), None)
+        b.pipe.send.return_value = {"data": "cG5n"}
+        self.assertEqual(b.screenshot("png"), b"png")
+        method, params = b.pipe.send.call_args[0][:2]
+        self.assertEqual((method, params), ("Page.captureScreenshot", {"format": "png", "optimizeForSpeed": True}))
+
+
 class RecordSceneTests(unittest.TestCase):
     def test_frame_count_and_seek_times(self):
         got = []
@@ -111,6 +121,16 @@ class RecordSceneTests(unittest.TestCase):
         self.assertEqual([i for i, _ in got], list(range(75)))
         self.assertEqual(b.seeks, [i / 30 for i in range(75)])
         self.assertEqual(got[3][1], b"png4")
+
+    def test_board_captions_replace_the_embedded_ones_before_the_first_frame(self):
+        b = FakeBrowser()
+        caps = [{"at": 0.0, "until": 4.0, "text": "cut caption"}]
+        demo_record.record_scene(b, "u", 0.1, 30, lambda i, p: None, captions=caps)
+        first_seek = next(i for i, e in enumerate(b.exprs) if e.startswith("window.demo.seek("))
+        self.assertIn("window.demo.data.captions = " + json.dumps(caps), b.exprs[:first_seek])
+        b = FakeBrowser()
+        demo_record.record_scene(b, "u", 0.1, 30, lambda i, p: None)
+        self.assertFalse([e for e in b.exprs if "data.captions" in e])  # no board captions: the scene keeps its own
 
     def test_text_dump_every_30th_frame(self):
         with tempfile.TemporaryDirectory() as d:
@@ -146,17 +166,17 @@ class CliTests(unittest.TestCase):
         return subprocess.run([sys.executable, str(RECORD), *args], capture_output=True, text=True, timeout=60)
 
     def test_tmp_out_refused_exit_3(self):
-        r = self.run_cli("--scene", "hook", "--out", "/tmp/x", "--max-frames", "1")
+        r = self.run_cli("--scene", "problem", "--out", "/tmp/x", "--max-frames", "1")
         self.assertEqual(r.returncode, 3, r.stderr)
         self.assertIn("/tmp", r.stderr)
 
     def test_tmp_work_refused_exit_3(self):
-        r = self.run_cli("--scene", "hook", "--out", str(REPO / "docs/demo/out/x"), "--work", "/tmp/w")
+        r = self.run_cli("--scene", "problem", "--out", str(REPO / "docs/demo/out/x"), "--work", "/tmp/w")
         self.assertEqual(r.returncode, 3, r.stderr)
 
     @envcheck.skip_on_ram()
     def test_ui_scene_rejected_exit_2(self):
-        r = self.run_cli("--scene", "tour", "--out", str(REPO / "docs/demo/out/x"), "--browser", "/nonexistent")
+        r = self.run_cli("--scene", "work", "--out", str(REPO / "docs/demo/out/x"), "--browser", "/nonexistent")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("web UI tour", r.stderr)
 
@@ -249,7 +269,7 @@ class LaunchCleanupTests(unittest.TestCase):
         orig = demo_cdp.Browser.launch
         demo_cdp.Browser.launch = staticmethod(launch)
         self.addCleanup(setattr, demo_cdp.Browser, "launch", orig)
-        rc = demo_record.main(["--scene", "hook", "--out", str(self.tmp / "o"), "--work", str(self.tmp / "w"),
+        rc = demo_record.main(["--scene", "problem", "--out", str(self.tmp / "o"), "--work", str(self.tmp / "w"),
                                "--browser", str(self.binary), "--source", str(REPO / "docs/demo/style/frame-1-hook.html")])
         self.assertEqual(rc, 130)
         self.assertIsNotNone(spawned[0].poll())
@@ -262,7 +282,7 @@ class IntegrationTests(unittest.TestCase):
         out = REPO / "docs" / "demo" / "out" / "test-integration"
         shutil.rmtree(out, ignore_errors=True)
         self.addCleanup(shutil.rmtree, out, True)
-        r = subprocess.run([sys.executable, str(RECORD), "--scene", "hook", "--out", str(out), "--max-frames", "3",
+        r = subprocess.run([sys.executable, str(RECORD), "--scene", "problem", "--out", str(out), "--max-frames", "3",
                             "--browser", os.environ["DEMO_BROWSER"], "--work", str(REPO / "docs/demo/out/work-test"),
                             "--source", str(REPO / "docs/demo/style/frame-1-hook.html")],
                            capture_output=True, text=True, timeout=120)
