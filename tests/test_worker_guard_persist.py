@@ -6,6 +6,7 @@ import io
 import json
 import os
 import pwd
+import re
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 PW = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)  # the hook only reads the text of a command: nothing here writes it
 ROLES = ("coder", "qa", "reviewer")
+NO_PUSH = ("qa", "reviewer")  # T-0755: read-only git allow-list roles
+NO_PUSH_CONFIG_READ = re.compile(r"--get|--list| -l(?: |$)")
 WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator")
 PROTECTED = [".gitconfig", ".config/git/config", ".config/git/attributes", ".config/git/ignore", ".bashrc", ".zshrc",
              ".zshenv", ".profile", ".bash_profile", ".zprofile"]
@@ -193,6 +196,8 @@ class PersistGuardTests(unittest.TestCase):
                         "echo x > .bashrc.sample", "echo x > notes.profile", "echo x > ~/.bashrc.d.txt",
                         "echo x > /tmp/gitconfig", "echo x > ~/.config/gitx", "echo x > ~/.config/gitkraken/c",
                         "sed -i s/a/b/ src/.profile.in", "echo x >> out.txt", "tee notes.txt"):
+                if role in NO_PUSH and cmd.startswith("git") and (cmd.startswith("git -c") or not NO_PUSH_CONFIG_READ.search(cmd)):
+                    continue  # T-0755: read-only roles run only the --get/--list forms of git config (allow-list)
                 self.allowed(cmd, role)
 
     def test_repo_local_config_in_own_worktree_allowed(self):

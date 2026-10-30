@@ -192,6 +192,18 @@ def repo_cfg_path(c):
     return bool(gd) and os.path.isfile(os.path.join(gd, "HEAD")) and os.path.isdir(os.path.join(gd, "objects"))
 
 
+def git_hooks_path(p):
+    """T-0755: True when `p` is <x>/.git/hooks, <x>/.git/info or anything under them, outside the worker's scratchpad
+    (a hook or a pager there runs as git, so a read-only role never writes it)."""
+    for c in {os.path.normpath(p), os.path.realpath(p)}:
+        if in_scratchpad(c):
+            continue
+        parts = c.split(os.sep)
+        if any(a == ".git" and b in ("hooks", "info") for a, b in zip(parts, parts[1:])):
+            return True
+    return False
+
+
 def persist_path(p, ancestor=False):
     """True when path `p` (absolute; `..` and symlinks resolved, glob patterns matched) is a protected file or inside a
     protected tree."""
@@ -287,6 +299,18 @@ CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list",
                "--show-scope", "--name-only"}
 CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section",
                 "--remove-section"}
+# T-0755: read-only git allow-list for NO_PUSH_ROLES (git_allow); anything not listed fails closed
+GIT_OPTS_ALLOWED = {"-P", "--no-pager", "--no-optional-locks", "--version", "--help"}
+GIT_ALLOW_PLAIN = (GIT_READ_ONLY - {"fetch", "ls-remote"}) | {"merge-tree"}
+GIT_FORBID_LONG = ("--ext-diff", "--output")
+GIT_CONFIG_READ_ONLY = {"--get", "--get-all", "--get-regexp", "--list", "-l"}
+GIT_FETCH_FLAGS = {"--all", "--prune", "-p", "--tags", "-t", "--no-tags", "-q", "--quiet", "-v", "--verbose", "-n",
+                   "--dry-run", "-f", "--force", "--no-recurse-submodules", "--prune-tags", "--unshallow"}
+GIT_LSREMOTE_FLAGS = {"--heads", "--refs", "--symref", "--exit-code", "--get-url"}
+GIT_WORD = re.compile(r"(?:^|[\s/;&|])git(?:-\S*)?(?:\s|$)")
+GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=")
+GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(\+?=.*)?$")
+NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
 
@@ -1304,7 +1328,7 @@ class Analyzer:
                         return True
                     continue
                 t = os.path.join(self.ccwd, t)
-            if persist_path(t, ancestor):
+            if persist_path(t, ancestor) or (self.role in NO_PUSH_ROLES and not self.hq and git_hooks_path(t)):
                 return True
         return False
 
@@ -1745,6 +1769,145 @@ class Analyzer:
                 raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
                             f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
 
+    def git_deny(self, why):
+        raise Block(f"{self.role} may not run git push, or any git form outside the read-only allow-list ({why}): "
+                    "read-only roles only inspect (status, log, diff, show, fetch ...); report results with factory done / "
+                    "factory msg, or ask your lead")
+
+    @staticmethod
+    def git_abbrev(args, longs):
+        """First option in `args` that is, or git would accept as an abbreviation of, one of `longs` (parse-options
+        takes any unambiguous prefix); stops at `--`."""
+        for a in args:
+            if a == "--":
+                return None
+            if a.startswith("--") and len(a) > 2 and any(x.startswith(a.split("=", 1)[0]) for x in longs):
+                return a
+        return None
+
+    def git_launch(self, assigns, words):
+        """T-0755: NO_PUSH_ROLES start git only as the literal `git` (or the real /usr/bin/git), with no env assignment
+        before it; git-* helpers and lookalike paths are refused. xargs and find -exec never start git."""
+        if not words:
+            return
+        raw = words[0]
+        base = os.path.basename(re.sub(r"[\\'\"]", "", raw))
+        if base == "git" or base.startswith("git-"):
+            if raw != "git" and not (os.path.isabs(raw) and os.path.realpath(raw) == os.path.realpath("/usr/bin/git")):
+                self.git_deny(f"{raw!r} is not the literal `git`: no git-* helpers, relative or lookalike paths")
+            if assigns:
+                self.git_deny("an environment assignment before git can point it at another config")
+        elif base in ("xargs", "find"):
+            rest = words[1:]
+            if base == "find":
+                hit = any(a in ("-exec", "-execdir", "-ok", "-okdir") for a in rest) and any(GIT_WORD.search(a) for a in rest)
+            else:
+                hit = any(GIT_WORD.search(a) for a in rest)
+            if hit:
+                self.git_deny(f"{base} would start git with arguments this hook cannot see")
+
+    def git_allow(self, rest):
+        """T-0755: NO_PUSH_ROLES (qa, reviewer, pm, staff-engineer, scout, evaluator) may run only read-only git, fail
+        closed: global options, subcommand and arguments are matched against an allow-list; a dynamic word, an alias, an
+        unknown builtin and every push form are refused. Scope: this closes push from git invoked by shell."""
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            o = rest[i]
+            if is_dynamic(o, True):
+                self.git_deny(f"dynamic word {o!r} before the subcommand")
+            if o == "-C" and i + 1 < len(rest) and not is_dynamic(rest[i + 1], True):
+                i += 2
+            elif o in GIT_OPTS_ALLOWED:
+                i += 1
+            else:
+                self.git_deny(f"global option {o!r} could change config, aliases or the repository")
+        if i >= len(rest):
+            return
+        sub, args = rest[i], rest[i + 1:]
+        if is_dynamic(sub, True) or GLOB.search(sub) or "{" in sub:
+            self.git_deny(f"the subcommand word {sub!r} is dynamic, so it could be push")
+        dyn = [a for a in args if is_dynamic(a, True)]
+        if dyn:
+            self.git_deny(f"argument {dyn[0]!r} is built from an expansion and could be an option (--output, --ext-diff ...)")
+        if sub in ("fetch", "ls-remote"):
+            self.git_fetch_args(sub, args)
+        elif sub in GIT_ALLOW_PLAIN:
+            if self.git_abbrev(args, GIT_FORBID_LONG):
+                self.git_deny(f"{self.git_abbrev(args, GIT_FORBID_LONG)!r} runs a program or writes a file")
+            if sub == "grep":
+                if self.git_abbrev(args, ("--open-files-in-pager",)) or any(re.match(r"^-[^-]*O", a) for a in args):
+                    self.git_deny("git grep -O runs a program")
+                if any(is_dynamic(a, True) for a in args):
+                    self.git_deny("git grep with an expansion in its arguments")
+        elif sub == "branch" and not self.branch_mutates(args):
+            return
+        elif sub == "remote" and self.git_remote_read(args):
+            return
+        elif sub == "worktree" and args[:1] == ["list"]:
+            return
+        elif sub == "config" and self.git_config_read(args):
+            return
+        else:
+            self.git_deny(f"`git {sub}` is not on the read-only list (aliases, push, send-pack, subtree, rebase --exec, "
+                          "bisect run, submodule foreach, archive --remote ... are refused)")
+
+    @staticmethod
+    def git_remote_read(args):
+        """Read-only `git remote` forms; every word must match, so -v cannot hide set-url/add/rename/rm."""
+        def name(a):
+            return len(a) == 1 and bool(a[0]) and not a[0].startswith("-")
+        if args in ([], ["-v"], ["--verbose"]):
+            return True
+        if args[:1] == ["get-url"]:
+            rest = args[1:]
+            if rest[:1] in (["--push"], ["--all"]):
+                rest = rest[1:]
+            return name(rest)
+        if args[:1] in (["-v"], ["--verbose"]):
+            args = args[1:]
+        if args[:1] == ["show"]:
+            rest = args[1:]
+            if rest[:1] == ["-n"]:
+                rest = rest[1:]
+            return name(rest)
+        return False
+
+    @staticmethod
+    def git_config_read(args):
+        if any(a in CONFIG_WRITE for a in args) or not any(a in GIT_CONFIG_READ_ONLY for a in args):
+            return False
+        return not Analyzer.config_mutates(args)
+
+    def git_fetch_args(self, sub, args):
+        ok_flags = GIT_FETCH_FLAGS | (GIT_LSREMOTE_FLAGS if sub == "ls-remote" else set())
+        ended = False
+        for a in args:
+            if is_dynamic(a, True):
+                self.git_deny(f"git {sub} argument {a!r} is dynamic")
+            if not ended and a == "--":
+                ended = True
+            elif not ended and a.startswith("-"):
+                if a not in ok_flags and not re.fullmatch(r"--(depth|deepen)=\d+", a):
+                    self.git_deny(f"git {sub} option {a!r} can run a program or name another remote")
+            elif "::" in a or "://" in a or a.startswith(("/", ".", "~")) or re.match(r"^[\w.-]+@[\w.-]+:", a):
+                self.git_deny(f"git {sub} argument {a!r} is a URL, helper or path, not origin or a refspec")
+            elif ":" in a and not a.split(":", 1)[1].startswith("refs/remotes/"):
+                self.git_deny(f"git {sub} refspec {a!r} would write a local ref other than refs/remotes/*")
+
+    def git_config_env(self, assigns, words):
+        """T-0755: NO_PUSH_ROLES never set GIT_CONFIG_COUNT/KEY_*/VALUE_*/PARAMETERS (env-injected alias hides a push), nor
+        HOME, XDG_CONFIG_HOME, PATH, PAGER or any GIT_* variable (another config file or helper), by assignment, export,
+        declare or unset."""
+        names = list(assigns)
+        if words and os.path.basename(words[0]) in DECLARERS | {"unset"}:
+            names += words[1:]
+        if any(GIT_CONFIG_ENV.match(x) for x in names):
+            raise Block(f"{self.role} may not set GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*/GIT_CONFIG_PARAMETERS: "
+                        "env-injected git config can alias a push; ask your lead")
+        if any(GIT_SENSITIVE_ENV.match(x) for x in names):
+            raise Block(f"{self.role} may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select "
+                        "the git config, helpers and pager (an alias there hides a push); ask your lead")
+
     def task_worktree(self, task):
         """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
         try:
@@ -1763,6 +1926,9 @@ class Analyzer:
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
+        if self.role in NO_PUSH_ROLES and not self.hq:
+            self.git_config_env(assigns, words)
+            self.git_launch(assigns, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":
                 self.vars[x.split("=", 1)[0]] = x.split("=", 1)[1]
@@ -1844,6 +2010,8 @@ class Analyzer:
         elif name == "git":
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice
             self.git_delete(rest)
+            if self.role in NO_PUSH_ROLES and not self.hq:
+                self.git_allow(rest)  # T-0755: after git_delete, whose reason names the branch-deletion rule
             self.git_persist(rest, depth)
             for j, a in enumerate(rest):
                 if "herdr" in a and (rest[j - 1:j] == ["-c"] or "config" in rest[:j] or a.startswith("-c")):
@@ -2193,6 +2361,10 @@ class Analyzer:
         first = head.split(b"\n", 1)[0]
         if first.startswith(b"#!") and re.search(rb"\b(ba|z|da|k|a)?sh\b", first):
             self.script(self.read(path), depth + 1)
+        elif self.role in NO_PUSH_ROLES and not self.hq and not head.startswith(b"\x7fELF"):
+            if first.startswith(b"#!"):
+                self.git_deny(f"{path} is a script for another interpreter, whose body this hook does not inspect")
+            self.script(self.read(path), depth + 1)  # no shebang: the kernel hands it to sh, so read it as sh
 
     def systemctl(self, rest):
         args = [a for a in rest if not a.startswith("-")]

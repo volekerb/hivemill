@@ -102,17 +102,17 @@ class RepoCfgTests(unittest.TestCase):
                     "git config --list", "git config -l", "git config get user.name", "git config list",
                     "git config --local --get a.b", "git config --show-origin --list", "git config user.name",
                     f"git -C {self.home} config --get remote.origin.url", f"git --git-dir={self.home}/.git config --list"):
-            for role in ("coder", "qa"):
+            for role in ("coder", "judge"):  # T-0755: qa/reviewer git is read-only (allow-list)
                 self.allowed(cmd, role)
 
     def test_file_inside_scratchpad_allowed(self):
-        for role in ("coder", "qa"):
+        for role in ("coder", "judge"):  # T-0755: qa/reviewer git is read-only (allow-list)
             self.allowed(f"git config --file {self.scratch}/x.cfg k v", role)
             self.allowed(f"git config -f {self.scratch}/x.cfg --add k v", role)
             self.allowed(f"cd {self.scratch} && git config --file x.cfg k v", role)
 
     def test_clone_inside_scratchpad_allowed_linked_worktree_not(self):
-        for role in ("coder", "qa"):
+        for role in ("coder", "judge"):  # T-0755: qa/reviewer git is read-only (allow-list)
             self.allowed(f"git -C {self.clone} config user.name x", role)
             self.allowed(f"git -C {self.clone} remote add o ../elsewhere", role)
             self.allowed(f"cd {self.clone} && git config core.autocrlf false", role)
