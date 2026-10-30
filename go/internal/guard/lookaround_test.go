@@ -1,6 +1,9 @@
 package guard
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Table tests for the hand-written lookaround matchers in lookaround.go. Every expected value was produced by
 // the Python regex of roles/hooks/worker-guard.py (CPython 3.13), loaded like ci/guard_golden.py loads the hook:
@@ -508,6 +511,74 @@ func TestLookaroundExpandHome(t *testing.T) {
 	for _, c := range cases {
 		if got := ExpandHome(c.in, "/H"); got != c.want {
 			t.Errorf("ExpandHome(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// Helpers for the \b / \w regexes of preprocess (worker-guard.py:~700). Expected values: the Python regexes
+// re.search(r"\b(python[\d.]*|perl|ruby|node|php|lua)\b", t), INTERPRETERS.search(t) and
+// re.search(r"\b(sh|bash|...|eval|source)\b", t).
+func TestWordBoundaryHelpers(t *testing.T) {
+	runBool(t, "hasInterpreterWord", hasInterpreterWord, []strCase{
+		{"python", true},
+		{"python3", true},
+		{"python3.12", true},
+		{"pythonü", false},
+		{"éperl", false},
+		{"python3é", false},
+		{"xnode", false},
+		{"node", true},
+		{"perl ruby", true},
+		{"ruby.", true},
+		{"nodejs", false},
+		{"python٣", true},
+		{"x python3 y", true},
+		{"(perl)", true},
+		{"lua5", false},
+		{"bun", false},
+		{"日本語php", false},
+		{"php日本語", false},
+		{"python..", true},
+		{"python3.", true},
+		{"python 3", true},
+		{"", false},
+	})
+	runBool(t, "interpreterFull", interpreterFull, []strCase{
+		{"python", true},
+		{"python3", true},
+		{"python3.12", true},
+		{"pythonü", false},
+		{"perl", true},
+		{"node\n", true},
+		{"nodejs", true},
+		{"deno", true},
+		{"bun", true},
+		{"x", false},
+		{"", false},
+		{"python3 ", false},
+		{"python٣", true},
+		{"perl ruby", false},
+	})
+	runBool(t, "hasWord", func(s string) bool { return hasWord(s, Shells, "eval", "source") }, []strCase{
+		{"bash -c x", true},
+		{"xbash", false},
+		{"bashé", false},
+		{"ébash", false},
+		{"eval", true},
+		{"evals", false},
+		{"source x", true},
+		{"a.sh", true},
+		{"sh", true},
+		{"/bin/sh", true},
+		{"日本語sh", false},
+		{"sh日本語", false},
+		{"ls | sh", true},
+		{"re_sh", false},
+		{"", false},
+	})
+	for in, want := range map[string]string{"a.b c": "a.b|c", "x-y": "x|y", "é.ü ï": "é.ü|ï", "日本 語": "日本|語", ".": ".", "": ""} {
+		if got := strings.Join(wordDotRuns(in), "|"); got != want {
+			t.Errorf("wordDotRuns(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
