@@ -44,10 +44,10 @@ class ChangelogTest(unittest.TestCase):
         r = changelog(self.repo)
         self.assertEqual(r.returncode, 0, r.stderr)
         out = r.stdout
-        self.assertEqual(len(re.findall(r"^## ", out, re.M)), 2)
+        self.assertEqual(len(re.findall(r"^## ", out, re.M)), 3)
         self.assertIn("## [0.1.0] - Initial public release\n\nFirst public release of the factory, published from a fresh repository.", out)
         self.assertIn("v0.1.0 summarises the changes merged during private development.", out)
-        self.assertIn("## [0.2.0] - 2026-10-30\n", out)
+        self.assertIn("## [0.3.0] - 2026-10-30\n", out)
         self.assertRegex(out, r"(?m)^#### Added\n\n- T-0001: add widget\n")
         self.assertRegex(out, r"(?m)^#### Fixed\n\n- T-0002: fix crash on\n")
         self.assertRegex(out, r"(?m)^#### Security\n\n- T-0005: tighten deny rule\n")
@@ -55,12 +55,23 @@ class ChangelogTest(unittest.TestCase):
         self.assertNotIn("T-0003", out)  # no (#N): not a merged PR
         self.assertNotIn("alice", out)  # scrub hit dropped
         self.assertIn("1 subject(s) dropped", r.stderr)
-        generated = out[out.index("### Added"):out.index("## [0.1.0]")]  # curated notes on both sides also use bullets
+        generated = out[out.index("### All merged changes"):out.index("## [0.2.0]")]  # curated notes on both sides also use bullets
         entries = [l for l in generated.splitlines() if l.startswith("- ")]
         self.assertEqual(len(entries), 3)
         for l in entries:
             self.assertNotIn("(#", l)
             self.assertIsNone(re.search(r"\d{4}-\d{2}-\d{2}", l))
+
+    def test_release_pr_subject_not_listed_and_check_passes(self):
+        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        git(self.repo, "commit", "-q", "--allow-empty", "-m", f"Release v{version} (#227)")
+        git(self.repo, "commit", "-q", "--allow-empty", "-m", "T-0006: later change (#6)")
+        out = changelog(self.repo).stdout
+        self.assertNotIn("Release v", out.split("## [0.2.0]")[0].split("### All merged changes")[1])
+        self.assertIn("- T-0006: later change\n", out)
+        f = os.path.join(self.repo, "CHANGELOG.md")
+        self.assertEqual(changelog(self.repo, "--write", "--file", f).returncode, 0)
+        self.assertEqual(changelog(self.repo, "--check", "--file", f).returncode, 0)
 
     def test_since_limits_range(self):
         sha = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD~1"], capture_output=True, text=True).stdout.strip()
@@ -107,15 +118,15 @@ class ChangelogTest(unittest.TestCase):
     def test_write_puts_curated_block_under_heading(self):
         out = changelog(self.repo).stdout
         notes = (ROOT / "ci" / "release-notes" / "0.1.0.md").read_text(encoding="utf-8").strip()
-        self.assertEqual(len(re.findall(r"^### Highlights$", out, re.M)), 2)
-        self.assertLess(out.index("## [0.2.0]"), out.index("### All merged changes"))
+        self.assertEqual(len(re.findall(r"^### Highlights$", out, re.M)), 3)
+        self.assertLess(out.index("## [0.3.0]"), out.index("### All merged changes"))
         self.assertLess(out.index("### All merged changes"), out.index("## [0.1.0]"))
         self.assertLess(out.index("## [0.1.0]"), out.index(notes))
 
     def test_committed_changelog_has_curated_block_first(self):
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 2)
-        self.assertLess(text.index("## [0.2.0]"), text.index("### Highlights"))
+        self.assertEqual(len(re.findall(r"^### Highlights$", text, re.M)), 3)
+        self.assertLess(text.index("## [0.3.0]"), text.index("### Highlights"))
         self.assertLess(text.index("## [0.1.0]"), text.rindex("### Highlights"))
 
     def test_release_notes_are_public_text(self):

@@ -12,8 +12,10 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -24,7 +26,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
-PLACEHOLDER_RES = (re.compile(r"\b(?:TODO|TBD|FIXME|XXX)\b"), re.compile(r"__[A-Z_]+__"), re.compile(r"<[a-z][a-z -]*>"))
+PLACEHOLDER_RES = (re.compile(r"TODO|TBD|FIXME|XXX|__[A-Z_]+__|<[a-z][a-z -]*>|<!--"),)
+SMOKE_VERSION_RE = re.compile(r"^hivemill (\S+)(?:\s|$)")
 REMOTE_RE = re.compile(r"^(?:https://github\.com/|git@github\.com:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
 SMOKE_WAIT_S = 20
 
@@ -153,8 +156,9 @@ class Gate:
         factory = [sys.executable, os.path.join(src, "bin", "factory")]
         rc, out, err = self.run(factory + ["--version"], env=env)
         want = f"hivemill {self.version}"
-        if rc != 0 or not out.startswith(want):
-            return False, f"factory --version printed {out.strip()!r} (exit {rc}), want it to start with {want!r}. {err.strip()}"
+        m = SMOKE_VERSION_RE.match(out)
+        if rc != 0 or not m or m.group(1) != self.version:
+            return False, f"factory --version printed {out.strip()!r} (exit {rc}), want version exactly {self.version!r} ({want!r}). {err.strip()}"
         rc, out, err = self.run([sys.executable, os.path.join(src, "ci", "demo_seed.py"), "--home", demo], env=env)
         if rc != 0:
             return False, f"demo_seed.py exit {rc}: {(err or out).strip()[-300:]}"
@@ -168,11 +172,30 @@ class Gate:
     def public_text(self):
         src = os.path.join(self.tmp, "src")
         notes = os.path.join(src, "ci", "release-notes", f"{self.version}.md")
-        rc, out, err = self.run([sys.executable, os.path.join(src, "ci", "public_text_guard.py"), "text", notes], env=self.env)
+        env = dict(self.env)
+        if not env.get("SCRUB_TERMS_FILE"):
+            terms = self.config_terms_file()
+            if terms:
+                env["SCRUB_TERMS_FILE"] = terms
+        rc, out, err = self.run([sys.executable, os.path.join(src, "ci", "public_text_guard.py"), "text", notes], env=env)
         if rc == 0:
             return True, f"public_text_guard.py text ci/release-notes/{self.version}.md is clean"
         why = "owner terms not loaded, the guard fails closed" if rc == 2 else "hits"
         return False, f"public_text_guard.py exit {rc} ({why}): {(err or out).strip()[-300:]}"
+
+    def config_terms_file(self):
+        """scrub_terms_file from the factory config, or "" when unset or unreadable (the guard then fails closed)."""
+        home = os.path.expanduser(self.env.get("FACTORY_HOME") or "~/factory")
+        db = os.path.join(home, "db", "factory.db")
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+            try:
+                row = con.execute("SELECT value FROM config WHERE key = 'scrub_terms_file'").fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return ""
+        return (row[0] or "").strip() if row else ""
 
     def tag_free(self):
         tag = f"v{self.version}"
@@ -208,12 +231,19 @@ class Gate:
             shutil.rmtree(self.tmp, ignore_errors=True)
         return all(results)
 
+    def origin_url(self):
+        """https clone URL of the checked repo's origin (freshbox runs as another user, so no ssh URL); falls back to --repo."""
+        rc, url, _ = self.git("remote", "get-url", "origin")
+        m = REMOTE_RE.match(url.strip()) if rc == 0 else None
+        owner, name = m.groups() if m else self.repo.split("/", 1)
+        return f"https://github.com/{owner}/{name}.git"
+
     def owner_commands(self):
         v = self.version
         lines = []
         if v.split(".")[2] == "0":
             lines += [f"Reminder: v{v} is a MINOR (or MAJOR) release. Before tagging, the owner also runs the full fresh-box test:",
-                      "  sudo python3 ci/freshbox_test.py"]
+                      f"  cd {shlex.quote(self.root)} && sudo python3 ci/freshbox_test.py --repo {shlex.quote(self.origin_url())} --ref {self.sha}"]
         lines += [f"Release v{v} is ready. Owner, run:",
                   "  git -C ~/factory fetch origin",
                   f"  git -C ~/factory tag -a v{v} -m v{v} {self.sha}",
