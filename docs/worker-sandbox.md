@@ -284,3 +284,7 @@ No host path is writable from the box. The tree is bound read-only, a private tm
 - Fail closed: no `newuidmap`/`newgidmap` (install the `uidmap` package), no subuid/subgid range for the owner, a failing probe, or a failing copy (tmpfs full, unreadable file) means the command is not run and `factory test` exits non-zero (3 for a build failure). It never falls back to the owner uid.
 - The tree must be readable by other (the box is not the owner or in the owner's group): directories 0755, not 0700. Files the owner keeps at 0600 inside the tree are copied and readable in the copy by design: the tree is the code under test.
 - Rollback: `factory config test_sandbox_subuid 0` (back to the owner uid with the same namespaces), or `factory config test_sandbox 0`.
+
+## PATH order in the pane (T-0746)
+
+The owner's zsh env file prepends `~/.local/bin` (the real `claude`) to PATH in every zsh, so the pane `--env PATH` alone lets the real binary win and the workerbox shim never runs. A sandboxed spawn therefore re-exports `PATH=<agent_dir>/bin:...` plus `hash -r` in the pane shell right after the pane is placed, and `sandbox_prepare` refuses the spawn (reason `path`, no pane started) when `command -v claude` in the pane shell (after that export, with the real startup files) is not `<agent_dir>/bin/claude`. A worker gh credential spawn gets the same export and an equivalent check for `gh` (refusal `gh-cred`). The post-start escape check is unchanged.
