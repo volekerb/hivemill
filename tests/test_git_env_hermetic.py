@@ -49,6 +49,17 @@ class ScrubTest(unittest.TestCase):
         env = {"GIT_DIR": "/x", "GIT_INDEX_FILE": "/i", "GIT_AUTHOR_NAME": "a", "GIT_EDITOR": "true", "PATH": "/bin"}
         self.assertEqual(_gitenv.leaked(env), ["GIT_DIR", "GIT_INDEX_FILE"])
 
+    def test_config_isolation_values_are_not_leaks_but_other_config_is(self):
+        iso = _gitenv.scrub({}, isolate_config=True)
+        self.assertEqual(_gitenv.leaked(iso), [])
+        self.assertEqual(_gitenv.leaked({"GIT_CONFIG_GLOBAL": "/elsewhere/cfg"}), ["GIT_CONFIG_GLOBAL"])
+        r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
+                           env=dict(os.environ, **iso))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
+                           env=dict(os.environ, GIT_CONFIG_GLOBAL="/elsewhere/cfg"))
+        self.assertIn("GitEnvLeak", r.stderr)
+
     def test_importing_with_git_dir_set_raises(self):
         r = subprocess.run([sys.executable, "-c", "import _gitenv"], cwd=TESTS, capture_output=True, text=True,
                            env=dict(os.environ, GIT_DIR="/x/.git"))

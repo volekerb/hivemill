@@ -30,9 +30,16 @@ class RemoteRefused(RuntimeError):
     pass
 
 
+def _is_isolation(key, value):
+    """scrub(isolate_config=True)'s own output (config pointed at /dev/null, or NOSYSTEM=1): an unsandboxed gate child of
+    the harness inherits it and re-imports this module, so it must not count as a leak (T-0801)."""
+    return key in CONFIG_ISOLATION and value in (os.devnull, "1")
+
+
 def leaked(environ):
     """GIT_* variables that would aim a test's git at a real repo: anything but identity and the harmless allowlist."""
-    return sorted(k for k in environ if k.startswith("GIT_") and k not in ALLOWED and not k.startswith(KEEP_PREFIXES))
+    return sorted(k for k, v in environ.items() if k.startswith("GIT_") and k not in ALLOWED
+                  and not k.startswith(KEEP_PREFIXES) and not _is_isolation(k, v))
 
 
 def assert_local_remote(url, root=None):
