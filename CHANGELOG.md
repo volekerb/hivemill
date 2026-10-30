@@ -16,7 +16,7 @@ Hivemill v0.3.0 is a pre-release: a versioned release process, a flag registry, 
 - **Versioned releases.** A `VERSION` file, `factory --version`, and a release workflow that refuses a tag that does not match `VERSION`. The process is in [docs/RELEASING.md](https://github.com/volekerb/hivemill/blob/main/docs/RELEASING.md).
 - **Flag registry.** `bin/flags.json` lists every config key with its default and lifecycle state, and `factory flags` prints it. A test fails when a config key is missing from the registry.
 - **Issue intake.** Opt-in (`issue_intake_repos`, empty and so off by default): the tick sends the director one message per new open public issue. See [docs/ISSUES.md](https://github.com/volekerb/hivemill/blob/main/docs/ISSUES.md).
-- **Release gate.** `ci/release_check.py` checks a merge commit against the release rules and prints the commands that tag it.
+- **Release gate.** `ci/release_check.py` checks a merge commit against the release rules and prints the commands that tag it. It matches the version exactly, checks for leftover placeholders more widely, and names the run directory in its reminder.
 
 ### New and changed
 
@@ -55,6 +55,7 @@ Hivemill v0.3.0 is a pre-release: a versioned release process, a flag registry, 
 
 #### Changed
 
+- release_check: exact smoke version, spec placeholder regex, freshbox cwd (T-0811)
 - tests/harness: assert_hermetic accepts the temp root the home was created under (T-0807)
 - Flag registry bin/flags.json + factory flags + coverage test (T-0793)
 - tests/_gitenv: normalise pane config/credential env instead of refusing it (T-0804)
