@@ -15,7 +15,9 @@ waiting for the lead's wake. Design: staff-engineer ADR M10886, "Parallel R+Q at
 ## What the tick does (step 2c)
 
 A task is a candidate when it is `in_review` with a `pr_url`, its goal is `active`, and it has no qa agent row (nor a
-`combined-<task>` one) and no verdict yet. A task with only a reviewer row (partial start) gets its qa on the next tick. A retry round after a FAIL is not a candidate: the lead spawns it as before.
+`combined-<task>` one) and no verdict yet. A task with only a reviewer row (partial start) gets its qa on the next tick.
+
+A task that already had a review round on an older head is handled by the re-run pass (`review_rerun_tick`, run first in the same step). It works per role on the current PR head: once all checks are green on a new head, each of reviewer and qa that is not done gets a fresh agent named `<role>-<task>-<sha8>` (first 8 sha chars). A role is done on a head when its agent row `<role>-<task>-<sha8>` exists or a verdict of that role on that head exists. The re-run is always reviewer + qa, never the combined agent. A gate-refused or queued qa is retried on the next tick; the `fyi` mail goes out for whatever did start. So a retry round after a FAIL needs no lead action: the tick starts it when the new head goes green.
 
 - Stored tier T2/T3 or unset (or `risk_tiers` off): `reviewer-<task>` and `qa-<task>` start in the same tick.
 - Stored tier T0/T1 with `risk_tiers=on`: one `combined-<task>` agent (role reviewer). It records the reviewer verdict, then

@@ -12109,10 +12109,12 @@ def review_rerun_tick(con):
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
         started = []
+        gate_closed = False
         for role in _rerun_missing(con, tid, sha):
             name = slug(f"{role}-{tid}-{sha[:8]}")
             if not gate(con, role=role)[0]:
-                return
+                gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
+                break
             try:
                 spawn(con, role, t["goal_id"], team, tid, name, prompt=brief)
             except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the others or the tick
@@ -12130,6 +12132,8 @@ def review_rerun_tick(con):
             send(con, boss, f"review autospawn: new head review started on {tid} @{sha[:8]}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} because head {sha} has all checks green "
                  "and no verdict yet. This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+        if gate_closed:
+            return
 
 
 def review_autospawn_tick(con):
