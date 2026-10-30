@@ -1,6 +1,7 @@
 import json
 import os
 import pwd
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -26,10 +27,19 @@ class GitGuardBase(unittest.TestCase):
         os.makedirs(self.wt)
         with open(os.path.join(self.wt, ".git"), "w") as f:
             f.write(f"gitdir: {self.home}/.git/worktrees/G-007-T-x\n")
+        # T-0743: the coder push pin resolves the own worktree from tasks.worktree of the factory DB
+        os.makedirs(os.path.join(self.home, "db"))
+        con = sqlite3.connect(os.path.join(self.home, "db", "factory.db"))
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES ('T-7', ?)", (self.wt,))
+        con.commit()
+        con.close()
 
     def run_hook(self, cmd, cwd=None, role="coder", override=True):
         env = {k: v for k, v in os.environ.items() if k != "WORKER_GUARD_LIVE_HOME"}
         env["HOME"] = self.tmp
+        env["FACTORY_HOME"] = self.home
+        env["FACTORY_AGENT"] = "coder-t-7"  # T-0689: a coder's only push is HEAD:factory/<own task id>
         if getattr(self, "scratch", None):
             env["WORKER_GUARD_SCRATCH"] = self.scratch  # the hook's own env: names the worker's scratchpad
         if override:
@@ -199,7 +209,7 @@ class ArchiveInitTests(GitGuardBase):
 
 class WorktreeTests(GitGuardBase):
     def test_linked_worktree_allowed(self):
-        for cmd in ("git commit -m x", "git push -u origin HEAD"):
+        for cmd in ("git commit -m x", "git push origin HEAD:factory/t-7"):
             with self.subTest(cmd=cmd):
                 self.allowed(cmd, cwd=self.wt)
 
@@ -221,7 +231,7 @@ class RedirectionTests(GitGuardBase):
                 self.blocked(cmd)
 
     def test_redirections_that_stay_in_worktree(self):
-        for cmd in (f"cd {self.wt} && git commit -m x", "git -C . commit -m x", f"git -C {self.wt} push",
+        for cmd in (f"cd {self.wt} && git commit -m x", "git -C . commit -m x", f"git -C {self.wt} push origin HEAD:factory/t-7",
                     f"bash -c 'cd {self.home} && git status'", f"(cd {self.home}); git add .",
                     "env GIT_DIR=x git status"):
             with self.subTest(cmd=cmd):
@@ -256,7 +266,7 @@ class RoleTests(GitGuardBase):
 
 
 class NoFalsePositiveTests(GitGuardBase):
-    CMDS = ("git status", "git diff", "git log --oneline -5", "git add -A", "git commit -F /tmp/m", "git push -u origin HEAD",
+    CMDS = ("git status", "git diff", "git log --oneline -5", "git add -A", "git commit -F /tmp/m", "git push origin HEAD:factory/t-7",
             "git fetch origin", "git checkout --detach origin/x", "git rebase origin/main", "git merge origin/main",
             "git stash list", "git worktree list", "git branch -a", "gh pr create --fill", "gh pr view",
             "gh pr checks --watch", "git remote -v", "git config --get user.name",

@@ -207,29 +207,31 @@ class TestGate(Base):
 
     def test_rendered_label(self):
         _, html = self.page(resources)
-        self.assertIn("derived (no herdr check)", html)
-        self.assertIn("likely OPEN", html)
+        self.assertIn("no live pane check", html)
+        self.assertIn("Gate open", html)
+        self.assertIn("Derived from the database and /proc", html)
 
 
 class TestResources(Base):
     def test_machine_config_and_perday(self):
         d, html = self.page(resources)
         self.assertGreater(d["machine"]["mem_available_mb"], 0)
-        self.assertIn("MemAvailable", html)
+        self.assertIn("Memory available", html)
+        self.assertIn('<span class="gl">Memory</span>', html)
         keys = {r["key"] for r in d["config"]}
         self.assertTrue({"max_agents", "judge_mode", "max_live_agents"} <= keys)
         self.assertEqual(sum(x["merges"] for x in d["per_day"]), 2)
         self.assertEqual(sum(x["queued"] for x in d["per_day"]), 2)
         self.assertEqual(sum(x["escalations"] for x in d["per_day"]), 4)
 
-    def test_per_day_bars_show_counts(self):
+    def test_per_day_table_shows_counts(self):
         d, html = self.page(resources)
-        found = re.findall(r'aria-label="(\d+) of max (\d+)"><span class="mono">([^<]*)</span>', html)
-        self.assertEqual(len(found), 4 * len(d["per_day"]))
-        for n, mx, shown in found:
-            self.assertEqual(shown, n)
-            self.assertLessEqual(int(n), int(mx))
-        self.assertIn("2 of max 2", html)   # the merges column peaks at 2 on one day
+        body = html.split("<h2>Per day")[1].split("</table>")[0]
+        rows = re.findall(r"<tr><td>(\d\d-\d\d)</td><td class=\"num\">(\d+)</td><td class=\"num\">(\d+)</td>"
+                          r"<td class=\"num\">(\d+)</td><td class=\"num\">(\d+)</td></tr>", body)
+        self.assertEqual(len(rows), len(d["per_day"]))
+        for (day, sp, qu, me, es), x in zip(rows, d["per_day"]):
+            self.assertEqual((day, int(sp), int(qu), int(me), int(es)), (x["day"][5:], x["spawns"], x["queued"], x["merges"], x["escalations"]))
 
     def test_timeline_contents_and_no_bodies(self):
         d, html = self.page(resources)

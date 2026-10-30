@@ -230,7 +230,7 @@ class TickGitHardeningTests(FactoryTestCase):
         live = self.env.home / "live"
         live.mkdir()
         git("init", "-q", "-b", "main", cwd=live)
-        git("remote", "add", "origin", origin, cwd=live)
+        git("remote", "add", "origin", origin, cwd=live, inert_remote=True)
         return live
 
     def stored_url(self):

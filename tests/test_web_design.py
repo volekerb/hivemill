@@ -83,11 +83,13 @@ class Css(unittest.TestCase):
         self.assertIn("--row: 40px", desk)
         self.assertIn("--card-pad: 16px", desk)
 
-    def test_fonts_inter_and_jetbrains_first_no_font_files(self):
+    def test_fonts_inter_self_hosted_jetbrains_not_vendored(self):
         self.assertRegex(CSS, r'--font:\s*"Inter", system-ui')
         self.assertRegex(CSS, r'--mono:\s*"JetBrains Mono", ui-monospace')
         self.assertFalse([p.name for p in STATIC.iterdir() if p.suffix.lower() in (".woff", ".woff2", ".ttf", ".otf")])
-        self.assertNotIn("@font-face", CSS)
+        self.assertEqual(re.findall(r'@font-face\s*\{\s*font-family:\s*"([^"]+)"', CSS), ["Inter"] * 4)
+        self.assertEqual(sorted(p.name for p in (STATIC / "fonts").glob("*.woff2")),
+                         ["Inter-Bold.woff2", "Inter-Medium.woff2", "Inter-Regular.woff2", "Inter-SemiBold.woff2"])
 
     def test_active_nav_item_keeps_weight(self):
         self.assertNotIn("font-weight", block(".nav-item--active, .nav-item--active:hover"))
