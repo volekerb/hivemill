@@ -311,6 +311,8 @@ GIT_LSREMOTE_FLAGS = {"--heads", "--refs", "--symref", "--exit-code", "--get-url
 GIT_WORD = re.compile(r"(?:^|[\s/;&|])git(?:-\S*)?(?:\s|$)")
 GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=")
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(\+?=.*)?$")
+PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)$")
+PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):?=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
@@ -998,7 +1000,11 @@ class Analyzer:
                 for m in re.finditer(r">[>|]?\s*[^\s;|&]*(?:\$\(|`)[^;|&\n]*", text):
                     if persist_code(m.group(0)):
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
-        text, extras = preprocess(text, self.hq, self.pt.bodies if self.pt else None)
+        nbodies = self.pt.bodies if self.pt else []
+        seen = len(nbodies)
+        text, extras = preprocess(text, self.hq, nbodies)
+        if self.role in NO_PUSH_ROLES and not self.hq:
+            self.call_assign(text, [b for _, b in nbodies[seen:]])
         for kind, body in extras:
             if kind == "sh":
                 self.soft(self.script, body, depth + 1)
@@ -1910,6 +1916,108 @@ class Analyzer:
             raise Block(f"{self.role} may not set, export or unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_*: they select "
                         "the git config, helpers and pager (an alias there hides a push); ask your lead")
 
+    def call_assign(self, text, bodies):
+        """T-0771 (attempt 3): whole-call checks for NO_PUSH_ROLES: a `{NAME}>f` named-fd redirect assigns NAME; a call that
+        declares a nameref (-n) may not name a protected variable anywhere (the split `declare -n r; r=HOME; read r` form);
+        ${VAR:=x} in a heredoc body is scanned like one in a word."""
+        for m in re.finditer(r"(?<![\w$\\])\{([A-Za-z_]\w*|[^\s{}]*\$[^\s{}]*)\}(?=[<>])", text):
+            name = m.group(1)
+            if PROTECTED_NAME.match(name) or "$" in name:
+                raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with a named-fd redirect "
+                            f"({{{name}}}>: it assigns the variable, or the name is dynamic); use a plain variable name, "
+                            "or ask your lead")
+        for m in re.finditer(r"(?<![\w-])coproc\s+([^\s{(;|&<>]+)\s+(?=[^\s;|&)])", text):  # coproc is stripped by cmd()
+            name = m.group(1).strip("'\"")
+            if PROTECTED_NAME.match(name) or re.search(r"[$`!*?{\[]", name):
+                raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with coproc NAME "
+                            f"({name!r}: it assigns the variable, or the name is dynamic); use a plain variable name, "
+                            "or ask your lead")
+        if re.search(r"(?<![\w-])(declare|typeset|local)\b[^;&|\n]*\s-[A-Za-z]*n", text) and \
+                re.search(r"(?<![\w])(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(?![\w])", text):
+            raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* ... in a call that declares a "
+                        "nameref (-n): the nameref could assign it later; declare the nameref in a call that does not name "
+                        "them, or ask your lead")
+        for body in bodies:
+            self.builtin_assign([], [], (body,))
+
+    def builtin_assign(self, assigns, words, extra=()):
+        """T-0771: NO_PUSH_ROLES may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* through a builtin either (read,
+        printf -v, mapfile/readarray, for/select, getopts, let, declare-like, `${VAR:=x}` / `${VAR=x}`), and fail closed
+        when the target name is dynamic."""
+        def bad(name):
+            return bool(PROTECTED_NAME.match(re.sub(r"\[\d+\]$", "", name)))  # HOME[0] is HOME
+
+        def dyn(name):
+            # expansion/glob/brace/subscript other than [digits] can name HOME at run time: fail closed
+            return bool(re.search(r"[$`!*?{]", name)) or bool(re.search(r"\[", re.sub(r"\[\d+\]$", "", name)))
+
+        def deny(what, name):
+            why = "dynamic target name" if dyn(name) else "it selects the git config, helpers or pager"
+            raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with {what} ({name!r}: {why}); "
+                        "use a plain variable name, or ask your lead")
+
+        for w in [*assigns, *words, *extra]:
+            m = PARAM_DEFAULT.search(w)
+            if m and m.group(1).startswith("!"):
+                deny("an indirect ${!VAR:=...} default", m.group(1))
+            if m and (bad(m.group(1)) or dyn(m.group(1))):
+                deny("a ${VAR:=...} default", m.group(1))
+        if not words:
+            return
+        name, rest = os.path.basename(words[0]), words[1:]
+        targets = []
+        if name in ("read", "mapfile", "readarray"):
+            argopt = set("padnNtui") if name == "read" else set("dnOsuCc")
+            skip = None
+            for a in rest:
+                if skip is not None:
+                    if skip == "a":
+                        targets.append(a)
+                    skip = None
+                elif a.startswith("-") and len(a) > 1:
+                    for k, c in enumerate(a[1:], 1):
+                        if c in argopt:  # the rest of the cluster (-aHOME) or the next word is its argument
+                            if a[k + 1:]:
+                                if c == "a":
+                                    targets.append(a[k + 1:])
+                            else:
+                                skip = c
+                            break
+                else:
+                    targets.append(a)
+        elif name == "printf":
+            for j, a in enumerate(rest):
+                if a == "-v" and j + 1 < len(rest):
+                    targets.append(rest[j + 1])
+                elif a.startswith("-v") and len(a) > 2:
+                    targets.append(a[2:])
+        elif name in ("for", "select") and rest:
+            targets.append(rest[0])
+        elif name == "wait":
+            for j, a in enumerate(rest):
+                if a.startswith("-") and not a.startswith("--") and "p" in a:
+                    tail = a[a.index("p") + 1:]  # -pNAME, or the next word
+                    if tail:
+                        targets.append(tail)
+                    elif j + 1 < len(rest):
+                        targets.append(rest[j + 1])
+        elif name == "getopts":
+            targets += [a for a in rest if not a.startswith("-")][:2]  # optstring too: fail closed
+        elif name == "let":
+            for a in rest:
+                targets += re.findall(r"[A-Za-z_]\w*|\$\S*", a.split("=", 1)[0] if "=" in a else a)
+        elif name in DECLARERS:
+            targets += [a.split("=", 1)[0] for a in rest if not a.startswith("-")]
+            if any(a.startswith("-") and not a.startswith("--") and "n" in a for a in rest):
+                for a in rest:  # nameref: declare -n r=HOME makes `read r` assign HOME
+                    if not a.startswith("-") and "=" in a:
+                        v = a.split("=", 1)[1]
+                        if bad(v) or dyn(v):
+                            deny(name + " -n", v)
+        for t in targets:
+            if bad(t) or dyn(t):
+                deny(name, t)
+
     def task_worktree(self, task):
         """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
         try:
@@ -1930,6 +2038,7 @@ class Analyzer:
         words = stripped
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.git_config_env(assigns, words)
+            self.builtin_assign(assigns, words, hstrs)
             self.git_launch(assigns, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":

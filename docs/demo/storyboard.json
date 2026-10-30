@@ -2,32 +2,16 @@
   "fps": 30,
   "width": 1920,
   "height": 1080,
+  "scale": 2,
   "scenes": [
-    {"id": "hook", "beat": 1, "source": "scenes/hook.html", "duration": 6, "captions": [
-      {"at": 1.0, "until": 6.0, "text": "Talk to one agent. A whole team ships your PRs."}
-    ]},
-    {"id": "request", "beat": 2, "source": "scenes/request.html", "duration": 8, "captions": [
-      {"at": 0.5, "until": 7.5, "text": "You talk to one agent: the boss. Plain English."}
-    ]},
-    {"id": "orgchart", "beat": 3, "source": "scenes/orgchart.html", "duration": 14, "captions": [
-      {"at": 0.0, "until": 7.0, "text": "The boss briefs a director. The director staffs a team."},
-      {"at": 7.0, "until": 14.0, "text": "Every agent has one job, its own prompt and its own permissions."}
-    ]},
-    {"id": "panes", "beat": 4, "source": "scenes/panes.html", "duration": 12, "captions": [
-      {"at": 0.5, "until": 11.5, "text": "Each agent works in its own pane and its own git worktree."}
-    ]},
-    {"id": "mergegate", "beat": 5, "source": "scenes/mergegate.html", "duration": 12, "captions": [
-      {"at": 0.0, "until": 6.0, "text": "Nothing merges on an agent's word."},
-      {"at": 6.0, "until": 12.0, "text": "Reviewer and QA check the evidence. The judge holds the gate."}
-    ]},
-    {"id": "tour", "beat": 6, "source": "ui:/", "duration": 16,
-     "pages": ["/", "/goals", "/agents", "/quality"],
-     "labels": ["Overview", "Goals", "Agents", "Quality"],
-     "page_duration": 4,
-     "captions": [
-      {"at": 0.0, "until": 16.0, "text": "One dashboard for every goal, agent and verdict."}
-    ]},
-    {"id": "close", "beat": 7, "source": "scenes/close.html", "duration": 8, "captions": []}
+    {"id": "open", "beat": 1, "source": "ui:/", "duration": 5, "page_duration": 5, "pages": [{"path": "/", "label": "Overview", "duration": 5, "scroll_to": 0, "fade_in": false, "push_in": 1.04}], "captions": [{"at": 0.0, "until": 5.0, "text": "This whole software team is AI agents."}]},
+    {"id": "problem", "beat": 2, "source": "scenes/problem.html", "duration": 6, "captions": [{"at": 0.5, "until": 6.0, "text": "One AI coder is fast. It also says “done” when it isn't."}]},
+    {"id": "request", "beat": 3, "source": "scenes/request.html", "duration": 6, "captions": [{"at": 0.5, "until": 6.0, "text": "So you talk to one agent, the boss. Plain English."}]},
+    {"id": "orgchart", "beat": 4, "source": "scenes/orgchart.html", "duration": 10, "captions": [{"at": 0.0, "until": 5.0, "text": "The boss briefs a director. The director staffs a team."}, {"at": 5.0, "until": 10.0, "text": "pm, coder, QA, reviewer, judge. One job each."}]},
+    {"id": "work", "beat": 5, "source": "ui:/goal/G-002", "duration": 23, "page_duration": 8, "pages": [{"path": "/goal/G-002", "label": "Goal", "duration": 8, "hold": 1.5, "scroll_to": "section.sect:nth-of-type(2)"}, {"path": "/agents", "label": "Agents", "duration": 6, "hold": 1.0, "scroll_to": "section.sect:nth-of-type(1)"}, {"path": "/task/T-0008", "label": "Task", "duration": 9, "hold": 0.8, "scroll_to": "section.sect:nth-of-type(1)"}], "captions": [{"at": 0.0, "until": 8.0, "text": "The pm splits the goal into small tasks, each tied to a success criterion."}, {"at": 8.0, "until": 14.0, "text": "They work in parallel: own pane, own git worktree, own permissions."}, {"at": 14.0, "until": 18.5, "text": "QA tried postcode ABCDE for Germany. It passed. Bug."}, {"at": 18.5, "until": 23.0, "text": "Sent back, fixed, checked again, merged."}]},
+    {"id": "mergegate", "beat": 6, "source": "scenes/mergegate.html", "duration": 8, "captions": [{"at": 0.0, "until": 4.0, "text": "Nothing merges on an agent's word."}, {"at": 4.0, "until": 8.0, "text": "Reviewer and QA bring evidence. The judge holds the gate."}]},
+    {"id": "result", "beat": 7, "source": "ui:/changelog", "duration": 17, "page_duration": 6, "pages": [{"path": "/changelog", "label": "Shipped", "duration": 6, "hold": 1.5, "scroll_to": "section.sect:nth-of-type(1)"}, {"path": "/throughput", "label": "Throughput", "duration": 6, "hold": 1.5, "scroll_to": "section.sect:nth-of-type(2)"}, {"path": "/quality", "label": "Quality", "duration": 5, "hold": 0.5, "scroll_to": "section.sect:nth-of-type(3)"}], "captions": [{"at": 0.0, "until": 6.0, "text": "Every merge lands in a changelog you can read."}, {"at": 6.0, "until": 12.0, "text": "Merges per day, and where the time goes."}, {"at": 12.0, "until": 17.0, "text": "Every rejection is counted, by source, so you see what bounces."}]},
+    {"id": "close", "beat": 8, "source": "scenes/close.html", "duration": 5, "captions": [{"at": 0.5, "until": 5.0, "text": "Self-hosted. Open source (MIT). Claude Code underneath."}]}
   ],
-  "hero": {"scene": "orgchart", "start": 0.0, "end": 13.0, "width": 1600, "fps": 18, "quality": 85}
+  "hero": {"scene": "orgchart", "start": 0.0, "end": 10.0, "width": 1600, "fps": 20, "quality": 85}
 }

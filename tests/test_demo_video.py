@@ -88,7 +88,7 @@ class ArgBuilders(unittest.TestCase):
         q = self.pairs(dv.hero_args("hero.webp", 1280, 15, 30, 90))
         self.assertEqual((q["-quality"], q["-vf"]), ("90", "fps=15,scale=1280:-2"))
         hero = dv.load_board()["hero"]
-        self.assertEqual((hero["width"], hero["fps"], hero["quality"]), (1600, 18, 85))
+        self.assertEqual((hero["width"], hero["fps"], hero["quality"]), (1600, 20, 85))
 
     def test_concat_list_quotes(self):
         self.assertEqual(dv.concat_list(["/w/a.mp4", "/w/it's.mp4"]), "file '/w/a.mp4'\nfile '/w/it'\\''s.mp4'\n")
@@ -198,13 +198,13 @@ class Guards(unittest.TestCase):
         self.assertIn("2999 MB", err)
         self.assertIn("3000 MB", err)
         with mock.patch.object(dv, "mem_available_mb", lambda: 2999):  # same RAM is fine at 1x
-            rc, _, err = run_main("build", "--draft", "--out", "/tmp/x")
+            rc, _, err = run_main("build", "--draft", "--scale", "1", "--out", "/tmp/x")
         self.assertIn("/tmp", err)  # got past the memory check to the dir check
 
     def test_board_scale_reads_the_storyboard_for_the_memory_floor(self):
-        with mock.patch.object(dv, "load_board", lambda: {"scale": 2}):
+        with mock.patch.object(dv, "load_board", lambda *a: {"scale": 2}):
             self.assertEqual(dv.board_scale(), 2.0)
-        with mock.patch.object(dv, "load_board", lambda: {}):
+        with mock.patch.object(dv, "load_board", lambda *a: {}):
             self.assertEqual(dv.board_scale(), 1.0)
         with mock.patch.object(dv, "load_board", side_effect=OSError("gone")):
             self.assertEqual(dv.board_scale(), 1.0)
@@ -314,9 +314,10 @@ class SceneOrder(unittest.TestCase):
         seen = []
         for board_scale, want in ((None, 1.0), (1.5, 1.5)):
             board = dict(dv.load_board())
+            board.pop("scale", None)  # the repo storyboard captures at 2x
             if board_scale:
                 board["scale"] = board_scale
-            with tempfile.TemporaryDirectory() as d, mock.patch.object(dv, "load_board", lambda b=board: b), \
+            with tempfile.TemporaryDirectory() as d, mock.patch.object(dv, "load_board", lambda *a, b=board: b), \
                     mock.patch.object(dv, "record_one", lambda s, *a, **k: seen.append(k.get("scale")) or 1), \
                     mock.patch.object(dv, "stream", lambda args, feed, cwd=None: feed(mock.Mock())), \
                     mock.patch.object(dv.demo_tour, "prepare_demo_dir"), mock.patch.object(dv.demo_record, "check_dirs"), \
@@ -324,7 +325,7 @@ class SceneOrder(unittest.TestCase):
                     mock.patch.object(dv.demo_cdp, "serve_demo", return_value=(1234, mock.Mock())), \
                     mock.patch.object(dv.demo_cdp.screenshots, "current_hour", return_value="x"):
                 with contextlib.redirect_stdout(io.StringIO()):
-                    dv.build(Path(d) / "out", Path(d) / "work", None, only="hook")
+                    dv.build(Path(d) / "out", Path(d) / "work", None, only="problem")
             self.assertEqual(seen[-1], want)
 
     def test_only_records_one_clip_and_skips_encode(self):
@@ -334,8 +335,8 @@ class SceneOrder(unittest.TestCase):
                 mock.patch.object(dv, "stream", lambda args, feed, cwd=None: feed(mock.Mock())), \
                 mock.patch.object(dv, "run", side_effect=AssertionError("no encode with --only")):
             with contextlib.redirect_stdout(io.StringIO()):
-                dv.build(Path(d) / "out", Path(d) / "work", None, only="hook")
-        self.assertEqual(calls, ["hook"])
+                dv.build(Path(d) / "out", Path(d) / "work", None, only="problem")
+        self.assertEqual(calls, ["problem"])
 
     def test_relative_out_is_made_absolute(self):
         seen = {}
@@ -346,6 +347,54 @@ class SceneOrder(unittest.TestCase):
             run_main("build", "--draft", "--out", rel)
         self.assertTrue(seen["out"].is_absolute() and seen["work"].is_absolute(), seen)
 
+    def test_board_without_hero_builds_no_hero_loop(self):
+        events = []
+        board = dict(dv.load_board(dv.DEMO / "storyboard-linkedin.json"))
+        self.assertNotIn("hero", board)
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(dv, "record_one", lambda s, *a, **k: events.append((s["id"], k.get("hero", False))) or 1), \
+                mock.patch.object(dv, "stream", lambda args, feed, cwd=None: events.append(Path(args[-1]).name) or feed(mock.Mock())), \
+                mock.patch.object(dv, "run", lambda args, cwd=None: events.append(Path(args[-1]).name) or ""), \
+                mock.patch.object(dv.demo_tour, "prepare_demo_dir"), mock.patch.object(dv.demo_record, "check_dirs"), \
+                mock.patch.object(dv.demo_cdp, "seed_demo"), mock.patch.object(dv.demo_cdp, "stop"), \
+                mock.patch.object(dv.demo_cdp, "serve_demo", return_value=(1234, mock.Mock())), \
+                mock.patch.object(dv.demo_cdp.screenshots, "current_hour", return_value="x"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                dv.build(Path(d) / "out", Path(d) / "work", None, board_path=dv.DEMO / "storyboard-linkedin.json")
+        self.assertIn("demo.mp4", events)
+        self.assertNotIn("hero.webp", events)
+        self.assertEqual([e for e in events if isinstance(e, tuple)], [(s["id"], False) for s in board["scenes"]])
+
+    def test_html_scenes_get_the_captions_of_the_board_being_recorded(self):
+        seen = {}
+
+        def fake_scene(browser, url, duration, fps, sink, **k):
+            seen[k["scene_id"]] = (duration, k["captions"])
+            return 1
+
+        board = dv.load_board(dv.DEMO / "storyboard-linkedin.json")
+        org = next(s for s in board["scenes"] if s["id"] == "orgchart")
+        with mock.patch.object(dv.demo_cdp, "browser_binary", return_value="x"), \
+                mock.patch.object(dv.demo_cdp.Browser, "launch", return_value=mock.Mock()), \
+                mock.patch.object(dv.demo_record, "record_scene", fake_scene):
+            dv.record_one(org, board, None, Path("w"), lambda i, p: None)
+        self.assertEqual(seen["orgchart"], (8, org["captions"]))
+        self.assertEqual(org["captions"][-1]["until"], 8.0)
+
+    def test_check_skips_hero_only_for_a_board_without_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            board = Path(d) / "b.json"
+            board.write_text(json.dumps({"scenes": []}))
+            rc, out, _ = run_main("check", "--out", d, "--board", str(board))
+            self.assertEqual(rc, 1)
+            self.assertNotIn("hero.webp", out)
+            self.assertIn("FAIL: demo.mp4", out)
+            board.write_text(json.dumps({"scenes": [], "hero": {}}))
+            _, out, _ = run_main("check", "--out", d, "--board", str(board))
+            self.assertIn("FAIL: hero.webp", out)
+            _, out, _ = run_main("check", "--out", d, "--board", str(Path(d) / "missing.json"))
+            self.assertIn("FAIL: hero.webp", out)  # an unreadable board cannot waive the hero check
+
     def test_unknown_only_scene(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(dv.BuildError):
@@ -355,13 +404,13 @@ class SceneOrder(unittest.TestCase):
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg/ffprobe not installed")
 @unittest.skipUnless(os.environ.get("DEMO_BROWSER"), "DEMO_BROWSER (path to chrome-headless-shell) not set")
 class Integration(unittest.TestCase):
-    def test_draft_hook_clip_has_180_frames(self):
+    def test_draft_problem_clip_has_180_frames(self):
         with tempfile.TemporaryDirectory(dir=ROOT / "docs" / "demo") as d:
-            r = subprocess.run([sys.executable, str(ROOT / "ci" / "demo_video.py"), "build", "--draft", "--only", "hook",
+            r = subprocess.run([sys.executable, str(ROOT / "ci" / "demo_video.py"), "build", "--draft", "--only", "problem",
                                 "--browser", os.environ["DEMO_BROWSER"], "--out", d],
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            clip = Path(d) / "work" / "clips" / "01-hook.mp4"
+            clip = Path(d) / "work" / "clips" / "02-problem.mp4"
             p = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
                                 "-show_entries", "stream=nb_read_frames,r_frame_rate", "-of", "json", str(clip)],
                                capture_output=True, text=True, check=True)

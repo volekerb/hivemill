@@ -69,15 +69,14 @@ class HtmlContractTests(unittest.TestCase):
         self.assertIsNotNone(m, "panes.html must embed panes-script.json (file:// cannot fetch it)")
         self.assertEqual(json.loads(m.group(1)), panes())
 
-    def test_caption_data_matches_storyboard(self):
+    def test_caption_data_is_well_formed(self):
+        # panes is retired from the G-024 storyboard (its UI shot /agents replaced it); the file keeps its own data
         board = json.loads((ROOT / "docs" / "demo" / "storyboard.json").read_text())
-        scene = [s for s in board["scenes"] if s["id"] == "panes"][0]
+        self.assertNotIn("panes", [s["id"] for s in board["scenes"]])
         m = re.search(r'id="demo-data">(.*?)</script>', HTML.read_text(), re.S)
         d = json.loads(m.group(1))
         self.assertEqual(d["scene"], "panes")
-        self.assertEqual(d["duration"], scene["duration"])
-        self.assertEqual(d["captions"], scene["captions"])
-        self.assertEqual(scene["source"], "scenes/panes.html")
+        self.assertTrue(all(0 <= c["at"] < c["until"] <= d["duration"] for c in d["captions"]))
 
     def test_uses_seek_hook_and_theme(self):
         text = HTML.read_text()

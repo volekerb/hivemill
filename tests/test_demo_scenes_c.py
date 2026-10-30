@@ -1,16 +1,18 @@
-"""docs/demo scenes C (hook, request, close): static guards need no browser; the frame test needs DEMO_BROWSER."""
+"""docs/demo scenes C (hook, problem, request, close): static guards need no browser; the frame test needs DEMO_BROWSER.
+hook is retired from the G-024 storyboard; its file stays and keeps every check except the storyboard match."""
 import json
 import os
 import re
 import subprocess
 import tempfile
 import unittest
+from html import unescape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "docs" / "demo"
 SCENES = DEMO / "scenes"
-IDS = ["hook", "request", "close"]
+IDS = ["hook", "problem", "request", "close"]
 TIMING = re.compile(r"Date\.now|setTimeout|setInterval|requestAnimationFrame")
 DATA_BLOCK = re.compile(r'<script type="application/json" id="demo-data">(.*?)</script>', re.S)
 
@@ -19,8 +21,12 @@ def html(scene_id):
     return (SCENES / (scene_id + ".html")).read_text()
 
 
+def board_scenes():
+    return {s["id"]: s for s in json.loads((DEMO / "storyboard.json").read_text())["scenes"]}
+
+
 def board_scene(scene_id):
-    return {s["id"]: s for s in json.loads((DEMO / "storyboard.json").read_text())["scenes"]}[scene_id]
+    return board_scenes()[scene_id]
 
 
 def embedded(scene_id):
@@ -44,7 +50,9 @@ class SceneStaticTests(unittest.TestCase):
             self.assertIsNone(re.search(r"https?://", html(i)), i)
 
     def test_declared_duration_and_captions_match_storyboard(self):
-        for i in IDS:
+        used = [i for i in IDS if i in board_scenes()]
+        self.assertEqual(used, ["problem", "request", "close"])
+        for i in used:
             data, scene = embedded(i), board_scene(i)
             self.assertEqual(data["scene"], i)
             self.assertEqual(data["duration"], scene["duration"], i)
@@ -71,14 +79,24 @@ class SceneStaticTests(unittest.TestCase):
     def test_exact_texts(self):
         self.assertIn("Talk to one agent.", html("hook"))
         self.assertIn("A whole team ships your PRs.", html("hook"))
-        self.assertIn("Add CSV export to the acme-web reports page", html("request"))
-        self.assertEqual(html("request").count("Goal G-004 created. The director is staffing a team."), 1)
+        # request.html tells the seeded story (ci/demo_seed.py G-002 "Build the checkout flow", project acme-web)
+        self.assertIn("Build the checkout flow for acme-web.", html("request"))
+        self.assertEqual(html("request").count("Goal G-002 created. The director is staffing a team."), 1)
         self.assertIn(">boss<", html("request"))
+        self.assertNotIn("CSV export", html("request"))
+        problem = unescape(re.sub(r"<[^>]+>", "", html("problem").split('<div class="hero">')[1].split("</div>\n</div>")[0]))
+        self.assertIn("One AI coder is fast.", problem)
+        self.assertIn("It also says \u201cdone\u201d when it isn't.", problem)
+
+    def test_problem_strikes_done_at_4s(self):
+        text = html("problem")
+        self.assertRegex(text, r'<span class="done">(<span class="ch"[^>]*>[done]</span>){4}<i class="strike"></i></span>')
+        self.assertRegex(text, r"\.strike \{[^}]*animation: strike [.\d]+s [^;]* 4s 1 both")
 
     def test_scenes_fade_in_from_background(self):
         for i in IDS:
             self.assertRegex(html(i), r"\.fade \{ animation: fade-in [^;]*both", i)
-        for i in ["hook", "request"]:
+        for i in ["hook", "problem", "request", "close"]:
             # a later `both` fade-out would hold opacity 0 from t=0 and cancel the fade-in
             self.assertRegex(html(i), r"fade-out [^;,]*forwards", i)
             self.assertNotRegex(html(i), r"fade-out [^;,]*both", i)
