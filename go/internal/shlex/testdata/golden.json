@@ -1,6 +1,639 @@
 {
 "cases": [
 {
+"input": "uvx pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "quote",
+"quoted": "'uvx pytest'",
+"src": "corpus"
+},
+{
+"input": "uvx --from x pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--from",
+"x",
+"pytest"
+]
+},
+{
+"input": "uvx --from x pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--from",
+"x",
+"pytest"
+]
+},
+{
+"input": "uvx --from x pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--from",
+"x",
+"pytest"
+]
+},
+{
+"input": "uvx --from x pytest",
+"mode": "quote",
+"quoted": "'uvx --from x pytest'",
+"src": "corpus"
+},
+{
+"input": "uvx pytest==8.0",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest==8.0"
+]
+},
+{
+"input": "uvx pytest==8.0",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest==8.0"
+]
+},
+{
+"input": "uvx pytest==8.0",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest==8.0"
+]
+},
+{
+"input": "uvx pytest==8.0",
+"mode": "quote",
+"quoted": "'uvx pytest==8.0'",
+"src": "corpus"
+},
+{
+"input": "uv tool run pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "quote",
+"quoted": "'uv tool run pytest'",
+"src": "corpus"
+},
+{
+"input": "uv --quiet tool run py.test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"--quiet",
+"tool",
+"run",
+"py.test"
+]
+},
+{
+"input": "uv --quiet tool run py.test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"--quiet",
+"tool",
+"run",
+"py.test"
+]
+},
+{
+"input": "uv --quiet tool run py.test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"--quiet",
+"tool",
+"run",
+"py.test"
+]
+},
+{
+"input": "uv --quiet tool run py.test",
+"mode": "quote",
+"quoted": "'uv --quiet tool run py.test'",
+"src": "corpus"
+},
+{
+"input": "uvx 'pytest[testing]'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest[testing]"
+]
+},
+{
+"input": "uvx 'pytest[testing]'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest[testing]"
+]
+},
+{
+"input": "uvx 'pytest[testing]'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest[testing]"
+]
+},
+{
+"input": "uvx 'pytest[testing]'",
+"mode": "quote",
+"quoted": "'uvx '\"'\"'pytest[testing]'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "uvx --index-url https://pypi.example.org/simple pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--index-url",
+"https://pypi.example.org/simple",
+"pytest"
+]
+},
+{
+"input": "uvx --index-url https://pypi.example.org/simple pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--index-url",
+"https",
+":",
+"//pypi.example.org/simple",
+"pytest"
+]
+},
+{
+"input": "uvx --index-url https://pypi.example.org/simple pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"--index-url",
+"https://pypi.example.org/simple",
+"pytest"
+]
+},
+{
+"input": "uvx --index-url https://pypi.example.org/simple pytest",
+"mode": "quote",
+"quoted": "'uvx --index-url https://pypi.example.org/simple pytest'",
+"src": "corpus"
+},
+{
+"input": "python3 -m unittest discover -s tests -p test_X.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"unittest",
+"discover",
+"-s",
+"tests",
+"-p",
+"test_X.py"
+]
+},
+{
+"input": "python3 -m unittest discover -s tests -p test_X.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"unittest",
+"discover",
+"-s",
+"tests",
+"-p",
+"test_X.py"
+]
+},
+{
+"input": "python3 -m unittest discover -s tests -p test_X.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"unittest",
+"discover",
+"-s",
+"tests",
+"-p",
+"test_X.py"
+]
+},
+{
+"input": "python3 -m unittest discover -s tests -p test_X.py",
+"mode": "quote",
+"quoted": "'python3 -m unittest discover -s tests -p test_X.py'",
+"src": "corpus"
+},
+{
+"input": "python3 -m unittest tests.test_x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"unittest",
+"tests.test_x"
+]
+},
+{
+"input": "python3 -m unittest tests.test_x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"unittest",
+"tests.test_x"
+]
+},
+{
+"input": "python3 -m unittest tests.test_x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"unittest",
+"tests.test_x"
+]
+},
+{
+"input": "python3 -m unittest tests.test_x",
+"mode": "quote",
+"quoted": "'python3 -m unittest tests.test_x'",
+"src": "corpus"
+},
+{
+"input": "uvx pytest\u3000tests",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest\u3000tests"
+]
+},
+{
+"input": "uvx pytest\u3000tests",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest",
+"\u3000",
+"tests"
+]
+},
+{
+"input": "uvx pytest\u3000tests",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest\u3000tests"
+]
+},
+{
+"input": "uvx pytest\u3000tests",
+"mode": "quote",
+"quoted": "'uvx pytest\u3000tests'",
+"src": "corpus"
+},
+{
+"input": "uvx pytest\u2028tests",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest\u2028tests"
+]
+},
+{
+"input": "uvx pytest\u2028tests",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest",
+"\u2028",
+"tests"
+]
+},
+{
+"input": "uvx pytest\u2028tests",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest\u2028tests"
+]
+},
+{
+"input": "uvx pytest\u2028tests",
+"mode": "quote",
+"quoted": "'uvx pytest\u2028tests'",
+"src": "corpus"
+},
+{
+"input": "pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"pytest"
+]
+},
+{
+"input": "pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"pytest"
+]
+},
+{
+"input": "pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"pytest"
+]
+},
+{
+"input": "pytest",
+"mode": "quote",
+"quoted": "pytest",
+"src": "corpus"
+},
+{
+"input": "python3 -m pytest tests/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"pytest",
+"tests/"
+]
+},
+{
+"input": "python3 -m pytest tests/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"pytest",
+"tests/"
+]
+},
+{
+"input": "python3 -m pytest tests/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"pytest",
+"tests/"
+]
+},
+{
+"input": "python3 -m pytest tests/",
+"mode": "quote",
+"quoted": "'python3 -m pytest tests/'",
+"src": "corpus"
+},
+{
+"input": "py.test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"py.test"
+]
+},
+{
+"input": "py.test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"py.test"
+]
+},
+{
+"input": "py.test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"py.test"
+]
+},
+{
+"input": "py.test",
+"mode": "quote",
+"quoted": "py.test",
+"src": "corpus"
+},
+{
+"input": "uv run pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv run pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv run pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv run pytest",
+"mode": "quote",
+"quoted": "'uv run pytest'",
+"src": "corpus"
+},
+{
+"input": "uv run python -m pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"run",
+"python",
+"-m",
+"pytest"
+]
+},
+{
+"input": "uv run python -m pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"run",
+"python",
+"-m",
+"pytest"
+]
+},
+{
+"input": "uv run python -m pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"run",
+"python",
+"-m",
+"pytest"
+]
+},
+{
+"input": "uv run python -m pytest",
+"mode": "quote",
+"quoted": "'uv run python -m pytest'",
+"src": "corpus"
+},
+{
+"input": "python3 -m pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"pytest"
+]
+},
+{
+"input": "python3 -m pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"pytest"
+]
+},
+{
+"input": "python3 -m pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"pytest"
+]
+},
+{
+"input": "python3 -m pytest",
+"mode": "quote",
+"quoted": "'python3 -m pytest'",
+"src": "corpus"
+},
+{
 "input": "python3 -m unittest discover -s tests -v",
 "mode": "script",
 "src": "corpus",
@@ -19821,6 +20454,195 @@
 "src": "corpus"
 },
 {
+"input": "factory test tests/test_x.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"test",
+"tests/test_x.py"
+]
+},
+{
+"input": "factory test tests/test_x.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"test",
+"tests/test_x.py"
+]
+},
+{
+"input": "factory test tests/test_x.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"test",
+"tests/test_x.py"
+]
+},
+{
+"input": "factory test tests/test_x.py",
+"mode": "quote",
+"quoted": "'factory test tests/test_x.py'",
+"src": "corpus"
+},
+{
+"input": "factory test",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"test"
+]
+},
+{
+"input": "factory test",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"test"
+]
+},
+{
+"input": "factory test",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"test"
+]
+},
+{
+"input": "factory test",
+"mode": "quote",
+"quoted": "'factory test'",
+"src": "corpus"
+},
+{
+"input": "uvx ruff check .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx ruff check .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx ruff check .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uvx ruff check .",
+"mode": "quote",
+"quoted": "'uvx ruff check .'",
+"src": "corpus"
+},
+{
+"input": "uv tool run ruff check .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uv tool run ruff check .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uv tool run ruff check .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"ruff",
+"check",
+"."
+]
+},
+{
+"input": "uv tool run ruff check .",
+"mode": "quote",
+"quoted": "'uv tool run ruff check .'",
+"src": "corpus"
+},
+{
+"input": "uv pip list",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"pip",
+"list"
+]
+},
+{
+"input": "uv pip list",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"pip",
+"list"
+]
+},
+{
+"input": "uv pip list",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"pip",
+"list"
+]
+},
+{
+"input": "uv pip list",
+"mode": "quote",
+"quoted": "'uv pip list'",
+"src": "corpus"
+},
+{
 "input": "awk 1 ~/.zshrc",
 "mode": "script",
 "src": "corpus",
@@ -28963,45 +29785,6 @@
 "src": "corpus"
 },
 {
-"input": "uvx ruff check .",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"uvx",
-"ruff",
-"check",
-"."
-]
-},
-{
-"input": "uvx ruff check .",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"uvx",
-"ruff",
-"check",
-"."
-]
-},
-{
-"input": "uvx ruff check .",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"uvx",
-"ruff",
-"check",
-"."
-]
-},
-{
-"input": "uvx ruff check .",
-"mode": "quote",
-"quoted": "'uvx ruff check .'",
-"src": "corpus"
-},
-{
 "input": "uv tool run black --check .",
 "mode": "script",
 "src": "corpus",
@@ -29044,78 +29827,6 @@
 "input": "uv tool run black --check .",
 "mode": "quote",
 "quoted": "'uv tool run black --check .'",
-"src": "corpus"
-},
-{
-"input": "uvx pytest",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"uvx",
-"pytest"
-]
-},
-{
-"input": "uvx pytest",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"uvx",
-"pytest"
-]
-},
-{
-"input": "uvx pytest",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"uvx",
-"pytest"
-]
-},
-{
-"input": "uvx pytest",
-"mode": "quote",
-"quoted": "'uvx pytest'",
-"src": "corpus"
-},
-{
-"input": "uv tool run pytest",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"uv",
-"tool",
-"run",
-"pytest"
-]
-},
-{
-"input": "uv tool run pytest",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"uv",
-"tool",
-"run",
-"pytest"
-]
-},
-{
-"input": "uv tool run pytest",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"uv",
-"tool",
-"run",
-"pytest"
-]
-},
-{
-"input": "uv tool run pytest",
-"mode": "quote",
-"quoted": "'uv tool run pytest'",
 "src": "corpus"
 },
 {
@@ -33150,7 +33861,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 714,
+"corpus_commands": 733,
 "edge_inputs": 123,
 "python": "3.13"
 }
