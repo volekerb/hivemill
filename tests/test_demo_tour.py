@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
@@ -438,7 +439,7 @@ class Integration(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=REPO / "docs" / "demo") as d:  # on disk, not RAM-backed /tmp
             out, work = Path(d) / "frames", Path(d) / "work"
             r = subprocess.run([sys.executable, str(TOUR), "--out", str(out), "--work", str(work), "--max-frames", "6",
-                                "--pages", "/,/goals", "--browser", os.environ["DEMO_BROWSER"]],
+                                "--pages", "/,/goals", "--scale", "1", "--browser", os.environ["DEMO_BROWSER"]],
                                capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stderr)
             pngs = sorted(out.glob("*.png"))
@@ -450,6 +451,23 @@ class Integration(unittest.TestCase):
             text = "".join(f.read_text() for f in (work / "text").glob("*.txt"))
             self.assertIn("Build the checkout flow", text)  # seed data (acme-web goal G-002)
             self.assertNotIn(os.path.expanduser("~"), text)
+
+    def test_selector_target_clears_a_sticky_title_bar(self):
+        page = ("<body style='margin:0'><div style='position:sticky;top:0;height:52px;background:#ccc'>bar</div>"
+                "<div style='height:800px'></div><h2 id='t' style='margin:0'>target</h2>"
+                "<div style='height:3000px'></div></body>")
+        with tempfile.TemporaryDirectory(dir=REPO / "docs" / "demo") as d:
+            b = demo_cdp.Browser.launch(os.environ["DEMO_BROWSER"], 1920, 1080, d)
+            try:
+                b.new_page("data:text/html," + urllib.parse.quote(page))
+                b.evaluate(demo_tour._inject_js(""))
+                y = demo_tour.selector_top(b, "#t")
+                b.evaluate("document.getElementById('demo-page').scrollTop=%d" % y)
+                top = b.evaluate("Math.round(document.getElementById('t').getBoundingClientRect().top)")
+            finally:
+                b.close()
+        bar = round(52 * demo_tour.ZOOM)
+        self.assertEqual(top, bar + demo_tour.SCROLL_GAP)  # the heading sits just below the bar, not under it
 
 
 if __name__ == "__main__":
