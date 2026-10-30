@@ -243,6 +243,8 @@
    "--strict-mcp-config",
    "--mcp-config",
    "{\"mcpServers\":{}}",
+   "--plugin-dir",
+   "<HOME>/roles/plugins/qa",
    "--session-id",
    "<SID>"
   ],

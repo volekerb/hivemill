@@ -1,0 +1,8 @@
+{
+  "name": "qa-skills",
+  "description": "Factory plugin for qa: carries the multi-angle-review workflow so it runs by name",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}

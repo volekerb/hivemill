@@ -12,7 +12,7 @@ The reviewer skill `multi-angle-review` (`roles/plugins/reviewer/reviewer-skills
 
 ## What runs
 
-`roles/workflows/multi-angle-review.js`, run by absolute path from the main checkout (never from the PR worktree, so a PR cannot weaken its own review). Args: `{pr, base, spec_task}`.
+`roles/workflows/multi-angle-review.js`, run by its namespaced name `<plugin>:multi-angle-review` (`reviewer-skills:`, `qa-skills:` or `coder-skills:`, matching the caller's plugin). The name resolves from the `workflows/` symlink of the role plugin (reviewer, qa, coder), which `factory spawn` loads from the main checkout (`--plugin-dir <FACTORY_HOME>/roles/plugins/<role>`), never from the PR worktree, so a PR cannot weaken its own review. Each role's allow list holds only its own namespaced rule, e.g. `Workflow(reviewer-skills:multi-angle-review)` (never a bare `Workflow` or a bare `multi-angle-review`: a project workflow in `<cwd>/.claude/workflows/` runs by bare name, a plugin workflow only as `<plugin>:<name>`, so a bare rule could run a script a PR added to its own worktree; `tests/test_workflow_by_name.py` also refuses any tracked `.claude/workflows/` path). Args: `{pr, base, spec_task}`.
 
 - Review: 3 Sonnet agents in parallel: correctness, guard/security, spec-fit.
 - Verify: up to 3 Opus agents in parallel, one per angle that has findings; each tries to disprove its angle's findings and drops unconfirmed ones.
