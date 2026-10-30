@@ -297,6 +297,7 @@ class FactoryEnv:
         env = {
             "PATH": f"{self.stub_bin}{os.pathsep}{os.environ.get('PATH', '/usr/bin:/bin')}",
             "HOME": str(self.user_home),
+            "SHELL": shutil.which("sh") or "/bin/sh",  # the pane shell the PATH-order check runs; it fails closed without one
             **{k: v for k, v in os.environ.items() if k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_"))},
             "FACTORY_HOME": str(self.home_dir),
             "FAKE_HERDR_STATE": str(self.herdr_state),

@@ -706,9 +706,10 @@ sys.exit(run("inbox") or run("msg", "zz-lead", "hello from inside", "body") or r
         self.assertEqual(env.sql("SELECT status FROM agents WHERE name='zz-reviewer'")[0][0], "done")
 
 
-@unittest.skipUnless(shutil.which("zsh"), "needs zsh to read a .zshenv")
-class ZshenvPathOrderTests(SandboxCase):
-    """T-0746: ~/.zshenv prepends ~/.local/bin (the real claude) in every zsh, so the pane --env PATH alone loses."""
+class PathOrderBase:
+    """T-0746: a shell startup file prepends ~/.local/bin (the real claude), so the pane --env PATH alone loses.
+    Subclasses name the pane shell and the startup file it reads; bash (BASH_ENV) runs wherever bash exists, zsh (.zshenv) is the live case."""
+    SHELL_NAME = None
 
     def setUp(self):
         super().setUp()
@@ -716,12 +717,18 @@ class ZshenvPathOrderTests(SandboxCase):
         fake = self.env.user_home / ".local" / "bin" / "claude"
         fake.write_text("#!/bin/sh\nexit 0\n")
         fake.chmod(0o755)
+        self.startup_env = {}
+        self.no_shell = False
+
+    def startup(self, text):
+        raise NotImplementedError
 
     def spawn(self, role, name=None, cwd=True):
-        return self.env.run(*spawn_args(self.env, role, name, cwd), extra_env={"SHELL": shutil.which("zsh")})
+        extra = {"SHELL": "" if self.no_shell else shutil.which(self.SHELL_NAME)}
+        return self.env.run(*spawn_args(self.env, role, name, cwd), extra_env={**extra, **self.startup_env})
 
-    def test_zshenv_prepending_local_bin_still_gets_the_shim_exported_in_the_pane(self):
-        (self.env.user_home / ".zshenv").write_text('export PATH="$HOME/.local/bin:$PATH"\n')
+    def test_startup_file_prepending_local_bin_still_gets_the_shim_exported_in_the_pane(self):
+        self.startup('export PATH="$HOME/.local/bin:$PATH"\n')
         p = self.spawn("reviewer")
         self.assertEqual(p.returncode, 0, p.stderr)
         agent_dir = self.env.user_home / ".local" / "state" / "factory" / "workers" / "zz-reviewer"
@@ -731,8 +738,30 @@ class ZshenvPathOrderTests(SandboxCase):
         self.assertLess(order.index(["pane", "run"]), order.index(["agent", "start"]))
 
     def test_a_startup_file_that_shadows_claude_after_the_export_is_refused(self):
-        (self.env.user_home / ".zshenv").write_text("claude() { :; }\n")
+        self.startup("claude() { :; }\n")
         self.assert_refused("reviewer", "path")
+
+    def test_an_unset_pane_shell_is_refused_not_passed(self):
+        self.no_shell = True
+        self.assert_refused("reviewer", "path")
+
+
+@unittest.skipUnless(shutil.which("bash"), "needs bash")
+class BashEnvPathOrderTests(PathOrderBase, SandboxCase):
+    SHELL_NAME = "bash"
+
+    def startup(self, text):
+        f = self.env.user_home / "bashenv"
+        f.write_text(text)
+        self.startup_env = {"BASH_ENV": str(f)}
+
+
+@unittest.skipUnless(shutil.which("zsh"), "needs zsh to read a .zshenv")
+class ZshenvPathOrderTests(PathOrderBase, SandboxCase):
+    SHELL_NAME = "zsh"
+
+    def startup(self, text):
+        (self.env.user_home / ".zshenv").write_text(text)
 
 
 if __name__ == "__main__":

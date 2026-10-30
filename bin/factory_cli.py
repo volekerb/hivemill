@@ -6702,9 +6702,11 @@ def sandbox_gh_token(con, role):
 
 def pane_resolves(env, cmd, expect, home):
     """True when `cmd` resolves to `expect` in the pane's shell after the pane runs export_cmd(env). Runs the shell
-    named by $SHELL (sh when unset) with the real startup files under `home`, so a ~/.zshenv that prepends
-    ~/.local/bin is part of the check. A shell that cannot run or an answer that is not exactly `expect` is False."""
-    sh = shutil.which(os.path.basename(os.environ.get("SHELL") or "sh")) or shutil.which("sh")
+    named by $SHELL with the real startup files under `home`, so a ~/.zshenv that prepends ~/.local/bin is part of
+    the check. An unset or unresolvable $SHELL, a shell that cannot run, or an answer that is not exactly `expect`
+    is False: the pane shell is unknown, so nothing was checked."""
+    name = os.path.basename(os.environ.get("SHELL") or "")
+    sh = shutil.which(name) if name else None
     if not sh:
         return False
     try:

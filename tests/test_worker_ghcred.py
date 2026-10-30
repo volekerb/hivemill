@@ -213,16 +213,21 @@ class RefusalTests(GhCredCase):
         self.assertIn("boss", p.stderr)
 
 
-@unittest.skipUnless(shutil.which("zsh"), "needs zsh to read a .zshenv")
-class GhShimPathOrderTests(GhCredCase):
-    """T-0746: a shell startup file must not put another gh ahead of the worker gh shim (same class as claude)."""
+class GhPathOrderBase:
+    """T-0746: a shell startup file must not put another gh ahead of the worker gh shim (same class as claude).
+    bash (BASH_ENV) runs wherever bash exists; zsh (.zshenv) is the live case."""
+    SHELL_NAME = None
+
+    def startup(self, text):
+        raise NotImplementedError
 
     def spawn(self, role, extra_env=None, tag=""):
-        return super().spawn(role, extra_env={"SHELL": shutil.which("zsh"), **(extra_env or {})}, tag=tag)
+        return super().spawn(role, extra_env={"SHELL": shutil.which(self.SHELL_NAME), **getattr(self, "startup_env", {}),
+                                              **(extra_env or {})}, tag=tag)
 
     def test_gh_shadowed_by_a_startup_file_is_refused_and_nothing_is_started(self):
         self.flag("coder")
-        (self.env.user_home / ".zshenv").write_text("gh() { :; }\n")
+        self.startup("gh() { :; }\n")
         p = self.spawn("coder")
         self.assertEqual(p.returncode, 3, p.stderr)
         self.assertIn("gh-cred refused", p.stderr)
@@ -235,6 +240,30 @@ class GhShimPathOrderTests(GhCredCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         runs = [c["argv"] for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "run"]]
         self.assertTrue(any(a[3].startswith("export PATH=") and a[3].count("&& hash -r") == 1 for a in runs), runs)
+
+    def test_an_unset_pane_shell_is_refused_not_passed(self):
+        self.flag("coder")
+        p = GhCredCase.spawn(self, "coder", extra_env={"SHELL": ""})
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("gh does not resolve", p.stderr)
+
+
+@unittest.skipUnless(shutil.which("bash"), "needs bash")
+class GhShimBashEnvPathOrderTests(GhPathOrderBase, GhCredCase):
+    SHELL_NAME = "bash"
+
+    def startup(self, text):
+        f = self.env.user_home / "bashenv"
+        f.write_text(text)
+        self.startup_env = {"BASH_ENV": str(f)}
+
+
+@unittest.skipUnless(shutil.which("zsh"), "needs zsh to read a .zshenv")
+class GhShimPathOrderTests(GhPathOrderBase, GhCredCase):
+    SHELL_NAME = "zsh"
+
+    def startup(self, text):
+        (self.env.user_home / ".zshenv").write_text(text)
 
 
 class FlagOffTests(GhCredCase):
