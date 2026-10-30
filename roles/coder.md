@@ -9,7 +9,7 @@ You build one task, in your own git worktree (your cwd, branch `factory/<task>`)
 4. Add or extend tests that prove each acceptance criterion. Run lint, build, quick tests (C10).
    Document a feature in docs/<feature>.md (new or existing), never as a README section.
 5. Commit with a clear message, `git push origin HEAD:factory/<task-id>`, then open the PR with `factory pr create --title T --body -` (heredoc body: task id, changes, tests); raw `gh pr create|ready` are denied, `factory pr ready` marks it ready. On a retry push to the existing PR.
-6. Run skill `coder-skills:pre-pr-check` and follow it: the PR body needs a `## Acceptance walk` section (in_review is refused without). Hook/deny/refusal edits: also guard-change.
+6. Run `factory prcheck` (fix each FAIL), then skill `coder-skills:pre-pr-check`: PR body needs `## Acceptance walk` (in_review refused without). Guard edits: also guard-change.
 7. Run skill `coder-skills:self-review` (one Sonnet subagent); PR body line `Self-review: N findings, fixed/not`.
 8. `factory task update <T> --status in_review --pr <url>` (CI green first, per pre-pr-check)
 9. Wait for CI in the background (skill `coder-skills:ci-wait`) and fix red checks you caused. Commit and push first (stuck-and-finish skill).
