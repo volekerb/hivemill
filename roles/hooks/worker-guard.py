@@ -1750,14 +1750,32 @@ class Analyzer:
         git subtree push, alias definitions on the command line). Only the coder pin and cleaner deletes push."""
         i = 0
         while i < len(rest) and rest[i].startswith("-"):
-            nxt = rest[i + 1].lower() if rest[i] == "-c" and i + 1 < len(rest) else rest[i].lower()
-            if re.match(r"^(-c)?alias\.[^=]*=(!|.*push)", nxt) or rest[i].startswith("--config-env=alias."):
+            o = rest[i]
+            nxt = rest[i + 1].lower() if o == "-c" and i + 1 < len(rest) else o.lower()
+            if re.match(r"^(-c)?alias\.[^=]*=(!|.*(push|send-pack|subtree))", nxt):
                 raise Block(f"{self.role} may not run git push: a git alias override could hide a push; ask your lead")
-            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+            if o.startswith("--config-env"):
+                raise Block(f"{self.role} may not use git --config-env: it can define an alias that hides a push; ask your lead")
+            if o in GIT_OPTS_VALUE:
+                i += 2
+            elif o in GIT_OPTS_FLAG or re.match(r"^--(git-dir|work-tree|namespace|super-prefix|attr-source|exec-path|list-cmds)=", o):
+                i += 1
+            else:
+                raise Block(f"{self.role} may not run git with the unrecognised global option {o!r} before the subcommand "
+                            "(it could hide a push); put plain read-only commands after `git`, or ask your lead")
         if i < len(rest) and (rest[i] in ("push", "send-pack", "http-push")
                               or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"{self.role} may not run git push (read-only role; only the coder pushes its own branch): "
                         "report the result with factory done / factory msg instead")
+
+    def git_config_env(self, assigns, words):
+        """T-0755: NO_PUSH_ROLES never set GIT_CONFIG_COUNT/KEY_*/VALUE_*/PARAMETERS (env-injected alias hides a push)."""
+        names = list(assigns)
+        if words and os.path.basename(words[0]) in DECLARERS:
+            names += words[1:]
+        if any(GIT_CONFIG_ENV.match(x) for x in names):
+            raise Block(f"{self.role} may not set GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*/GIT_CONFIG_PARAMETERS: "
+                        "env-injected git config can alias a push; ask your lead")
 
     def task_worktree(self, task):
         """T-0743: realpath of tasks.worktree for the task (read-only DB); None on a missing DB/row/path (fail closed)."""
@@ -1777,6 +1795,8 @@ class Analyzer:
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
+        if self.role in NO_PUSH_ROLES and not self.hq:
+            self.git_config_env(assigns, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":
                 self.vars[x.split("=", 1)[0]] = x.split("=", 1)[1]
@@ -2872,6 +2892,12 @@ def check(cmd, cwd=None, role=None, hq=False):
 
 # T-0600: spawn exports SCRUB_TERMS_FILE to workers so the scanners can load the owner terms; nobody but those scanners
 # may read the file, or one `cat` would put the terms into the transcript.
+GIT_OPTS_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--attr-source"}
+GIT_OPTS_FLAG = {"-p", "--paginate", "-P", "--no-pager", "--bare", "--no-replace-objects", "--no-lazy-fetch",
+                 "--no-optional-locks", "--no-advice", "--literal-pathspecs", "--glob-pathspecs", "--noglob-pathspecs",
+                 "--icase-pathspecs", "--exec-path", "--html-path", "--man-path", "--info-path", "-v", "--version",
+                 "-h", "--help"}  # T-0755: git global options; anything else fails closed for NO_PUSH_ROLES
+GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=")
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}  # T-0755
 TERMS_ROLES = {"coder", "qa", "reviewer", "judge", "pm"}
 TERMS_VAR = "SCRUB_TERMS_FILE"

@@ -193,6 +193,35 @@ class PushPinTests(unittest.TestCase):
                     self.assertEqual(p.returncode, 2, p.stderr)
                     self.assertTrue("may not run git push" in p.stderr or "alias" in p.stderr, p.stderr)
 
+    def test_non_coder_git_option_and_env_bypasses_refused(self):
+        """T-0755 retry: value-taking git global options, unknown options and env/--config-env aliases hide no push."""
+        shapes = (
+            "git --attr-source HEAD push origin main", "git --attr-source HEAD push --dry-run origin main",
+            "git --attr-source=HEAD push origin main", "git --namespace ns push origin main",
+            "git --git-dir /x/.git push origin main", "git --work-tree /x push origin main",
+            "git --super-prefix p/ push origin main", "git --no-pager push origin main", "git -p push origin main",
+            "git --future-option push origin main", "git --future-option value push origin main",
+            "git --config-env=alias.p=PUSHVAR p origin main", "git --config-env alias.p=PUSHVAR p origin main",
+            "git -c alias.s=send-pack s origin main", "git -c alias.s=subtree s push origin",
+            "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main",
+            "GIT_CONFIG_PARAMETERS=\"'alias.p=push'\" git p origin main",
+            "env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.p GIT_CONFIG_VALUE_0=push git p origin main",
+            "export GIT_CONFIG_COUNT=1; git p origin main", "export GIT_CONFIG_KEY_0=alias.p",
+            "GIT_CONFIG_VALUE_0=push git status", "GIT_CONFIG_PARAMETERS=x",
+        )
+        for role in ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"):
+            for cmd in shapes:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd, role=role, agent=f"{role}-t-0689")
+                    self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_non_coder_git_option_forms_still_allowed(self):
+        for cmd in ("git --no-pager log -1", "git --attr-source HEAD status", f"git --git-dir {self.wt}/.git status",
+                    "git -c core.pager=cat log -1", "git --namespace ns status"):
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, role="reviewer", agent="reviewer-t-0689")
+                self.assertEqual(p.returncode, 0, p.stderr)
+
     def test_non_coder_non_push_git_allowed(self):
         for cmd in ("git status", "git log -1", f"git -C {self.wt} diff", "git fetch origin"):
             with self.subTest(cmd=cmd):
