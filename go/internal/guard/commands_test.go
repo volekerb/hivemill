@@ -195,7 +195,7 @@ func TestPrivRuleBlocksPrivilegeWords(t *testing.T) {
 			err := checkRole(cmd, role)
 			if err == nil {
 				t.Errorf("role %q: %q allowed", role, cmd)
-			} else if !IsPrivBlock(err) && !strings.Contains(err.Error(), "not ported") {
+			} else if !IsPrivBlock(err) {
 				t.Errorf("role %q: %q blocked by %v, want the PRIV rule", role, cmd, err)
 			}
 		}
