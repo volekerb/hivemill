@@ -446,7 +446,7 @@ func TestCommandsRawBackstop(t *testing.T) {
 
 func TestCommandsStubsFailClosed(t *testing.T) {
 	clearTermsEnv(t)
-	for _, c := range []string{"git status", "env git log", "gh pr list", "echo x > f", "python3 x.py", "rm -f x", "FACTORY_AGENT=x ls",
+	for _, c := range []string{"git commit -m x", "env git commit -m x", "gh pr list", "echo x > f", "python3 x.py", "rm -f x", "FACTORY_AGENT=x ls",
 		"factory spawn", "factory res", "factory config"} {
 		err := checkRole(c, "coder")
 		if !IsNotPorted(err) {
@@ -605,5 +605,47 @@ func TestReplaceInvalidUTF8PerByte(t *testing.T) {
 	}
 	if got := replaceInvalidUTF8([]byte("ok \u00e9\ufffd")); got != "ok \u00e9\ufffd" {
 		t.Errorf("valid text changed: %q", got)
+	}
+}
+
+// TestUvxRunnerRouting ports the cases of tests/test_worker_guard_uv_runner.py (command text verbatim, expected exit
+// from the Python hook with test_sandbox=1): the routed runners reach the test_sandbox stub (exit 2), the others pass.
+func TestUvxRunnerRouting(t *testing.T) {
+	clearTermsEnv(t)
+	const url = "https://pypi.example.org/simple"
+	routed := []string{
+		"uvx --index-url " + url + " pytest",
+		"uvx --default-index " + url + " pytest",
+		"uvx --extra-index-url " + url + " pytest",
+		"uvx 'pytest[testing]'",
+		"uvx pytest==8.0",
+		"uvx pytest" + "@" + "8.0",
+		"uv -q tool run pytest",
+		"uv tool -q run pytest",
+		"uv tool uvx pytest",
+		"uvx 'pytest >=8'",
+		"uvx 'pytest (>=8)'",
+		"uvx 'pytest ; python_version>\"3\"'",
+		"uvx 'pytest >=8'", // non-ASCII whitespace: Python's \s splits on it
+		"uvx 'pytest 8'",
+		"uvx --from=x unittest",
+		"uvx path/to/py.test",
+	}
+	allowed := []string{
+		"uvx ruff", "uv tool run black", "uvx --index-url " + url + " ruff", "uv -q tool run black",
+		"uv tool -q run black", "uv tool uvx ruff", "uvx 'ruff >=0.5'",
+		"uvx pytestx", "uvx pytest-cov",
+	}
+	for _, role := range []string{"coder", "qa"} {
+		for _, c := range routed {
+			if err := checkRole(c, role); !IsNotPorted(err) {
+				t.Errorf("%s: %q: err = %v, want the test_sandbox stub (exit 2)", role, c, err)
+			}
+		}
+		for _, c := range allowed {
+			if err := checkRole(c, role); err != nil {
+				t.Errorf("%s: %q: %v, want exit 0", role, c, err)
+			}
+		}
 	}
 }
