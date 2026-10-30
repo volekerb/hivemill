@@ -19,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Check the tag matches VERSION, the release notes and the changelog
+        run: python3 ci/changelog.py --check-version "${GITHUB_REF_NAME#v}"
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
