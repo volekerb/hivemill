@@ -189,24 +189,21 @@ class AutoClear(UnblockBase):
         self.tick()
         self.only_esc("zz-boss")
 
-    def age_dismissals(self):
-        """Move every dismissal to 00:00 today in the pinned zone (hours before the pinned noon, same date)."""
-        midnight = dt.datetime.now(self.local).replace(hour=0, minute=0, second=0, microsecond=0)
-        self.env.sql("UPDATE events SET ts=? WHERE action='settings-warning-dismissed'",
-                     (midnight.isoformat(timespec="seconds"),))
+    def tick_at(self, seconds):
+        """One tick whose auto-clear clock reads `seconds` after a fixed instant (T-0329: no wall time in the cooldown)."""
+        at = dt.datetime(2026, 1, 15, 12, 0, 0, tzinfo=dt.timezone.utc) + dt.timedelta(seconds=seconds)
+        return self.ok("tick", extra_env={"FACTORY_AUTO_CLEAR_NOW": at.isoformat()})
 
     def test_persisting_warning_esc_bounded_then_one_stuck_alert(self):
         self.pane("zz-lead", WARN)
-        self.tick()
-        self.tick()  # within the cooldown: no second Esc
+        self.tick_at(0)
+        self.tick_at(10)  # within the cooldown: no second Esc
         self.assertEqual(len(self.keys()), 1)
-        for _ in range(2):  # age the previous dismissals past the cooldown
-            self.age_dismissals()
-            self.tick()
+        for at in (310, 620):  # past the 300 s cooldown since the previous dismissal
+            self.tick_at(at)
         self.assertEqual(len(self.keys()), 3)
-        self.age_dismissals()
-        self.tick()
-        self.tick()
+        self.tick_at(930)
+        self.tick_at(940)
         self.assertEqual(len(self.keys()), 3)
         self.assertEqual(len(self.env.sql("SELECT 1 FROM messages WHERE subject LIKE 'Settings Warning stuck%'")), 1)
 

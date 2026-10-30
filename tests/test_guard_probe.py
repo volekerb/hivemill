@@ -62,10 +62,10 @@ class GuardProbeScriptTests(unittest.TestCase):
         self.assertEqual(os.path.realpath(link), str(SCRIPT))
 
     def test_qa_rule_once_and_no_other_role_or_bare_rule(self):
-        self.assertEqual((SETTINGS / "qa.json.in").read_text().count(f'"{RULE}"'), 1)
+        # the one-off live-proof allow line (T-0752) was removed by T-0758: absent everywhere
         for f in sorted(SETTINGS.glob("*.json.in")):
-            if f.name != "qa.json.in":
-                self.assertNotIn("guard-probe", f.read_text(), f.name)
+            self.assertNotIn(RULE, f.read_text(), f.name)
+            self.assertNotIn("guard-probe", f.read_text(), f.name)
             self.assertNotRegex(f.read_text(), r'"Workflow(\(guard-probe\))?"', f.name)
 
     def test_no_review_flow_references_the_probe(self):

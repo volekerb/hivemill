@@ -852,9 +852,9 @@ def require_role(con, *allowed):
     die(f"role '{role}' ({actor()}) may not do this; allowed: {', '.join(allowed)}", 3)
 
 
-def event_as(con, who, entity, entity_id, action, detail=None):
+def event_as(con, who, entity, entity_id, action, detail=None, ts=None):
     con.execute("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
-                (now(), who, entity, entity_id, action,
+                (ts or now(), who, entity, entity_id, action,
                  detail if detail is None or isinstance(detail, str) else json.dumps(detail)))
 
 
@@ -10212,6 +10212,19 @@ def dialog_now(name, role, want):
     return kind if kind[0] == want else None
 
 
+def auto_clear_clock(t):
+    """(t, now ISO) for auto_clear_dialog. $FACTORY_AUTO_CLEAR_NOW (an ISO timestamp, tests only) replaces the wall
+    clock for the Settings Warning cooldown, day cap and event stamps; unset = the real clock, `t` as the tick took it."""
+    fixed = os.environ.get("FACTORY_AUTO_CLEAR_NOW")
+    if not fixed:
+        return t, now()
+    try:
+        d = dt.datetime.fromisoformat(fixed).astimezone()
+    except ValueError:
+        raise ValueError(f"FACTORY_AUTO_CLEAR_NOW must be an ISO timestamp, got {fixed}") from None
+    return d.timestamp(), d.isoformat(timespec="seconds")
+
+
 def auto_clear_dialog(con, r, t):
     """T-0268 (owner: "i dont want to press these buttons on blocked agents"): the tick clears two known blocking
     dialogs itself, ONLY when herdr reports the agent blocked on this tick and the dialog sits in the visible bottom
@@ -10230,7 +10243,8 @@ def auto_clear_dialog(con, r, t):
             return False
         if kind[0] == "settings-warning":
             _, key, sfile, warning = kind
-            day = now()[:10]
+            t, stamp = auto_clear_clock(t)
+            day = stamp[:10]
             prior = con.execute("SELECT ts FROM events WHERE entity='agent' AND entity_id=? AND "
                                 "action='settings-warning-dismissed' AND ts LIKE ? ORDER BY id DESC",
                                 (name, day + "%")).fetchall()
@@ -10239,7 +10253,7 @@ def auto_clear_dialog(con, r, t):
             if len(prior) >= SETTINGS_ESC_MAX_PER_DAY:
                 if not con.execute("SELECT 1 FROM events WHERE entity='agent' AND entity_id=? AND "
                                    "action='settings-warning-stuck' AND ts LIKE ?", (name, day + "%")).fetchone():
-                    event_as(con, "tick", "agent", name, "settings-warning-stuck", {"file": sfile})
+                    event_as(con, "tick", "agent", name, "settings-warning-stuck", {"file": sfile}, ts=stamp)
                     send(con, "director", f"Settings Warning stuck on {name}: {sfile}",
                          f"The tick sent Esc {len(prior)} times today and the dialog is still there; it sends no more. "
                          f"Clear it by hand: {sfile}\n{warning}", "alert", r["goal_id"], r["task_id"], sender="tick")
@@ -10247,11 +10261,12 @@ def auto_clear_dialog(con, r, t):
             if not dialog_now(name, r["role"], "settings-warning"):
                 return False
             herdr("agent", "send-keys", name, "esc", check=False)
-            event_as(con, "tick", "agent", name, "settings-warning-dismissed", {"file": sfile, "warning": warning})
+            event_as(con, "tick", "agent", name, "settings-warning-dismissed", {"file": sfile, "warning": warning},
+                     ts=stamp)
             digest = hashlib.sha256((sfile + "|" + key).encode()).hexdigest()[:16]
             if not con.execute("SELECT 1 FROM events WHERE entity='settings-warning' AND entity_id=? AND ts LIKE ?",
                                (digest, day + "%")).fetchone():
-                event_as(con, "tick", "settings-warning", digest, "alerted", {"agent": name, "file": sfile})
+                event_as(con, "tick", "settings-warning", digest, "alerted", {"agent": name, "file": sfile}, ts=stamp)
                 send(con, "director", f"Settings Warning on {name}: {sfile}",
                      f"Claude Code skipped settings values; the tick dismissed the dialog (Esc). Fix the root cause: "
                      f"{sfile}\n{warning}", "alert", r["goal_id"], r["task_id"], sender="tick")
