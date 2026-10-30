@@ -161,6 +161,24 @@ class CheckTest(unittest.TestCase):
     def test_smoke_fail_version_output(self):
         self.assert_fail("fresh-install-smoke", {"factory-version": (0, "hivemill 9.9.9\n", "")})
 
+    def test_smoke_version_must_match_exactly(self):
+        self.assert_fail("fresh-install-smoke", {"factory-version": (0, "hivemill 0.3.10 (git abc)\n", "")})
+        code, lines = go(Fake("0.3.1", {"factory-version": (0, "hivemill 0.3.1\n", "")}))
+        self.assertEqual(status(lines, "fresh-install-smoke"), "PASS", lines)
+
+    def test_notes_placeholders_each_pattern_and_clean(self):
+        for text in ("TODO", "TBD", "FIXME", "XXX", "__FOO__", "<fill me>", "<!-- c -->", "TODOs", "XXXL"):
+            lines = self.assert_fail("notes", {"release-notes": (0, f"ok\n{text}\n", "")})
+            self.assertIn("line 2:", [ln for ln in lines if ln.startswith("FAIL notes")][0], text)
+        code, lines = go(Fake("0.3.1", {"release-notes": (0, "# Notes\nAll good, a < b and c > d\n", "")}))
+        self.assertEqual(status(lines, "notes"), "PASS", lines)
+
+    def test_freshbox_reminder_prints_absolute_cwd(self):
+        code, lines = go(Fake("0.3.0"))
+        cmd = [ln for ln in lines if "ci/freshbox_test.py" in ln][0]
+        self.assertIn(f"cd {rc.ROOT} && ", cmd)
+        self.assertTrue(os.path.isabs(str(rc.ROOT)))
+
     def test_smoke_fail_demo_seed(self):
         self.assert_fail("fresh-install-smoke", {"demo_seed.py": (1, "", "boom")})
 
