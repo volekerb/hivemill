@@ -1,8 +1,6 @@
 """factory prcheck (G-022 item 7): each of its checks has a failing and a passing case through the real CLI, and
 `factory done` is gated on a pass for the current HEAD when config prcheck_required is 1."""
 import json
-import os
-import subprocess
 from pathlib import Path
 import unittest
 
@@ -10,7 +8,7 @@ from harness import PR_URL, FactoryTestCase, git, pr_body
 
 REPO = Path(__file__).resolve().parent.parent
 BRANCH = "factory/t-0001"
-NOREPLY = "1+zz@users.noreply.github.com"
+NOREPLY = "1+volekerb@users.noreply.github.com"  # the owner's own noreply: the only noreply identity tests may use
 AFFECTED_STUB = ("import os, sys\nprint(os.environ.get('AFF_OUT', 'Ran 3 tests in 0.1s'))\n"
                  "sys.exit(int(os.environ.get('AFF_RC', '0')))\n")
 TESTS_FILE = "import unittest\n\nclass T(unittest.TestCase):\n    def test_a(self):\n        pass\n\n    def test_b(self):\n        pass\n"
@@ -20,8 +18,7 @@ def commit(cwd, name, text="x\n", email=NOREPLY, msg="work"):
     (cwd / name).parent.mkdir(parents=True, exist_ok=True)
     (cwd / name).write_text(text)
     git("add", "-A", cwd=cwd)
-    env = {"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email}
-    subprocess.run(["git", "commit", "-qm", msg], cwd=cwd, check=True, capture_output=True, env={**os.environ, **env})
+    git("commit", "-qm", msg, cwd=cwd, env={"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email})
 
 
 class PrcheckTests(FactoryTestCase):
