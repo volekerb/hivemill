@@ -32,6 +32,16 @@ class NoPushGitCfgTests(unittest.TestCase):
         return subprocess.run([sys.executable, HOOK, "--role", role], input=json.dumps(payload), capture_output=True,
                               text=True, timeout=30, env=env)
 
+    def tool(self, name, path, role, *flags):
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
+        env.update(WORKER_GUARD_LIVE_HOME=self.home, WORKER_GUARD_SCRATCH=self.scratch)
+        ti = {"file_path": path, "content": "x"} if name == "Write" else {"file_path": path, "old_string": "a", "new_string": "b"}
+        if name == "MultiEdit":
+            ti = {"file_path": path, "edits": [{"old_string": "a", "new_string": "b"}]}
+        payload = {"tool_name": name, "tool_input": ti, "cwd": self.scratch}
+        return subprocess.run([sys.executable, HOOK, "--role", role, *flags], input=json.dumps(payload),
+                              capture_output=True, text=True, timeout=30, env=env)
+
     def blocked(self, cmd, role):
         p = self.bash(cmd, role)
         self.assertEqual(p.returncode, 2, f"should block ({role}): {cmd!r}\n{p.stderr}")
@@ -79,6 +89,38 @@ class NoPushGitCfgTests(unittest.TestCase):
         for role in NO_PUSH:
             self.blocked(f"git -c core.fsmonitor=x init {self.scratch}/n", role)
             self.blocked(f"git init --template=/tmp/t {self.scratch}/n", role)
+
+    def test_edit_tools_refused_for_every_no_push_role(self):
+        r = self.repo
+        paths = [f"{r}/.git/config", f"{r}/.git/config.worktree", f"{r}/.git/hooks/pre-commit", f"{r}/.git/info/x"]
+        for role in NO_PUSH:
+            for tool in ("Write", "Edit", "MultiEdit"):
+                for p in paths:
+                    with self.subTest(role=role, tool=tool, path=p):
+                        res = self.tool(tool, p, role)
+                        self.assertEqual(res.returncode, 2, f"should block: {res.stderr}")
+
+    def test_edit_tools_plain_scratch_write_allowed(self):
+        for role in NO_PUSH:
+            for tool in ("Write", "Edit", "MultiEdit"):
+                for p in (f"{self.scratch}/notes.txt", f"{self.repo}/file.txt"):
+                    with self.subTest(role=role, tool=tool, path=p):
+                        res = self.tool(tool, p, role)
+                        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_hq_unchanged(self):
+        r = self.repo
+        for cmd in (f"echo x > {r}/.git/hooks/pre-commit", f"git config --file {r}/.git/config core.bare false",
+                    f"echo x > {r}/.git/config"):
+            for role in ("boss", "director", "lead"):
+                p = subprocess.run([sys.executable, HOOK, "--role", role, "--hq"], capture_output=True, text=True,
+                                   timeout=30, input=json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd},
+                                                                 "cwd": self.scratch}),
+                                   env={**os.environ, "WORKER_GUARD_LIVE_HOME": self.home, "WORKER_GUARD_SCRATCH": self.scratch})
+                self.assertEqual(p.returncode, 0, f"HQ {role} should allow {cmd!r}: {p.stderr}")
+        for role in ("qa",):
+            res = self.tool("Write", f"{r}/.git/config", role, "--hq")
+            self.assertEqual(res.returncode, 0, res.stderr)
 
     def test_other_roles_unchanged(self):
         for role in ("coder", "judge", "cleaner"):

@@ -3267,7 +3267,7 @@ def terms_tool(data):
     return 0
 
 
-def persist_edit(data):
+def persist_edit(data, role=None):
     """T-0334: an Edit/Write/MultiEdit/NotebookEdit call on a protected config/init file is refused. A payload without a
     readable path cannot be decided and fails closed."""
     ti = data.get("tool_input")
@@ -3280,7 +3280,8 @@ def persist_edit(data):
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
     if not os.path.isabs(p):
         p = os.path.join(cwd, p)
-    if persist_path(p) or ("$" in p and persist_code(p)):
+    nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
+    if persist_path(p, scratch_ok=not nopush) or (nopush and git_hooks_path(p)) or ("$" in p and persist_code(p)):
         why = REPO_CFG_WHY if repo_cfg_path(os.path.realpath(p)) or repo_cfg_path(os.path.normpath(p)) else PERSIST_WHY
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {why}. Tell your lead if this is wrong.\n")
         return 2
@@ -3298,7 +3299,7 @@ def main():
         if not isinstance(data, dict):
             raise ValueError("not an object")
         if data.get("tool_name") in PERSIST_EDIT_TOOLS and not hq:
-            return persist_edit(data)
+            return persist_edit(data, role)
         if data.get("tool_name") in ("Read", "Grep") and not hq:
             return terms_tool(data) if role in TERMS_ROLES else 0
         if data.get("tool_name") != "Bash":
