@@ -47,12 +47,10 @@ One milestone per planned release, named `vX.Y.Z`. Accepted issues for that rele
 Creating labels and milestones changes the repository settings, which are owner-only. Run these once (owner decision Q2, G-026):
 
 ```
-gh label create triage --repo volekerb/hivemill
-gh label create accepted --repo volekerb/hivemill
-gh label create needs-info --repo volekerb/hivemill
-gh label create duplicate --repo volekerb/hivemill
-gh label create wontfix --repo volekerb/hivemill
+gh label create triage --repo volekerb/hivemill -d 'New, not yet reviewed'
+gh label create accepted --repo volekerb/hivemill -d 'Accepted, tracked as a factory task'
+gh label create needs-info --repo volekerb/hivemill -d 'Waiting for more information from the reporter'
 gh api -X POST repos/volekerb/hivemill/milestones -f title=v0.3.0
 ```
 
-`duplicate` and `wontfix` may already exist as GitHub default labels; if the command reports that the label exists, skip them. Until a label exists, GitHub does not apply it to new issues, so run this before relying on the triage rule.
+`duplicate` and `wontfix` are GitHub default labels that already exist on the repository, so they are not created here. Until a label exists, GitHub does not apply it to new issues, so run this before relying on the triage rule.
