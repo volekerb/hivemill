@@ -7855,7 +7855,9 @@ def esc_wait_nudge(con, name, nudge, what, defer=False):
         print(f"sent Esc to {name}")
     if defer:
         if live():
-            event_as(con, "tick", "agent", name, "nudge-pending", {"nudge": nudge, "what": what})
+            r = con.execute("SELECT pane_id, started FROM agents WHERE name=?", (name,)).fetchone()
+            event_as(con, "tick", "agent", name, "nudge-pending", {"nudge": nudge, "what": what,
+                                                                   "pane_id": r["pane_id"], "started": r["started"]})
         return
     if live():
         herdr("agent", "wait", name, "--until", "idle", "--until", "done", "--until", "blocked", "--timeout", "30000",
@@ -7883,10 +7885,16 @@ def finish_pending_nudges(con, by_name, t):
             age = t - dt.datetime.fromisoformat(e["ts"]).timestamp()
         except (TypeError, ValueError):
             d, age = {}, NUDGE_PENDING_TTL_S + 1
-        live = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+        live = con.execute("SELECT status, pane_id, started FROM agents WHERE name=?", (name,)).fetchone()
         st = (by_name.get(name) or {}).get("agent_status")
         if not live or live["status"] != "live" or age > NUDGE_PENDING_TTL_S or not d.get("nudge"):
             outcome = "dropped"
+        elif not d.get("pane_id") or d.get("pane_id") != live["pane_id"] or not d.get("started") \
+                or d.get("started") != live["started"]:
+            outcome = "dropped"  # a same-name relaunch: the nudge was meant for another pane or start
+            event_as(con, "tick", "agent", name, "nudge-mismatch",
+                     {"pending": e["id"], "pane_id": d.get("pane_id"), "started": d.get("started"),
+                      "live_pane_id": live["pane_id"], "live_started": live["started"]})
         elif st in ("idle", "done"):
             herdr("agent", "prompt", name, d["nudge"], check=False)
             outcome = "sent"
