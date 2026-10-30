@@ -12,6 +12,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 
 
+AT = "@"  # built apart: the public-text guard reads name-at-word as an email
+
+
 class TestSandboxRoutingExtra(unittest.TestCase):
     def setUp(self):
         self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="zz-test-tsb2-"))
@@ -154,9 +157,18 @@ class TestSandboxRoutingExtra(unittest.TestCase):
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
 
     def test_t0745_uvx_and_uv_tool_run_pytest(self):
-        self._denied("uvx pytest", "uvx pytest -q tests", "uv tool run pytest", "uv tool run --with foo pytest tests")
+        self._denied("uvx pytest", "uvx pytest -q tests", "uv tool run pytest", "uv tool run --with foo pytest tests",
+                     "uvx pytest" + AT + "8.3.0 tests", "uvx pytest" + AT + "latest", "uv tool run pytest" + AT + "latest",
+                     "uvx --from 'pytest<9' pytest")
         self.seed("1")
         for cmd in ("uvx ruff check .", "uv tool run ruff check .", "uv tool list"):
+            self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
+
+    def test_t0745_coverage_module_flag_then_options(self):
+        self._denied("coverage run --module --branch pytest", "coverage run -m --branch pytest", "coverage run -mp pytest",
+                     "python3 -m coverage run --module --branch pytest")
+        self.seed("1")
+        for cmd in ("coverage run --module --branch myapp", "coverage run -mp myapp", "coverage run script.py pytest"):
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
 
     def test_t0745_go_double_dash_C(self):

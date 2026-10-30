@@ -1960,18 +1960,30 @@ class Analyzer:
 
     @staticmethod
     def coverage_run_module(args):
-        """T-0735/T-0745: the unittest/pytest module named by `-m`, `-mX`, `--module X` or `--module=X` in the
-        arguments after `coverage run`, else None."""
-        for j, t in enumerate(args):
-            if t in ("-m", "--module"):
-                mod = args[j + 1] if j + 1 < len(args) else None
+        """T-0735/T-0745: the unittest/pytest module run by `coverage run -m` (also `--module`, `-mp`, `--module=X`),
+        else None. `-m` is a flag: the module is the first non-option word after it (`run` stops option parsing there)."""
+        runners = ("unittest", "pytest")
+        valued = {"--rcfile", "--include", "--omit", "--data-file", "--context", "--debug", "--source", "--pylib"}
+        flagged = False
+        for t in args:
+            if flagged:
+                if t in valued:
+                    flagged = "skip"
+                    continue
+                if flagged == "skip":
+                    flagged = True
+                    continue
+                if t.startswith("-"):
+                    continue
+                return t if t.split(".")[0] in runners else None
+            if t == "--module":
+                flagged = True
             elif t.startswith("--module="):
-                mod = t[9:]
+                return t[9:] if t[9:].split(".")[0] in runners else None
             elif t.startswith("-m") and not t.startswith("--"):
-                mod = t[2:]
-            else:
-                continue
-            return mod if mod and mod.split(".")[0] in ("unittest", "pytest") else None
+                if t[2:].split(".")[0] in runners:  # fail closed on the old `-mpytest` spelling
+                    return t[2:]
+                flagged = True
         return None
 
     @staticmethod
@@ -1993,6 +2005,11 @@ class Analyzer:
         while i < len(rest):
             a = rest[i]
             i += 1
+            if prefix != "uv run" and a == "--from":  # uvx / uv tool run: --from <spec> takes a value
+                i += 1
+                continue
+            if prefix != "uv run" and not a.startswith("-"):
+                a = a.split("@", 1)[0]  # drop a version suffix after the at-sign
             if a == "-m" and i < len(rest):
                 a, rest = "python", ["-m"] + rest[i:]
                 i = 0
