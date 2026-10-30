@@ -213,6 +213,30 @@ class RefusalTests(GhCredCase):
         self.assertIn("boss", p.stderr)
 
 
+@unittest.skipUnless(shutil.which("zsh"), "needs zsh to read a .zshenv")
+class GhShimPathOrderTests(GhCredCase):
+    """T-0746: a shell startup file must not put another gh ahead of the worker gh shim (same class as claude)."""
+
+    def spawn(self, role, extra_env=None, tag=""):
+        return super().spawn(role, extra_env={"SHELL": shutil.which("zsh"), **(extra_env or {})}, tag=tag)
+
+    def test_gh_shadowed_by_a_startup_file_is_refused_and_nothing_is_started(self):
+        self.flag("coder")
+        (self.env.user_home / ".zshenv").write_text("gh() { :; }\n")
+        p = self.spawn("coder")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("gh-cred refused", p.stderr)
+        self.assertIn("gh does not resolve", p.stderr)
+        self.assertEqual([c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]], [])
+
+    def test_gh_resolving_to_the_shim_spawns_and_re_exports_path_in_the_pane(self):
+        self.flag("coder")
+        p = self.spawn("coder")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        runs = [c["argv"] for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "run"]]
+        self.assertTrue(any(a[3].startswith("export PATH=") and a[3].count("&& hash -r") == 1 for a in runs), runs)
+
+
 class FlagOffTests(GhCredCase):
     def test_flag_off_adds_no_env_and_creates_nothing(self):
         for tag, value in (("", None), ("-b", "")):  # never set, and explicitly empty
