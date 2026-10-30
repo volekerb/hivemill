@@ -364,7 +364,7 @@ class CleanerBranchDeleteTests(Base):
                     self.allowed(cmd, role=role)
         for cmd in ("git push -u origin HEAD", "git push origin factory/t-1", "git push"):
             with self.subTest(cmd=cmd):
-                self.allowed(cmd, role="qa")
+                self.allowed(cmd, role="judge")
         # T-0743: the coder push pin resolves the own worktree (here the hook cwd) from tasks.worktree in the DB
         with tempfile.TemporaryDirectory() as home:
             os.makedirs(os.path.join(home, "db"))
