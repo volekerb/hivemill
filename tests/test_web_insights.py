@@ -67,6 +67,8 @@ class InsightServer(ServerCase):
         patcher = mock.patch.object(server, "dt", SimpleNamespace(datetime=clock))
         patcher.start()
         self.addCleanup(patcher.stop)
+        # stop the base class's serve_forever thread before closing: closing under a running loop leaves it spinning on a dead socket
+        self.httpd.shutdown()
         self.httpd.server_close()
         self.httpd = server.make_server(self.db_path, "127.0.0.1", 0, (), tokens=lambda: SNAP,
                                         usage_fn=lambda: {"five_hour": 10.0, "seven_day": 20.0, "fresh": True, "age_min": 1},
