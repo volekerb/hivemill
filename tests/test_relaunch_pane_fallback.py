@@ -28,7 +28,15 @@ class PaneFallbackTests(FactoryTestCase):
         self.env.seed_agent(NAME, "coder", goal="G-001", team="g-001-a", pane_id=PANE)
         self.env.sql("UPDATE agents SET session_id=?, cwd=? WHERE name=?", (SESS, str(self.env.home), NAME))
 
-    def relaunch(self, agents, procs, dry_run=False, force=False):
+    def test_sandbox_refusal_on_the_fallback_path_happens_before_the_pane_is_closed(self):
+        def refuse(*a, **k):
+            raise SystemExit(3)
+        code, out, herdr, spawns = self.relaunch(
+            [entry()], PROC, patches={"sandbox_wanted": True, "sandbox_preflight": ("cwd", "bad"), "sandbox_refuse": refuse})
+        self.assertEqual(code, 3)
+        self.assertEqual((herdr, spawns), ([], []))
+
+    def relaunch(self, agents, procs, dry_run=False, force=False, patches=None):
         """Run relaunch_agent with herdr mocked; returns (exit code or None, stdout, herdr calls, spawn calls)."""
         out = io.StringIO()
         with self.env.load_factory() as mod:
@@ -41,7 +49,11 @@ class PaneFallbackTests(FactoryTestCase):
                     mock.patch.object(mod, "find_pane", return_value=None), \
                     mock.patch.object(mod, "herdr", side_effect=lambda *a: herdr_calls.append(list(a))), \
                     mock.patch.object(mod, "spawn", side_effect=lambda *a, **k: spawns.append(k)), \
+                    contextlib.ExitStack() as stack, \
                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                for name, val in (patches or {}).items():
+                    stack.enter_context(mock.patch.object(
+                        mod, name, **({"side_effect": val} if callable(val) else {"return_value": val})))
                 try:
                     mod.relaunch_agent(con, r, dry_run=dry_run, force=force)
                 except SystemExit as e:
