@@ -45156,6 +45156,4040 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "path=(/evil)",
+"mask_quotes_pre": "path=(/evil)",
+"mask_quotes_raw": "path=(/evil)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "path=(/evil)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "path=(/evil)"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"path="
+]
+],
+[
+6,
+11,
+[
+"/evil"
+]
+],
+[
+12,
+12,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"path="
+]
+],
+[
+6,
+11,
+[
+"/evil"
+]
+],
+[
+12,
+12,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'path=(/evil)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path=(/evil)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path=(/evil)'"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "path=(/evil $path)",
+"mask_quotes_pre": "path=(/evil $path)",
+"mask_quotes_raw": "path=(/evil $path)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "path=(/evil $path)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "path=(/evil $path)"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"path="
+]
+],
+[
+6,
+17,
+[
+"/evil",
+"$path"
+]
+],
+[
+18,
+18,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"path="
+]
+],
+[
+6,
+17,
+[
+"/evil",
+"$path"
+]
+],
+[
+18,
+18,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'path=(/evil $path)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path=(/evil $path)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path=(/evil $path)'"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "path+=/evil",
+"mask_quotes_pre": "path+=/evil",
+"mask_quotes_raw": "path+=/evil",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "path+=/evil"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "path+=/evil"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"path+=/evil"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"path+=/evil"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'path+=/evil'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path+=/evil'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path+=/evil'"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "path+=(/evil)",
+"mask_quotes_pre": "path+=(/evil)",
+"mask_quotes_raw": "path+=(/evil)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "path+=(/evil)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "path+=(/evil)"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"path+="
+]
+],
+[
+7,
+12,
+[
+"/evil"
+]
+],
+[
+13,
+13,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"path+="
+]
+],
+[
+7,
+12,
+[
+"/evil"
+]
+],
+[
+13,
+13,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'path+=(/evil)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path+=(/evil)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path+=(/evil)'"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "path[1]=/evil",
+"mask_quotes_pre": "path[1]=/evil",
+"mask_quotes_raw": "path[1]=/evil",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "path[1]=/evil"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "path[1]=/evil"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"path[1]=/evil"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"path[1]=/evil"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'path[1]=/evil'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path[1]=/evil'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'path[1]=/evil'"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -A path",
+"mask_quotes_pre": "read -A path",
+"mask_quotes_raw": "read -A path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -A path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -A path"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"read",
+"-A",
+"path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"read",
+"-A",
+"path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'read -A path'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'read -A path'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'read -A path'"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -a path",
+"mask_quotes_pre": "read -a path",
+"mask_quotes_raw": "read -a path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -a path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -a path"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"read",
+"-a",
+"path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"read",
+"-a",
+"path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'read -a path'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'read -a path'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'read -a path'"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "typeset -g path=(/evil)",
+"mask_quotes_pre": "typeset -g path=(/evil)",
+"mask_quotes_raw": "typeset -g path=(/evil)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "typeset -g path=(/evil)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "typeset -g path=(/evil)"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"typeset",
+"-g",
+"path="
+]
+],
+[
+17,
+22,
+[
+"/evil"
+]
+],
+[
+23,
+23,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"typeset",
+"-g",
+"path="
+]
+],
+[
+17,
+22,
+[
+"/evil"
+]
+],
+[
+23,
+23,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'typeset -g path=(/evil)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'typeset -g path=(/evil)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'typeset -g path=(/evil)'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "typeset path=(/evil)",
+"mask_quotes_pre": "typeset path=(/evil)",
+"mask_quotes_raw": "typeset path=(/evil)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "typeset path=(/evil)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "typeset path=(/evil)"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"typeset",
+"path="
+]
+],
+[
+14,
+19,
+[
+"/evil"
+]
+],
+[
+20,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"typeset",
+"path="
+]
+],
+[
+14,
+19,
+[
+"/evil"
+]
+],
+[
+20,
+20,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'typeset path=(/evil)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'typeset path=(/evil)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'typeset path=(/evil)'"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "declare -g path=(/evil)",
+"mask_quotes_pre": "declare -g path=(/evil)",
+"mask_quotes_raw": "declare -g path=(/evil)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "declare -g path=(/evil)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "declare -g path=(/evil)"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"declare",
+"-g",
+"path="
+]
+],
+[
+17,
+22,
+[
+"/evil"
+]
+],
+[
+23,
+23,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"declare",
+"-g",
+"path="
+]
+],
+[
+17,
+22,
+[
+"/evil"
+]
+],
+[
+23,
+23,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'declare -g path=(/evil)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'declare -g path=(/evil)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'declare -g path=(/evil)'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "f() { local path=(/evil); }",
+"mask_quotes_pre": "f() { local path=(/evil); }",
+"mask_quotes_raw": "f() { local path=(/evil); }",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "f() { local path=(/evil); }"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "f() { local path=(/evil); }"
+},
+"segments_pre": [
+[
+0,
+1,
+[
+"f"
+]
+],
+[
+3,
+4,
+[]
+],
+[
+5,
+17,
+[
+"local",
+"path="
+]
+],
+[
+18,
+23,
+[
+"/evil"
+]
+],
+[
+25,
+26,
+[]
+],
+[
+27,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+1,
+[
+"f"
+]
+],
+[
+3,
+4,
+[]
+],
+[
+5,
+17,
+[
+"local",
+"path="
+]
+],
+[
+18,
+23,
+[
+"/evil"
+]
+],
+[
+25,
+26,
+[]
+],
+[
+27,
+27,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'f() { local path=(/evil); }'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'f() { local path=(/evil); }'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'f() { local path=(/evil); }'"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export path",
+"mask_quotes_pre": "export path",
+"mask_quotes_raw": "export path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export path"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"export",
+"path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"export",
+"path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'export path'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'export path'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'export path'"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "readonly path=(/x)",
+"mask_quotes_pre": "readonly path=(/x)",
+"mask_quotes_raw": "readonly path=(/x)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "readonly path=(/x)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "readonly path=(/x)"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"readonly",
+"path="
+]
+],
+[
+15,
+17,
+[
+"/x"
+]
+],
+[
+18,
+18,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"readonly",
+"path="
+]
+],
+[
+15,
+17,
+[
+"/x"
+]
+],
+[
+18,
+18,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'readonly path=(/x)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'readonly path=(/x)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'readonly path=(/x)'"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "print -v path /evil",
+"mask_quotes_pre": "print -v path /evil",
+"mask_quotes_raw": "print -v path /evil",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "print -v path /evil"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "print -v path /evil"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"print",
+"-v",
+"path",
+"/evil"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"print",
+"-v",
+"path",
+"/evil"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'print -v path /evil'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'print -v path /evil'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'print -v path /evil'"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zparseopts -a path x",
+"mask_quotes_pre": "zparseopts -a path x",
+"mask_quotes_raw": "zparseopts -a path x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zparseopts -a path x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zparseopts -a path x"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"zparseopts",
+"-a",
+"path",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"zparseopts",
+"-a",
+"path",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'zparseopts -a path x'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'zparseopts -a path x'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'zparseopts -a path x'"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${path::=/evil}",
+"mask_quotes_pre": ": ${path::=/evil}",
+"mask_quotes_raw": ": ${path::=/evil}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${path::=/evil}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${path::=/evil}"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+16,
+[
+"path::=/evil"
+]
+],
+[
+17,
+17,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+16,
+[
+"path::=/evil"
+]
+],
+[
+17,
+17,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c ': ${path::=/evil}'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c ': ${path::=/evil}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c ': ${path::=/evil}'"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${path:=/evil}",
+"mask_quotes_pre": ": ${path:=/evil}",
+"mask_quotes_raw": ": ${path:=/evil}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${path:=/evil}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${path:=/evil}"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+15,
+[
+"path:=/evil"
+]
+],
+[
+16,
+16,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+15,
+[
+"path:=/evil"
+]
+],
+[
+16,
+16,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c ': ${path:=/evil}'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c ': ${path:=/evil}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c ': ${path:=/evil}'"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": ": ${path=/evil}",
+"mask_quotes_pre": ": ${path=/evil}",
+"mask_quotes_raw": ": ${path=/evil}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": ": ${path=/evil}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": ": ${path=/evil}"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+14,
+[
+"path=/evil"
+]
+],
+[
+15,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+":",
+"$"
+]
+],
+[
+4,
+14,
+[
+"path=/evil"
+]
+],
+[
+15,
+15,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c ': ${path=/evil}'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c ': ${path=/evil}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c ': ${path=/evil}'"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "print -rv path x",
+"mask_quotes_pre": "print -rv path x",
+"mask_quotes_raw": "print -rv path x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "print -rv path x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "print -rv path x"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"print",
+"-rv",
+"path",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"print",
+"-rv",
+"path",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'print -rv path x'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'print -rv path x'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'print -rv path x'"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "set -A path /x",
+"mask_quotes_pre": "set -A path /x",
+"mask_quotes_raw": "set -A path /x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "set -A path /x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "set -A path /x"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"set",
+"-A",
+"path",
+"/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"set",
+"-A",
+"path",
+"/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'set -A path /x'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'set -A path /x'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'set -A path /x'"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "read -Apath",
+"mask_quotes_pre": "read -Apath",
+"mask_quotes_raw": "read -Apath",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "read -Apath"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "read -Apath"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"read",
+"-Apath"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"read",
+"-Apath"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'read -Apath'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'read -Apath'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'read -Apath'"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "for path in /evil; do :; done",
+"mask_quotes_pre": "for path in /evil; do :; done",
+"mask_quotes_raw": "for path in /evil; do :; done",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "for path in /evil; do :; done"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "for path in /evil; do :; done"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"for",
+"path",
+"in",
+"/evil"
+]
+],
+[
+18,
+23,
+[
+"do",
+":"
+]
+],
+[
+24,
+29,
+[
+"done"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"for",
+"path",
+"in",
+"/evil"
+]
+],
+[
+18,
+23,
+[
+"do",
+":"
+]
+],
+[
+24,
+29,
+[
+"done"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'for path in /evil; do :; done'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'for path in /evil; do :; done'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'for path in /evil; do :; done'"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u GIT_ASKPASS git status",
+"mask_quotes_pre": "env -u GIT_ASKPASS git status",
+"mask_quotes_raw": "env -u GIT_ASKPASS git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -u GIT_ASKPASS git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -u GIT_ASKPASS git status"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"env",
+"-u",
+"GIT_ASKPASS",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"env",
+"-u",
+"GIT_ASKPASS",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -u GIT_ASKPASS git status'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u GIT_ASKPASS git status'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u GIT_ASKPASS git status'"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u GIT_CONFIG_GLOBAL git status",
+"mask_quotes_pre": "env -u GIT_CONFIG_GLOBAL git status",
+"mask_quotes_raw": "env -u GIT_CONFIG_GLOBAL git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -u GIT_CONFIG_GLOBAL git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -u GIT_CONFIG_GLOBAL git status"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"env",
+"-u",
+"GIT_CONFIG_GLOBAL",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"env",
+"-u",
+"GIT_CONFIG_GLOBAL",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"mask_quotes_pre": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"mask_quotes_raw": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"env",
+"-u",
+"GIT_CONFIG_COUNT",
+"-u",
+"GIT_CONFIG_KEY_0",
+"git",
+"log"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"env",
+"-u",
+"GIT_CONFIG_COUNT",
+"-u",
+"GIT_CONFIG_KEY_0",
+"git",
+"log"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"mask_quotes_pre": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"mask_quotes_raw": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --unset=GIT_CONFIG_PARAMETERS git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --unset=GIT_CONFIG_PARAMETERS git status"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"env",
+"--unset=GIT_CONFIG_PARAMETERS",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"env",
+"--unset=GIT_CONFIG_PARAMETERS",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'"
+},
+"segments_pre": [
+[
+0,
+53,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+53,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env --unset GIT_ASKPASS ls",
+"mask_quotes_pre": "env --unset GIT_ASKPASS ls",
+"mask_quotes_raw": "env --unset GIT_ASKPASS ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --unset GIT_ASKPASS ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --unset GIT_ASKPASS ls"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"env",
+"--unset",
+"GIT_ASKPASS",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"env",
+"--unset",
+"GIT_ASKPASS",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env --unset GIT_ASKPASS ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --unset GIT_ASKPASS ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --unset GIT_ASKPASS ls'"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u PATH ls",
+"mask_quotes_pre": "env -u PATH ls",
+"mask_quotes_raw": "env -u PATH ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -u PATH ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -u PATH ls"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"env",
+"-u",
+"PATH",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"env",
+"-u",
+"PATH",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -u PATH ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u PATH ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u PATH ls'"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unset GIT_ASKPASS",
+"mask_quotes_pre": "unset GIT_ASKPASS",
+"mask_quotes_raw": "unset GIT_ASKPASS",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unset GIT_ASKPASS"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unset GIT_ASKPASS"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"unset",
+"GIT_ASKPASS"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"unset",
+"GIT_ASKPASS"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'unset GIT_ASKPASS'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset GIT_ASKPASS'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset GIT_ASKPASS'"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unset -v GIT_CONFIG_GLOBAL",
+"mask_quotes_pre": "unset -v GIT_CONFIG_GLOBAL",
+"mask_quotes_raw": "unset -v GIT_CONFIG_GLOBAL",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unset -v GIT_CONFIG_GLOBAL"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unset -v GIT_CONFIG_GLOBAL"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"unset",
+"-v",
+"GIT_CONFIG_GLOBAL"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"unset",
+"-v",
+"GIT_CONFIG_GLOBAL"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unset PATH",
+"mask_quotes_pre": "unset PATH",
+"mask_quotes_raw": "unset PATH",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unset PATH"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unset PATH"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"unset",
+"PATH"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"unset",
+"PATH"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'unset PATH'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset PATH'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset PATH'"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unset path",
+"mask_quotes_pre": "unset path",
+"mask_quotes_raw": "unset path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unset path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unset path"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"unset",
+"path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"unset",
+"path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'unset path'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset path'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'unset path'"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -i git status",
+"mask_quotes_pre": "env -i git status",
+"mask_quotes_raw": "env -i git status",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -i git status"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -i git status"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"env",
+"-i",
+"git",
+"status"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"env",
+"-i",
+"git",
+"status"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -i git status'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -i git status'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -i git status'"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env --ignore-environment ls",
+"mask_quotes_pre": "env --ignore-environment ls",
+"mask_quotes_raw": "env --ignore-environment ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --ignore-environment ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --ignore-environment ls"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"env",
+"--ignore-environment",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"env",
+"--ignore-environment",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env --ignore-environment ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --ignore-environment ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --ignore-environment ls'"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env - ls",
+"mask_quotes_pre": "env - ls",
+"mask_quotes_raw": "env - ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env - ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env - ls"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"env",
+"-",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"env",
+"-",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env - ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env - ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env - ls'"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"zsh",
+"-c",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"zsh",
+"-c",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -uGIT_ASKPASS ls",
+"mask_quotes_pre": "env -uGIT_ASKPASS ls",
+"mask_quotes_raw": "env -uGIT_ASKPASS ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -uGIT_ASKPASS ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -uGIT_ASKPASS ls"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"env",
+"-uGIT_ASKPASS",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"env",
+"-uGIT_ASKPASS",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -uGIT_ASKPASS ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -uGIT_ASKPASS ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -uGIT_ASKPASS ls'"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u HOME ls",
+"mask_quotes_pre": "env -u HOME ls",
+"mask_quotes_raw": "env -u HOME ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -u HOME ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -u HOME ls"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"env",
+"-u",
+"HOME",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"env",
+"-u",
+"HOME",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -u HOME ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u HOME ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -u HOME ls'"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -C /x -u PATH ls",
+"mask_quotes_pre": "env -C /x -u PATH ls",
+"mask_quotes_raw": "env -C /x -u PATH ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -C /x -u PATH ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -C /x -u PATH ls"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"env",
+"-C",
+"/x",
+"-u",
+"PATH",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"env",
+"-C",
+"/x",
+"-u",
+"PATH",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -C /x -u PATH ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -C /x -u PATH ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -C /x -u PATH ls'"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env --chdir /x -u HOME ls",
+"mask_quotes_pre": "env --chdir /x -u HOME ls",
+"mask_quotes_raw": "env --chdir /x -u HOME ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --chdir /x -u HOME ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --chdir /x -u HOME ls"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"env",
+"--chdir",
+"/x",
+"-u",
+"HOME",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"env",
+"--chdir",
+"/x",
+"-u",
+"HOME",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env --chdir /x -u HOME ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --chdir /x -u HOME ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --chdir /x -u HOME ls'"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -S\"-u PATH\" ls",
+"mask_quotes_pre": "env -S\"QQQQQQQ\" ls",
+"mask_quotes_raw": "env -S\"QQQQQQQ\" ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -S\"-u PATH\" ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -S\"-u PATH\" ls"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"env",
+"-S\"QQQQQQQ\"",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"env",
+"-S\"QQQQQQQ\"",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -S\"-u PATH\" ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -S\"-u PATH\" ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -S\"-u PATH\" ls'"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env --split-string=-i ls",
+"mask_quotes_pre": "env --split-string=-i ls",
+"mask_quotes_raw": "env --split-string=-i ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --split-string=-i ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --split-string=-i ls"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"env",
+"--split-string=-i",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"env",
+"--split-string=-i",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env --split-string=-i ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --split-string=-i ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env --split-string=-i ls'"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -iu FOO ls",
+"mask_quotes_pre": "env -iu FOO ls",
+"mask_quotes_raw": "env -iu FOO ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -iu FOO ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -iu FOO ls"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"env",
+"-iu",
+"FOO",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"env",
+"-iu",
+"FOO",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'env -iu FOO ls'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -iu FOO ls'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'env -iu FOO ls'"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -62370,6 +66404,858 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo $path",
+"mask_quotes_pre": "echo $path",
+"mask_quotes_raw": "echo $path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo $path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo $path"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"echo",
+"$path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"echo",
+"$path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "print -l $path",
+"mask_quotes_pre": "print -l $path",
+"mask_quotes_raw": "print -l $path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "print -l $path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "print -l $path"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"print",
+"-l",
+"$path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"print",
+"-l",
+"$path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "for p in $path; do echo $p; done",
+"mask_quotes_pre": "for p in $path; do echo $p; done",
+"mask_quotes_raw": "for p in $path; do echo $p; done",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "for p in $path; do echo $p; done"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "for p in $path; do echo $p; done"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"for",
+"p",
+"in",
+"$path"
+]
+],
+[
+15,
+26,
+[
+"do",
+"echo",
+"$p"
+]
+],
+[
+27,
+32,
+[
+"done"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"for",
+"p",
+"in",
+"$path"
+]
+],
+[
+15,
+26,
+[
+"do",
+"echo",
+"$p"
+]
+],
+[
+27,
+32,
+[
+"done"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mypath=/x",
+"mask_quotes_pre": "mypath=/x",
+"mask_quotes_raw": "mypath=/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mypath=/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mypath=/x"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"mypath=/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"mypath=/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "path_x=1",
+"mask_quotes_pre": "path_x=1",
+"mask_quotes_raw": "path_x=1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "path_x=1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "path_x=1"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"path_x=1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"path_x=1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "PATHX=1",
+"mask_quotes_pre": "PATHX=1",
+"mask_quotes_raw": "PATHX=1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "PATHX=1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "PATHX=1"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"PATHX=1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"PATHX=1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "filepath=(a b)",
+"mask_quotes_pre": "filepath=(a b)",
+"mask_quotes_raw": "filepath=(a b)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "filepath=(a b)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "filepath=(a b)"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"filepath="
+]
+],
+[
+10,
+13,
+[
+"a",
+"b"
+]
+],
+[
+14,
+14,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"filepath="
+]
+],
+[
+10,
+13,
+[
+"a",
+"b"
+]
+],
+[
+14,
+14,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "grep path file.txt",
+"mask_quotes_pre": "grep path file.txt",
+"mask_quotes_raw": "grep path file.txt",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "grep path file.txt"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "grep path file.txt"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"grep",
+"path",
+"file.txt"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"grep",
+"path",
+"file.txt"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git log -- path",
+"mask_quotes_pre": "git log -- path",
+"mask_quotes_raw": "git log -- path",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git log -- path"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git log -- path"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"git",
+"log",
+"--",
+"path"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"git",
+"log",
+"--",
+"path"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env",
+"mask_quotes_pre": "env",
+"mask_quotes_raw": "env",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env"
+},
+"segments_pre": [
+[
+0,
+3,
+[
+"env"
+]
+]
+],
+"segments_raw": [
+[
+0,
+3,
+[
+"env"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env | grep GIT",
+"mask_quotes_pre": "env | grep GIT",
+"mask_quotes_raw": "env | grep GIT",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env | grep GIT"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env | grep GIT"
+},
+"segments_pre": [
+[
+0,
+4,
+[
+"env"
+]
+],
+[
+5,
+14,
+[
+"grep",
+"GIT"
+]
+]
+],
+"segments_raw": [
+[
+0,
+4,
+[
+"env"
+]
+],
+[
+5,
+14,
+[
+"grep",
+"GIT"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env FOO=1 ls",
+"mask_quotes_pre": "env FOO=1 ls",
+"mask_quotes_raw": "env FOO=1 ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env FOO=1 ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env FOO=1 ls"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"env",
+"FOO=1",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"env",
+"FOO=1",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u FOO ls",
+"mask_quotes_pre": "env -u FOO ls",
+"mask_quotes_raw": "env -u FOO ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -u FOO ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -u FOO ls"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"env",
+"-u",
+"FOO",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"env",
+"-u",
+"FOO",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unset FOO",
+"mask_quotes_pre": "unset FOO",
+"mask_quotes_raw": "unset FOO",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unset FOO"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unset FOO"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"unset",
+"FOO"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"unset",
+"FOO"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unset -v myvar",
+"mask_quotes_pre": "unset -v myvar",
+"mask_quotes_raw": "unset -v myvar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unset -v myvar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unset -v myvar"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"unset",
+"-v",
+"myvar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"unset",
+"-v",
+"myvar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -C /x ls",
+"mask_quotes_pre": "env -C /x ls",
+"mask_quotes_raw": "env -C /x ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -C /x ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -C /x ls"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"env",
+"-C",
+"/x",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"env",
+"-C",
+"/x",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -C /x -u FOO ls",
+"mask_quotes_pre": "env -C /x -u FOO ls",
+"mask_quotes_raw": "env -C /x -u FOO ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -C /x -u FOO ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -C /x -u FOO ls"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"env",
+"-C",
+"/x",
+"-u",
+"FOO",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"env",
+"-C",
+"/x",
+"-u",
+"FOO",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -i ls",
+"mask_quotes_pre": "env -i ls",
+"mask_quotes_raw": "env -i ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -i ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -i ls"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"env",
+"-i",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"env",
+"-i",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -69482,7 +74368,7 @@
 ]
 }
 },
-"corpus_commands": 1205,
+"corpus_commands": 1307,
 "edge_inputs": 97,
 "python": "3.13"
 }

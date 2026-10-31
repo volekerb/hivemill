@@ -35917,6 +35917,3140 @@
 "src": "corpus"
 },
 {
+"input": "path=(/evil)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "path=(/evil)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "path=(/evil)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"path=(/evil)"
+]
+},
+{
+"input": "path=(/evil)",
+"mode": "quote",
+"quoted": "'path=(/evil)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'path=(/evil)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'path=(/evil)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'path=(/evil)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'path=(/evil)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'path=(/evil)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "path=(/evil $path)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"path=",
+"(",
+"/evil",
+"$path",
+")"
+]
+},
+{
+"input": "path=(/evil $path)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"path=",
+"(",
+"/evil",
+"$",
+"path",
+")"
+]
+},
+{
+"input": "path=(/evil $path)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"path=(/evil",
+"$path)"
+]
+},
+{
+"input": "path=(/evil $path)",
+"mode": "quote",
+"quoted": "'path=(/evil $path)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'path=(/evil $path)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path=(/evil $path)"
+]
+},
+{
+"input": "zsh -c 'path=(/evil $path)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path=(/evil $path)"
+]
+},
+{
+"input": "zsh -c 'path=(/evil $path)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path=(/evil $path)"
+]
+},
+{
+"input": "zsh -c 'path=(/evil $path)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'path=(/evil $path)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "path+=/evil",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"path+=/evil"
+]
+},
+{
+"input": "path+=/evil",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"path",
+"+",
+"=/evil"
+]
+},
+{
+"input": "path+=/evil",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"path+=/evil"
+]
+},
+{
+"input": "path+=/evil",
+"mode": "quote",
+"quoted": "path+=/evil",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'path+=/evil'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path+=/evil"
+]
+},
+{
+"input": "zsh -c 'path+=/evil'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path+=/evil"
+]
+},
+{
+"input": "zsh -c 'path+=/evil'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path+=/evil"
+]
+},
+{
+"input": "zsh -c 'path+=/evil'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'path+=/evil'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "path+=(/evil)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"path+=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "path+=(/evil)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"path",
+"+",
+"=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "path+=(/evil)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"path+=(/evil)"
+]
+},
+{
+"input": "path+=(/evil)",
+"mode": "quote",
+"quoted": "'path+=(/evil)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'path+=(/evil)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path+=(/evil)"
+]
+},
+{
+"input": "zsh -c 'path+=(/evil)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path+=(/evil)"
+]
+},
+{
+"input": "zsh -c 'path+=(/evil)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path+=(/evil)"
+]
+},
+{
+"input": "zsh -c 'path+=(/evil)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'path+=(/evil)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "path[1]=/evil",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"path[1]=/evil"
+]
+},
+{
+"input": "path[1]=/evil",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"path",
+"[",
+"1",
+"]",
+"=/evil"
+]
+},
+{
+"input": "path[1]=/evil",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"path[1]=/evil"
+]
+},
+{
+"input": "path[1]=/evil",
+"mode": "quote",
+"quoted": "'path[1]=/evil'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'path[1]=/evil'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path[1]=/evil"
+]
+},
+{
+"input": "zsh -c 'path[1]=/evil'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path[1]=/evil"
+]
+},
+{
+"input": "zsh -c 'path[1]=/evil'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"path[1]=/evil"
+]
+},
+{
+"input": "zsh -c 'path[1]=/evil'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'path[1]=/evil'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "read -A path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-A",
+"path"
+]
+},
+{
+"input": "read -A path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-A",
+"path"
+]
+},
+{
+"input": "read -A path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-A",
+"path"
+]
+},
+{
+"input": "read -A path",
+"mode": "quote",
+"quoted": "'read -A path'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'read -A path'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -A path"
+]
+},
+{
+"input": "zsh -c 'read -A path'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -A path"
+]
+},
+{
+"input": "zsh -c 'read -A path'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -A path"
+]
+},
+{
+"input": "zsh -c 'read -A path'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'read -A path'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "read -a path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"path"
+]
+},
+{
+"input": "read -a path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"path"
+]
+},
+{
+"input": "read -a path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-a",
+"path"
+]
+},
+{
+"input": "read -a path",
+"mode": "quote",
+"quoted": "'read -a path'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'read -a path'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -a path"
+]
+},
+{
+"input": "zsh -c 'read -a path'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -a path"
+]
+},
+{
+"input": "zsh -c 'read -a path'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -a path"
+]
+},
+{
+"input": "zsh -c 'read -a path'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'read -a path'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "typeset -g path=(/evil)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-g",
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "typeset -g path=(/evil)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-g",
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "typeset -g path=(/evil)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"typeset",
+"-g",
+"path=(/evil)"
+]
+},
+{
+"input": "typeset -g path=(/evil)",
+"mode": "quote",
+"quoted": "'typeset -g path=(/evil)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'typeset -g path=(/evil)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"typeset -g path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'typeset -g path=(/evil)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"typeset -g path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'typeset -g path=(/evil)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"typeset -g path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'typeset -g path=(/evil)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'typeset -g path=(/evil)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "typeset path=(/evil)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"typeset",
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "typeset path=(/evil)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"typeset",
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "typeset path=(/evil)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"typeset",
+"path=(/evil)"
+]
+},
+{
+"input": "typeset path=(/evil)",
+"mode": "quote",
+"quoted": "'typeset path=(/evil)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'typeset path=(/evil)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"typeset path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'typeset path=(/evil)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"typeset path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'typeset path=(/evil)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"typeset path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'typeset path=(/evil)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'typeset path=(/evil)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "declare -g path=(/evil)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"declare",
+"-g",
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "declare -g path=(/evil)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"declare",
+"-g",
+"path=",
+"(",
+"/evil",
+")"
+]
+},
+{
+"input": "declare -g path=(/evil)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"declare",
+"-g",
+"path=(/evil)"
+]
+},
+{
+"input": "declare -g path=(/evil)",
+"mode": "quote",
+"quoted": "'declare -g path=(/evil)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'declare -g path=(/evil)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"declare -g path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'declare -g path=(/evil)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"declare -g path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'declare -g path=(/evil)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"declare -g path=(/evil)"
+]
+},
+{
+"input": "zsh -c 'declare -g path=(/evil)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'declare -g path=(/evil)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "f() { local path=(/evil); }",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"f",
+"()",
+"{",
+"local",
+"path=",
+"(",
+"/evil",
+");",
+"}"
+]
+},
+{
+"input": "f() { local path=(/evil); }",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"f",
+"()",
+"{",
+"local",
+"path=",
+"(",
+"/evil",
+");",
+"}"
+]
+},
+{
+"input": "f() { local path=(/evil); }",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"f()",
+"{",
+"local",
+"path=(/evil);",
+"}"
+]
+},
+{
+"input": "f() { local path=(/evil); }",
+"mode": "quote",
+"quoted": "'f() { local path=(/evil); }'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'f() { local path=(/evil); }'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"f() { local path=(/evil); }"
+]
+},
+{
+"input": "zsh -c 'f() { local path=(/evil); }'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"f() { local path=(/evil); }"
+]
+},
+{
+"input": "zsh -c 'f() { local path=(/evil); }'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"f() { local path=(/evil); }"
+]
+},
+{
+"input": "zsh -c 'f() { local path=(/evil); }'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'f() { local path=(/evil); }'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "export path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"path"
+]
+},
+{
+"input": "export path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"path"
+]
+},
+{
+"input": "export path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"path"
+]
+},
+{
+"input": "export path",
+"mode": "quote",
+"quoted": "'export path'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'export path'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"export path"
+]
+},
+{
+"input": "zsh -c 'export path'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"export path"
+]
+},
+{
+"input": "zsh -c 'export path'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"export path"
+]
+},
+{
+"input": "zsh -c 'export path'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'export path'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "readonly path=(/x)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"readonly",
+"path=",
+"(",
+"/x",
+")"
+]
+},
+{
+"input": "readonly path=(/x)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"readonly",
+"path=",
+"(",
+"/x",
+")"
+]
+},
+{
+"input": "readonly path=(/x)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"readonly",
+"path=(/x)"
+]
+},
+{
+"input": "readonly path=(/x)",
+"mode": "quote",
+"quoted": "'readonly path=(/x)'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'readonly path=(/x)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"readonly path=(/x)"
+]
+},
+{
+"input": "zsh -c 'readonly path=(/x)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"readonly path=(/x)"
+]
+},
+{
+"input": "zsh -c 'readonly path=(/x)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"readonly path=(/x)"
+]
+},
+{
+"input": "zsh -c 'readonly path=(/x)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'readonly path=(/x)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "print -v path /evil",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"print",
+"-v",
+"path",
+"/evil"
+]
+},
+{
+"input": "print -v path /evil",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"print",
+"-v",
+"path",
+"/evil"
+]
+},
+{
+"input": "print -v path /evil",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"print",
+"-v",
+"path",
+"/evil"
+]
+},
+{
+"input": "print -v path /evil",
+"mode": "quote",
+"quoted": "'print -v path /evil'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'print -v path /evil'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"print -v path /evil"
+]
+},
+{
+"input": "zsh -c 'print -v path /evil'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"print -v path /evil"
+]
+},
+{
+"input": "zsh -c 'print -v path /evil'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"print -v path /evil"
+]
+},
+{
+"input": "zsh -c 'print -v path /evil'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'print -v path /evil'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "zparseopts -a path x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zparseopts",
+"-a",
+"path",
+"x"
+]
+},
+{
+"input": "zparseopts -a path x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zparseopts",
+"-a",
+"path",
+"x"
+]
+},
+{
+"input": "zparseopts -a path x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zparseopts",
+"-a",
+"path",
+"x"
+]
+},
+{
+"input": "zparseopts -a path x",
+"mode": "quote",
+"quoted": "'zparseopts -a path x'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'zparseopts -a path x'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"zparseopts -a path x"
+]
+},
+{
+"input": "zsh -c 'zparseopts -a path x'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"zparseopts -a path x"
+]
+},
+{
+"input": "zsh -c 'zparseopts -a path x'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"zparseopts -a path x"
+]
+},
+{
+"input": "zsh -c 'zparseopts -a path x'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'zparseopts -a path x'\"'\"''",
+"src": "corpus"
+},
+{
+"input": ": ${path::=/evil}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${path::=/evil}"
+]
+},
+{
+"input": ": ${path::=/evil}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"path",
+":",
+":",
+"=/evil",
+"}"
+]
+},
+{
+"input": ": ${path::=/evil}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${path::=/evil}"
+]
+},
+{
+"input": ": ${path::=/evil}",
+"mode": "quote",
+"quoted": "': ${path::=/evil}'",
+"src": "corpus"
+},
+{
+"input": "zsh -c ': ${path::=/evil}'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path::=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path::=/evil}'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path::=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path::=/evil}'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path::=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path::=/evil}'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"': ${path::=/evil}'\"'\"''",
+"src": "corpus"
+},
+{
+"input": ": ${path:=/evil}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${path:=/evil}"
+]
+},
+{
+"input": ": ${path:=/evil}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"path",
+":",
+"=/evil",
+"}"
+]
+},
+{
+"input": ": ${path:=/evil}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${path:=/evil}"
+]
+},
+{
+"input": ": ${path:=/evil}",
+"mode": "quote",
+"quoted": "': ${path:=/evil}'",
+"src": "corpus"
+},
+{
+"input": "zsh -c ': ${path:=/evil}'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path:=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path:=/evil}'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path:=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path:=/evil}'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path:=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path:=/evil}'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"': ${path:=/evil}'\"'\"''",
+"src": "corpus"
+},
+{
+"input": ": ${path=/evil}",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+":",
+"${path=/evil}"
+]
+},
+{
+"input": ": ${path=/evil}",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+":",
+"$",
+"{",
+"path=/evil",
+"}"
+]
+},
+{
+"input": ": ${path=/evil}",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+":",
+"${path=/evil}"
+]
+},
+{
+"input": ": ${path=/evil}",
+"mode": "quote",
+"quoted": "': ${path=/evil}'",
+"src": "corpus"
+},
+{
+"input": "zsh -c ': ${path=/evil}'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path=/evil}'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path=/evil}'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+": ${path=/evil}"
+]
+},
+{
+"input": "zsh -c ': ${path=/evil}'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"': ${path=/evil}'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "print -rv path x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"print",
+"-rv",
+"path",
+"x"
+]
+},
+{
+"input": "print -rv path x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"print",
+"-rv",
+"path",
+"x"
+]
+},
+{
+"input": "print -rv path x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"print",
+"-rv",
+"path",
+"x"
+]
+},
+{
+"input": "print -rv path x",
+"mode": "quote",
+"quoted": "'print -rv path x'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'print -rv path x'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"print -rv path x"
+]
+},
+{
+"input": "zsh -c 'print -rv path x'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"print -rv path x"
+]
+},
+{
+"input": "zsh -c 'print -rv path x'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"print -rv path x"
+]
+},
+{
+"input": "zsh -c 'print -rv path x'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'print -rv path x'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "set -A path /x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"set",
+"-A",
+"path",
+"/x"
+]
+},
+{
+"input": "set -A path /x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"set",
+"-A",
+"path",
+"/x"
+]
+},
+{
+"input": "set -A path /x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"set",
+"-A",
+"path",
+"/x"
+]
+},
+{
+"input": "set -A path /x",
+"mode": "quote",
+"quoted": "'set -A path /x'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'set -A path /x'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"set -A path /x"
+]
+},
+{
+"input": "zsh -c 'set -A path /x'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"set -A path /x"
+]
+},
+{
+"input": "zsh -c 'set -A path /x'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"set -A path /x"
+]
+},
+{
+"input": "zsh -c 'set -A path /x'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'set -A path /x'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "read -Apath",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"read",
+"-Apath"
+]
+},
+{
+"input": "read -Apath",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"read",
+"-Apath"
+]
+},
+{
+"input": "read -Apath",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"read",
+"-Apath"
+]
+},
+{
+"input": "read -Apath",
+"mode": "quote",
+"quoted": "'read -Apath'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'read -Apath'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -Apath"
+]
+},
+{
+"input": "zsh -c 'read -Apath'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -Apath"
+]
+},
+{
+"input": "zsh -c 'read -Apath'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"read -Apath"
+]
+},
+{
+"input": "zsh -c 'read -Apath'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'read -Apath'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "for path in /evil; do :; done",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"path",
+"in",
+"/evil",
+";",
+"do",
+":",
+";",
+"done"
+]
+},
+{
+"input": "for path in /evil; do :; done",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"path",
+"in",
+"/evil",
+";",
+"do",
+":",
+";",
+"done"
+]
+},
+{
+"input": "for path in /evil; do :; done",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"path",
+"in",
+"/evil;",
+"do",
+":;",
+"done"
+]
+},
+{
+"input": "for path in /evil; do :; done",
+"mode": "quote",
+"quoted": "'for path in /evil; do :; done'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'for path in /evil; do :; done'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"for path in /evil; do :; done"
+]
+},
+{
+"input": "zsh -c 'for path in /evil; do :; done'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"for path in /evil; do :; done"
+]
+},
+{
+"input": "zsh -c 'for path in /evil; do :; done'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"for path in /evil; do :; done"
+]
+},
+{
+"input": "zsh -c 'for path in /evil; do :; done'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'for path in /evil; do :; done'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -u GIT_ASKPASS git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_ASKPASS",
+"git",
+"status"
+]
+},
+{
+"input": "env -u GIT_ASKPASS git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_ASKPASS",
+"git",
+"status"
+]
+},
+{
+"input": "env -u GIT_ASKPASS git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_ASKPASS",
+"git",
+"status"
+]
+},
+{
+"input": "env -u GIT_ASKPASS git status",
+"mode": "quote",
+"quoted": "'env -u GIT_ASKPASS git status'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -u GIT_ASKPASS git status'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_ASKPASS git status"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_ASKPASS git status'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_ASKPASS git status"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_ASKPASS git status'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_ASKPASS git status"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_ASKPASS git status'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -u GIT_ASKPASS git status'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -u GIT_CONFIG_GLOBAL git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_CONFIG_GLOBAL",
+"git",
+"status"
+]
+},
+{
+"input": "env -u GIT_CONFIG_GLOBAL git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_CONFIG_GLOBAL",
+"git",
+"status"
+]
+},
+{
+"input": "env -u GIT_CONFIG_GLOBAL git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_CONFIG_GLOBAL",
+"git",
+"status"
+]
+},
+{
+"input": "env -u GIT_CONFIG_GLOBAL git status",
+"mode": "quote",
+"quoted": "'env -u GIT_CONFIG_GLOBAL git status'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_CONFIG_GLOBAL git status"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_CONFIG_GLOBAL git status"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_CONFIG_GLOBAL git status"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_GLOBAL git status'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -u GIT_CONFIG_GLOBAL git status'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_CONFIG_COUNT",
+"-u",
+"GIT_CONFIG_KEY_0",
+"git",
+"log"
+]
+},
+{
+"input": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_CONFIG_COUNT",
+"-u",
+"GIT_CONFIG_KEY_0",
+"git",
+"log"
+]
+},
+{
+"input": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"GIT_CONFIG_COUNT",
+"-u",
+"GIT_CONFIG_KEY_0",
+"git",
+"log"
+]
+},
+{
+"input": "env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log",
+"mode": "quote",
+"quoted": "'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log"
+]
+},
+{
+"input": "zsh -c 'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 git log'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset=GIT_CONFIG_PARAMETERS",
+"git",
+"status"
+]
+},
+{
+"input": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset=GIT_CONFIG_PARAMETERS",
+"git",
+"status"
+]
+},
+{
+"input": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset=GIT_CONFIG_PARAMETERS",
+"git",
+"status"
+]
+},
+{
+"input": "env --unset=GIT_CONFIG_PARAMETERS git status",
+"mode": "quote",
+"quoted": "'env --unset=GIT_CONFIG_PARAMETERS git status'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --unset=GIT_CONFIG_PARAMETERS git status"
+]
+},
+{
+"input": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --unset=GIT_CONFIG_PARAMETERS git status"
+]
+},
+{
+"input": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --unset=GIT_CONFIG_PARAMETERS git status"
+]
+},
+{
+"input": "zsh -c 'env --unset=GIT_CONFIG_PARAMETERS git status'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env --unset=GIT_CONFIG_PARAMETERS git status'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env --unset GIT_ASKPASS ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"GIT_ASKPASS",
+"ls"
+]
+},
+{
+"input": "env --unset GIT_ASKPASS ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"GIT_ASKPASS",
+"ls"
+]
+},
+{
+"input": "env --unset GIT_ASKPASS ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"GIT_ASKPASS",
+"ls"
+]
+},
+{
+"input": "env --unset GIT_ASKPASS ls",
+"mode": "quote",
+"quoted": "'env --unset GIT_ASKPASS ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env --unset GIT_ASKPASS ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --unset GIT_ASKPASS ls"
+]
+},
+{
+"input": "zsh -c 'env --unset GIT_ASKPASS ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --unset GIT_ASKPASS ls"
+]
+},
+{
+"input": "zsh -c 'env --unset GIT_ASKPASS ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --unset GIT_ASKPASS ls"
+]
+},
+{
+"input": "zsh -c 'env --unset GIT_ASKPASS ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env --unset GIT_ASKPASS ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -u PATH ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"PATH",
+"ls"
+]
+},
+{
+"input": "env -u PATH ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"PATH",
+"ls"
+]
+},
+{
+"input": "env -u PATH ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"PATH",
+"ls"
+]
+},
+{
+"input": "env -u PATH ls",
+"mode": "quote",
+"quoted": "'env -u PATH ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -u PATH ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u PATH ls"
+]
+},
+{
+"input": "zsh -c 'env -u PATH ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u PATH ls"
+]
+},
+{
+"input": "zsh -c 'env -u PATH ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u PATH ls"
+]
+},
+{
+"input": "zsh -c 'env -u PATH ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -u PATH ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "unset GIT_ASKPASS",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"GIT_ASKPASS"
+]
+},
+{
+"input": "unset GIT_ASKPASS",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"GIT_ASKPASS"
+]
+},
+{
+"input": "unset GIT_ASKPASS",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"GIT_ASKPASS"
+]
+},
+{
+"input": "unset GIT_ASKPASS",
+"mode": "quote",
+"quoted": "'unset GIT_ASKPASS'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'unset GIT_ASKPASS'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset GIT_ASKPASS"
+]
+},
+{
+"input": "zsh -c 'unset GIT_ASKPASS'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset GIT_ASKPASS"
+]
+},
+{
+"input": "zsh -c 'unset GIT_ASKPASS'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset GIT_ASKPASS"
+]
+},
+{
+"input": "zsh -c 'unset GIT_ASKPASS'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'unset GIT_ASKPASS'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "unset -v GIT_CONFIG_GLOBAL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"-v",
+"GIT_CONFIG_GLOBAL"
+]
+},
+{
+"input": "unset -v GIT_CONFIG_GLOBAL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"-v",
+"GIT_CONFIG_GLOBAL"
+]
+},
+{
+"input": "unset -v GIT_CONFIG_GLOBAL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"-v",
+"GIT_CONFIG_GLOBAL"
+]
+},
+{
+"input": "unset -v GIT_CONFIG_GLOBAL",
+"mode": "quote",
+"quoted": "'unset -v GIT_CONFIG_GLOBAL'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset -v GIT_CONFIG_GLOBAL"
+]
+},
+{
+"input": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset -v GIT_CONFIG_GLOBAL"
+]
+},
+{
+"input": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset -v GIT_CONFIG_GLOBAL"
+]
+},
+{
+"input": "zsh -c 'unset -v GIT_CONFIG_GLOBAL'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'unset -v GIT_CONFIG_GLOBAL'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "unset PATH",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"PATH"
+]
+},
+{
+"input": "unset PATH",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"PATH"
+]
+},
+{
+"input": "unset PATH",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"PATH"
+]
+},
+{
+"input": "unset PATH",
+"mode": "quote",
+"quoted": "'unset PATH'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'unset PATH'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset PATH"
+]
+},
+{
+"input": "zsh -c 'unset PATH'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset PATH"
+]
+},
+{
+"input": "zsh -c 'unset PATH'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset PATH"
+]
+},
+{
+"input": "zsh -c 'unset PATH'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'unset PATH'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "unset path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"path"
+]
+},
+{
+"input": "unset path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"path"
+]
+},
+{
+"input": "unset path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"path"
+]
+},
+{
+"input": "unset path",
+"mode": "quote",
+"quoted": "'unset path'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'unset path'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset path"
+]
+},
+{
+"input": "zsh -c 'unset path'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset path"
+]
+},
+{
+"input": "zsh -c 'unset path'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"unset path"
+]
+},
+{
+"input": "zsh -c 'unset path'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'unset path'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -i git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env -i git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env -i git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env -i git status",
+"mode": "quote",
+"quoted": "'env -i git status'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -i git status'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -i git status"
+]
+},
+{
+"input": "zsh -c 'env -i git status'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -i git status"
+]
+},
+{
+"input": "zsh -c 'env -i git status'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -i git status"
+]
+},
+{
+"input": "zsh -c 'env -i git status'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -i git status'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env --ignore-environment ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--ignore-environment",
+"ls"
+]
+},
+{
+"input": "env --ignore-environment ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--ignore-environment",
+"ls"
+]
+},
+{
+"input": "env --ignore-environment ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--ignore-environment",
+"ls"
+]
+},
+{
+"input": "env --ignore-environment ls",
+"mode": "quote",
+"quoted": "'env --ignore-environment ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env --ignore-environment ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --ignore-environment ls"
+]
+},
+{
+"input": "zsh -c 'env --ignore-environment ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --ignore-environment ls"
+]
+},
+{
+"input": "zsh -c 'env --ignore-environment ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --ignore-environment ls"
+]
+},
+{
+"input": "zsh -c 'env --ignore-environment ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env --ignore-environment ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env - ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-",
+"ls"
+]
+},
+{
+"input": "env - ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-",
+"ls"
+]
+},
+{
+"input": "env - ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-",
+"ls"
+]
+},
+{
+"input": "env - ls",
+"mode": "quote",
+"quoted": "'env - ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env - ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env - ls"
+]
+},
+{
+"input": "zsh -c 'env - ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env - ls"
+]
+},
+{
+"input": "zsh -c 'env - ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env - ls"
+]
+},
+{
+"input": "zsh -c 'env - ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env - ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -uGIT_ASKPASS ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-uGIT_ASKPASS",
+"ls"
+]
+},
+{
+"input": "env -uGIT_ASKPASS ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-uGIT_ASKPASS",
+"ls"
+]
+},
+{
+"input": "env -uGIT_ASKPASS ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-uGIT_ASKPASS",
+"ls"
+]
+},
+{
+"input": "env -uGIT_ASKPASS ls",
+"mode": "quote",
+"quoted": "'env -uGIT_ASKPASS ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -uGIT_ASKPASS ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -uGIT_ASKPASS ls"
+]
+},
+{
+"input": "zsh -c 'env -uGIT_ASKPASS ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -uGIT_ASKPASS ls"
+]
+},
+{
+"input": "zsh -c 'env -uGIT_ASKPASS ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -uGIT_ASKPASS ls"
+]
+},
+{
+"input": "zsh -c 'env -uGIT_ASKPASS ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -uGIT_ASKPASS ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -u HOME ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"HOME",
+"ls"
+]
+},
+{
+"input": "env -u HOME ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"HOME",
+"ls"
+]
+},
+{
+"input": "env -u HOME ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"HOME",
+"ls"
+]
+},
+{
+"input": "env -u HOME ls",
+"mode": "quote",
+"quoted": "'env -u HOME ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -u HOME ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u HOME ls"
+]
+},
+{
+"input": "zsh -c 'env -u HOME ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u HOME ls"
+]
+},
+{
+"input": "zsh -c 'env -u HOME ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -u HOME ls"
+]
+},
+{
+"input": "zsh -c 'env -u HOME ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -u HOME ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -C /x -u PATH ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"-u",
+"PATH",
+"ls"
+]
+},
+{
+"input": "env -C /x -u PATH ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"-u",
+"PATH",
+"ls"
+]
+},
+{
+"input": "env -C /x -u PATH ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"-u",
+"PATH",
+"ls"
+]
+},
+{
+"input": "env -C /x -u PATH ls",
+"mode": "quote",
+"quoted": "'env -C /x -u PATH ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -C /x -u PATH ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -C /x -u PATH ls"
+]
+},
+{
+"input": "zsh -c 'env -C /x -u PATH ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -C /x -u PATH ls"
+]
+},
+{
+"input": "zsh -c 'env -C /x -u PATH ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -C /x -u PATH ls"
+]
+},
+{
+"input": "zsh -c 'env -C /x -u PATH ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -C /x -u PATH ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env --chdir /x -u HOME ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"/x",
+"-u",
+"HOME",
+"ls"
+]
+},
+{
+"input": "env --chdir /x -u HOME ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"/x",
+"-u",
+"HOME",
+"ls"
+]
+},
+{
+"input": "env --chdir /x -u HOME ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"/x",
+"-u",
+"HOME",
+"ls"
+]
+},
+{
+"input": "env --chdir /x -u HOME ls",
+"mode": "quote",
+"quoted": "'env --chdir /x -u HOME ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env --chdir /x -u HOME ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --chdir /x -u HOME ls"
+]
+},
+{
+"input": "zsh -c 'env --chdir /x -u HOME ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --chdir /x -u HOME ls"
+]
+},
+{
+"input": "zsh -c 'env --chdir /x -u HOME ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --chdir /x -u HOME ls"
+]
+},
+{
+"input": "zsh -c 'env --chdir /x -u HOME ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env --chdir /x -u HOME ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -S\"-u PATH\" ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-S-u PATH",
+"ls"
+]
+},
+{
+"input": "env -S\"-u PATH\" ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-S-u PATH",
+"ls"
+]
+},
+{
+"input": "env -S\"-u PATH\" ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-S-u PATH",
+"ls"
+]
+},
+{
+"input": "env -S\"-u PATH\" ls",
+"mode": "quote",
+"quoted": "'env -S\"-u PATH\" ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -S\"-u PATH\" ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -S\"-u PATH\" ls"
+]
+},
+{
+"input": "zsh -c 'env -S\"-u PATH\" ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -S\"-u PATH\" ls"
+]
+},
+{
+"input": "zsh -c 'env -S\"-u PATH\" ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -S\"-u PATH\" ls"
+]
+},
+{
+"input": "zsh -c 'env -S\"-u PATH\" ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -S\"-u PATH\" ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env --split-string=-i ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--split-string=-i",
+"ls"
+]
+},
+{
+"input": "env --split-string=-i ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--split-string=-i",
+"ls"
+]
+},
+{
+"input": "env --split-string=-i ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--split-string=-i",
+"ls"
+]
+},
+{
+"input": "env --split-string=-i ls",
+"mode": "quote",
+"quoted": "'env --split-string=-i ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env --split-string=-i ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --split-string=-i ls"
+]
+},
+{
+"input": "zsh -c 'env --split-string=-i ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --split-string=-i ls"
+]
+},
+{
+"input": "zsh -c 'env --split-string=-i ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env --split-string=-i ls"
+]
+},
+{
+"input": "zsh -c 'env --split-string=-i ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env --split-string=-i ls'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env -iu FOO ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-iu",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -iu FOO ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-iu",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -iu FOO ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-iu",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -iu FOO ls",
+"mode": "quote",
+"quoted": "'env -iu FOO ls'",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'env -iu FOO ls'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -iu FOO ls"
+]
+},
+{
+"input": "zsh -c 'env -iu FOO ls'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -iu FOO ls"
+]
+},
+{
+"input": "zsh -c 'env -iu FOO ls'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"env -iu FOO ls"
+]
+},
+{
+"input": "zsh -c 'env -iu FOO ls'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'env -iu FOO ls'\"'\"''",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -50017,6 +53151,671 @@
 "src": "corpus"
 },
 {
+"input": "echo $path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"$path"
+]
+},
+{
+"input": "echo $path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"$",
+"path"
+]
+},
+{
+"input": "echo $path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"$path"
+]
+},
+{
+"input": "echo $path",
+"mode": "quote",
+"quoted": "'echo $path'",
+"src": "corpus"
+},
+{
+"input": "print -l $path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"print",
+"-l",
+"$path"
+]
+},
+{
+"input": "print -l $path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"print",
+"-l",
+"$",
+"path"
+]
+},
+{
+"input": "print -l $path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"print",
+"-l",
+"$path"
+]
+},
+{
+"input": "print -l $path",
+"mode": "quote",
+"quoted": "'print -l $path'",
+"src": "corpus"
+},
+{
+"input": "for p in $path; do echo $p; done",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"p",
+"in",
+"$path",
+";",
+"do",
+"echo",
+"$p",
+";",
+"done"
+]
+},
+{
+"input": "for p in $path; do echo $p; done",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"p",
+"in",
+"$",
+"path",
+";",
+"do",
+"echo",
+"$",
+"p",
+";",
+"done"
+]
+},
+{
+"input": "for p in $path; do echo $p; done",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"p",
+"in",
+"$path;",
+"do",
+"echo",
+"$p;",
+"done"
+]
+},
+{
+"input": "for p in $path; do echo $p; done",
+"mode": "quote",
+"quoted": "'for p in $path; do echo $p; done'",
+"src": "corpus"
+},
+{
+"input": "mypath=/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mypath=/x"
+]
+},
+{
+"input": "mypath=/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mypath=/x"
+]
+},
+{
+"input": "mypath=/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mypath=/x"
+]
+},
+{
+"input": "mypath=/x",
+"mode": "quote",
+"quoted": "mypath=/x",
+"src": "corpus"
+},
+{
+"input": "path_x=1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"path_x=1"
+]
+},
+{
+"input": "path_x=1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"path_x=1"
+]
+},
+{
+"input": "path_x=1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"path_x=1"
+]
+},
+{
+"input": "path_x=1",
+"mode": "quote",
+"quoted": "path_x=1",
+"src": "corpus"
+},
+{
+"input": "PATHX=1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"PATHX=1"
+]
+},
+{
+"input": "PATHX=1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"PATHX=1"
+]
+},
+{
+"input": "PATHX=1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"PATHX=1"
+]
+},
+{
+"input": "PATHX=1",
+"mode": "quote",
+"quoted": "PATHX=1",
+"src": "corpus"
+},
+{
+"input": "filepath=(a b)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"filepath=",
+"(",
+"a",
+"b",
+")"
+]
+},
+{
+"input": "filepath=(a b)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"filepath=",
+"(",
+"a",
+"b",
+")"
+]
+},
+{
+"input": "filepath=(a b)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"filepath=(a",
+"b)"
+]
+},
+{
+"input": "filepath=(a b)",
+"mode": "quote",
+"quoted": "'filepath=(a b)'",
+"src": "corpus"
+},
+{
+"input": "grep path file.txt",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"grep",
+"path",
+"file.txt"
+]
+},
+{
+"input": "grep path file.txt",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"grep",
+"path",
+"file.txt"
+]
+},
+{
+"input": "grep path file.txt",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"grep",
+"path",
+"file.txt"
+]
+},
+{
+"input": "grep path file.txt",
+"mode": "quote",
+"quoted": "'grep path file.txt'",
+"src": "corpus"
+},
+{
+"input": "git log -- path",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--",
+"path"
+]
+},
+{
+"input": "git log -- path",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--",
+"path"
+]
+},
+{
+"input": "git log -- path",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"log",
+"--",
+"path"
+]
+},
+{
+"input": "git log -- path",
+"mode": "quote",
+"quoted": "'git log -- path'",
+"src": "corpus"
+},
+{
+"input": "env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env"
+]
+},
+{
+"input": "env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env"
+]
+},
+{
+"input": "env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env"
+]
+},
+{
+"input": "env",
+"mode": "quote",
+"quoted": "env",
+"src": "corpus"
+},
+{
+"input": "env | grep GIT",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"|",
+"grep",
+"GIT"
+]
+},
+{
+"input": "env | grep GIT",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"|",
+"grep",
+"GIT"
+]
+},
+{
+"input": "env | grep GIT",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"|",
+"grep",
+"GIT"
+]
+},
+{
+"input": "env | grep GIT",
+"mode": "quote",
+"quoted": "'env | grep GIT'",
+"src": "corpus"
+},
+{
+"input": "env FOO=1 ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"ls"
+]
+},
+{
+"input": "env FOO=1 ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"ls"
+]
+},
+{
+"input": "env FOO=1 ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"ls"
+]
+},
+{
+"input": "env FOO=1 ls",
+"mode": "quote",
+"quoted": "'env FOO=1 ls'",
+"src": "corpus"
+},
+{
+"input": "env -u FOO ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -u FOO ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -u FOO ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -u FOO ls",
+"mode": "quote",
+"quoted": "'env -u FOO ls'",
+"src": "corpus"
+},
+{
+"input": "unset FOO",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"FOO"
+]
+},
+{
+"input": "unset FOO",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"FOO"
+]
+},
+{
+"input": "unset FOO",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"FOO"
+]
+},
+{
+"input": "unset FOO",
+"mode": "quote",
+"quoted": "'unset FOO'",
+"src": "corpus"
+},
+{
+"input": "unset -v myvar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unset",
+"-v",
+"myvar"
+]
+},
+{
+"input": "unset -v myvar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unset",
+"-v",
+"myvar"
+]
+},
+{
+"input": "unset -v myvar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unset",
+"-v",
+"myvar"
+]
+},
+{
+"input": "unset -v myvar",
+"mode": "quote",
+"quoted": "'unset -v myvar'",
+"src": "corpus"
+},
+{
+"input": "env -C /x ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"ls"
+]
+},
+{
+"input": "env -C /x ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"ls"
+]
+},
+{
+"input": "env -C /x ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"ls"
+]
+},
+{
+"input": "env -C /x ls",
+"mode": "quote",
+"quoted": "'env -C /x ls'",
+"src": "corpus"
+},
+{
+"input": "env -C /x -u FOO ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"-u",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -C /x -u FOO ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"-u",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -C /x -u FOO ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/x",
+"-u",
+"FOO",
+"ls"
+]
+},
+{
+"input": "env -C /x -u FOO ls",
+"mode": "quote",
+"quoted": "'env -C /x -u FOO ls'",
+"src": "corpus"
+},
+{
+"input": "env -i ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-i",
+"ls"
+]
+},
+{
+"input": "env -i ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-i",
+"ls"
+]
+},
+{
+"input": "env -i ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-i",
+"ls"
+]
+},
+{
+"input": "env -i ls",
+"mode": "quote",
+"quoted": "'env -i ls'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -54048,7 +57847,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1205,
+"corpus_commands": 1307,
 "edge_inputs": 123,
 "python": "3.13"
 }

@@ -13,8 +13,10 @@ import (
 const wordClass = `\p{L}\p{N}_`
 
 var (
-	reProtectedName = regexp.MustCompile(`^(?:HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_[` + wordClass + `]*)\n?$`)
-	reParamDefault  = regexp.MustCompile(`\$\{(!?[A-Za-z_][` + wordClass + `]*):?=`)
+	reProtectedName = regexp.MustCompile(`^(?:HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[` + wordClass + `]*)\n?$`) // T-0788: zsh `path` is tied to PATH
+	reParamDefault  = regexp.MustCompile(`\$\{(!?[A-Za-z_][` + wordClass + `]*):{0,2}=`)
+	reSubscriptAsg  = regexp.MustCompile(`^([A-Za-z_][` + wordClass + `]*)\[[^\]]*\]\+?=`)
+	reClusterV      = regexp.MustCompile(`^-[A-Za-z]*v$`)
 	reNamedFd       = regexp.MustCompile(`\{([A-Za-z_][` + wordClass + `]*|[^` + gitSp + `{}]*\$[^` + gitSp + `{}]*)\}[<>]`)
 	reCoproc        = regexp.MustCompile(`coproc[` + gitSp + `]+([^` + gitSp + `{(;|&<>]+)[` + gitSp + `]+`)
 	reNamerefFlags  = regexp.MustCompile(`^[^;&|\n]*[` + gitSp + `]-[A-Za-z]*n`)
@@ -36,8 +38,8 @@ func precededBy(s string, i int, extra string) bool {
 
 func protectedName(s string) bool { return reProtectedName.MatchString(s) }
 
-func (a *Analyzer) assignBlock(what, name, why string) error {
-	return blockf(a.Role + " may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with " + what + " (" + pyRepr(name) +
+func (a *Analyzer) assignBlock(verb, what, name, why string) error {
+	return blockf(a.Role + " may not " + verb + " HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with " + what + " (" + pyRepr(name) +
 		": " + why + "); use a plain variable name, or ask your lead")
 }
 
@@ -104,10 +106,10 @@ func declaresNameref(text string) bool {
 	return false
 }
 
-// namesProtected: re.search(r"(?<![\w])(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(?![\w])", text): a whole word token.
+// namesProtected: re.search(r"(?<![\w])(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(?![\w])", text): a whole word token.
 func namesProtected(text string) bool {
 	for _, w := range strings.FieldsFunc(text, func(r rune) bool { return !isWordRune(r) }) {
-		if w == "HOME" || w == "XDG_CONFIG_HOME" || w == "PATH" || w == "PAGER" || strings.HasPrefix(w, "GIT_") {
+		if w == "HOME" || w == "XDG_CONFIG_HOME" || w == "PATH" || w == "path" || w == "PAGER" || strings.HasPrefix(w, "GIT_") {
 			return true
 		}
 	}
@@ -120,13 +122,14 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 	dyn := func(name string) bool {
 		return reDynChars.MatchString(name) || strings.Contains(reSubscript.ReplaceAllString(name, ""), "[")
 	}
-	deny := func(what, name string) error {
+	denyAs := func(verb, what, name string) error {
 		why := "it selects the git config, helpers or pager"
 		if dyn(name) {
 			why = "dynamic target name"
 		}
-		return a.assignBlock(what, name, why)
+		return a.assignBlock(verb, what, name, why)
 	}
+	deny := func(what, name string) error { return denyAs("assign", what, name) }
 	all := append(append(append([]string(nil), assigns...), words...), extra...)
 	for _, w := range all {
 		m := reParamDefault.FindStringSubmatch(w)
@@ -143,19 +146,30 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 	if len(words) == 0 {
 		return nil
 	}
+	if m := reSubscriptAsg.FindStringSubmatch(words[0]); m != nil && bad(m[1]) { // T-0788: `path[1]=x` is an assignment
+		return deny("a subscript assignment", m[1])
+	}
 	name, rest := pyBasename(words[0]), words[1:]
 	var targets []string
 	switch {
+	case name == "env": // T-0788: removing a protected name (env -u, env -i) strips the pane's git isolation
+		return a.envUnset(rest, bad, dyn, denyAs)
+	case name == "unset":
+		for _, w := range rest {
+			if !strings.HasPrefix(w, "-") && (bad(w) || dyn(w)) {
+				return denyAs("unset", "unset", w)
+			}
+		}
 	case name == "read" || name == "mapfile" || name == "readarray":
 		argopt := "dnOsuCc"
 		if name == "read" {
-			argopt = "padnNtui"
+			argopt = "padnNtuiA"
 		}
 		skip := ""
 		for _, w := range rest {
 			switch {
 			case skip != "":
-				if skip == "a" {
+				if skip == "a" || skip == "A" {
 					targets = append(targets, w)
 				}
 				skip = ""
@@ -163,7 +177,7 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 				for k, c := range w[1:] {
 					if c < 0x80 && strings.ContainsRune(argopt, c) { // the rest of the cluster (-aHOME) or the next word is its argument
 						if tail := w[1+k+1:]; tail != "" {
-							if c == 'a' {
+							if c == 'a' || c == 'A' {
 								targets = append(targets, tail)
 							}
 						} else {
@@ -176,16 +190,32 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 				targets = append(targets, w)
 			}
 		}
-	case name == "printf":
+	case name == "printf" || name == "print":
 		for j, w := range rest {
 			if w == "-v" && j+1 < len(rest) {
 				targets = append(targets, rest[j+1])
 			} else if strings.HasPrefix(w, "-v") && len(w) > 2 {
 				targets = append(targets, w[2:])
+			} else if name == "print" && reClusterV.MatchString(w) && j+1 < len(rest) { // T-0788: cluster -rv NAME
+				targets = append(targets, rest[j+1])
 			}
 		}
 	case (name == "for" || name == "select") && len(rest) > 0:
 		targets = append(targets, rest[0])
+	case name == "set": // T-0788: `set -A path ...` assigns the array
+		for j, w := range rest {
+			if (w == "-A" || w == "+A" || w == "-a" || w == "+a") && j+1 < len(rest) {
+				targets = append(targets, rest[j+1])
+			}
+		}
+	case name == "zparseopts": // T-0788: -a ARRAY / -A ASSOC name the variable they assign
+		for j, w := range rest {
+			if (w == "-a" || w == "-A") && j+1 < len(rest) {
+				targets = append(targets, rest[j+1])
+			} else if (strings.HasPrefix(w, "-a") || strings.HasPrefix(w, "-A")) && len(w) > 2 {
+				targets = append(targets, w[2:])
+			}
+		}
 	case name == "wait":
 		for j, w := range rest {
 			if strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && strings.Contains(w, "p") {
@@ -239,4 +269,77 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 		}
 	}
 	return nil
+}
+
+// envUnset ports the `env` branch of Analyzer.builtin_assign (T-0788): env -u/--unset NAME of a protected or dynamic
+// name, and env -i / --ignore-environment / - (which clear every name), are refused. -S/--split-string re-parses its
+// string as env options; -C/--chdir skips its directory argument.
+func (a *Analyzer) envUnset(rest []string, bad, dyn func(string) bool, denyAs func(verb, what, name string) error) error {
+	q := append([]string(nil), rest...)
+	next := func() (string, bool) {
+		if len(q) == 0 {
+			return "", false
+		}
+		w := q[0]
+		q = q[1:]
+		return w, true
+	}
+	const clearEnv = "the whole environment"
+	for {
+		w, ok := next()
+		if !ok {
+			return nil
+		}
+		if w == "-C" || w == "--chdir" {
+			next()
+			continue
+		}
+		if w == "-S" || w == "--split-string" || strings.HasPrefix(w, "--split-string=") || (strings.HasPrefix(w, "-S") && !strings.HasPrefix(w, "--")) {
+			var sval string
+			switch {
+			case strings.HasPrefix(w, "--") && strings.Contains(w, "="):
+				sval = w[strings.Index(w, "=")+1:]
+			case strings.HasPrefix(w, "-S") && w != "-S":
+				sval = w[2:]
+			default:
+				sval, _ = next()
+			}
+			q = append(pyFields(sval), q...)
+			continue
+		}
+		if w == "-i" || w == "--ignore-environment" || w == "-" {
+			return denyAs("clear or unset", "env "+w, clearEnv)
+		}
+		var names []string
+		switch {
+		case w == "-u" || w == "--unset":
+			n, _ := next()
+			names = []string{n}
+		case strings.HasPrefix(w, "--unset="):
+			names = []string{w[len("--unset="):]}
+		case strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && len(w) > 1:
+			for k, c := range w[1:] {
+				if c == 'i' {
+					return denyAs("clear or unset", "env "+w, clearEnv)
+				}
+				if c == 'u' { // -uNAME, or the next word
+					n := w[1+k+utf8.RuneLen(c):]
+					if n == "" {
+						n, _ = next()
+					}
+					names = []string{n}
+					break
+				}
+			}
+		case strings.HasPrefix(w, "--") || IsAssign(w):
+			continue
+		default:
+			return nil // the command word
+		}
+		for _, n := range names {
+			if bad(n) || dyn(n) {
+				return denyAs("unset", "env -u", n)
+			}
+		}
+	}
 }
