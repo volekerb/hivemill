@@ -63,6 +63,7 @@ option, -c override or GIT_CONFIG_* assignment is blocked, as is a push when the
 T-0743: the hook cwd and any -C target must be the worktree recorded for the task in the factory DB (read-only);
 an unresolvable task/worktree refuses.
 """
+import collections
 import fnmatch
 import glob
 import json
@@ -314,9 +315,9 @@ GIT_FETCH_FLAGS = {"--all", "--prune", "-p", "--tags", "-t", "--no-tags", "-q", 
 GIT_LSREMOTE_FLAGS = {"--heads", "--refs", "--symref", "--exit-code", "--get-url"}
 GIT_WORD = re.compile(r"(?:^|[\s/;&|])git(?:-\S*)?(?:\s|$)")
 GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=")
-GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(\+?=.*)?$")
-PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)$")
-PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):?=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(\+?=.*)?$")  # T-0788: zsh `path` is tied to PATH
+PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
+PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
@@ -2095,7 +2096,7 @@ class Analyzer:
                             f"({name!r}: it assigns the variable, or the name is dynamic); use a plain variable name, "
                             "or ask your lead")
         if re.search(r"(?<![\w-])(declare|typeset|local)\b[^;&|\n]*\s-[A-Za-z]*n", text) and \
-                re.search(r"(?<![\w])(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_\w*)(?![\w])", text):
+                re.search(r"(?<![\w])(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(?![\w])", text):
             raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* ... in a call that declares a "
                         "nameref (-n): the nameref could assign it later; declare the nameref in a call that does not name "
                         "them, or ask your lead")
@@ -2113,10 +2114,10 @@ class Analyzer:
             # expansion/glob/brace/subscript other than [digits] can name HOME at run time: fail closed
             return bool(re.search(r"[$`!*?{]", name)) or bool(re.search(r"\[", re.sub(r"\[\d+\]$", "", name)))
 
-        def deny(what, name):
+        def deny(what, name, verb="assign"):
             why = "dynamic target name" if dyn(name) else "it selects the git config, helpers or pager"
-            raise Block(f"{self.role} may not assign HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* with {what} ({name!r}: {why}); "
-                        "use a plain variable name, or ask your lead")
+            raise Block(f"{self.role} may not {verb} HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with {what} ({name!r}: "
+                        f"{why}); use a plain variable name, or ask your lead")
 
         for w in [*assigns, *words, *extra]:
             m = PARAM_DEFAULT.search(w)
@@ -2126,35 +2127,89 @@ class Analyzer:
                 deny("a ${VAR:=...} default", m.group(1))
         if not words:
             return
+        m = re.match(r"([A-Za-z_]\w*)\[[^\]]*\]\+?=", words[0])  # T-0788: `path[1]=x` / `PATH[1]=x` is an assignment
+        if m and bad(m.group(1)):
+            deny("a subscript assignment", m.group(1))
         name, rest = os.path.basename(words[0]), words[1:]
         targets = []
-        if name in ("read", "mapfile", "readarray"):
+        if name == "env":  # T-0788: removing a protected name (env -u, env -i) strips the pane's git isolation
+            q = collections.deque(rest)
+            it = iter(lambda: q.popleft() if q else None, None)  # -S pushes its words back onto q
+            for a in it:
+                if a in ("-C", "--chdir"):  # takes a directory argument: skip it, keep scanning for -u
+                    next(it, None)
+                    continue
+                if a in ("-S", "--split-string") or a.startswith("--split-string=") or (a.startswith("-S") and not a.startswith("--")):
+                    # re-parse the string as env options
+                    sval = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a[2:] if a.startswith("-S") and a != "-S" else next(it, "")
+                    q.extendleft(reversed(sval.split()))
+                    continue
+                if a in ("-i", "--ignore-environment", "-"):
+                    deny("env " + a, "the whole environment", "clear or unset")
+                if a in ("-u", "--unset"):
+                    names = [next(it, "")]
+                elif a.startswith("--unset="):
+                    names = [a[8:]]
+                elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
+                    names = []
+                    for k, c in enumerate(a[1:], 1):
+                        if c == "i":
+                            deny("env " + a, "the whole environment", "clear or unset")
+                        if c == "u":  # -uNAME, or the next word
+                            names = [a[k + 1:] or next(it, "")]
+                            break
+                elif a.startswith("--") or ASSIGN.match(a):
+                    continue
+                else:
+                    break  # the command word
+                for n in names:
+                    if bad(n) or dyn(n):
+                        deny("env -u", n, "unset")
+        elif name == "unset":
+            for a in rest:
+                if not a.startswith("-") and (bad(a) or dyn(a)):
+                    deny("unset", a, "unset")
+        elif name in ("read", "mapfile", "readarray"):
             argopt = set("padnNtui") if name == "read" else set("dnOsuCc")
+            if name == "read":
+                argopt.add("A")
             skip = None
             for a in rest:
                 if skip is not None:
-                    if skip == "a":
+                    if skip in "aA":
                         targets.append(a)
                     skip = None
                 elif a.startswith("-") and len(a) > 1:
                     for k, c in enumerate(a[1:], 1):
                         if c in argopt:  # the rest of the cluster (-aHOME) or the next word is its argument
                             if a[k + 1:]:
-                                if c == "a":
+                                if c in "aA":
                                     targets.append(a[k + 1:])
                             else:
                                 skip = c
                             break
                 else:
                     targets.append(a)
-        elif name == "printf":
+        elif name in ("printf", "print"):
             for j, a in enumerate(rest):
                 if a == "-v" and j + 1 < len(rest):
                     targets.append(rest[j + 1])
                 elif a.startswith("-v") and len(a) > 2:
                     targets.append(a[2:])
+                elif name == "print" and re.fullmatch(r"-[A-Za-z]*v", a) and j + 1 < len(rest):  # T-0788: cluster -rv NAME
+                    targets.append(rest[j + 1])
         elif name in ("for", "select") and rest:
             targets.append(rest[0])
+        elif name == "set":  # T-0788: `set -A path ...` assigns the array
+            for j, a in enumerate(rest):
+                if a in ("-A", "+A", "-a", "+a") and j + 1 < len(rest):
+                    targets.append(rest[j + 1])
+        elif name == "zparseopts":  # T-0788: -a ARRAY / -A ASSOC name the variable they assign
+            for j, a in enumerate(rest):
+                if a in ("-a", "-A") and j + 1 < len(rest):
+                    targets.append(rest[j + 1])
+                elif a[:2] in ("-a", "-A") and len(a) > 2:
+                    targets.append(a[2:])
         elif name == "wait":
             for j, a in enumerate(rest):
                 if a.startswith("-") and not a.startswith("--") and "p" in a:
