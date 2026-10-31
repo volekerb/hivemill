@@ -40,11 +40,19 @@ DENIED = [
     "python3 -c 'import os; os.system(\"gh api --method=DELETE repos/x/y\")'",
     "python3 -c 'import subprocess; subprocess.run([\"gh\",\"api\",\"-X\",\"PUT\",\"repos/x/y\"])'",
     "python3 -c 'import os; os.system(\"gh repo delete x\")'",
-    "python3 -c 'import os; os.system(\"gh repo view x\")'",
+    "python3 -c 'import os; os.system(\"gh repo view x\")'",  # any gh repo subcommand is refused, by spec
     "bash -c \"python3 -c 'import os; os.system(\\\"git push\\\")'\"",
     "sh -c \"perl -e 'system(q(git push))'\"",
     "cd /tmp && python3 -c '%s'" % PY_PUSH,
     "env python3 -c '%s'" % PY_PUSH,
+    "perl -e'system(q(git push))'",  # attached code
+    "ruby -e\"system(q(git push))\"",
+    "node --eval='require(\"child_process\").execSync(\"git push\")'",
+    "node --print='require(\"child_process\").execSync(\"git push\")'",
+    "python3 -c'import os; os.system(\"git push\")'",
+    "python3 -c 'import os; os.system(\"gh -R a/b pr merge 1\")'",  # gh global flag before the subcommand
+    "python3 -c 'import os; os.system(\"gh --repo a/b pr create --fill\")'",
+    "python3 -c 'import os; os.system(\"gh api x -X GET; gh api y -X POST\")'",
     "python3 -c \"print('git push')\"",  # accepted false positive
 ]
 ALLOWED = [
@@ -58,6 +66,9 @@ ALLOWED = [
     "python3 -c 'import os; os.system(\"gh pr view 1\")'",
     "python3 -c 'import os; os.system(\"gh api repos/x/y/pulls\")'",
     "python3 -c 'import os; os.system(\"gh api -X GET repos/x/y/pulls\")'",
+    "python3 -c 'print(\"-X POST\")'",
+    "perl -e'print 1'",
+    "python3 -c 'import os; os.system(\"gh -R a/b pr view 1\")'",
     "python3 script.py",  # no inline code: out of scope
     "python3 script.py --arg 'git push'",
     "bash -c \"python3 -c 'import json'\"",
@@ -98,7 +109,7 @@ class InterpInlinePushTests(unittest.TestCase):
 
     def test_hq_unchanged(self):
         for role in HQ:
-            for cmd in ("python3 -c '%s'" % PY_PUSH, "node -e 'require(\"child_process\").execSync(\"git push\")'",
+            for cmd in ("python3 -c '%s'" % PY_PUSH, "perl -e 'system(\"git push\")'", "ruby -e 'system(\"git push\")'", "node -e 'require(\"child_process\").execSync(\"git push\")'",
                         "python3 -c '%s'" % PY_API_POST):
                 with self.subTest(role=role, cmd=cmd):
                     self.assertEqual(self.run_hook(cmd, role).returncode, 0)
