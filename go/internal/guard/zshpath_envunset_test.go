@@ -15,11 +15,13 @@ var zshPathDenied = []string{
 	"f() { local path=(/evil); }", "export path", "readonly path=(/x)", "print -v path /evil", "zparseopts -a path x",
 	": $" + "{path::=/evil}", ": $" + "{path:=/evil}", ": $" + "{path=/evil}", "print -rv path x", "set -A path /x", "read -Apath",
 	"for path in /evil; do :; done",
+	"set +A path /x", "set -a path", "zparseopts -A path x", "zparseopts -Apath x", "zparseopts -apath x", "print -vpath x", "path[1]+=x",
 }
 
 var zshPathAllowed = []string{
 	"echo $path", "print -l $path", "for p in $path; do echo $p; done", "mypath=/x", "path_x=1", "PATHX=1",
 	"filepath=(a b)", "grep path file.txt", "git log -- path",
+	"read -A arr", "zparseopts -a opts x", "set -e", "print -r path", "arr[1]=x",
 }
 
 var envUnsetDenied = []string{
@@ -28,7 +30,7 @@ var envUnsetDenied = []string{
 	"unset -v GIT_CONFIG_GLOBAL", "unset PATH", "unset path", "env -i git status", "env --ignore-environment ls", "env - ls",
 	"env -uGIT_ASKPASS ls", "env -u HOME ls", "env -C /x -u PATH ls", "env --chdir /x -u HOME ls",
 	"env -S\"-u PATH\" ls", "env --split-string=-i ls", "env -iu FOO ls",
-	"env -S '-u PATH' ls", "env -S-uPATH ls", "env -u 'GIT_$x' ls", "env -u '$n' ls", "env -u PATH[0] ls",
+	"env -S '-u PATH' ls", "env -S-uPATH ls", "env -u 'GIT_$x' ls", "env -u PATH[0] ls", "unset -v path",
 }
 
 var envUnsetAllowed = []string{
@@ -50,8 +52,10 @@ func TestZshPathAndEnvUnsetNoPushRoles(t *testing.T) {
 			}
 		}
 		for _, cmd := range append(append([]string(nil), zshPathAllowed...), envUnsetAllowed...) {
-			if err := Check(cmd, cwd, role, false); err != nil {
-				t.Errorf("%s: %q: want allowed, got %v", role, cmd, err)
+			for _, form := range forms(cmd) {
+				if err := Check(form, cwd, role, false); err != nil {
+					t.Errorf("%s: %q: want allowed, got %v", role, form, err)
+				}
 			}
 		}
 	}
@@ -62,7 +66,8 @@ func TestZshPathAndEnvUnsetOtherRolesUnchanged(t *testing.T) {
 	cwd := t.TempDir()
 	cmds := []string{"path=(/evil)", "path+=/evil", "path[1]=/evil", "read -A path", "set -A path /x", "zparseopts -a path x",
 		"for path in /evil; do :; done", "env -u GIT_ASKPASS git status", "env -i ls", "env - ls", "env -S'-u PATH' ls",
-		"unset path", "unset GIT_ASKPASS"}
+		"unset path", "unset GIT_ASKPASS", "env --unset=PATH ls", "env -uGIT_ASKPASS ls", "env -C /x -u HOME ls", ": $" + "{path::=/evil}",
+		"print -rv path x", "zparseopts -A path x"}
 	for _, role := range []string{"coder", "cleaner", "judge"} {
 		for _, cmd := range cmds {
 			if err := Check(cmd, cwd, role, false); err != nil {
@@ -88,53 +93,53 @@ func TestBuiltinAssignZshPathAndEnv(t *testing.T) {
 		{"path subscript assignment", []string{"path[1]=/x"}, "subscript assignment"},
 		{"PATH subscript append", []string{"PATH[2]+=/x"}, "subscript assignment"},
 		{"plain subscript assignment", []string{"arr[1]=x"}, ""},
-		{"read -A path", []string{"read", "-A", "path"}, "read"},
-		{"read -Apath", []string{"read", "-Apath"}, "read"},
+		{"read -A path", []string{"read", "-A", "path"}, "with read ("},
+		{"read -Apath", []string{"read", "-Apath"}, "with read ("},
 		{"read -A plain", []string{"read", "-A", "arr"}, ""},
-		{"print -v path", []string{"print", "-v", "path", "x"}, "print"},
-		{"print -rv path", []string{"print", "-rv", "path", "x"}, "print"},
+		{"print -v path", []string{"print", "-v", "path", "x"}, "with print ("},
+		{"print -rv path", []string{"print", "-rv", "path", "x"}, "with print ("},
 		{"print -r path is output, not assignment", []string{"print", "-r", "path"}, ""},
-		{"print -vpath", []string{"print", "-vpath", "x"}, "print"},
-		{"set -A path", []string{"set", "-A", "path", "/x"}, "set"},
-		{"set +A path", []string{"set", "+A", "path"}, "set"},
-		{"set -a path", []string{"set", "-a", "path"}, "set"},
+		{"print -vpath", []string{"print", "-vpath", "x"}, "with print ("},
+		{"set -A path", []string{"set", "-A", "path", "/x"}, "with set ("},
+		{"set +A path", []string{"set", "+A", "path"}, "with set ("},
+		{"set -a path", []string{"set", "-a", "path"}, "with set ("},
 		{"set -e", []string{"set", "-e"}, ""},
-		{"zparseopts -a path", []string{"zparseopts", "-a", "path", "x"}, "zparseopts"},
-		{"zparseopts -A path", []string{"zparseopts", "-A", "path", "x"}, "zparseopts"},
-		{"zparseopts -apath", []string{"zparseopts", "-apath", "x"}, "zparseopts"},
-		{"zparseopts -Apath", []string{"zparseopts", "-Apath", "x"}, "zparseopts"},
+		{"zparseopts -a path", []string{"zparseopts", "-a", "path", "x"}, "with zparseopts ("},
+		{"zparseopts -A path", []string{"zparseopts", "-A", "path", "x"}, "with zparseopts ("},
+		{"zparseopts -apath", []string{"zparseopts", "-apath", "x"}, "with zparseopts ("},
+		{"zparseopts -Apath", []string{"zparseopts", "-Apath", "x"}, "with zparseopts ("},
 		{"zparseopts plain", []string{"zparseopts", "-a", "opts", "x"}, ""},
-		{"for path", []string{"for", "path", "in", "a"}, "for"},
-		{"default :: path", []string{"echo", "$" + "{path::=x}"}, "default"},
-		{"default := path", []string{"echo", "$" + "{path:=x}"}, "default"},
-		{"default = path", []string{"echo", "$" + "{path=x}"}, "default"},
+		{"for path", []string{"for", "path", "in", "a"}, "with for ("},
+		{"default :: path", []string{"echo", "$" + "{path::=x}"}, "default ("},
+		{"default := path", []string{"echo", "$" + "{path:=x}"}, "default ("},
+		{"default = path", []string{"echo", "$" + "{path=x}"}, "default ("},
 		{"default :: plain", []string{"echo", "$" + "{other::=x}"}, ""},
-		{"env -u PATH", []string{"env", "-u", "PATH", "ls"}, "unset"},
-		{"env -uPATH", []string{"env", "-uPATH", "ls"}, "unset"},
-		{"env -u path", []string{"env", "-u", "path", "ls"}, "unset"},
-		{"env --unset PATH", []string{"env", "--unset", "PATH", "ls"}, "unset"},
-		{"env --unset=PATH", []string{"env", "--unset=PATH", "ls"}, "unset"},
+		{"env -u PATH", []string{"env", "-u", "PATH", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env -uPATH", []string{"env", "-uPATH", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env -u path", []string{"env", "-u", "path", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env --unset PATH", []string{"env", "--unset", "PATH", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env --unset=PATH", []string{"env", "--unset=PATH", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
 		{"env -u dynamic", []string{"env", "-u", "$n", "ls"}, "dynamic target name"},
 		{"env -u plain", []string{"env", "-u", "FOO", "ls"}, ""},
-		{"env -i", []string{"env", "-i", "ls"}, "clear or unset"},
-		{"env -", []string{"env", "-", "ls"}, "clear or unset"},
-		{"env --ignore-environment", []string{"env", "--ignore-environment", "ls"}, "clear or unset"},
-		{"env -iu FOO", []string{"env", "-iu", "FOO", "ls"}, "clear or unset"},
+		{"env -i", []string{"env", "-i", "ls"}, "may not clear or unset"},
+		{"env -", []string{"env", "-", "ls"}, "may not clear or unset"},
+		{"env --ignore-environment", []string{"env", "--ignore-environment", "ls"}, "may not clear or unset"},
+		{"env -iu FOO", []string{"env", "-iu", "FOO", "ls"}, "may not clear or unset"},
 		{"env -C skips its directory", []string{"env", "-C", "-i", "ls"}, ""},
-		{"env --chdir then -u", []string{"env", "--chdir", "/x", "-u", "HOME", "ls"}, "unset"},
-		{"env -S splits", []string{"env", "-S", "-u PATH ls"}, "unset"},
-		{"env -S glued", []string{"env", "-S-i ls"}, "clear or unset"},
-		{"env --split-string=", []string{"env", "--split-string=-u HOME ls"}, "unset"},
-		{"env --split-string separate", []string{"env", "--split-string", "-i"}, "clear or unset"},
+		{"env --chdir then -u", []string{"env", "--chdir", "/x", "-u", "HOME", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env -S splits", []string{"env", "-S", "-u PATH ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env -S glued", []string{"env", "-S-i ls"}, "may not clear or unset"},
+		{"env --split-string=", []string{"env", "--split-string=-u HOME ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env --split-string separate", []string{"env", "--split-string", "-i"}, "may not clear or unset"},
 		{"env stops at the command word", []string{"env", "ls", "-u", "PATH"}, ""},
-		{"env after assignment", []string{"env", "A=1", "-u", "PATH", "ls"}, "unset"},
-		{"env other long option", []string{"env", "--debug", "-u", "PATH"}, "unset"},
+		{"env after assignment", []string{"env", "A=1", "-u", "PATH", "ls"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
+		{"env other long option", []string{"env", "--debug", "-u", "PATH"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with env -u ("},
 		{"env no args", []string{"env"}, ""},
 		{"env -u missing name", []string{"env", "-u"}, ""},
-		{"absolute env", []string{"/usr/bin/env", "-i", "ls"}, "clear or unset"},
-		{"unset PATH", []string{"unset", "PATH"}, "unset"},
-		{"unset -v GIT_X", []string{"unset", "-v", "GIT_X"}, "unset"},
-		{"unset path", []string{"unset", "path"}, "unset"},
+		{"absolute env", []string{"/usr/bin/env", "-i", "ls"}, "may not clear or unset"},
+		{"unset PATH", []string{"unset", "PATH"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with unset ("},
+		{"unset -v GIT_X", []string{"unset", "-v", "GIT_X"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with unset ("},
+		{"unset path", []string{"unset", "path"}, "may not unset HOME, XDG_CONFIG_HOME, PATH, PAGER or GIT_* (or zsh path) with unset ("},
 		{"unset dynamic", []string{"unset", "$n"}, "dynamic target name"},
 		{"unset plain", []string{"unset", "FOO"}, ""},
 	}
