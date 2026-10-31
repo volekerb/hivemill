@@ -204,17 +204,37 @@ def teams(con):
     return _dicts(con.execute("SELECT id, goal_id, scope, lead_agent, status, created FROM teams ORDER BY id"))
 
 
+def agent_runtime_of(spawn_args):
+    """claude|cursor (default claude). Reads only spawn_args.runtime — never returns kickoff text."""
+    if not spawn_args:
+        return "claude"
+    try:
+        rt = (json.loads(spawn_args) or {}).get("runtime") or "claude"
+    except (TypeError, ValueError):
+        return "claude"
+    return rt if rt in ("claude", "cursor") else "claude"
+
+
 def agents(con, include_ended=False, now=None):
-    """Agents with age_s (live/queued: since started/queued_at until now; ended: started -> ended)."""
+    """Agents with age_s (live/queued: since started/queued_at until now; ended: started -> ended).
+
+    Includes `runtime` (claude|cursor) derived from spawn_args.runtime; spawn_args itself is never returned.
+    """
     want = ["name", "role", "goal_id", "team_id", "task_id", "status", "model", "pane_id", "started", "ended",
             "queued_at", "session_id", "stop_requested_at"]
     sel = ", ".join(c if has_column(con, "agents", c) else f"NULL AS {c}" for c in want)
+    # runtime only: never select spawn_args into the row (kickoff lives there)
+    if has_column(con, "agents", "spawn_args"):
+        sel += ", spawn_args AS _spawn_args"
+    else:
+        sel += ", NULL AS _spawn_args"
     where = "" if include_ended else "WHERE status NOT IN (%s)" % ",".join("?" * len(ENDED_AGENT))
     rows = con.execute(f"SELECT {sel} FROM agents {where} ORDER BY name", () if include_ended else ENDED_AGENT)
     now_e = _now(now).timestamp()
     out = []
     for r in rows:
         d = dict(r)
+        d["runtime"] = agent_runtime_of(d.pop("_spawn_args", None))
         start = _epoch(d["started"]) or _epoch(d["queued_at"])
         end = _epoch(d["ended"]) if d["status"] in ENDED_AGENT else now_e
         d["age_s"] = round(end - start) if start is not None and end is not None else None

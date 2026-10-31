@@ -171,11 +171,20 @@ AGENT_COLS = (
 )
 
 
+def runtime_badge(runtime):
+    """Small Claude/Cursor chip. Missing/unknown → Claude (factory default); does not invent other kinds."""
+    rt = (runtime or "claude").strip().lower()
+    if rt not in ("claude", "cursor"):
+        rt = "claude"
+    return el("span", rt, class_=f"rt rt-{rt}", title=f"Agent runtime: {rt}")
+
+
 def agent_row(a, now=None):
     """Cells for AGENT_COLS: glyph, name + role (role omitted when equal to the name), task id + title, last event age.
-    `a` needs name, role, status; task_id, task_title and last_event are optional. Blocked agents get the Blocked glyph."""
+    `a` needs name, role, status; task_id, task_title, last_event, runtime optional. Blocked → Blocked glyph."""
     key = "blocked" if a.get("blocked") else a["status"]
     who = el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a.get("role") and a["role"] != a["name"] else None,
+             " ", runtime_badge(a.get("runtime")),
              class_="agent-who")
     task = el("span", el("a", a["task_id"], href=f"/task/{a['task_id']}", class_="mono"), " ",
               el("span", a.get("task_title"), title=a.get("task_title"), class_="agent-task")) if a.get("task_id") else ""

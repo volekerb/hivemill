@@ -105,6 +105,7 @@ class TestCountsAndLinks(FilterBase):
         self.assertIn('href="/agents?status=live&amp;role=coder&amp;goal=G-1"', html)
         self.assertIn('href="/agents?role=lead&amp;goal=G-1"', html)
         self.assertIn('href="/agents?role=coder&amp;goal=G-2"', html)
+        # runtime filter chips compose with the others when present
         self.assertIn("Showing: role=coder, goal=G-1", html)
         self.assertIn('<a href="/agents">clear</a>', html)
 
