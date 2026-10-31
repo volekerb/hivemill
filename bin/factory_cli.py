@@ -10487,11 +10487,12 @@ def tick_judge_ci_prune(con, now=None):
     open_urls = {r["pr_url"] for r in con.execute(
         "SELECT DISTINCT pr_url FROM tasks WHERE pr_url IS NOT NULL AND status NOT IN ('done','cancelled')")}
     dead = []
-    for r in con.execute("SELECT key, value FROM config WHERE key LIKE 'judge\\_ci:%' ESCAPE '\\'").fetchall():
+    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:'").fetchall():  # LIKE ignores case
         url = r["key"][len("judge_ci:"):]
         try:
-            stale = now - float(json.loads(r["value"])["at"]) > JUDGE_CI_PRUNE_AGE_S
-        except (ValueError, KeyError, TypeError):
+            at = float(json.loads(r["value"])["at"])
+            stale = not math.isfinite(at) or now - at > JUDGE_CI_PRUNE_AGE_S
+        except (ValueError, KeyError, TypeError, OverflowError):
             stale = True  # an unreadable entry is a cache miss in judge_pr_ready: nothing is lost by dropping it
         if stale or url not in open_urls:
             dead.append(r["key"])

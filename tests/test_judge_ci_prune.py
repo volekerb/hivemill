@@ -82,6 +82,21 @@ class JudgeCiPruneTests(FactoryTestCase):
         self.tick()
         self.assertEqual(self.keys(), set())
 
+    def test_non_finite_or_huge_at_is_deleted_and_does_not_stop_the_other_rows(self):
+        for n, raw in ((1, '{"at": 1e400, "ready": true, "why": "x"}'), (2, '{"at": NaN, "ready": true, "why": "x"}'),
+                       (3, '{"at": Infinity, "ready": true, "why": "x"}'), (4, '{"at": 1' + "0" * 400 + ', "ready": true, "why": "x"}')):
+            self.put(self.task(n, "in_review"), raw)
+        stale = self.task(5, "done")
+        self.put(stale, cache(NOW - 60))
+        self.tick()
+        self.assertEqual(self.keys(), set())
+        self.assertEqual(self.events("judge-ci-prune-error"), [])
+
+    def test_key_match_is_case_sensitive(self):
+        self.env.sql("INSERT INTO config(key,value) VALUES(?,?)", ("Judge_CI:" + URL % 9, "x"))
+        self.tick()
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM config WHERE key=?", ("Judge_CI:" + URL % 9,))), 1)
+
     def test_a_pr_shared_by_a_done_and_an_open_task_is_kept(self):
         self.env.seed_task("T-0001", status="done", pr_url=URL % 1)
         self.env.seed_task("T-0002", status="in_review", pr_url=URL % 1)
