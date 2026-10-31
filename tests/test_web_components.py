@@ -153,7 +153,7 @@ class TestPages(PageCase):
         a = self.text("/agents")
         self.assertIn('<table class="dt">', a)
         self.assertRegex(a, r'class="chip"[^>]*><span>Running</span> <span class="chip-n">2<')
-        self.assertRegex(a, r'<tr class="grp"><th colspan="6" scope="colgroup">t-a · G-1 <span class="grp-n">2<')
+        self.assertRegex(a, r'<tr class="grp"><th colspan="5" scope="colgroup">t-a · G-1 <span class="grp-n">2<')
         c = self.text("/changelog")
         self.assertIn('class="seg seg-links"', c)
         self.assertRegex(c, r'<li class="feed-row">')

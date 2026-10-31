@@ -325,17 +325,14 @@ def _teams(d):
                    count=len(rows) or None)
 
 
-COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2],
-        {"key": "runtime", "label": "Runtime", "cls": "c-who"},
-        {"key": "model", "label": "Model", "cls": "c-who"}, AGENT_COLS[3])
+COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "model", "label": "Model", "cls": "c-who"}, AGENT_COLS[3])
 
 
 def _cells(a, now):
-    """agent_row cells plus runtime + model; blocked and stop-requested badges sit next to the name."""
+    """agent_row cells plus model; the blocked and stop-requested badges sit next to the name (the runtime chip is in agent_row)."""
     c = agent_row(dict(a, blocked=is_blocked(a.get("blocked_since"))), now)
     extra = [" ", _blocked(a)] + ([" ", badge("stop requested", "warn")] if a.get("stop_requested") else [])
-    # agent_row already embeds runtime_badge in the who cell; column repeats a plain label for sorting/scan
-    return [c[0], el("span", c[1], *extra), c[2], runtime_badge(a.get("runtime")), a.get("model") or "", c[3]]
+    return [c[0], el("span", c[1], *extra), c[2], a.get("model") or "", c[3]]
 
 
 def _urgent_first(a):

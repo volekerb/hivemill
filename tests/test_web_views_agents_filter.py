@@ -105,7 +105,6 @@ class TestCountsAndLinks(FilterBase):
         self.assertIn('href="/agents?status=live&amp;role=coder&amp;goal=G-1"', html)
         self.assertIn('href="/agents?role=lead&amp;goal=G-1"', html)
         self.assertIn('href="/agents?role=coder&amp;goal=G-2"', html)
-        # runtime filter chips compose with the others when present
         self.assertIn("Showing: role=coder, goal=G-1", html)
         self.assertIn('<a href="/agents">clear</a>', html)
 
@@ -118,6 +117,37 @@ class TestCountsAndLinks(FilterBase):
         d, _ = self.page(agents)
         self.assertEqual(d["roles"], dict(self.w.execute("SELECT role, count(*) FROM agents GROUP BY role")) | {})
         self.assertEqual(d["goals"], dict(self.w.execute("SELECT goal_id, count(*) FROM agents WHERE goal_id IS NOT NULL GROUP BY goal_id")))
+
+
+class TestRuntimeFilter(FilterBase):
+    def setUp(self):
+        super().setUp()
+        self.w.execute("UPDATE agents SET spawn_args=? WHERE name='coder-2'", ('{"runtime":"cursor","kickoff":"k"}',))
+        self.w.execute("UPDATE agents SET spawn_args=? WHERE name='lead-g2'", ('{"runtime":"cursor"}',))
+
+    def test_parse_filters_keeps_cursor_and_drops_unknown(self):
+        self.assertEqual(agents.parse_filters({"runtime": "cursor"}), {"runtime": ["cursor"]})
+        self.assertEqual(agents.parse_filters({"runtime": "cursor,bogus"}), {"runtime": ["cursor"]})
+        self.assertEqual(agents.parse_filters({"runtime": "bogus"}), {})
+
+    def test_runtime_cursor_keeps_only_cursor_agents(self):
+        self.assertEqual(self.names(runtime="cursor"), {"coder-2", "lead-g2"})
+
+    def test_runtime_claude_excludes_cursor_agents(self):
+        got = self.names(runtime="claude")
+        self.assertNotIn("coder-2", got)
+        self.assertNotIn("lead-g2", got)
+        self.assertIn("lead-a", got)
+
+    def test_runtime_composes_with_role_and_view_renders_only_cursor(self):
+        self.assertEqual(self.names(runtime="cursor", role="coder"), {"coder-2"})
+        d, html = self.page(agents, query={"runtime": "cursor"})
+        self.assertEqual({a["name"] for a in d["matches"]}, {"coder-2", "lead-g2"})
+        self.assertEqual({a["runtime"] for a in d["matches"]}, {"cursor"})
+        self.assertEqual(d["runtimes"]["cursor"], 2)
+        self.assertIn("Showing: runtime=cursor", html)
+        self.assertIn("rt-cursor", html)
+        self.assertNotIn("kickoff", json.dumps(d))
 
 
 class TestBlocked(FilterBase):
