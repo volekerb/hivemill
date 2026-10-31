@@ -49,6 +49,14 @@ def derive_gate(ctx):
     cap, total_cap, floor = int(c("max_live_agents", 6)), int(c("max_total_claude", 10)), int(c("min_mem_available_mb", 1024))
     h5, d7 = c("max_five_hour_pct", 92), c("max_seven_day_pct", 92)
     live = ctx.db.execute("SELECT count(*) FROM agents WHERE status='live'").fetchone()[0]
+    # Runtime mix from DB (spawn_args.runtime); Claude process cap below stays host /proc of `claude` only.
+    try:
+        cursor_live = ctx.db.execute(
+            "SELECT count(*) FROM agents WHERE status='live' AND json_extract(spawn_args,'$.runtime')='cursor'"
+        ).fetchone()[0]
+    except Exception:  # noqa: BLE001 — old sqlite / missing column: treat as all Claude
+        cursor_live = 0
+    claude_live = max(0, live - cursor_live)
     total = agents.claude_total(agents.proc_snapshot())
     workers, leads, parked = agents.lead_counts(ctx.db)
     leads_cap = int(c("max_live_leads", 4))
@@ -61,7 +69,8 @@ def derive_gate(ctx):
     else:
         usage_txt = (f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
                      + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
-    checks = [f"agents live {live}/{cap}",
+    mix = f"claude {claude_live} · cursor {cursor_live}" if cursor_live else f"claude {claude_live}"
+    checks = [f"agents live {live}/{cap} ({mix})",
               f"workers live {workers} · leads live {leads}/{leads_cap} (parked {parked})",
               "claude processes unknown" if total is None else f"claude processes {total}/{total_cap} on host",
               "mem available unknown" if mem is None else f"mem available {mem} MB (floor {floor})", usage_txt]

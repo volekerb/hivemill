@@ -86,8 +86,9 @@ def _agents(ctx, ag):
     live = [a for a in ag if a["status"] == "live"]
     return {"running": len(live), "queued": sum(1 for a in ag if a["status"] == "queued"), "total": len(ag),
             "leads": sum(1 for a in live if a["role"] == "lead"), "hq": sum(1 for a in live if a["role"] in HQ_ROLES),
-            "rows": [{"name": a["name"], "role": a["role"], "status": a["status"], "task_id": a["task_id"],
-                      "task_title": titles.get(a["task_id"]), "last_event": last.get(a["name"])} for a in shown]}
+            "rows": [{"name": a["name"], "role": a["role"], "status": a["status"], "runtime": a.get("runtime") or "claude",
+                      "task_id": a["task_id"], "task_title": titles.get(a["task_id"]),
+                      "last_event": last.get(a["name"])} for a in shown]}
 
 
 def _quality(ctx):

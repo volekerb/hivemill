@@ -12,7 +12,8 @@ from urllib.parse import quote
 
 from web import queries
 from web.db import has_column
-from web.components import (AGENT_COLS, agent_row, ago, chips, data_table, disclosure, empty_state, row_status, section)
+from web.components import (AGENT_COLS, agent_row, ago, chips, data_table, disclosure, empty_state, row_status,
+                            runtime_badge, section)
 from web.html import badge, el, link, status
 
 TITLE = "Agents"
@@ -23,13 +24,14 @@ ENDED_WINDOW_S = 24 * 3600
 ENDED_MAX = 40
 PROC_TTL_S = 30
 PROC_BUDGET_S = 0.08    # a scan gives up after this long; the partial result is cached and shown as is
-# Filters (?status=, ?role=, ?goal=). Values are comma-separated; unknown values are ignored. The server keeps only the
-# first value of a repeated key, so repeating a key is not supported; use commas.
+# Filters (?status=, ?role=, ?goal=, ?runtime=). Values are comma-separated; unknown values are ignored. The server keeps
+# only the first value of a repeated key, so repeating a key is not supported; use commas.
 # The status set comes from the agents table (so 'starting' etc. work); "blocked" is derived from blocked_since.
 BLOCKED = "blocked"
 _STATUS_ORDER = ("live", "starting", "queued", "stopped", "exited", "done", "lost", "cancelled")   # display order only
 ROLES = ("boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout",
          "evaluator")   # mirrors bin/factory ROLES (web/ never imports it)
+RUNTIMES = ("claude", "cursor")  # factory default is Claude; Cursor via agent_runtimes
 _GOAL_RE = re.compile(r"^G-\d+$")
 MATCH_MAX = 200
 # status chips: label -> the raw statuses it covers (Ended merges exited and stopped); the first four always show
@@ -128,13 +130,14 @@ def is_blocked(blocked_since):
 
 
 def parse_filters(query, statuses=()):
-    """{"status": [...], "role": [...], "goal": [...]} from ctx.query; invalid values are dropped, order kept.
+    """{"status": [...], "role": [...], "goal": [...], "runtime": [...]} from ctx.query; invalid dropped, order kept.
 
     `statuses` are the status values present in the agents table; "blocked" is always accepted.
     """
     known = {*statuses, BLOCKED}
     out = {}
-    for key, ok in (("status", known.__contains__), ("role", ROLES.__contains__), ("goal", _GOAL_RE.match)):
+    for key, ok in (("status", known.__contains__), ("role", ROLES.__contains__), ("goal", _GOAL_RE.match),
+                    ("runtime", RUNTIMES.__contains__)):
         raw = (query or {}).get(key)
         vals = []
         for v in (raw.split(",") if isinstance(raw, str) else []):
@@ -151,6 +154,8 @@ def _matches(a, f):
         return False
     if "role" in f and a["role"] not in f["role"]:
         return False
+    if "runtime" in f and (a.get("runtime") or "claude") not in f["runtime"]:
+        return False
     return "goal" not in f or a["goal_id"] in f["goal"]
 
 
@@ -162,7 +167,8 @@ def _href(f, **change):
             g[k] = v
         else:
             g.pop(k, None)
-    qs = "&".join(f"{k}={'%2C'.join(quote(v, safe='') for v in g[k])}" for k in ("status", "role", "goal") if g.get(k))
+    qs = "&".join(f"{k}={'%2C'.join(quote(v, safe='') for v in g[k])}"
+                  for k in ("status", "role", "goal", "runtime") if g.get(k))
     return "/agents?" + qs if qs else "/agents"
 
 
@@ -231,9 +237,11 @@ def data(ctx, **params):
     parked = _parked(con)
     teams = [dict(t, scope=queries._t(t["scope"], SCOPE_MAX), live_workers=n_live.get(t["id"], 0),
                   lead_state=_lead_state(t, lead_status, parked)) for t in queries.teams(con)]
-    by_role, by_goal = {}, {}
+    by_role, by_goal, by_runtime = {}, {}, {}
     for a in all_rows:
         by_role[a["role"]] = by_role.get(a["role"], 0) + 1
+        rt = a.get("runtime") or "claude"
+        by_runtime[rt] = by_runtime.get(rt, 0) + 1
         if a["goal_id"] and _GOAL_RE.match(a["goal_id"]):
             by_goal[a["goal_id"]] = by_goal.get(a["goal_id"], 0) + 1
     n_blocked = sum(1 for a in all_rows if is_blocked(a["blocked_since"]))
@@ -245,11 +253,12 @@ def data(ctx, **params):
         a["last_event"], a["task_title"] = last.get(a["name"]), titles.get(a["task_id"])
 
     def keep(a, extra=()):
-        keys = ("name", "role", "goal_id", "team_id", "task_id", "status", "model", "started", "ended", "queued_at",
-                "age_s", "blocked_since", *extra)
+        keys = ("name", "role", "goal_id", "team_id", "task_id", "status", "model", "runtime", "started", "ended",
+                "queued_at", "age_s", "blocked_since", *extra)
         return {k: a.get(k) for k in keys}   # explicit allowlist: spawn_args / session_id / pane never leave this module
     matches = [keep(a, ("last_event", "task_title")) for a in sorted(rows, key=lambda a: a["name"])[:MATCH_MAX]] if f else []
     return {"counts": counts, "blocked": n_blocked, "roles": {r: by_role[r] for r in ROLES if r in by_role},
+            "runtimes": {r: by_runtime[r] for r in RUNTIMES if r in by_runtime},
             "goals": dict(sorted(by_goal.items())), "filters": f, "matches": matches,
             "matches_total": len(rows) if f else None, "teams": teams,
             "live": [keep(a, ("rss_mb", "stop_requested", "last_event", "task_title")) for a in live], "cap": cap,
@@ -320,7 +329,7 @@ COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "model", "label": "
 
 
 def _cells(a, now):
-    """agent_row cells plus model; the blocked and stop-requested badges sit next to the name."""
+    """agent_row cells plus model; the blocked and stop-requested badges sit next to the name (the runtime chip is in agent_row)."""
     c = agent_row(dict(a, blocked=is_blocked(a.get("blocked_since"))), now)
     extra = [" ", _blocked(a)] + ([" ", badge("stop requested", "warn")] if a.get("stop_requested") else [])
     return [c[0], el("span", c[1], *extra), c[2], a.get("model") or "", c[3]]
@@ -344,9 +353,11 @@ def _running(d, now):
 
 
 def _queued(d, now):
-    cols = [AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "since", "label": "Queued", "cls": "c-age num"},
-            {"key": "why", "label": "Reason", "cls": "c-who"}]
-    rows = [[row_status("queued"), el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
+    cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "rt", "label": "Runtime", "cls": "c-who"}, AGENT_COLS[2],
+            {"key": "since", "label": "Queued", "cls": "c-age num"}, {"key": "why", "label": "Reason", "cls": "c-who"}]
+    rows = [[row_status("queued"),
+             el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
+             runtime_badge(a.get("runtime")),
              link(f"/task/{a['task_id']}", a["task_id"]) if a["task_id"] else "", ago(a["queued_at"], now),
              f"Waiting: {a['reason']}" if a.get("reason") else ""] for a in d["queued"]]
     return section("Queued", data_table(cols, [{"key": "q", "rows": rows, "count": len(rows)}], key="agents-queued",
@@ -354,9 +365,11 @@ def _queued(d, now):
 
 
 def _ended(d, now):
-    cols = [AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "ran", "label": "Ran", "cls": "c-age num"},
-            {"key": "sum", "label": "Summary", "cls": "c-who"}]
-    rows = [[row_status(a["status"]), el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
+    cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "rt", "label": "Runtime", "cls": "c-who"}, AGENT_COLS[2],
+            {"key": "ran", "label": "Ran", "cls": "c-age num"}, {"key": "sum", "label": "Summary", "cls": "c-who"}]
+    rows = [[row_status(a["status"]),
+             el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
+             runtime_badge(a.get("runtime")),
              link(f"/task/{a['task_id']}", a["task_id"]) if a["task_id"] else "", ago(a["ended"], now), a.get("summary") or ""]
             for a in d["ended"]]
     n_all = sum(d["counts"].get(s, 0) for s in ("exited", "stopped"))   # same number as the Ended chip
@@ -378,6 +391,10 @@ def _chips(d):
     out = [chips("Status", items)]
     roles = [(r, n, _href(f, role=None if f.get("role") == [r] else [r]), f.get("role") == [r]) for r, n in d["roles"].items()]
     out.append(chips("Role", roles))
+    rts = [(r, n, _href(f, runtime=None if f.get("runtime") == [r] else [r]), f.get("runtime") == [r])
+           for r, n in d.get("runtimes", {}).items()]
+    if rts:
+        out.append(chips("Runtime", rts))
     goals = list(d["goals"].items())
     first, rest = goals[:GOAL_CHIPS], goals[GOAL_CHIPS:]
     row = lambda gs: [(g, n, _href(f, goal=None if f.get("goal") == [g] else [g]), f.get("goal") == [g]) for g, n in gs]
@@ -398,9 +415,14 @@ def _summary(d):
     parts.append(f"{n.get('queued', 0)} queued")
     if d["blocked"]:
         parts.append(f"{d['blocked']} blocked")
+    rts = d.get("runtimes") or {}
+    if rts:
+        parts.append(" · ".join(f"{n} {r}" for r, n in rts.items()))
     over = str(d.get("cap") or "").isdigit() and n.get("live", 0) >= int(d["cap"])
     info = el("details", el("summary", "(i)", aria_label="About these states"),
-              el("p", "Busy/idle is not tracked; last event age is shown.", class_="muted"), class_="disc disc--i", data_key="agents-info")
+              el("p", "Busy/idle is not tracked; last event age is shown. Runtime is Claude Code or Cursor Agent "
+                      "(docs/runtimes.md).", class_="muted"),
+              class_="disc disc--i", data_key="agents-info")
     return el("div", el("p", " · ".join(parts), class_="summary-line summary-line--warn" if over else "summary-line"), info, class_="summary")
 
 

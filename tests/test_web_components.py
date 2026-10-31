@@ -101,11 +101,15 @@ class TestComponents(unittest.TestCase):
         cells = wc.agent_row(a, NOW)
         self.assertEqual(len(cells), len(wc.AGENT_COLS))
         self.assertIn("agent-role", str(cells[1]))
+        self.assertIn("rt-claude", str(cells[1]))  # default runtime chip when unset
         self.assertIn("Build &lt;it&gt;", str(cells[2]))
         self.assertEqual(cells[3], "4 m")
         boss = wc.agent_row({"name": "boss", "role": "boss", "status": "live"}, NOW)
         self.assertNotIn("agent-role", str(boss[1]))
         self.assertIn("Blocked", str(wc.agent_row(dict(a, blocked=True), NOW)[0]))
+        cur = wc.agent_row({"name": "pm-a", "role": "pm", "status": "live", "runtime": "cursor"}, NOW)
+        self.assertIn("rt-cursor", str(cur[1]))
+        self.assertNotIn("rt-claude", str(cur[1]))
 
     def test_href_and_ago_helpers(self):
         self.assertEqual(wc.href("/tasks", {"status": "done", "goal": None, "sort": ""}), "/tasks?status=done")

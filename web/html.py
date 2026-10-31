@@ -23,7 +23,7 @@ CLASSES = frozenset({
     "dt", "dt-wrap", "grp", "grp-n", "sortlink", "c-st", "c-id", "c-title", "c-who", "c-age", "chips", "chip", "chip--zero", "chip-n",
     "facet", "facet-label", "seg-links", "disc", "disc--i", "disc-n", "sect", "sect-n", "sect-box", "emptybox", "summary", "summary-line",
     "summary-line--warn", "lrow", "lrow-id", "lrow-meta", "feed", "feed-row", "feed-title", "feed-goal", "feed-sha", "feed-when",
-    "agent-who", "agent-role", "agent-task",
+    "agent-who", "agent-role", "agent-task", "rt", "rt-claude", "rt-cursor",
     "ov", "ov-sect", "ov-trend", "ov-bounce", "sect-head", "sect-link", "more-link", "lrow-list", "needs", "nkind", "nsub", "nid", "nage",
     "goalrow", "gm", "gtitle", "chip-p", "gprs", "gact", "agentrow", "system", "gauge", "gauge-row", "gauge-stack", "gl", "gv", "gz", "tick",
     "meter", "meter-svg", "lbl", "track", "fill-data1", "fill-success", "fill-warning", "fill-danger", "fill-neutral", "spark", "spark-wrap",
