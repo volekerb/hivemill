@@ -10474,6 +10474,35 @@ def judge_hold(con, task, cap=True, behind_ok=False):
     return None
 
 
+JUDGE_CI_PRUNE_AGE_S = 7 * 86400  # a judge_ci:<url> cache row older than this is dropped whatever its task says
+
+
+def tick_judge_ci_prune(con, now=None):
+    """Delete config rows judge_ci:<pr_url> (the judge_pr_ready cache) that no judge can still use: no task has that
+    pr_url, or every task with it is done/cancelled, or the cached "at" is older than 7 days, or the value is not
+    readable JSON. A row of an open task younger than that stays. Pruning a live row only costs one extra gh call: the
+    next judge_pr_ready re-caches it. Other config keys are never touched. Returns the number of rows deleted.
+    `now` (epoch seconds) defaults to the clock of $FACTORY_NOW / the real time."""
+    now = digest_clock().timestamp() if now is None else now
+    open_urls = {r["pr_url"] for r in con.execute(
+        "SELECT DISTINCT pr_url FROM tasks WHERE pr_url IS NOT NULL AND status NOT IN ('done','cancelled')")}
+    dead = []
+    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:'").fetchall():  # LIKE ignores case
+        url = r["key"][len("judge_ci:"):]
+        try:
+            at = float(json.loads(r["value"])["at"])
+            stale = not math.isfinite(at) or now - at > JUDGE_CI_PRUNE_AGE_S
+        except (ValueError, KeyError, TypeError, OverflowError):
+            stale = True  # an unreadable entry is a cache miss in judge_pr_ready: nothing is lost by dropping it
+        if stale or url not in open_urls:
+            dead.append(r["key"])
+    for key in dead:
+        con.execute("DELETE FROM config WHERE key=?", (key,))
+    if dead:
+        event(con, "tick", "judge-ci-prune", "judge-ci-pruned", str(len(dead)))
+    return len(dead)
+
+
 LANE_OWNER_KEY = "refresh_lane_owner"  # config key: '<task>|<epoch>' of the task whose judge holds the refresh lane
 LANE_OWNER_TTL_S = 3600  # an owner that has held the lane this long without merging loses it
 
@@ -10805,6 +10834,11 @@ def cmd_tick(a, locked=False):
     reap_orphans(con)
     _pt_lap("reap_orphans")
     alert_test_orphans(con)
+    try:  # the judge_pr_ready cache rows of closed or old PRs
+        tick_judge_ci_prune(con)
+    except Exception as e:  # noqa: BLE001 — a bad cache row must never stop the tick
+        event(con, "tick", "judge-ci-prune", "judge-ci-prune-error", str(e)[:300])
+    _pt_lap("judge_ci_prune")
     if agents is None:
         tick_drift(con)  # nothing to reconcile without the pane server
         _pt_lap("drift")
