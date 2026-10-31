@@ -68,8 +68,10 @@ def scratch_fixture():
     os.makedirs(os.path.join(path, "r", ".git"), exist_ok=True)
     os.makedirs(os.path.join(path, "out"), exist_ok=True)
     os.makedirs(os.path.join(path, "linked"), exist_ok=True)
-    if not os.path.lexists(os.path.join(path, "linked", "l")):
+    try:  # hook_env calls this from several worker threads at once: losing the create race is fine
         os.symlink(os.path.join(path, "r"), os.path.join(path, "linked", "l"))
+    except FileExistsError:
+        pass
     os.makedirs(os.path.join(path, "deep", "a", "b"), exist_ok=True)
     open(os.path.join(path, "deep", "a", "b", ".git"), "a").close()
     return path
