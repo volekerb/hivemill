@@ -7,6 +7,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run  # noqa: E402
 
 GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
