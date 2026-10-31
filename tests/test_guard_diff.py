@@ -551,5 +551,26 @@ class CorpusTokenTests(unittest.TestCase):
         self.assertEqual(guard_diff.hook_env(cmd, {})["WORKER_GUARD_SCRATCH"], guard_diff.scratch_fixture())
         self.assertEqual(guard_diff.hook_env("git init /x", {}), {})
 
+    def test_scratch_fixture_survives_concurrent_first_use(self):
+        # T-0825: hook_env runs in compare()'s worker threads; on a fresh temp dir two threads both used to try to
+        # create linked/l (main run 41140552489). Barrier forces every thread past the setup before any creates it.
+        import threading
+        n = 8
+        barrier = threading.Barrier(n)
+        real_symlink = os.symlink
+
+        def synced_symlink(src, dst, *a, **kw):
+            try:
+                barrier.wait(timeout=5)
+            except threading.BrokenBarrierError:
+                pass
+            return real_symlink(src, dst, *a, **kw)
+
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(tempfile, "tempdir", t), \
+                mock.patch.object(os, "symlink", synced_symlink), ThreadPoolExecutor(max_workers=n) as ex:
+            paths = [f.result() for f in [ex.submit(guard_diff.scratch_fixture) for _ in range(n)]]
+            self.assertEqual(len(set(paths)), 1)
+            self.assertTrue(os.path.islink(os.path.join(paths[0], "linked", "l")))
+
 if __name__ == "__main__":
     unittest.main()
