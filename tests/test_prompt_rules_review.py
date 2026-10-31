@@ -61,6 +61,16 @@ class PromptRulesReview(unittest.TestCase):
     def test_qa(self):
         self._check("qa.md")
 
+    def test_qa_web_server_uses_ephemeral_port_and_kills_in_same_call(self):
+        text = (ROLES / "qa.md").read_text()
+        line = next(l for l in text.splitlines() if "(Q6)" in l)
+        for part in ("--port 0", "in the background", "first line", "curl", "`kill $!`", "SAME call"):
+            self.assertIn(part, line, f"qa.md Q6 lost: {part!r}")
+
+    def test_no_role_text_names_the_fixed_qa_port(self):
+        for f in sorted(ROLES.rglob("*.md")):
+            self.assertNotIn("18765", f.read_text(), f"{f}: QA must use `serve --port 0`, not a fixed port")
+
     def test_judge(self):
         self._check("judge.md")
 
