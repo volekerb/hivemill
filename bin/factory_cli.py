@@ -8547,7 +8547,7 @@ def pane_holds(con, pane_id, listed):
     rows = con.execute("SELECT * FROM agents WHERE pane_id=?", (pane_id,)).fetchall()
     if not rows:
         return True
-    return any(r["status"] in ("live", "starting", "queued") and not pane_reused(r, listed) for r in rows)
+    return any(r["status"] in ("live", "starting", "queued") for r in rows)
 
 
 def protected_by(con, wt, panes, listed=None):
