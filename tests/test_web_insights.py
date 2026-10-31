@@ -62,7 +62,7 @@ class InsightServer(ServerCase):
     def setUp(self):
         super().setUp()
         # pin the clock the request handler stamps pages with (HH:MM in the header): two renders must not straddle a minute
-        frozen = dt.datetime.now().astimezone()
+        frozen = NOW  # pin to fixture NOW (not wall clock) so 7-day windows match seeded data
         clock = type("FrozenDatetime", (dt.datetime,), {"now": classmethod(lambda cls, tz=None: frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None))})
         patcher = mock.patch.object(server, "dt", SimpleNamespace(datetime=clock))
         patcher.start()
