@@ -11507,7 +11507,7 @@ def cmd_tick(a, locked=False):
     held = False
     for q in queued:
         if not held and not gate(con)[0]:
-            held = True  # a closed gate stops the queue, except for a judge (exempt from the load cap only) or a cleaner (tmp gate only)
+            held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
             if q["role"] == "judge":
                 ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
