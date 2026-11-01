@@ -178,7 +178,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
-    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
@@ -5380,15 +5380,18 @@ def cmd_redmain(a):
 
 
 def red_main_check(con):
-    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
-    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
-    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
+    project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
+    interval is ignored and gh is asked on every tick, so a green run clears the freeze on the first tick that sees it
+    (T-0841). Red: store the freeze, message the director once per run id, file a revert task. Green: clear it. gh
+    trouble or no completed run leaves the state as it is. Never breaks the tick."""
     if cfg(con, "red_main_freeze") != "1":
         return
     try:
         t = time.time()
         last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
-        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+        any_red = con.execute("SELECT 1 FROM config WHERE key GLOB 'red_main:*' AND value!='' LIMIT 1").fetchone()
+        if not any_red and last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
         slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
