@@ -3,8 +3,9 @@ from threading import local as _thread_local
 from types import SimpleNamespace
 
 from web import charts, queries
-from web.components import (COLLAPSED, GROUP_ORDER, ago, chip, data_table, disclosure, empty_state, needs_you_row, row_status,
-                            section, segmented)
+from scout import orgs as _orgs
+from web.components import (COLLAPSED, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, needs_you_row,
+                            org_badge, org_href, row_status, section, segmented)
 from web.html import CLASSES, LABELS, badge, card, crumbs, el, empty, link, table, ts
 from web.views.home import _needs
 
@@ -62,9 +63,14 @@ def _rank(g):
 def data(ctx, sort=None, **params):
     q = getattr(ctx, "query", None) or {}
     sort = sort or q.get("sort")
-    gl = sorted(queries.goals(ctx.db), key=_rank)
-    return {"goals": gl, "owner_pending": queries.owner_pending(ctx.db), "internal_blocked": queries.internal_blocked(ctx.db),
-            "needs_you": _needs(ctx), "criteria": queries.criteria_by_goal(ctx.db), "last_activity": queries.last_activity_by_goal(ctx.db),
+    org = ctx_org(ctx)
+    every = queries.goals(ctx.db)
+    by_org = {o: sum(1 for g in every if g["org"] == o) for o in _orgs.NAMES}
+    gl = sorted((g for g in every if org is None or g["org"] == org), key=_rank)
+    ids = {g["id"] for g in gl}
+    internal = [t for t in queries.internal_blocked(ctx.db) if org is None or t["goal_id"] in ids]
+    return {"org": org, "orgs": by_org, "goals": gl, "owner_pending": queries.owner_pending(ctx.db), "internal_blocked": internal,
+            "needs_you": _needs(ctx, org), "criteria": queries.criteria_by_goal(ctx.db), "last_activity": queries.last_activity_by_goal(ctx.db),
             "sort": sort if sort in SORTS else None}
 
 
@@ -98,7 +104,8 @@ def _goal_row(g, d, now):
     crit = d["criteria"].get(g["id"])
     act = ago(d["last_activity"].get(g["id"]) or g["updated"], now)
     title = el("span", el("a", g["title"], href=f"/goal/{g['id']}"),
-               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None, class_="gtitle")
+               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None, " ", org_badge(g.get("org")),
+               class_="gtitle")
     meta = el("div", charts.meter(done, total, f"{done}/{total} tasks"),
               el("span", f"criteria {crit[0]}/{crit[1]}", class_="gprs") if crit else None,
               el("span", prs, class_="gprs") if prs else None, _blocked_cell(g),
@@ -117,20 +124,29 @@ def _chips(goals):
     return el("div", [chip(t, c, h_) for t, c, h_ in items], class_="chips gchips")
 
 
+def _org_chips(d):
+    """Org facet: All / Claude / Cursor with goal counts, the same ?org= as the header filter (sort kept)."""
+    by, org, sort = d.get("orgs") or {}, d.get("org"), d.get("sort")
+    items = [("All", sum(by.values()), org_href("/goals", {"sort": sort}, None), org is None)]
+    items += [(_orgs.label(o), by.get(o, 0), org_href("/goals", {"sort": sort}, None if org == o else o), org == o) for o in _orgs.NAMES]
+    return chips("Org", items)
+
+
 def render(ctx, d):
     goals = d["goals"]
     live = [g for g in goals if g["status"] not in ("done", "cancelled")]
     closed = [g for g in goals if g["status"] in ("done", "cancelled")]
     sort = d.get("sort")
-    parts = [_chips(goals)]
+    org = d.get("org")
+    parts = [_org_chips(d), _chips(goals)]
     needs = d["needs_you"]
     parts.append(section("Needs you", el("ul", [needs_you_row(i) for i in needs], class_="lrow-list") if needs
                          else empty_state("Nothing is waiting on the owner."), count=len(needs) or None))
     internal = _internal_card(d["internal_blocked"])
     if internal:
         parts.append(internal)
-    order = segmented("Sort open goals", [("Default", "/goals", sort is None)] +
-                      [(s.capitalize(), f"/goals?sort={s}", sort == s) for s in SORTS])
+    order = segmented("Sort open goals", [("Default", org_href("/goals", {}, org), sort is None)] +
+                      [(s.capitalize(), org_href("/goals", {"sort": s}, org), sort == s) for s in SORTS])
     body = [order, _goal_list(_sorted(live, sort, d["last_activity"]), d, ctx.now)] if live else [empty_state("No open goals.")]
     parts.append(el("div", section("Open goals", *body, count=len(live) or None), id="open-goals"))
     if closed:
@@ -239,7 +255,8 @@ def _detail_render(ctx, d):
     tagged = any(c["tasks"] for c in cr)
     summary = f"{done}/{total} tasks" + (f" · {sum(_met(d).values())}/{len(cr)} criteria" if tagged else "")
     team = d["teams_detail"][0]["id"] if d["teams_detail"] else None
-    meta = el("p", status_badge(d["status"]), " · ", f"P{d['priority']}" if d["priority"] is not None else "no priority",
+    meta = el("p", status_badge(d["status"]), " ", org_badge(d.get("org")), " · ",
+              f"P{d['priority']}" if d["priority"] is not None else "no priority",
               " · ", team or "no team", " · updated ", ts(d["updated"]), class_="metarow")
     main = el("div", meta, charts.meter(done, total, summary), _blocking(d, ctx.now), _criteria(d), _tasks_table(d, ctx.now), _intent(d),
               class_="gd-main")

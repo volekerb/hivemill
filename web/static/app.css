@@ -38,6 +38,12 @@
   --review-fg: #6B3FC4;
   --review-bg: #F1ECFB;
   --review-solid: #8250DF;
+  --org-claude-fg: #A3401A;
+  --org-claude-bg: #FBEDE5;
+  --org-claude-solid: #C9562A;
+  --org-cursor-fg: #0B6670;
+  --org-cursor-bg: #E2F3F4;
+  --org-cursor-solid: #138C99;
   --e1: 0 1px 2px rgba(0, 0, 0, .05);
   --e2: 0 4px 16px rgba(0, 0, 0, .08), 0 0 0 1px var(--hairline);
   color-scheme: light;
@@ -77,6 +83,12 @@
     --review-fg: #C4A7FF;
     --review-bg: #2A1F45;
     --review-solid: #A57DFF;
+    --org-claude-fg: #FFA27D;
+    --org-claude-bg: #3A1C10;
+    --org-claude-solid: #E0784D;
+    --org-cursor-fg: #5CD0DB;
+    --org-cursor-bg: #0A2D31;
+    --org-cursor-solid: #2BB3C0;
     --e1: 0 0 0 1px var(--hairline);
     --e2: 0 0 0 1px var(--hairline);
     color-scheme: dark;
@@ -116,6 +128,12 @@
   --review-fg: #C4A7FF;
   --review-bg: #2A1F45;
   --review-solid: #A57DFF;
+  --org-claude-fg: #FFA27D;
+  --org-claude-bg: #3A1C10;
+  --org-claude-solid: #E0784D;
+  --org-cursor-fg: #5CD0DB;
+  --org-cursor-bg: #0A2D31;
+  --org-cursor-solid: #2BB3C0;
   --e1: 0 0 0 1px var(--hairline);
   --e2: 0 0 0 1px var(--hairline);
   color-scheme: dark;
@@ -471,6 +489,44 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
       border: 1px solid var(--border); color: var(--text-2); vertical-align: middle; text-transform: lowercase; }
 .rt-claude { background: var(--fill); }
 .rt-cursor { background: var(--fill); border-color: var(--text-3); color: var(--text-1); }
+
+/* orgs (G-028): one colour per org, chip + dot + filter + overview lanes */
+.org { display: inline-block; font: 600 11px/16px var(--font); padding: 0 6px; border-radius: 4px; vertical-align: middle;
+       white-space: nowrap; border: 1px solid transparent; }
+.org-claude { background: var(--org-claude-bg); color: var(--org-claude-fg); border-color: var(--org-claude-solid); }
+.org-cursor { background: var(--org-cursor-bg); color: var(--org-cursor-fg); border-color: var(--org-cursor-solid); }
+.org-dot { display: inline-block; width: var(--s2); height: var(--s2); border-radius: 50%; background: var(--neutral-solid); flex: none; }
+.org-dot-claude { background: var(--org-claude-solid); }
+.org-dot-cursor { background: var(--org-cursor-solid); }
+.orgseg a { gap: 6px; white-space: nowrap; }
+.seg-links.orgseg a.org-claude, .seg-links.orgseg a.org-cursor { background: transparent; color: var(--text-2); border: 0; }
+.seg-links.orgseg a.org-claude[aria-current=true] { background: var(--org-claude-bg); color: var(--org-claude-fg); }
+.seg-links.orgseg a.org-cursor[aria-current=true] { background: var(--org-cursor-bg); color: var(--org-cursor-fg); }
+.org-note { color: var(--text-3); font-size: 12px; }
+.orgrow { white-space: nowrap; }
+.lanes { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s3); margin: 0 0 var(--s4); grid-column: 1 / -1; }
+.lane { background: var(--surface-1); border-radius: var(--r-md); box-shadow: var(--e1); padding: var(--card-pad); min-width: 0;
+        border-top: 3px solid var(--neutral-solid); }
+.lane--claude { border-top-color: var(--org-claude-solid); }
+.lane--cursor { border-top-color: var(--org-cursor-solid); }
+.lane-head { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); }
+.lane-title { font: 600 15px/20px var(--font); margin: 0; display: inline-flex; align-items: center; gap: var(--s2); }
+.lane-health { margin-left: auto; }
+.lane-hq { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin: 0 0 var(--s2); color: var(--text-2); font-size: 13px; }
+.lane-hq .st { gap: 4px; }
+.lane-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s2); }
+.lane-stat { background: var(--fill); border-radius: var(--r-sm); padding: var(--s2); min-width: 0; color: var(--text-1); }
+.lane-stat:hover { text-decoration: none; }
+.lane-n { display: block; font: 600 20px/24px var(--font); font-variant-numeric: tabular-nums; }
+.lane-l { display: block; color: var(--text-2); font: 500 12px/16px var(--font); }
+@media (min-width: 640px) {
+  .lanes { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+}
+@media (max-width: 639px) {
+  .shellbar { flex-wrap: wrap; }
+  .shellbar .cluster { flex-wrap: wrap; }
+  .lane-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* quality tiles */
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin: var(--s1) 0 var(--s2); }

@@ -13,6 +13,7 @@ import re
 import sqlite3
 import statistics
 
+from scout import orgs as _orgs
 from web.db import has_column
 
 INTENT_MAX = 600
@@ -105,6 +106,50 @@ def parse_criteria(text):
     return [(i, l.strip()) for i, l in enumerate((l for l in lines if l.strip()), 1)]
 
 
+# ───────────────────────────── orgs (G-028) ─────────────────────────────
+
+ORGS = _orgs.NAMES
+DEFAULT_ORG = _orgs.DEFAULT_ORG
+
+
+def org_param(query):
+    """The ?org= filter: a known org name, else None (= all orgs). Anything else is ignored."""
+    v = query.get("org") if isinstance(query, dict) else None
+    return v if isinstance(v, str) and v in ORGS else None
+
+
+def goal_orgs(con):
+    """{goal id: org}. A DB from before goals.org has no column: every goal is in the default org (callers use
+    .get(gid, DEFAULT_ORG)). An unknown value in the column also counts as the default org."""
+    if not has_column(con, "goals", "org"):
+        return {}
+    return {r[0]: (r[1] if r[1] in ORGS else DEFAULT_ORG) for r in con.execute("SELECT id, org FROM goals")}
+
+
+def org_of_goal(gorgs, gid):
+    return gorgs.get(gid, DEFAULT_ORG) if gid else DEFAULT_ORG
+
+
+def agent_org(org_col, name, explicit_runtime, goal_org=None):
+    """The org of an agent: agents.org when set, else the name prefix (cursor-coder-t-1), else an explicit
+    spawn_args runtime, else its goal's org, else the default org. Same order as scout.orgs.of_agent, plus the goal
+    step for legacy unprefixed rows of a goal that has an org."""
+    if org_col in ORGS:
+        return org_col
+    p = _orgs.prefix_of(name)
+    if p:
+        return p
+    if explicit_runtime:
+        for o, spec in _orgs.ORGS.items():
+            if spec["runtime"] == explicit_runtime:
+                return o
+    return goal_org if goal_org in ORGS else DEFAULT_ORG
+
+
+def org_runtime(org):
+    return _orgs.ORGS.get(org, _orgs.ORGS[DEFAULT_ORG])["runtime"]
+
+
 # ───────────────────────────── goals ─────────────────────────────
 
 def goals(con):
@@ -117,10 +162,12 @@ def goals(con):
     teams = {}
     for r in con.execute("SELECT id, goal_id FROM teams ORDER BY id"):
         teams.setdefault(r["goal_id"], []).append(r["id"])
+    gorgs = goal_orgs(con)
     out = []
     for g in con.execute("SELECT id,title,status,priority,project_id,created,updated FROM goals ORDER BY priority, id"):
         c = counts.get(g["id"])
         d = dict(g)
+        d["org"] = org_of_goal(gorgs, g["id"])
         d.update(tasks_total=c["total"] if c else 0, tasks_done=(c["done"] or 0) if c else 0,
                  tasks_blocked=(c["blocked"] or 0) if c else 0,
                  tasks_blocked_owner=(c["blocked_owner"] or 0) if c else 0, open_prs=(c["prs"] or 0) if c else 0,
@@ -192,33 +239,44 @@ def owner_pending(con):
         t = status.get(tid)
         if "auto_merge=0" in (r["detail"] or "") and t and t["status"] != "done":
             am0.append({"task_id": tid, "goal_id": t["goal_id"], "title": t["title"], "status": t["status"], "ts": r["ts"]})
+    bosses = ("owner", "boss", *(f"{o}-boss" for o in ORGS))   # G-028: each org has its own boss (claude-boss, cursor-boss)
     msgs = _dicts(con.execute(
-        "SELECT id, sender, kind, substr(subject,1,?) subject, created FROM messages "
-        "WHERE read_at IS NULL AND recipient IN ('owner','boss') AND kind IN ('escalation','request') ORDER BY id", (SUBJECT_MAX,)))
+        "SELECT id, sender, recipient, kind, substr(subject,1,?) subject, created FROM messages "
+        "WHERE read_at IS NULL AND recipient IN (%s) AND kind IN ('escalation','request') ORDER BY id" % ",".join("?" * len(bosses)),
+        (SUBJECT_MAX, *bosses)))
     return {"goals": gl, "tasks_blocked": tl, "judge_blocked_auto_merge": am0, "escalations": msgs}
 
 
 # ───────────────────────────── teams / agents / tasks ─────────────────────────────
 
 def teams(con):
-    return _dicts(con.execute("SELECT id, goal_id, scope, lead_agent, status, created FROM teams ORDER BY id"))
+    """Teams; `org` is the org of the team's goal (teams have no org column)."""
+    gorgs = goal_orgs(con)
+    return [dict(r, org=org_of_goal(gorgs, r["goal_id"]))
+            for r in con.execute("SELECT id, goal_id, scope, lead_agent, status, created FROM teams ORDER BY id")]
+
+
+def _spawn_runtime(spawn_args):
+    """The runtime spawn_args names explicitly (claude|cursor), else None. Never returns kickoff text."""
+    if not spawn_args:
+        return None
+    try:
+        rt = (json.loads(spawn_args) or {}).get("runtime")
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return rt if rt in ("claude", "cursor") else None
 
 
 def agent_runtime_of(spawn_args):
     """claude|cursor (default claude). Reads only spawn_args.runtime — never returns kickoff text."""
-    if not spawn_args:
-        return "claude"
-    try:
-        rt = (json.loads(spawn_args) or {}).get("runtime") or "claude"
-    except (TypeError, ValueError):
-        return "claude"
-    return rt if rt in ("claude", "cursor") else "claude"
+    return _spawn_runtime(spawn_args) or "claude"
 
 
 def agents(con, include_ended=False, now=None):
     """Agents with age_s (live/queued: since started/queued_at until now; ended: started -> ended).
 
-    Includes `runtime` (claude|cursor) derived from spawn_args.runtime; spawn_args itself is never returned.
+    Includes `runtime` (claude|cursor) derived from spawn_args.runtime (spawn_args itself is never returned) and
+    `org` (agent_org: agents.org, name prefix, explicit runtime, goal org, default).
     """
     want = ["name", "role", "goal_id", "team_id", "task_id", "status", "model", "pane_id", "started", "ended",
             "queued_at", "session_id", "stop_requested_at"]
@@ -228,13 +286,17 @@ def agents(con, include_ended=False, now=None):
         sel += ", spawn_args AS _spawn_args"
     else:
         sel += ", NULL AS _spawn_args"
+    sel += ", org AS _org" if has_column(con, "agents", "org") else ", NULL AS _org"
+    gorgs = goal_orgs(con)
     where = "" if include_ended else "WHERE status NOT IN (%s)" % ",".join("?" * len(ENDED_AGENT))
     rows = con.execute(f"SELECT {sel} FROM agents {where} ORDER BY name", () if include_ended else ENDED_AGENT)
     now_e = _now(now).timestamp()
     out = []
     for r in rows:
         d = dict(r)
-        d["runtime"] = agent_runtime_of(d.pop("_spawn_args", None))
+        explicit = _spawn_runtime(d.pop("_spawn_args", None))
+        d["org"] = agent_org(d.pop("_org", None), d["name"], explicit, gorgs.get(d["goal_id"]) if d["goal_id"] else None)
+        d["runtime"] = explicit or org_runtime(d["org"])   # no explicit runtime: the org's (a cursor-org agent runs Cursor)
         start = _epoch(d["started"]) or _epoch(d["queued_at"])
         end = _epoch(d["ended"]) if d["status"] in ENDED_AGENT else now_e
         d["age_s"] = round(end - start) if start is not None and end is not None else None
@@ -647,15 +709,17 @@ def last_activity_by_goal(con):
     return out
 
 
-def recent_merges(con, limit=5):
+def recent_merges(con, limit=5, goals=None):
     """The newest `limit` merged tasks, newest first: [{task_id, goal_id, title, pr_url, merged, sha}]. A task merged
-    twice counts once, at its last merge."""
+    twice counts once, at its last merge. `goals` (a set of goal ids) keeps only those goals' tasks (the org filter)."""
     seen, out = set(), []
     for r in con.execute("SELECT e.entity_id, e.ts, e.detail, t.goal_id, t.title, t.pr_url FROM events e "
                          "LEFT JOIN tasks t ON t.id=e.entity_id WHERE e.entity='task' AND e.action='merged' ORDER BY e.id DESC"):
         if r["entity_id"] in seen:
             continue
         seen.add(r["entity_id"])
+        if goals is not None and r["goal_id"] not in goals:
+            continue
         out.append({"task_id": r["entity_id"], "goal_id": r["goal_id"], "title": _strip_tags(r["title"] or r["entity_id"]),
                     "pr_url": r["pr_url"], "merged": r["ts"], "sha": (r["detail"] or "").lstrip("@").strip() or None})
         if len(out) >= limit:
@@ -663,13 +727,16 @@ def recent_merges(con, limit=5):
     return out
 
 
-def merges_per_day(con, days=14, now=None):
+def merges_per_day(con, days=14, now=None, goals=None):
     """Merges per local day for the last `days` days, oldest first: [{day: "YYYY-MM-DD", merges}]. Every day is
-    listed; a task counts once, on the day of its last merge."""
+    listed; a task counts once, on the day of its last merge. `goals` (a set of goal ids) keeps only their tasks."""
     first = _now(now).astimezone().date() - dt.timedelta(days=days - 1)
     per = {first + dt.timedelta(days=i): 0 for i in range(days)}
     last = {}
+    keep = None if goals is None else {r[0] for r in con.execute("SELECT id, goal_id FROM tasks") if r[1] in goals}
     for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' ORDER BY id"):
+        if keep is not None and r["entity_id"] not in keep:
+            continue
         e = _epoch(r["ts"])
         if e is not None:
             last[r["entity_id"]] = e
@@ -680,7 +747,7 @@ def merges_per_day(con, days=14, now=None):
     return [{"day": d.isoformat(), "merges": n} for d, n in per.items()]
 
 
-def bouncing_tasks(con, limit=5):
+def bouncing_tasks(con, limit=5, goals=None):
     """Open tasks (not done or cancelled) with at least one rejection, most rejections first:
     [{task_id, goal_id, title, status, attempts, rejections}]. A rejection is a fail/reject verdict row, or a
     judge-reject event with no such judge verdict row (the quality() rule)."""
@@ -697,7 +764,8 @@ def bouncing_tasks(con, limit=5):
     counts = {tid: sum(d.values()) for tid, d in rej.items() if sum(d.values()) > 0}
     meta = {r["id"]: r for r in _in(con, "SELECT id, goal_id, title, status, attempts FROM tasks WHERE id IN ({in})", counts)}
     out = [{"task_id": tid, "goal_id": meta[tid]["goal_id"], "title": _strip_tags(meta[tid]["title"]), "status": meta[tid]["status"],
-            "attempts": meta[tid]["attempts"] or 0, "rejections": n} for tid, n in counts.items() if tid in meta]
+            "attempts": meta[tid]["attempts"] or 0, "rejections": n} for tid, n in counts.items()
+           if tid in meta and (goals is None or meta[tid]["goal_id"] in goals)]
     out.sort(key=lambda x: (-x["rejections"], x["task_id"]))
     return out[:limit]
 
