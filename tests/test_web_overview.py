@@ -113,6 +113,15 @@ class TestSections(Base):
         _, page = self.page()
         self.assertIn(">Over cap</b>", section(page, "system"))
 
+    def test_partial_usage_renders_the_known_window(self):
+        d, page = self.page(usage={**FRESH, "five_hour": None, "seven_day": 96.0})
+        s = section(page, "system")
+        self.assertIn("n/a · 96%", s)
+        self.assertEqual(s.count('class="gauge"'), 4)   # the weekly bar only
+        self.assertIn(">Over cap</b>", s)
+        self.assertEqual(d["system"]["usage"]["seven_day"], 96.0)
+        self.assertIsNone(d["system"]["usage"]["five_hour"])
+
     def test_unknown_memory_and_usage_do_not_crash(self):
         _, page = self.page(usage=None, mem=None)
         s = section(page, "system")

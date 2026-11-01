@@ -667,18 +667,18 @@ def shell_status(con, usage, defaults, mem=None):
     cap = int(_cfg_num(cfg, defaults, "max_live_agents", 6))
     cap5 = _cfg_num(cfg, defaults, "max_five_hour_pct", 92)
     cap7 = _cfg_num(cfg, defaults, "max_seven_day_pct", 92)
-    fresh = bool(usage) and not usage.get("unreadable") and usage.get("five_hour") is not None
+    fresh = bool(usage) and not usage.get("unreadable") and (usage.get("five_hour") is not None or usage.get("seven_day") is not None)
     stale = fresh and (not usage.get("fresh") or (usage.get("age_min") or 0) > 30)
-    p5 = usage["five_hour"] if fresh else None
+    p5 = usage.get("five_hour") if fresh else None
     p7 = usage.get("seven_day") if fresh else None
     ok = fresh and not stale
     if mem is not None and mem < _cfg_num(cfg, defaults, "min_mem_available_mb", 1024):
         health = {"tone": "danger", "text": "Memory low"}
-    elif ok and (p5 >= cap5 or (p7 is not None and p7 >= cap7)):
+    elif ok and ((p5 is not None and p5 >= cap5) or (p7 is not None and p7 >= cap7)):
         health = {"tone": "danger", "text": "Usage cap reached"}
     elif n.get("live", 0) >= cap:
         health = {"tone": "warning", "text": f"Gate closed · {queued} queued" if queued else "Gate closed"}
-    elif ok and p5 >= 0.8 * cap5:
+    elif ok and p5 is not None and p5 >= 0.8 * cap5:
         health = {"tone": "warning", "text": f"Claude usage {p5:.0f}%"}
     elif ok and p7 is not None and p7 >= 0.8 * cap7:
         health = {"tone": "warning", "text": f"Weekly usage {p7:.0f}%"}
