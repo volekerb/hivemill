@@ -1473,14 +1473,35 @@ def _epoch(v):
         return None
 
 
+def _pct_field(v):
+    """One usage percentage as a finite float; an empty, missing or bad value is None for that field only."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def usage_text(u):
+    """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
+    if u.get("unreadable"):
+        return "claude usage unreadable"
+    five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
+    week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
+    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+
+
 def usage():
-    """5h/7d usage. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
+    """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
     read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
             age = time.time() - float(u.get("updated_at", 0))
-            return {"five_hour": float(u.get("five_hour_pct", 0)), "seven_day": float(u.get("seven_day_pct", 0)),
+            five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
+            if five is None and seven is None:
+                raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
+            return {"five_hour": five, "seven_day": seven,
                     "fresh": age < 3 * 3600, "age_min": int(age // 60),
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
@@ -1622,9 +1643,9 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
-    if u["fresh"] and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+    if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
         return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-    if u["fresh"] and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+    if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
         return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
@@ -10498,11 +10519,7 @@ def cmd_res(a):
         print("claude processes unknown")
     else:
         print(f"claude processes {s['total']}/{s['total_cap']} on host (factory {s['factory_procs']} · other {s['total'] - s['factory_procs']})")
-    if u.get("unreadable"):
-        print("claude usage unreadable")
-    else:
-        print(f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
-              + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
+    print(usage_text(u))
     mode = cfg(con, "lead_less_dispatch")
     if mode != "0":
         cut = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat(timespec="seconds")
