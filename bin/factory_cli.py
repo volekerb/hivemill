@@ -7102,6 +7102,14 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             prior_org = None
     org = org_for(con, goal, task, org=org or prior_org or orgs.prefix_of(name)
                   or (None if goal or task else agent_org(con, actor())))
+    if resume and prior:  # a session id only resumes on the runtime that recorded it (org move, legacy row, config change)
+        try:
+            prior_rt = json.loads(prior["spawn_args"] or "{}").get("runtime") or "claude"
+        except ValueError:
+            prior_rt = "claude"
+        if prior_rt != org_runtime(con, role, org):
+            event(con, "agent", name, "resume-dropped", f"runtime {prior_rt} -> {org_runtime(con, role, org)}")
+            resume, fresh = None, True
     if role != "evaluator":
         name = oname(con, org, name)
     try:

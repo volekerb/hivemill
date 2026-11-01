@@ -98,6 +98,22 @@ class SpawnOrgTests(FactoryTestCase):
         p = self.ok("spawn", "pm", "--goal", "G-001", "--name", "pm-g-001-a", agent="director")
         self.assertIn("SPAWNED claude-pm-g-001-a", p.stdout)
 
+    def test_resume_dropped_when_runtime_changes(self):
+        """A legacy cursor lead respawned for a claude-org goal starts fresh (a cursor session id never resumes on claude)."""
+        e = self.env
+        e.seed_team("g-001-a", goal="G-001", lead="lead-g-001-a")
+        e.seed_agent("lead-g-001-a", "lead", goal="G-001", team="g-001-a", status="stopped")
+        e.sql("UPDATE agents SET session_id='cursor-sess-1', spawn_args=? WHERE name='lead-g-001-a'",
+              (json.dumps({"runtime": "cursor"}),))
+        self.ok("config", "org_prefix_default", "1")
+        self.ok("up", "--no-boss")
+        row = e.sql("SELECT spawn_args, session_id FROM agents WHERE name='claude-lead-g-001-a'")[0]
+        self.assertEqual(json.loads(row["spawn_args"]).get("runtime"), "claude")
+        self.assertNotEqual(row["session_id"], "cursor-sess-1")
+        self.assertEqual(e.sql("SELECT lead_agent FROM teams WHERE id='g-001-a'")[0]["lead_agent"], "claude-lead-g-001-a")
+        starts = [c["argv"] for c in e.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
+        self.assertFalse(any("cursor-sess-1" in a for a in starts))
+
     def test_spawn_org_must_match_goal(self):
         self.refused(2, "spawn", "pm", "--goal", "G-001", "--org", "cursor", agent="director")
 
