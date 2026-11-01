@@ -1926,7 +1926,7 @@ class Analyzer:
 
     def git_push_pin(self, rest):
         """T-0689: a coder's only allowed push is `git push origin HEAD:factory/<own task id>`; the task id comes from
-        FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
+        FACTORY_AGENT ([claude-|cursor-]coder-t-NNNN). No other remote, URL, refspec, force/--all/--mirror/--tags/--delete or option;
         no -c / --git-dir overrides (push.default, remote URLs); an unknown own task id refuses."""
         if self.role != "coder":
             return
@@ -1943,7 +1943,7 @@ class Analyzer:
         if i >= len(rest) or rest[i] != "push":
             return
         args = rest[i + 1:]
-        m = re.fullmatch(r"coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
+        m = re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
         if not m:
             raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
         if args != ["origin", f"HEAD:factory/{m.group(1)}"]:
