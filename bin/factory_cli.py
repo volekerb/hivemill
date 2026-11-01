@@ -97,6 +97,8 @@ gatebox = _LazyScout("gatebox")
 testbox = _LazyScout("testbox")
 testcg = _LazyScout("testcg")
 ghcred = _LazyScout("ghcred")
+cursor_harness = _LazyScout("cursor_harness")
+agent_runtime = _LazyScout("agent_runtime")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
          "staff-engineer", "scout", "evaluator"]
@@ -241,6 +243,11 @@ DEFAULT_CONFIG = {
     "skilleval_trial_minutes": "15",       # wall budget of one trial; over it the tick collects it as timeout
     "skilleval_trial_max_tokens": "300000",  # token budget of one trial (input + output + cache creation); over it: over-budget
     "skilleval_keep_failed_h": "48",       # sandboxes of error/timeout/over-budget trials are deleted after this many hours
+    # Multi-runtime harness (scout/agent_runtime.py): role=runtime pairs, e.g. pm=cursor or *=cursor.
+    # Empty = all Claude. *=cursor / all=cursor = every Cursor-capable role (not evaluator).
+    "agent_runtimes": "",
+    # Legacy alias for agent_runtimes (comma roles → role=cursor). Prefer agent_runtimes.
+    "cursor_pilot_roles": "",
 }
 
 AUDIT_DDL = """
@@ -1717,6 +1724,17 @@ def cmd_config(a):
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
             a.value = check_gh_roles(a.key, a.value)
+        if a.key == "cursor_pilot_roles":
+            try:
+                a.value = ",".join(cursor_harness.parse_pilot_roles(a.value))
+            except ValueError as e:
+                die(str(e), 2)
+        if a.key == "agent_runtimes":
+            try:
+                parsed = agent_runtime.parse_runtimes(a.value, "")
+                a.value = ",".join(f"{r}={rt}" for r, rt in parsed.items())
+            except ValueError as e:
+                die(str(e), 2)
         if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
             die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
         if a.key == "task_clones":
@@ -6952,6 +6970,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         args.update(env_extra=env_extra, plugin_dirs=list(plugin_dirs or []), add_home_dir=add_home_dir)
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
+    try:
+        agent_runtime.resolve_runtime(
+            role, cfg(con, "agent_runtimes") or "", cfg(con, "cursor_pilot_roles") or "")
+    except ValueError as e:
+        die(str(e), 2)
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director", "lead")) or role == "judge", role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live")
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
@@ -7371,11 +7394,123 @@ def start_confirm(con, agents):
     return skip
 
 
+def agent_runtime_of(row):
+    """Runtime recorded in spawn_args (default claude)."""
+    try:
+        return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
+    except ValueError:
+        return "claude"
+
+
+def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+                          env, settings_path, settings_obj, prompt_text, kick, runtime):
+    """Non-Claude runtime via the same place → herdr agent start --kind → prompt path as Claude.
+
+    Cursor uses `herdr --kind cursor` (live herdr already lists that kind). Subprocess launch remains
+    a fallback when a planner returns launch=subprocess.
+    """
+    pdir = ROLES_DIR / "plugins" / role
+    plugins = [str(pdir)] if pdir.is_dir() else []
+    gdir = GOAL_PLUGINS / goal if role == "coder" and goal and re.fullmatch(r"G-\d+", goal) else None
+    if gdir and gdir.is_dir() and gdir.resolve().is_relative_to(GOAL_PLUGINS.resolve()):
+        plugins.append(str(gdir))
+    sysprompt = RUN / f"{name}.prompt.md"
+    ctx = agent_runtime.SpawnContext(
+        role=role, name=name, cwd=Path(cwd), model=model, prompt_text=prompt_text, kickoff=kick,
+        settings_path=Path(settings_path), settings=settings_obj, home=HOME, hooks_dir=_cursor_hooks_dir(),
+        plugin_dirs=plugins, add_dirs=[str(HOME)], resume=resume,
+        append_prompt_file=sysprompt, sandbox=bool(args.get("cursor_sandbox")),
+    )
+    try:
+        plan = agent_runtime.plan_spawn(runtime, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        die(str(e), 3)
+    args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
+            "herdr_kind": plan.herdr_kind}
+    if plan.workspace:
+        args["cursor_workspace"] = str(plan.workspace)
+    sid = plan.session_id
+
+    if plan.launch == "subprocess":
+        run_env = {**os.environ, **env, **(settings_obj.get("env") or {})}
+        run_env.update(env)
+        log_path = RUN / f"{name}.{runtime}.log"
+        try:
+            proc = agent_runtime.launch_subprocess(plan, cwd=Path(cwd), env=run_env, log_path=log_path)
+        except OSError as e:
+            die(f"runtime {runtime}: failed to start: {e}", 3)
+        args["pid"] = proc.pid
+        args["log"] = str(log_path)
+        con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=NULL, "
+                    "workspace_id=NULL, tab_id=NULL, model=excluded.model, "
+                    "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
+                    "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
+                    "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
+                    (name, role, goal, team, task, "live", None, None, None, model, sid, cwd, json.dumps(args), now()))
+        if task and role == "coder":
+            con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
+        task_auto_start(con, task, f"spawn {name}", role)
+        if not resume:
+            send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
+                 sender="factory")
+        event(con, "agent", name, "spawn", {"pane": None, "model": model, "cwd": cwd, "runtime": runtime,
+                                            "launch": plan.launch, "pid": proc.pid, "live": stats["live"] + 1})
+        print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}) pid={proc.pid} cwd={cwd} log={log_path}")
+        return name
+
+    if plan.launch != "herdr-kind" or not plan.herdr_kind:
+        die(f"runtime {runtime}: launch={plan.launch!r} herdr_kind={plan.herdr_kind!r} not wired", 3)
+
+    found = find_pane(pane) if pane else None
+    if found:
+        ws, tab = found[0], found[1]
+        export_in_shell(pane, env, cwd)
+    else:
+        ws, tab, pane = place(con, role, goal, team, name, cwd, env)
+    con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,pane_id,workspace_id,tab_id,model,session_id,cwd,spawn_args,started) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET status='live', pane_id=excluded.pane_id, "
+                "workspace_id=excluded.workspace_id, tab_id=excluded.tab_id, model=excluded.model, "
+                "session_id=coalesce(excluded.session_id, agents.session_id), cwd=excluded.cwd, "
+                "spawn_args=excluded.spawn_args, started=excluded.started, ended=NULL, summary=NULL, blocked_since=NULL, blocked_alerted=0, "
+                "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL, start_pending=NULL, start_pending_info=NULL",
+                (name, role, goal, team, task, "live", pane, ws, tab, model, sid, cwd, json.dumps(args), now()))
+    if role == "lead" and team:
+        con.execute("UPDATE teams SET lead_agent=?, tab_id=?, parked_at=NULL WHERE id=?", (name, tab, team))
+    if task and role == "coder":
+        con.execute("UPDATE tasks SET assignee=?, updated=? WHERE id=?", (name, now(), task))
+    task_auto_start(con, task, f"spawn {name}", role)
+    start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
+                  "--", *plan.argv)
+    r = herdr(*start_args, check=False)
+    if r is None:
+        event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
+    herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
+          f"{role}·{task or team or goal or 'hq'}"[:28], check=False)
+    if role in ("boss", "director", "lead"):
+        herdr("tab", "rename", tab, f"{team or role}", check=False)
+    if not resume:
+        send(con, name, f"kickoff: {role} {task or team or goal or ''}".strip(), kick, "request", goal, task,
+             sender="factory")
+        time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
+        if herdr("agent", "prompt", name, kick, check=False) is not None:
+            con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
+    event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
+                                        "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
+    print(f"SPAWNED {name} ({role}, {model}, runtime={runtime}, kind={plan.herdr_kind}) in {pane} cwd={cwd}")
+    return name
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
     model = model or role_model(con, role)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
+    try:
+        runtime = agent_runtime.resolve_runtime(
+            role, cfg(con, "agent_runtimes") or "", cfg(con, "cursor_pilot_roles") or "")
+    except ValueError as e:
+        die(str(e), 2)
     optin = args.get("sandbox_optin") is True
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
     if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
@@ -7392,6 +7527,27 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     if evaluator:
         env.update(env_extra)  # validated: FACTORY_HOME is the trial's temp home, never the live one
     sandboxed = sandbox_wanted(con, role, optin)
+    if runtime != "claude":
+        if evaluator:
+            die(f"runtime {runtime}: evaluator/skilleval stays on Claude", 3)
+        # Claude nsbox does not wrap Cursor. When sandbox_roles match, use Cursor --sandbox instead.
+        if sandboxed:
+            args["cursor_sandbox"] = True
+            args["sandbox"] = "cursor"
+        if ghcred_on:
+            env.update(gh_cred_env(con, role, name))
+        settings = render_settings(role)
+        settings_obj = json.loads(Path(settings).read_text())
+        # Role settings env (dead HERDR_SOCKET_PATH, FACTORY_ROLE, …) must reach the Cursor pane.
+        for k, v in (settings_obj.get("env") or {}).items():
+            env.setdefault(k, v)
+        sysprompt = RUN / f"{name}.prompt.md"
+        prompt_text = (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+        sysprompt.write_text(prompt_text)
+        kick = kickoff_text(role, name, goal, team, task, prompt)
+        return _spawn_start_external(
+            con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
+            env, settings, settings_obj, prompt_text, kick, runtime)
     if sandboxed:  # before place(): a refusal leaves no pane and no live row
         agent_dir = sandbox_prepare(con, role, name, cwd)
         env["PATH"] = f"{agent_dir}/bin{os.pathsep}{sandbox_real_claude(sandbox_home())[1]}"
@@ -7418,6 +7574,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # resumed agents run with --system-prompt-snapshot off and read this file on every request: write it only right
     # before this agent's own (re)launch (old pane closed first) and never delete it
     sysprompt.write_text(prompt_text)
+    args.setdefault("runtime", "claude")
     claude_args = ["--model", model, "--permission-mode", "auto", "--settings", str(settings),
                    "--append-system-prompt-file", str(sysprompt), *([] if evaluator else ["--add-dir", str(HOME)]),
                    "-n", name, *effort]
@@ -7502,6 +7659,141 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
                                         **({"sandbox": True} if sandboxed else {})})
     print(f"SPAWNED {name} ({role}, {model}) in {pane} cwd={cwd}")
     return name
+
+
+def _cursor_hooks_dir():
+    """roles/hooks next to this checkout (not a worktree copy): adapter must stay under the live roles tree."""
+    return Path(__file__).resolve().parent.parent / "roles" / "hooks"
+
+
+def _cursor_materialize(role, cwd, prompt_text=None, name="cursor-pilot"):
+    """Write Cursor policy files into an isolated workspace from Claude settings + role prompt."""
+    settings = json.loads(settings_text(role))
+    prompt_text = prompt_text or (
+        (ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
+    )
+    ws = cursor_harness.policy_workspace(HOME, name, cwd or HOME)
+    return cursor_harness.materialize_cursor_policy(
+        ws, role, hooks_dir=_cursor_hooks_dir(), claude_settings=settings,
+        system_prompt=prompt_text, hq=role in cursor_harness.HQ_ROLES,
+    )
+
+
+def cmd_cursor_pilot(a):
+    """Opt-in Cursor Agent CLI pilot: status / prepare / probe / run (docs/research/cursor-harness.md)."""
+    refuse_worker("cursor-pilot")
+    con = db()
+    require_role(con, "director", "boss")  # owner counts as boss via require_role
+    action = a.action
+    if action == "status":
+        print(f"agent_runtimes = {cfg(con, 'agent_runtimes')!r}")
+        print(f"cursor_pilot_roles = {cfg(con, 'cursor_pilot_roles')!r} (legacy alias)")
+        try:
+            resolved = agent_runtime.parse_runtimes(
+                cfg(con, "agent_runtimes") or "", cfg(con, "cursor_pilot_roles") or "")
+        except ValueError as e:
+            resolved = {"<error>": str(e)}
+        print(f"resolved = {resolved}")
+        print(f"agent_binary = {cursor_harness.find_agent_binary() or '(not on PATH)'}")
+        for row in agent_runtime.works_matrix():
+            print(f"{row['status']:10}  {row['item']}: {row['detail']}")
+        return
+
+    role = a.role or "pm"
+    if role not in cursor_harness.CURSOR_ROLES:
+        die(f"cursor allow-list is {sorted(cursor_harness.CURSOR_ROLES)}; not {role!r}", 2)
+
+    if action == "prepare":
+        cwd = Path(a.cwd or tempfile.mkdtemp(prefix=f"cursor-pilot-{role}-"))
+        cwd.mkdir(parents=True, exist_ok=True)
+        info = _cursor_materialize(role, cwd)
+        print(json.dumps(info, indent=2))
+        print(f"PREPARED {cwd}")
+        return
+
+    if action == "probe":
+        adapter = _cursor_hooks_dir() / "cursor-guard-adapter.py"
+        cases = [
+            ("beforeShellExecution", {"command": "echo ok", "cwd": str(HOME)}, 0, True),
+            ("beforeShellExecution", {"command": "herdr server stop", "cwd": str(HOME)}, 0, False),
+            ("beforeShellExecution", {"command": "sudo id", "cwd": str(HOME)}, 0, False),
+            ("preToolUse", {"tool_name": "Shell", "tool_input": {"command": "factory tick"},
+                            "cwd": str(HOME)}, 2, False),
+            ("preToolUse", {"tool_name": "Write",
+                            "tool_input": {"path": str(Path(pwd.getpwuid(os.getuid()).pw_dir) / ".bashrc")},
+                            "cwd": str(HOME)}, 2, False),
+            ("preToolUse", {"tool_name": "Write", "tool_input": {"file_path": "/tmp/cursor-pilot-ok.txt"},
+                            "cwd": "/tmp"}, 0, True),
+        ]
+        failed = 0
+        for event, payload, expect_rc, expect_allow in cases:
+            r = subprocess.run(
+                [sys.executable, str(adapter), "--role", role, "--event", event],
+                input=json.dumps(payload), capture_output=True, text=True, timeout=60,
+            )
+            try:
+                body = json.loads(r.stdout.strip().splitlines()[-1]) if r.stdout.strip() else {}
+            except ValueError:
+                body = {}
+            allowed = body.get("permission") == "allow"
+            ok = (allowed == expect_allow) and (r.returncode == expect_rc or (
+                expect_allow and r.returncode == 0) or (not expect_allow and r.returncode in (0, 2)))
+            if event == "beforeShellExecution" and not expect_allow:
+                ok = (not allowed) and r.returncode == 0 and body.get("permission") == "deny"
+            if event == "preToolUse" and not expect_allow:
+                ok = (not allowed) and r.returncode == 2
+            if event == "preToolUse" and expect_allow:
+                ok = allowed and r.returncode == 0
+            if event == "beforeShellExecution" and expect_allow:
+                ok = allowed and r.returncode == 0
+            mark = "PASS" if ok else "FAIL"
+            if not ok:
+                failed += 1
+            summary = payload.get("command") or f"{payload.get('tool_name')} {payload.get('tool_input')}"
+            print(f"{mark}  {event}  {summary!r}  -> permission={body.get('permission')!r} rc={r.returncode}")
+            if not ok and r.stderr:
+                print(f"       stderr: {r.stderr.strip()[:200]}")
+        if failed:
+            die(f"cursor-pilot probe: {failed} case(s) failed", 1)
+        print(f"PROBE ok ({len(cases)} cases) role={role}")
+        return
+
+    if action == "run":
+        agent = cursor_harness.find_agent_binary()
+        if not agent:
+            die("cursor-agent/agent not on PATH; install from https://cursor.com/docs/cli/installation", 3)
+        cwd = Path(a.cwd or tempfile.mkdtemp(prefix=f"cursor-pilot-{role}-"))
+        cwd.mkdir(parents=True, exist_ok=True)
+        info = _cursor_materialize(role, cwd)
+        model = a.model or role_model(con, role)
+        prompt = a.prompt or (
+            f"You are the Hivemill factory role {role} in a Cursor pilot. "
+            f"Do not run herdr, sudo, or factory tick/spawn. "
+            f"Reply with exactly: CURSOR_PILOT_OK"
+        )
+        argv = cursor_harness.build_cursor_argv(
+            cwd=cwd, model=model, prompt=prompt, print_mode=True, force=True,
+            plugin_dirs=[str(ROLES_DIR / "plugins" / role)] if (ROLES_DIR / "plugins" / role).is_dir() else None,
+            add_dirs=[str(HOME)],
+        )
+        print(f"PREPARED {info['cwd']}")
+        print("RUN " + " ".join(shlex.quote(x) for x in argv))
+        if a.dry_run:
+            return
+        env = os.environ.copy()
+        env.update({
+            "FACTORY_ROLE": role,
+            "FACTORY_HOME": str(HOME),
+            "FACTORY_AGENT": f"cursor-pilot-{role}",
+            "HERDR_SOCKET_PATH": DEAD_SOCKET,
+        })
+        r = subprocess.run(argv, cwd=str(cwd), env=env)
+        if r.returncode != 0:
+            die(f"cursor-pilot run: agent exited {r.returncode}", r.returncode or 1)
+        print("RUN ok")
+        return
+
+    die(f"unknown cursor-pilot action {action!r}", 2)
 
 
 def cmd_spawn(a):
@@ -8450,12 +8742,15 @@ def cmd_dequeue(a):
 
 def cmd_agents(a):
     con = db()
-    q = ("SELECT name,role,status,CASE WHEN flagless THEN 'FLAGLESS' ELSE '' END flagless,"
+    q = ("SELECT name,role,status,"
+         "COALESCE(json_extract(spawn_args,'$.runtime'),'claude') AS runtime,"
+         "CASE WHEN flagless THEN 'FLAGLESS' ELSE '' END flagless,"
          "CASE WHEN relaunch_requested_at IS NOT NULL THEN 'RELAUNCH-PENDING' ELSE '' END relaunch,"
          "goal_id,team_id,task_id,pane_id,model,started FROM agents")
     q += "" if a.all else " WHERE status IN ('live','starting','queued')"
     table(con.execute(q + " ORDER BY status, started").fetchall(),
-          ["name", "role", "status", "flagless", "relaunch", "goal_id", "team_id", "task_id", "pane_id", "model", "started"])
+          ["name", "role", "status", "runtime", "flagless", "relaunch", "goal_id", "team_id", "task_id", "pane_id",
+           "model", "started"])
 
 
 def cmd_flags(a):
@@ -10836,6 +11131,29 @@ def cmd_tick(a, locked=False):
                 _agent_tests_failed(con, r["name"], e)
             event(con, "agent", r["name"], "reaped", r["pane_id"])
             continue
+        try:
+            _sa = json.loads(r["spawn_args"] or "{}")
+        except ValueError:
+            _sa = {}
+        if agent_runtime_of(r) != "claude" and _sa.get("launch") == "subprocess":
+            # Headless subprocess fallback (no herdr pane): reap when the recorded pid exits.
+            pid = _sa.get("pid")
+            alive = False
+            if isinstance(pid, int) and pid > 0:
+                try:
+                    os.kill(pid, 0)
+                    alive = True
+                except OSError:
+                    alive = False
+            if alive:
+                continue
+            summary = f"runtime={agent_runtime_of(r)} pid={pid} exited"
+            con.execute("UPDATE agents SET status='done', summary=?, ended=? WHERE name=? AND status='live'",
+                        (summary, now(), r["name"]))
+            event(con, "agent", r["name"], "runtime-exit", {"pid": pid, "runtime": agent_runtime_of(r),
+                                                            "log": _sa.get("log")})
+            continue
+        # herdr-kind runtimes (cursor, …) share Claude's pane lost/session path below.
         if not h and r["started"] and still_starting(r):
             continue  # still starting: herdr hasn't registered it yet
         if not h and r["stop_requested_at"]:
@@ -11711,7 +12029,13 @@ def relaunch_agent(con, r, dry_run=False, force=False, fresh=False):
     else:
         steps.append("place a new pane")
     sess = "--session-id <new uuid>" if fresh else f"--resume {r['session_id']}"
-    steps.append(f"herdr agent start {r['name']} --kind claude -- --model {r['model'] or role_model(con, r['role'])} "
+    try:
+        _rt = agent_runtime.resolve_runtime(
+            r["role"], cfg(con, "agent_runtimes") or "", cfg(con, "cursor_pilot_roles") or "")
+    except ValueError:
+        _rt = "claude"
+    _kind = "cursor" if _rt == "cursor" else "claude"
+    steps.append(f"herdr agent start {r['name']} --kind {_kind} -- --model {r['model'] or role_model(con, r['role'])} "
                  f"--permission-mode auto --settings {RUN / 'settings' / (r['role'] + '.json')} "
                  f"--append-system-prompt-file {RUN / (r['name'] + '.prompt.md')} {sess} "
                  f"{' '.join(RESUME_PROMPT_FLAGS)} {' '.join(effort_args(con, r['model'] or role_model(con, r['role'])))} ...")
@@ -13510,6 +13834,14 @@ def main():
     x.add_argument("--goal"); x.add_argument("--date", help="YYYY-MM-DD: window ends at the end of that day")
     x.add_argument("--hours", type=int, default=24); x.add_argument("--send", action="store_true"); x.set_defaults(fn=cmd_digest)
 
+    x = sp.add_parser("cursor-pilot", help="Cursor Agent CLI pilot (docs/research/cursor-harness.md): status, prepare, probe, run")
+    x.add_argument("action", choices=["status", "prepare", "probe", "run"])
+    x.add_argument("--role", default="pm", help="pilot role (allow-list: pm)")
+    x.add_argument("--cwd", help="workspace to materialize into (prepare/run); default = temp dir")
+    x.add_argument("--model", help="run: --model for agent (default: role_model)")
+    x.add_argument("--prompt", help="run: initial prompt")
+    x.add_argument("--dry-run", action="store_true", help="run: print argv only")
+    x.set_defaults(fn=cmd_cursor_pilot)
     x = sp.add_parser("spawn"); x.add_argument("role", choices=ROLES); x.add_argument("--goal"); x.add_argument("--team")
     x.add_argument("--task"); x.add_argument("--name"); x.add_argument("--cwd"); x.add_argument("--prompt")
     x.add_argument("--model")

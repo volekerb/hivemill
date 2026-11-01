@@ -9,6 +9,15 @@
    "doc": ""
   },
   {
+   "key": "agent_runtimes",
+   "kind": "flag",
+   "default": "",
+   "summary": "role=runtime pairs or *=cursor for whole factory; empty = all Claude",
+   "goal": "",
+   "doc": "docs/runtimes.md",
+   "state": "off"
+  },
+  {
    "key": "blocked_alert_s",
    "kind": "setting",
    "default": "600",
@@ -23,6 +32,15 @@
    "summary": "tick_ci_wake runs its gh pr view probes in this many threads",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "cursor_pilot_roles",
+   "kind": "flag",
+   "default": "",
+   "summary": "legacy alias for agent_runtimes (roles \u2192 role=cursor); prefer agent_runtimes",
+   "goal": "",
+   "doc": "docs/runtimes.md",
+   "state": "off"
   },
   {
    "key": "day_end_hour",
