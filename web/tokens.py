@@ -535,13 +535,16 @@ def _finish(res):
                 e["cost"] = None
 
 
-def rollup(snapshot, attribution):
+def rollup(snapshot, attribution, org_of=None):
     """Totals by agent / task / goal / model / day, each with tokens and estimated cost (a model without a price adds
-    no cost and sets cost_unknown unless the row has no tokens; a bucket with only such rows has cost None)."""
-    res = {k: {} for k in ("by_agent", "by_task", "by_goal", "by_model", "by_day", "total")}
+    no cost and sets cost_unknown unless the row has no tokens; a bucket with only such rows has cost None).
+    With `org_of` (session id -> org name) there is a by_org bucket too (G-028)."""
+    res = {k: {} for k in ("by_agent", "by_task", "by_goal", "by_model", "by_day", "by_org", "total")}
     for r in snapshot["rows"]:
         a = attribution.get(r["session"]) or {"agent": None, "task": None, "goal": None}
         c = cost(r["model"], r, "fast" if r["fast"] else None)
+        if org_of is not None:
+            _add(res["by_org"], org_of(r["session"]), r, c)
         _add(res["by_agent"], a["agent"] or "unattributed", r, c)
         _add(res["by_task"], a["task"] or "unattributed", r, c)
         _add(res["by_goal"], a["goal"] or "unattributed", r, c)

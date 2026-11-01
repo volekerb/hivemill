@@ -6,8 +6,9 @@ B4-B6 import from here; keep the signatures documented in the docstrings stable.
 import re
 from urllib.parse import quote
 
-from web.html import LABELS, Safe, el, glyph, link, status
-from web.queries import parse_ts
+from scout import orgs as _orgs
+from web.html import LABELS, Safe, el, glyph, link, org_dot, status
+from web.queries import DEFAULT_ORG, agent_org, org_param, org_runtime, parse_ts
 
 # status group order of the task list (note 4 section 4); the last two start collapsed
 GROUP_ORDER = ("blocked", "in_review", "in_progress", "todo", "done", "cancelled")
@@ -179,12 +180,44 @@ def runtime_badge(runtime):
     return el("span", rt, class_=f"rt rt-{rt}", title=f"Agent runtime: {rt}")
 
 
+def org_badge(org, runtime=None):
+    """Org chip (G-028): "Claude" / "Cursor" in the org's colour. The org implies the runtime, so the runtime chip is
+    added only when it differs from the org's (e.g. the cursor org's evaluator runs on Claude). Unknown → default org."""
+    o = org if org in _orgs.ORGS else DEFAULT_ORG
+    lab = _orgs.label(o)
+    chip = el("span", lab, class_=f"org org-{o}", title=f"{lab} org")
+    rt = (runtime or "").strip().lower()
+    if rt in ("claude", "cursor") and rt != org_runtime(o):
+        return Safe(f"{chip} {runtime_badge(rt)}")
+    return chip
+
+
+def org_of(a):
+    """The org of an agent dict: its `org` key (queries.agents sets it), else derived from name and runtime."""
+    o = a.get("org")
+    if o in _orgs.ORGS:
+        return o
+    rt = a.get("runtime")
+    return agent_org(None, a.get("name"), rt if rt in ("claude", "cursor") else None)
+
+
+def org_href(path, params, org):
+    """href() with ?org= appended when an org filter is on: in-page links keep the global filter."""
+    return href(path, {**params, "org": org if org in _orgs.ORGS else None})
+
+
+def ctx_org(ctx):
+    """The whitelisted ?org= of a request context, or None (= all orgs)."""
+    return org_param(getattr(ctx, "query", None))
+
+
 def agent_row(a, now=None):
     """Cells for AGENT_COLS: glyph, name + role (role omitted when equal to the name), task id + title, last event age.
-    `a` needs name, role, status; task_id, task_title, last_event, runtime optional. Blocked → Blocked glyph."""
+    `a` needs name, role, status; task_id, task_title, last_event, runtime, org optional. Blocked → Blocked glyph.
+    The org chip sits next to the name (with a runtime chip only when the runtime is not the org's)."""
     key = "blocked" if a.get("blocked") else a["status"]
     who = el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a.get("role") and a["role"] != a["name"] else None,
-             " ", runtime_badge(a.get("runtime")),
+             " ", org_badge(org_of(a), a.get("runtime")),
              class_="agent-who")
     task = el("span", el("a", a["task_id"], href=f"/task/{a['task_id']}", class_="mono"), " ",
               el("span", a.get("task_title"), title=a.get("task_title"), class_="agent-task")) if a.get("task_id") else ""
