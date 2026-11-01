@@ -7217,9 +7217,12 @@ def org_runtime(con, role, org):
         die(str(e), 2)
 
 
-def org_prompt_section(org):
-    """Appended to every role prompt: which org this agent belongs to and who its HQ is (G-028)."""
+def org_prompt_section(org, multi=False):
+    """Appended to the role prompt of an agent in a non-default org, or of every agent once more than one org is
+    enabled: which org it belongs to and who its HQ is (G-028). A single-org factory keeps the plain role prompt."""
     org = org or orgs.DEFAULT_ORG
+    if org == orgs.DEFAULT_ORG and not multi:
+        return ""
     others = [o for o in orgs.NAMES if o != org]
     lines = [
         "",
@@ -7731,7 +7734,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         for k, v in (settings_obj.get("env") or {}).items():
             env.setdefault(k, v)
         sysprompt = RUN / f"{name}.prompt.md"
-        prompt_text = role_prompt_text(role, args.get("org"))
+        prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1)
         sysprompt.write_text(prompt_text)
         kick = kickoff_text(role, name, goal, team, task, prompt)
         return _spawn_start_external(
@@ -7754,7 +7757,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         if sandboxed or ghcred_on:  # pane --env lands before the shell's startup files, which may reorder PATH
             export_in_shell(pane, {"PATH": env["PATH"]}, cwd)
     sysprompt = RUN / f"{name}.prompt.md"
-    prompt_text = role_prompt_text(role, args.get("org"))
+    prompt_text = role_prompt_text(role, args.get("org"), len(enabled_orgs(con)) > 1)
     if evaluator:  # the live home is hidden inside the sandbox: claude reads read-only copies kept in the trial
         rdir = Path(env["FACTORY_HOME"]).parent / "role"
         settings, sysprompt = rdir / "settings.json", rdir / "prompt.md"
@@ -11106,10 +11109,10 @@ def queue_order_key(row, at=None):
 FRESH_PERSISTENT = ("boss", "director", "lead")
 
 
-def role_prompt_text(role, org=None):
+def role_prompt_text(role, org=None, multi=False):
     """What `_spawn_start` writes to run/<name>.prompt.md for `role` (kept in step with it by hand; docs/freshness.md)."""
     return ((ROLES_DIR / "_common.md").read_text() + "\n\n" + (ROLES_DIR / f"{role}.md").read_text()
-            + org_prompt_section(org))
+            + org_prompt_section(org, multi))
 
 
 def _newest_mtime(*paths):
@@ -11153,7 +11156,7 @@ def tick_freshness(con):
         started = _ts(r["started"])
         t0 = started.timestamp() + 1 if started else None  # `started` is whole seconds: tolerate a same-second write
         try:
-            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r))):
+            if (RUN / f"{name}.prompt.md").read_text() != role_prompt_text(role, orgs.of_agent(dict(r)), len(enabled_orgs(con)) > 1):
                 reasons.append("prompt")
         except FileNotFoundError:
             pass  # no prompt file recorded for this row (not started by factory spawn): nothing to compare
@@ -12109,8 +12112,9 @@ def cmd_up(a):
 
     for org in enabled_orgs(con):  # G-028: every enabled org keeps its own HQ (<org>-director, <org>-boss)
         for role in ("director", "boss") if not a.no_boss else ("director",):
-            name = oname(con, org, role)
-            r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
+            r = next((x for x in con.execute("SELECT * FROM agents WHERE role=? ORDER BY started DESC", (role,)).fetchall()
+                      if orgs.of_agent(dict(x)) == org), None)
+            name = r["name"] if r else oname(con, org, role)
             if running(r):
                 continue
             if r and r["status"] == "cancelled":
