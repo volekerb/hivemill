@@ -47,7 +47,7 @@ The skilleval `evaluator` always runs on Claude.
 - **Every spawn inherits its goal's org**: runtime, model, and name prefix `cursor-` (`cursor-director`, `cursor-lead-g-031-a`, `cursor-coder-t-0900`). The default org is prefixed only with `org_prefix_default=1` (`claude-boss`); with `0` a single-org install keeps `boss`, `director`, `coder-t-0001`.
 - **Routing**: `factory msg boss|director|owner|staff-engineer` resolves inside the message's org: the goal's org when `--goal`/`--task` is given, otherwise the sender's org.
 - **Chain of command**: only bosses and directors message across orgs (e.g. `factory msg cursor-director "capacity" ...`). Leads and workers are refused (exit 3).
-- **Capacity is shared**: one agent cap, memory floor and load gate for the box, with P1 goals first across both orgs. The Claude usage caps (5h/7d) measure Claude quota only.
+- **Capacity is shared**: one agent cap, memory floor and load gate for the box, with P1 goals first across both orgs. The Claude usage caps (5h/7d) measure Claude quota only. Leads (wake, dequeue, spawn) and judges skip only the load gate (T-0867); the memory floor, `max_live_leads`, the agent cap and the usage caps still apply to them.
 - **HQ**: `orgs_enabled=claude,cursor` makes `factory up` keep `<org>-director` and `<org>-boss` running for each org. The daily digest goes to every org's boss; a merge freeze escalates to every org's HQ.
 - **UI**: an org filter (All, Claude, Cursor) on every page, two org lanes on Home, and org chips and columns on Agents, Goals, Tasks, Tokens and Resources (docs/web-ui.md).
 
