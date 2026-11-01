@@ -128,12 +128,17 @@ class TestQualityPage(InsightServer):
         self.assertTrue("No rejections recorded." in html or '</svg><table class="sr-only">' in html)
 
 
+def no_org_nav(html):
+    """The page without the header's org filter (G-028), which has its own aria-current item."""
+    return re.sub(r'<nav class="seg seg-links orgseg".*?</nav>', "", html, flags=re.S)
+
+
 class TestThroughputPage(InsightServer):
     def test_segmented_range_and_fallback(self):
         for days in (7, 14, 30):
             html = self.text(f"/throughput?days={days}")
             self.assertRegex(html, rf'<a href="/throughput\?days={days}" aria-current="true">{days} days</a>')
-            self.assertEqual(html.count('aria-current="true"'), 1)
+            self.assertEqual(no_org_nav(html).count('aria-current="true"'), 1)
         self.assertRegex(self.text("/throughput?days=9"), r'<a href="/throughput\?days=14" aria-current="true">14 days</a>')
 
     def test_four_tiles_chart_and_no_bar_table(self):
@@ -155,7 +160,7 @@ class TestTokensPage(InsightServer):
         for bad in ("evil", "goal%27--", "", "task%3B", "../x"):
             html = self.text(f"/tokens?by={bad}")
             self.assertRegex(html, r'<a href="/tokens\?days=7" aria-current="true">By goal</a>', bad)
-            self.assertEqual(html.count("aria-current=\"true\""), 2, bad)    # the range and the breakdown
+            self.assertEqual(no_org_nav(html).count("aria-current=\"true\""), 2, bad)    # the range and the breakdown
         for by, label in (("task", "By task"), ("agent", "By agent"), ("model", "By model"), ("goal", "By goal")):
             self.assertRegex(self.text(f"/tokens?by={by}"), rf'aria-current="true">{label}</a>')
 
@@ -371,7 +376,7 @@ class TestBreakdownColumns(unittest.TestCase):
     def test_only_name_tokens_and_share_stay_on_a_phone(self):
         src = (ROOT / "web" / "views" / "tokens.py").read_text()
         wide = re.findall(r'\{"key": "(\w+)", "label": "[^"]+", "cls": "num ins-wide"\}', src)
-        self.assertEqual(wide, ["io", "req", "cost"])
+        self.assertEqual(wide, ["req", "cs", "io", "req", "cost"])   # By org table first, then the main breakdown
         self.assertIn(".dt .ins-wide { display: none; }", (ROOT / "web" / "static" / "app.css").read_text())
 
 
