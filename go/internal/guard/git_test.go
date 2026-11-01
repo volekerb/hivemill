@@ -642,3 +642,19 @@ func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
 		}
 	}
 }
+
+func TestCoderTaskOrgPrefix(t *testing.T) {
+	for agent, want := range map[string]string{
+		"coder-t-1": "t-1", "claude-coder-t-1": "t-1", "cursor-coder-t-0844": "t-0844",
+	} {
+		if got, ok := coderTask(agent); !ok || got != want {
+			t.Errorf("coderTask(%q) = %q, %v; want %q", agent, got, ok, want)
+		}
+	}
+	for _, agent := range []string{"evil-coder-t-1", "claude-cursor-coder-t-1", "cursor-claude-coder-t-1", "Claude-coder-t-1",
+		"claude-coder-t-1x", "claude-claude-coder-t-1", "claude-t-1", "claude-", "coder-t-", ""} {
+		if got, ok := coderTask(agent); ok {
+			t.Errorf("coderTask(%q) = %q, true; want refused", agent, got)
+		}
+	}
+}
