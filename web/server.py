@@ -136,6 +136,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.query = {k: v[0] for k, v in parse_qs(parts.query, keep_blank_values=True, max_num_fields=20).items()}
             except ValueError:  # too many fields: ignore the query string
                 self.query = {}
+            self._path = parts.path
             self._route(parts.path)
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
             raise
@@ -183,7 +184,9 @@ class Handler(BaseHTTPRequestHandler):
                 body, ctype = json.dumps(data, default=str), "application/json"
             else:
                 shell = {**queries.shell_status(con, app.usage_fn() if app.usage_fn else None, app.defaults, mem=app.mem_fn() if app.mem_fn else None), "now": ctx.now}
-                body, ctype = page(getattr(view, "TITLE", active), view.render(ctx, data), active, shell=shell), "text/html; charset=utf-8"
+                body = page(getattr(view, "TITLE", active), view.render(ctx, data), active, shell=shell,
+                            org=queries.org_param(ctx.query), path=getattr(self, "_path", None), query=ctx.query)
+                ctype = "text/html; charset=utf-8"
         self._send(200, body, ctype)  # reader is closed before the response is written
 
     def _healthz(self, app):

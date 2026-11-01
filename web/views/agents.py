@@ -12,9 +12,10 @@ from urllib.parse import quote
 
 from web import queries
 from web.db import has_column
-from web.components import (AGENT_COLS, agent_row, ago, chips, data_table, disclosure, empty_state, row_status,
-                            runtime_badge, section)
-from web.html import badge, el, link, status
+from scout import orgs as _orgs
+from web.components import (AGENT_COLS, agent_row, ago, chips, ctx_org, data_table, disclosure, empty_state, org_badge,
+                            org_of, row_status, runtime_badge, section)
+from web.html import Safe, badge, el, link, status
 
 TITLE = "Agents"
 SCOPE_MAX = 120   # teams.scope is a director-written summary; never return the full text
@@ -159,8 +160,9 @@ def _matches(a, f):
     return "goal" not in f or a["goal_id"] in f["goal"]
 
 
-def _href(f, **change):
-    """/agents URL for filters `f` with the given keys replaced (empty value removes the key)."""
+def _href(f, org=None, **change):
+    """/agents URL for filters `f` with the given keys replaced (empty value removes the key); `org` (the global
+    ?org= filter, whitelisted) is kept."""
     g = dict(f)
     for k, v in change.items():
         if v:
@@ -169,6 +171,8 @@ def _href(f, **change):
             g.pop(k, None)
     qs = "&".join(f"{k}={'%2C'.join(quote(v, safe='') for v in g[k])}"
                   for k in ("status", "role", "goal", "runtime") if g.get(k))
+    if org in _orgs.ORGS:
+        qs = f"{qs}&org={org}" if qs else f"org={org}"
     return "/agents?" + qs if qs else "/agents"
 
 
@@ -211,9 +215,20 @@ def _task_titles(con, ids):
 
 def data(ctx, **params):
     con = ctx.db
+    org = ctx_org(ctx)
     counts = {r[0]: r[1] for r in con.execute("SELECT status, count(*) FROM agents GROUP BY status")}   # unfiltered
     f = parse_filters(getattr(ctx, "query", None), [s for s in counts if isinstance(s, str)])
     rows = _agent_rows(con, ctx.now)
+    by_org, live_org = {o: 0 for o in _orgs.NAMES}, {o: 0 for o in _orgs.NAMES}
+    for a in rows:
+        by_org[a["org"]] = by_org.get(a["org"], 0) + 1
+        if a["status"] == "live":
+            live_org[a["org"]] = live_org.get(a["org"], 0) + 1
+    if org:   # the global org filter narrows every list and count below (counts: this org's agents only)
+        rows = [a for a in rows if a["org"] == org]
+        counts = {}
+        for a in rows:
+            counts[a["status"]] = counts.get(a["status"], 0) + 1
     all_rows = rows
     if f:
         rows = [a for a in rows if _matches(a, f)]
@@ -236,7 +251,7 @@ def data(ctx, **params):
     lead_status = {r["name"]: r["status"] for r in con.execute("SELECT name, status FROM agents WHERE role='lead'")}
     parked = _parked(con)
     teams = [dict(t, scope=queries._t(t["scope"], SCOPE_MAX), live_workers=n_live.get(t["id"], 0),
-                  lead_state=_lead_state(t, lead_status, parked)) for t in queries.teams(con)]
+                  lead_state=_lead_state(t, lead_status, parked)) for t in queries.teams(con) if not org or t["org"] == org]
     by_role, by_goal, by_runtime = {}, {}, {}
     for a in all_rows:
         by_role[a["role"]] = by_role.get(a["role"], 0) + 1
@@ -245,6 +260,9 @@ def data(ctx, **params):
         if a["goal_id"] and _GOAL_RE.match(a["goal_id"]):
             by_goal[a["goal_id"]] = by_goal.get(a["goal_id"], 0) + 1
     n_blocked = sum(1 for a in all_rows if is_blocked(a["blocked_since"]))
+    # the runtime facet only adds information when some agent's runtime is not its org's (e.g. a Claude evaluator in
+    # the cursor org); otherwise the org chips say it all
+    mixed = any((a.get("runtime") or "claude") != queries.org_runtime(a["org"]) for a in all_rows)
 
     cap = dict(con.execute("SELECT key, value FROM config")).get("max_live_agents", (ctx.defaults or {}).get("max_live_agents"))
     shown = [a for a in live] + (sorted(rows, key=lambda a: a["name"])[:MATCH_MAX] if f else [])
@@ -253,11 +271,12 @@ def data(ctx, **params):
         a["last_event"], a["task_title"] = last.get(a["name"]), titles.get(a["task_id"])
 
     def keep(a, extra=()):
-        keys = ("name", "role", "goal_id", "team_id", "task_id", "status", "model", "runtime", "started", "ended",
+        keys = ("name", "role", "goal_id", "team_id", "task_id", "status", "model", "runtime", "org", "started", "ended",
                 "queued_at", "age_s", "blocked_since", *extra)
         return {k: a.get(k) for k in keys}   # explicit allowlist: spawn_args / session_id / pane never leave this module
     matches = [keep(a, ("last_event", "task_title")) for a in sorted(rows, key=lambda a: a["name"])[:MATCH_MAX]] if f else []
-    return {"counts": counts, "blocked": n_blocked, "roles": {r: by_role[r] for r in ROLES if r in by_role},
+    return {"org": org, "orgs": by_org, "live_by_org": live_org, "runtime_mixed": mixed,
+            "counts": counts, "blocked": n_blocked, "roles": {r: by_role[r] for r in ROLES if r in by_role},
             "runtimes": {r: by_runtime[r] for r in RUNTIMES if r in by_runtime},
             "goals": dict(sorted(by_goal.items())), "filters": f, "matches": matches,
             "matches_total": len(rows) if f else None, "teams": teams,
@@ -316,13 +335,19 @@ def _stat(s):
 
 
 def _teams(d):
-    cols = [{"key": "team", "label": "Team", "cls": "c-id mono"}, {"key": "goal", "label": "Goal", "cls": "c-who"},
+    cols = [{"key": "team", "label": "Team", "cls": "c-id mono"}, {"key": "org", "label": "Org", "cls": "c-who orgrow"},
+            {"key": "goal", "label": "Goal", "cls": "c-who"},
             {"key": "lead", "label": "Lead", "cls": "c-title"}, {"key": "status", "label": "Status", "cls": "c-who"},
             {"key": "state", "label": "Lead state", "cls": "c-who"}, {"key": "live", "label": "Live", "cls": "c-age num"}]
-    rows = [[t["id"], link(f"/goal/{t['goal_id']}", t["goal_id"]) if t["goal_id"] else "", t["lead_agent"] or "",
-             _stat(t["status"]), _stat(t["lead_state"]), t["live_workers"]] for t in d["teams"]]
+    teams = sorted(d["teams"], key=lambda t: (_org_rank(t.get("org")), t["status"] != "active", t["id"]))
+    rows = [[t["id"], org_badge(t.get("org")), link(f"/goal/{t['goal_id']}", t["goal_id"]) if t["goal_id"] else "", t["lead_agent"] or "",
+             _stat(t["status"]), _stat(t["lead_state"]), t["live_workers"]] for t in teams]
     return section("Teams", data_table(cols, [{"key": "t", "rows": rows, "count": len(rows)}], key="teams", empty="No data yet."),
                    count=len(rows) or None)
+
+
+def _org_rank(org):
+    return _orgs.NAMES.index(org) if org in _orgs.NAMES else len(_orgs.NAMES)
 
 
 COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "model", "label": "Model", "cls": "c-who"}, AGENT_COLS[3])
@@ -341,23 +366,25 @@ def _urgent_first(a):
 
 def _running(d, now):
     teams = {t["id"]: t for t in d["teams"]}
+    many = len({org_of(a) for a in d["live"]}) > 1   # the group header names the org only when both orgs run agents
     by = {}
-    for a in sorted(d["live"], key=_urgent_first):
-        by.setdefault(a["team_id"], []).append(a)
+    for a in sorted(d["live"], key=lambda a: (_org_rank(org_of(a)), a["team_id"] is not None, a["team_id"] or "", *_urgent_first(a))):
+        by.setdefault((org_of(a), a["team_id"]), []).append(a)
     groups = []
-    for tid, members in by.items():
+    for (o, tid), members in by.items():
         t = teams.get(tid)
-        label = f"{tid} · {t['goal_id']}" if t and t["goal_id"] else (tid or "No team")
-        groups.append({"key": tid or "none", "label": label, "count": len(members), "rows": [_cells(a, now) for a in members]})
+        text = f"{tid} · {t['goal_id']}" if t and t["goal_id"] else (tid or "HQ (no team)")
+        label = Safe(f"{org_badge(o)} {el('span', text)}") if many else text
+        groups.append({"key": f"{o}-{tid or 'none'}", "label": label, "count": len(members), "rows": [_cells(a, now) for a in members]})
     return section("Running", data_table(COLS, groups, key="agents-run", empty="No live agents."), count=len(d["live"]))
 
 
 def _queued(d, now):
-    cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "rt", "label": "Runtime", "cls": "c-who"}, AGENT_COLS[2],
+    cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "org", "label": "Org", "cls": "c-who orgrow"}, AGENT_COLS[2],
             {"key": "since", "label": "Queued", "cls": "c-age num"}, {"key": "why", "label": "Reason", "cls": "c-who"}]
     rows = [[row_status("queued"),
              el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
-             runtime_badge(a.get("runtime")),
+             org_badge(org_of(a), a.get("runtime")),
              link(f"/task/{a['task_id']}", a["task_id"]) if a["task_id"] else "", ago(a["queued_at"], now),
              f"Waiting: {a['reason']}" if a.get("reason") else ""] for a in d["queued"]]
     return section("Queued", data_table(cols, [{"key": "q", "rows": rows, "count": len(rows)}], key="agents-queued",
@@ -365,11 +392,11 @@ def _queued(d, now):
 
 
 def _ended(d, now):
-    cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "rt", "label": "Runtime", "cls": "c-who"}, AGENT_COLS[2],
+    cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "org", "label": "Org", "cls": "c-who orgrow"}, AGENT_COLS[2],
             {"key": "ran", "label": "Ran", "cls": "c-age num"}, {"key": "sum", "label": "Summary", "cls": "c-who"}]
     rows = [[row_status(a["status"]),
              el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
-             runtime_badge(a.get("runtime")),
+             org_badge(org_of(a), a.get("runtime")),
              link(f"/task/{a['task_id']}", a["task_id"]) if a["task_id"] else "", ago(a["ended"], now), a.get("summary") or ""]
             for a in d["ended"]]
     n_all = sum(d["counts"].get(s, 0) for s in ("exited", "stopped"))   # same number as the Ended chip
@@ -381,29 +408,33 @@ def _ended(d, now):
 
 def _chips(d):
     f = d["filters"]
+    org = d.get("org")
     cur = set(f.get("status", []))
     items = []
     for label, sts in CHIP_GROUPS:
         n = d["blocked"] if sts == (BLOCKED,) else sum(d["counts"].get(s, 0) for s in sts)
         if n or label in CHIP_ALWAYS:
             on = cur == set(sts)
-            items.append((label, n, _href(f, status=None if on else list(sts)), on))
-    out = [chips("Status", items)]
-    roles = [(r, n, _href(f, role=None if f.get("role") == [r] else [r]), f.get("role") == [r]) for r, n in d["roles"].items()]
+            items.append((label, n, _href(f, org, status=None if on else list(sts)), on))
+    by_org = d.get("orgs") or {}
+    out = [chips("Status", items),
+           chips("Org", [("All", sum(by_org.values()), _href(f), org is None)] +
+                 [(_orgs.label(o), by_org.get(o, 0), _href(f, None if org == o else o), org == o) for o in _orgs.NAMES])]
+    roles = [(r, n, _href(f, org, role=None if f.get("role") == [r] else [r]), f.get("role") == [r]) for r, n in d["roles"].items()]
     out.append(chips("Role", roles))
-    rts = [(r, n, _href(f, runtime=None if f.get("runtime") == [r] else [r]), f.get("runtime") == [r])
+    rts = [(r, n, _href(f, org, runtime=None if f.get("runtime") == [r] else [r]), f.get("runtime") == [r])
            for r, n in d.get("runtimes", {}).items()]
-    if rts:
+    if rts and (d.get("runtime_mixed", True) or f.get("runtime")):
         out.append(chips("Runtime", rts))
     goals = list(d["goals"].items())
     first, rest = goals[:GOAL_CHIPS], goals[GOAL_CHIPS:]
-    row = lambda gs: [(g, n, _href(f, goal=None if f.get("goal") == [g] else [g]), f.get("goal") == [g]) for g, n in gs]
+    row = lambda gs: [(g, n, _href(f, org, goal=None if f.get("goal") == [g] else [g]), f.get("goal") == [g]) for g, n in gs]
     out.append(chips("Goal", row(first)))
     if rest:
         out.append(disclosure(f"{len(rest)} more goals", chips("More goals", row(rest)), key="agents-goals"))
     if f:
         shown = ", ".join(f"{k}={','.join(v)}" for k, v in f.items())
-        out.append(el("p", f"Showing: {shown} · ", link("/agents", "clear"), class_="muted"))
+        out.append(el("p", f"Showing: {shown} · ", link(_href({}, org), "clear"), class_="muted"))
     return out
 
 
@@ -415,12 +446,15 @@ def _summary(d):
     parts.append(f"{n.get('queued', 0)} queued")
     if d["blocked"]:
         parts.append(f"{d['blocked']} blocked")
-    rts = d.get("runtimes") or {}
-    if rts:
-        parts.append(" · ".join(f"{n} {r}" for r, n in rts.items()))
+    live_org = d.get("live_by_org") or {}
+    if d.get("org"):
+        parts[0] = f"{_orgs.label(d['org'])} org: {parts[0]}"
+    elif sum(1 for n_ in live_org.values() if n_) > 1:
+        parts.insert(1, "(" + " · ".join(f"{n_} {_orgs.label(o)}" for o, n_ in live_org.items()) + ")")
     over = str(d.get("cap") or "").isdigit() and n.get("live", 0) >= int(d["cap"])
     info = el("details", el("summary", "(i)", aria_label="About these states"),
-              el("p", "Busy/idle is not tracked; last event age is shown. Runtime is Claude Code or Cursor Agent "
+              el("p", "Busy/idle is not tracked; last event age is shown. The chip is the agent's org (Claude or Cursor); "
+                      "the org implies the runtime, and a runtime chip is added only when an agent runs on another one "
                       "(docs/runtimes.md).", class_="muted"),
               class_="disc disc--i", data_key="agents-info")
     return el("div", el("p", " · ".join(parts), class_="summary-line summary-line--warn" if over else "summary-line"), info, class_="summary")

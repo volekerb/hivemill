@@ -9,8 +9,9 @@ import re
 import time
 from pathlib import Path
 
+from scout import orgs as _orgs
 from web import charts, queries
-from web.components import disclosure, empty_state, section
+from web.components import ctx_org, disclosure, empty_state, org_badge, section
 from web.html import badge, el, glyph, link, table, ts
 from web.views import agents
 
@@ -49,14 +50,9 @@ def derive_gate(ctx):
     cap, total_cap, floor = int(c("max_live_agents", 6)), int(c("max_total_claude", 10)), int(c("min_mem_available_mb", 1024))
     h5, d7 = c("max_five_hour_pct", 92), c("max_seven_day_pct", 92)
     live = ctx.db.execute("SELECT count(*) FROM agents WHERE status='live'").fetchone()[0]
-    # Runtime mix from DB (spawn_args.runtime); Claude process cap below stays host /proc of `claude` only.
-    try:
-        cursor_live = ctx.db.execute(
-            "SELECT count(*) FROM agents WHERE status='live' AND json_extract(spawn_args,'$.runtime')='cursor'"
-        ).fetchone()[0]
-    except Exception:  # noqa: BLE001 — old sqlite / missing column: treat as all Claude
-        cursor_live = 0
-    claude_live = max(0, live - cursor_live)
+    # Org and runtime mix from the DB (queries.agents: agents.org / name prefix / spawn_args.runtime); the Claude
+    # process cap below stays host /proc of `claude` only.
+    mix_rows = org_mix(ctx.db, ctx.now)
     total = agents.claude_total(agents.proc_snapshot())
     workers, leads, parked = agents.lead_counts(ctx.db)
     leads_cap = int(c("max_live_leads", 4))
@@ -69,7 +65,7 @@ def derive_gate(ctx):
     else:
         usage_txt = (f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
                      + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
-    mix = f"claude {claude_live} · cursor {cursor_live}" if cursor_live else f"claude {claude_live}"
+    mix = " · ".join(f"{m['label']} {m['live']}" for m in mix_rows if m["live"] or m["org"] == queries.DEFAULT_ORG)
     checks = [f"agents live {live}/{cap} ({mix})",
               f"workers live {workers} · leads live {leads}/{leads_cap} (parked {parked})",
               "claude processes unknown" if total is None else f"claude processes {total}/{total_cap} on host",
@@ -87,9 +83,31 @@ def derive_gate(ctx):
     elif u and u["fresh"] and not u.get("unreadable") and u["seven_day"] >= d7:
         reason = f"weekly usage {u['seven_day']:.0f}% ≥ {d7:g}%"
     queued = ctx.db.execute("SELECT count(*) FROM agents WHERE status='queued'").fetchone()[0]
-    return {"open": reason is None, "reason": reason, "checks": checks, "rows": rows,
+    return {"open": reason is None, "reason": reason, "checks": checks, "rows": rows, "orgs": mix_rows,
             "live": live, "cap": cap, "queued": queued,
             "text": "likely OPEN" if reason is None else f"likely CLOSED — {reason}"}
+
+
+_HQ = ("boss", "director", "staff-engineer")
+
+
+def org_mix(con, now=None):
+    """Live agent mix per org: [{org, label, live, workers, leads, hq, queued, runtimes: {runtime: n}}], every org listed.
+    The box's capacity (agent cap, memory, load) is shared; this only splits who uses it."""
+    out = {o: {"org": o, "label": _orgs.label(o), "live": 0, "workers": 0, "leads": 0, "hq": 0, "queued": 0, "runtimes": {}}
+           for o in _orgs.NAMES}
+    for a in queries.agents(con, now=now):
+        m = out.get(a["org"])
+        if m is None:
+            continue
+        if a["status"] == "queued":
+            m["queued"] += 1
+        if a["status"] != "live":
+            continue
+        m["live"] += 1
+        m["leads" if a["role"] == "lead" else "hq" if a["role"] in _HQ else "workers"] += 1
+        m["runtimes"][a["runtime"]] = m["runtimes"].get(a["runtime"], 0) + 1
+    return list(out.values())
 
 
 def _check_rows(live, cap, workers, leads, leads_cap, total, total_cap, mem, floor, u, h5, d7):
@@ -341,6 +359,18 @@ def _gate_section(g):
                       class_="muted"))
 
 
+def _orgs_section(g, org):
+    """Live agents per org (G-028): who uses the shared capacity. With ?org= only that org's row."""
+    rows = [m for m in g.get("orgs", []) if org is None or m["org"] == org]
+    if not rows:
+        return None
+    body = table(["Org", "Live", "Workers", "Leads", "HQ", "Queued", "Runtime"], [
+        (org_badge(m["org"]), (m["live"], "num"), (m["workers"], "num"), (m["leads"], "num"), (m["hq"], "num"),
+         (m["queued"], "num"), " · ".join(f"{rt} {n}" for rt, n in sorted(m["runtimes"].items())) or "-") for m in rows],
+        cls="table table--compact")
+    return section("Agents by org", body, el("p", "The agent cap, memory and load are shared by both orgs.", class_="muted"))
+
+
 def _gauges_section(s):
     return section("Capacity", el("div", [*gauge_rows(s), usage_row(s["usage"])], class_="ins-gauges"), usage_note(s["usage"]))
 
@@ -385,5 +415,6 @@ def _events_disclosure(t, before):
 
 
 def render(ctx, d):
-    return el("div", _gate_section(d["gate"]), _gauges_section(d["system"]), _checks_section(d["gate"]),
+    return el("div", _gate_section(d["gate"]), _gauges_section(d["system"]), _orgs_section(d["gate"], ctx_org(ctx)),
+              _checks_section(d["gate"]),
               _days_section(d["per_day"]), _events_disclosure(d["timeline"], d["before"]), _config_disclosure(d["config"]))

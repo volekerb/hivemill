@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 from web import ci, queries
 from web.queries import parse_ts
-from web.components import data_table, disclosure, empty_state, ago, chips, href, pr_label, row_status, GROUP_ORDER, COLLAPSED
+from web.components import (data_table, disclosure, empty_state, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
+                            GROUP_ORDER, COLLAPSED)
 from web.html import LABELS, badge, card, dur, el, empty, kpi, link, table, ts
 from web.views.goals import status_badge, task_badge
 
@@ -72,11 +73,17 @@ def data(ctx, goal=None, status=None, **params):
     q = getattr(ctx, "query", None) or {}
     goal = goal or q.get("goal")
     status = status or q.get("status")
+    org = ctx_org(ctx)
+    gorgs = queries.goal_orgs(ctx.db)
     known = {r[0] for r in ctx.db.execute("SELECT id FROM goals")}
+    if org:   # the global org filter: only this org's goals (a task's org is its goal's)
+        known = {g for g in known if queries.org_of_goal(gorgs, g) == org}
     goal = goal if goal in known else None
     status = status if status in STATUSES else None
     merged, rej = _merged(ctx.db), _rejections(ctx.db)
     everything = queries.tasks(ctx.db)
+    if org:
+        everything = [t for t in everything if t["goal_id"] in known]
     in_goal = [t for t in everything if not goal or t["goal_id"] == goal]
     in_status = [t for t in everything if not status or t["status"] == status]
     counts = {s: 0 for s in STATUSES}
@@ -90,9 +97,9 @@ def data(ctx, goal=None, status=None, **params):
         label, _ = _ci_for(t, merged)
         rows.append({"id": t["id"], "goal_id": t["goal_id"], "title": t["title"], "status": t["status"], "waits": t["waits"], "pr_url": t["pr_url"],
                      "ci": label, "rejections": rej.get(t["id"], 0), "attempts": t["attempts"],
-                     "assignee": t["assignee"], "updated": t["updated"]})
+                     "assignee": t["assignee"], "updated": t["updated"], "org": queries.org_of_goal(gorgs, t["goal_id"])})
     sort = _sort_state(q)
-    return {"filter": {"goal": goal, "status": status}, "goals": sorted(known), "statuses": list(STATUSES), "tasks": rows,
+    return {"org": org, "filter": {"goal": goal, "status": status}, "goals": sorted(known), "statuses": list(STATUSES), "tasks": rows,
             "counts": counts, "goal_counts": dict(sorted(goal_counts.items())), "total": len(in_goal),
             "sort": {"key": sort[0], "dir": sort[1]}}
 
@@ -126,7 +133,8 @@ def _row(t, now):
     n = t["rejections"]
     rej = f"{n} rejection{'s' if n != 1 else ''}" + (f" · {t['attempts']} tries" if t["attempts"] and t["attempts"] > 1 else "") if n else ""
     title = el("span", el("a", t["title"], href=f"/task/{t['id']}"), " ", task_badge("blocked", t["waits"]) if t["status"] == "blocked" else None)
-    return [row_status(t["status"]), t["id"], title, link(f"/goal/{t['goal_id']}", t["goal_id"]) if t["goal_id"] else "",
+    goal = el("span", link(f"/goal/{t['goal_id']}", t["goal_id"]), " ", org_badge(t.get("org")), class_="orgrow") if t["goal_id"] else ""
+    return [row_status(t["status"]), t["id"], title, goal,
             t["assignee"] or "", pr, rej, el("span", ago(t["updated"], now), title=t["updated"])]
 
 
@@ -141,7 +149,7 @@ def _chips(d, q):
     keep = {k: q[k] for k in ("sort", "dir") if k in q}
 
     def go(**kw):
-        return href("/tasks", {"status": f["status"], "goal": f["goal"], **keep, **kw})
+        return org_href("/tasks", {"status": f["status"], "goal": f["goal"], **keep, **kw}, d.get("org"))
     status_items = [("All", d["total"], go(status=None), not f["status"])]
     status_items += [(LABELS[s], d["counts"].get(s, 0), go(status=s), f["status"] == s) for s in d["statuses"]]
     goal_ids = list(d["goal_counts"])
@@ -166,7 +174,7 @@ def render(ctx, d):
         nxt = "asc" if not (sort[0] == col and sort[1] == "asc") else "desc"
         if sort[0] != col and col == "updated":
             nxt = "desc"
-        return href("/tasks", {"status": f["status"], "goal": f["goal"], "sort": col, "dir": nxt})
+        return org_href("/tasks", {"status": f["status"], "goal": f["goal"], "sort": col, "dir": nxt}, d.get("org"))
     now = ctx.now
     groups = []
     for s in GROUP_ORDER:
@@ -177,12 +185,13 @@ def render(ctx, d):
                        "collapsed": s in COLLAPSED and f["status"] != s})
     note = None
     if f["goal"] or f["status"]:
-        note = el("p", f"Filtered: goal={f['goal'] or 'any'}, status={f['status'] or 'any'} · ", el("a", "Clear filters", href="/tasks"), class_="muted")
+        note = el("p", f"Filtered: goal={f['goal'] or 'any'}, status={f['status'] or 'any'} · ",
+                  el("a", "Clear filters", href=org_href("/tasks", {}, d.get("org"))), class_="muted")
     summary = el("p", f"{len(d['tasks'])} of {d['total']} tasks" if (f["status"]) else f"{d['total']} tasks", class_="summary-line")
     table = data_table(COLUMNS, groups, sort=sort, sort_href=sort_href, key="tasks",
                        empty="No tasks match these filters.")
     if not groups and (f["goal"] or f["status"]):
-        table = empty_state("No tasks match these filters.", ("/tasks", "Clear filters"))
+        table = empty_state("No tasks match these filters.", (org_href("/tasks", {}, d.get("org")), "Clear filters"))
     return el("div", summary, _chips(d, q), note, table)
 
 

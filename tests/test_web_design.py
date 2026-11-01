@@ -45,7 +45,8 @@ TONES = ("neutral", "info", "success", "warning", "danger", "review")
 SURFACES = ("surface-0", "surface-1", "surface-2", "fill")
 # tokens v2 (T-0429 note 2), the 26 colour keys of mock.css
 KEYS = ("surface-0", "surface-1", "surface-2", "fill", "text-1", "text-2", "text-3", "hairline", "border", "accent",
-        "accent-solid", "track", "data-1", "data-2", *(f"{t}-{k}" for t in TONES for k in ("fg", "bg", "solid")))
+        "accent-solid", "track", "data-1", "data-2", *(f"{t}-{k}" for t in TONES for k in ("fg", "bg", "solid")),
+        *(f"org-{o}-{k}" for o in ("claude", "cursor") for k in ("fg", "bg", "solid")))   # G-028 org colours
 
 
 class Css(unittest.TestCase):
@@ -143,6 +144,10 @@ class Contrast(unittest.TestCase):
             yield f"{tone}-fg/{tone}-bg", t[f"{tone}-fg"], t[f"{tone}-bg"]
             yield f"{tone}-fg/surface-1", t[f"{tone}-fg"], t["surface-1"]
         yield "danger-fg/fill", t["danger-fg"], t["fill"]
+        for o in ("claude", "cursor"):   # org chip text on its tint, and the selected org filter on the surfaces
+            yield f"org-{o}-fg/org-{o}-bg", t[f"org-{o}-fg"], t[f"org-{o}-bg"]
+            for s in SURFACES:
+                yield f"org-{o}-fg/{s}", t[f"org-{o}-fg"], t[s]
 
     def non_text_pairs(self, t):
         """Control borders, icon/dot/bar solids and series colours (>= 3.0), on the surface they sit on."""
@@ -153,6 +158,8 @@ class Contrast(unittest.TestCase):
                 yield f"{tone}-solid/{s}", t[f"{tone}-solid"], t[s]
             yield f"data-1/{s}", t["data-1"], t[s]
             yield f"data-2/{s}", t["data-2"], t[s]
+            for o in ("claude", "cursor"):   # org dot, chip border and lane rule
+                yield f"org-{o}-solid/{s}", t[f"org-{o}-solid"], t[s]
         yield "data-1/track", t["data-1"], t["track"]
         yield "data-2/track", t["data-2"], t["track"]
 

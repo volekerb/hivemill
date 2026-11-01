@@ -1,0 +1,283 @@
+"""Cursor Agent CLI harness for Hivemill (docs/runtimes.md, docs/research/cursor-harness.md).
+
+Materializes per-role Cursor policy into an isolated workspace and builds spawn argv.
+factory_cli opts in via config agent_runtimes (e.g. *=cursor or pm=cursor).
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shlex
+import shutil
+from pathlib import Path
+
+# Every factory role may use Cursor except the skilleval evaluator (Claude-shaped sandbox).
+CURSOR_ROLES = frozenset({
+    "boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
+    "staff-engineer", "scout",
+})
+# Legacy name used by cursor_pilot_roles / older docs.
+PILOT_ROLES = CURSOR_ROLES
+HQ_ROLES = frozenset({"boss", "director", "lead"})
+
+ADAPTER_NAME = "cursor-guard-adapter.py"
+GUARD_NAME = "worker-guard.py"
+
+
+def parse_pilot_roles(value: str) -> list[str]:
+    """Normalise cursor_pilot_roles config; empty = off. Unknown names raise ValueError."""
+    names = [x.strip() for x in (value or "").split(",") if x.strip()]
+    bad = [n for n in names if n not in CURSOR_ROLES]
+    if bad:
+        raise ValueError(
+            f"cursor_pilot_roles: {', '.join(repr(b) for b in bad)} not in cursor allow-list "
+            f"({', '.join(sorted(CURSOR_ROLES))})"
+        )
+    return list(dict.fromkeys(names))
+
+
+def role_uses_cursor(value: str, role: str) -> bool:
+    try:
+        return role in parse_pilot_roles(value)
+    except ValueError:
+        return False
+
+
+def translate_permission_token(token: str) -> str | None:
+    """Map one Claude Code permission string to a Cursor CLI token, or None to drop."""
+    if not isinstance(token, str) or not token:
+        return None
+    if token in ("Advisor",) or token.startswith("Workflow("):
+        return None
+    if token in ("Edit", "Write", "NotebookEdit"):
+        return "Write(**)"  # deny all writes (pm posture)
+    m = re.match(r"^(Bash|Edit|Write|NotebookEdit|Read)\((.*)\)\s*$", token)
+    if not m:
+        return None
+    kind, inner = m.group(1), m.group(2)
+    if kind == "Bash":
+        return f"Shell({inner})"
+    if kind in ("Edit", "Write", "NotebookEdit"):
+        return f"Write({inner})"
+    if kind == "Read":
+        return f"Read({inner})"
+    return None
+
+
+def translate_permissions(claude_perms: dict) -> dict:
+    """Claude settings permissions → Cursor cli.json permissions."""
+    out = {"allow": [], "deny": []}
+    for side in ("allow", "deny"):
+        seen = set()
+        for tok in claude_perms.get(side) or []:
+            t = translate_permission_token(tok)
+            if t and t not in seen:
+                seen.add(t)
+                out[side].append(t)
+    return out
+
+
+def hooks_dir_for_repo(repo_root: Path) -> Path:
+    return Path(repo_root) / "roles" / "hooks"
+
+
+def adapter_command(hooks_dir: Path, role: str, event: str, hq: bool = False) -> str:
+    adapter = hooks_dir / ADAPTER_NAME
+    parts = ["python3", str(adapter.resolve())]
+    if hq:
+        parts.append("--hq")
+    else:
+        parts.extend(["--role", role])
+    parts.extend(["--event", event])
+    return " ".join(shlex.quote(p) for p in parts)
+
+
+def cursor_hooks_json(hooks_dir: Path, role: str, hq: bool = False) -> dict:
+    """Cursor-native hooks.json that always fail-closed into the adapter."""
+    shell_cmd = adapter_command(hooks_dir, role, "beforeShellExecution", hq=hq)
+    tool_cmd = adapter_command(hooks_dir, role, "preToolUse", hq=hq)
+    return {
+        "version": 1,
+        "hooks": {
+            "beforeShellExecution": [
+                {"command": shell_cmd, "failClosed": True},
+            ],
+            "preToolUse": [
+                {
+                    "command": tool_cmd,
+                    "failClosed": True,
+                    "matcher": "Shell|Write|Delete|Read|Grep",
+                },
+            ],
+        },
+    }
+
+
+def write_atomic(path: Path, text: str, mode: int = 0o644) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def policy_workspace(home: Path | str, name: str, cwd: Path | str) -> Path:
+    """Where .cursor/ policy is written.
+
+    Shared FACTORY_HOME cwd (HQ) → run/cursor/<name> so the checkout is not polluted.
+    Worktree / task cwd → that directory (agent already owns it).
+    """
+    home_r = Path(home).resolve()
+    cwd_r = Path(cwd).resolve()
+    if cwd_r == home_r:
+        return home_r / "run" / "cursor" / name
+    return cwd_r
+
+
+def materialize_cursor_policy(
+    cwd: Path | str,
+    role: str,
+    *,
+    hooks_dir: Path,
+    claude_settings: dict,
+    system_prompt: str,
+    hq: bool = False,
+) -> dict:
+    """Write .cursor/{hooks.json,cli.json,rules/...} and AGENTS.md under cwd.
+
+    Returns a status dict: paths written and translation notes.
+    """
+    cwd = Path(cwd)
+    cwd.mkdir(parents=True, exist_ok=True)
+    notes = []
+    perms = translate_permissions(claude_settings.get("permissions") or {})
+    if not perms["deny"] and (claude_settings.get("permissions") or {}).get("deny"):
+        notes.append("all Claude deny rules dropped in translation (check Advisor/Workflow-only templates)")
+
+    cursor_dir = cwd / ".cursor"
+    hooks_path = cursor_dir / "hooks.json"
+    cli_path = cursor_dir / "cli.json"
+    rule_path = cursor_dir / "rules" / "factory-role.mdc"
+    agents_path = cwd / "AGENTS.md"
+
+    write_atomic(hooks_path, json.dumps(cursor_hooks_json(hooks_dir, role, hq=hq), indent=2) + "\n")
+    write_atomic(cli_path, json.dumps({"permissions": perms}, indent=2) + "\n")
+
+    rule_body = (
+        "---\n"
+        "description: Hivemill factory role prompt (cursor runtime)\n"
+        "alwaysApply: true\n"
+        "---\n\n"
+        f"{system_prompt.rstrip()}\n"
+    )
+    write_atomic(rule_path, rule_body)
+    write_atomic(
+        agents_path,
+        f"# Factory role: {role}\n\n"
+        f"Follow `.cursor/rules/factory-role.mdc`. Guard hooks are in `.cursor/hooks.json` "
+        f"(worker-guard via {ADAPTER_NAME}).\n",
+    )
+
+    mcp_path = cursor_dir / "mcp.json"
+    write_atomic(mcp_path, json.dumps({"mcpServers": {}}, indent=2) + "\n")
+    notes.append("wrote empty .cursor/mcp.json; user ~/.cursor/mcp.json may still load")
+
+    adapter = hooks_dir / ADAPTER_NAME
+    guard = hooks_dir / GUARD_NAME
+    if not adapter.is_file():
+        notes.append(f"MISSING adapter at {adapter}")
+    if not guard.is_file():
+        notes.append(f"MISSING worker-guard at {guard}")
+
+    return {
+        "cwd": str(cwd.resolve()),
+        "role": role,
+        "hq": hq,
+        "hooks": str(hooks_path),
+        "cli": str(cli_path),
+        "rule": str(rule_path),
+        "agents": str(agents_path),
+        "permissions": perms,
+        "notes": notes,
+    }
+
+
+def find_agent_binary() -> str | None:
+    return shutil.which("agent") or shutil.which("cursor-agent")
+
+
+def map_model(claude_model: str) -> str:
+    """Map factory MODELS ids to Cursor --model slugs.
+
+    Pass through Anthropic-family ids Cursor accepts; fall back to auto when empty.
+    """
+    return (claude_model or "").strip() or "auto"
+
+
+def build_cursor_argv(
+    *,
+    cwd: Path | str,
+    model: str,
+    prompt: str | None = None,
+    resume: str | None = None,
+    plugin_dirs: list[str] | None = None,
+    add_dirs: list[str] | None = None,
+    print_mode: bool = True,
+    force: bool = True,
+    sandbox: bool = False,
+) -> list[str]:
+    """Argv after the agent binary for a pilot/headless run."""
+    bin_name = find_agent_binary() or "agent"
+    argv = [bin_name, "--workspace", str(Path(cwd).resolve()), "--model", map_model(model), "--trust"]
+    if print_mode:
+        argv.append("--print")
+        argv.extend(["--output-format", "text"])
+    if force:
+        argv.append("--force")
+    if sandbox:
+        argv.extend(["--sandbox", "enabled"])
+    if resume:
+        argv.extend(["--resume", resume])
+    for d in plugin_dirs or []:
+        argv.extend(["--plugin-dir", d])
+    for d in add_dirs or []:
+        argv.extend(["--add-dir", d])
+    if prompt:
+        argv.append(prompt)
+    return argv
+
+
+def works_needs_work() -> list[dict]:
+    """Static matrix for `factory cursor-pilot status`."""
+    agent = find_agent_binary()
+    return [
+        {"item": "Headless agent CLI installed", "status": "WORKS" if agent else "NEEDS_WORK",
+         "detail": agent or "install: curl https://cursor.com/install | bash"},
+        {"item": "Materialize .cursor/hooks.json + cli.json + role rule", "status": "WORKS",
+         "detail": "scout.cursor_harness.materialize_cursor_policy; HQ → run/cursor/<name>"},
+        {"item": "Shell gate via beforeShellExecution → worker-guard", "status": "WORKS",
+         "detail": "cursor-guard-adapter.py; require failClosed:true"},
+        {"item": "Write gate via preToolUse → worker-guard", "status": "WORKS",
+         "detail": "adapter remaps Write/Delete path keys to file_path"},
+        {"item": "Permission deny translation Bash→Shell Edit→Write", "status": "WORKS",
+         "detail": "prefix rules remain weaker than the parser (same as Claude)"},
+        {"item": "All roles via agent_runtimes=*=cursor", "status": "WORKS",
+         "detail": "evaluator stays Claude (skilleval); others allow-listed"},
+        {"item": "factory spawn via herdr --kind cursor", "status": "WORKS",
+         "detail": "same place/prompt path as Claude; kind=cursor"},
+        {"item": "worker ghcred / Cursor --sandbox (no Claude nsbox)", "status": "WORKS",
+         "detail": "pane env gets ghcred; --sandbox enabled when sandbox_roles match"},
+        {"item": "MCP strict empty (user MCP blind)", "status": "NEEDS_WORK",
+         "detail": "empty project mcp.json is best-effort only"},
+        {"item": "Process audits expecting claude argv", "status": "NEEDS_WORK",
+         "detail": "claude_procs / flagless checks ignore cursor-agent (OK for pure-Cursor)"},
+        {"item": "Plugin dir .claude-plugin packs via --plugin-dir", "status": "UNKNOWN",
+         "detail": "Cursor has --plugin-dir; Hivemill plugin layout may need packaging tweaks"},
+        {"item": "skilleval evaluator on Cursor", "status": "NEEDS_WORK",
+         "detail": "evaluator stays Claude-only"},
+    ]

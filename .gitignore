@@ -11,6 +11,9 @@ audit.log
 # compat: legacy --settings path (G-012 T-B2); rendered from roles/settings/*.json.in by the tick
 /roles/settings/*.json
 
+# Cursor runtime policy materialised into cwd by scout/cursor_harness (G-027)
+.cursor/
+
 # Go build outputs (no binaries in git)
 go/bin/
 *.test
