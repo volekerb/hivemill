@@ -2038,7 +2038,8 @@ class Analyzer:
         report, task show|note, goal show); merge, PR, judge, spawn and every other form is refused."""
         pos = [a for a in rest if not a.startswith("-")]
         if name == "gh":
-            ok = (pos[:1] == ["search"] or (pos[:1] and pos[0] in RESEARCH_GH_GROUPS and pos[1:2] and pos[1] in RESEARCH_GH_READ)
+            ok = (pos[:1] == ["search"] or (pos[:1] and pos[0] in RESEARCH_GH_GROUPS and pos[1:2] and pos[1] in RESEARCH_GH_READ
+                                            and rest[:2] == pos[:2])
                   or (pos[:1] == ["api"] and not any(a.startswith(("-X", "-f", "-F", "--method", "--field", "--raw-field", "--input"))
                                                   for a in rest)))
             if not ok:
@@ -2078,7 +2079,7 @@ class Analyzer:
         url, dest = pos
         if not CLONE_URL.fullmatch(url):
             self.git_deny(f"git clone source {url!r} is not a plain https://<host>/<path> URL")
-        if "~" in dest or "\\" in dest or ".." in dest.split("/"):
+        if "~" in dest or "\\" in dest or ".." in dest.split("/") or any(c in dest for c in "*?[{"):
             self.git_deny(f"git clone destination {dest!r} is not a plain path inside the research dir or scratchpad")
         full = dest if os.path.isabs(dest) else os.path.join(self.gcwd, dest)
         if not (researcher_area(self.gcwd, self.gcwd) and researcher_area(full, self.gcwd)):
@@ -3668,7 +3669,8 @@ def terms_tool(data):
 # (default ~/.local/state).
 RESEARCH_SECRET_TEXT = re.compile(
     r"oauth-token|rw-token|\.credentials\.json|(?:^|[/\s'\"=~:])\.(?:ssh|gnupg|netrc|aws)(?:[/\s'\";]|$)|\.config/(?:factory|gh)\b")
-RESEARCH_SECRETS = (".ssh", ".gnupg", ".aws", ".netrc", ".config/factory", ".config/gh", ".claude/.credentials.json")
+RESEARCH_SECRETS = (".ssh", ".gnupg", ".aws", ".netrc", ".git-credentials", ".npmrc", ".docker", ".kube", ".config/gcloud", ".config/factory",
+                    ".config/gh", ".claude/.credentials.json")
 
 
 def research_root():
@@ -3700,7 +3702,7 @@ def researcher_secret_path(p):
             s = os.path.join(base, t)
             if under(p, s) or under(s, p):
                 return True
-    return os.path.basename(p).endswith(("-token", ".credentials.json"))
+    return os.path.basename(p).endswith(("-token", ".credentials.json")) or (p.startswith("/proc/") and p.endswith("/environ"))
 
 
 def researcher_tool(data):

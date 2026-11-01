@@ -95,7 +95,7 @@ class CloneBlocked(ResearcherBase):
                     "git clone https://github.com/a/b ~/x",
                     f"git clone https://github.com/a/b {D}",
                     "git clone https://github.com/a/b",
-                    "git clone https://github.com/a/b d e",
+                    "git clone https://github.com/a/b d e", "git clone https://github.com/a/b d*",
                     "git clone --branch -x https://github.com/a/b d",
                     f"git -C {LIVE} clone https://github.com/a/b d",
                     "git -c alias.clone=push clone https://github.com/a/b d"):
@@ -130,7 +130,7 @@ class WritesBlocked(ResearcherBase):
     def test_git_and_spawn_blocked(self):
         for cmd in ("git push origin HEAD", "git commit -m x", "git -C hello push", "git merge x", "gh pr merge 1",
                     "gh pr create", "factory spawn coder", "factory judge T-1", "claude -p hi", "herdr pane split",
-                    "gh api -X POST repos/a/b", "gh api repos/a/b -f x=1", "gh pr view 1; gh pr merge 1", "gh issue create",
+                    "gh api -X POST repos/a/b", "gh api repos/a/b -f x=1", "gh pr view 1; gh pr merge 1", "gh issue create", "gh pr -R view merge 5",
                     "gh repo delete a/b", "factory task update T-1 --status done", "factory pr create", "factory goal add x",
                     "git add .", "git checkout -b x", "git config user.name x", "git push --force origin main",
                     "git remote add x https://github.com/a/b"):
@@ -193,7 +193,7 @@ class EditWrite(ResearcherBase):
 class SecretReads(ResearcherBase):
     def test_read_grep_secrets_blocked(self):
         for path in ("~/.config/factory/worker-oauth-token", f"{HOME}/.ssh/id_ed25519", "~/.claude/.credentials.json",
-                     f"{HOME}/.config/factory/gh-worker-rw-token", f"{HOME}/.config/gh/hosts.yml", "~/.netrc"):
+                     f"{HOME}/.config/factory/gh-worker-rw-token", f"{HOME}/.config/gh/hosts.yml", "~/.netrc", "~/.git-credentials", "~/.kube/config", "/proc/self/environ"):
             with self.subTest(read=path):
                 self.deny(self.tool("Read", path), path)
         for path in (f"{HOME}/.ssh", HOME, f"{HOME}/.config", f"{HOME}/.config/factory"):

@@ -25,7 +25,7 @@ var (
 	// \s is spelled out (gitSp) and \b as a non-word follower: Python's are unicode-aware, RE2's are ASCII.
 	researchSecretText = regexp.MustCompile(`oauth-token|rw-token|\.credentials\.json|(?:^|[/` + gitSp + `'"=~:])\.(?:ssh|gnupg|netrc|aws)(?:[/` +
 		gitSp + `'";]|$)|\.config/(?:factory|gh)(?:[^\p{L}\p{N}_]|$)`)
-	researchSecrets = []string{".ssh", ".gnupg", ".aws", ".netrc", ".config/factory", ".config/gh", ".claude/.credentials.json"}
+	researchSecrets = []string{".ssh", ".gnupg", ".aws", ".netrc", ".git-credentials", ".npmrc", ".docker", ".kube", ".config/gcloud", ".config/factory", ".config/gh", ".claude/.credentials.json"}
 )
 
 func researchRoot() string {
@@ -68,7 +68,8 @@ func researcherSecretPath(p string) bool {
 		}
 	}
 	b := pyBasename(p)
-	return strings.HasSuffix(b, "-token") || strings.HasSuffix(b, ".credentials.json")
+	return strings.HasSuffix(b, "-token") || strings.HasSuffix(b, ".credentials.json") ||
+		(strings.HasPrefix(p, "/proc/") && strings.HasSuffix(p, "/environ"))
 }
 
 // IsResearcher reports whether role is the researcher role.
@@ -138,7 +139,7 @@ func (a *Analyzer) researcherCmd(name string, rest []string) error {
 			case pos[0] == "search":
 				ok = true
 			case in(researchGhGroups, pos[0]):
-				ok = len(pos) > 1 && in(researchGhRead, pos[1])
+				ok = len(pos) > 1 && in(researchGhRead, pos[1]) && len(rest) > 1 && rest[0] == pos[0] && rest[1] == pos[1]
 			case pos[0] == "api":
 				ok = !anyOf(rest, func(x string) bool {
 					for _, p := range []string{"-X", "-f", "-F", "--method", "--field", "--raw-field", "--input"} {
@@ -200,7 +201,7 @@ func (a *Analyzer) gitClone(args []string, usedC bool) error {
 	if !cloneURL.MatchString(url) {
 		return a.gitDeny("git clone source " + pyRepr(url) + " is not a plain https://<host>/<path> URL")
 	}
-	if strings.Contains(dest, "~") || strings.Contains(dest, `\`) || anyOf(strings.Split(dest, "/"), func(s string) bool { return s == ".." }) {
+	if strings.Contains(dest, "~") || strings.Contains(dest, `\`) || strings.ContainsAny(dest, "*?[{") || anyOf(strings.Split(dest, "/"), func(s string) bool { return s == ".." }) {
 		return a.gitDeny("git clone destination " + pyRepr(dest) + " is not a plain path inside the research dir or scratchpad")
 	}
 	full := dest
