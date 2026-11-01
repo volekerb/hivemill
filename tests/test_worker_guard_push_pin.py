@@ -227,7 +227,7 @@ class PushPinTests(unittest.TestCase):
                 p = self.run_hook(cmd, role="qa", agent="qa-t-0689")
                 self.assertEqual(p.returncode, 0, p.stderr)
 
-    ROLES = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+    ROLES = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
     # T-0755 attempt 3: the allow-list. Each of these exited 0 for a read-only role at f792b8f93 (the push deny-list).
     ALLOWLIST_REFUSED = (
         "p=push; git $p origin main", "p=push; git ${p} x", 'p=push; git "$p" origin main', "git `echo push` origin main",

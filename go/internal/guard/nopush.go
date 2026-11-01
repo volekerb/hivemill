@@ -8,7 +8,7 @@ import (
 // T-0755 (worker-guard.py): NO_PUSH_ROLES run only read-only git, fail closed.
 
 // noPushRoles is worker-guard.py:NO_PUSH_ROLES.
-var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
 
 var (
 	gitOptsAllowed = set("-P", "--no-pager", "--no-optional-locks", "--version", "--help")
@@ -118,6 +118,7 @@ func (a *Analyzer) gitLaunch(assigns, words []string) error {
 // gitAllow is a port of Analyzer.git_allow: only read-only git, matched against an allow-list.
 func (a *Analyzer) gitAllow(rest []string) error {
 	i := 0
+	usedC := false
 	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
 		o := rest[i]
 		if IsDynamic(o, true) {
@@ -125,6 +126,7 @@ func (a *Analyzer) gitAllow(rest []string) error {
 		}
 		switch {
 		case o == "-C" && i+1 < len(rest) && !IsDynamic(rest[i+1], true):
+			usedC = true
 			i += 2
 		case in(gitOptsAllowed, o):
 			i++
@@ -147,6 +149,8 @@ func (a *Analyzer) gitAllow(rest []string) error {
 	switch {
 	case sub == "fetch" || sub == "ls-remote":
 		return a.gitFetchArgs(sub, args)
+	case sub == "clone" && a.Role == researcherRole:
+		return a.gitClone(args, usedC)
 	case in(gitAllowPlain, sub):
 		if h := gitAbbrev(args, gitForbidLong); h != "" {
 			return a.gitDeny(pyRepr(h) + " runs a program or writes a file")

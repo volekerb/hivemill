@@ -9,7 +9,7 @@ from guard_impl import hook_run  # noqa: E402
 
 GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
 OTHER = ("coder", "cleaner", "judge")
 
 DENIED = [
