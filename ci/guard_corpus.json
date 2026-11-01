@@ -2775,13 +2775,7 @@
  {"cmd": "chmod 755 @SCRATCH@/out && tar -xf a.tar -C @SCRATCH@/out", "role": "evaluator"},
  {"cmd": "echo x > @SCRATCH@/out/f && tar -xf a.tar -C @SCRATCH@/out", "role": "evaluator"},
  {"cmd": "tee @SCRATCH@/out/f < a && tar -xf a.tar -C @SCRATCH@/out", "role": "evaluator"},
- {"cmd": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out", "role": "evaluator"},
- {"cmd": "FACTORY_AGENT=claude-coder-t-1 git push origin HEAD:factory/t-1", "role": "coder"},
- {"cmd": "FACTORY_AGENT=cursor-coder-t-1 git push origin HEAD:factory/t-1", "role": "coder"},
- {"cmd": "FACTORY_AGENT=evil-coder-t-1 git push origin HEAD:factory/t-1", "role": "coder"},
- {"cmd": "FACTORY_AGENT=claude-cursor-coder-t-1 git push origin HEAD:factory/t-1", "role": "coder"},
- {"cmd": "FACTORY_AGENT=Claude-coder-t-1 git push origin HEAD:factory/t-1", "role": "coder"},
- {"cmd": "FACTORY_AGENT=claude-coder-t-1x git push origin HEAD:factory/t-1", "role": "coder"}
+ {"cmd": "tar -xf a.tar -C @SCRATCH@/out; tar -xf b.tar -C @SCRATCH@/out", "role": "evaluator"}
  ],
  "must_allow": [
  {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},

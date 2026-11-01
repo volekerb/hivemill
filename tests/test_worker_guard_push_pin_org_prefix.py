@@ -38,5 +38,8 @@ class OrgPrefixPushPinTests(unittest.TestCase):
                 self.assertIn("coders push exactly", p.stderr)
 
 
+del P  # not a module-level TestCase: the loader would re-run the base tests
+
+
 if __name__ == "__main__":
     unittest.main()
