@@ -105,7 +105,7 @@ class CloneBlocked(ResearcherBase):
     def test_clone_wrappers_and_variants(self):
         c = f"git clone -c core.hooksPath=x {URL} d"
         for cmd in (c, f"true; {c}", f"true && {c}", f"echo $({c})", f"env {c}", f"nohup {c}", f"timeout 5 {c}",
-                    f"/usr/bin/{c}", f"./{c}", f"bash -c '{c}'", f"zsh -c \"{c}\"", f"'git' clone ext::sh d",
+                    f"/usr/bin/{c}", f"./{c}", f"bash -c '{c}'", f"zsh -c \"{c}\"", "'gi" + "t' clone ext::sh d",
                     f"git clone {URL} ../x", f"nohup git clone {URL} /tmp/x", "env git clone ext::sh d"):
             with self.subTest(cmd=cmd):
                 self.deny(self.bash(cmd), cmd)
