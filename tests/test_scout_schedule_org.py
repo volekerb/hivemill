@@ -77,6 +77,8 @@ class LegacyCursorRowTests(OrgBase):
         row = self.agent()
         self.assertEqual((row["org"], row["status"]), ("claude", "live"))
         self.assertEqual(json.loads(row["spawn_args"]).get("runtime", "claude"), "claude")
+        spawn_ev = self.events("spawn")[-1]["detail"]
+        self.assertNotIn("cursor", spawn_ev)  # live: spawn event runtime=cursor kind=cursor, no Claude session id
         self.pin(started=at("09:01"))
         sid = row["session_id"]
         self.usage_log(sid, input_=5, output=6, cache_write=7)
