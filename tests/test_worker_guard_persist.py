@@ -23,7 +23,7 @@ PW = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)  # the hook only reads t
 ROLES = ("coder", "qa", "reviewer")
 NO_PUSH = ("qa", "reviewer")  # T-0755: read-only git allow-list roles
 NO_PUSH_CONFIG_READ = re.compile(r"--get|--list| -l(?: |$)")
-WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator", "researcher")
+WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator")
 PROTECTED = [".gitconfig", ".config/git/config", ".config/git/attributes", ".config/git/ignore", ".bashrc", ".zshrc",
              ".zshenv", ".profile", ".bash_profile", ".zprofile"]
 
