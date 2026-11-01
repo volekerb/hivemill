@@ -6426,7 +6426,8 @@ def scout_tick(con):
     try:
         scoutsched.tick(con, types.SimpleNamespace(
             clock=digest_clock, cfg=cfg, event=event, now=now, spawn=spawn, force_stop=force_stop,
-            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send))
+            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send,
+            agent_name=lambda con: org_agent_name(con, "scout", org=scoutsched.ORG)))
     except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
         try:
             today = digest_clock().date().isoformat()
@@ -6589,7 +6590,7 @@ def tick_drift(con):
 
 def _session_tokens(session):
     from web import tokens  # noqa: PLC0415 — web/ lives at the repo root, like scout/
-    return tokens.session_tokens(session)
+    return tokens.session_tokens_known(session)  # None = unknown (scout_runs.tokens NULL), never 0
 
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
@@ -13902,7 +13903,7 @@ def cmd_scout(a):
         rows = con.execute("SELECT * FROM scout_runs ORDER BY id DESC LIMIT 20").fetchall()
         for r in rows:
             print(f"{r['slot']} {r['status']:<8} agent={r['agent'] or '-'} new={r['new_candidates']} "
-                  f"triaged={r['triaged']} tokens={r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
+                  f"triaged={r['triaged']} tokens={'-' if r['tokens'] is None else r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
                   f"{r['stop_reason'] or ''}".rstrip())
         if not rows:
             print("(none)")
