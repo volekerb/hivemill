@@ -32,6 +32,35 @@ Empty `agent_runtimes` keeps the historical all-Claude factory. Setting Cursor f
 
 Kickoff text and `spawn_args` bodies are **never** shown in the web UI (unchanged). Only `spawn_args.runtime` is derived for display.
 
+## Two orgs: claude and cursor (G-028)
+
+The main way to pick a runtime is the **org**, not `agent_runtimes`. An org is a complete chain of command (boss, director, team leads, workers) on one runtime with one model map (`scout/orgs.py`):
+
+| Org | Runtime | Judgement roles (boss, director, lead, pm, reviewer, judge, staff-engineer) | Build roles (coder, qa, cleaner, scout) |
+|---|---|---|---|
+| `claude` (default) | Claude Code | `claude-opus-5-5` | `claude-sonnet-5-5` (cleaner: Haiku) |
+| `cursor` | Cursor Agent | `grok-4.7-high` | `composer-2.5` |
+
+The skilleval `evaluator` always runs on Claude.
+
+- **Goals belong to one org** (`goals.org`). `factory goal new --org cursor ...` (default: the creating boss's org) · `factory goal list --org cursor` · `factory goal org G-031 claude` moves a goal: new spawns use the new org, and live agents finish under the old one.
+- **Every spawn inherits its goal's org**: runtime, model, and name prefix `cursor-` (`cursor-director`, `cursor-lead-g-031-a`, `cursor-coder-t-0900`). The default org is prefixed only with `org_prefix_default=1` (`claude-boss`); with `0` a single-org install keeps `boss`, `director`, `coder-t-0001`.
+- **Routing**: `factory msg boss|director|owner|staff-engineer` resolves inside the message's org: the goal's org when `--goal`/`--task` is given, otherwise the sender's org.
+- **Chain of command**: only bosses and directors message across orgs (e.g. `factory msg cursor-director "capacity" ...`). Leads and workers are refused (exit 3).
+- **Capacity is shared**: one agent cap, memory floor and load gate for the box, with P1 goals first across both orgs. The Claude usage caps (5h/7d) measure Claude quota only.
+- **HQ**: `orgs_enabled=claude,cursor` makes `factory up` keep `<org>-director` and `<org>-boss` running for each org. The daily digest goes to every org's boss; a merge freeze escalates to every org's HQ.
+- **UI**: an org filter (All, Claude, Cursor) on every page, two org lanes on Home, and org chips and columns on Agents, Goals, Tasks, Tokens and Resources (docs/web-ui.md).
+
+### Go-live (owner)
+
+```bash
+factory config agent_runtimes ''          # orgs decide the runtime now
+factory config org_prefix_default 1       # claude-boss, claude-director, ...
+factory config orgs_enabled claude,cursor
+factory goal org G-0xx cursor             # for each goal the cursor org owns
+factory up                                # starts the missing <org>-director / <org>-boss
+```
+
 ## Config
 
 | Key | Example | Meaning |

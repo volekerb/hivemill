@@ -374,6 +374,22 @@
    "doc": ""
   },
   {
+   "key": "org_prefix_default",
+   "kind": "setting",
+   "default": "0",
+   "summary": "1 = default-org agents get the org prefix too (claude-boss); other orgs always do",
+   "goal": "G-028",
+   "doc": "docs/runtimes.md"
+  },
+  {
+   "key": "orgs_enabled",
+   "kind": "setting",
+   "default": "claude",
+   "summary": "orgs whose HQ (<org>-boss, <org>-director) factory up keeps running, e.g. claude,cursor",
+   "goal": "G-028",
+   "doc": "docs/runtimes.md"
+  },
+  {
    "key": "orphan_reap_mode",
    "kind": "flag",
    "default": "dry-run",
