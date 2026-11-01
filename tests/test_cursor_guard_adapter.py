@@ -1,7 +1,6 @@
 """Subprocess tests for roles/hooks/cursor-guard-adapter.py (acceptance cases not in test_cursor_pilot.py)."""
 import json
 import os
-import sys
 import pwd
 import shutil
 import subprocess
