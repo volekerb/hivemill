@@ -14,7 +14,7 @@ from test_web_queries import NOW, ts  # noqa: E402
 from test_web_views_agents import Base  # noqa: E402
 from test_web_views_tokens import TokensCase  # noqa: E402
 from web import components as wc, html as wh, queries  # noqa: E402
-from web.views import agents, goals, home, resources, tasks, tokens  # noqa: E402
+from web.views import agents, changelog, goals, home, quality, resources, tasks, throughput, tokens  # noqa: E402
 
 CLASS_RE = re.compile(r'class="([^"]+)"')
 
@@ -277,6 +277,58 @@ class TestTokensByOrg(TokensCase):
         d, html = self.page(days="all", org="<x>", by="org")
         self.assertIsNone(d["org"])
         self.assertNotIn("<x>", html)
+
+
+def seed_insight_org_merges(w):
+    """One merged task on a claude goal (T-1/G-1) and one on a cursor goal (T-c/G-4)."""
+    add_org_columns(w)
+    w.execute("UPDATE goals SET org='cursor' WHERE id='G-4'")
+    w.execute("INSERT INTO teams VALUES('t-c','G-4','scope C','cursor-lead',NULL,'active',?)", (ts(8, 0),))
+    w.execute("INSERT INTO tasks(id,goal_id,team_id,title,role,status,created,updated) VALUES('T-c','G-4','t-c','cursor merge','coder','done',?,?)",
+              (ts(8, 0), ts(9, 0)))
+    w.execute("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
+              (ts(11, 40), "judge", "task", "T-c", "merged", "@cafe0001"))
+
+
+class TestInsightOrgFilter(Base):
+    def setUp(self):
+        super().setUp()
+        seed_insight_org_merges(self.w)
+
+    def test_throughput_org_filter_and_links(self):
+        base, _ = self.page(throughput)
+        self.assertEqual(base["merges"], 3)   # T-1, T-5 (claude goals) and T-c (cursor)
+        cur, _ = self.page(throughput, query={"org": "cursor"})
+        self.assertEqual(cur["merges"], 1)
+        cl, _ = self.page(throughput, query={"org": "claude"})
+        self.assertEqual(cl["merges"], 2)
+        evil, html_e = self.page(throughput, query={"org": "evil"})
+        self.assertEqual(evil["merges"], 3)
+        self.assertNotIn("evil", html_e)
+        self.assertIn("org=cursor", self.page(throughput, query={"org": "cursor", "days": "7"})[1])
+
+    def test_quality_merged_count_by_org(self):
+        cur, _ = self.page(quality, query={"org": "cursor"})
+        self.assertEqual(cur["overall"]["merged"], 1)
+
+    def test_changelog_org_and_chip_href(self):
+        cur, html = self.page(changelog, query={"org": "cursor"})
+        gids = {g["goal_id"] for g in cur["goals"]}
+        self.assertIn("G-4", gids)
+        self.assertNotIn("G-1", gids)
+        self.assertIn("org=cursor", html)
+
+
+class TestInsightOrgFilterLegacy(Base):
+    """Legacy DB (no goals.org): claude filter matches all merges; cursor filter is empty."""
+
+    def test_legacy_db_throughput_org(self):
+        all_d, _ = self.page(throughput)
+        n_all = all_d["merges"]
+        cur, _ = self.page(throughput, query={"org": "cursor"})
+        self.assertEqual(cur["merges"], 0)
+        cl, _ = self.page(throughput, query={"org": "claude"})
+        self.assertEqual(cl["merges"], n_all)
 
 
 if __name__ == "__main__":
