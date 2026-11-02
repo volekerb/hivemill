@@ -1473,14 +1473,35 @@ def _epoch(v):
         return None
 
 
+def _pct_field(v):
+    """One usage percentage as a finite float; an empty, missing or bad value is None for that field only."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def usage_text(u):
+    """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
+    if u.get("unreadable"):
+        return "claude usage unreadable"
+    five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
+    week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
+    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+
+
 def usage():
-    """5h/7d usage. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
+    """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
     read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
             age = time.time() - float(u.get("updated_at", 0))
-            return {"five_hour": float(u.get("five_hour_pct", 0)), "seven_day": float(u.get("seven_day_pct", 0)),
+            five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
+            if five is None and seven is None:
+                raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
+            return {"five_hour": five, "seven_day": seven,
                     "fresh": age < 3 * 3600, "age_min": int(age // 60),
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
@@ -1547,7 +1568,8 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
     from the live-agent and claude-process counts; every cap still applies (what spawn()'s gate sees after the close).
     The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches, and
-    judges: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds; every other cap applies).
+    judges and leads: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds, and a lead is
+    light orchestration that must not wait behind builders (T-0867); every other cap applies, including max_live_leads).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
     Any other role, or role=None, gets exactly the checks above."""
@@ -1622,9 +1644,9 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
-    if u["fresh"] and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+    if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
         return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-    if u["fresh"] and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+    if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
         return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
@@ -7136,7 +7158,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
     org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
-    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director", "lead")) or role == "judge", role=role,
+    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live")
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
@@ -10528,11 +10550,7 @@ def cmd_res(a):
         print("claude processes unknown")
     else:
         print(f"claude processes {s['total']}/{s['total_cap']} on host (factory {s['factory_procs']} · other {s['total'] - s['factory_procs']})")
-    if u.get("unreadable"):
-        print("claude usage unreadable")
-    else:
-        print(f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
-              + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
+    print(usage_text(u))
     mode = cfg(con, "lead_less_dispatch")
     if mode != "0":
         cut = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat(timespec="seconds")
@@ -11536,10 +11554,12 @@ def cmd_tick(a, locked=False):
     held = False
     for q in queued:
         if not held and not gate(con)[0]:
-            held = True  # a closed gate stops the queue, except for a judge (exempt from the load cap only) or a cleaner (tmp gate only)
+            held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
             if q["role"] == "judge":
                 ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+            elif q["role"] == "lead":
+                ok = gate(con, load_exempt=True, role="lead")[0]  # leads skip only the load cap (T-0867); lead caps still apply
             else:
                 ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
             if not ok:

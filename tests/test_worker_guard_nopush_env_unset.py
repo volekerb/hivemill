@@ -7,7 +7,6 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 OTHER = ("coder", "cleaner", "judge")
