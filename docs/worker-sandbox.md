@@ -140,9 +140,19 @@ Each later step is a new task with the same check list.
 
 ## 5. Flag and rollback
 
+### researcher profile (G-029, T-0847)
+
+The researcher runs third-party code (cloned repos, benchmarks), so it is in `scout.workerbox.SANDBOXABLE` and is **always sandboxed**: `sandbox_wanted` is true for it whatever `sandbox_roles` holds and with or without `--sandbox`. Turning the sandbox off is not an option for this role.
+
+- **cwd:** its per-task research dir `<XDG_STATE_HOME or ~/.local/state>/factory/research/<task>` is bound read-write (`rw_cwd=True`, like coder/qa). It sits under the hidden home, so the cwd rule admits exactly the directories directly below that research root for the researcher and for no other role. The root is passed by HQ, never read from the agent.
+- **token:** the read-only gh token (`gh-worker-ro-token`) only, even if the researcher is ever listed in `gh_rw_roles`. Secrets stay out of reach: `~/.config/factory/worker-oauth-token` (the file; the claude token is injected by the shim), `~/.ssh` and the owner's home are hidden, `~/factory` (including `roles/`) is read-only.
+- **network:** on, as for every worker profile. There is no egress filter: the researcher must reach public docs, package registries and git hosts, and an allow-list would break the job while the sandbox already keeps secrets and the factory out of reach. The read-only token cannot write to GitHub.
+- **fail closed:** if the preflight fails (no user namespaces, missing or wrong-mode `worker-oauth-token` or `gh-worker-ro-token`, ...), `spawn` and `relaunch` refuse with exit 3 before any pane is touched, and the message points at the owner steps in section 3 (O2). Nothing is started unsandboxed.
+- **tests:** `tests/test_researcher_sandbox.py`, including a real-namespace check (skipped where user namespaces are unavailable).
+
 The sandbox is behind one config key, `sandbox_roles`: a comma list of roles whose `claude` runs in the namespace sandbox. Empty (the default) means off, which is exactly today's behaviour.
 
-- Turn on: `factory config sandbox_roles reviewer` (later `reviewer,qa,coder`). Only roles in `scout.workerbox.SANDBOXABLE` (reviewer, qa, coder) are accepted. Any other role (boss, director, lead, pm, judge, cleaner, staff-engineer, scout, evaluator, unknown) is refused with exit 2 and the stored value stays as it was. Whoever may run `factory config` today may set it; nothing new.
+- Turn on: `factory config sandbox_roles reviewer` (later `reviewer,qa,coder`). Only roles in `scout.workerbox.SANDBOXABLE` (reviewer, qa, coder, researcher) are accepted; researcher is always sandboxed whatever this key holds. Any other role (boss, director, lead, pm, judge, cleaner, staff-engineer, scout, evaluator, unknown) is refused with exit 2 and the stored value stays as it was. Whoever may run `factory config` today may set it; nothing new.
 - Turn off (rollback): `factory config sandbox_roles ''`.
 - The value is read from the DB at every spawn. Agents that are already running keep their sandbox (or lack of one) until they are done; the change applies to the next spawn and the next relaunch of each agent. A relaunch of a sandboxed agent reuses its agent dir, so `--resume` finds the session.
 - The golden test is `tests/test_sandbox_spawn.py` (`GoldenTests`). It compares the stubbed multiplexer calls and claude arguments of a lead, reviewer, qa and coder spawn with `tests/fixtures/spawn_golden_main.json`, recorded on origin/main before the flag existed: with the flag unset, empty, or set and cleared again, they are byte-identical; with `reviewer` set, only the reviewer's pane `PATH` differs.
