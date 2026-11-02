@@ -103,8 +103,8 @@ class TestSections(Base):
         s = section(page, "system")
         for label in ("Agents", "Memory", "Load", "Claude usage", "Cursor usage"):
             self.assertIn(f'<span class="gl">{label}</span>', s)
-        self.assertEqual(len(re.findall(r'class="gz fg-\w+"', s)), 5)
-        self.assertEqual(s.count('class="gauge"'), 5)   # 5-hour and weekly bars stacked
+        self.assertEqual(len(re.findall(r'class="gz fg-\w+"', s)), 4)
+        self.assertEqual(s.count('class="gauge"'), 6)   # Claude 5h+weekly stacked, Cursor bar
 
     def test_over_cap_agents_say_so(self):
         for i in range(6):
@@ -117,7 +117,7 @@ class TestSections(Base):
         d, page = self.page(usage={**FRESH, "five_hour": None, "seven_day": 96.0})
         s = section(page, "system")
         self.assertIn("n/a · 96%", s)
-        self.assertEqual(s.count('class="gauge"'), 4)   # the weekly bar only
+        self.assertEqual(s.count('class="gauge"'), 5)   # weekly + Cursor bar
         self.assertIn(">Over cap</b>", s)
         self.assertEqual(d["system"]["usage"]["seven_day"], 96.0)
         self.assertIsNone(d["system"]["usage"]["five_hour"])

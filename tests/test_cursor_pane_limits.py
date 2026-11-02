@@ -86,6 +86,14 @@ class TickLimits(FactoryTestCase):
     def test_ok_until_limit_error(self):
         self.env.set_herdr(read_text={"cursor-coder-t-0878": "working normally\n"})
         self.tick()
+        row = self.env.sql("SELECT 1 FROM config WHERE key=?", (cursor_limits.CONFIG_KEY,))
+        self.assertEqual(row, [])
+
+    def test_ok_after_limit_clears(self):
+        self.env.set_herdr(read_text={"cursor-coder-t-0878": LIMIT_TEXT})
+        self.tick()
+        self.env.set_herdr(read_text={"cursor-coder-t-0878": "working normally\n"})
+        self.tick()
         state = self._state()
         self.assertEqual(state["grok-4.7-high"]["status"], "ok")
         self.assertEqual(state["composer-2.5"]["status"], "ok")

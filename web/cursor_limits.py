@@ -180,6 +180,9 @@ def tick_record(con, *, herdr_fn, agent_runtime_of, agent_org_fn, send_fn, event
                 json.dumps({"model": slug, "reset": parsed.get("reset"), "switch_target": parsed.get("switch_target")}),
             )
 
+    prior = load_state(con)
+    if not limited and not prior:
+        return
     state = {}
     for slug in cursor_model_slugs():
         if slug in limited:

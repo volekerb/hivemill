@@ -253,15 +253,15 @@ def cursor_row(data):
     """Same three-line gauge-row shape as usage_row: Cursor usage, today's agent-hours, Pro · ok or limited-until."""
     plan = cursor_limits.plan_line(data)
     limited = any(m["status"] == "limited" for m in data["models"])
-    tone, word = ("danger", "Limited") if limited else ("success", "OK")
+    tone = "danger" if limited else "success"
     hours = data["hours"]
     value = f"{hours:g} h"
-    bar = charts.gauge_bar(0, [], tone, f"Cursor usage {value}, {word}")
+    bar = charts.gauge_bar(0, [], tone, f"Cursor usage {value}, {plan}")
     return el(
         "div",
         el("span", "Cursor usage", class_="gl"),
         el("div", bar, class_="gauge-stack"),
-        el("span", value, el("span", el("b", word, class_=f"gz fg-{tone}"), f" · {plan}"), class_="gv"),
+        el("span", value, el("span", plan), class_="gv"),
         class_="gauge-row",
     )
 
