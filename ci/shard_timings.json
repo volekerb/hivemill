@@ -23,7 +23,6 @@
  "test_context_baseline.py": 3.5,
  "test_context_per_pr.py": 1.9,
  "test_db_layout.py": 9.5,
- "test_delegate_search_skill.py": 0.0,
  "test_demo_record.py": 1.0,
  "test_demo_scenes_c.py": 0.0,
  "test_demo_scenes_d.py": 0.0,
