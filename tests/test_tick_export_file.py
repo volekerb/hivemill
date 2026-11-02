@@ -1,4 +1,4 @@
-"""T-0767: the tick/export writes run/guard-export.json for the Go worker-guard."""
+"""T-0767: the tick/export writes the run/ export file the Go hook binary reads."""
 import json
 import os
 import stat
