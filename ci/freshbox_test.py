@@ -436,6 +436,18 @@ def step_setup(c):
     return "cloned %s%s; project 'demo' = a fresh git repo at ~/demo-repo" % (a.repo, " @ " + a.ref if a.ref else "")
 
 
+def step_cursor_probe(c):
+    want = "PROBE ok (6 cases) role=pm"
+    if c.plan:
+        c.note("factory cursor-pilot probe --role pm as the test user (owner); require exit 0 and %r" % want)
+        return "plan"
+    _, out = c.do(c.as_user(["factory", "cursor-pilot", "probe", "--role", "pm"]), cwd=c.home,
+                  what="factory cursor-pilot probe")
+    if want not in out:
+        raise StepFail("cursor-pilot probe output missing %r" % want)
+    return want
+
+
 def step_herdr_server(c):
     c.background(c.as_user(["herdr", "server"]), "herdr-server")
     for _ in range(1 if c.plan else 20):
@@ -519,8 +531,8 @@ def step_serve(c):
 
 STEPS = [("preflight", step_preflight), ("create-user", step_user), ("install-herdr", step_herdr),
          ("install-claude", step_claude), ("prerequisites", step_prereqs), ("logins", step_logins),
-         ("follow-setup", step_setup), ("herdr-server", step_herdr_server), ("factory-up", step_up),
-         ("web-ui", step_serve)]
+         ("follow-setup", step_setup), ("cursor-probe", step_cursor_probe), ("herdr-server", step_herdr_server),
+         ("factory-up", step_up), ("web-ui", step_serve)]
 
 
 # ───────────────────────────── cleanup ─────────────────────────────
