@@ -20,7 +20,7 @@ CLI_SPAWNABLE = [r for r in ROLES if r != "evaluator"]
 
 def spawn_cmd(role):
     base = ["spawn", role, "--name", f"zz-test-{role}"]
-    if role in ("coder", "qa", "reviewer"):
+    if role in ("coder", "qa", "reviewer", "researcher"):
         base += ["--goal", "G-001", "--task", "T-0001"]
     return base
 

@@ -22,4 +22,9 @@ Config `prcheck_required` (default `0` = off). With `1`, `factory done` of a cod
 commit, or a later failing run on the same HEAD, needs a new pass. The record is a `prcheck` task event
 (`{"head", "ok", "failed"}`).
 
+Green-CI alternative (T-0873): with no passing event on HEAD, `factory done` still passes when the PR is OPEN, its
+`headRefOid` equals the local HEAD, it has checks, every check is green and the required checks are present (the judge's
+`checks_ok`/`missing_checks`). The cheap parts (fresh, identity, body, public text) are rerun; the affected-tests run is
+skipped. Anything undecidable (gh error, no checks, head mismatch) refuses as before.
+
 Rollback: `factory config prcheck_required 0`.

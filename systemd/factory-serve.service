@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/factory/bin/factory serve
-Restart=on-failure
+Restart=always
 RestartSec=10
 Nice=10
 MemoryMax=200M
