@@ -13688,6 +13688,7 @@ def skilleval_vendor(con, cid):
     try:
         root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
         if cand["key"] == scoutdb.CONTROL_KEY:  # repo-owned positive control: same re-checks, local source
+            cand = _skilleval().register_control(con, now())  # refresh head_sha if the control dir changed since `control`
             res = scoutvendor.vendor_local(cand, root, _skilleval().CONTROL_DIR, _skilleval().CONTROL_PLUGIN)
         else:
             res = scoutvendor.vendor(scoutsrc.Gh(), cand, root)
