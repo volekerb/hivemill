@@ -393,6 +393,19 @@ def session_tokens(session, root=None):
     return sum(r["input"] + r["output"] + r["cache_write_5m"] + r["cache_write_1h"] for r in idx.snapshot()["rows"])
 
 
+def session_tokens_known(session, root=None):
+    """session_tokens(), but None when the session's log cannot be read: a bad id, no log file, or no usage line in it.
+    0 then means a log that was read and shows no tokens used (scout_runs.tokens: NULL = unknown, T-0851)."""
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", session or ""):
+        return None
+    idx = TokenIndex(root, only_session=session)
+    idx.refresh()
+    rows = idx.snapshot()["rows"]
+    if not rows:
+        return None
+    return sum(r["input"] + r["output"] + r["cache_write_5m"] + r["cache_write_1h"] for r in rows)
+
+
 def latest_context(session, root=None, tail_bytes=1 << 20):
     """Context size of the session's latest main-thread request (input + cache read + cache creation tokens), or None
     when the session has no log or no usage line. Reads only the tail of the log; subagent logs are not looked at."""
