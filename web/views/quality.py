@@ -6,7 +6,7 @@ Formulas are the ones in the queries.quality docstring. Rejections per week use 
 import datetime as dt
 
 from web import charts, queries
-from web.components import data_table, disclosure, empty_state, href, list_row, section, tile
+from web.components import ctx_org, data_table, disclosure, empty_state, list_row, org_href, section, tile
 from web.html import el
 
 TITLE = "Quality"
@@ -39,10 +39,13 @@ def _week(iso):
     return (day - dt.timedelta(days=day.weekday())).isoformat()
 
 
-def _weekly(con):
+def _weekly(con, goals=None):
+    tgoal = queries._task_goals(con)
     counts = {}
     vcount = {}
     for r in con.execute("SELECT task_id, role, created FROM verdicts WHERE verdict IN ('fail','reject')"):
+        if goals is not None and tgoal.get(r["task_id"]) not in goals:
+            continue
         w = _week(r["created"])
         if w:
             counts[w] = counts.get(w, 0) + 1
@@ -50,6 +53,8 @@ def _weekly(con):
             vcount[r["task_id"]] = vcount.get(r["task_id"], 0) + 1
     evs = {}
     for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='judge-reject' ORDER BY id"):
+        if goals is not None and tgoal.get(r["entity_id"]) not in goals:
+            continue
         evs.setdefault(r["entity_id"], []).append(r["ts"])
     for tid, tss in evs.items():
         extra = max(0, len(tss) - vcount.get(tid, 0))
@@ -83,15 +88,27 @@ def _with_unassigned(con, q):
     return out
 
 
+def _goal_filter(ctx):
+    org = ctx_org(ctx)
+    if not org:
+        return None, org
+    gorgs = queries.goal_orgs(ctx.db)
+    goals = {r[0] for r in ctx.db.execute("SELECT id FROM goals") if queries.org_of_goal(gorgs, r[0]) == org}
+    return goals, org
+
+
 def data(ctx, **params):
-    q = queries.quality(ctx.db)
+    goals, org = _goal_filter(ctx)
+    q = queries.quality(ctx.db, goals=goals)
     last = {}
     for r in ctx.db.execute("SELECT team_id, score, created FROM evaluations ORDER BY id"):
         last[r["team_id"]] = {"score": r["score"], "date": (r["created"] or "")[:10]}
     teams = [dict(t, eval_date=(last.get(t["team_id"]) or {}).get("date")) for t in _with_unassigned(ctx.db, q)]
-    return {"overall": q["overall"], "teams": teams, "weeks": _weekly(ctx.db), "formula": FORMULA,
-            "windows": queries.quality_windows(ctx.db, DELTA_DAYS, now=ctx.now),
-            "bouncing": queries.bouncing_tasks(ctx.db, BOUNCING_MAX)}
+    if goals is not None:
+        teams = [t for t in teams if t["tasks"]]
+    return {"org": org, "overall": q["overall"], "teams": teams, "weeks": _weekly(ctx.db, goals=goals), "formula": FORMULA,
+            "windows": queries.quality_windows(ctx.db, DELTA_DAYS, now=ctx.now, goals=goals),
+            "bouncing": queries.bouncing_tasks(ctx.db, BOUNCING_MAX, goals=goals)}
 
 
 def _delta(cur, prev, fmt, lower_is_better, days):
@@ -176,7 +193,7 @@ def _teams(ctx, d):
 
     def sort_href(col):
         flip = "asc" if key == col and direction == "desc" else "desc" if key == col else SORTS[col]
-        return href("/quality", {"sort": col, "dir": flip})
+        return org_href("/quality", {"sort": col, "dir": flip}, d.get("org"))
     cols = [{"key": "team", "label": "Team", "cls": "c-title", "sortable": True},
             {"key": "merged", "label": "Merged", "cls": "num", "sortable": True},
             {"key": "rejections", "label": "Rejections", "cls": "num", "sortable": True},

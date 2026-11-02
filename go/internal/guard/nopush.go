@@ -31,7 +31,7 @@ var (
 	gitSp       = `\t-\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
 	reGitWord   = regexp.MustCompile(`(?:^|[` + gitSp + `/;&|])git(?:-[^` + gitSp + `]*)?(?:[` + gitSp + `]|$)`)
 	reGitConfig = regexp.MustCompile(`^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=`)
-	reGitSens   = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
+	reGitSens   = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
 	reGitDepth  = regexp.MustCompile(`^--(depth|deepen)=[0-9]+$`)
 	reGitRemote = regexp.MustCompile(`^[\p{L}\p{N}_.-]+@[\p{L}\p{N}_.-]+:`)
 	reGrepO     = regexp.MustCompile(`^-[^-]*O`)

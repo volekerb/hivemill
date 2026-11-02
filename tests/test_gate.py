@@ -426,6 +426,51 @@ class UsageReadTests(FactoryTestCase):
             self.assertNotIn("claude usage unreadable", p.stdout, bad)
             self.assertNotIn("stale", p.stdout, bad)
 
+    spawn = GateTests.spawn
+    assert_queued = GateTests.assert_queued
+
+    def write_pcts(self, five, seven):
+        self.write_raw(json.dumps({"five_hour_pct": five, "seven_day_pct": seven, "updated_at": time.time()}))
+
+    def test_empty_five_hour_still_closes_gate_on_weekly(self):
+        self.ok("config", "max_seven_day_pct", "98")
+        self.write_pcts("", "99")
+        self.assert_queued(self.spawn(), "weekly usage 99% ≥ 98%")
+        self.assertIn("claude usage 5h n/a · week 99%\n", self.ok("res").stdout)
+
+    def test_empty_weekly_still_closes_gate_on_five_hour(self):
+        self.ok("config", "max_five_hour_pct", "92")
+        self.write_pcts("95", "")
+        self.assert_queued(self.spawn(), "5h usage 95% ≥ 92%")
+        self.assertIn("claude usage 5h 95% · week n/a\n", self.ok("res").stdout)
+
+    def test_partial_reading_below_cap_leaves_gate_open(self):
+        self.write_pcts("", "50")
+        p = self.spawn()
+        self.assertNotIn("usage", p.stdout)
+        self.assertIn("claude usage 5h n/a · week 50%\n", self.ok("res").stdout)
+
+    def test_both_empty_is_unreadable(self):
+        self.write_pcts("", "")
+        with self.env.load_factory() as mod:
+            u = mod.usage()
+        self.assertTrue(u["unreadable"])
+        self.assertEqual((u["five_hour"], u["seven_day"], u["fresh"]), (None, None, False))
+        self.assertIn("claude usage unreadable", self.ok("res").stdout)
+
+    def test_bad_value_is_none_for_that_field_only(self):
+        with self.env.load_factory() as mod:
+            for five, seven, want in (("abc", 97, (None, 97.0)), (None, 97, (None, 97.0)), (91, "abc", (91.0, None)),
+                                      ("nan", 12, (None, 12.0)), ("inf", 12, (None, 12.0))):
+                self.write_pcts(five, seven)
+                u = mod.usage()
+                self.assertNotIn("unreadable", u, (five, seven))
+                self.assertEqual((u["five_hour"], u["seven_day"]), want, (five, seven))
+                self.assertTrue(u["fresh"])
+            self.write_raw(json.dumps({"seven_day_pct": "96", "updated_at": time.time()}))   # the 5h key is missing
+            u = mod.usage()
+            self.assertEqual((u["five_hour"], u["seven_day"]), (None, 96.0))
+
     def test_usage_missing_file_stays_stale(self):
         with self.env.load_factory() as mod:
             self.assertEqual(mod.usage(), {"five_hour": 0.0, "seven_day": 0.0, "fresh": False, "age_min": -1,
