@@ -127,7 +127,8 @@ class TestTotals(TokensCase):
         seg = html.split('aria-label="Breakdown"')[1].split("</nav>")[0]
         self.assertEqual(re.findall(r'<a href="([^"]+)"( aria-current="true")?>([^<]+)</a>', seg),
                          [("/tokens?days=all", ' aria-current="true"', "By goal"), ("/tokens?days=all&amp;by=task", "", "By task"),
-                          ("/tokens?days=all&amp;by=agent", "", "By agent"), ("/tokens?days=all&amp;by=model", "", "By model")])
+                          ("/tokens?days=all&amp;by=agent", "", "By agent"), ("/tokens?days=all&amp;by=model", "", "By model"),
+                          ("/tokens?days=all&amp;by=org", "", "By org")])
         self.assertEqual(html.count('<table class="dt">'), 1)
         rows = re.findall(r'<tr><td class="c-title">(.*?)</td>', html.split('aria-label="Breakdown"')[1])
         self.assertIn("Not attributed", rows[-1])        # pinned last, with its (i) definition

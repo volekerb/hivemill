@@ -136,6 +136,19 @@ def aa_problems():
     return out
 
 
+def route_path(route):
+    """Path of a route before ``?`` (the query is ignored for known-route checks)."""
+    return route.split("?", 1)[0]
+
+
+def route_known(route, routes):
+    """True when ``route`` is allowed: the path must be in ``routes`` or be a /goal/ or /task/ detail URL."""
+    path = route_path(route)
+    if path in routes:
+        return True
+    return path.startswith(("/goal/", "/task/"))
+
+
 def speed_problem(route, times_ms):
     med = statistics.median(times_ms)
     return ["render %s median %.0f ms >= %d ms" % (route, med, RENDER_MS_MAX)] if med >= RENDER_MS_MAX else []
@@ -254,7 +267,7 @@ def run_checks(opts, tmp):
     routes = ["/", "/goals", "/goal/%s" % gid, "/tasks", "/task/%s" % tid] + list(STATIC_ROUTES[3:])
     if opts.routes:
         want = [r for r in opts.routes.split(",") if r]
-        unknown = [r for r in want if r not in routes and not r.startswith(("/goal/", "/task/"))]
+        unknown = [r for r in want if not route_known(r, routes)]
         if unknown:
             raise SetupError("unknown route(s) %s; known: %s" % (",".join(unknown), ",".join(routes)))
         routes = want

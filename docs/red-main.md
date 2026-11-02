@@ -2,7 +2,7 @@
 
 Flag: `red_main_freeze` (default `0`). Rollback: `factory config red_main_freeze 0` (merges resume at once; stored state is ignored).
 
-With the flag on, the tick (at most every `red_main_interval_s`, default 120 s) reads the newest completed `tests.yml` push run on `main` of each project `gh_repo` (`gh run list`, the T-0614 signal):
+With the flag on, the tick (at most every `red_main_interval_s`, default 120 s, while main is not red; a red repo is re-checked every tick, so a green run clears the freeze on the first tick that sees it) reads the newest completed `tests.yml` push run on `main` of each project `gh_repo` (`gh run list`, the T-0614 signal):
 
 - **failure / timed_out / startup_failure**: the repo is frozen. `factory judge --merge` refuses with `red main: run <id> ...` (exit 4, event `judge-blocked`, nothing merged). The director gets one alert per run id, and a coder task "Red main: revert or fix ..." is filed in the project's top active goal, naming the tasks merged since the last green run.
 - **success**: the freeze clears (event `red-main-clear`).

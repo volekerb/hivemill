@@ -16,6 +16,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
+- [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
 - [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
 - [design/g-023/README.md](design/g-023/README.md): three draft README layouts for owner preview.
 - [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
@@ -102,6 +103,9 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [public-text-guard.md](public-text-guard.md): refuses private data in text that becomes public (commit/PR text, refs, pushed diffs).
 - [main-freeze.md](main-freeze.md): the tick freezes merging and syncing when public main gets a non-PR commit; only director/boss clears it.
 - [spawn-context.md](spawn-context.md): what a spawned agent carries, including the advisor tool.
+- [runtimes.md](runtimes.md): agent runtimes (Claude, Cursor) and the two-org model (claude-* and cursor-* side by side).
+- [research/cursor-harness.md](research/cursor-harness.md): research behind the Cursor Agent CLI runtime.
+- [research/cursor-e2e-issues.md](research/cursor-e2e-issues.md): issues found dogfooding Cursor coder, qa, reviewer and judge.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.
 - [web-perf.md](web-perf.md): measured cost of the web UI in time, memory and tick impact.
 - [web-tokens.md](web-tokens.md): worker roots and read limits for token accounting.

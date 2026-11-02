@@ -8,8 +8,9 @@ counts, ids and names are shown: no message text, no full session ids (8-char pr
 import datetime as dt
 import re
 
+from scout import orgs as _orgs
 from web import charts, queries
-from web.components import data_table, disclosure, empty_state, href, section, segmented, tile
+from web.components import ctx_org, data_table, disclosure, empty_state, href, org_badge, section, segmented, tile
 from web.html import el, link, table
 from web.prices import PRICES_AS_OF
 from web.tokens import attribute, rollup
@@ -20,8 +21,10 @@ TITLE = "Tokens"
 PERIODS = ("1", "7", "30", "all")
 DEFAULT_PERIOD = "7"
 TOP = 20
-BY = ("goal", "task", "agent", "model")
-BY_LABEL = {"goal": "By goal", "task": "By task", "agent": "By agent", "model": "By model"}
+BY = ("goal", "task", "agent", "model", "org")
+BY_LABEL = {"goal": "By goal", "task": "By task", "agent": "By agent", "model": "By model", "org": "By org"}
+CURSOR_NOTE = ("Token usage is not reported by Cursor CLI: it leaves no token or usage counts on this machine, so Cursor "
+               "runtime agents show sessions and agent-hours per model from the agents table, and no cost.")
 VIA = ("session", "event", "name", "worktree", "unattributed")
 GOAL_RE = re.compile(r"^(G-\d+|unattributed)$")
 
@@ -97,32 +100,85 @@ def _top(buckets, extra=None):
     return items[:TOP], max(0, len(items) - TOP)
 
 
+def _hours(a, since_e, now_e):
+    """Hours of agent `a` inside [since_e, now_e]: started -> ended (live: now). 0 when it has no start."""
+    start = queries._epoch(a.get("started"))
+    if start is None:
+        return 0.0
+    end = queries._epoch(a.get("ended")) if a["status"] in queries.ENDED_AGENT else now_e
+    end = now_e if end is None else min(end, now_e)
+    lo = max(start, since_e) if since_e is not None else start
+    return max(0.0, end - lo) / 3600
+
+
+def cursor_activity(ag, since, now, org=None):
+    """Cursor runtime agents in the range, per (org, model): {org, model, sessions, live, hours}. Cursor CLI reports no
+    token counts, so this is the honest measure of what the Cursor runtime did. `since` is a local ISO date or None."""
+    since_e = None
+    if since:
+        since_e = dt.datetime.fromisoformat(since).replace(tzinfo=now.astimezone().tzinfo).timestamp()
+    now_e = now.timestamp()
+    out = {}
+    for a in ag:
+        if a.get("runtime") != "cursor" or (org and a["org"] != org) or a["status"] == "queued":
+            continue
+        end = queries._epoch(a.get("ended")) if a["status"] in queries.ENDED_AGENT else now_e
+        if since_e is not None and end is not None and end < since_e:
+            continue
+        key = (a["org"], a.get("model") or "unknown")
+        e = out.setdefault(key, {"org": key[0], "model": key[1], "sessions": 0, "live": 0, "hours": 0.0})
+        e["sessions"] += 1
+        e["live"] += a["status"] == "live"
+        e["hours"] += _hours(a, since_e, now_e)
+    rows = sorted(out.values(), key=lambda e: (-e["hours"], e["org"], e["model"]))
+    for e in rows:
+        e["hours"] = round(e["hours"], 2)
+    return rows
+
+
+def _session_org(att, name_org, gorgs):
+    """session id -> org: the attributed agent's org, else the attributed goal's org, else the default org (these
+    are Claude Code transcripts, so an unmatched session ran on the Claude runtime)."""
+    def of(sid):
+        a = att.get(sid) or {}
+        if a.get("agent") in name_org:
+            return name_org[a["agent"]]
+        return queries.org_of_goal(gorgs, a.get("goal")) if a.get("goal") else queries.DEFAULT_ORG
+    return of
+
+
 def data(ctx, **params):
     q = _query(ctx)
     period = q.get("days") if q.get("days") in PERIODS else DEFAULT_PERIOD
+    org = ctx_org(ctx)
     snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
     snap = snap or {}
     usage = _usage_data(_usage(ctx))
     by = q.get("by") if q.get("by") in BY else "goal"
-    base = {"period": period, "by": by, "prices_as_of": PRICES_AS_OF, "usage": usage, "ready": bool(snap.get("ready")),
-            "files": snap.get("files", 0), "mb_read": round(snap.get("bytes_total", 0) / 1048576, 1)}
+    since = _since(ctx, period)
+    ag = queries.agents(ctx.db, include_ended=True, now=ctx.now)
+    base = {"period": period, "by": by, "org": org, "prices_as_of": PRICES_AS_OF, "usage": usage, "ready": bool(snap.get("ready")),
+            "files": snap.get("files", 0), "mb_read": round(snap.get("bytes_total", 0) / 1048576, 1),
+            "cursor": cursor_activity(ag, since, ctx.now, org), "cursor_note": CURSOR_NOTE}
     if not base["ready"]:
         return base | {"goal": None, "model": None, "models": [], "totals": None, "by_goal": ([], 0), "by_task": ([], 0),
-                       "by_agent": ([], 0), "by_model": ([], 0), "by_day": ([], 0), "via": {}, "unpriced": []}
+                       "by_agent": ([], 0), "by_model": ([], 0), "by_org": ([], 0), "by_day": ([], 0), "via": {}, "unpriced": []}
     rows = snap.get("rows", [])
-    since = _since(ctx, period)
     if since:
         rows = [r for r in rows if r["day"] >= since]       # an "unknown" day sorts after digits: only in "all"
+    att = attribute(snap, ctx.db)
+    org_of = _session_org(att, {a["name"]: a["org"] for a in ag}, queries.goal_orgs(ctx.db))
+    if org:
+        rows = [r for r in rows if org_of(r["session"]) == org]
     models = sorted({r["model"] for r in rows})
     model = q.get("model") if q.get("model") in models else None
-    att = attribute(snap, ctx.db)
     goal = q.get("goal") if GOAL_RE.match(q.get("goal") or "") else None
     if model:
         rows = [r for r in rows if r["model"] == model]
     if goal:
         rows = [r for r in rows if (att.get(r["session"], {}).get("goal") or "unattributed") == goal]
     view = {"rows": rows, "sessions": snap.get("sessions", {})}
-    roll = rollup(view, att)
+    roll = rollup(view, att, org_of)
     used = {r["session"] for r in rows}
     via = {v: 0 for v in VIA}
     agent_info = {}
@@ -146,22 +202,43 @@ def data(ctx, **params):
                    "by_agent": _top(roll["by_agent"], {k: {"role": v["role"], "sessions": v["sessions"][:3],
                                                            "more_sessions": max(0, len(v["sessions"]) - 3)}
                                                       for k, v in agent_info.items()}),
-                   "by_model": _top(roll["by_model"]), "by_day": by_day, "via": via, "unpriced": unpriced}
+                   "by_model": _top(roll["by_model"]), "by_org": _by_org(roll["by_org"], base["cursor"], org),
+                   "by_day": by_day, "via": via, "unpriced": unpriced}
+
+
+def _by_org(buckets, cursor, org):
+    """One row per org (only the filtered one with ?org=): Claude-transcript tokens and cost, plus the Cursor-runtime
+    sessions and agent-hours that have no token counts."""
+    zero = {k: 0 for k in ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h", "requests")} | {
+        "cost": 0.0, "cost_unknown": False}
+    items = []
+    for o in _orgs.NAMES:
+        if org and o != org:
+            continue
+        cur = [c for c in cursor if c["org"] == o]
+        if o not in buckets and not cur:
+            continue
+        row = _entry(o, buckets.get(o, zero))
+        row.update(cursor_sessions=sum(c["sessions"] for c in cur), cursor_hours=round(sum(c["hours"] for c in cur), 2))
+        items.append(row)
+    return items, 0
 
 
 # ───────────────────────────── rendering ─────────────────────────────
 
-def _href(period, goal=None, model=None, by=None):
-    return href("/tokens", {"days": period, "goal": goal, "model": model, "by": by if by in BY[1:] else None})
+def _href(period, goal=None, model=None, by=None, org=None):
+    """/tokens link; `org` keeps the global ?org= filter."""
+    return href("/tokens", {"days": period, "goal": goal, "model": model, "by": by if by in BY[1:] else None,
+                            "org": org if org in _orgs.ORGS else None})
 
 
-def _model_href(period, goal, model, by=None):
-    return _href(period, goal, model, by) if re.match(r"^[\w.-]+$", model) else None
+def _model_href(period, goal, model, by=None, org=None):
+    return _href(period, goal, model, by, org) if re.match(r"^[\w.-]+$", model) else None
 
 
 def _controls(d):
     labels = {"1": "Today", "7": "7 days", "30": "30 days", "all": "All time"}
-    seg = segmented("Range", [(labels[p], _href(p, d["goal"], d["model"], d["by"]), p == d["period"]) for p in PERIODS])
+    seg = segmented("Range", [(labels[p], _href(p, d["goal"], d["model"], d["by"], d.get("org")), p == d["period"]) for p in PERIODS])
     active = []
     if d["goal"]:
         active.append(f"goal {d['goal']}")
@@ -169,7 +246,7 @@ def _controls(d):
         active.append(f"model {d['model']}")
     if not active:
         return seg
-    return el("div", seg, el("p", "Filtered by " + ", ".join(active) + " · ", link(_href(d["period"], by=d["by"]), "clear"),
+    return el("div", seg, el("p", "Filtered by " + ", ".join(active) + " · ", link(_href(d["period"], by=d["by"], org=d.get("org")), "clear"),
                              class_="muted"))
 
 
@@ -250,19 +327,58 @@ def _name(d, by, e):
     if k == "unattributed":
         return _unattributed()
     if by == "goal":
-        return el("span", link(_href(d["period"], k, d["model"], d["by"]), k), " ", e.get("title") or "")
+        return el("span", link(_href(d["period"], k, d["model"], d["by"], d.get("org")), k), " ", e.get("title") or "")
     if by == "task":
         return el("span", link(f"/task/{k}", k), " ", e.get("title") or "")
     if by == "agent":
         sess = ", ".join(e.get("sessions", [])) + (f" +{e['more_sessions']}" if e.get("more_sessions") else "")
         return el("span", k, " ", el("span", e.get("role") or "", class_="muted"), title=f"sessions: {sess}" if sess else None)
-    href_ = _model_href(d["period"], d["goal"], k, d["by"])
+    href_ = _model_href(d["period"], d["goal"], k, d["by"], d.get("org"))
     return link(href_, k) if href_ else k
+
+
+def _hrs(h):
+    return f"{h:.1f} h" if h >= 0.05 or not h else "<0.1 h"
+
+
+def _org_breakdown(d, seg):
+    """By org: Claude-transcript tokens and cost per org, next to the Cursor-runtime sessions and agent-hours."""
+    items, _ = d["by_org"]
+    if not items:
+        return section("Breakdown", seg, empty_state("no data yet"))
+    grand = sum(_all(e) for e in items)
+    cols = [{"key": "name", "label": "Org", "cls": "c-title"}, {"key": "tokens", "label": "Claude tokens", "cls": "num"},
+            {"key": "share", "label": "Share", "cls": "num"}, {"key": "req", "label": "Requests", "cls": "num ins-wide"},
+            {"key": "cost", "label": "Cost", "cls": "num"}, {"key": "cs", "label": "Cursor sessions", "cls": "num ins-wide"},
+            {"key": "ch", "label": "Cursor agent-hours", "cls": "num"}]
+    rows = []
+    for e in items:
+        tot = _all(e)
+        pct = 100 * tot / grand if grand else 0
+        rows.append([org_badge(e["key"]), _fmt(tot), f"{pct:.0f}%" if grand else "-", e["requests"], _cost_cell(e),
+                     e["cursor_sessions"] or "-", _hrs(e["cursor_hours"]) if e["cursor_sessions"] else "-"])
+    return section("Breakdown", seg, data_table(cols, [{"key": "all", "label": None, "count": len(rows), "rows": rows}], key="breakdown"),
+                   el("p", "Claude tokens come from the Claude Code session logs (any agent of the org that ran on Claude). "
+                           + CURSOR_NOTE, class_="muted"))
+
+
+def _cursor_section(d):
+    """Cursor runtime activity: sessions and agent-hours per model; never tokens or $ (Cursor CLI reports none)."""
+    rows = d.get("cursor") or []
+    if not rows and d.get("org") != "cursor":
+        return None
+    body = (table(["Org", "Model", "Sessions", "Live now", "Agent-hours", "Tokens"],
+                  [(org_badge(e["org"]), el("span", e["model"], class_="mono"), (e["sessions"], "num"), (e["live"], "num"),
+                    (_hrs(e["hours"]), "num"), el("span", "not reported", class_="muted")) for e in rows],
+                  cls="table table--compact") if rows else empty_state("No Cursor runtime agents in this range."))
+    return section("Cursor runtime", body, el("p", d.get("cursor_note") or CURSOR_NOTE, class_="muted"))
 
 
 def _breakdown(d):
     by = d["by"]
-    seg = segmented("Breakdown", [(BY_LABEL[b], _href(d["period"], d["goal"], d["model"], b), b == by) for b in BY])
+    seg = segmented("Breakdown", [(BY_LABEL[b], _href(d["period"], d["goal"], d["model"], b, d.get("org")), b == by) for b in BY])
+    if by == "org":
+        return _org_breakdown(d, seg)
     items, more = d[f"by_{by}"]
     grand = _all(d["totals"])
     if not items:
@@ -282,10 +398,14 @@ def _breakdown(d):
 
 
 def render(ctx, d):
-    parts = [_controls(d), _usage_section(ctx, d)]
+    # the 5-hour / weekly gauges are the Claude plan's; the Cursor org's view leaves them out
+    parts = [_controls(d), _usage_section(ctx, d) if d.get("org") != "cursor" else None, _cursor_section(d)]
     if not d["ready"]:
         parts.append(section("Token index", el("p", f"indexing… {d['files']} files / {d['mb_read']} MB read", class_="stale")))
         return el("div", parts)
+    if d.get("org") == "cursor":
+        parts.append(el("p", "Below: Claude Code usage of Cursor-org agents that ran on the Claude runtime (e.g. evaluators).",
+                        class_="muted"))
     parts += [_tiles(d), _day_section(d), _breakdown(d),
               disclosure("Attribution quality", table(["Matched by", "Sessions"], [(v, (d["via"].get(v, 0), "num")) for v in VIA],
                                                        cls="table table--compact"), key="attribution"),

@@ -423,7 +423,7 @@ class CleanTests(FactoryTestCase):
         for w in (w1, w2, w3):
             self.assertTrue(w.exists())
 
-    def test_exited_agent_pane_reused_by_another_does_not_protect_by_pane_cwd(self):
+    def test_exited_agent_leftover_pane_with_no_listed_agent_does_not_protect_by_pane_cwd(self):
         wt, _, _ = self.task()
         self.ended_agent("zz-test-gone", "p1", wt / "sub", status="exited")
         self.env.sql("UPDATE agents SET cwd=NULL")  # only the pane cwd is left to hold it

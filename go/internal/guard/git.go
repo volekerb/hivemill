@@ -912,8 +912,13 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	return blockf("git push: cannot resolve the worktree recorded for " + task + " in the factory DB; ask your lead")
 }
 
-// coderTask is re.fullmatch(r"coder-(t-\d+)", agent): the task id part.
+// coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)", agent): the task id part.
 func coderTask(agent string) (string, bool) {
+	if r, ok := strings.CutPrefix(agent, "claude-"); ok {
+		agent = r
+	} else if r, ok := strings.CutPrefix(agent, "cursor-"); ok {
+		agent = r
+	}
 	t, ok := strings.CutPrefix(agent, "coder-")
 	if !ok || !strings.HasPrefix(t, "t-") || len(t) == 2 {
 		return "", false

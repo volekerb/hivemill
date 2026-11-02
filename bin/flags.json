@@ -9,6 +9,15 @@
    "doc": ""
   },
   {
+   "key": "agent_runtimes",
+   "kind": "flag",
+   "default": "",
+   "summary": "role=runtime pairs or *=cursor for whole factory; empty = all Claude",
+   "goal": "",
+   "doc": "docs/runtimes.md",
+   "state": "off"
+  },
+  {
    "key": "blocked_alert_s",
    "kind": "setting",
    "default": "600",
@@ -23,6 +32,15 @@
    "summary": "tick_ci_wake runs its gh pr view probes in this many threads",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "cursor_pilot_roles",
+   "kind": "flag",
+   "default": "",
+   "summary": "legacy alias for agent_runtimes (roles \u2192 role=cursor); prefer agent_runtimes",
+   "goal": "",
+   "doc": "docs/runtimes.md",
+   "state": "off"
   },
   {
    "key": "day_end_hour",
@@ -356,6 +374,22 @@
    "doc": ""
   },
   {
+   "key": "org_prefix_default",
+   "kind": "setting",
+   "default": "0",
+   "summary": "1 = default-org agents get the org prefix too (claude-boss); other orgs always do",
+   "goal": "G-028",
+   "doc": "docs/runtimes.md"
+  },
+  {
+   "key": "orgs_enabled",
+   "kind": "setting",
+   "default": "claude",
+   "summary": "orgs whose HQ (<org>-boss, <org>-director) factory up keeps running, e.g. claude,cursor",
+   "goal": "G-028",
+   "doc": "docs/runtimes.md"
+  },
+  {
    "key": "orphan_reap_mode",
    "kind": "flag",
    "default": "dry-run",
@@ -410,7 +444,7 @@
    "key": "red_main_interval_s",
    "kind": "setting",
    "default": "120",
-   "summary": "the red-main monitor asks gh at most this often",
+   "summary": "the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick",
    "goal": "",
    "doc": ""
   },
