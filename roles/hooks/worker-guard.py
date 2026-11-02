@@ -320,7 +320,14 @@ PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
-NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
+NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
+RESEARCHER = "researcher"
+RESEARCH_GH_GROUPS = {"pr", "issue", "release", "repo", "run"}
+RESEARCH_GH_READ = {"view", "list", "diff", "status", "checks"}
+RESEARCH_FACTORY = {"whoami", "inbox", "msg", "done", "report"}
+CLONE_FLAGS = {"--single-branch", "--no-tags", "--filter=blob:none", "--quiet", "-q"}
+CLONE_BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+CLONE_URL = re.compile(r"https://(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/[A-Za-z0-9._~+/-]+")
 # T-0789: inline interpreter code (python -c, perl -e, node -e/-p, ruby -e) of a NO_PUSH_ROLES role may not launch a
 # push or a gh write. INCOMPLETE BY DESIGN, defense in depth only: string obfuscation ("pu" + "sh", base64, chr())
 # beats it, and the code is never run or parsed, only scanned. The security boundary is the G-010 sandbox plus the
@@ -2014,11 +2021,13 @@ class Analyzer:
         closed: global options, subcommand and arguments are matched against an allow-list; a dynamic word, an alias, an
         unknown builtin and every push form are refused. Scope: this closes push from git invoked by shell."""
         i = 0
+        used_c = False
         while i < len(rest) and rest[i].startswith("-"):
             o = rest[i]
             if is_dynamic(o, True):
                 self.git_deny(f"dynamic word {o!r} before the subcommand")
             if o == "-C" and i + 1 < len(rest) and not is_dynamic(rest[i + 1], True):
+                used_c = True
                 i += 2
             elif o in GIT_OPTS_ALLOWED:
                 i += 1
@@ -2034,6 +2043,8 @@ class Analyzer:
             self.git_deny(f"argument {dyn[0]!r} is built from an expansion and could be an option (--output, --ext-diff ...)")
         if sub in ("fetch", "ls-remote"):
             self.git_fetch_args(sub, args)
+        elif sub == "clone" and self.role == RESEARCHER:
+            self.git_clone(args, used_c)
         elif sub in GIT_ALLOW_PLAIN:
             if self.git_abbrev(args, GIT_FORBID_LONG):
                 self.git_deny(f"{self.git_abbrev(args, GIT_FORBID_LONG)!r} runs a program or writes a file")
@@ -2053,6 +2064,63 @@ class Analyzer:
         else:
             self.git_deny(f"`git {sub}` is not on the read-only list (aliases, push, send-pack, subtree, rebase --exec, "
                           "bisect run, submodule foreach, archive --remote ... are refused)")
+
+    def researcher_cmd(self, name, rest):
+        """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
+        report, task show|note, goal show); merge, PR, judge, spawn and every other form is refused."""
+        pos = [a for a in rest if not a.startswith("-")]
+        if name == "gh":
+            ok = (pos[:1] == ["search"] or (pos[:1] and pos[0] in RESEARCH_GH_GROUPS and pos[1:2] and pos[1] in RESEARCH_GH_READ
+                                            and rest[:2] == pos[:2])
+                  or (pos[:1] == ["api"] and not any(a.startswith(("-X", "-f", "-F", "--method", "--field", "--raw-field", "--input"))
+                                                  for a in rest)))
+            if not ok:
+                raise Block("a researcher may run gh only to read (search, <pr|issue|release|repo|run> view|list|diff|status|"
+                            "checks, api without a method or field flag)")
+        elif name == "factory":
+            ok = bool(pos) and (pos[0] in RESEARCH_FACTORY or pos[:2] in (["task", "show"], ["task", "note"], ["goal", "show"]))
+            if not ok:
+                raise Block("a researcher runs only factory whoami, inbox, msg, done, report, task show|note, goal show")
+
+    def git_clone(self, args, used_c):
+        """G-029 T-0846: the one write a researcher may run: a public https clone into its research dir or scratchpad.
+        Fixed option list, a literal https URL (no credentials, helper, file, ssh or local path) and a literal destination
+        inside the allowed area; anything else is refused."""
+        if used_c or self.gdyn:
+            self.git_deny("git clone with -C or after a cd whose target is only known at run time")
+        pos, ended, i = [], False, 0
+        while i < len(args):
+            a = args[i]
+            nxt = args[i + 1] if i + 1 < len(args) else ""
+            if not ended and a == "--":
+                ended = True
+            elif not ended and a.startswith("-"):
+                if a in CLONE_FLAGS or re.fullmatch(r"--depth=[0-9]+", a) or (
+                        a.startswith("--branch=") and CLONE_BRANCH.fullmatch(a[9:])):
+                    pass
+                elif (a == "--depth" and re.fullmatch(r"[0-9]+", nxt)) or (
+                        a in ("--branch", "-b") and CLONE_BRANCH.fullmatch(nxt)):
+                    i += 1
+                else:
+                    self.git_deny(f"git clone option {a!r} can run a program, read a config or name another source")
+            else:
+                pos.append(a)
+            i += 1
+        if self.fs_changed:
+            self.git_deny("git clone after a command on this line that may have planted a symlink or moved a directory "
+                          "(ln, mv, cp, a write or redirect, another clone); clone in its own command, first")
+        if len(pos) != 2:
+            self.git_deny("git clone needs exactly a literal https URL and a destination directory")
+        url, dest = pos
+        if not CLONE_URL.fullmatch(url):
+            self.git_deny(f"git clone source {url!r} is not a plain https://<host>/<path> URL")
+        if "~" in dest or "\\" in dest or ".." in dest.split("/") or any(c in dest for c in "*?[{"):
+            self.git_deny(f"git clone destination {dest!r} is not a plain path inside the research dir or scratchpad")
+        full = dest if os.path.isabs(dest) else os.path.join(self.gcwd, dest)
+        if not (researcher_area(self.gcwd, self.gcwd) and researcher_area(full, self.gcwd)):
+            self.git_deny(f"git clone destination {dest!r} (or the current directory) is outside your research dir "
+                          "<state>/factory/research/<name> and your scratchpad")
+        self.fs_changed = True  # the clone itself creates a tree: a later clone on this line must not follow it
 
     @staticmethod
     def git_remote_read(args):
@@ -2337,6 +2405,8 @@ class Analyzer:
             if self.archive_extract(name, rest) or name in FS_MUTATORS:
                 self.fs_changed = True
         self.factory_unit(name, rest, assigns)
+        if self.role == RESEARCHER and not self.hq:
+            self.researcher_cmd(name, rest)
         if name in COPIERS:  # R3: no copying/encoding/reading the real herdr binary
             for a in rest:
                 a = a.split("=", 1)[1] if re.match(r"^(if|of)=", a) else a
@@ -3387,6 +3457,8 @@ def check(cmd, cwd=None, role=None, hq=False):
         terms_bash(cmd, cwd)
     if role == "evaluator":
         evaluator_home_text(cmd)
+    if role == RESEARCHER and RESEARCH_SECRET_TEXT.search(cmd):
+        raise Block("a researcher may not name credentials, tokens or the factory/gh config dirs")
     # layer 2: raw text, independent of the parser
     if R2_SET.search(cmd) or r2_path_hit(cmd):
         raise Block("R2: re-targeting the herdr socket/session or naming herdr's socket/config path")
@@ -3647,6 +3719,76 @@ def terms_tool(data):
     return 0
 
 
+# G-029 T-0846: researcher. Writes only inside its research dir <state>/factory/research/<name> (the directory its cwd is
+# in) and its session scratchpad; never a secret. WORKER_GUARD_STATE (the hook's own env, tests only) replaces <state>
+# (default ~/.local/state).
+RESEARCH_SECRET_TEXT = re.compile(
+    r"oauth-token|rw-token|\.credentials\.json|(?:^|[/\s'\"=~:])\.(?:ssh|gnupg|netrc|aws)(?:[/\s'\";]|$)|\.config/(?:factory|gh)\b")
+RESEARCH_SECRETS = (".ssh", ".gnupg", ".aws", ".netrc", ".git-credentials", ".npmrc", ".docker", ".kube", ".config/gcloud", ".config/factory",
+                    ".config/gh", ".claude/.credentials.json")
+
+
+def research_root():
+    base = os.environ.get("WORKER_GUARD_STATE") or os.path.join(PW_DIR, ".local", "state")
+    return os.path.realpath(os.path.join(base, "factory", "research"))
+
+
+def research_dir(cwd):
+    """The agent's research dir (root/<first component of cwd below root>), or None when cwd is not strictly below root."""
+    root = research_root()
+    c = os.path.realpath(cwd)
+    if c == root or not under(c, root):
+        return None
+    return os.path.join(root, c[len(root) + 1:].split(os.sep)[0])
+
+
+def researcher_area(path, cwd):
+    """True when `path` (real and lexical) lies in cwd's research dir or in the session scratchpad."""
+    rd = research_dir(cwd)
+    for p in (os.path.realpath(path), os.path.normpath(path)):
+        if not ((rd is not None and under(p, rd)) or in_scratchpad(p)):
+            return False
+    return True
+
+
+def researcher_secret_path(p):
+    for t in RESEARCH_SECRETS:
+        for base in (PW_DIR, os.path.realpath(PW_DIR)):
+            s = os.path.join(base, t)
+            if under(p, s) or under(s, p):
+                return True
+    return os.path.basename(p).endswith(("-token", ".credentials.json")) or (p.startswith("/proc/") and p.endswith("/environ"))
+
+
+def researcher_tool(data):
+    """Edit/Write/MultiEdit/NotebookEdit: only inside the research dir or scratchpad. Read/Grep: no secret."""
+    ti = data.get("tool_input")
+    ti = ti if isinstance(ti, dict) else {}
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    tool = data.get("tool_name")
+    if tool in PERSIST_EDIT_TOOLS:
+        raw = ti.get("file_path") or ti.get("notebook_path")
+    elif tool == "Read":
+        raw = ti.get("file_path")
+    else:
+        raw = ti.get("path") or cwd
+    if not isinstance(raw, str) or not raw:
+        sys.stderr.write("worker-guard: blocked (tool call without a readable path, failing closed)\n")
+        return 2
+    p = re.sub(r"^(~|\$HOME|\$\{HOME\})(?=/|$)", lambda m: PW_DIR, raw)
+    if not os.path.isabs(p):
+        p = os.path.join(cwd, p)
+    if tool in PERSIST_EDIT_TOOLS:
+        if "$" in p or not researcher_area(p, cwd):
+            sys.stderr.write(f"worker-guard: blocked ({raw!r}): a researcher writes only inside its research dir "
+                             "<state>/factory/research/<name> and its scratchpad. Tell your lead if this is wrong.\n")
+            return 2
+    elif "$" in p or any(researcher_secret_path(q) for q in (os.path.realpath(p), os.path.normpath(p))):
+        sys.stderr.write(f"worker-guard: blocked ({raw!r}): a researcher may not read credentials or tokens\n")
+        return 2
+    return 0
+
+
 def persist_edit(data, role=None):
     """T-0334: an Edit/Write/MultiEdit/NotebookEdit call on a protected config/init file is refused. A payload without a
     readable path cannot be decided and fails closed."""
@@ -3670,6 +3812,7 @@ def persist_edit(data, role=None):
 
 
 def main():
+    global SESSION_ID
     role = None
     hq = "--hq" in sys.argv[1:]
     if "--role" in sys.argv[1:-1]:
@@ -3679,6 +3822,13 @@ def main():
         data = json.load(sys.stdin)
         if not isinstance(data, dict):
             raise ValueError("not an object")
+        if role == RESEARCHER and not hq and (data.get("tool_name") in PERSIST_EDIT_TOOLS
+                                              or data.get("tool_name") in ("Read", "Grep")):
+            SESSION_ID = data.get("session_id") if isinstance(data.get("session_id"), str) else None
+            rc = researcher_tool(data)
+            if rc == 0 and data.get("tool_name") in PERSIST_EDIT_TOOLS:
+                rc = persist_edit(data, role)
+            return rc
         if data.get("tool_name") in PERSIST_EDIT_TOOLS and not hq:
             return persist_edit(data, role)
         if data.get("tool_name") in ("Read", "Grep") and not hq:
@@ -3688,7 +3838,6 @@ def main():
         cmd = (data.get("tool_input") or {}).get("command")
         if not isinstance(cmd, str):
             raise ValueError("no command string")
-        global SESSION_ID
         SESSION_ID = data.get("session_id") if isinstance(data.get("session_id"), str) else None
         check(cmd, data.get("cwd"), role, hq)
         return 0

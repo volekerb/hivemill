@@ -6467,7 +6467,8 @@ def scout_tick(con):
     try:
         scoutsched.tick(con, types.SimpleNamespace(
             clock=digest_clock, cfg=cfg, event=event, now=now, spawn=spawn, force_stop=force_stop,
-            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send))
+            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send,
+            agent_name=lambda con: org_agent_name(con, "scout", org=scoutsched.ORG)))
     except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
         try:
             today = digest_clock().date().isoformat()
@@ -6628,9 +6629,43 @@ def tick_drift(con):
             pass
 
 
+SERVE_UNIT_ALERT_S = 6 * 3600  # an unchanged drift is re-sent at most this often
+SERVE_UNIT_COMMANDS = "systemd/install.sh --with-serve\nsystemctl --user daemon-reload\nsystemctl --user restart factory-serve"
+
+
+def tick_serve_unit_drift(con):
+    """After the main sync: tell the director once when the installed factory-serve unit differs from the one on main.
+    Read-only: never runs systemctl or install.sh and never writes ~/.config. Missing installed unit = not installed, no
+    alert. The same main hash is not re-sent for 6 h (throttle key serve-unit-drift holds "<hash>@<time>"); a new main hash alerts."""
+    installed = Path.home() / ".config" / "systemd" / "user" / "factory-serve.service"
+    try:
+        have = installed.read_bytes()
+    except FileNotFoundError:
+        return
+    want = (HOME / "systemd" / "factory-serve.service").read_bytes()
+    if have == want:
+        return
+    h = hashlib.sha256(want).hexdigest()[:16]
+    old = con.execute("SELECT ts FROM throttle WHERE key='serve-unit-drift'").fetchone()
+    if old:
+        last_hash, _, last_ts = old["ts"].partition("@")
+        try:
+            fresh = time.time() - float(last_ts) < SERVE_UNIT_ALERT_S
+        except ValueError:
+            fresh = False
+        if last_hash == h and fresh:
+            return
+    con.execute("INSERT INTO throttle(key,ts) VALUES('serve-unit-drift',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (f"{h}@{time.time()}",))
+    event(con, "tick", "serve-unit", "serve-unit-drift", h)
+    send(con, "director", "factory-serve unit drifted from main",
+         "The installed ~/.config/systemd/user/factory-serve.service differs from systemd/factory-serve.service on main. "
+         "The owner runs, from the main checkout:\n" + SERVE_UNIT_COMMANDS, "alert", sender="tick")
+
+
 def _session_tokens(session):
     from web import tokens  # noqa: PLC0415 — web/ lives at the repo root, like scout/
-    return tokens.session_tokens(session)
+    return tokens.session_tokens_known(session)  # None = unknown (scout_runs.tokens NULL), never 0
 
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
@@ -11757,6 +11792,21 @@ def cmd_tick(a, locked=False):
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
     _pt_lap("sidebar")
+    try:
+        from web import cursor_limits
+
+        cursor_limits.tick_record(
+            con,
+            herdr_fn=herdr,
+            agent_runtime_of=agent_runtime_of,
+            agent_org_fn=agent_org,
+            send_fn=send,
+            event_fn=event,
+            now_fn=now,
+        )
+    except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
+        event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
+    _pt_lap("cursor_limits")
     _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
@@ -11773,6 +11823,11 @@ def cmd_tick(a, locked=False):
             con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
             event(con, "tick", "freshness", "freshness-failed", err)
     _pt_lap("freshness")
+
+    try:  # 4c. installed factory-serve unit vs main (read-only; the owner runs the commands)
+        tick_serve_unit_drift(con)
+    except (OSError, sqlite3.Error) as e:
+        event(con, "tick", "serve-unit", "serve-unit-check-failed", str(e)[:300])
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
@@ -14031,7 +14086,7 @@ def cmd_scout(a):
         rows = con.execute("SELECT * FROM scout_runs ORDER BY id DESC LIMIT 20").fetchall()
         for r in rows:
             print(f"{r['slot']} {r['status']:<8} agent={r['agent'] or '-'} new={r['new_candidates']} "
-                  f"triaged={r['triaged']} tokens={r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
+                  f"triaged={r['triaged']} tokens={'-' if r['tokens'] is None else r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
                   f"{r['stop_reason'] or ''}".rstrip())
         if not rows:
             print("(none)")

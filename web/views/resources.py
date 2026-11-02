@@ -11,6 +11,7 @@ from pathlib import Path
 
 from scout import orgs as _orgs
 from web import charts, queries
+from web import cursor_limits
 from web.components import ctx_org, disclosure, empty_state, org_badge, section
 from web.html import badge, el, glyph, link, table, ts
 from web.views import agents
@@ -244,6 +245,27 @@ def _cfg(ctx, key, fallback):
     return queries._cfg_num(cfg, ctx.defaults or {}, key, fallback)
 
 
+def cursor_usage(ctx):
+    return cursor_limits.display(ctx.db, ctx.now)
+
+
+def cursor_row(data):
+    """Same three-line gauge-row shape as usage_row: Cursor usage, today's agent-hours, Pro · ok or limited-until."""
+    plan = cursor_limits.plan_line(data)
+    limited = any(m["status"] == "limited" for m in data["models"])
+    tone = "danger" if limited else "success"
+    hours = data["hours"]
+    value = f"{hours:g} h"
+    bar = charts.gauge_bar(0, [], tone, f"Cursor usage {value}, {plan}")
+    return el(
+        "div",
+        el("span", "Cursor usage", class_="gl"),
+        el("div", bar, class_="gauge-stack"),
+        el("span", value, el("span", plan), class_="gv"),
+        class_="gauge-row",
+    )
+
+
 def system_inputs(ctx, gate):
     """Inputs of the four gauges, the same numbers as the overview's System section (web/views/home.py _system)."""
     mem = ctx.mem_fn() if ctx.mem_fn else None
@@ -259,7 +281,8 @@ def system_inputs(ctx, gate):
                       "stale": bool(fresh and (not u.get("fresh") or (u.get("age_min") or 0) > 30)),
                       "age_min": u.get("age_min") if fresh else None,
                       "five_hour_resets_at": u.get("five_hour_resets_at") if fresh else None,
-                      "seven_day_resets_at": u.get("seven_day_resets_at") if fresh else None}}
+                      "seven_day_resets_at": u.get("seven_day_resets_at") if fresh else None},
+            "cursor": cursor_usage(ctx)}
 
 
 def data(ctx, **params):
@@ -380,7 +403,11 @@ def _orgs_section(g, org):
 
 
 def _gauges_section(s):
-    return section("Capacity", el("div", [*gauge_rows(s), usage_row(s["usage"])], class_="ins-gauges"), usage_note(s["usage"]))
+    return section(
+        "Capacity",
+        el("div", [*gauge_rows(s), usage_row(s["usage"]), cursor_row(s["cursor"])], class_="ins-gauges"),
+        usage_note(s["usage"]),
+    )
 
 
 def _checks_section(g):

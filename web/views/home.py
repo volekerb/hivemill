@@ -74,10 +74,13 @@ def _system(ctx, ag):
     u = ctx.usage_fn() if ctx.usage_fn else None
     fresh = bool(u) and not u.get("unreadable") and (u.get("five_hour") is not None or u.get("seven_day") is not None)
     cap5, cap7 = _cfg(ctx, "max_five_hour_pct", 92), _cfg(ctx, "max_seven_day_pct", 92)
-    return {"agents": {"live": live, "queued": queued, "cap": cap}, "memory": {"available_mb": mem, "floor_mb": floor},
+    return {"agents": {"live": live, "queued": queued, "cap": cap},
+            "memory": {"available_mb": mem, "floor_mb": floor},
             "load": {"load1": load, "cpus": cpus},
             "usage": {"five_hour": u["five_hour"] if fresh else None, "seven_day": u.get("seven_day") if fresh else None,
-                      "cap_five_hour": cap5, "cap_seven_day": cap7, "stale": bool(fresh and (not u.get("fresh") or (u.get("age_min") or 0) > 30))}}
+                      "cap_five_hour": cap5, "cap_seven_day": cap7,
+                      "stale": bool(fresh and (not u.get("fresh") or (u.get("age_min") or 0) > 30))},
+            "cursor": resources.cursor_usage(ctx)}
 
 
 def _goals(ctx, all_goals):
@@ -299,6 +302,7 @@ def _system_section(d):
         rows.append(charts.gauge("Load", f"{ld['load1']:.1f} / {ld['cpus']} CPUs", 100 * ld["load1"] / full, [100 * ld["cpus"] / full],
                                  zone, "1-min average"))
     rows.append(_usage_row(u))
+    rows.append(resources.cursor_row(s["cursor"]))
     ut = d["utilization"]
     ut_text = ("Utilization appears after the next tick sample" if ut is None
                else ut["line"] + (" (UNDER TARGET)" if ut["under"] else ""))
