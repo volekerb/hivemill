@@ -60,7 +60,7 @@ class InstallTests(unittest.TestCase):
 
     def test_serve_unit_file_limits(self):
         text = (SYSTEMD / "factory-serve.service").read_text()
-        for line in ("ExecStart=%h/factory/bin/factory serve", "Nice=10", "MemoryMax=200M", "MemoryHigh=150M",
+        for line in ("ExecStart=%h/factory/bin/factory serve", "Restart=always", "RestartSec=10", "Nice=10", "MemoryMax=200M", "MemoryHigh=150M",
                      "CPUQuota=50%", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectSystem=strict", "ProtectHome=read-only",
                      "ReadWritePaths=%h/factory", "ReadOnlyPaths=%h/.claude", "WantedBy=default.target",
                      "ReadOnlyPaths=-%h/factory/bin -%h/factory/roles -%h/factory/systemd -%h/factory/web "
