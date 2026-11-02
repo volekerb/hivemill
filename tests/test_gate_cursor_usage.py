@@ -45,6 +45,30 @@ class GateCursorUsageTests(FactoryTestCase):
         self.assertIn("QUEUED", p.stdout)
         self.assertIn("MemAvailable", p.stdout)
 
+    def _queued_spawn_args(self, name, role):
+        return json.dumps({"role": role, "goal": "G-001", "team": "g-001-a", "task": None,
+                           "name": name, "cwd": str(Path(self.env.home)), "prompt": None, "model": None,
+                           "resume": None, "fresh": False, "org": "claude"})
+
+    def test_tick_dequeues_cursor_lead_judge_not_claude_when_usage_only_block(self):
+        for name, role in (("zz-cu-lead", "lead"), ("zz-cu-judge", "judge"), ("zz-cu-pm", "pm")):
+            self.env.sql("INSERT INTO agents(name,role,goal_id,team_id,status,spawn_args,queued_at) "
+                         "VALUES(?, ?, 'G-001', 'g-001-a', 'queued', ?, 't')",
+                         (name, role, self._queued_spawn_args(name, role)))
+        self.ok("config", "max_live_agents", "10", agent="zz-test-director")
+        self.ok("tick")
+        for name in ("zz-cu-lead", "zz-cu-judge", "zz-cu-pm"):
+            self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name=?", (name,))[0]["status"], "live")
+
+        self.ok("config", "agent_runtimes", "", agent="zz-test-director")
+        for name, role in (("zz-cl-lead", "lead"), ("zz-cl-judge", "judge")):
+            self.env.sql("INSERT INTO agents(name,role,goal_id,team_id,status,spawn_args,queued_at) "
+                         "VALUES(?, ?, 'G-001', 'g-001-a', 'queued', ?, 't')",
+                         (name, role, self._queued_spawn_args(name, role)))
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-cl-lead'")[0]["status"], "queued")
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='zz-cl-judge'")[0]["status"], "queued")
+
     def test_tick_dequeues_cursor_not_claude_when_usage_only_block(self):
         args = json.dumps({"role": "pm", "goal": "G-001", "team": "g-001-a", "task": None,
                            "name": "zz-cu-q", "cwd": str(Path(self.env.home)), "prompt": None, "model": None,

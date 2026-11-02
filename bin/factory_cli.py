@@ -11547,22 +11547,21 @@ def cmd_tick(a, locked=False):
         if not held and not gate(con)[0]:
             held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
+            try:
+                qorg = json.loads(q["spawn_args"] or "{}").get("org")
+            except ValueError:
+                qorg = None
+            qrt = org_runtime(con, q["role"], qorg)
             if q["role"] == "judge":
-                ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+                ok = gate(con, load_exempt=True, role="judge", runtime=qrt)[0]  # judges ignore the load cap, as in spawn()
             elif q["role"] == "lead":
-                ok = gate(con, load_exempt=True, role="lead")[0]  # leads skip only the load cap (T-0867); lead caps still apply
+                ok = gate(con, load_exempt=True, role="lead", runtime=qrt)[0]  # leads skip only the load cap (T-0867); lead caps still apply
+            elif q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
+                ok = True
+            elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
+                ok = True
             else:
-                try:
-                    qorg = json.loads(q["spawn_args"] or "{}").get("org")
-                except ValueError:
-                    qorg = None
-                qrt = org_runtime(con, q["role"], qorg)
-                if q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
-                    ok = True
-                elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
-                    ok = True
-                else:
-                    ok = False
+                ok = False
             if not ok:
                 continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
