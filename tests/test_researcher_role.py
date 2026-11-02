@@ -99,6 +99,29 @@ class SpawnTests(FactoryTestCase):
         self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
         self.assertEqual(self.starts(), [])
 
+    def test_explicit_cwd_other_than_research_dir_refused(self):
+        p = self.spawn("--cwd", str(self.env.home_dir))
+        self.assertEqual(p.returncode, 4, p.stdout + p.stderr)
+        self.assertIn("research dir", p.stderr)
+        self.assertEqual(self.starts(), [])
+        self.assertEqual(self.env.sql("SELECT count(*) FROM agents WHERE role='researcher'")[0][0], 0)
+
+    def test_explicit_cwd_equal_to_research_dir_accepted(self):
+        want = self.state / "factory" / "research" / "t-0001"
+        p = self.spawn("--cwd", str(want))
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.env.sql("SELECT cwd FROM agents WHERE name LIKE '%zz-test-researcher'")[0]["cwd"], str(want))
+
+    def test_relaunch_with_recorded_bad_cwd_refused(self):
+        self.env.seed_agent("zz-test-director", "director", status="live")
+        self.env.seed_agent("zz-test-researcher", "researcher", goal="G-001", team="g-001-a", task="T-0001", status="lost")
+        self.env.sql("UPDATE agents SET cwd=?, session_id='sess-r' WHERE name='zz-test-researcher'",
+                     (str(self.env.home_dir),))
+        p = self.env.run("relaunch", "zz-test-researcher", agent="zz-test-director", extra_env=self.xdg)
+        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("research dir", p.stdout + p.stderr)
+        self.assertEqual(self.starts(), [])
+
     def test_spawn_without_task_refused(self):
         p = self.env.run("spawn", "researcher", "--name", "zz-test-researcher", extra_env=self.xdg)
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)

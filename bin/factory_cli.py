@@ -7744,8 +7744,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         bad = sandbox_preflight(role, None, name, con)
         if bad:
             sandbox_refuse(con, role, name, *bad)
-    if role == "researcher" and not cwd:
-        cwd = research_dir(task)
+    if role == "researcher":  # always validated, also for an explicit --cwd or the cwd recorded for a respawn
+        want = research_dir(task)
+        if cwd and cwd != want:
+            die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
+        cwd = want
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
