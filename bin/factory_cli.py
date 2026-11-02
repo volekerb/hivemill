@@ -178,7 +178,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
-    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
@@ -1473,14 +1473,35 @@ def _epoch(v):
         return None
 
 
+def _pct_field(v):
+    """One usage percentage as a finite float; an empty, missing or bad value is None for that field only."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def usage_text(u):
+    """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
+    if u.get("unreadable"):
+        return "claude usage unreadable"
+    five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
+    week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
+    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+
+
 def usage():
-    """5h/7d usage. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
+    """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
     read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
             age = time.time() - float(u.get("updated_at", 0))
-            return {"five_hour": float(u.get("five_hour_pct", 0)), "seven_day": float(u.get("seven_day_pct", 0)),
+            five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
+            if five is None and seven is None:
+                raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
+            return {"five_hour": five, "seven_day": seven,
                     "fresh": age < 3 * 3600, "age_min": int(age // 60),
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
@@ -1547,7 +1568,8 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
     from the live-agent and claude-process counts; every cap still applies (what spawn()'s gate sees after the close).
     The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches, and
-    judges: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds; every other cap applies).
+    judges and leads: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds, and a lead is
+    light orchestration that must not wait behind builders (T-0867); every other cap applies, including max_live_leads).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
     Any other role, or role=None, gets exactly the checks above."""
@@ -1622,9 +1644,9 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
-    if u["fresh"] and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+    if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
         return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-    if u["fresh"] and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+    if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
         return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
@@ -5380,15 +5402,18 @@ def cmd_redmain(a):
 
 
 def red_main_check(con):
-    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
-    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
-    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
+    project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
+    interval is ignored and gh is asked on every tick, so a green run clears the freeze on the first tick that sees it
+    (T-0841). Red: store the freeze, message the director once per run id, file a revert task. Green: clear it. gh
+    trouble or no completed run leaves the state as it is. Never breaks the tick."""
     if cfg(con, "red_main_freeze") != "1":
         return
     try:
         t = time.time()
         last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
-        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+        any_red = con.execute("SELECT 1 FROM config WHERE key GLOB 'red_main:*' AND value!='' LIMIT 1").fetchone()
+        if not any_red and last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
         slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
@@ -5893,6 +5918,22 @@ def _serve_mainpid():
     return int(out) if out.isdigit() and int(out) > 0 else None
 
 
+def _serve_unit_pids():
+    """Pids whose cgroup is factory-serve.service, read from /proc (no systemd call): the unit's process even when
+    _serve_mainpid() cannot reach systemd. Unreadable entries are skipped."""
+    out = set()
+    for d in _serve_proc_root().iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            text = (d / "cgroup").read_text(errors="replace")
+        except OSError:
+            continue
+        if re.search(r"/factory-serve\.service(/|$)", text, re.M):
+            out.add(int(d.name))
+    return out
+
+
 def _signal_serve(pid, sig, argv):
     """Send `sig` to pid only if its cmdline is still exactly `argv` (re-read right now: pid reuse guard)."""
     if _serve_argv(pid) != argv:
@@ -5937,11 +5978,11 @@ def reap_stray_serves(con):
         if last and t - float(last["ts"]) < SERVE_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('servereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
-        root, main_pid = _serve_proc_root(), _serve_mainpid()
+        root, unit_pids = _serve_proc_root(), _serve_unit_pids() | {_serve_mainpid()}
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped = {}
         for d in sorted(root.iterdir()):
-            if not d.name.isdigit() or int(d.name) in (os.getpid(), main_pid):
+            if not d.name.isdigit() or int(d.name) in unit_pids or int(d.name) == os.getpid():
                 continue
             pid = int(d.name)
             try:
@@ -6105,8 +6146,8 @@ def _orphan_judge(con, pid, skip):
 
 
 def _orphan_skip(main_pid):
-    """The tick, its ancestors and the factory-serve unit's MainPID."""
-    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    """The tick, its ancestors and the factory-serve unit's processes (MainPID, plus its cgroup members from /proc)."""
+    skip, cur = {os.getpid(), main_pid} | _serve_unit_pids(), os.getppid()
     for _ in range(64):
         if cur is None or cur <= 1:
             break
@@ -7135,7 +7176,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
     org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
-    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director", "lead")) or role == "judge", role=role,
+    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
                           own_lead=relaunch and bool(existing) and existing["status"] == "live")
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
@@ -8285,6 +8326,35 @@ def cmd_prcheck(a):
     sys.exit(0 if ok else 1)
 
 
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+    """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
+    local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
+    (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR checks: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push, wait for CI"
+    if not pr.get("statusCheckRollup"):
+        return False, "PR has no CI checks yet"
+    bad = checks_ok(pr) + missing_checks(con, pr, pr_url)
+    if bad:
+        return False, "CI not all green: " + ", ".join(bad[:5])
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+    base = t["base_branch"] or "main"
+    t = {**dict(t), "pr_url": pr_url}
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
+        ok, note = fn()
+        if not ok:
+            return False, f"{name} FAIL: {note}"
+    return True, "all checks SUCCESS"
+
+
 def prcheck_done_refusal(con, r, t):
     """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
@@ -8305,7 +8375,11 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    if ok:
+        print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
@@ -10499,11 +10573,7 @@ def cmd_res(a):
         print("claude processes unknown")
     else:
         print(f"claude processes {s['total']}/{s['total_cap']} on host (factory {s['factory_procs']} · other {s['total'] - s['factory_procs']})")
-    if u.get("unreadable"):
-        print("claude usage unreadable")
-    else:
-        print(f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
-              + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
+    print(usage_text(u))
     mode = cfg(con, "lead_less_dispatch")
     if mode != "0":
         cut = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat(timespec="seconds")
@@ -11507,10 +11577,12 @@ def cmd_tick(a, locked=False):
     held = False
     for q in queued:
         if not held and not gate(con)[0]:
-            held = True  # a closed gate stops the queue, except for a judge (exempt from the load cap only) or a cleaner (tmp gate only)
+            held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
             if q["role"] == "judge":
                 ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+            elif q["role"] == "lead":
+                ok = gate(con, load_exempt=True, role="lead")[0]  # leads skip only the load cap (T-0867); lead caps still apply
             else:
                 ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
             if not ok:

@@ -222,6 +222,75 @@ class PrcheckTests(FactoryTestCase):
         p = self.done()
         self.assertEqual(p.returncode, 0, p.stderr)
 
+    # -- done accepts green CI on the PR head instead of the local affected run (T-0873) -----------
+    def ci_pr(self, checks, sha=None, body=None):
+        self.env.seed_pr(url=PR_URL, sha=sha or self.head(), checks=checks, body=body if body is not None else pr_body())
+
+    @staticmethod
+    def check(name="test", concl="SUCCESS", status="COMPLETED"):
+        return {"__typename": "CheckRun", "name": name, "workflowName": "ci", "status": status, "conclusion": concl,
+                "startedAt": "2026-01-01T00:00:00Z"}
+
+    def test_done_accepts_all_green_ci_on_head_without_affected_run(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b")])
+        p = self.done()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("accepted via green CI", p.stderr)
+        self.assertEqual(self.events(), [])  # no local prcheck (so no affected run) happened
+
+    def test_done_refused_when_a_check_fails_or_pends(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        for bad in (self.check("b", "FAILURE"), self.check("b", "", "IN_PROGRESS")):
+            self.ci_pr([self.check("a"), bad])
+            p = self.done()
+            self.assertEqual(p.returncode, 3, p.stderr)
+            self.assertIn("CI not all green", p.stderr)
+        self.assertEqual(self.agent_status(), "live")
+
+    def test_done_refused_when_pr_head_is_not_local_head(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.ci_pr([self.check()], sha="b" * 40)
+        p = self.done("--force")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("!= local HEAD", p.stderr)
+
+    def test_done_refused_when_pr_has_no_checks(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.ci_pr([])
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("no CI checks", p.stderr)
+
+    def test_green_ci_still_enforces_cheap_parts(self):
+        self.ok("config", "prcheck_required", "1")
+        commit(self.wt, "more.txt", email="real.person@example.com")
+        self.pushed()
+        self.ci_pr([self.check()])
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("identity FAIL", p.stderr)
+        self.ci_pr([self.check()], body="just words\n")
+        git("reset", "-q", "--hard", "HEAD~1", cwd=self.wt)
+        git("push", "-q", "-f", "origin", "HEAD", cwd=self.wt)
+        self.ci_pr([self.check()], body="just words\n")
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("body FAIL", p.stderr)
+
+    def test_green_ci_refuses_when_behind_main_conflicting(self):
+        self.ok("config", "prcheck_required", "1")
+        self.advance_main("work.txt", "other\n")
+        self.pushed()
+        self.ci_pr([self.check()])
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("fresh FAIL", p.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
