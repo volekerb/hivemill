@@ -8325,6 +8325,35 @@ def cmd_prcheck(a):
     sys.exit(0 if ok else 1)
 
 
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+    """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
+    local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
+    (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR checks: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push, wait for CI"
+    if not pr.get("statusCheckRollup"):
+        return False, "PR has no CI checks yet"
+    bad = checks_ok(pr) + missing_checks(con, pr, pr_url)
+    if bad:
+        return False, "CI not all green: " + ", ".join(bad[:5])
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+    base = t["base_branch"] or "main"
+    t = {**dict(t), "pr_url": pr_url}
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
+        ok, note = fn()
+        if not ok:
+            return False, f"{name} FAIL: {note}"
+    return True, "all checks SUCCESS"
+
+
 def prcheck_done_refusal(con, r, t):
     """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
@@ -8345,7 +8374,11 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    if ok:
+        print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
