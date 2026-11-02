@@ -264,7 +264,7 @@ class TestResourcesRender(Case):
 
     def test_four_gauges_use_the_overview_labels(self):
         _, html = self.page(resources, usage=self.FRESH)
-        for label in ("Agents", "Memory", "Load", "Claude usage"):
+        for label in ("Agents", "Memory", "Load", "Claude usage", "Cursor"):
             self.assertIn(f'<span class="gl">{label}</span>', html)
         self.assertIn("5-hour resets ", html)
         self.assertIn("data 3 min old", html)

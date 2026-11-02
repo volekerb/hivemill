@@ -281,6 +281,18 @@ def shell_header(title, shell, crumb_trail=None, org_nav=None):
         if needs:
             cluster.append(el("a", f"Needs you {needs}", href="/#needs-you", aria_label=f"{needs} items need you",
                               class_="badge badge--bad hide-phone"))
+        cur = shell.get("cursor")
+        if cur:
+            from web import cursor_limits
+
+            cluster.append(
+                el(
+                    "span",
+                    cursor_limits.shell_line(cur),
+                    class_="cursor-hdr muted hide-phone",
+                    title="Cursor plan limits and time spent today",
+                )
+            )
     return el("header", el("div", crumb_trail, el("h1", title), class_="titlebar"), el("div", cluster, class_="cluster"),
               class_="shellbar")
 

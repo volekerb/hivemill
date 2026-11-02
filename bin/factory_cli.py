@@ -11700,6 +11700,21 @@ def cmd_tick(a, locked=False):
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
     _pt_lap("sidebar")
+    try:
+        from web import cursor_limits
+
+        cursor_limits.tick_record(
+            con,
+            herdr_fn=herdr,
+            agent_runtime_of=agent_runtime_of,
+            agent_org_fn=agent_org,
+            send_fn=send,
+            event_fn=event,
+            now_fn=now,
+        )
+    except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
+        event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
+    _pt_lap("cursor_limits")
     _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)

@@ -101,9 +101,9 @@ class TestSections(Base):
     def test_system_gauges_name_the_zone_in_text(self):
         _, page = self.page()
         s = section(page, "system")
-        for label in ("Agents", "Memory", "Load", "Claude usage"):
+        for label in ("Agents", "Memory", "Load", "Claude usage", "Cursor"):
             self.assertIn(f'<span class="gl">{label}</span>', s)
-        self.assertEqual(len(re.findall(r'class="gz fg-\w+"', s)), 4)
+        self.assertEqual(len(re.findall(r'class="gz fg-\w+"', s)), 5)
         self.assertEqual(s.count('class="gauge"'), 5)   # 5-hour and weekly bars stacked
 
     def test_over_cap_agents_say_so(self):
