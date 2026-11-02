@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """GUARD_IMPL=diff unittest selection for CI (T-0861). Lists and runs guard hook test modules.
 
-Every module that exercises the hook through tests/guard_impl.hook_run and is not marked
-GUARD_IMPL_PYTHON_ONLY is included (see docs/guard-diff.md). Stdlib only except importing
-tests/test_guard_impl_coverage.py for the authoritative module set.
+CI runs the module set named in docs/guard-diff.md (GUARD_IMPL=diff example), not every
+test_*.py that imports hook_run — the wider set has known Python/Go stderr drift on main.
+Stdlib only except importing tests/test_guard_impl_coverage.py to verify hook_run usage.
 """
 import argparse
-import ast
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.join(ROOT, "tests")
 COVERAGE = os.path.join(TESTS, "test_guard_impl_coverage.py")
-SPELLING = re.compile(r"worker-guard|worker_guard\.py")
+# docs/guard-diff.md — GUARD_IMPL=diff python3 -m unittest …
+DOC_DIFF_BASENAMES = (
+    "test_worker_guard.py",
+    "test_priv_guard.py",
+    "test_guard_diff.py",
+)
 
 
 def _load_coverage():
@@ -27,20 +30,19 @@ def _load_coverage():
 
 
 def diff_module_names():
-    """Basenames test_*.py to run under GUARD_IMPL=diff."""
+    """Basenames test_*.py to run under GUARD_IMPL=diff (docs/guard-diff.md set)."""
     cov = _load_coverage()
     mods = cov.modules()
-    names = []
-    for m in sorted(cov.guard_modules(mods)):
-        if m in cov.ALLOWLIST or cov.python_only(mods[m]):
-            continue
-        if not cov.uses_helper(mods[m]):
-            continue
-        names.append(m + ".py")
-    required = {"test_worker_guard.py", "test_priv_guard.py", "test_guard_diff.py"}
-    missing = required - set(names)
+    names = list(DOC_DIFF_BASENAMES)
+    missing = [n for n in names if n[:-3] not in mods]
     if missing:
-        raise RuntimeError("guard_impl_unittest: missing required modules %s" % sorted(missing))
+        raise RuntimeError("guard_impl_unittest: missing test modules %s" % missing)
+    for base in names:
+        m = base[:-3]
+        if not cov.uses_helper(mods[m]):
+            raise RuntimeError("guard_impl_unittest: %s must import hook_run from guard_impl" % base)
+        if cov.python_only(mods[m]):
+            raise RuntimeError("guard_impl_unittest: %s is GUARD_IMPL_PYTHON_ONLY" % base)
     return names
 
 

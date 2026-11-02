@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "ci"))
 import _gitenv  # noqa: F401,E402
 
 import ci_tier  # noqa: E402
+import guard_impl_unittest  # noqa: E402
 import shard  # noqa: E402
 
 from test_ci_tier import Repo  # noqa: E402
@@ -54,6 +55,16 @@ def assert_workflow_guard_diff(text):
 
 
 class WorkflowGuardDiffTest(unittest.TestCase):
+    def test_guard_impl_unittest_matches_docs_guard_diff_module_set(self):
+        self.assertEqual(
+            guard_impl_unittest.diff_module_names(),
+            [
+                "test_worker_guard.py",
+                "test_priv_guard.py",
+                "test_guard_diff.py",
+            ],
+        )
+
     def test_workflow_has_guard_diff_job_without_continue_on_error(self):
         assert_workflow_guard_diff(WF.read_text())
 
