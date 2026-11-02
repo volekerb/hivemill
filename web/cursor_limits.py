@@ -108,23 +108,24 @@ def _fmt_reset(reset):
 
 
 def display(con, now):
-    """Data for the UI: tier, per-model limit state, today's sessions and agent-hours."""
-    sessions, hours = _activity_today(con, now)
-    return {"tier": PLAN_TIER, "models": _model_rows(load_state(con)), "sessions": sessions, "hours": hours}
+    """Data for the UI: tier, per-model limit state, today's agent-hours."""
+    _sessions, hours = _activity_today(con, now)
+    return {"tier": PLAN_TIER, "models": _model_rows(load_state(con)), "hours": hours}
 
 
-def shell_line(data):
-    """One-line summary for the global status header."""
-    limits = " · ".join(_cursor_limit_text(m) for m in data["models"])
-    spent = f"time spent {data['sessions']} sessions · {data['hours']} h"
-    return f"Cursor {data['tier']} · {limits} · {spent}"
+def plan_line(data):
+    """Pro · ok or Pro · limited until <date> when any model is limited."""
+    limited = [m for m in data["models"] if m["status"] == "limited"]
+    if not limited:
+        return f"{data['tier']} · ok"
+    m = limited[0]
+    until = m["reset_display"] or m["reset"] or "unknown"
+    return f"{data['tier']} · limited until {until}"
 
 
-def _cursor_limit_text(m):
-    if m["status"] == "limited":
-        until = m["reset_display"] or m["reset"] or "unknown"
-        return f"{m['model']} limited until {until}"
-    return f"{m['model']} ok"
+def header_pill(data):
+    """Status header: today's agent-hours and plan/limit (same facts as the Cursor usage gauge)."""
+    return f"Cursor usage · {data['hours']:g} h · {plan_line(data)}"
 
 
 def tick_record(con, *, herdr_fn, agent_runtime_of, agent_org_fn, send_fn, event_fn, now_fn):

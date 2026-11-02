@@ -50,8 +50,8 @@ class UiBase(unittest.TestCase):
                 "cursor-coder-x",
                 "coder",
                 "exited",
-                "2026-10-27T08:00:00+01:00",
-                "2026-10-27T10:00:00+01:00",
+                "2026-10-24T08:00:00+02:00",
+                "2026-10-24T10:00:00+02:00",
                 "composer-2.5",
                 json.dumps({"runtime": "cursor", "org": "cursor"}),
             ),
@@ -81,19 +81,16 @@ class UiBase(unittest.TestCase):
 
 class TestThreeSurfaces(UiBase):
     def assert_cursor_bits(self, html, *, claude=True):
+        self.assertIn('<span class="gl">Cursor usage</span>', html)
         self.assertIn("Pro", html)
         self.assertIn("limited until 11-05", html)
-        self.assertIn("time spent", html)
+        self.assertIn("2 h", html)
+        self.assertNotIn("sessions", html.lower())
         if claude:
             self.assertIn("Claude usage", html)
         self.assertNotRegex(html, r"\$\d")
-        self.assertNotIn("token", html.lower())
-
-    def assert_header_cursor(self, html):
-        self.assertIn("Cursor Pro", html)
-        self.assertIn("limited until 11-05", html)
-        self.assertIn("time spent", html)
-        self.assertNotRegex(html, r"\$\d")
+        self.assertNotIn("cursor-usage-row", html)
+        self.assertNotIn("cursor-hdr", html)
 
     def test_overview_system_row(self):
         _, page = self.page()
@@ -121,6 +118,7 @@ class TestHeaderServer(ServerCase):
 
     def test_header_on_goals_page(self):
         text = self.get("/goals")[2].decode()
-        self.assertIn("Cursor Pro", text)
-        self.assertIn("time spent", text)
-        self.assertIn("limited until 11-05", text)
+        self.assertIn("Cursor usage", text)
+        self.assertIn("Pro · limited until 11-05", text)
+        self.assertIn('class="pill hide-phone tone-', text)
+        self.assertNotIn("cursor-hdr", text)

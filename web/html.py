@@ -285,12 +285,13 @@ def shell_header(title, shell, crumb_trail=None, org_nav=None):
         if cur:
             from web import cursor_limits
 
+            tone = "danger" if any(m["status"] == "limited" for m in cur["models"]) else "success"
             cluster.append(
                 el(
                     "span",
-                    cursor_limits.shell_line(cur),
-                    class_="cursor-hdr muted hide-phone",
-                    title="Cursor plan limits and time spent today",
+                    cursor_limits.header_pill(cur),
+                    class_=f"pill hide-phone tone-{tone}",
+                    title="Cursor usage today",
                 )
             )
     return el("header", el("div", crumb_trail, el("h1", title), class_="titlebar"), el("div", cluster, class_="cluster"),

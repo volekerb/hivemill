@@ -249,25 +249,20 @@ def cursor_usage(ctx):
     return cursor_limits.display(ctx.db, ctx.now)
 
 
-def _cursor_limit_text(m):
-    if m["status"] == "limited":
-        until = m["reset_display"] or m["reset"] or "unknown"
-        return f"{m['model']} limited until {until}"
-    return f"{m['model']} ok"
-
-
 def cursor_row(data):
-    """Cursor plan tier, per-model limits, and today's sessions and agent-hours (time spent). No tokens or dollars."""
-    limits = " · ".join(_cursor_limit_text(m) for m in data["models"])
-    spent = f"time spent {data['sessions']} sessions · {data['hours']} h"
-    tone = "danger" if any(m["status"] == "limited" for m in data["models"]) else "success"
-    word = "Limited" if tone == "danger" else "OK"
+    """Same three-line gauge-row shape as usage_row: Cursor usage, today's agent-hours, Pro · ok or limited-until."""
+    plan = cursor_limits.plan_line(data)
+    limited = any(m["status"] == "limited" for m in data["models"])
+    tone, word = ("danger", "Limited") if limited else ("success", "OK")
+    hours = data["hours"]
+    value = f"{hours:g} h"
+    bar = charts.gauge_bar(0, [], tone, f"Cursor usage {value}, {word}")
     return el(
         "div",
-        el("span", "Cursor", class_="gl"),
-        el("span", f"{data['tier']} · {limits} · {spent}", class_="gv"),
-        el("span", el("b", word, class_=f"gz fg-{tone}"), class_="gv"),
-        class_="gauge-row cursor-usage-row",
+        el("span", "Cursor usage", class_="gl"),
+        el("div", bar, class_="gauge-stack"),
+        el("span", value, el("span", el("b", word, class_=f"gz fg-{tone}"), f" · {plan}"), class_="gv"),
+        class_="gauge-row",
     )
 
 
