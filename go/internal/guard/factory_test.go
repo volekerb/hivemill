@@ -77,7 +77,7 @@ var repoProtAllowed = []string{
 
 func TestRepoProtEveryRoleIsRefusedEachChangingShape(t *testing.T) {
 	clearTermsEnv(t)
-	for _, role := range []string{"coder", "qa", "reviewer", "judge", "cleaner", "pm", "scout", "evaluator", "staff-engineer", "boss", "director", "lead"} {
+	for _, role := range []string{"coder", "qa", "reviewer", "judge", "cleaner", "pm", "scout", "evaluator", "researcher", "staff-engineer", "boss", "director", "lead"} {
 		hq := role == "boss" || role == "director" || role == "lead"
 		r := role
 		if hq {

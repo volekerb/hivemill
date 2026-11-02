@@ -377,7 +377,7 @@ func TestPersistEditOtherPathsAllowedAndUnreadablePayloadFailsClosed(t *testing.
 
 func TestRepoCfgExecCapableKeysBlockedFromAWorktreeForEveryRole(t *testing.T) {
 	f, c := newRepoFix(t)
-	for _, role := range []string{"coder", "qa", "reviewer", "judge", "cleaner", "pm", "scout", "evaluator"} {
+	for _, role := range []string{"coder", "qa", "reviewer", "judge", "cleaner", "pm", "scout", "evaluator", "researcher"} {
 		for _, kv := range []string{"filter.x.smudge cmd", "filter.x.clean cmd", "diff.x.textconv cmd", "core.hooksPath x",
 			"core.fsmonitor cmd", "core.sshCommand cmd", "remote.origin.uploadpack cmd"} {
 			c.blocked("git config "+kv, role, f.wt)

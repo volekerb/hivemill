@@ -45156,6 +45156,1986 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git clone ext::sh d",
+"mask_quotes_pre": "git clone ext::sh d",
+"mask_quotes_raw": "git clone ext::sh d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone ext::sh d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone ext::sh d"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone file:///home x",
+"mask_quotes_pre": "git clone file:///home x",
+"mask_quotes_raw": "git clone file:///home x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone file:///home x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone file:///home x"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"git",
+"clone",
+"file:///home",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"git",
+"clone",
+"file:///home",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone /srv/other/repo x",
+"mask_quotes_pre": "git clone /srv/other/repo x",
+"mask_quotes_raw": "git clone /srv/other/repo x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone /srv/other/repo x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone /srv/other/repo x"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"clone",
+"/srv/other/repo",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"clone",
+"/srv/other/repo",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone ssh://github.com/a/b x",
+"mask_quotes_pre": "git clone ssh://github.com/a/b x",
+"mask_quotes_raw": "git clone ssh://github.com/a/b x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone ssh://github.com/a/b x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone ssh://github.com/a/b x"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"clone",
+"ssh://github.com/a/b",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"clone",
+"ssh://github.com/a/b",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone -c core.hooksPath=x https://github.com/a/b d",
+"mask_quotes_pre": "git clone -c core.hooksPath=x https://github.com/a/b d",
+"mask_quotes_raw": "git clone -c core.hooksPath=x https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone -c core.hooksPath=x https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone -c core.hooksPath=x https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"git",
+"clone",
+"-c",
+"core.hooksPath=x",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"git",
+"clone",
+"-c",
+"core.hooksPath=x",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone --template=/t https://github.com/a/b d",
+"mask_quotes_pre": "git clone --template=/t https://github.com/a/b d",
+"mask_quotes_raw": "git clone --template=/t https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone --template=/t https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone --template=/t https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"git",
+"clone",
+"--template=/t",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"git",
+"clone",
+"--template=/t",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone --upload-pack=x https://github.com/a/b d",
+"mask_quotes_pre": "git clone --upload-pack=x https://github.com/a/b d",
+"mask_quotes_raw": "git clone --upload-pack=x https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone --upload-pack=x https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone --upload-pack=x https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"git",
+"clone",
+"--upload-pack=x",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"git",
+"clone",
+"--upload-pack=x",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone --recurse-submodules https://github.com/a/b d",
+"mask_quotes_pre": "git clone --recurse-submodules https://github.com/a/b d",
+"mask_quotes_raw": "git clone --recurse-submodules https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone --recurse-submodules https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone --recurse-submodules https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+55,
+[
+"git",
+"clone",
+"--recurse-submodules",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+55,
+[
+"git",
+"clone",
+"--recurse-submodules",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone https://github.com/a/b ../../escape",
+"mask_quotes_pre": "git clone https://github.com/a/b ../../escape",
+"mask_quotes_raw": "git clone https://github.com/a/b ../../escape",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b ../../escape"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b ../../escape"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"../../escape"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"../../escape"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone https://github.com/a/b /srv/other/x",
+"mask_quotes_pre": "git clone https://github.com/a/b /srv/other/x",
+"mask_quotes_raw": "git clone https://github.com/a/b /srv/other/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b /srv/other/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b /srv/other/x"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"/srv/other/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"/srv/other/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone https://github.com/a/b /tmp/x",
+"mask_quotes_pre": "git clone https://github.com/a/b /tmp/x",
+"mask_quotes_raw": "git clone https://github.com/a/b /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b /tmp/x"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone https://github.com/a/b d",
+"mask_quotes_pre": "git clone https://github.com/a/b d",
+"mask_quotes_raw": "git clone https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone --depth 1 https://github.com/a/b d",
+"mask_quotes_pre": "git clone --depth 1 https://github.com/a/b d",
+"mask_quotes_raw": "git clone --depth 1 https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone --depth 1 https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone --depth 1 https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"git",
+"clone",
+"--depth",
+"1",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"git",
+"clone",
+"--depth",
+"1",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git 'clone' https://github.com/a/b d",
+"mask_quotes_pre": "git 'QQQQQ' https://github.com/a/b d",
+"mask_quotes_raw": "git 'QQQQQ' https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git 'clone' https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git 'clone' https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"git",
+"'QQQQQ'",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"git",
+"'QQQQQ'",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo hi; git clone ext::sh d",
+"mask_quotes_pre": "echo hi; git clone ext::sh d",
+"mask_quotes_raw": "echo hi; git clone ext::sh d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo hi; git clone ext::sh d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo hi; git clone ext::sh d"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"hi"
+]
+],
+[
+8,
+28,
+[
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"hi"
+]
+],
+[
+8,
+28,
+[
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "true && git clone -c core.hooksPath=x https://github.com/a/b d",
+"mask_quotes_pre": "true && git clone -c core.hooksPath=x https://github.com/a/b d",
+"mask_quotes_raw": "true && git clone -c core.hooksPath=x https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "true && git clone -c core.hooksPath=x https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "true && git clone -c core.hooksPath=x https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"true"
+]
+],
+[
+7,
+62,
+[
+"git",
+"clone",
+"-c",
+"core.hooksPath=x",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"true"
+]
+],
+[
+7,
+62,
+[
+"git",
+"clone",
+"-c",
+"core.hooksPath=x",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo $(git clone ext::sh d)",
+"mask_quotes_pre": "echo $(git clone ext::sh d)",
+"mask_quotes_raw": "echo $(git clone ext::sh d)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo $(git clone ext::sh d)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo $(git clone ext::sh d)"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"echo"
+]
+],
+[
+7,
+26,
+[
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+],
+[
+27,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"echo"
+]
+],
+[
+7,
+26,
+[
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+],
+[
+27,
+27,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env git clone https://github.com/a/b d",
+"mask_quotes_pre": "env git clone https://github.com/a/b d",
+"mask_quotes_raw": "env git clone https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env git clone https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env git clone https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"env",
+"git",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"env",
+"git",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nohup git clone ext::sh d",
+"mask_quotes_pre": "nohup git clone ext::sh d",
+"mask_quotes_raw": "nohup git clone ext::sh d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "nohup git clone ext::sh d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "nohup git clone ext::sh d"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"nohup",
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"nohup",
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "timeout 5 git clone ext::sh d",
+"mask_quotes_pre": "timeout 5 git clone ext::sh d",
+"mask_quotes_raw": "timeout 5 git clone ext::sh d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 git clone ext::sh d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 git clone ext::sh d"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"timeout",
+"5",
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"timeout",
+"5",
+"git",
+"clone",
+"ext::sh",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "/usr/bin/git -c alias.c=clone c ext::sh d",
+"mask_quotes_pre": "/usr/bin/git -c alias.c=clone c ext::sh d",
+"mask_quotes_raw": "/usr/bin/git -c alias.c=clone c ext::sh d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "/usr/bin/git -c alias.c=clone c ext::sh d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "/usr/bin/git -c alias.c=clone c ext::sh d"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"/usr/bin/git",
+"-c",
+"alias.c=clone",
+"c",
+"ext::sh",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"/usr/bin/git",
+"-c",
+"alias.c=clone",
+"c",
+"ext::sh",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -c alias.clone=push clone https://github.com/a/b d",
+"mask_quotes_pre": "git -c alias.clone=push clone https://github.com/a/b d",
+"mask_quotes_raw": "git -c alias.clone=push clone https://github.com/a/b d",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.clone=push clone https://github.com/a/b d"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -c alias.clone=push clone https://github.com/a/b d"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"git",
+"-c",
+"alias.clone=push",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"git",
+"-c",
+"alias.clone=push",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'git clone ext::sh d'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'git clone ext::sh d'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'git clone ext::sh d'"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push origin HEAD",
+"mask_quotes_pre": "git push origin HEAD",
+"mask_quotes_raw": "git push origin HEAD",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"push",
+"origin",
+"HEAD"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"push",
+"origin",
+"HEAD"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C hello push",
+"mask_quotes_pre": "git -C hello push",
+"mask_quotes_raw": "git -C hello push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C hello push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C hello push"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"git",
+"-C",
+"hello",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"git",
+"-C",
+"hello",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git merge x",
+"mask_quotes_pre": "git merge x",
+"mask_quotes_raw": "git merge x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git merge x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git merge x"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"git",
+"merge",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"git",
+"merge",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr merge 1",
+"mask_quotes_pre": "gh pr merge 1",
+"mask_quotes_raw": "gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr create",
+"mask_quotes_pre": "gh pr create",
+"mask_quotes_raw": "gh pr create",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr create"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"create"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"create"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X POST repos/a/b",
+"mask_quotes_pre": "gh api -X POST repos/a/b",
+"mask_quotes_raw": "gh api -X POST repos/a/b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X POST repos/a/b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X POST repos/a/b"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"gh",
+"api",
+"-X",
+"POST",
+"repos/a/b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"gh",
+"api",
+"-X",
+"POST",
+"repos/a/b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory spawn coder",
+"mask_quotes_pre": "factory spawn coder",
+"mask_quotes_raw": "factory spawn coder",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory spawn coder"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory spawn coder"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"factory",
+"spawn",
+"coder"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"factory",
+"spawn",
+"coder"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory judge T-1",
+"mask_quotes_pre": "factory judge T-1",
+"mask_quotes_raw": "factory judge T-1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory judge T-1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory judge T-1"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"factory",
+"judge",
+"T-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"factory",
+"judge",
+"T-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "herdr pane split",
+"mask_quotes_pre": "herdr pane split",
+"mask_quotes_raw": "herdr pane split",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "herdr pane split"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "herdr pane split"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"herdr",
+"pane",
+"split"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"herdr",
+"pane",
+"split"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat ~/.config/factory/gh-worker-rw-token",
+"mask_quotes_pre": "cat ~/.config/factory/gh-worker-rw-token",
+"mask_quotes_raw": "cat ~/.config/factory/gh-worker-rw-token",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.config/factory/gh-worker-rw-token"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.config/factory/gh-worker-rw-token"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"cat",
+"~/.config/factory/gh-worker-rw-token"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"cat",
+"~/.config/factory/gh-worker-rw-token"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat ~/.config/factory/worker-oauth-token",
+"mask_quotes_pre": "cat ~/.config/factory/worker-oauth-token",
+"mask_quotes_raw": "cat ~/.config/factory/worker-oauth-token",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.config/factory/worker-oauth-token"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.config/factory/worker-oauth-token"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"cat",
+"~/.config/factory/worker-oauth-token"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"cat",
+"~/.config/factory/worker-oauth-token"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat ~/.ssh/id_ed25519",
+"mask_quotes_pre": "cat ~/.ssh/id_ed25519",
+"mask_quotes_raw": "cat ~/.ssh/id_ed25519",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.ssh/id_ed25519"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.ssh/id_ed25519"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"cat",
+"~/.ssh/id_ed25519"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"cat",
+"~/.ssh/id_ed25519"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat ~/.claude/.credentials.json",
+"mask_quotes_pre": "cat ~/.claude/.credentials.json",
+"mask_quotes_raw": "cat ~/.claude/.credentials.json",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.claude/.credentials.json"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.claude/.credentials.json"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"cat",
+"~/.claude/.credentials.json"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"cat",
+"~/.claude/.credentials.json"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s ~/factory/worktrees d && git clone https://github.com/a/b d/x",
+"mask_quotes_pre": "ln -s ~/factory/worktrees d && git clone https://github.com/a/b d/x",
+"mask_quotes_raw": "ln -s ~/factory/worktrees d && git clone https://github.com/a/b d/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s ~/factory/worktrees d && git clone https://github.com/a/b d/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s ~/factory/worktrees d && git clone https://github.com/a/b d/x"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"ln",
+"-s",
+"~/factory/worktrees",
+"d"
+]
+],
+[
+30,
+67,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"ln",
+"-s",
+"~/factory/worktrees",
+"d"
+]
+],
+[
+30,
+67,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s ~/.claude/skills d && git clone https://github.com/a/b d/evil",
+"mask_quotes_pre": "ln -s ~/.claude/skills d && git clone https://github.com/a/b d/evil",
+"mask_quotes_raw": "ln -s ~/.claude/skills d && git clone https://github.com/a/b d/evil",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s ~/.claude/skills d && git clone https://github.com/a/b d/evil"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s ~/.claude/skills d && git clone https://github.com/a/b d/evil"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"ln",
+"-s",
+"~/.claude/skills",
+"d"
+]
+],
+[
+27,
+67,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/evil"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"ln",
+"-s",
+"~/.claude/skills",
+"d"
+]
+],
+[
+27,
+67,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/evil"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv x d && git clone https://github.com/a/b d/x",
+"mask_quotes_pre": "mv x d && git clone https://github.com/a/b d/x",
+"mask_quotes_raw": "mv x d && git clone https://github.com/a/b d/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv x d && git clone https://github.com/a/b d/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv x d && git clone https://github.com/a/b d/x"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"mv",
+"x",
+"d"
+]
+],
+[
+9,
+46,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"mv",
+"x",
+"d"
+]
+],
+[
+9,
+46,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git clone https://github.com/a/b d && git clone https://github.com/a/b d/x",
+"mask_quotes_pre": "git clone https://github.com/a/b d && git clone https://github.com/a/b d/x",
+"mask_quotes_raw": "git clone https://github.com/a/b d && git clone https://github.com/a/b d/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b d && git clone https://github.com/a/b d/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git clone https://github.com/a/b d && git clone https://github.com/a/b d/x"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+],
+[
+37,
+74,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d"
+]
+],
+[
+37,
+74,
+[
+"git",
+"clone",
+"https://github.com/a/b",
+"d/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "path=(/evil)",
 "mask_quotes_pre": "path=(/evil)",
 "mask_quotes_raw": "path=(/evil)",
@@ -67376,6 +69356,276 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git -C hello log -1",
+"mask_quotes_pre": "git -C hello log -1",
+"mask_quotes_raw": "git -C hello log -1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C hello log -1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C hello log -1"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"-C",
+"hello",
+"log",
+"-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"-C",
+"hello",
+"log",
+"-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr view 1",
+"mask_quotes_pre": "gh pr view 1",
+"mask_quotes_raw": "gh pr view 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"view",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"view",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh search repos x",
+"mask_quotes_pre": "gh search repos x",
+"mask_quotes_raw": "gh search repos x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh search repos x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh search repos x"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"gh",
+"search",
+"repos",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"gh",
+"search",
+"repos",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory task show T-1",
+"mask_quotes_pre": "factory task show T-1",
+"mask_quotes_raw": "factory task show T-1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory task show T-1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory task show T-1"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"factory",
+"task",
+"show",
+"T-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"factory",
+"task",
+"show",
+"T-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory done ok",
+"mask_quotes_pre": "factory done ok",
+"mask_quotes_raw": "factory done ok",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory done ok"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory done ok"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"factory",
+"done",
+"ok"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"factory",
+"done",
+"ok"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ls",
+"mask_quotes_pre": "ls",
+"mask_quotes_raw": "ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ls"
+},
+"segments_pre": [
+[
+0,
+2,
+[
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+2,
+[
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo $path",
 "mask_quotes_pre": "echo $path",
 "mask_quotes_raw": "echo $path",
@@ -75556,7 +77806,7 @@
 ]
 }
 },
-"corpus_commands": 1334,
+"corpus_commands": 1380,
 "edge_inputs": 97,
 "python": "3.13"
 }

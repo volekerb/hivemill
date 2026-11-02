@@ -5,6 +5,7 @@ import statistics
 
 from scout import orgs as _orgs
 from web import charts, queries
+from web.db import has_column
 from web.components import (AGENT_COLS, agent_row, ago, ctx_org, empty_state, feed, feed_row, list_row, needs_you_row, org_badge,
                             org_href, row_status, tile)
 from web.html import el, glyph, org_dot, status
@@ -73,10 +74,13 @@ def _system(ctx, ag):
     u = ctx.usage_fn() if ctx.usage_fn else None
     fresh = bool(u) and not u.get("unreadable") and (u.get("five_hour") is not None or u.get("seven_day") is not None)
     cap5, cap7 = _cfg(ctx, "max_five_hour_pct", 92), _cfg(ctx, "max_seven_day_pct", 92)
-    return {"agents": {"live": live, "queued": queued, "cap": cap}, "memory": {"available_mb": mem, "floor_mb": floor},
+    return {"agents": {"live": live, "queued": queued, "cap": cap},
+            "memory": {"available_mb": mem, "floor_mb": floor},
             "load": {"load1": load, "cpus": cpus},
             "usage": {"five_hour": u["five_hour"] if fresh else None, "seven_day": u.get("seven_day") if fresh else None,
-                      "cap_five_hour": cap5, "cap_seven_day": cap7, "stale": bool(fresh and (not u.get("fresh") or (u.get("age_min") or 0) > 30))}}
+                      "cap_five_hour": cap5, "cap_seven_day": cap7,
+                      "stale": bool(fresh and (not u.get("fresh") or (u.get("age_min") or 0) > 30))},
+            "cursor": resources.cursor_usage(ctx)}
 
 
 def _goals(ctx, all_goals):
@@ -119,18 +123,36 @@ def _hq(ag, org, role):
     return {"name": rows[0]["name"], "status": rows[0]["status"]} if rows else None
 
 
-def _lane(org, gl, ag, teams, needs):
-    """One org lane of the overview: boss/director state, live teams, live workers, active goals, queued, health."""
+def _parked_team_ids(con):
+    if not has_column(con, "teams", "parked_at"):
+        return set()
+    return {r[0] for r in con.execute("SELECT id FROM teams WHERE status='active' AND parked_at IS NOT NULL")}
+
+
+def _lane(org, gl, ag, teams, needs, parked_ids):
+    """One org lane of the overview: boss/director state, active teams, workers on those teams, goals, queued, health."""
     live = [a for a in ag if a["org"] == org and a["status"] == "live"]
-    live_names = {a["name"] for a in ag if a["status"] in ("live", "starting")}
+    status_by = {a["name"]: a["status"] for a in ag}
+    org_active = [t for t in teams if t["org"] == org and t["status"] == "active"]
+    active_ids = {t["id"] for t in org_active}
+    leads_awake = leads_parked = leads_waking = 0
+    for t in org_active:
+        st = status_by.get(t["lead_agent"]) if t["lead_agent"] else None
+        if st == "live":
+            leads_awake += 1
+        elif st in ("queued", "starting"):
+            leads_waking += 1
+        elif t["id"] in parked_ids:
+            leads_parked += 1
+    workers_live = sum(1 for a in ag if a["status"] == "live" and a["team_id"] in active_ids
+                       and a["role"] not in ("boss", "director", "lead"))
     goals = [g for g in gl if g["org"] == org]
     open_goals = [g for g in goals if g["status"] in OPEN_GOAL]
     boss, director = _hq(ag, org, "boss"), _hq(ag, org, "director")
     queued = sum(1 for a in ag if a["org"] == org and a["status"] == "queued")
     lane = {"org": org, "label": _orgs.label(org), "boss": boss, "director": director,
-            "teams_live": sum(1 for t in teams if t["org"] == org and t["status"] == "active" and t["lead_agent"] in live_names),
-            "teams_active": sum(1 for t in teams if t["org"] == org and t["status"] == "active"),
-            "workers_live": sum(1 for a in live if a["role"] not in HQ_ROLES and a["role"] != "lead"),
+            "teams_active": len(org_active), "leads_awake": leads_awake, "leads_parked": leads_parked,
+            "leads_waking": leads_waking, "workers_live": workers_live,
             "agents_live": len(live), "queued": queued,
             "goals_active": sum(1 for g in goals if g["status"] in ACTIVE_GOAL), "goals_open": len(open_goals),
             "needs": sum(1 for i in needs if i["org"] == org)}
@@ -158,7 +180,8 @@ def _lanes(ctx, gl, ag, needs, org):
     if not shown:
         return []
     teams = queries.teams(ctx.db)
-    return [_lane(o, gl, ag, teams, needs) for o in shown]
+    parked_ids = _parked_team_ids(ctx.db)
+    return [_lane(o, gl, ag, teams, needs, parked_ids) for o in shown]
 
 
 def data(ctx, **params):
@@ -218,8 +241,11 @@ def _lane_el(ln):
 
     def stat(n, label, href_, title=None):
         return el("a", el("span", n, class_="lane-n"), el("span", label, class_="lane-l"), href=href_, class_="lane-stat", title=title)
+    n, w = ln["teams_active"], ln["workers_live"]
+    team_line = (f" teams · {ln['leads_awake']} lead awake · {ln['leads_parked']} parked · "
+                 f"{ln['leads_waking']} waking · {w} workers")
     stats = el("div",
-               stat(ln["teams_live"], "Live teams", f"/agents?org={o}", f"{ln['teams_active']} active teams, {ln['teams_live']} with a live lead"),
+               stat(n, team_line, f"/agents?org={o}", f"{n}{team_line}"),
                stat(ln["workers_live"], "Live workers", f"/agents?org={o}&status=live", f"{ln['agents_live']} agents live in total"),
                stat(ln["goals_active"], "Active goals", f"/goals?org={o}", f"{ln['goals_open']} open goals"),
                stat(ln["queued"], "Queued", f"/agents?org={o}&status=queued"), class_="lane-stats")
@@ -276,6 +302,7 @@ def _system_section(d):
         rows.append(charts.gauge("Load", f"{ld['load1']:.1f} / {ld['cpus']} CPUs", 100 * ld["load1"] / full, [100 * ld["cpus"] / full],
                                  zone, "1-min average"))
     rows.append(_usage_row(u))
+    rows.append(resources.cursor_row(s["cursor"]))
     ut = d["utilization"]
     ut_text = ("Utilization appears after the next tick sample" if ut is None
                else ut["line"] + (" (UNDER TARGET)" if ut["under"] else ""))

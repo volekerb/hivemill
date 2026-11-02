@@ -79,6 +79,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 
 func dispatch(tool string, data map[string]any, role string, hq bool, passArgs []string, raw []byte, stdout, stderr io.Writer) int {
 	switch {
+	case !hq && guard.IsResearcher(role) && (guard.IsPersistEditTool(tool) || tool == "Read" || tool == "Grep"):
+		guard.SessionID, _ = data["session_id"].(string)
+		code, msg := guard.ResearcherTool(data)
+		if code == 0 && guard.IsPersistEditTool(tool) {
+			code, msg = guard.PersistEdit(data, role)
+		}
+		return finish(code, msg)(stderr)
 	case !hq && guard.IsPersistEditTool(tool):
 		return finish(guard.PersistEdit(data, role))(stderr)
 	case !hq && (tool == "Read" || tool == "Grep"):

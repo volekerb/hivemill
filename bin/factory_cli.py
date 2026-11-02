@@ -102,12 +102,12 @@ agent_runtime = _LazyScout("agent_runtime")
 orgs = _LazyScout("orgs")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
-         "staff-engineer", "scout", "evaluator"]
+         "staff-engineer", "researcher", "scout", "evaluator"]
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -622,7 +622,7 @@ def actor_role(con):
     return r["role"] if r else "unknown"
 
 
-WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator"}
+WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator"}
 
 def derive_live_homes(uid=None):
     """(primary, homes): the live factory home(s), derived from the passwd entry and nothing the caller controls.
@@ -7131,6 +7131,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"role must be one of {ROLES}")
     if sandbox_optin and role not in workerbox.SANDBOXABLE:  # before any side effect (stale pane release, queue row)
         die(f"--sandbox: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
+    if role == "researcher" and not task:
+        die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     name = slug(name or f"{role}-{(task or team or goal or role)}")
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
@@ -7745,6 +7747,29 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     return name
 
 
+def research_dir(task):
+    """The per-task directory a researcher works in: <XDG_STATE_HOME or ~/.local/state>/factory/research/<task>, created
+    mode 0700. Refused (exit 4) when it is a symlink, not ours, or inside the factory home: a researcher clones
+    untrusted repos there and must never write into the factory."""
+    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    path = base / "factory" / "research" / slug(task)
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        st = os.lstat(path)
+    except OSError as e:
+        die(f"cannot prepare the research dir {path}: {e}; fix the path or XDG_STATE_HOME", 4)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        die(f"research dir {path} is a symlink or not owned by you; remove it and retry", 4)
+    real, home = Path(os.path.realpath(path)), Path(os.path.realpath(HOME))
+    if real == home or home in real.parents:
+        die(f"research dir {path} is inside the factory home; set XDG_STATE_HOME outside {HOME}", 4)
+    return str(path)
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
@@ -7760,6 +7785,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         bad = sandbox_preflight(role, None, name, con)
         if bad:
             sandbox_refuse(con, role, name, *bad)
+    if role == "researcher":  # always validated, also for an explicit --cwd or the cwd recorded for a respawn
+        want = research_dir(task)
+        if cwd and cwd != want:
+            die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
+        cwd = want
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
@@ -8161,6 +8191,7 @@ def coder_done_findings(con, r, force=False):
 # ── prcheck (G-022 item 7): a coder's pre-PR check, and the `factory done` gate on it ──
 
 PRCHECK_AFFECTED_TIMEOUT_S = 3600
+PRCHECK_SLOT_WAIT_S = 900  # T-0876: how long the affected run waits for a test slot before it gives up (CI verifies instead)
 _TEST_DEF = "^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_"
 _RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 _TESTS_REMOVED = re.compile(r"^\W*tests? removed:\s*\S", re.I | re.M)
@@ -8267,18 +8298,44 @@ def prcheck_public(con, t, wt, base):
     return True, "no hits"
 
 
-def prcheck_affected(wt, base):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note)."""
+def prcheck_take_slot(con):
+    """T-0876: take a host-wide test slot (tests/_slot.py, config test_slots) for the affected run, waiting up to
+    $FACTORY_PRCHECK_SLOT_WAIT_S (default PRCHECK_SLOT_WAIT_S). Returns True when held, False on timeout."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+    import _slot
+    wait = float(os.environ.get("FACTORY_PRCHECK_SLOT_WAIT_S") or PRCHECK_SLOT_WAIT_S)
+    poll = float(os.environ.get("FACTORY_PRCHECK_POLL_S") or 1)
+    n, start, last = _int_cfg(con, "test_slots", _slot.DEFAULT_SLOTS), time.monotonic(), None
+    while _slot.try_take(_slot.slot_dir(), n) is None:
+        now = time.monotonic()
+        if now - start >= wait:
+            return False
+        if last is None or now - last >= 30:
+            print(f"waiting for a test slot ({test_slot_usage(con)[0]}/{n} busy; see `factory res`)", flush=True)
+            last = now
+        time.sleep(poll)
+    return True
+
+
+def prcheck_affected(wt, base, con=None):
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
+    con = con or db()
+    if not prcheck_take_slot(con):
+        return False, ("no test slot free: not run, so this is NOT a pass; CI will verify. Rerun prcheck later, "
+                       "or `factory done` is accepted once CI on the PR head is green")
+    import _slot
     try:
         p = subprocess.run([sys.executable, str(script), "--base", f"origin/{base}", "--run"], cwd=wt, capture_output=True,
-                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S)
+                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S, env={**os.environ, "FACTORY_TEST_SLOT_HELD": "1"})
     except subprocess.TimeoutExpired:
         return False, f"ci/affected.py --run timed out after {PRCHECK_AFFECTED_TIMEOUT_S}s"
     except OSError as e:
         return False, f"cannot run ci/affected.py: {e}"
+    finally:
+        _slot.release()
     out = (p.stdout + p.stderr).strip()
     tail = "\n".join("      " + ln for ln in out.splitlines()[-8:])
     if p.returncode != 0:
@@ -8315,7 +8372,7 @@ def cmd_prcheck(a):
     results = []
     for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
                      ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
-                     ("affected", lambda: prcheck_affected(wt, base)), ("tier", lambda: prcheck_tier(wt, base))):
+                     ("affected", lambda: prcheck_affected(wt, base, con)), ("tier", lambda: prcheck_tier(wt, base))):
         ok, note = fn()
         results.append((name, ok, note))
         print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
@@ -8323,6 +8380,35 @@ def cmd_prcheck(a):
     event(con, "task", t["id"], "prcheck", {"head": head, "ok": ok, "failed": [n for n, k, _ in results if not k]})
     print(f"prcheck {'passed' if ok else 'FAILED'} on {head[:9]}" + ("" if ok else ": fix the FAIL lines, commit, rerun"))
     sys.exit(0 if ok else 1)
+
+
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+    """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
+    local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
+    (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR checks: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push, wait for CI"
+    if not pr.get("statusCheckRollup"):
+        return False, "PR has no CI checks yet"
+    bad = checks_ok(pr) + missing_checks(con, pr, pr_url)
+    if bad:
+        return False, "CI not all green: " + ", ".join(bad[:5])
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+    base = t["base_branch"] or "main"
+    t = {**dict(t), "pr_url": pr_url}
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
+        ok, note = fn()
+        if not ok:
+            return False, f"{name} FAIL: {note}"
+    return True, "all checks SUCCESS"
 
 
 def prcheck_done_refusal(con, r, t):
@@ -8345,7 +8431,11 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    if ok:
+        print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
@@ -11667,6 +11757,21 @@ def cmd_tick(a, locked=False):
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
     _pt_lap("sidebar")
+    try:
+        from web import cursor_limits
+
+        cursor_limits.tick_record(
+            con,
+            herdr_fn=herdr,
+            agent_runtime_of=agent_runtime_of,
+            agent_org_fn=agent_org,
+            send_fn=send,
+            event_fn=event,
+            now_fn=now,
+        )
+    except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
+        event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
+    _pt_lap("cursor_limits")
     _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
