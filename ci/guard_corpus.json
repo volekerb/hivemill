@@ -2813,7 +2813,11 @@
  {"cmd": "cat ~/.config/factory/gh-worker-rw-token", "role": "researcher"},
  {"cmd": "cat ~/.config/factory/worker-oauth-token", "role": "researcher"},
  {"cmd": "cat ~/.ssh/id_ed25519", "role": "researcher"},
- {"cmd": "cat ~/.claude/.credentials.json", "role": "researcher"}
+ {"cmd": "cat ~/.claude/.credentials.json", "role": "researcher"},
+ {"cmd": "ln -s ~/factory/worktrees d && git clone https://github.com/a/b d/x", "role": "researcher"},
+ {"cmd": "ln -s ~/.claude/skills d && git clone https://github.com/a/b d/evil", "role": "researcher"},
+ {"cmd": "mv x d && git clone https://github.com/a/b d/x", "role": "researcher"},
+ {"cmd": "git clone https://github.com/a/b d && git clone https://github.com/a/b d/x", "role": "researcher"}
  ],
  "must_allow": [
  {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},

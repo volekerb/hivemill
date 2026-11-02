@@ -2074,6 +2074,9 @@ class Analyzer:
             else:
                 pos.append(a)
             i += 1
+        if self.fs_changed:
+            self.git_deny("git clone after a command on this line that may have planted a symlink or moved a directory "
+                          "(ln, mv, cp, a write or redirect, another clone); clone in its own command, first")
         if len(pos) != 2:
             self.git_deny("git clone needs exactly a literal https URL and a destination directory")
         url, dest = pos
@@ -2085,6 +2088,7 @@ class Analyzer:
         if not (researcher_area(self.gcwd, self.gcwd) and researcher_area(full, self.gcwd)):
             self.git_deny(f"git clone destination {dest!r} (or the current directory) is outside your research dir "
                           "<state>/factory/research/<name> and your scratchpad")
+        self.fs_changed = True  # the clone itself creates a tree: a later clone on this line must not follow it
 
     @staticmethod
     def git_remote_read(args):

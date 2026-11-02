@@ -194,6 +194,10 @@ func (a *Analyzer) gitClone(args []string, usedC bool) error {
 			pos = append(pos, x)
 		}
 	}
+	if a.fsChanged {
+		return a.gitDeny("git clone after a command on this line that may have planted a symlink or moved a directory " +
+			"(ln, mv, cp, a write or redirect, another clone); clone in its own command, first")
+	}
 	if len(pos) != 2 {
 		return a.gitDeny("git clone needs exactly a literal https URL and a destination directory")
 	}
@@ -212,5 +216,6 @@ func (a *Analyzer) gitClone(args []string, usedC bool) error {
 		return a.gitDeny("git clone destination " + pyRepr(dest) + " (or the current directory) is outside your research dir " +
 			"<state>/factory/research/<name> and your scratchpad")
 	}
+	a.fsChanged = true // the clone itself creates a tree: a later clone on this line must not follow it
 	return nil
 }

@@ -119,6 +119,16 @@ class CloneBlocked(ResearcherBase):
         os.symlink(HOME, os.path.join(self.rdir, "link"))
         self.deny(self.bash(f"git clone {URL} link/x"))
 
+    def test_clone_after_fs_change_on_same_line(self):
+        # B1: a symlink/move/clone planted earlier on the line relocates the clone outside the research dir
+        for cmd in (f"ln -s {LIVE}/worktrees d && git clone {URL} d/x",
+                    f"ln -s {HOME}/.claude/skills d && git clone {URL} d/evil",
+                    f"mv x d && git clone {URL} d/x",
+                    f"git clone {URL} d && git clone {URL} d/x"):
+            with self.subTest(cmd=cmd):
+                self.deny(self.bash(cmd), cmd)
+                self.deny(self.bash(cmd, role="reviewer"), cmd)
+
     def test_other_roles_cannot_clone_here(self):
         # coder and the other no-push roles keep their rules: clone stays refused for the read-only roles
         for role in ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"):
