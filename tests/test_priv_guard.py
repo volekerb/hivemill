@@ -1,4 +1,5 @@
 """T-0057: PRIV rule (sudo/su/doas/pkexec/docker blocked for every agent), HQ mode, settings, cleaner branch deletion."""
+import datetime
 import glob
 import json
 import os
@@ -374,6 +375,11 @@ class CleanerBranchDeleteTests(Base):
             con.execute("INSERT INTO tasks VALUES ('T-1', ?)", (os.getcwd(),))
             con.commit()
             con.close()
+            # the Go guard reads run/guard-export.json (what the tick writes), not the DB (T-0767)
+            os.makedirs(os.path.join(home, "run"))
+            with open(os.path.join(home, "run", "guard-export.json"), "w") as fh:
+                json.dump({"version": 1, "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                           "config": {}, "agent_goals": {}, "task_worktrees": {"T-1": os.getcwd()}}, fh)
             self.allowed("git push origin HEAD:factory/t-1", role="coder",
                          env={**os.environ, "FACTORY_AGENT": "coder-t-1", "FACTORY_HOME": home})
 
