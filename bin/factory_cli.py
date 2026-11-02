@@ -102,12 +102,12 @@ agent_runtime = _LazyScout("agent_runtime")
 orgs = _LazyScout("orgs")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
-         "staff-engineer", "scout", "evaluator"]
+         "staff-engineer", "researcher", "scout", "evaluator"]
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -178,7 +178,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
-    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
@@ -622,7 +622,7 @@ def actor_role(con):
     return r["role"] if r else "unknown"
 
 
-WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator"}
+WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator"}
 
 def derive_live_homes(uid=None):
     """(primary, homes): the live factory home(s), derived from the passwd entry and nothing the caller controls.
@@ -5402,15 +5402,18 @@ def cmd_redmain(a):
 
 
 def red_main_check(con):
-    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
-    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
-    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
+    project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
+    interval is ignored and gh is asked on every tick, so a green run clears the freeze on the first tick that sees it
+    (T-0841). Red: store the freeze, message the director once per run id, file a revert task. Green: clear it. gh
+    trouble or no completed run leaves the state as it is. Never breaks the tick."""
     if cfg(con, "red_main_freeze") != "1":
         return
     try:
         t = time.time()
         last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
-        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+        any_red = con.execute("SELECT 1 FROM config WHERE key GLOB 'red_main:*' AND value!='' LIMIT 1").fetchone()
+        if not any_red and last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
         slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
@@ -5915,6 +5918,22 @@ def _serve_mainpid():
     return int(out) if out.isdigit() and int(out) > 0 else None
 
 
+def _serve_unit_pids():
+    """Pids whose cgroup is factory-serve.service, read from /proc (no systemd call): the unit's process even when
+    _serve_mainpid() cannot reach systemd. Unreadable entries are skipped."""
+    out = set()
+    for d in _serve_proc_root().iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            text = (d / "cgroup").read_text(errors="replace")
+        except OSError:
+            continue
+        if re.search(r"/factory-serve\.service(/|$)", text, re.M):
+            out.add(int(d.name))
+    return out
+
+
 def _signal_serve(pid, sig, argv):
     """Send `sig` to pid only if its cmdline is still exactly `argv` (re-read right now: pid reuse guard)."""
     if _serve_argv(pid) != argv:
@@ -5959,11 +5978,11 @@ def reap_stray_serves(con):
         if last and t - float(last["ts"]) < SERVE_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('servereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
-        root, main_pid = _serve_proc_root(), _serve_mainpid()
+        root, unit_pids = _serve_proc_root(), _serve_unit_pids() | {_serve_mainpid()}
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped = {}
         for d in sorted(root.iterdir()):
-            if not d.name.isdigit() or int(d.name) in (os.getpid(), main_pid):
+            if not d.name.isdigit() or int(d.name) in unit_pids or int(d.name) == os.getpid():
                 continue
             pid = int(d.name)
             try:
@@ -6127,8 +6146,8 @@ def _orphan_judge(con, pid, skip):
 
 
 def _orphan_skip(main_pid):
-    """The tick, its ancestors and the factory-serve unit's MainPID."""
-    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    """The tick, its ancestors and the factory-serve unit's processes (MainPID, plus its cgroup members from /proc)."""
+    skip, cur = {os.getpid(), main_pid} | _serve_unit_pids(), os.getppid()
     for _ in range(64):
         if cur is None or cur <= 1:
             break
@@ -7112,6 +7131,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"role must be one of {ROLES}")
     if sandbox_optin and role not in workerbox.SANDBOXABLE:  # before any side effect (stale pane release, queue row)
         die(f"--sandbox: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
+    if role == "researcher" and not task:
+        die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     name = slug(name or f"{role}-{(task or team or goal or role)}")
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
@@ -7726,6 +7747,29 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     return name
 
 
+def research_dir(task):
+    """The per-task directory a researcher works in: <XDG_STATE_HOME or ~/.local/state>/factory/research/<task>, created
+    mode 0700. Refused (exit 4) when it is a symlink, not ours, or inside the factory home: a researcher clones
+    untrusted repos there and must never write into the factory."""
+    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    path = base / "factory" / "research" / slug(task)
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        st = os.lstat(path)
+    except OSError as e:
+        die(f"cannot prepare the research dir {path}: {e}; fix the path or XDG_STATE_HOME", 4)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        die(f"research dir {path} is a symlink or not owned by you; remove it and retry", 4)
+    real, home = Path(os.path.realpath(path)), Path(os.path.realpath(HOME))
+    if real == home or home in real.parents:
+        die(f"research dir {path} is inside the factory home; set XDG_STATE_HOME outside {HOME}", 4)
+    return str(path)
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
@@ -7741,6 +7785,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         bad = sandbox_preflight(role, None, name, con)
         if bad:
             sandbox_refuse(con, role, name, *bad)
+    if role == "researcher":  # always validated, also for an explicit --cwd or the cwd recorded for a respawn
+        want = research_dir(task)
+        if cwd and cwd != want:
+            die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
+        cwd = want
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
@@ -8306,6 +8355,35 @@ def cmd_prcheck(a):
     sys.exit(0 if ok else 1)
 
 
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+    """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
+    local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
+    (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR checks: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push, wait for CI"
+    if not pr.get("statusCheckRollup"):
+        return False, "PR has no CI checks yet"
+    bad = checks_ok(pr) + missing_checks(con, pr, pr_url)
+    if bad:
+        return False, "CI not all green: " + ", ".join(bad[:5])
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+    base = t["base_branch"] or "main"
+    t = {**dict(t), "pr_url": pr_url}
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
+        ok, note = fn()
+        if not ok:
+            return False, f"{name} FAIL: {note}"
+    return True, "all checks SUCCESS"
+
+
 def prcheck_done_refusal(con, r, t):
     """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
@@ -8326,7 +8404,11 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    if ok:
+        print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 

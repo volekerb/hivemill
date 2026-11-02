@@ -30,7 +30,7 @@ PROC_BUDGET_S = 0.08    # a scan gives up after this long; the partial result is
 # The status set comes from the agents table (so 'starting' etc. work); "blocked" is derived from blocked_since.
 BLOCKED = "blocked"
 _STATUS_ORDER = ("live", "starting", "queued", "stopped", "exited", "done", "lost", "cancelled")   # display order only
-ROLES = ("boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout",
+ROLES = ("boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout",
          "evaluator")   # mirrors bin/factory ROLES (web/ never imports it)
 RUNTIMES = ("claude", "cursor")  # factory default is Claude; Cursor via agent_runtimes
 _GOAL_RE = re.compile(r"^G-\d+$")
@@ -288,7 +288,7 @@ def data(ctx, **params):
 
 # ── render ──
 
-_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator")
+_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator")
 
 
 def _parked(con):

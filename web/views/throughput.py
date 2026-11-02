@@ -7,7 +7,7 @@ import math
 import statistics
 
 from web import charts, queries
-from web.components import data_table, empty_state, href, section, segmented, tile
+from web.components import ctx_org, data_table, empty_state, org_href, section, segmented, tile
 from web.html import dur, el, link
 
 TITLE = "Throughput"
@@ -41,9 +41,19 @@ def _p90(xs):
     return s[max(0, math.ceil(0.9 * len(s)) - 1)]
 
 
+def _goal_filter(ctx):
+    org = ctx_org(ctx)
+    if not org:
+        return None, org
+    gorgs = queries.goal_orgs(ctx.db)
+    goals = {r[0] for r in ctx.db.execute("SELECT id FROM goals") if queries.org_of_goal(gorgs, r[0]) == org}
+    return goals, org
+
+
 def data(ctx, **params):
     days = _days(ctx)
-    t = queries.throughput(ctx.db, days=days, now=ctx.now)
+    goals, org = _goal_filter(ctx)
+    t = queries.throughput(ctx.db, days=days, now=ctx.now, goals=goals)
     items = t["tasks"]
     totals = [i["total_s"] for i in items if i["total_s"] is not None]
     stages = []
@@ -56,26 +66,41 @@ def data(ctx, **params):
     per_goal = {}
     for i in items:
         per_goal.setdefault(i["goal_id"], []).append(i)
-    goals = [{"goal_id": g, "title": gtitles.get(g), "done": len(v),
+    goals_rows = [{"goal_id": g, "title": gtitles.get(g), "done": len(v),
               "median_s": _median([i["total_s"] for i in v if i["total_s"] is not None])}
              for g, v in sorted(per_goal.items(), key=lambda kv: (kv[0] is None, kv[0] or ""))]
     slow = sorted((i for i in items if i["total_s"] is not None), key=lambda i: -i["total_s"])[:SLOWEST]
     slowest = [{"task_id": i["task_id"], "title": queries._strip_tags(titles.get(i["task_id"])),
                 "goal_id": i["goal_id"], "total_s": i["total_s"], "merged": i["merged"]} for i in slow]
-    open_tasks = ctx.db.execute("SELECT COUNT(*) FROM tasks WHERE status IN ('in_progress','in_review')").fetchone()[0]
-    live_workers = ctx.db.execute("SELECT COUNT(*) FROM agents WHERE status='live' AND task_id IS NOT NULL").fetchone()[0]
-    live = [r["role"] for r in ctx.db.execute("SELECT role FROM agents WHERE status='live'")]
+    if goals is not None:
+        if goals:
+            ph = ",".join("?" * len(goals))
+            open_tasks = ctx.db.execute(
+                f"SELECT COUNT(*) FROM tasks WHERE status IN ('in_progress','in_review') AND goal_id IN ({ph})",
+                tuple(goals)).fetchone()[0]
+            live_workers = ctx.db.execute(
+                f"SELECT COUNT(*) FROM agents a JOIN tasks t ON t.id=a.task_id WHERE a.status='live' "
+                f"AND a.task_id IS NOT NULL AND t.goal_id IN ({ph})", tuple(goals)).fetchone()[0]
+        else:
+            open_tasks = live_workers = 0
+    else:
+        open_tasks = ctx.db.execute("SELECT COUNT(*) FROM tasks WHERE status IN ('in_progress','in_review')").fetchone()[0]
+        live_workers = ctx.db.execute("SELECT COUNT(*) FROM agents WHERE status='live' AND task_id IS NOT NULL").fetchone()[0]
+    live_agents = [a for a in queries.agents(ctx.db, now=ctx.now) if a["status"] == "live"]
+    if org:
+        live_agents = [a for a in live_agents if a["org"] == org]
+    live = [a["role"] for a in live_agents]
     agents = {"running": len(live), "leads": sum(1 for r in live if r == "lead"),
               "hq": sum(1 for r in live if r in HQ_ROLES)}
     agents["workers"] = agents["running"] - agents["leads"] - agents["hq"]
-    return {"days": days, "merges": len(items), "agents": agents, "median_s": _median(totals), "p90_s": _p90(totals),
+    return {"org": org, "days": days, "merges": len(items), "agents": agents, "median_s": _median(totals), "p90_s": _p90(totals),
             "timed": len(totals), "open_tasks": open_tasks,
             "live_workers": live_workers, "merges_per_day": t["merges_per_day"],
-            "stages": stages, "goals": goals, "slowest": slowest}
+            "stages": stages, "goals": goals_rows, "slowest": slowest}
 
 
 def _range(d):
-    return segmented("Range", [(f"{n} days", href("/throughput", {"days": n}), n == d["days"]) for n in DAYS])
+    return segmented("Range", [(f"{n} days", org_href("/throughput", {"days": n}, d.get("org")), n == d["days"]) for n in DAYS])
 
 
 def _tiles(d):
@@ -132,7 +157,7 @@ def _slowest(ctx, d):
 
     def sort_href(col):
         flip = "asc" if key == col and direction == "desc" else "desc" if key == col else SORTS[col]
-        return href("/throughput", {"days": d["days"], "sort": col, "dir": flip})
+        return org_href("/throughput", {"days": d["days"], "sort": col, "dir": flip}, d.get("org"))
     cols = [{"key": "task", "label": "Task", "cls": "c-title", "sortable": True},
             {"key": "total", "label": "Spawn to merge", "cls": "num", "sortable": True},
             {"key": "merged", "label": "Merged", "cls": "num", "sortable": True}]

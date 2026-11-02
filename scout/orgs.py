@@ -14,7 +14,7 @@ import re
 DEFAULT_ORG = "claude"
 
 # Judgement roles think (plan, review, decide); build roles produce code/tests. Same split as factory MODELS.
-JUDGEMENT_ROLES = ("boss", "director", "lead", "pm", "reviewer", "judge", "staff-engineer")
+JUDGEMENT_ROLES = ("boss", "director", "lead", "pm", "reviewer", "judge", "staff-engineer", "researcher")
 BUILD_ROLES = ("coder", "qa", "cleaner", "scout", "evaluator")
 
 ORGS = {
@@ -25,7 +25,7 @@ ORGS = {
         "models": {
             "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
             "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-            "staff-engineer": "claude-opus-5-5",
+            "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
             "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
             "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
         },
@@ -37,7 +37,7 @@ ORGS = {
         "models": {
             "boss": "grok-4.7-high", "director": "grok-4.7-high", "lead": "grok-4.7-high",
             "pm": "grok-4.7-high", "reviewer": "grok-4.7-high", "judge": "grok-4.7-high",
-            "staff-engineer": "grok-4.7-high",
+            "staff-engineer": "grok-4.7-high", "researcher": "grok-4.7-high",
             "coder": "composer-2.5", "qa": "composer-2.5", "cleaner": "composer-2.5",
             "scout": "composer-2.5",
             # skilleval evaluator always runs on Claude (agent_runtime: cursor refuses it)

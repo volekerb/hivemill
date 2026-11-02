@@ -34,6 +34,18 @@ def png(path, width, height, ink_rows):
                            + chunk(b"IDAT", zlib.compress(bytes(raw))) + chunk(b"IEND", b""))
 
 
+class RouteKnown(unittest.TestCase):
+    KNOWN = ("/", "/goals", "/throughput", "/quality", "/changelog")
+
+    def test_query_on_known_path_is_allowed(self):
+        self.assertTrue(vq.route_known("/?org=cursor", self.KNOWN))
+        self.assertEqual(vq.route_path("/?org=cursor"), "/")
+        self.assertTrue(vq.route_known("/throughput?org=cursor", self.KNOWN))
+
+    def test_unknown_path_with_query_is_rejected(self):
+        self.assertFalse(vq.route_known("/nope?org=cursor", self.KNOWN))
+
+
 class Overflow(unittest.TestCase):
     def test_wide_element_outside_scroller_fails(self):
         p = vq.overflow_problems(390, 390, [{"sel": "div.wide", "right": 600, "in_scroll": False}])
