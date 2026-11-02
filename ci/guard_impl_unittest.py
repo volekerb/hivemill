@@ -55,8 +55,14 @@ def run_guard_diff_unittest(extra_env=None):
     env = dict(os.environ, GUARD_IMPL="diff", GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
     if extra_env:
         env.update(extra_env)
-    cmd = [sys.executable, "-m", "unittest", *unittest_modules()]
-    return subprocess.run(cmd, cwd=ROOT, env=env)
+    # discover -s tests puts tests/ on sys.path so `from harness import …` matches the shard suite.
+    last = subprocess.CompletedProcess(args=[], returncode=0)
+    for base in diff_module_names():
+        cmd = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", base]
+        last = subprocess.run(cmd, cwd=ROOT, env=env)
+        if last.returncode != 0:
+            return last
+    return last
 
 
 def main(argv=None):
