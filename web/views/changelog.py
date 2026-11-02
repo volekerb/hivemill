@@ -2,7 +2,7 @@
 import re
 
 from web import queries
-from web.components import ago, chips, empty_state, feed, feed_row, href, section, segmented
+from web.components import ago, chips, ctx_org, empty_state, feed, feed_row, org_href, section, segmented
 from web.html import el
 
 TITLE = "Changelog"
@@ -16,11 +16,16 @@ def _epoch(g):
 
 def data(ctx, **params):
     q = getattr(ctx, "query", None) or {}
-    groups = sorted(queries.changelog(ctx.db), key=_epoch, reverse=True)
+    org = ctx_org(ctx)
+    gorgs = queries.goal_orgs(ctx.db)
+    goals = None
+    if org:
+        goals = {r[0] for r in ctx.db.execute("SELECT id FROM goals") if queries.org_of_goal(gorgs, r[0]) == org}
+    groups = sorted(queries.changelog(ctx.db, goals=goals), key=_epoch, reverse=True)
     want = q.get("goal", "")
     goal = want if _GOAL_RE.match(want) and any(g["goal_id"] == want for g in groups) else None
     shown = [g for g in groups if goal is None or g["goal_id"] == goal]
-    return {"goal": goal, "goals": [{"goal_id": g["goal_id"], "goal_title": g["goal_title"], "count": len(g["items"])}
+    return {"org": org, "goal": goal, "goals": [{"goal_id": g["goal_id"], "goal_title": g["goal_title"], "count": len(g["items"])}
                                     for g in groups], "groups": shown, "total": sum(len(g["items"]) for g in shown),
             "group": "goal" if q.get("group") == "goal" else "date"}
 
@@ -42,13 +47,13 @@ def render(ctx, d):
     if not d["groups"]:
         return section("Shipped", empty_state("Nothing has been merged yet."))
     now, goal, mode = ctx.now, d["goal"], d["group"]
-    seg = segmented("Group changelog", [("By date", href("/changelog", {"goal": goal}), mode == "date"),
-                                        ("By goal", href("/changelog", {"goal": goal, "group": "goal"}), mode == "goal")])
+    seg = segmented("Group changelog", [("By date", org_href("/changelog", {"goal": goal}, d.get("org")), mode == "date"),
+                                        ("By goal", org_href("/changelog", {"goal": goal, "group": "goal"}, d.get("org")), mode == "goal")])
     parts = [seg]
     if len(d["goals"]) > 1 or goal:
         keep = {"group": "goal" if mode == "goal" else None}
-        items = [("All goals", None, href("/changelog", keep), goal is None)]
-        items += [(g["goal_id"], g["count"], href("/changelog", {"goal": g["goal_id"], **keep}), goal == g["goal_id"])
+        items = [("All goals", None, org_href("/changelog", keep, d.get("org")), goal is None)]
+        items += [(g["goal_id"], g["count"], org_href("/changelog", {"goal": g["goal_id"], **keep}, d.get("org")), goal == g["goal_id"])
                   for g in d["goals"] if g["goal_id"]]
         parts.append(chips("Goal", items))
     if mode == "goal":

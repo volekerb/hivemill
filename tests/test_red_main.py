@@ -83,6 +83,41 @@ class RedMainTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(len(self.merges()), 1)
 
+    def test_green_clears_on_next_tick_while_red_despite_interval(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "3600")
+        self.runs(RED)
+        self.tick()
+        self.assertEqual(self.merge().returncode, 4)
+        self.runs(GOOD, RED)
+        self.tick()
+        p = self.merge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertTrue(self.env.sql("SELECT 1 FROM events WHERE action='red-main-clear'"))
+
+    def test_green_main_stays_throttled(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "3600")
+        self.runs(GOOD)
+        self.tick()
+        self.tick()
+        lists = [c for c in self.env.calls("gh") if c["argv"][:2] == ["run", "list"]]
+        self.assertEqual(len(lists), 1, lists)
+
+    def test_red_rechecked_every_tick_no_duplicate_alerts(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "3600")
+        self.runs(RED)
+        self.tick()
+        self.runs(RUNNING, RED)
+        self.tick()
+        self.tick()
+        lists = [c for c in self.env.calls("gh") if c["argv"][:2] == ["run", "list"]]
+        self.assertEqual(len(lists), 3, lists)
+        self.assertEqual(len(self.director_mail()), 1)
+        self.assertEqual(len(self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'")), 1)
+
     def test_running_or_unreadable_run_keeps_state(self):
         self.ok("config", "red_main_freeze", "1")
         self.ok("config", "red_main_interval_s", "0")
