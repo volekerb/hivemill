@@ -603,9 +603,6 @@ def quality(con, *, goals=None):
             by_goal.setdefault(r["goal_id"], []).append(tid)
     team_ids = sorted({r["id"] for r in con.execute("SELECT id FROM teams")} | {t for t in by_team if t})
     teams = [row(t, by_team.get(t, [])) for t in team_ids]
-    if goals is not None:
-        teams = [t for t in teams if t["tasks"]]
-        by_goal = {g: ids for g, ids in by_goal.items() if g in goals}
     return {"teams": teams, "overall": row(None, list(tinfo)),
             "unassigned": {g: row(None, ids) for g, ids in by_goal.items()}}
 

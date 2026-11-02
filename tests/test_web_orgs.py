@@ -311,6 +311,17 @@ class TestInsightOrgFilter(Base):
         cur, _ = self.page(quality, query={"org": "cursor"})
         self.assertEqual(cur["overall"]["merged"], 1)
 
+    def test_quality_org_filter_keeps_team_with_only_unassigned_merges(self):
+        """Team on a goal with no direct tasks still gets team_id-NULL merges after ?org= filter."""
+        self.w.execute("INSERT INTO teams VALUES('t-g2','G-2','scope G2','lead-g2',NULL,'active',?)", (ts(8, 0),))
+        all_d, _ = self.page(quality)
+        self.assertEqual({t["team_id"]: t["merged"] for t in all_d["teams"]}["t-g2"], 1)
+        cl, _ = self.page(quality, query={"org": "claude"})
+        by_team = {t["team_id"]: t for t in cl["teams"]}
+        self.assertIn("t-g2", by_team)
+        self.assertEqual(by_team["t-g2"]["merged"], 1)
+        self.assertEqual(cl["overall"]["merged"], 2)
+
     def test_changelog_org_and_chip_href(self):
         cur, html = self.page(changelog, query={"org": "cursor"})
         gids = {g["goal_id"] for g in cur["goals"]}
