@@ -4,6 +4,7 @@ import re
 import unittest
 
 from harness import REPO, FactoryTestCase, ROLES
+from test_sandbox_spawn import prep
 
 PLUGINS_ROOT = REPO / "roles" / "plugins"
 PLUGINS = PLUGINS_ROOT / "staff-engineer"
@@ -28,8 +29,7 @@ def spawn_cmd(role):
 class PluginDirSpawnTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
-        self.env.seed_goal()
-        self.env.seed_team(lead="zz-test-lead")
+        prep(self.env)  # goal, team and the sandbox ingredients: the researcher is always sandboxed (T-0847)
         self.env.seed_task("T-0001", role="coder", status="todo", pr_url=None, team="g-001-a")
         self.env.run("config", "max_live_agents", "99")
         self.env.run("config", "max_total_claude", "99")  # one pane per role now exceeds the default 10
