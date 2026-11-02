@@ -321,6 +321,16 @@ PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
+# T-0789: inline interpreter code (python -c, perl -e, node -e/-p, ruby -e) of a NO_PUSH_ROLES role may not launch a
+# push or a gh write. INCOMPLETE BY DESIGN, defense in depth only: string obfuscation ("pu" + "sh", base64, chr())
+# beats it, and the code is never run or parsed, only scanned. The security boundary is the G-010 sandbox plus the
+# worker PAT (R-c, T-0640 and children), not this rule. Accepted false positive: python3 -c "print('git push')".
+INLINE_CODE_INTERPS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs)$")
+INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word tokens, case-sensitive
+# known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
+# optional gh global flags (-R a/b) may sit before the subcommand
+INLINE_GH_WRITE = re.compile(
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
 
@@ -1205,6 +1215,26 @@ class Analyzer:
             self.soft(self.file, rest[0], depth)
         elif INTERPRETERS.match(name):
             self.interp_priv(name, rest)
+
+    def interp_inline_push(self, name, rest):
+        """T-0789: NO_PUSH_ROLES may not run inline interpreter code whose text names `git` and `push` as words, or a
+        gh write (`gh pr merge|create`, `gh repo ...`, `gh api -X POST|PUT|PATCH|DELETE`). Other inline code (python3 -c
+        "import json") and script files stay allowed. Incomplete defense in depth: see INLINE_CODE_INTERPS."""
+        if not INLINE_CODE_INTERPS.match(name):
+            return
+        _, ci, unknown = interp_args("node" if name == "nodejs" else name, rest)
+        if unknown:  # cannot tell which word is the code: look at every code-looking word (as interp_priv does)
+            texts = [a for a in rest if re.search(r"[\s\"'();]", a)]
+        else:
+            texts = [rest[ci]] if ci is not None else []
+        # attached code (`perl -e'CODE'`, `node --eval=CODE`) is not a separate word: scan option words that look like code
+        texts += [a for a in rest if a.startswith("-") and re.search(r"[\s\"'();]", a)]
+        for t in texts:
+            if all(p.search(t) for p in INLINE_GIT_PUSH):
+                raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
+            if INLINE_GH_WRITE.search(t):
+                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method); "
+                            "no-push roles never write to GitHub; ask your lead")
 
     def git_priv(self, rest, depth):
         """git runs shell text from `-c alias.x=!cmd`, `-c core.pager=cmd` and `git config <key> <value>`."""
@@ -2327,6 +2357,8 @@ class Analyzer:
             self.systemctl(rest)
         elif INTERPRETERS.match(name):
             self.interp_priv(name, rest)
+            if self.role in NO_PUSH_ROLES and not self.hq:
+                self.interp_inline_push(name, rest)
             self.unittest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
                 if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
