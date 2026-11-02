@@ -21,7 +21,7 @@ HOOK = REPO / "roles" / "hooks" / "worker-guard.py"
 SETTINGS = REPO / "roles" / "settings"
 PW_DIR = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
 LIVE_HOME = os.path.join(PW_DIR, "factory")  # what bin/factory and the hook derive (T-0212)
-WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator")
+WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator")
 TOKENS = {"@FACTORY_LIVE_HOME@": LIVE_HOME, "@FACTORY_HOME_DIR@": PW_DIR,
           "@FACTORY_USER_CONFIG@": os.path.join(PW_DIR, ".config")}
 
@@ -112,7 +112,7 @@ class TemplateFileTests(unittest.TestCase):
                 for tail in ("", "/**", "/live_home"):
                     self.assertIn(f"{tool}(/{cfg}{tail})", d, f"{r}: {tool} {tail}")
             n += 1
-        self.assertEqual(n, 9)
+        self.assertEqual(n, 10)
 
     def test_hook_command_is_an_absolute_path_inside_the_live_checkout(self):
         for r in ROLES:
@@ -122,7 +122,7 @@ class TemplateFileTests(unittest.TestCase):
             guard = [c for c in cmds if "worker-guard.py" in c]
             self.assertEqual(len(guard), 1, r)
             edit = [h["command"] for g in groups if g.get("matcher") != "Bash" for h in g["hooks"]]  # T-0334: workers only
-            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 2 if r in ("coder", "qa", "reviewer", "judge", "pm", "staff-engineer") else 1, r)  # T-0600: + Read|Grep
+            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 2 if r in ("coder", "qa", "reviewer", "judge", "pm", "staff-engineer", "researcher") else 1, r)  # T-0600: + Read|Grep
             self.assertTrue(all(f"{LIVE_HOME}/roles/hooks/worker-guard.py" in c for c in edit), r)
             self.assertTrue(guard[0].startswith(f"python3 {LIVE_HOME}/roles/hooks/worker-guard.py"), guard[0])
 
