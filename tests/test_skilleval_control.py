@@ -6,9 +6,7 @@ The CLI tests run bin/factory as a subprocess on a temp FACTORY_HOME; the spawn 
 here starts a real claude or needs the network.
 """
 import json
-import os
 import stat
-import subprocess
 import sys
 import tempfile
 import unittest
