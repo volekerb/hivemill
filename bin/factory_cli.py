@@ -102,12 +102,12 @@ agent_runtime = _LazyScout("agent_runtime")
 orgs = _LazyScout("orgs")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
-         "staff-engineer", "scout", "evaluator"]
+         "staff-engineer", "researcher", "scout", "evaluator"]
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -622,7 +622,7 @@ def actor_role(con):
     return r["role"] if r else "unknown"
 
 
-WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator"}
+WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator"}
 
 def derive_live_homes(uid=None):
     """(primary, homes): the live factory home(s), derived from the passwd entry and nothing the caller controls.
@@ -7131,6 +7131,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"role must be one of {ROLES}")
     if sandbox_optin and role not in workerbox.SANDBOXABLE:  # before any side effect (stale pane release, queue row)
         die(f"--sandbox: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
+    if role == "researcher" and not task:
+        die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     name = slug(name or f"{role}-{(task or team or goal or role)}")
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
@@ -7745,6 +7747,29 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     return name
 
 
+def research_dir(task):
+    """The per-task directory a researcher works in: <XDG_STATE_HOME or ~/.local/state>/factory/research/<task>, created
+    mode 0700. Refused (exit 4) when it is a symlink, not ours, or inside the factory home: a researcher clones
+    untrusted repos there and must never write into the factory."""
+    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    path = base / "factory" / "research" / slug(task)
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        st = os.lstat(path)
+    except OSError as e:
+        die(f"cannot prepare the research dir {path}: {e}; fix the path or XDG_STATE_HOME", 4)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        die(f"research dir {path} is a symlink or not owned by you; remove it and retry", 4)
+    real, home = Path(os.path.realpath(path)), Path(os.path.realpath(HOME))
+    if real == home or home in real.parents:
+        die(f"research dir {path} is inside the factory home; set XDG_STATE_HOME outside {HOME}", 4)
+    return str(path)
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
@@ -7760,6 +7785,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         bad = sandbox_preflight(role, None, name, con)
         if bad:
             sandbox_refuse(con, role, name, *bad)
+    if role == "researcher":  # always validated, also for an explicit --cwd or the cwd recorded for a respawn
+        want = research_dir(task)
+        if cwd and cwd != want:
+            die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
+        cwd = want
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
