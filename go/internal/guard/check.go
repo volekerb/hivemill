@@ -190,7 +190,11 @@ func Check(cmd, cwd, role string, hq bool) error {
 			// a plain Block. The one HQ rule that blocks on parse trouble is the public-text rule, which reads the
 			// factory DB to know whether it is on: stay closed for any command that may be a git or gh write.
 			if hq && (strings.Contains(cmd, "git") || strings.Contains(cmd, "gh")) {
-				if !dbMissing() { // PublicText.active reads public_text_repos / frozen_repos of the factory DB
+				on, perr := publicTextOn() // PublicText.active reads public_text_repos / frozen_repos
+				if perr != nil {
+					return perr
+				}
+				if on {
 					return delegate("public-text rule: a git/gh write that cannot be parsed")
 				}
 			}
@@ -202,9 +206,6 @@ func Check(cmd, cwd, role string, hq bool) error {
 	if IsTermsRole(role) {
 		if err := TermsBash(cmd, cwd); err != nil {
 			return err
-		}
-		if termsFromDBOnly() {
-			return delegate("terms: the scrub_terms_file config key is in the factory DB and no terms file is exported")
 		}
 	}
 	if role == "evaluator" {

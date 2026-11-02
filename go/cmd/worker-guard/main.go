@@ -83,9 +83,9 @@ func dispatch(tool string, data map[string]any, role string, hq bool, passArgs [
 		return finish(guard.PersistEdit(data, role))(stderr)
 	case !hq && (tool == "Read" || tool == "Grep"):
 		if guard.IsTermsRole(role) {
-			code, msg, py := guard.TermsTool(data)
-			if py {
-				return guard.RunPython(passArgs, raw, stdout, stderr)
+			code, msg, closed := guard.TermsTool(data)
+			if closed {
+				return closedExit(stderr, msg)
 			}
 			return finish(code, msg)(stderr)
 		}
@@ -120,6 +120,9 @@ func dispatch(tool string, data map[string]any, role string, hq bool, passArgs [
 	guard.SessionID, _ = data["session_id"].(string)
 	if err := guard.Check(cmd, cwd, role, hq); err != nil {
 		if guard.IsDelegate(err) {
+			if guard.IsClosed(err) {
+				return closedExit(stderr, err.Error())
+			}
 			return guard.RunPython(passArgs, raw, stdout, stderr)
 		}
 		fmt.Fprint(stderr, guard.Explain(err))
@@ -163,6 +166,12 @@ func parseArgs(args []string) (role string, hq bool) {
 		}
 	}
 	return "", hq
+}
+
+// closedExit is the exit 2 for a decision that needs the guard export when the export is unusable (T-0767).
+func closedExit(stderr io.Writer, why string) int {
+	fmt.Fprintf(stderr, "worker-guard(go): blocked (hook error, failing closed: %s)\n", why)
+	return 2
 }
 
 func failClosed(stderr io.Writer, why string) int {

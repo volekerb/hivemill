@@ -382,7 +382,7 @@ func uvxScan(words []string, prefix string) string {
 	return ""
 }
 
-// sandboxRoute is a port of Analyzer.sandbox_route; the test_sandbox config row is read by the Python hook (delegate).
+// sandboxRoute is a port of Analyzer.sandbox_route; the test_sandbox config row is read from the guard export.
 func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	if a.Role != "coder" && a.Role != "qa" {
 		return nil
@@ -439,8 +439,16 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 	case name == "uvx": // T-0745, T-0748
 		runner = uvxScan(rest, "uvx")
 	}
-	if runner != "" && !dbMissing() { // test_sandbox_on(): a config row of the factory DB, read by the Python hook
-		return delegate("sandbox_route: config test_sandbox is in the factory DB")
+	if runner == "" {
+		return nil
+	}
+	on, err := testSandboxOn() // a config row of the factory DB, read from the guard export
+	if err != nil {
+		return err
+	}
+	if on {
+		return blockf("bare test runner `" + runner + "` with test_sandbox=1: run it as `factory test " + name + " " +
+			strings.Join(rest, " ") + "` (runs under the test sandbox, T-0675)")
 	}
 	return nil
 }

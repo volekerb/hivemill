@@ -106,21 +106,31 @@ func pyRealpath(p string) string {
 	return resolved
 }
 
-// termsFromDBOnly is true when terms_paths(cwd) may hold a path only the factory DB knows: no exported terms-file
-// variable and a DB file that could carry the scrub_terms_file key.
-func termsFromDBOnly() bool { return len(termsPaths()) == 0 && !dbMissing() }
-
-// termsPaths is a port of terms_paths(cwd) for the environment source.
-func termsPaths() map[string]struct{} {
+// termsPaths is a port of terms_paths(cwd): every spelling of the scrub_terms_file config row (read from the guard
+// export, T-0767; the DB file must exist) and of the exported terms-file variable. The error is the fail-closed
+// "guard export unusable" one.
+func termsPaths() (map[string]struct{}, error) {
 	out := map[string]struct{}{}
-	v := strings.TrimFunc(os.Getenv(termsVar), pyIsSpace)
-	if v != "" {
-		v = expandUser(v)
-		out[v] = struct{}{}
-		out[pyNormpath(v)] = struct{}{}
-		out[pyRealpath(v)] = struct{}{}
+	// spawn exports the configured path to every worker: while the variable is set the export is not read (a path
+	// changed in the DB after the spawn is not seen, as documented), so a dead tick does not lock every terms role
+	// out of Bash; with the variable unset the export is the source of the row (T-0767, f1).
+	cfgPath := ""
+	if strings.TrimFunc(os.Getenv(termsVar), pyIsSpace) == "" {
+		var err error
+		if cfgPath, err = scrubTermsFile(); err != nil {
+			return nil, err
+		}
 	}
-	return out
+	for _, v := range []string{cfgPath, os.Getenv(termsVar)} {
+		v = strings.TrimFunc(v, pyIsSpace)
+		if v != "" {
+			v = expandUser(v)
+			out[v] = struct{}{}
+			out[pyNormpath(v)] = struct{}{}
+			out[pyRealpath(v)] = struct{}{}
+		}
+	}
+	return out, nil
 }
 
 type inode struct{ dev, ino uint64 }
@@ -400,7 +410,10 @@ func termsSplit(cmd string) []string {
 func TermsBash(cmd, cwd string) error { return termsBash(cmd, cwd, map[string]string{}, 0) }
 
 func termsBash(cmd, cwd string, env map[string]string, depth int) error {
-	paths := termsPaths()
+	paths, err := termsPaths()
+	if err != nil {
+		return err
+	}
 	if len(paths) == 0 {
 		return nil
 	}
