@@ -3,9 +3,9 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
-	"time"
 )
 
 // T-0767: the DB-reading decisions come from run/guard-export.json. Each payload below gets the Python hook's exit and
@@ -87,6 +87,16 @@ func TestPublicTextOnStillDelegatesWrites(t *testing.T) {
 	if code != 2 || !strings.Contains(stderr, "Python hook") {
 		t.Errorf("git commit with the rule on: exit %d %q, want the delegation to fail", code, stderr)
 	}
+	// a delegation that cannot run is exit 2, never an allow: no --py-hook, a directory, a hook that crashes
+	bad := filepath.Join(t.TempDir(), "hook.py")
+	if err := os.WriteFile(bad, []byte("import sys\nsys.exit(1)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"--role", "coder"}, {"--role", "coder", "--py-hook", t.TempDir()}, {"--role", "coder", "--py-hook", bad}} {
+		if code, stderr := call(t, bashPayload("git commit -m x"), env, args...); code != 2 || !strings.Contains(stderr, "failing closed") {
+			t.Errorf("%v: exit %d %q, want 2 failing closed", args, code, stderr)
+		}
+	}
 	if code, stderr := call(t, bashPayload("git status"), env, "--role", "coder", "--py-hook", noPy); code != 0 {
 		t.Errorf("git status with the rule on: exit %d %q, want 0", code, stderr)
 	}
@@ -103,7 +113,7 @@ func TestExportMissingUnparsableStaleExitsTwo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stale := strings.Replace(string(good), time.Now().UTC().Format("2006-01-02"), "2001-01-01", 1)
+	stale := regexp.MustCompile(`"generated_at": ?"[^"]*"`).ReplaceAllString(string(good), `"generated_at": "2001-01-01T00:00:00+00:00"`)
 	env := withTerms(t, "FACTORY_HOME="+home, "FACTORY_AGENT=coder-t-9")
 	need := bashPayload("factory goal show G-005")
 	for _, c := range []struct {

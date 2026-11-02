@@ -3,6 +3,7 @@ package guard
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -25,8 +26,8 @@ func TestGuardExportFailsClosed(t *testing.T) {
 		{"wrong version", ptr(strings.Replace(good, `"version":1`, `"version":2`, 1)), "unknown layout"},
 		{"no maps", ptr(`{"version":1,"generated_at":"` + time.Now().UTC().Format(time.RFC3339) + `"}`), "unknown layout"},
 		{"no generated_at", ptr(strings.Replace(good, "generated_at", "generated", 1)), "no valid generated_at"},
-		{"stale", ptr(strings.Replace(good, time.Now().UTC().Format("2006-01-02"), "2001-01-01", 1)), "is stale"},
-		{"far future", ptr(strings.Replace(good, time.Now().UTC().Format("2006-01-02"), "2999-01-01", 1)), "is stale"},
+		{"stale", ptr(setStamp(good, "2001-01-01T00:00:00Z")), "is stale"},
+		{"far future", ptr(setStamp(good, "2999-01-01T00:00:00Z")), "is stale"},
 	} {
 		home := dbHome(t)
 		if c.raw == nil {
@@ -71,6 +72,11 @@ func TestGuardExportFailsClosed(t *testing.T) {
 	if err := checkRole("factory goal show G-005", "coder"); IsClosed(err) || IsDelegate(err) {
 		t.Errorf("no DB file: %v", err)
 	}
+}
+
+// setStamp replaces the generated_at value of a test export, whatever the current date.
+func setStamp(doc, stamp string) string {
+	return regexp.MustCompile(`"generated_at":"[^"]*"`).ReplaceAllString(doc, `"generated_at":"`+stamp+`"`)
 }
 
 func ptr(s string) *string { return &s }
