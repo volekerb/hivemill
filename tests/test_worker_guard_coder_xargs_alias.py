@@ -22,10 +22,11 @@ DENIED = [
     "xargs -n 1 git",
     "git -c alias.x=push x origin main",
     "git -c alias.x='!git push' x",
+    "git -c alias.x=push x origin main",
 ]
 ALLOWED = [
     f"git push origin HEAD:factory/{TASK}",
-    "git status", "git log", "git commit -m x", "xargs grep foo", "git -c core.pager=cat log",
+    "git status", "git log", "git commit -m x", "xargs grep foo", "git -c core.pager=cat log", "git -c alias.x=status x",
 ]
 
 
