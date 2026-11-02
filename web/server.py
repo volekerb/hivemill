@@ -183,7 +183,8 @@ class Handler(BaseHTTPRequestHandler):
             if as_json:
                 body, ctype = json.dumps(data, default=str), "application/json"
             else:
-                shell = {**queries.shell_status(con, app.usage_fn() if app.usage_fn else None, app.defaults, mem=app.mem_fn() if app.mem_fn else None), "now": ctx.now}
+                shell = {**queries.shell_status(con, app.usage_fn() if app.usage_fn else None, app.defaults,
+                                                 mem=app.mem_fn() if app.mem_fn else None, now=ctx.now), "now": ctx.now}
                 body = page(getattr(view, "TITLE", active), view.render(ctx, data), active, shell=shell,
                             org=queries.org_param(ctx.query), path=getattr(self, "_path", None), query=ctx.query)
                 ctype = "text/html; charset=utf-8"
