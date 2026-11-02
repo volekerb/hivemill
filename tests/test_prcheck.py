@@ -1,6 +1,8 @@
 """factory prcheck (G-022 item 7): each of its checks has a failing and a passing case through the real CLI, and
 `factory done` is gated on a pass for the current HEAD when config prcheck_required is 1."""
+import fcntl
 import json
+import threading
 from pathlib import Path
 import unittest
 
@@ -160,6 +162,59 @@ class PrcheckTests(FactoryTestCase):
     def test_affected_zero_tests_fails(self):
         p = self.prcheck(1, env={"AFF_OUT": "Ran 0 tests in 0.0s"})
         self.assertIn("reported no tests run", p.stdout)
+
+    # -- 5b affected holds a test slot (T-0876) ----------------------------------------
+    def hold_slots(self, n):
+        d = self.env.user_home / ".cache" / "factory-test-slots"
+        d.mkdir(parents=True, exist_ok=True)
+        files = []
+        for i in range(n):
+            f = open(d / f"slot-{i}.lock", "a+")
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            files.append(f)
+            self.addCleanup(f.close)
+        return files
+
+    def stub_marker(self):
+        """Make the base ci/affected.py stub leave a marker (so a test sees whether it ran) and record slot-0's lock state."""
+        probe = ("import fcntl, os\nopen(os.environ['AFF_MARK'], 'a').write('ran\\n')\n"
+                 "f = open(os.path.expanduser('~/.cache/factory-test-slots/slot-0.lock'), 'a+')\n"
+                 "try:\n    fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)\n    open(os.environ['AFF_MARK'], 'a').write('slot0=free\\n')\n"
+                 "except BlockingIOError:\n    open(os.environ['AFF_MARK'], 'a').write('slot0=held\\n')\n")
+        commit(self.wt, "ci/affected.py", probe + AFFECTED_STUB, msg="probe")
+
+    def test_affected_waits_when_all_slots_busy_and_gives_up(self):
+        self.ok("config", "test_slots", "2")
+        self.hold_slots(2)
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        p = self.prcheck(1, env={"AFF_MARK": str(mark), "FACTORY_PRCHECK_SLOT_WAIT_S": "1", "FACTORY_PRCHECK_POLL_S": "0.1"})
+        self.assertIn("waiting for a test slot (2/2 busy", p.stdout)
+        self.assertIn("FAIL affected: no test slot free", p.stdout)
+        self.assertIn("NOT a pass", p.stdout)
+        self.assertFalse(mark.exists(), "the affected run must not start while every slot is busy")
+        self.assertEqual(self.events()[-1]["failed"], ["affected"])
+
+    def test_affected_runs_once_a_slot_frees_and_holds_it(self):
+        self.ok("config", "test_slots", "2")
+        files = self.hold_slots(2)
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        threading.Timer(1.0, files[0].close).start()  # closing the file drops its flock: slot 0 frees up
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "FACTORY_PRCHECK_SLOT_WAIT_S": "30", "FACTORY_PRCHECK_POLL_S": "0.1"})
+        self.assertIn("waiting for a test slot", p.stdout)
+        self.assertIn("PASS affected:", p.stdout)
+        self.assertEqual(mark.read_text().splitlines()[0], "ran")
+
+    def test_affected_run_holds_slot_visible_to_res(self):
+        self.ok("config", "test_slots", "2")
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        # the stub records into the marker file whether slot-0 was flocked while it ran
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "AFF_OUT": "Ran 3 tests in 0.1s"})
+        self.assertIn("PASS affected:", p.stdout)
+        self.assertEqual(mark.read_text(), "ran\nslot0=held\n")
+        self.assertIn("slots 0/2", self.ok("res").stdout)  # released again once prcheck exits
 
     # -- 6 tier ----------------------------------------------------------------------
     def test_tier_is_printed(self):
