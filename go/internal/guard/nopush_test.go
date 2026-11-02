@@ -9,7 +9,7 @@ import (
 // cases are the Python lists verbatim (plus the non-ASCII whitespace forms); the expected exit is what the Python hook
 // returned for each, role qa and evaluator alike.
 
-var noPushRolesList = []string{"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator"}
+var noPushRolesList = []string{"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
 
 var noPushCases = []struct {
 	cmd  string

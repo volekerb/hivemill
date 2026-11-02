@@ -29,6 +29,7 @@
     "unittest-shard (9)",
     "unittest-shard (10)",
     "go",
+    "guard-diff",
     "unittest"
   ]
 }
