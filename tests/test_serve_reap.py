@@ -231,3 +231,45 @@ class Ttl(FactoryTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnitProcessNeverSignalled(FactoryTestCase):
+    """T-0858: the unit's own `factory serve` is never signalled, even when systemctl cannot say its MainPID."""
+    UNIT_CG = "0::/user.slice/user-1000.slice/user" "@1000.service/app.slice/factory-serve.service\n"
+
+    def fake_serve(self, proc, pid, pad, cgroup):
+        d = proc / str(pid)
+        d.mkdir()
+        (d / "cmdline").write_bytes(b"python3\0/x/bin/factory\0serve\0")
+        (d / "environ").write_bytes(f"FACTORY_HOME={pad}/home\0".encode())
+        (d / "cgroup").write_text(cgroup)
+        os.symlink(str(pad), d / "cwd")
+
+    def reap(self, mainpid, cgroup):
+        e = self.env
+        e.seed_goal()
+        e.seed_task(status="todo", pr_url=None)
+        e.seed_agent("coder-t-0001", "coder", "G-001", None, "T-0001", status="exited")
+        tmp, proc = e.home / "faketmp", e.home / "fakeproc"
+        proc.mkdir()
+        slug = re.sub(r"[^A-Za-z0-9]", "-", str(e.home_dir / "worktrees")) + "-"
+        pad = tmp / f"claude-{os.getuid()}" / f"{slug}G-001-T-0001"
+        pad.mkdir(parents=True)
+        self.fake_serve(proc, 4242, pad, cgroup)
+        env = {"FACTORY_SERVE_PROC_DIR": str(proc), "FACTORY_TMP_DIR": str(tmp), "FACTORY_SERVE_MAINPID": mainpid,
+               "FACTORY_SERVE_KILL_GRACE_S": "0.1"}
+        sent = []
+        with mock.patch.dict(os.environ, env), self.env.load_factory() as mod:
+            mod.WORKTREES = e.home_dir / "worktrees"
+            with mock.patch.object(mod, "_serve_kill", lambda pid, sig: sent.append((pid, sig))):
+                mod.reap_stray_serves(mod.db())
+        return sent
+
+    def test_control_a_stray_serve_outside_the_unit_is_signalled(self):
+        self.assertEqual(self.reap("", "0::/user.slice/other.service\n")[0], (4242, signal.SIGTERM))
+
+    def test_unit_cgroup_is_untouched_when_mainpid_is_unknown(self):
+        self.assertEqual(self.reap("", self.UNIT_CG), [])
+
+    def test_mainpid_is_untouched(self):
+        self.assertEqual(self.reap("4242", "0::/user.slice/other.service\n"), [])
