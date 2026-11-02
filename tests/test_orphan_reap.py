@@ -200,6 +200,15 @@ class Argv(OrphanBase):
 
 
 class Never(OrphanBase):
+    def test_never_unit_cgroup_process_when_mainpid_is_unknown(self):
+        # T-0858: systemctl unreachable (MAINPID empty); control first: a plain fake is reaped
+        self.fake(802)
+        self.assertEqual(self.run_reaper(mainpid="")[0][0], 802)
+        self.fake(801)
+        (self.proc / "801" / "cgroup").write_text("0::/user.slice/user" "@1000.service/app.slice/factory-serve.service\n")
+        self.env.sql("DELETE FROM events")
+        self.assertUntouched(self.run_reaper())
+
     def test_never_agent_unset(self):
         self.fake(801, agent=None)
         self.assertUntouched(self.run_reaper())
