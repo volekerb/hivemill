@@ -10,7 +10,7 @@ from guard_impl import hook_run  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
-NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
 OTHER = ("coder", "cleaner", "judge")
 
 DENIED = [
