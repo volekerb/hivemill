@@ -46,7 +46,8 @@ class JudgeLoadExempt(DequeueBase):
         self.queue("zz-d", "director", "G-003", at(0))
         self.ok("config", "max_live_agents", "10")
         self.ok("tick", extra_env={"FACTORY_LOADAVG": HIGH})
-        self.assertEqual((self.status("zz-jd"), self.status("zz-l"), self.status("zz-d")), ("live", "queued", "queued"))
+        # the lead is load-exempt too (T-0867); the director is not
+        self.assertEqual((self.status("zz-jd"), self.status("zz-l"), self.status("zz-d")), ("live", "live", "queued"))
 
     def test_tick_judge_stays_queued_behind_lead_when_another_cap_is_closed(self):
         self.queue_judge()

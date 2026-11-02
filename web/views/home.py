@@ -71,7 +71,7 @@ def _system(ctx, ag):
     m = machine()
     load, cpus = (m.get("load") or [None])[0], m.get("cpus")
     u = ctx.usage_fn() if ctx.usage_fn else None
-    fresh = bool(u) and not u.get("unreadable") and u.get("five_hour") is not None
+    fresh = bool(u) and not u.get("unreadable") and (u.get("five_hour") is not None or u.get("seven_day") is not None)
     cap5, cap7 = _cfg(ctx, "max_five_hour_pct", 92), _cfg(ctx, "max_seven_day_pct", 92)
     return {"agents": {"live": live, "queued": queued, "cap": cap}, "memory": {"available_mb": mem, "floor_mb": floor},
             "load": {"load1": load, "cpus": cpus},
@@ -284,20 +284,8 @@ def _system_section(d):
 
 
 def _usage_row(u):
-    """"Claude usage" (the same label on every page): 5-hour and weekly bars stacked, one zone word for the worse one."""
-    p5, p7 = u["five_hour"], u["seven_day"]
-    if p5 is None:
-        return charts.gauge("Claude usage", "unknown", 0, [], ("neutral", "Unknown"), "5 h · week")
-    zones = [_tone(p5, u["cap_five_hour"])] + ([_tone(p7, u["cap_seven_day"])] if p7 is not None else [])
-    tone, word = max(zones, key=lambda z: ("success", "warning", "danger").index(z[0]))
-    if u["stale"]:
-        word = "Stale" if word == "OK" else f"{word}, stale"
-    bars = [charts.gauge_bar(p5, [u["cap_five_hour"]], zones[0][0], f"Claude usage 5-hour {p5:.0f}%, cap {u['cap_five_hour']:.0f}%")]
-    if p7 is not None:
-        bars.append(charts.gauge_bar(p7, [u["cap_seven_day"]], zones[1][0], f"Claude usage weekly {p7:.0f}%, cap {u['cap_seven_day']:.0f}%"))
-    text = f"{p5:.0f}%" + (f" · {p7:.0f}%" if p7 is not None else "")
-    return el("div", el("span", "Claude usage", class_="gl"), el("div", bars, class_="gauge-stack"),
-              el("span", text, el("span", el("b", word, class_=f"gz fg-{tone}"), " · 5 h · week"), class_="gv"), class_="gauge-row")
+    """Same row as the Resources page (one definition: web/views/resources.py usage_row)."""
+    return resources.usage_row(u)
 
 
 def _goals_section(d, now):
