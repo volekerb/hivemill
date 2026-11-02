@@ -435,12 +435,12 @@ def step_setup(c):
     c.do(u(["factory", "project", "add", "demo", "--name", "Demo", "--repo", repo]), cwd=c.home, what="factory project add")
     want = "PROBE ok (6 cases) role=pm"
     if c.plan:
-        c.note("factory cursor-pilot probe --role pm as the test user (owner); require exit 0 and %r" % want)
+        c.note("factory cursor-pilot --role pm as the test user (owner); require exit 0 and %r" % want)
     else:
         _, out = c.do(c.as_user(["factory", "cursor-pilot", "probe", "--role", "pm"]), cwd=c.home,
                       what="factory cursor-pilot probe")
         if want not in out:
-            raise StepFail("cursor-pilot probe output missing %r" % want)
+            raise StepFail("probe step output missing %r" % want)
     return "cloned %s%s; project 'demo' = a fresh git repo at ~/demo-repo" % (a.repo, " @ " + a.ref if a.ref else "")
 
 
