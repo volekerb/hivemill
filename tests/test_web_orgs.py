@@ -19,6 +19,12 @@ from web.views import agents, changelog, goals, home, quality, resources, tasks,
 CLASS_RE = re.compile(r'class="([^"]+)"')
 
 
+def add_parked_at(w):
+    from web.db import has_column
+    if not has_column(w, "teams", "parked_at"):
+        w.execute("ALTER TABLE teams ADD COLUMN parked_at TEXT")
+
+
 def add_org_columns(w):
     """The CLI side's migration: goals.org (NOT NULL DEFAULT 'claude') and agents.org (NULL on legacy rows)."""
     w.execute("ALTER TABLE goals ADD COLUMN org TEXT NOT NULL DEFAULT 'claude'")
@@ -149,17 +155,64 @@ class TestTwoOrgs(Base):
         cur = lanes["cursor"]
         self.assertEqual((cur["boss"]["name"], cur["boss"]["status"]), ("cursor-boss", "live"))
         self.assertEqual(cur["director"]["name"], "cursor-director")
-        self.assertEqual((cur["teams_live"], cur["workers_live"], cur["goals_active"]), (1, 1, 1))
+        self.assertEqual((cur["teams_active"], cur["leads_awake"], cur["leads_parked"], cur["leads_waking"],
+                          cur["workers_live"], cur["goals_active"]), (1, 1, 0, 0, 1, 1))
         cl = lanes["claude"]
         self.assertEqual(cl["boss"]["name"], "boss")              # the legacy unprefixed boss is the claude org's
         self.assertIsNone(cl["director"])
         self.assertEqual(cl["health"]["tone"], "warning")         # active goal, no director
-        self.assertEqual((cl["teams_live"], cl["workers_live"]), (1, 1))   # t-a (lead-a live), coder-2
+        self.assertEqual((cl["teams_active"], cl["leads_awake"], cl["leads_parked"], cl["leads_waking"],
+                          cl["workers_live"]), (1, 1, 0, 0, 1))   # t-a (lead-a live), coder-2
         self.assertIn('class="lane lane--claude"', html)
         self.assertIn('class="lane lane--cursor"', html)
         self.assertIn('href="/agents?org=cursor"', html)
         self.assertLess(set(), classes(html))
         self.assertEqual(classes(html) - wh.CLASSES, set())
+
+    def test_overview_lane_parked_lead_still_counts_active_team(self):
+        add_parked_at(self.w)
+        self.w.execute("UPDATE teams SET parked_at=? WHERE id='t-c'", (ts(9, 0),))
+        self.w.execute("UPDATE agents SET status='exited', ended=? WHERE name='cursor-lead-g-4-a'", (ts(9, 30),))
+        d, html = self.page(home)
+        cur = next(ln for ln in d["lanes"] if ln["org"] == "cursor")
+        self.assertEqual(cur["teams_active"], 1)
+        self.assertIn("1 teams · 0 lead awake · 1 parked · 0 waking · 1 workers", html)
+        self.assertNotIn("0 active teams", html)
+
+    def test_overview_lane_three_lead_states_at_once(self):
+        add_parked_at(self.w)
+        self.w.execute(
+            "INSERT INTO teams(id, goal_id, scope, lead_agent, tab_id, status, created) "
+            "VALUES('t-c2','G-4','scope C2','cursor-lead-g-4-b',NULL,'active',?)", (ts(8, 0),))
+        self.w.execute(
+            "INSERT INTO teams(id, goal_id, scope, lead_agent, tab_id, status, created) "
+            "VALUES('t-c3','G-4','scope C3','cursor-lead-g-4-c',NULL,'active',?)", (ts(8, 0),))
+        self.w.execute("UPDATE teams SET parked_at=? WHERE id='t-c2'", (ts(9, 0),))
+        self.w.execute(
+            "INSERT INTO agents(name,role,goal_id,team_id,status,model,started,ended,org) "
+            "VALUES('cursor-lead-g-4-b','lead','G-4','t-c2','exited','grok-4.7-high',?,?, 'cursor')",
+            (ts(8, 0), ts(9, 0)))
+        self.w.execute(
+            "INSERT INTO agents(name,role,goal_id,team_id,status,model,started,queued_at,org) "
+            "VALUES('cursor-lead-g-4-c','lead','G-4','t-c3','queued','grok-4.7-high',?,?, 'cursor')",
+            (ts(8, 0), ts(9, 0)))
+        d, _ = self.page(home)
+        cur = next(ln for ln in d["lanes"] if ln["org"] == "cursor")
+        self.assertEqual((cur["leads_awake"], cur["leads_parked"], cur["leads_waking"]), (1, 1, 1))
+
+    def test_overview_workers_counted_on_org_lane_only(self):
+        d, _ = self.page(home)
+        lanes = {ln["org"]: ln for ln in d["lanes"]}
+        self.assertEqual(lanes["cursor"]["workers_live"], 1)
+        self.assertEqual(lanes["claude"]["workers_live"], 1)
+        self.w.execute(
+            "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,model,started,org) "
+            "VALUES('claude-only-coder','coder','G-1','t-a','T-2','live','sonnet',?,'claude')",
+            (ts(11, 0),))
+        d, _ = self.page(home)
+        lanes = {ln["org"]: ln for ln in d["lanes"]}
+        self.assertEqual(lanes["claude"]["workers_live"], 2)
+        self.assertEqual(lanes["cursor"]["workers_live"], 1)
 
     def test_home_with_org_shows_only_that_lane_and_its_goals(self):
         d, html = self.page(home, query={"org": "cursor"})
