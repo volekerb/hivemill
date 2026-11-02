@@ -5918,6 +5918,22 @@ def _serve_mainpid():
     return int(out) if out.isdigit() and int(out) > 0 else None
 
 
+def _serve_unit_pids():
+    """Pids whose cgroup is factory-serve.service, read from /proc (no systemd call): the unit's process even when
+    _serve_mainpid() cannot reach systemd. Unreadable entries are skipped."""
+    out = set()
+    for d in _serve_proc_root().iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            text = (d / "cgroup").read_text(errors="replace")
+        except OSError:
+            continue
+        if re.search(r"/factory-serve\.service(/|$)", text, re.M):
+            out.add(int(d.name))
+    return out
+
+
 def _signal_serve(pid, sig, argv):
     """Send `sig` to pid only if its cmdline is still exactly `argv` (re-read right now: pid reuse guard)."""
     if _serve_argv(pid) != argv:
@@ -5962,11 +5978,11 @@ def reap_stray_serves(con):
         if last and t - float(last["ts"]) < SERVE_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('servereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
-        root, main_pid = _serve_proc_root(), _serve_mainpid()
+        root, unit_pids = _serve_proc_root(), _serve_unit_pids() | {_serve_mainpid()}
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped = {}
         for d in sorted(root.iterdir()):
-            if not d.name.isdigit() or int(d.name) in (os.getpid(), main_pid):
+            if not d.name.isdigit() or int(d.name) in unit_pids or int(d.name) == os.getpid():
                 continue
             pid = int(d.name)
             try:
@@ -6130,8 +6146,8 @@ def _orphan_judge(con, pid, skip):
 
 
 def _orphan_skip(main_pid):
-    """The tick, its ancestors and the factory-serve unit's MainPID."""
-    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    """The tick, its ancestors and the factory-serve unit's processes (MainPID, plus its cgroup members from /proc)."""
+    skip, cur = {os.getpid(), main_pid} | _serve_unit_pids(), os.getppid()
     for _ in range(64):
         if cur is None or cur <= 1:
             break
