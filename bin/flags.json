@@ -444,7 +444,7 @@
    "key": "red_main_interval_s",
    "kind": "setting",
    "default": "120",
-   "summary": "the red-main monitor asks gh at most this often",
+   "summary": "the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick",
    "goal": "",
    "doc": ""
   },
