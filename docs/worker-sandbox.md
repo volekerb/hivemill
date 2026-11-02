@@ -45,6 +45,16 @@ qa and coder run with `rw_cwd=True` on a per-task clone (`git clone --shared`, o
 
 The clone reads the shared objects through `<clone>/.git/objects/info/alternates`, so `git cat-file` of an object that exists only in `~/factory/.git/objects` works. New objects are written to the clone, never to `~/factory/.git`. `git push` and `git fetch` authenticate with the `credential.https://github.com.helper` of the agent's `gitconfig` (`username=x-access-token`, `password=$GH_TOKEN`: the rw token for coder, the read-only one for qa). The reviewer profile is unchanged: its cwd is read-only.
 
+### researcher profile (G-029, T-0847)
+
+The researcher runs third-party code (cloned repos, benchmarks), so it is in `scout.workerbox.SANDBOXABLE` and is **always sandboxed**: `sandbox_wanted` is true for it whatever `sandbox_roles` holds and with or without `--sandbox`. Turning the sandbox off is not an option for this role.
+
+- **cwd:** its per-task research dir `<XDG_STATE_HOME or ~/.local/state>/factory/research/<task>` is bound read-write (`rw_cwd=True`, like coder/qa). It sits under the hidden home, so the cwd rule admits exactly the directories directly below that research root for the researcher and for no other role. The root is passed by HQ, never read from the agent.
+- **token:** the read-only gh token (`gh-worker-ro-token`) only, even if the researcher is ever listed in `gh_rw_roles`. Secrets stay out of reach: `~/.config/factory/worker-oauth-token` (the file; the claude token is injected by the shim), `~/.ssh` and the owner's home are hidden, `~/factory` (including `roles/`) is read-only.
+- **network:** on, as for every worker profile. There is no egress filter: the researcher must reach public docs, package registries and git hosts, and an allow-list would break the job while the sandbox already keeps secrets and the factory out of reach. The read-only token cannot write to GitHub.
+- **fail closed:** if the preflight fails (no user namespaces, missing or wrong-mode `worker-oauth-token` or `gh-worker-ro-token`, ...), `spawn` and `relaunch` refuse with exit 3 before any pane is touched, and the message points at the owner steps in section 3 (O2). Nothing is started unsandboxed.
+- **tests:** `tests/test_researcher_sandbox.py`, including a real-namespace check (skipped where user namespaces are unavailable).
+
 ## 2. Credentials
 
 All three files are owner-created, regular files, mode 0600, owned by the owner, not empty, never a symlink (`workerbox` reads them with `nsbox.read_token`; the preflight checks the metadata only). Never paste a token into a message, a task, a PR or a log.
@@ -139,16 +149,6 @@ Every step: before it, the event log shows no `sandbox-refused` or `start-uncert
 Each later step is a new task with the same check list.
 
 ## 5. Flag and rollback
-
-### researcher profile (G-029, T-0847)
-
-The researcher runs third-party code (cloned repos, benchmarks), so it is in `scout.workerbox.SANDBOXABLE` and is **always sandboxed**: `sandbox_wanted` is true for it whatever `sandbox_roles` holds and with or without `--sandbox`. Turning the sandbox off is not an option for this role.
-
-- **cwd:** its per-task research dir `<XDG_STATE_HOME or ~/.local/state>/factory/research/<task>` is bound read-write (`rw_cwd=True`, like coder/qa). It sits under the hidden home, so the cwd rule admits exactly the directories directly below that research root for the researcher and for no other role. The root is passed by HQ, never read from the agent.
-- **token:** the read-only gh token (`gh-worker-ro-token`) only, even if the researcher is ever listed in `gh_rw_roles`. Secrets stay out of reach: `~/.config/factory/worker-oauth-token` (the file; the claude token is injected by the shim), `~/.ssh` and the owner's home are hidden, `~/factory` (including `roles/`) is read-only.
-- **network:** on, as for every worker profile. There is no egress filter: the researcher must reach public docs, package registries and git hosts, and an allow-list would break the job while the sandbox already keeps secrets and the factory out of reach. The read-only token cannot write to GitHub.
-- **fail closed:** if the preflight fails (no user namespaces, missing or wrong-mode `worker-oauth-token` or `gh-worker-ro-token`, ...), `spawn` and `relaunch` refuse with exit 3 before any pane is touched, and the message points at the owner steps in section 3 (O2). Nothing is started unsandboxed.
-- **tests:** `tests/test_researcher_sandbox.py`, including a real-namespace check (skipped where user namespaces are unavailable).
 
 The sandbox is behind one config key, `sandbox_roles`: a comma list of roles whose `claude` runs in the namespace sandbox. Empty (the default) means off, which is exactly today's behaviour.
 

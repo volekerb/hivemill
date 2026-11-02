@@ -82,7 +82,34 @@ class AlwaysSandboxedTests(ResearcherCase):
             args = json.loads(self.env.sql("SELECT spawn_args FROM agents WHERE name=?", (f"zz-x-{role}",))[0]["spawn_args"])
             self.assertFalse(args.get("sandbox"), role)
 
-    def test_sandbox_flag_does_not_change_it_and_roles_list_accepts_researcher(self):
+    def test_gh_rw_roles_never_gives_the_researcher_the_rw_token(self):
+        self.env.sql("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("gh_rw_roles", "coder,researcher"))
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            path, _slugs = mod.sandbox_gh_token(con, "researcher")
+            self.assertTrue(path.endswith("gh-worker-ro-token"), path)
+            self.assertTrue(mod.sandbox_gh_token(con, "coder")[0].endswith("gh-worker-rw-token"))
+
+    def test_bad_cwd_is_refused_and_the_research_dir_accepted(self):
+        other = Path(self.env.user_home) / "xdg-state" / "factory" / "research" / "t-0001" / "sub"
+        other.mkdir(parents=True)
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            old = os.environ.get("XDG_STATE_HOME")
+            os.environ["XDG_STATE_HOME"] = self.xdg["XDG_STATE_HOME"]
+            try:
+                good = str(other.parent)
+                self.assertIsNone(mod.sandbox_preflight("researcher", good, "zz-test-researcher", con))
+                for bad in (str(other), str(other.parent.parent), str(self.env.user_home)):
+                    r = mod.sandbox_preflight("researcher", bad, "zz-test-researcher", con)
+                    self.assertEqual(r[0], "cwd", bad)
+            finally:
+                if old is None:
+                    os.environ.pop("XDG_STATE_HOME", None)
+                else:
+                    os.environ["XDG_STATE_HOME"] = old
+
+    def test_roles_list_accepts_researcher_and_still_refuses_pm(self):
         self.assertEqual(self.env.run("config", "sandbox_roles", "reviewer,researcher").returncode, 0)
         self.assertEqual(self.env.run("config", "sandbox_roles", "pm").returncode, 2)
 
