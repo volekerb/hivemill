@@ -8161,6 +8161,7 @@ def coder_done_findings(con, r, force=False):
 # ── prcheck (G-022 item 7): a coder's pre-PR check, and the `factory done` gate on it ──
 
 PRCHECK_AFFECTED_TIMEOUT_S = 3600
+PRCHECK_SLOT_WAIT_S = 900  # T-0876: how long the affected run waits for a test slot before it gives up (CI verifies instead)
 _TEST_DEF = "^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_"
 _RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 _TESTS_REMOVED = re.compile(r"^\W*tests? removed:\s*\S", re.I | re.M)
@@ -8267,18 +8268,44 @@ def prcheck_public(con, t, wt, base):
     return True, "no hits"
 
 
-def prcheck_affected(wt, base):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note)."""
+def prcheck_take_slot(con):
+    """T-0876: take a host-wide test slot (tests/_slot.py, config test_slots) for the affected run, waiting up to
+    $FACTORY_PRCHECK_SLOT_WAIT_S (default PRCHECK_SLOT_WAIT_S). Returns True when held, False on timeout."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+    import _slot
+    wait = float(os.environ.get("FACTORY_PRCHECK_SLOT_WAIT_S") or PRCHECK_SLOT_WAIT_S)
+    poll = float(os.environ.get("FACTORY_PRCHECK_POLL_S") or 1)
+    n, start, last = _int_cfg(con, "test_slots", _slot.DEFAULT_SLOTS), time.monotonic(), None
+    while _slot.try_take(_slot.slot_dir(), n) is None:
+        now = time.monotonic()
+        if now - start >= wait:
+            return False
+        if last is None or now - last >= 30:
+            print(f"waiting for a test slot ({test_slot_usage(con)[0]}/{n} busy; see `factory res`)", flush=True)
+            last = now
+        time.sleep(poll)
+    return True
+
+
+def prcheck_affected(wt, base, con=None):
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
+    con = con or db()
+    if not prcheck_take_slot(con):
+        return False, ("no test slot free: not run, so this is NOT a pass; CI will verify. Rerun prcheck later, "
+                       "or `factory done` is accepted once CI on the PR head is green")
+    import _slot
     try:
         p = subprocess.run([sys.executable, str(script), "--base", f"origin/{base}", "--run"], cwd=wt, capture_output=True,
-                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S)
+                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S, env={**os.environ, "FACTORY_TEST_SLOT_HELD": "1"})
     except subprocess.TimeoutExpired:
         return False, f"ci/affected.py --run timed out after {PRCHECK_AFFECTED_TIMEOUT_S}s"
     except OSError as e:
         return False, f"cannot run ci/affected.py: {e}"
+    finally:
+        _slot.release()
     out = (p.stdout + p.stderr).strip()
     tail = "\n".join("      " + ln for ln in out.splitlines()[-8:])
     if p.returncode != 0:
@@ -8315,7 +8342,7 @@ def cmd_prcheck(a):
     results = []
     for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
                      ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
-                     ("affected", lambda: prcheck_affected(wt, base)), ("tier", lambda: prcheck_tier(wt, base))):
+                     ("affected", lambda: prcheck_affected(wt, base, con)), ("tier", lambda: prcheck_tier(wt, base))):
         ok, note = fn()
         results.append((name, ok, note))
         print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
