@@ -205,6 +205,18 @@ class TestGate(Base):
         self.assertTrue(g["open"])
         self.assertIn("claude usage unreadable", g["checks"])
 
+    def test_partial_usage_reading_text_and_reason(self):
+        partial = {**FRESH, "five_hour": None, "seven_day": 96.0}
+        g = self.gate(usage=partial)
+        self.assertIn("claude usage 5h n/a · week 96%", g["checks"])
+        self.assertIn("weekly usage 96% ≥ 92%", g["text"])
+        self.assertTrue(self.gate(usage={**partial, "seven_day": 90.0})["open"])
+        g = self.gate(usage={**partial, "seven_day": 99.0})
+        self.assertIn("weekly usage 99% ≥ 92%", g["text"])
+        g = self.gate(usage={**FRESH, "five_hour": 95.0, "seven_day": None})
+        self.assertIn("claude usage 5h 95% · week n/a", g["checks"])
+        self.assertIn("5h usage 95% ≥ 92%", g["text"])
+
     def test_rendered_label(self):
         _, html = self.page(resources)
         self.assertIn("no live pane check", html)
