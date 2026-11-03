@@ -87,7 +87,8 @@ def adapter_command(hooks_dir: Path, role: str, event: str, hq: bool = False) ->
     parts = ["python3", str(adapter.resolve())]
     if hq:
         parts.append("--hq")
-    else:
+    # HQ hooks use --hq only, but beforeMCPExecution must still know the role (only boss may use MCP).
+    if not hq or event == "beforeMCPExecution":
         parts.extend(["--role", role])
     parts.extend(["--event", event])
     return " ".join(shlex.quote(p) for p in parts)
@@ -97,17 +98,21 @@ def cursor_hooks_json(hooks_dir: Path, role: str, hq: bool = False) -> dict:
     """Cursor-native hooks.json that always fail-closed into the adapter."""
     shell_cmd = adapter_command(hooks_dir, role, "beforeShellExecution", hq=hq)
     tool_cmd = adapter_command(hooks_dir, role, "preToolUse", hq=hq)
+    mcp_cmd = adapter_command(hooks_dir, role, "beforeMCPExecution", hq=hq)
     return {
         "version": 1,
         "hooks": {
             "beforeShellExecution": [
                 {"command": shell_cmd, "failClosed": True},
             ],
+            "beforeMCPExecution": [
+                {"command": mcp_cmd, "failClosed": True},
+            ],
             "preToolUse": [
                 {
                     "command": tool_cmd,
                     "failClosed": True,
-                    "matcher": "Shell|Write|Delete|Read|Grep",
+                    "matcher": "Shell|Write|Delete|Read|Grep|StrReplace|EditNotebook",
                 },
             ],
         },
@@ -319,8 +324,8 @@ def works_needs_work() -> list[dict]:
          "detail": "same place/prompt path as Claude; kind=cursor"},
         {"item": "worker ghcred / Cursor --sandbox (no Claude nsbox)", "status": "WORKS",
          "detail": "pane env gets ghcred; --sandbox enabled when sandbox_roles match"},
-        {"item": "MCP strict empty (user MCP blind)", "status": "NEEDS_WORK",
-         "detail": "empty project mcp.json is best-effort only"},
+        {"item": "MCP strict empty (user MCP blind)", "status": "WORKS",
+         "detail": "beforeMCPExecution → cursor-guard-adapter (non-boss deny; boss → worker-guard)"},
         {"item": "Process audits expecting claude argv", "status": "NEEDS_WORK",
          "detail": "claude_procs / flagless checks ignore cursor-agent (OK for pure-Cursor)"},
         {"item": "Plugin dir .claude-plugin packs via --plugin-dir", "status": "UNKNOWN",

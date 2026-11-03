@@ -91,7 +91,7 @@ Models: factory `MODELS` / `model_<role>` pass through to Cursor `--model`.
 - **skilleval evaluator** stays Claude.
 - **nsbox vs Cursor sandbox:** Claude **nsbox** (user/mount namespace around `claude`) is **not** wrapped around Cursor agents. For a Cursor role listed in `sandbox_roles`, spawn turns on Cursor **`--sandbox enabled`** and still runs **worker-guard** via hooks — that is separate from nsbox.
 - **Worker GitHub credentials (M15876):** When the role is in config **`worker_gh_roles`**, an unsandboxed Cursor worker pane gets the same **`ghcred` shim env** as a Claude worker (`GIT_CONFIG_GLOBAL`, `GH_CONFIG_DIR`, `PATH` prefix, token file paths). This is normal spawn wiring, **not** a spawn-time refusal.
-- **User MCP blinding:** Materializing an empty project `.cursor/mcp.json` at spawn does **not** hide the owner's **`~/.cursor/mcp.json`**. User MCP is **not fully blinded** for Cursor the way Claude uses `--strict-mcp-config`. Status **NEEDS_WORK** — tracked as **T-0828**; do not document full MCP isolation as done.
+- **User MCP blinding:** Empty project `.cursor/mcp.json` alone does **not** hide **`~/.cursor/mcp.json`**, but spawn materializes a **`beforeMCPExecution`** hook (`failClosed: true`) that denies MCP for every Cursor factory role except **boss** (boss delegates to **worker-guard**, same posture as Claude without `--strict-mcp-config`). User/plugin MCP calls are blocked at the hook, not by config stripping alone.
 - **flagless / claude_procs** audits ignore Cursor argv (expected).
 - Auth: `agent login` or `CURSOR_API_KEY`.
 

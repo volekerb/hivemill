@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Translate Cursor Agent hook stdin into worker-guard.py's Claude PreToolUse shape.
 
-Cursor events (docs.cursor.com/docs/hooks):
+Cursor events (https://cursor.com/docs/hooks — beforeMCPExecution verified 2026-11-03):
   beforeShellExecution  — {command, cwd, sandbox}; expects JSON {permission: allow|deny|ask}
+  beforeMCPExecution    — {tool_name, tool_input, mcp_server_name, ...}; same permission shape
   preToolUse            — {tool_name, tool_input, cwd, ...}; expects JSON {permission: allow|deny}
                           or exit 2 to deny (Claude-compatible)
 
@@ -60,7 +61,7 @@ def to_claude_payload(data: dict, event: str) -> dict | None:
             return {"tool_name": "Bash", "tool_input": {}, **base}
         return {"tool_name": "Bash", "tool_input": {"command": cmd}, **base}
 
-    if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit", "Delete"):
+    if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit", "Delete", "StrReplace", "EditNotebook"):
         path = _path_from_tool_input(ti)
         # Delete → treat as Write path check (persist / live-home path rules)
         return {"tool_name": "Write", "tool_input": {"file_path": path or ""}, **base}
@@ -72,6 +73,26 @@ def to_claude_payload(data: dict, event: str) -> dict | None:
         return {"tool_name": "Grep", "tool_input": {"path": path or ""}, **base}
 
     return None  # unknown tool: do not invent a block
+
+
+def mcp_to_guard_payload(data: dict) -> dict:
+    """Map beforeMCPExecution stdin to worker-guard PreToolUse (non-Bash tools are allowed in guard)."""
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else None
+    base: dict = {}
+    if cwd:
+        base["cwd"] = cwd
+    if isinstance(data.get("session_id"), str):
+        base["session_id"] = data["session_id"]
+    tool = data.get("tool_name") if isinstance(data.get("tool_name"), str) else "MCP"
+    ti = data.get("tool_input")
+    if isinstance(ti, str):
+        try:
+            ti = json.loads(ti)
+        except Exception:
+            ti = {}
+    if not isinstance(ti, dict):
+        ti = {}
+    return {"tool_name": tool, "tool_input": ti, **base}
 
 
 def run_guard(payload: dict, role: str | None, hq: bool) -> subprocess.CompletedProcess:
@@ -101,7 +122,7 @@ def emit_cursor_decision(event: str, allow: bool, reason: str) -> int:
     body = {"permission": "deny", "agent_message": msg, "user_message": msg}
     print(json.dumps(body))
     # Also exit 2 for preToolUse Claude-compat (Cursor accepts both).
-    return 2 if event == "preToolUse" else 0
+    return 2 if event in ("preToolUse", "beforeMCPExecution") else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -111,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--event",
         default=None,
-        help="beforeShellExecution|preToolUse (else read hook_event_name from stdin JSON)",
+        help="beforeShellExecution|beforeMCPExecution|preToolUse (else read hook_event_name from stdin JSON)",
     )
     args = p.parse_args(argv)
 
@@ -132,13 +153,32 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     event = args.event or data.get("hook_event_name") or data.get("event")
-    if event not in ("beforeShellExecution", "preToolUse"):
-        # Unknown event: fail closed for this adapter (it is only wired for those two).
+    if event not in ("beforeShellExecution", "preToolUse", "beforeMCPExecution"):
+        # Unknown event: fail closed for this adapter (it is only wired for these).
         print(json.dumps({
             "permission": "deny",
             "agent_message": f"cursor-guard-adapter: unsupported event {event!r}",
         }))
         return 2
+
+    if event == "beforeMCPExecution":
+        role = args.role or "worker"
+        if role != "boss":
+            msg = f"MCP disabled for factory role {role}"
+            return emit_cursor_decision(event, False, msg)
+        payload = mcp_to_guard_payload(data)
+        try:
+            r = run_guard(payload, role, args.hq)
+        except Exception as e:
+            print(json.dumps({
+                "permission": "deny",
+                "agent_message": f"cursor-guard-adapter: guard failed ({e})",
+            }))
+            return 2
+        if r.returncode == 0:
+            return emit_cursor_decision(event, True, "")
+        reason = (r.stderr or r.stdout or f"worker-guard exit {r.returncode}").strip()
+        return emit_cursor_decision(event, False, reason)
 
     payload = to_claude_payload(data, event)
     if payload is None:
