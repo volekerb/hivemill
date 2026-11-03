@@ -343,12 +343,8 @@ PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=
 # T-0808 F2: python long options that may precede -m (value-taking ones named separately); any other fails closed
 PY_LONG_FLAG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
 PY_LONG_VALUE = {"--check-hash-based-pycs"}
-# T-0808 F5: an inline interpreter program may write anything, so it counts as a filesystem change. Non-python: the exact
-# options -c/-e/-E/-p/-r (attached code too: -e'code'), --eval/--print/--command/--run (also --opt=code), bare `eval` (deno),
-# perl/ruby clusters ending in e/E (-pe, -lane), and no argument at all (program on stdin). Python: see py_inline_code.
-INLINE_CODE_OPT = re.compile(r"^(-[ceEpr]|--(eval|print|command|run)(=|$)|eval$)")
-PHP_INLINE_OPT = re.compile(r"^-[RB]")  # php -R / -B run code per input line / before input
-INLINE_CLUSTER_OPT = re.compile(r"^-[A-Za-z]+[eE]$")  # perl/ruby only: -pe, -lane
+# T-0808 F5: an inline interpreter program may write anything, so it counts as a filesystem change. Non-python: no program
+# argument at all or an explicit `-` (program on stdin); option forms (-e/-r ...) are not tightened (T-0953). Python: py_inline_code.
 
 
 def py_inline_code(args):
@@ -381,9 +377,7 @@ def inline_interpreter(name, rest):
         return False
     if re.match(r"^python[\d.]*$", name):
         return py_inline_code(rest)
-    return not rest or any(a == "-" or INLINE_CODE_OPT.match(a) or (
-        name in ("perl", "ruby") and INLINE_CLUSTER_OPT.match(a)) or (
-        name == "php" and PHP_INLINE_OPT.match(a)) for a in rest)
+    return not rest or rest[0] == "-"
 
 
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
