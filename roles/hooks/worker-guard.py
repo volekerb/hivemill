@@ -339,7 +339,7 @@ PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=
 PY_LONG_FLAG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
 PY_LONG_VALUE = {"--check-hash-based-pycs"}
 # T-0808 F5: an inline interpreter program (-c/-e/-p/-r/--eval) may write anything, so it counts as a filesystem change
-INLINE_CODE_OPT = re.compile(r"^(-[A-Za-z]*[ceEpr][A-Za-z]*|--eval|--print|--command)$")
+INLINE_CODE_OPT = re.compile(r"^(-[A-Za-z]*[ceEpr]|--(eval|print|command)(=|$)|eval$)")  # prefix match: -c'code', --eval=code
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 # T-0805 rule E: the only options an extracting tar/bsdtar/unzip may carry, matched exactly (no prefix matching: GNU tar
 # accepts --xfo= for --xform=); anything else can rewrite, add or re-read member names so the listing no longer matches

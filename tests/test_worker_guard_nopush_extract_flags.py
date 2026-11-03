@@ -75,7 +75,11 @@ class ExtractFlagTests(unittest.TestCase):
         s = self.scratch
         self.check([f"python3 -c 'import os; os.symlink(\"{s}/r/.git\", \"{s}/clean/l\")' && unzip {self.zip} -d {s}/clean",
                     f"python3 -c 'open(\"x\", \"w\")'; unzip {self.zip} -d {s}/clean",
-                    f"perl -e 'symlink(\"a\",\"b\")' && unzip {self.zip} -d {s}/clean"], 2)
+                    f"perl -e 'symlink(\"a\",\"b\")' && unzip {self.zip} -d {s}/clean",
+                    f"python3 -c'open(\"x\", \"w\")'; unzip {self.zip} -d {s}/clean",
+                    f"perl -e'symlink(\"a\",\"b\")' && unzip {self.zip} -d {s}/clean",
+                    f"node --eval='1' && unzip {self.zip} -d {s}/clean",
+                    f"deno eval '1' && unzip {self.zip} -d {s}/clean"], 2)
         self.check([f"unzip {self.zip} -d {s}/clean"], 0)
 
 
