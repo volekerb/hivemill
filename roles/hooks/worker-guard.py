@@ -557,19 +557,22 @@ SED_E = re.compile(r"(?:^|[;{}]|\d|\$|,)\s*e\s+(.*)|/[gIpmM]*e[gIpmM]*(?:\s|;|$)
 AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 
-ENV_LONG_OK = ("--null", "--debug", "--argv0", "--block-signal", "--default-signal", "--ignore-signal",
-               "--list-signal-handling", "--help", "--version", "--chdir", "--split-string")
+ENV_LONG_OK = ("--null", "--debug", "--block-signal", "--default-signal", "--ignore-signal",
+               "--list-signal-handling", "--help", "--version", "--split-string")
+ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: these take a value (next word or =value) that is not the command word
 
 
 def env_long(a):
     """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "ignore"
-    (a prefix of --ignore-environment that is not an exact other long option), "ok" (an exact harmless long option) or
-    "unknown" (fail closed). `a` may carry an `=value`."""
+    (a prefix of --ignore-environment that is not an exact other long option), "value" (a prefix of --argv0/--chdir:
+    its value is the next word unless `=value`), "ok" (an exact harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
     name = a.split("=", 1)[0]
     if len(name) < 3:
         return "unknown"
     if "--unset".startswith(name):
         return "unset"
+    if any(v.startswith(name) for v in ENV_VALUE_LONG):
+        return "value"
     if name in ENV_LONG_OK:
         return "ok"
     if "--ignore-environment".startswith(name):
@@ -963,9 +966,19 @@ class Analyzer:
             raise Block("unset of FACTORY_ROLE/HERDR_PANE_ID")
         if name != "env":
             return
+        skip = False
         for j, a in enumerate(rest):
+            if skip:  # T-0826: the value of -a/--argv0/-C/--chdir is not an option and not the command word
+                skip = False
+                continue
             if not a.startswith("-") and not ASSIGN.match(a):
                 break
+            if a.startswith("--") and env_long(a) == "value" and "=" not in a:
+                skip = True
+                continue
+            if re.match(r"^-[A-Za-z]*[aC]$", a) and not re.match(r"^-[A-Za-z]*[uS]", a):
+                skip = True
+                continue
             if a in ("-u", "--unset") and rest[j + 1:j + 2] and rest[j + 1] in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
             if a.startswith("-u") and a[2:] in SCRUB_VARS or a.startswith("--unset=") and a[8:] in SCRUB_VARS:
@@ -2509,9 +2522,6 @@ class Analyzer:
             q = collections.deque(rest)
             it = iter(lambda: q.popleft() if q else None, None)  # -S pushes its words back onto q
             for a in it:
-                if a in ("-C", "--chdir"):  # takes a directory argument: skip it, keep scanning for -u
-                    next(it, None)
-                    continue
                 if a in ("-S", "--split-string") or a.startswith("--split-string=") or (a.startswith("-S") and not a.startswith("--")):
                     # re-parse the string as env options
                     sval = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a[2:] if a.startswith("-S") and a != "-S" else next(it, "")
@@ -2528,6 +2538,10 @@ class Analyzer:
                     for k, c in enumerate(a[1:], 1):
                         if c == "i":
                             deny("env " + a, "the whole environment", "clear or unset")
+                        if c in "aC":  # T-0826: value is the rest of the cluster or the next word
+                            if not a[k + 1:]:
+                                next(it, None)
+                            break
                         if c == "u":  # -uNAME, or the next word
                             names = [a[k + 1:] or next(it, "")]
                             break
@@ -2539,6 +2553,10 @@ class Analyzer:
                         deny("env " + a, "the whole environment", "clear or unset")
                     if kind == "unknown":
                         deny("env " + a, "an env option this guard does not model", "run")
+                    if kind == "value":
+                        if "=" not in a:
+                            next(it, None)
+                        continue
                     if kind == "unset":
                         names = [a.split("=", 1)[1]] if "=" in a else [next(it, "")]
                     else:

@@ -45,6 +45,21 @@ DENIED = [
     "for x path (a) ls; done",
     "repeat PATH=1 ls",
     "repeat GIT_DIR=1 git status",
+    "env --argv0 foo --uns GIT_DIR git status",
+    "env -a foo -u GIT_DIR git status",
+    "env --argv0 foo --ignore-env git status",
+    "env --argv0 foo -i git status",
+    "env --argv0 foo --uns PATH ls",
+    "env --argv0 foo --xyz ls",
+    "env --argv0 foo --unset FACTORY_ROLE git status",
+    "env --argv0=foo -u GIT_DIR git status",
+    "env --arg foo -u GIT_DIR git status",
+    "env -afoo -u GIT_DIR git status",
+    "env -C /tmp -u GIT_DIR git status",
+    "env --chdir /tmp --uns GIT_DIR git status",
+    "env --chdir=/tmp -i git status",
+    "env --ch /tmp -i git status",
+    "env -C/tmp -i git status",
 ]
 ALLOWED = [
     "env FOO=1 ls",
@@ -64,6 +79,21 @@ ALLOWED = [
     "for x y in a b; do ls; done",
     "repeat 1 ls",
     "- ls",
+    "env -a foo ls",
+    "env -C /tmp ls",
+    "env --argv0 foo ls",
+    "env --chdir=/tmp ls",
+]
+SCRUB = [
+    "env -a x -u FACTORY_ROLE ls",
+    "env --argv0 x -u FACTORY_ROLE ls",
+    "env --chdir /tmp --unset FACTORY_ROLE ls",
+    "env -C /tmp -u FACTORY_ROLE ls",
+    "env -C /tmp --uns FACTORY_ROLE ls",
+    "env -afoo -u HERDR_PANE_ID ls",
+    "env -C/tmp -u FACTORY_ROLE ls",
+    "env --ch /tmp -u FACTORY_ROLE ls",
+    "env --arg x --unset=FACTORY_ROLE ls",
 ]
 
 
@@ -92,6 +122,16 @@ class EnvPrefixZshModifierTests(unittest.TestCase):
             for cmd in ("env --uns FACTORY_ROLE ls", "env --uns=HERDR_PANE_ID ls"):
                 with self.subTest(role=role, cmd=cmd):
                     self.assertEqual(self.run_hook(cmd, role).returncode, 2)
+
+    def test_scrub_after_value_option_refused_for_coder(self):
+        for cmd in SCRUB:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd, "coder").returncode, 2)
+
+    def test_value_option_then_command_allowed_for_coder(self):
+        for cmd in ("env -a foo ls", "env -C /tmp ls"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd, "coder").returncode, 0)
 
 
 if __name__ == "__main__":
