@@ -24,6 +24,21 @@ def commit(cwd, name, text="x\n", email=NOREPLY, msg="work"):
     git("commit", "-qm", msg, cwd=cwd, env={"GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_EMAIL": email})
 
 
+# -- T-0947: `## Test evidence` needs a literal command line plus an output line ------------------------------
+# Test evidence sections of merged PRs #326, #322, #321, #319 and #329, verbatim (they must keep passing).
+EVIDENCE_FIXTURES = {
+    '326': "`python3 -m unittest tests.test_guard_diff.SettingsCompareTests` -> Ran 13, OK (incl. new test_b4_deleted_template_is_loosened_with_repo_subdir, retry fix for B1: ls-tree --full-tree; fails with --full-tree removed, passes with it). Not run: the full module or the real corpus (load rules). Test count (merge-tree of origin/main + HEAD): 5678; origin/main: 5666. No `def test_` removed or renamed vs merge-base; no existing test changed.\nWith origin/main's guard_diff.py: Ran 12, FAILED (failures=9) (the 3 passes are the no-noise, legacy and no-base-dir cases).",
+    '322': '- `cd tests && python3 -m unittest test_worker_guard_flags_read test_guard_impl_coverage`: Ran 10, OK.\n- Hook change removed: new module Ran 5, FAILED (failures=90).\n- def test_ count: merged tree 5666, origin/main 5661.\n- guard-diff and unittest shards: from PR CI.',
+    '321': '`python3 -m unittest tests.test_judge_hold_flag -v` → Ran 13 tests, OK (three consecutive runs).\n\n`python3 ci/affected.py --base origin/main --quick --run` → FULL needed: rely on CI (main changed bin/factory_cli.py).\n\nRegressions fail on 96b1939f: swapped `bin/factory_cli.py` to that rev, `test_historical_fails_latest_pass_spawns_when_hold_clear` and `test_exited_judge_row_does_not_block_autospawn` → FAIL.\n\nTest count: origin/main 5666 `def test_`, branch 5679 (+13 in new file).',
+    '319': "PR CI run 41709408705 on 3ba705752, all jobs green:\n- `unittest-shard (8)` job, module tests.test_guard_shim (28 of 28 tests in that block) -> `Ran 28 tests in 6.060s`, `OK`\n- `GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run` (guard-diff job; first module tests.test_worker_guard) -> `Ran 41 tests in 47.828s`, `OK`\n- go job: go vet, gofmt, `go test -race` clean\n- Test count (`git grep -E 'def test_' <tree> | wc -l`): main 9685854d7 5697; PR merged into main 5725; 0 removed vs merge-base. C4 done (unmapped shim exits 1).\nSelf-review: 0 findings (attempt 2 diff read in full; Python and Go rules identical, message only). Reviewer PASS on b1923434 (M19931).",
+    '329': '`python3 -m unittest discover -s tests -p test_research_skills.py` and the flow, role and plugins modules: all OK. Merged 5682 tests vs main 5679. PR CI green. Details below.',
+}
+
+
+def evidence_body(section):
+    return pr_body().replace("`python3 -m unittest` -> OK", section)
+
+
 class PrcheckTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
@@ -470,6 +485,54 @@ class PrcheckTests(FactoryTestCase):
         p = self.done()
         self.assertEqual(p.returncode, 3, p.stderr)
         self.assertIn("fresh FAIL", p.stderr)
+
+    # -- T-0947: Test evidence needs a command line plus an output line
+    def body_result(self, section, code):
+        self.env.seed_pr(url=PR_URL, body=evidence_body(section))
+        return self.prcheck(code)
+
+    def test_evidence_count_without_command_fails(self):  # acceptance 1 (T-0937 shape)
+        p = self.body_result("Ran 5 in the new module, OK.", 1)
+        self.assertIn("no command in backticks", p.stdout)
+        self.assertIn("e.g. `python3 -m unittest", p.stdout)
+
+    def test_evidence_backticked_file_name_is_not_a_command(self):  # acceptance 2 (T-0928 shape)
+        p = self.body_result("`test_ci_corpus_step.py`: Ran 7, OK.", 1)
+        self.assertIn("no command in backticks", p.stdout)
+
+    def test_evidence_command_without_output_fails(self):  # acceptance 3
+        p = self.body_result("`python3 -m unittest tests.test_x`", 1)
+        self.assertIn("no output line", p.stdout)
+        self.assertIn("Ran 7, OK", p.stdout)
+
+    def test_evidence_command_only_inside_details_fails(self):  # acceptance 3
+        body = pr_body().replace("`python3 -m unittest` -> OK", "Ran 5, OK.").replace(
+            "</details>", "`python3 -m unittest tests.test_x` -> Ran 5, OK\n</details>")
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("no command in backticks", self.prcheck(1).stdout)
+
+    def test_evidence_real_sections_pass(self):  # acceptance 4
+        for num, section in EVIDENCE_FIXTURES.items():
+            with self.subTest(pr=num):
+                self.assertIn("PASS body:", self.body_result(section, 0).stdout)
+
+    def test_evidence_fenced_block_passes(self):  # acceptance 5
+        p = self.body_result("```\n$ python3 -m unittest tests.test_x\nRan 7 tests in 0.1s\nOK\n```", 0)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_fenced_block_without_output_fails(self):
+        p = self.body_result("```\npython3 -m unittest tests.test_x\n```", 1)
+        self.assertIn("no output line", p.stdout)
+
+    def test_evidence_ci_only_line_passes(self):  # acceptance 5 (#319 form)
+        p = self.body_result("PR CI run 1 on abc1234: `unittest-shard (8)` job, `python3 -m unittest tests.test_x` -> "
+                             "`Ran 28 tests in 6.060s`, `OK`", 0)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_chained_command_and_var_prefix_pass(self):
+        for cmd in ("`cd go && test -z x && go test -race ./...` -> ok", "`FOO=1 ci/affected.py --quick` -> rc=0"):
+            with self.subTest(cmd=cmd):
+                self.assertIn("PASS body:", self.body_result(cmd, 0).stdout)
 
 
 if __name__ == "__main__":

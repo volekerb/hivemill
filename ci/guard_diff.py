@@ -325,30 +325,51 @@ def normalise_rule(rule):
 
 
 def settings_rules(text, legacy=False):
-    """{(kind, rule)} for the allow/deny lists plus the hook commands of one settings JSON text."""
+    """{(kind, rule)} of one settings JSON text: the allow/deny lists, every hook as
+    `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field) and every env entry as `K=V`."""
     d = json.loads(text)
+    fix = normalise_rule if legacy else (lambda x: x)
     out = set()
     for kind in ("allow", "deny"):
         for rule in d.get("permissions", {}).get(kind, []):
-            out.add((kind, normalise_rule(rule) if legacy else rule))
-    for group in d.get("hooks", {}).get("PreToolUse", []):
-        for h in group.get("hooks", []):
-            cmd = h.get("command", "")
-            out.add(("hook", normalise_rule(cmd) if legacy else cmd))
+            out.add((kind, fix(rule)))
+    for event, groups in d.get("hooks", {}).items():
+        for group in groups:
+            for h in group.get("hooks", []):
+                out.add(("hook", "|".join((event, group.get("matcher", ""), h.get("type", ""), fix(h.get("command", ""))))))
+    for key, value in d.get("env", {}).items():
+        out.add(("env", f"{key}={fix(str(value))}"))
     return out
 
 
+def base_settings_roles(repo, base):
+    """Roles that have a roles/settings/<role>.json.in or legacy <role>.json on <base> (none if the dir is absent)."""
+    out = git(repo, "ls-tree", "--full-tree", "--name-only", "--end-of-options", base, SETTINGS_DIR + "/")
+    roles = set()
+    for path in out.splitlines():
+        name = os.path.basename(path)
+        for suffix in (".json.in", ".json"):
+            if name.endswith(suffix):
+                roles.add(name[:-len(suffix)])
+                break
+    return roles
+
+
 def compare_settings(repo, top, base):
-    """Diff the rules of every roles/settings/<role>.json.in in the working tree against <base>. Returns
-    (lines, loosened): a removed deny, an added allow or a removed hook is LOOSENED; the reverse is TIGHTENED."""
+    """Diff the rules of every roles/settings/<role>.json.in against <base>, over the union of the roles on base and
+    in the tree. Returns (lines, loosened): a removed deny, hook or env entry, an added allow, or a removed template is
+    LOOSENED; a removed allow or an added deny or hook is TIGHTENED; an added env entry is SETTINGS-CHANGED."""
     sdir = os.path.join(top, SETTINGS_DIR)
-    if not os.path.isdir(sdir):
-        return [], []
+    tree_roles = set()
+    if os.path.isdir(sdir):
+        tree_roles = {n[:-len(".json.in")] for n in os.listdir(sdir) if n.endswith(".json.in")}
     lines, loosened = [], []
-    for name in sorted(os.listdir(sdir)):
-        if not name.endswith(".json.in"):
+    for role in sorted(tree_roles | base_settings_roles(repo, base)):
+        name = f"{role}.json.in"
+        if role not in tree_roles:
+            lines.append(f"SETTINGS-LOOSENED {role} template removed")
+            loosened.append(f"{role} template removed")
             continue
-        role = name[:-len(".json.in")]
         try:
             with open(os.path.join(sdir, name), encoding="utf-8") as f:
                 new = settings_rules(f.read())
@@ -366,11 +387,12 @@ def compare_settings(repo, top, base):
         except ValueError as e:
             raise UsageError(f"base {name} is not valid JSON: {e}")
         for kind, rule in sorted(old - new):
-            lines.append(f"SETTINGS-{'LOOSENED' if kind in ('deny', 'hook') else 'TIGHTENED'} {role} {kind} removed: {rule}")
-            if kind in ("deny", "hook"):
+            lines.append(f"SETTINGS-{'LOOSENED' if kind in ('deny', 'hook', 'env') else 'TIGHTENED'} {role} {kind} removed: {rule}")
+            if kind in ("deny", "hook", "env"):
                 loosened.append(f"{role} {kind} removed: {rule}")
         for kind, rule in sorted(new - old):
-            lines.append(f"SETTINGS-{'LOOSENED' if kind == 'allow' else 'TIGHTENED'} {role} {kind} added: {rule}")
+            word = {"allow": "LOOSENED", "env": "CHANGED"}.get(kind, "TIGHTENED")
+            lines.append(f"SETTINGS-{word} {role} {kind} added: {rule}")
             if kind == "allow":
                 loosened.append(f"{role} {kind} added: {rule}")
     return lines, loosened

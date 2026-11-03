@@ -2,7 +2,11 @@
 
 `ci/guard_diff.py` compares the worker-guard hook on a base ref (normally `origin/main`) with the hook in your working tree. It answers one question mechanically: does this PR silently loosen a block that main has, or add a false positive?
 
-## Usage
+## In CI
+
+The `guard-diff` job's real-corpus step in `.github/workflows/tests.yml` runs both commands below on every PR that changes `roles/hooks/**`, `roles/settings/**`, `ci/guard_corpus.json`, `ci/guard_diff.py`, `ci/public_text_guard.py`, `ci/scrub_scan.py` (the hook loads them), `.github/workflows/tests.yml` (so a gate change proves itself) or `go/internal/guard/**`, `go/cmd/worker-guard/**` or `go/internal/shlex/**`, with `--base` set to the PR base sha. The `guard-diff` job feeds the required `unittest` aggregate, so rc!=0 (a LOOSENED line) fails the PR. The tool (`ci/guard_diff.py`, `tests/_slot.py`) is extracted from the base commit, so a PR cannot weaken its own gate; a base without it falls back to the PR copy. The corpus is passed twice on both runs, `--corpus <base ci/guard_corpus.json> --corpus ci/guard_corpus.json`, so deleting a `must_block` entry in the PR still shows as LOOSENED. The job fails if `ci/guard_corpus.json` has 100 lines or fewer (not the real corpus). A PR that adds `ci/allow_loosen_*.json` has it merged into one `--allow-loosen` list and printed in the job log for the reviewer. Coders do not run the tool locally (load, M16816); they read this job's log.
+
+## Usage (local, for reviewers and the factory owner)
 
 ```
 git fetch origin
@@ -41,7 +45,14 @@ guard-diff: 490 commands, 0 loosened, 0 tightened
 
 ## Settings templates
 
-The tool also diffs the permission rules of `roles/settings/<role>.json.in` against `--base` (a base that still has the old `roles/settings/<role>.json` is compared after mapping the owner's paths to the template tokens). A removed `deny` rule, an added `allow` rule or a removed hook command prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` and counts as LOOSENED (listable with `--allow-loosen`, one `<role> <kind> removed: <rule>` text per line); the reverse prints `SETTINGS-TIGHTENED`. See `docs/settings-templates.md`.
+The tool also diffs `roles/settings/<role>.json.in` against `--base` (a base that still has the old `roles/settings/<role>.json` is compared after mapping the owner's paths to the template tokens), over the union of the roles on base and in the tree. It covers:
+
+- rules: `permissions.allow` and `permissions.deny`;
+- hooks, for every event (not only `PreToolUse`): each hook is compared as `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), so deleting a matcher group or narrowing a matcher is a removal plus an addition;
+- the `env` block, as `K=V`;
+- the template set: a role whose template is on base but gone from the tree.
+
+A removed `deny` rule, an added `allow` rule, a removed hook, a removed or changed `env` entry or a removed template prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` (for a removed template: `SETTINGS-LOOSENED <role> template removed`) and counts as LOOSENED. A hook line reads for example `SETTINGS-LOOSENED qa hook removed: PreToolUse|Edit|Write|MultiEdit|NotebookEdit|command|python3 ...`. `--allow-loosen` takes the same text without the prefix, one `<role> <kind> removed: <rule>` or `<role> template removed` per line. The reverse of a loosening prints `SETTINGS-TIGHTENED`; a new `env` key (or the new value of a changed key) prints `SETTINGS-CHANGED <role> env added: K=V` and is not counted. See `docs/settings-templates.md`.
 
 ## Exit codes
 
