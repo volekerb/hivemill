@@ -1,9 +1,11 @@
 import re
+import sys
 import unittest
 
 from harness import REPO
 
-from scout import workerbox
+sys.path.insert(0, str(REPO))
+from scout import workerbox  # noqa: E402
 
 TREE = REPO / "roles" / "plugins" / "researcher"
 SKILLS = TREE / "research-skills" / "skills"
@@ -70,6 +72,7 @@ class ResearchSkillsTests(unittest.TestCase):
 
     def test_evidence_review_only_under_researcher_plugin(self):
         self.assertTrue((SKILLS / "evidence-review" / "SKILL.md").is_file())
+        self.assertTrue((REPO / "roles" / "plugins" / "reviewer").is_dir())
         self.assertEqual(list((REPO / "roles" / "plugins" / "reviewer").rglob("evidence-review")), [])
 
     def test_researcher_prompt_headings_match_report_writing(self):
