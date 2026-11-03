@@ -347,6 +347,7 @@ PY_LONG_VALUE = {"--check-hash-based-pycs"}
 # options -c/-e/-E/-p/-r (attached code too: -e'code'), --eval/--print/--command/--run (also --opt=code), bare `eval` (deno),
 # perl/ruby clusters ending in e/E (-pe, -lane), and no argument at all (program on stdin). Python: see py_inline_code.
 INLINE_CODE_OPT = re.compile(r"^(-[ceEpr]|--(eval|print|command|run)(=|$)|eval$)")
+PHP_INLINE_OPT = re.compile(r"^-[RB]")  # php -R / -B run code per input line / before input
 INLINE_CLUSTER_OPT = re.compile(r"^-[A-Za-z]+[eE]$")  # perl/ruby only: -pe, -lane
 
 
@@ -358,14 +359,16 @@ def py_inline_code(args):
         cl = args[k]
         k += 1
         if cl.startswith("--"):
+            if cl in PY_LONG_FLAG:
+                return False  # --version/--help print and exit: no program runs (as on origin/main)
             if cl.partition("=")[0] in PY_LONG_VALUE and "=" not in cl:
                 k += 1
             continue
         for i, ch in enumerate(cl[1:], 1):
             if ch == "c":
                 return True
-            if ch == "m":
-                return False
+            if ch in "mVh?":
+                return False  # -m module, or -V/-h/-? print and exit
             if ch in "WXQ":
                 k += 0 if cl[i + 1:] else 1
                 break
@@ -378,8 +381,9 @@ def inline_interpreter(name, rest):
         return False
     if re.match(r"^python[\d.]*$", name):
         return py_inline_code(rest)
-    return not rest or any(INLINE_CODE_OPT.match(a) or (
-        name in ("perl", "ruby") and INLINE_CLUSTER_OPT.match(a)) for a in rest)
+    return not rest or any(a == "-" or INLINE_CODE_OPT.match(a) or (
+        name in ("perl", "ruby") and INLINE_CLUSTER_OPT.match(a)) or (
+        name == "php" and PHP_INLINE_OPT.match(a)) for a in rest)
 
 
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}

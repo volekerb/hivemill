@@ -99,6 +99,19 @@ class ExtractFlagTests(unittest.TestCase):
                     f"python3 -Xdev -m json.tool f ; unzip {z} -d {s}/clean",
                     f"node -type x ; unzip {z} -d {s}/clean"], 0)
 
+    def test_b1_explicit_stdin_program_non_python(self):
+        s, z = self.scratch, self.zip
+        self.check([f"node - <<'E'\n1\nE\nunzip {z} -d {s}/clean",
+                    f"ruby - <<'E'\n1\nE\nunzip {z} -d {s}/clean",
+                    f"lua - <<'E'\n1\nE\nunzip {z} -d {s}/clean",
+                    f"php - <<'E'\n1\nE\nunzip {z} -d {s}/clean",
+                    f"php -R x ; unzip {z} -d {s}/clean",
+                    f"php -B x ; unzip {z} -d {s}/clean"], 2)
+
+    def test_b2_version_and_help_run_no_program(self):
+        s, z = self.scratch, self.zip
+        self.check([f"python3 {o} ; unzip {z} -d {s}/clean" for o in ("--version", "-V", "-h", "--help")], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
