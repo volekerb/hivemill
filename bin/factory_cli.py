@@ -7193,8 +7193,9 @@ def check_evaluator_spawn(con, role, cwd, env_extra, plugin_dirs, add_home_dir):
 
 def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, prompt=None, model=None,
           resume=None, from_queue=False, pane=None, relaunch=False, env_extra=None, plugin_dirs=None,
-          add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None):
-    """org: the org this agent belongs to (G-028); default: the goal's org (see org_for).
+          add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None, strict_name=False):
+    """strict_name: `factory spawn --name X`: refuse when the org naming rule would change X (never rename silently).
+    org: the org this agent belongs to (G-028); default: the goal's org (see org_for).
     env_extra, plugin_dirs, add_home_dir: evaluator only (see check_evaluator_spawn); stored in spawn_args and
     re-applied on dequeue. The eval token is never one of them: only the nsbox shim reads it, in the pane.
     pane: start in this existing pane at a shell prompt (a herdr-restored one) instead of placing a new one.
@@ -7231,7 +7232,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             event(con, "agent", name, "resume-dropped", f"runtime {prior_rt} -> {org_runtime(con, role, org)}")
             resume, fresh = None, True
     if role != "evaluator":
+        asked = name
         name = oname(con, org, name)
+        if strict_name and name != asked:
+            die(f"--name {asked} is refused: agents of the {org} org must be named {name} (org naming rule: every name "
+                f"starts with the org prefix). Use --name {name}, or omit --name for the default.", 2)
     try:
         check_evaluator_spawn(con, role, cwd, env_extra, plugin_dirs, add_home_dir)  # fail closed, before gate/place/pane
     except SystemExit as e:
@@ -8213,7 +8218,7 @@ def cmd_spawn(a):
         if a.goal and goal_org(con, a.goal) not in (None, a.org):
             die(f"{a.goal} belongs to the {goal_org(con, a.goal)} org; move it first: factory goal org {a.goal} {a.org}", 2)
     spawn(con, a.role, a.goal, a.team, a.task, a.name, a.cwd, read_text(a.prompt), a.model, sandbox_optin=a.sandbox,
-          org=a.org)
+          org=a.org, strict_name=bool(a.name))
 
 
 def mark_read(con, msgs):
@@ -14466,7 +14471,9 @@ def main():
     x.add_argument("--dry-run", action="store_true", help="run: print argv only")
     x.set_defaults(fn=cmd_cursor_pilot)
     x = sp.add_parser("spawn"); x.add_argument("role", choices=ROLES); x.add_argument("--goal"); x.add_argument("--team")
-    x.add_argument("--task"); x.add_argument("--name"); x.add_argument("--cwd"); x.add_argument("--prompt")
+    x.add_argument("--task")
+    x.add_argument("--name", help="agent name; must already follow the org naming rule (<org>-<name>), else refused")
+    x.add_argument("--cwd"); x.add_argument("--prompt")
     x.add_argument("--model")
     x.add_argument("--org", help="the org this agent belongs to (default: the goal's org, else yours); e.g. cursor")
     x.add_argument("--sandbox", action="store_true", help="run this one agent in the worker sandbox (reviewer, qa, coder)")
