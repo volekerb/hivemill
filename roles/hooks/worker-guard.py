@@ -246,6 +246,11 @@ RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LI
 # RUN_SETTINGS and CFG_DIR (writers, redirects, cd + write); reads stay allowed.
 RUN_GUARD_IMPL = {os.path.realpath(os.path.join(h, "run", "guard_impl")) for h in LIVE_HOMES}
 LIB_DIR = os.path.realpath(os.path.join(PW_DIR, ".local", "lib", "factory"))
+# T-0957: ~/.local/bin is first on the tick's and factory-up's PATH, so a file a worker plants there (git, factory, go)
+# runs with their credentials. Protected like LIB_DIR, but matched on the path AS WRITTEN too: its entries are
+# symlinks (factory, claude) whose realpath is outside the tree. Reads and running stay allowed.
+BIN_DIR = os.path.join(PW_DIR, ".local", "bin")
+BIN_DIRS = {BIN_DIR, os.path.realpath(BIN_DIR)}
 # T-0883: run/guard-export.json (what the Go guard decides own goal, push pin, sandbox and terms file from) and its
 # atomic-rename temp sibling guard-export.json.tmp<pid>: a Bash write there forges the guard's own decisions
 RUN_EXPORT = {os.path.realpath(os.path.join(h, "run", "guard-export.json")) for h in LIVE_HOMES}
@@ -262,7 +267,7 @@ def _ancestors(path):
 
 
 EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, the live home, ~, its parents, /
-CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
+CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|\.local/bin(?![A-Za-z0-9_])|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
 INTERPRETERS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs|php|lua|deno|bun)$")
@@ -1384,17 +1389,22 @@ class Analyzer:
             t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             if any(c in t for c in "$`*?[{"):
                 if (".config/factory" in t or ".local/lib/factory" in t or "run/settings" in t
-                        or "run/guard_impl" in t or "guard-export" in t):
+                        or "run/guard_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
                     return True
                 if self.export_glob(t):
                     return True
                 continue
             if not t or (not os.path.isabs(t) and self.ccwd is None):
                 continue
-            p = os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+            full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+            p = os.path.realpath(full)
             for d in {CFG_DIR, LIB_DIR} | RUN_SETTINGS | RUN_GUARD_IMPL:
                 if p == d or under(p, d) or (ancestor and under(d, p)):
                     return True
+            for q in (p, os.path.normpath(full)):  # T-0957: the spelled path too (a symlink in ~/.local/bin)
+                for d in BIN_DIRS:
+                    if q == d or under(q, d) or (ancestor and under(d, q)):
+                        return True
             for d in RUN_EXPORT:  # the file itself and its temp sibling <file>.tmp<pid>
                 if p == d or p.startswith(d + ".") or (ancestor and under(d, p)):
                     return True
@@ -1405,7 +1415,7 @@ class Analyzer:
             raise Block("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live "
                         "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json "
                         "(the guard's own decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation "
-                        "flag and binary); only the owner and the tick change them")
+                        "flag and binary) or ~/.local/bin (first on the tick's PATH); only the owner and the tick change them")
 
     def cfg_path(self, w):
         """Realpath of a word for the export checks, None when it has an expansion we cannot resolve."""
@@ -1418,6 +1428,14 @@ class Analyzer:
         """Message only (the block fires on cfg_hit): w resolves to run/guard_impl or to LIB_DIR or a file under it."""
         p = self.cfg_path(w)
         return p is not None and (p in RUN_GUARD_IMPL or under(p, LIB_DIR))
+
+    def in_bin_dir(self, w):
+        """Message only (the block fires on cfg_hit): w, as spelled or resolved, is ~/.local/bin or under it."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+        if not t or any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            return bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", t))
+        full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+        return any(under(q, d) or q == d for q in (os.path.realpath(full), os.path.normpath(full)) for d in BIN_DIRS)
 
     def export_rule(self, name, args):
         """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
@@ -1480,6 +1498,9 @@ class Analyzer:
                     if "guard_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
                         raise Block(f"`{name}` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the "
                                     "guard implementation; only the owner and `factory` change them")
+                    if self.in_bin_dir(a):
+                        raise Block(f"`{name}` on ~/.local/bin: it is first on the tick's PATH, so a file there runs with "
+                                    "the tick's credentials; only the owner changes it")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):
