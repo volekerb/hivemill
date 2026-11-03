@@ -104,6 +104,41 @@ class AffectedTest(unittest.TestCase):
         self.commit()
         self.assertEqual(self.selected(), sorted(SMOKE + ["test_gamma.py"]))
 
+    def test_deleted_test_module_selects_test_shard(self):
+        """#260: a deleted tests/test_X.py leaves a stale ci/shard_timings.json entry; test_shard.py must run."""
+        self.git("rm", "-q", "tests/test_gamma.py")
+        self.commit()
+        self.assertIn("test_shard.py", self.selected())
+
+    def test_deleted_test_module_cli_lists_test_shard(self):
+        self.git("rm", "-q", "tests/test_gamma.py")
+        self.commit()
+        r = self.affected("--head", "HEAD", "--list")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("test_shard.py", r.stdout.splitlines())
+
+    def test_renamed_test_module_selects_test_shard_and_new_name(self):
+        self.git("mv", "tests/test_gamma.py", "tests/test_delta.py")
+        self.commit()
+        got = self.selected()
+        self.assertIn("test_shard.py", got)
+        self.assertIn("test_delta.py", got)
+
+    def test_shard_timings_change_selects_test_shard(self):
+        self.git("checkout", "-q", "base")
+        self.write("ci/shard_timings.json", "{}\n")
+        self.commit()
+        self.git("checkout", "-q", "work")
+        self.git("rebase", "-q", "base")
+        self.write("ci/shard_timings.json", '{"x": 1}\n')
+        self.commit()
+        self.assertIn("test_shard.py", self.selected())
+
+    def test_edited_test_module_does_not_select_test_shard(self):
+        self.write("tests/test_gamma.py", "# edited again\n")
+        self.commit()
+        self.assertNotIn("test_shard.py", self.selected())
+
     def test_ci_change_selects_mentioning_modules_and_own_test(self):
         self.write("ci/shard.py", "y = 2\n")
         self.commit()
@@ -199,7 +234,7 @@ class AffectedTest(unittest.TestCase):
         self.commit()
         got = self.selected()
         self.assertNotIn("test_gamma.py", got)
-        self.assertEqual(got, sorted(SMOKE))
+        self.assertEqual(got, sorted(SMOKE + ["test_shard.py"]))  # T-0916 rule 1b
 
     def test_renamed_test_module_selects_new_name(self):
         self.git("mv", "tests/test_gamma.py", "tests/test_delta.py")
