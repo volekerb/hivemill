@@ -26,4 +26,4 @@ Panes started before this change run `claude --settings <live>/roles/settings/<r
 
 ## Reviewing a settings change
 
-Edit the `.json.in` file. `python3 ci/guard_diff.py --base origin/main` prints `SETTINGS-LOOSENED <role> deny removed: <rule>` for a removed deny rule, an added allow rule or a removed hook, and `SETTINGS-TIGHTENED` for the reverse (see `docs/guard-diff.md`). Tests that need real settings use `harness.rendered_settings(role)`; `tests/test_settings_templates.py` covers the templates.
+Edit the `.json.in` file. The PR CI `guard-diff` job's real-corpus step runs `ci/guard_diff.py` against the base and prints `SETTINGS-LOOSENED <role> deny removed: <rule>` for a removed deny rule, an added allow rule or a removed hook, and `SETTINGS-TIGHTENED` for the reverse (see `docs/guard-diff.md`). Tests that need real settings use `harness.rendered_settings(role)`; `tests/test_settings_templates.py` covers the templates.

@@ -6,7 +6,7 @@
 All text here is factory-authored; nothing is copied from third parties.
 
 ## Skills
-- `guard-change`: fix the bypass class (not the instance) when changing a hook, deny rule or CLI refusal, and attach a main-vs-PR `ci/guard_diff.py` run to the PR.
+- `guard-change`: fix the bypass class (not the instance) when changing a hook, deny rule or CLI refusal, and paste the PR CI `guard-diff` job's real-corpus step summary and LOOSENED/TIGHTENED lines into the PR body (never run `ci/guard_diff.py` locally).
 - `pre-pr-check`: before in_review, `factory done` or a retry push: evidence every spec and acceptance item in the PR body, measure numeric limits, 3x test runs plus the affected-tests run (ci/affected.py) on the merged tree, CI green, no duplicate defs.
 - `pr-description`: concrete PR body in the five-section template (150-250 words, exact test command, risk/rollback); no Gates block.
 
