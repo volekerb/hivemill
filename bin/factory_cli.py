@@ -1562,7 +1562,7 @@ def _int_cfg(con, key, default):
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -1644,10 +1644,12 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
-    if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
-        return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-    if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
-        return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
+    if runtime != "cursor":
+        if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+            return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
+        if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+            return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
@@ -7211,9 +7213,9 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         args.update(env_extra=env_extra, plugin_dirs=list(plugin_dirs or []), add_home_dir=add_home_dir)
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
-    org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
+    rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live")
+                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -11670,12 +11672,21 @@ def cmd_tick(a, locked=False):
         if not held and not gate(con)[0]:
             held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
+            try:
+                qorg = json.loads(q["spawn_args"] or "{}").get("org")
+            except ValueError:
+                qorg = None
+            qrt = org_runtime(con, q["role"], qorg)
             if q["role"] == "judge":
-                ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+                ok = gate(con, load_exempt=True, role="judge", runtime=qrt)[0]  # judges ignore the load cap, as in spawn()
             elif q["role"] == "lead":
-                ok = gate(con, load_exempt=True, role="lead")[0]  # leads skip only the load cap (T-0867); lead caps still apply
+                ok = gate(con, load_exempt=True, role="lead", runtime=qrt)[0]  # leads skip only the load cap (T-0867); lead caps still apply
+            elif q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
+                ok = True
+            elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
+                ok = True
             else:
-                ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
+                ok = False
             if not ok:
                 continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
