@@ -2748,7 +2748,9 @@ def cmd_task(a):
                 die(f"only a lead, director or the owner may change a task's role ({role} may not use --role)", 3)
             if a.role not in ROLES:
                 die(f"role must be one of {ROLES}", 2)
-            holder = con.execute("SELECT name FROM agents WHERE task_id=? AND status IN ('live','queued') "
+            if t["role"] == "coder" and (t["pr_url"] or a.pr) and role != "owner":
+                die("a coder task with a PR is closed only by the judge: only the owner may change its role", 3)
+            holder = con.execute("SELECT name FROM agents WHERE task_id=? AND status IN ('live','starting','queued') "
                                  "AND stop_requested_at IS NULL "
                                  f"AND role IN ({','.join('?' * len(WORKER_ROLES))}) LIMIT 1",
                                  (a.id, *sorted(WORKER_ROLES))).fetchone()
@@ -2821,7 +2823,7 @@ def cmd_task(a):
                 die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
             extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
                                     ("--priority", a.priority), ("--after", a.after), ("--branch", a.branch),
-                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits)) if v is not None]
+                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits), ("--role", a.role)) if v is not None]
             if extra:
                 die(f"--merged-externally only closes the task; do not combine it with {', '.join(extra)}", 2)
             if t["role"] != "coder" or not t["pr_url"]:

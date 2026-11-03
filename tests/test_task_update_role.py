@@ -95,6 +95,47 @@ class TaskUpdateRoleTests(Base):
         self.assertNotIn("role=", self.ok("task", "show", T).stdout.split("## history")[-1])
 
 
+    def test_coder_task_with_pr_role_change_refused_except_owner(self):
+        self.env.seed_agent("zz-director", "director", goal="G-001", status="exited")
+        self.env.sql("UPDATE tasks SET pr_url='https://github.com/x/y/pull/1' WHERE id=?", (T,))
+        before = self.row()
+        for agent in (LEAD, "zz-director"):
+            p = self.upd("--role", "qa", agent=agent)
+            self.assertEqual(p.returncode, 3, p.stderr)
+            self.assertIn("judge", p.stderr)
+            self.assert_unchanged(before)
+        # --pr in the same call on a coder task without a PR
+        self.env.sql("UPDATE tasks SET pr_url=NULL WHERE id=?", (T,))
+        before = self.row()
+        p = self.upd("--role", "qa", "--pr", "https://github.com/x/y/pull/2")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assert_unchanged(before)
+        # coder task without a PR: lead may
+        p = self.upd("--role", "qa")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        # owner may on a coder task with a PR
+        self.env.sql("UPDATE tasks SET role='coder', pr_url='https://github.com/x/y/pull/1' WHERE id=?", (T,))
+        p = self.env.run("task", "update", T, "--role", "qa")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.row()["role"], "qa")
+
+    def test_merged_externally_with_role_refused(self):
+        self.env.sql("UPDATE tasks SET pr_url='https://github.com/x/y/pull/1' WHERE id=?", (T,))
+        before = self.row()
+        p = self.upd("--role", "qa", "--status", "done", "--merged-externally", "--reason", "x", agent=None)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("--role", p.stderr)
+        self.assert_unchanged(before)
+
+    def test_starting_agent_refuses_role_change(self):
+        self.env.seed_agent("zz-coder-starting", "coder", goal="G-001", task=T, status="starting")
+        before = self.row()
+        p = self.upd("--role", "qa")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("zz-coder-starting", p.stderr)
+        self.assert_unchanged(before)
+
+
 class TaskAddRoleTests(Base):
     def add(self, *extra):
         return self.env.run("task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", *extra, agent=LEAD)
