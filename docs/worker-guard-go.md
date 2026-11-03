@@ -219,3 +219,28 @@ is never logged. A timeout shows as `go: 124`. A logging failure never changes t
 before any default flip is no lines in this log.
 
 The shim locates the binary under `$HOME`; the guard protects the passwd home. They are equal for the factory user, and a worker cannot change the hook's environment.
+
+## Build and stamp
+
+No binary is in git. `factory up` and every tick call `build_guard_go()` (T-0354), which builds `go/cmd/worker-guard`
+into `~/.local/lib/factory/worker-guard`:
+
+1. `go` is looked up on `PATH`, then `~/.local/go/bin/go`. Missing: one stderr line `guard go build: skipped (no go toolchain)`, no stamp, no error.
+2. `srchash` = `git -C <live home> rev-parse HEAD:go`. When `worker-guard.stamp` already equals it and the binary is
+   executable the call is a no-op (one git call, well under 50 ms).
+3. Otherwise, under `flock` on `~/.local/lib/factory/.build.lock` (a second builder just skips), it runs
+   `GOTOOLCHAIN=local nice go build -trimpath -o worker-guard.new ./cmd/worker-guard` in `<live home>/go` (timeout 300 s),
+   renames the result to `worker-guard`, and only then writes the stamp (to `.new`, then rename).
+4. A failed or timed-out build deletes the stamp, leaves any old binary alone, logs `guard go build: failed (...)` and
+   never raises: the shim sees no matching stamp and runs Python.
+
+The tick skips the build (not the flag refresh) while load1 is above `gate_max_load_ratio` x CPUs.
+
+## guard_impl config
+
+`factory config guard_impl <python|go|shadow>` (director only; anything else exits 2). Default `python`. The key is
+mirrored to `$FACTORY_HOME/run/guard_impl` as `<impl> <srchash>` by `write_guard_impl()`, which runs after the key is
+set, after `factory up`'s build and once per tick, so the file always follows the DB. `srchash` is `HEAD:go` of the live
+home; with no `go/` tree or a git error the file holds `python -`. A pull that changes `go/` makes `srchash` differ from the
+stamp until the rebuild, and the shim uses Python meanwhile. `factory config` ends with `guard binary: ok|missing|stale`;
+setting `go` or `shadow` while it is not `ok` prints a warning (the key is still set). Rollback: `factory config guard_impl python`.

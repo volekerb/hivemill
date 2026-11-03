@@ -136,6 +136,7 @@ TASK_WAITS = ["owner", "internal"]
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
+    "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
@@ -1877,6 +1878,132 @@ def check_gh_roles(key, value):
     return ",".join(dict.fromkeys(names))
 
 
+GUARD_IMPLS = ("python", "go", "shadow")
+GUARD_BUILD_TIMEOUT_S = 300
+
+
+def guard_src_home():
+    """The checkout holding go/: the live home for a live FACTORY_HOME, else this run's own home (tests, dry installs)."""
+    return Path(LIVE_HOME) if home_is_live() else HOME
+
+
+def guard_lib_dir():
+    return Path.home() / ".local" / "lib" / "factory"
+
+
+def guard_srchash(src=None):
+    """`git rev-parse HEAD:go` of the checkout, or "" when there is no go/ tree or git fails."""
+    try:
+        p = git_run(src or guard_src_home(), "rev-parse", "HEAD:go", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
+def _read_line(path):
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
+def _write_atomic(path, text, mode=0o644):
+    """Write text to path through a temp file in the same dir + rename."""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".new")
+    tmp.write_text(text)
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+
+def guard_binary_state(src=None, lib=None):
+    """ok | missing | stale: the Go guard binary against the stamp and the srchash of the checkout's go/."""
+    lib = Path(lib or guard_lib_dir())
+    stamp = _read_line(lib / "worker-guard.stamp")
+    if not os.access(lib / "worker-guard", os.X_OK) or not stamp:
+        return "missing"
+    return "ok" if stamp == guard_srchash(src) else "stale"
+
+
+def build_guard_go(src=None, lib=None):
+    """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
+
+    No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
+    runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
+    built | current | skipped | failed. See docs/worker-guard-go.md."""
+    src, lib = Path(src or guard_src_home()), Path(lib or guard_lib_dir())
+    go = shutil.which("go")
+    if not go:
+        local = Path.home() / ".local" / "go" / "bin" / "go"
+        go = str(local) if os.access(local, os.X_OK) else None
+    if not go:
+        print("guard go build: skipped (no go toolchain)", file=sys.stderr)
+        return "skipped"
+    srchash = guard_srchash(src)
+    if not srchash:
+        return "skipped"
+    stamp, binary = lib / "worker-guard.stamp", lib / "worker-guard"
+    if _read_line(stamp) == srchash and os.access(binary, os.X_OK):
+        return "current"
+    try:
+        lib.mkdir(parents=True, exist_ok=True)
+        lock = open(lib / ".build.lock", "a+")
+    except OSError as e:
+        print(f"guard go build: skipped ({e})", file=sys.stderr)
+        return "skipped"
+    with lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return "skipped"  # another build is running
+        new = lib / "worker-guard.new"
+        try:
+            p = subprocess.run([*(["nice", "-n", "10"] if shutil.which("nice") else []), go, "build", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+                               cwd=src / "go", capture_output=True, text=True, timeout=GUARD_BUILD_TIMEOUT_S,
+                               env={**os.environ, "GOTOOLCHAIN": "local"})
+            ok = p.returncode == 0
+            first = (p.stderr or "").strip().splitlines()[:1]
+            err = first[0] if first else f"exit {p.returncode}"
+        except (OSError, subprocess.SubprocessError) as e:
+            ok, err = False, str(e)[:200]
+        if not ok:
+            stamp.unlink(missing_ok=True)
+            new.unlink(missing_ok=True)
+            print(f"guard go build: failed ({err}); the guard stays on Python", file=sys.stderr)
+            return "failed"
+        try:
+            os.chmod(new, 0o755)
+            os.replace(new, binary)
+            _write_atomic(stamp, srchash + "\n")
+        except OSError as e:
+            stamp.unlink(missing_ok=True)
+            print(f"guard go build: failed ({e}); the guard stays on Python", file=sys.stderr)
+            return "failed"
+    return "built"
+
+
+def write_guard_impl(con, src=None):
+    """Rewrite $FACTORY_HOME/run/guard_impl from the DB: "<impl> <srchash>", or "python -" when go/ has no tree."""
+    impl = cfg(con, "guard_impl")
+    srchash = guard_srchash(src)
+    line = f"{impl} {srchash}" if srchash and impl in GUARD_IMPLS else "python -"
+    RUN.mkdir(parents=True, exist_ok=True)
+    _write_atomic(RUN / "guard_impl", line + "\n")
+    return line
+
+
+def guard_tick(con, build=True):
+    """`factory up` and the tick: build (cheap no-op when stamped; skipped under load) and refresh run/guard_impl.
+    Never raises: the guard falls back to Python on its own."""
+    try:
+        cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
+        if build and load1() <= cap:
+            build_guard_go()
+        write_guard_impl(con)
+    except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
+        print(f"guard go build: tick step failed ({e})", file=sys.stderr)
+
+
 def cmd_config(a):
     con = db()
     if a.key and a.value is not None:
@@ -1894,6 +2021,11 @@ def cmd_config(a):
         if a.key == "model_cleaner":
             check_model_override(a.key, a.value)
             a.value = a.value.strip()
+        if a.key == "guard_impl":
+            a.value = a.value.strip()
+            if a.value not in GUARD_IMPLS:
+                die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
+                    f"fix it with `factory config guard_impl python`", 2)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -1927,6 +2059,12 @@ def cmd_config(a):
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (a.key, a.value))
         event(con, "config", a.key, "set", a.value)
+        if a.key == "guard_impl":
+            write_guard_impl(con)
+            state = guard_binary_state()
+            if a.value != "python" and state != "ok":
+                print(f"warning: guard binary is {state}; the shim uses python until `factory up` or the tick builds it",
+                      file=sys.stderr)
     elif a.key:
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}", 2)
@@ -1934,6 +2072,7 @@ def cmd_config(a):
         return
     for k in DEFAULT_CONFIG:
         print(f"{k} = {cfg(con, k)}")
+    print(f"guard binary: {guard_binary_state()}")
 
 
 def cmd_whoami(a):
@@ -11974,6 +12113,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("migrate_db")
     render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
     _pt_lap("render_settings")
+    guard_tick(con)
+    _pt_lap("guard_build")
     agents = herdr_agents()
     _pt_lap("herdr_list")
     morning_digest(con)
@@ -12857,6 +12998,7 @@ def cmd_up(a):
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
+    guard_tick(con)
     agents = herdr_agents()
     if agents is None:  # let systemd show the failure instead of queueing everything against a dead server
         die("herdr is unreachable (is herdr-server running?); nothing started")
