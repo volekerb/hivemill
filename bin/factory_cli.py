@@ -8514,8 +8514,9 @@ def prcheck_target(con, me):
     r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone()
     if not r or r["role"] != "coder" or not r["task_id"]:
         die("prcheck is for a coder with a task; run it from your task worktree", 3)
-    t = con.execute("SELECT t.id, t.goal_id, t.worktree, t.pr_url, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
-                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (r["task_id"],)).fetchone()
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, t.pr_url, g.project_id, p.base_branch FROM tasks t "
+                    "JOIN goals g ON g.id=t.goal_id LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?",
+                    (r["task_id"],)).fetchone()
     if not t or not t["worktree"] or not Path(t["worktree"]).is_dir():
         die(f"{r['task_id']} has no worktree directory; ask your lead", 3)
     return t
@@ -8655,12 +8656,19 @@ def prcheck_take_slot(con):
     return True
 
 
-def prcheck_affected(wt, base, con=None, pr_url=None):
+def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
     """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
+    if project_id and project_id in cfg(con, "gate_fast_projects").split():  # never run locally, no slot (M16816, T-0924)
+        rc, head = _git_out(wt, "rev-parse", "HEAD")
+        ok, why = ci_green_on_head(con, head, pr_url) if rc == 0 and pr_url else (False, "no PR url or HEAD")
+        pre = "not run locally (gate_fast_projects, M16816)"
+        if ok:
+            return True, f"{pre}; CI is green on the PR head ({why})"
+        return False, f"{pre}; CI is not green on the head yet ({why}): push, wait for CI, rerun prcheck"
     got = prcheck_take_slot(con)
     if isinstance(got, str):  # refused for load (M16816): green CI on the head stands in for the run (T-0873)
         rc, head = _git_out(wt, "rev-parse", "HEAD")
@@ -8717,7 +8725,7 @@ def cmd_prcheck(a):
     results = []
     for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
                      ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
-                     ("affected", lambda: prcheck_affected(wt, base, con, pr_url)), ("tier", lambda: prcheck_tier(wt, base))):
+                     ("affected", lambda: prcheck_affected(wt, base, con, pr_url, t["project_id"])), ("tier", lambda: prcheck_tier(wt, base))):
         ok, note = fn()
         results.append((name, ok, note))
         print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
