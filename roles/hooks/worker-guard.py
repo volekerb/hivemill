@@ -90,7 +90,7 @@ WRAP_VALUE_OPTS = {
     "env": {"-u", "-C", "--unset", "--chdir"}, "exec": {"-a"}, "nohup": set(), "command": set(), "builtin": set(),
     "setsid": set(), "timeout": {"-s", "-k", "--signal", "--kill-after"}, "nice": {"-n", "--adjustment"},
     "ionice": {"-c", "-n", "-p", "-P", "-u", "--class", "--classdata"}, "stdbuf": {"-i", "-o", "-e"},
-    "xargs": {"-I", "-J", "-n", "-P", "-d", "-L", "-l", "-s", "-E", "-a", "-R", "-S", "--max-args", "--max-procs",
+    "xargs": {"-I", "-J", "-n", "-P", "-d", "-L", "-s", "-E", "-a", "-R", "-S", "--max-args", "--max-procs",
               "--delimiter", "--max-lines", "--max-chars", "--arg-file", "--eof", "--process-slot-var"},
     "watch": {"-n", "--interval", "-w"}, "busybox": set(),
 }
@@ -809,6 +809,9 @@ def extract_subs(text):
 
 
 # ───────────────────────────── analysis ─────────────────────────────
+
+XARGS_GIT_TOKEN = re.compile(r'(?:^|[\s/;&|(`\x27"])git(?:-[a-z][a-z-]*)?(?=\Z|[\s;&|)`\x27"])')
+
 
 class Analyzer:
     def __init__(self, cwd, role=None, hq=False):
@@ -1962,6 +1965,8 @@ class Analyzer:
         while i < len(rest) and rest[i].startswith("-"):
             if rest[i] != "-C" and "push" in rest[i + 1:]:
                 raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
+            if rest[i] == "-c" and i + 1 < len(rest) and re.match(r"(?i)alias\.[^=]*=.*push", rest[i + 1]):
+                raise Block("git -c alias.<x>=...push...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
@@ -2757,12 +2762,39 @@ class Analyzer:
                 repl = "{}"
             elif a.startswith("--replace="):
                 repl = a[10:]
+            elif a in WRAP_VALUE_OPTS["xargs"]:
+                j += 2
+                continue
             elif not a.startswith("-"):
                 first = a
                 break
             j += 1
         if repl is not None and first == repl:
             raise Block("xargs replacement string used as the command word")
+        if self.role == "coder" and not self.hq:
+            n = sum(1 for w in rest if XARGS_GIT_TOKEN.search(w))
+            if n:
+                # fail closed: allowed only as exactly one git word that is the command word itself (no launcher between)
+                if not (n == 1 and first is not None and os.path.basename(first) == "git"):
+                    raise Block("xargs with git: the command or its arguments could come from stdin; run git directly, "
+                                "not through xargs")
+                words = rest[j:]
+                if repl is not None and any(repl in w for w in words[1:]):
+                    raise Block("xargs git: the replacement string stands in for part of git's arguments (an alias or "
+                                "subcommand could come from stdin); coders push only `git push origin HEAD:factory/<task id>`")
+                self.xargs_git(words[1:])
+
+    def xargs_git(self, gargs):
+        """T-0799: `xargs git ...` takes part of its argv from stdin, so the subcommand may be `push` unseen. A coder may
+        run xargs git only with a literal subcommand word in the command line itself, never a replacement/stdin-supplied
+        one, and the usual push pin and alias refusal apply to the words that are visible."""
+        i = 0
+        while i < len(gargs) and gargs[i].startswith("-"):
+            i += 2 if gargs[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
+            raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
+                        "`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+        self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
         i = 0
