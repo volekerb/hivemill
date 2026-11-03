@@ -74,7 +74,7 @@ A gate run without this file only proves the generic patterns; its output says `
 
 ## Output
 
-One line per hit: `<pattern-id> <path>:<line> <masked>` (`<masked>` is `owner-term#<n>` for an owner-term hit) for `--tree` and `--path`, and `<pattern-id> <commit>:<path> <masked>` for `--history` (the path part is `author`, `committer` or `message` for those fields; `<commit>:<path> (path name)` for a hit in a path name; `ref:<name>` or `tag:<name>` for refs and tags). A printed path has every hit in it masked and control characters escaped as `\xNN`, so a hit never prints the leaked value and a file name cannot forge report lines. The matched text is masked: at most its first 4 characters are shown, fewer for a short match. A per-pattern count and a total (`N hits`) follow.
+One line per hit: `<pattern-id> <path>:<line> <masked>` (`<masked>` is `owner-term#<n>` for an owner-term hit) for `--tree` and `--path`, and `<pattern-id> <commit>:<path> <masked>` for `--history` (the path part is `author`, `committer` or `message` for those fields; `<commit>:<path> (path name)` for a hit in a path name; `ref:<name>` or `tag:<name>` for refs and tags). A printed path has every hit in it masked and control characters escaped as `\xNN`, so a hit never prints the leaked value and a file name cannot forge report lines. The matched text is masked: at most its first 4 characters are shown, fewer for a short match. A per-pattern count and a total follow. With an allowlist (always for `--tree`, and for `--history` with `--history-allowlist`) the total reads `N hits not allowlisted, M allowlisted`: N counts only the hits that remain and M the suppressed ones, so M is never part of N. Without an allowlist the total is `N hits`.
 
 ## Allowlist
 

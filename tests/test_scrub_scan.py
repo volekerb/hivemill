@@ -316,7 +316,7 @@ class AllowlistTests(Base):
         self.assertEqual(r.returncode, 1)
         self.assertIn("rfc1918 other.txt:1", r.stdout)
         self.assertNotIn("ok.txt", r.stdout)
-        self.assertIn("1 hits (1 allowlisted)", r.stdout)
+        self.assertIn("1 hits not allowlisted, 1 allowlisted", r.stdout)
 
     def test_regex_must_match_the_line(self):
         d = self.repo(files={"ok.txt": ALL["rfc1918"]})
@@ -388,7 +388,7 @@ class AllowlistTests(Base):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("home-path ok.txt:1", r.stdout)
         self.assertNotIn("email ok.txt", r.stdout)
-        self.assertIn("1 hits (1 allowlisted)", r.stdout)
+        self.assertIn("1 hits not allowlisted, 1 allowlisted", r.stdout)
 
     def test_wrong_pattern_id_suppresses_nothing(self):
         d = self.repo(files={"ok.txt": ALL["email"]})
