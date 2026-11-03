@@ -7631,7 +7631,7 @@ def sandbox_drop_queued(con, row, s, e):
     """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
     unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path.
     A worker gh credential refusal (GhCredRefused) is dropped the same way."""
-    what = "gh-cred" if isinstance(e, GhCredRefused) else "sandbox"
+    what = "gh-cred" if isinstance(e, GhCredRefused) else "settings-render" if isinstance(e, SettingsRenderRefused) else "sandbox"
     if not cancel_queued(con, row["name"], f"{what}-preflight", f"{e.reason}: {e.why}"):
         return
     team = s.get("team")
@@ -7673,6 +7673,11 @@ GH_CRED_ROLES = ("coder", "qa", "reviewer", "judge", "cleaner", "pm")
 # credential sources that git or gh consult from the env; a worker with the worker token must not fall back to them
 GH_SCRUB_ENV = ("GIT_CONFIG_PARAMETERS", "GIT_ASKPASS", "SSH_ASKPASS", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
 GIT_CONFIG_PAIR_RE = re.compile(r"GIT_CONFIG_(?:KEY|VALUE)_\d+")
+
+
+class SettingsRenderRefused(SandboxRefused):
+    """The role settings template does not render (bad template, LIVE_HOME pin refusal): exit 3, nothing started.
+    reason is always settings-render. The tick's dequeue loop cancels the queued row once (sandbox_drop_queued)."""
 
 
 class GhCredRefused(SandboxRefused):
@@ -7946,6 +7951,21 @@ def research_dir(task):
     return str(path)
 
 
+def render_settings_early(role):
+    """render_settings before any worktree, sandbox dir or pane exists, so a render failure leaves nothing behind.
+    Any failure becomes SettingsRenderRefused (exit 3) with the message in .why; a queued row is then cancelled once."""
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            return render_settings(role)
+    except (SystemExit, OSError, ValueError) as e:
+        why = (err.getvalue().strip() or str(e) or "unknown error").removeprefix("factory: ")[:300]
+        print(f"factory: settings render failed for {role}: {why}; nothing was started", file=sys.stderr)
+        r = SettingsRenderRefused(3)
+        r.reason, r.why = "settings-render", why
+        raise r from None
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
@@ -7955,6 +7975,9 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
     runtime = org_runtime(con, role, org)
     optin = args.get("sandbox_optin") is True
+    # every launch re-renders (a tampered rendered file never survives a relaunch); first, so a bad template
+    # leaves no worktree, agent dir, pane or row behind
+    settings = render_settings_early(role)
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
     if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
         gh_cred_preflight(con, role, name)
@@ -7984,7 +8007,6 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             args["sandbox"] = "cursor"
         if ghcred_on:
             env.update(gh_cred_env(con, role, name))
-        settings = render_settings(role)
         settings_obj = json.loads(Path(settings).read_text())
         # Role settings env (dead HERDR_SOCKET_PATH, FACTORY_ROLE, …) must reach the Cursor pane.
         for k, v in (settings_obj.get("env") or {}).items():
@@ -8002,8 +8024,6 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         args["sandbox"] = True
     if ghcred_on:
         env.update(gh_cred_env(con, role, name))
-    # before place(): a render failure (bad template, LIVE_HOME pin refusal) leaves no pane and no live row
-    settings = render_settings(role)  # every launch re-renders: a tampered rendered file never survives a relaunch
     found = find_pane(pane) if pane else None
     if found:
         ws, tab = found[0], found[1]
