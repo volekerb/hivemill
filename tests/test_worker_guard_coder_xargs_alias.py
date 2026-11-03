@@ -22,7 +22,17 @@ DENIED = [
     "xargs -n 1 git",
     "git -c alias.x=push x origin main",
     "git -c alias.x='!git push' x",
-    "git -c alias.x=push x origin main",
+    "echo push origin main | xargs env git",
+    "echo push origin main | xargs nice git",
+    "echo push origin main | xargs command git",
+    "echo push origin main | xargs timeout 9 git",
+    "echo push origin main | xargs stdbuf -o0 git",
+    "echo push origin main | xargs env -i git",
+    "echo push origin main | xargs env A=1 git",
+    "echo alias.x=push | xargs -I{} git -c {} x origin main",
+    "echo alias.x=push | xargs -I% git -c % x origin main",
+    "echo alias.x=push | xargs --replace git -c {} x origin main",
+    "echo alias.x=push | xargs -i git -c {} x origin main",
 ]
 ALLOWED = [
     f"git push origin HEAD:factory/{TASK}",
@@ -69,6 +79,7 @@ class CoderXargsAliasTests(unittest.TestCase):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 0, p.stderr)
 
+    OTHER_RC = {"qa": 2, "reviewer": 2, "pm": 2, "cleaner": 0, "judge": 0}  # unchanged by this task
     MINE = ("xargs git:", "can hide a push")
 
     def test_other_roles_unchanged(self):
@@ -79,6 +90,7 @@ class CoderXargsAliasTests(unittest.TestCase):
                     p = self.run_hook(cmd, role)
                     for m in self.MINE:
                         self.assertNotIn(m, p.stderr)
+                    self.assertEqual(p.returncode, self.OTHER_RC[role])
             with self.subTest(role=role, cmd="git status"):
                 self.assertEqual(self.run_hook("git status", role).returncode, 0)
 

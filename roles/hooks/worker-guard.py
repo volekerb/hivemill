@@ -2747,8 +2747,40 @@ class Analyzer:
             j += 1
         if repl is not None and first == repl:
             raise Block("xargs replacement string used as the command word")
-        if self.role == "coder" and not self.hq and first is not None and os.path.basename(first) == "git":
-            self.xargs_git(rest[j + 1:])
+        if self.role == "coder" and not self.hq and first is not None:
+            words = self.skip_launchers(rest[j:])
+            if words and os.path.basename(words[0]) == "git":
+                if repl is not None and any(repl in w for w in words[1:]):
+                    raise Block("xargs git: the replacement string stands in for part of git's arguments (an alias or "
+                                "subcommand could come from stdin); coders push only `git push origin HEAD:factory/<task id>`")
+                self.xargs_git(words[1:])
+
+    @staticmethod
+    def skip_launchers(words):
+        """Drop leading launchers (env, nice, timeout N, stdbuf -oX, command, ...) with their options and VAR=x words,
+        returning the command they would run (reuses WRAP_VALUE_OPTS)."""
+        words = list(words)
+        while words and os.path.basename(words[0]) in WRAP_VALUE_OPTS:
+            name = os.path.basename(words.pop(0))
+            if name == "xargs":
+                return words  # a nested xargs is judged on its own words only by the outer rule; keep what follows
+            seen_dash = False
+            while words and not seen_dash:
+                w = words[0]
+                if w == "--":
+                    words.pop(0)
+                    seen_dash = True
+                elif w.startswith("-") and len(w) > 1:
+                    words.pop(0)
+                    if w in WRAP_VALUE_OPTS[name] and words:
+                        words.pop(0)
+                elif name == "env" and ASSIGN.match(w):
+                    words.pop(0)
+                else:
+                    break
+            if name == "timeout" and words:
+                words.pop(0)  # the duration
+        return words
 
     def xargs_git(self, gargs):
         """T-0799: `xargs git ...` takes part of its argv from stdin, so the subcommand may be `push` unseen. A coder may
