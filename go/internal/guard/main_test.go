@@ -1,10 +1,12 @@
 package guard
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // TestMain points FACTORY_HOME at an empty temp directory for the whole package: the rules that read the factory DB
@@ -36,7 +38,45 @@ func dbHome(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(home, "db", "factory.db"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	writeExport(t, home, exportDoc{})
 	return home
+}
+
+// exportDoc is the content of a test guard export; the zero value is a fresh export of an empty DB.
+type exportDoc struct {
+	Config    map[string]string
+	Goals     map[string]string
+	Worktrees map[string]string
+	Age       time.Duration // how long ago generated_at is
+}
+
+// writeExport writes <home>/run/guard-export.json as the tick would (version 1, RFC 3339 generated_at).
+func writeExport(t *testing.T, home string, d exportDoc) {
+	t.Helper()
+	nz := func(m map[string]string) map[string]string {
+		if m == nil {
+			return map[string]string{}
+		}
+		return m
+	}
+	raw, err := json.Marshal(map[string]any{"version": 1, "generated_at": time.Now().Add(-d.Age).UTC().Format(time.RFC3339),
+		"config": nz(d.Config), "agent_goals": nz(d.Goals), "task_worktrees": nz(d.Worktrees)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeExportRaw(t, home, raw)
+}
+
+// writeExportRaw writes the export file as it is (a broken file included) and drops the cached read.
+func writeExportRaw(t *testing.T, home string, raw []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(home, "run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "run", "guard-export.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cachedExport.done = false
 }
 
 // exportTerms points the terms-file variable at a real file, as spawn does for the workers.

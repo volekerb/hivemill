@@ -12303,7 +12303,43 @@ def state_commit(msg):
     return rc == 0 and _git_rc(["update-ref", "refs/heads/state", new, old])[0] == 0  # compare-and-swap
 
 
+GUARD_EXPORT_VERSION = 1
+GUARD_EXPORT_KEYS = ("public_text_repos", "frozen_repos", "scrub_terms_file", "test_sandbox")
+
+
+def write_guard_export(con, path=None):
+    """T-0767: write run/guard-export.json (mode 0600, atomic) for the Go worker-guard: the guard-relevant config rows,
+    the agent -> goal map and the task -> worktree map, plus generated_at. The binary opens no sqlite and fails closed
+    when the file is missing, unparsable or older than guard.GuardExportMaxAge. It lives in run/ (git-ignored), not
+    state/, which is committed and pushed: a timestamp that changes every tick would add a commit per tick."""
+    path = path or RUN / "guard-export.json"
+    doc = {
+        "version": GUARD_EXPORT_VERSION,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "config": {k: cfg(con, k) for k in GUARD_EXPORT_KEYS},
+        "agent_goals": {r["name"]: r["goal_id"] for r in con.execute(
+            "SELECT name, goal_id FROM agents WHERE goal_id IS NOT NULL AND goal_id != ''")},
+        "task_worktrees": {r["id"]: r["worktree"] for r in con.execute(
+            "SELECT id, worktree FROM tasks WHERE worktree IS NOT NULL AND worktree != ''")},
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".tmp{os.getpid()}")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w") as fh:
+            json.dump(doc, fh, sort_keys=True)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def export(con, push=None):
+    try:  # first and on its own: the Go worker-guard fails closed on a stale file, whatever else export hits
+        write_guard_export(con)
+    except (OSError, sqlite3.Error) as e:
+        event(con, "export", "-", "guard-export-failed", str(e)[:200])
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
     public_main_pr_check(con)  # before the sync: it must never move the checkout to a main with a non-PR commit

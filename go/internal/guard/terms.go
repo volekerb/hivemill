@@ -106,21 +106,27 @@ func pyRealpath(p string) string {
 	return resolved
 }
 
-// termsFromDBOnly is true when terms_paths(cwd) may hold a path only the factory DB knows: no exported terms-file
-// variable and a DB file that could carry the scrub_terms_file key.
-func termsFromDBOnly() bool { return len(termsPaths()) == 0 && !dbMissing() }
-
-// termsPaths is a port of terms_paths(cwd) for the environment source.
-func termsPaths() map[string]struct{} {
+// termsPaths is a port of terms_paths(cwd): every spelling of the scrub_terms_file config row (read from the guard
+// export, T-0767; the DB file must exist) and of the exported terms-file variable. The error is the fail-closed
+// "guard export unusable" one.
+func termsPaths() (map[string]struct{}, error) {
 	out := map[string]struct{}{}
-	v := strings.TrimFunc(os.Getenv(termsVar), pyIsSpace)
-	if v != "" {
-		v = expandUser(v)
-		out[v] = struct{}{}
-		out[pyNormpath(v)] = struct{}{}
-		out[pyRealpath(v)] = struct{}{}
+	// Always read the export row and union it with the exported variable, as Python's terms_paths does: with the
+	// variable set to file A and the row naming file B, both are protected. An unusable export fails closed (exit 2).
+	cfgPath, err := scrubTermsFile()
+	if err != nil {
+		return nil, err
 	}
-	return out
+	for _, v := range []string{cfgPath, os.Getenv(termsVar)} {
+		v = strings.TrimFunc(v, pyIsSpace)
+		if v != "" {
+			v = expandUser(v)
+			out[v] = struct{}{}
+			out[pyNormpath(v)] = struct{}{}
+			out[pyRealpath(v)] = struct{}{}
+		}
+	}
+	return out, nil
 }
 
 type inode struct{ dev, ino uint64 }
@@ -400,7 +406,10 @@ func termsSplit(cmd string) []string {
 func TermsBash(cmd, cwd string) error { return termsBash(cmd, cwd, map[string]string{}, 0) }
 
 func termsBash(cmd, cwd string, env map[string]string, depth int) error {
-	paths := termsPaths()
+	paths, err := termsPaths()
+	if err != nil {
+		return err
+	}
 	if len(paths) == 0 {
 		return nil
 	}

@@ -226,8 +226,14 @@ func (a *Analyzer) broadRead(sub string, rest []string, assigns []string) error 
 			if hasGid {
 				gid = after[1]
 			}
-			if hasGid && !strings.HasPrefix(gid, "-") && !ownGoalKnown() {
-				return delegate("broad_read: own_goal of the agent is in the factory DB")
+			if hasGid && !strings.HasPrefix(gid, "-") {
+				own, err := ownGoal()
+				if err != nil {
+					return err
+				}
+				if own != "" && gid == own {
+					return nil
+				}
 			}
 			shown += " show"
 		case in(seconds, action):
