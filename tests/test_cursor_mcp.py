@@ -16,10 +16,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from harness import REPO
+from guard_impl import hook_run
 
 HOOKS = REPO / "roles" / "hooks"
 ADAPTER = HOOKS / "cursor-guard-adapter.py"
-GUARD = HOOKS / "worker-guard.py"
 
 MCP_PAYLOAD = {
     "tool_name": "mcp_auth",
@@ -126,14 +126,7 @@ class CursorMcpHookTests(unittest.TestCase):
     def test_boss_mcp_matches_worker_guard_and_invokes_guard(self):
         adapter_mod = load_adapter_module()
         guard_payload = adapter_mod.mcp_to_guard_payload(MCP_PAYLOAD)
-        guard_run = subprocess.run(
-            [sys.executable, str(GUARD), "--hq"],
-            input=json.dumps(guard_payload),
-            capture_output=True,
-            text=True,
-            timeout=60,
-            env=self.env,
-        )
+        guard_run = hook_run(json.dumps(guard_payload), ["--hq"], env=self.env, timeout=60)
         calls: list[tuple] = []
 
         def fake_run_guard(payload, role, hq):
