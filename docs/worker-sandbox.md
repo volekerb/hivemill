@@ -204,7 +204,7 @@ A worker also cannot be assumed to be honest about its own state: the spawn refu
     factory spawn reviewer --task T-0168 --goal G-010 --team g-010-a --sandbox
 
 - Only that agent is sandboxed. Other spawns of the same role stay as they are, and `sandbox_roles` is not touched.
-- Only `reviewer`, `qa` and `coder` accept it. Any other role exits 2 (`--sandbox: <role> cannot be sandboxed`) before anything is placed.
+- Only `reviewer`, `qa`, `coder` and `researcher` accept it (the researcher is always sandboxed anyway; see the researcher profile section). Any other role exits 2 (`--sandbox: <role> cannot be sandboxed`) before anything is placed.
 - The same fail-closed preflight applies as for a listed role (see above): a failed check exits 3 and creates no pane.
 - The choice is stored in the agent's `spawn_args` (`sandbox_optin: true`) at spawn time. A spawn that is queued (capacity gate) keeps it when the tick starts it later, and `factory relaunch` (also `--fresh`, `--when-idle`) keeps it too.
 - Who may set it: only `factory spawn`, which is already refused to workers (`refuse_worker`) and limited to director, lead and boss. No config key, message or env var can set it.

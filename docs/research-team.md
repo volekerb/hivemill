@@ -24,7 +24,7 @@ Example asks:
 2. **Director and lead.** The director gives the goal to a team lead, who runs the work.
 3. **Plan.** The team's pm writes a research plan with the `research-plan` skill: a researcher task with a brief and numbered acceptance, plus an evidence-review task after it.
 4. **Research.** The lead spawns the researcher (`factory spawn researcher --goal G --task T-x`, skill `research-flow`). The researcher stores the full report with `factory task note <task> -`, publishes a summary with `factory report`, and finishes with `factory done`. There is no PR.
-5. **Evidence review.** A reviewer checks the report against the sources (skill `evidence-review`) and finishes with `factory done "evidence-review: PASS ..."` or `factory done "evidence-review: FAIL ..."` listing the gaps. On FAIL the lead reopens the research task, at most twice, and every retry is reviewed again.
+5. **Evidence review.** A fresh researcher, never the one who wrote the report, checks it against the sources (skill `evidence-review`) and finishes with `factory done "evidence-review: PASS ..."` or `factory done "evidence-review: FAIL ..."` listing the gaps. On FAIL the lead reopens the research task, at most twice, and every retry is reviewed again.
 6. **Up the chain.** On PASS the lead sends the report unchanged to the director with `factory msg director ... --kind report`. The director forwards it to the boss the same way.
 7. **To you.** The boss tells you the answer, the recommendation, the proposed follow-ups and the sources in plain English.
 
