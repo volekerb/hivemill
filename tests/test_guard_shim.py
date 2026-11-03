@@ -17,7 +17,7 @@ PW = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
 HASH = "a1b2c3d4"
 SECRET = "echo SUPERSECRET-command-text-42"
 PAYLOAD = json.dumps({"tool_name": "Bash", "tool_input": {"command": SECRET}})
-TOOLS = ("cat", "dirname", "sed", "tr", "date", "mkdir", "mktemp", "rm", "cut", "sha256sum", "timeout", "sh")
+TOOLS = ("cat", "dirname", "sed", "tr", "date", "mkdir", "mktemp", "rm", "cut", "sha256sum", "timeout", "sh", "grep", "sleep", "wc", "kill")
 
 
 def write(path, text, mode=0o644):
