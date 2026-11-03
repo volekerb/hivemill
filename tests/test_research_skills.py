@@ -3,9 +3,12 @@ import unittest
 
 from harness import REPO
 
+from scout import workerbox
+
 TREE = REPO / "roles" / "plugins" / "researcher"
 SKILLS = TREE / "research-skills" / "skills"
 NAMES = ["benchmark-protocol", "plugin-evaluation", "report-writing", "research-brief", "source-evaluation", "tool-comparison"]
+ALL_DIRS = sorted(NAMES + ["evidence-review"])
 HEADINGS = ["Question", "Answer", "Findings", "Recommendation", "Proposed follow-ups", "Evidence", "Limits"]
 FORBIDDEN = re.compile(r"git push|gh pr (create|merge)|factory spawn|claude -p|--plugin-dir|/plugin install")
 
@@ -16,7 +19,7 @@ def skill(name):
 
 class ResearchSkillsTests(unittest.TestCase):
     def test_six_skill_dirs(self):
-        self.assertEqual(sorted(p.name for p in SKILLS.iterdir()), NAMES)
+        self.assertEqual(sorted(p.name for p in SKILLS.iterdir()), ALL_DIRS)
 
     def test_front_matter_and_size(self):
         for n in NAMES:
@@ -64,6 +67,21 @@ class ResearchSkillsTests(unittest.TestCase):
     def test_only_md_and_json(self):
         bad = [str(p.relative_to(TREE)) for p in TREE.rglob("*") if p.is_file() and p.suffix not in (".md", ".json")]
         self.assertEqual(bad, [])
+
+    def test_evidence_review_only_under_researcher_plugin(self):
+        self.assertTrue((SKILLS / "evidence-review" / "SKILL.md").is_file())
+        self.assertEqual(list((REPO / "roles" / "plugins" / "reviewer").rglob("evidence-review")), [])
+
+    def test_researcher_prompt_headings_match_report_writing(self):
+        line = next(l for l in (REPO / "roles" / "researcher.md").read_text().splitlines() if "Headings:" in l)
+        listed = line.split("Headings:", 1)[1].split(".", 1)[0]
+        self.assertEqual([h.strip() for h in listed.split(",")], HEADINGS)
+
+    def test_sandbox_doc_access_line_names_every_sandboxable_role(self):
+        doc = (REPO / "docs" / "worker-sandbox.md").read_text()
+        line = next(l for l in doc.splitlines() if "accept it" in l and l.startswith("- Only"))
+        for role in workerbox.SANDBOXABLE:
+            self.assertIn(f"`{role}`", line)
 
 
 if __name__ == "__main__":
