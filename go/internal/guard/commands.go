@@ -754,6 +754,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		if err := a.interpPriv(name, rest); err != nil {
 			return err
 		}
+		if a.noPush() {
+			if err := a.interpInlinePush(name, rest); err != nil {
+				return err
+			}
+		}
 		if err := a.unittestFull(name, rest); err != nil {
 			return err
 		}

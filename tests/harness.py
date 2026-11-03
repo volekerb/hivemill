@@ -387,7 +387,8 @@ class FactoryEnv:
             os.chdir(self.home)
             sys.argv = [str(FACTORY), *args]
             sys.stdin = io.StringIO(stdin or "")
-            ns = {"__name__": "factory_inproc", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
+            ns = {"__name__": "factory_inproc", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__,
+                  **getattr(self, "ns_extra", {})}  # module-global test seams (no env var can set these)
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), warnings.catch_warnings():
                 warnings.simplefilter("ignore", ResourceWarning)  # a fresh interpreter hides them; unittest shows them
                 try:
