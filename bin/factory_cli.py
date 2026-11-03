@@ -2851,6 +2851,11 @@ def cmd_task(a):
                     f"factory stop {live['name']} --reason ..., then factory task update {a.id} --spec/--acceptance, "
                     f"then factory spawn {t['role']} --task {a.id}", 2)
         spec = read_text(a.spec)
+        acceptance = read_text(a.acceptance)
+        for flag, raw, val in (("--spec", a.spec, spec), ("--acceptance", a.acceptance, acceptance)):
+            if raw == "-" and not val:  # empty stdin would blank the field; refuse the whole call before any write
+                die(f"{flag} - read empty stdin: refusing to blank the field, nothing was changed on {a.id}. "
+                    f"Pipe the text in (heredoc) or pass it inline; to clear it on purpose use {flag} \"\"", 2)
         sets, args = ["updated=?"], [now()]
         deps = None
         if a.after is not None:  # replaces depends_on; "" clears it
@@ -2858,7 +2863,7 @@ def cmd_task(a):
             check_after(con, a.id, t["goal_id"], deps)
             sets.append("depends_on=?"); args.append(json.dumps(deps))
         for col, val in (("status", a.status), ("pr_url", a.pr), ("branch", a.branch), ("assignee", a.assignee),
-                         ("title", a.title), ("spec", spec), ("acceptance", read_text(a.acceptance)),
+                         ("title", a.title), ("spec", spec), ("acceptance", acceptance),
                          ("team_id", a.team), ("priority", a.priority), ("goal_id", a.goal), ("role", a.role)):
             if val is not None:
                 if col == "status" and val not in TASK_STATUSES:
