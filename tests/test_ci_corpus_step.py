@@ -28,7 +28,8 @@ class WorkflowWiring(unittest.TestCase):
     def test_job_runs_on_each_guard_path(self):
         block = job_block(WF, JOB)
         pattern = re.search(r"grep -E -q '([^']+)'", block).group(1)
-        for path in ("roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
+        for path in ("go/cmd/worker-guard/main.go", "go/internal/shlex/shlex.go",
+                     "roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
                      "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py", ".github/workflows/tests.yml", "go/internal/guard/guard.go"):
             self.assertRegex(path, pattern, path)
         for path in ("docs/guard-diff.md", "ci/shard.py", "roles/prompts/coder.md", "go/internal/other/x.go"):
@@ -41,7 +42,12 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn("git diff --name-only --no-renames", block)
         self.assertIn("--mode both", block)
         self.assertIn("--mode worker --role evaluator", block)
-        self.assertIn("--corpus ci/guard_corpus.json", block)
+        # base corpus AND PR corpus, on both runs (a PR cannot delete must_block entries)
+        self.assertIn('git archive "$BASE_SHA" ci/guard_corpus.json', block)
+        self.assertIn('--corpus "$tool/ci/guard_corpus.json" --corpus ci/guard_corpus.json', block)
+        self.assertEqual(block.count('"${corpus[@]}"'), 2)
+        self.assertRegex(block, r'--mode both\b')
+        self.assertNotRegex(block, r"--repo \. --corpus ci/guard_corpus\.json")
         self.assertIn("--allow-loosen", block)
         self.assertIn("ci/allow_loosen_*.json", block)
         self.assertIn("set -o pipefail", block)
@@ -68,7 +74,7 @@ class WorkflowWiring(unittest.TestCase):
 class LoosenedRun(unittest.TestCase):
     """The tool CI runs, as a subprocess: a hook that stops blocking a corpus command fails with a LOOSENED line."""
 
-    def run_tool(self, pr_hook_src, allow=None):
+    def run_tool(self, pr_hook_src, allow=None, pr_corpus=None, base_corpus=False):
         with tempfile.TemporaryDirectory() as td:
             repo = os.path.join(td, "repo")
             os.makedirs(os.path.join(repo, "roles", "hooks"))
@@ -80,9 +86,13 @@ class LoosenedRun(unittest.TestCase):
                 subprocess.run(["git", "-C", repo, *args], check=True, env=env)
             Path(hook).write_text(pr_hook_src)
             corpus = os.path.join(td, "corpus.json")
-            Path(corpus).write_text(json.dumps({"must_block": ["danger-cmd"], "must_allow": ["ls"]}))
-            cmd = [sys.executable, str(ROOT / "ci/guard_diff.py"), "--base", "HEAD", "--repo", repo, "--hook", hook,
-                   "--corpus", corpus, "--mode", "worker"]
+            Path(corpus).write_text(json.dumps(pr_corpus or {"must_block": ["danger-cmd"], "must_allow": ["ls"]}))
+            cmd = [sys.executable, str(ROOT / "ci/guard_diff.py"), "--base", "HEAD", "--repo", repo, "--hook", hook]
+            if base_corpus:
+                bc = os.path.join(td, "base-corpus.json")
+                Path(bc).write_text(json.dumps({"must_block": ["danger-cmd"], "must_allow": ["ls"]}))
+                cmd += ["--corpus", bc]
+            cmd += ["--corpus", corpus, "--mode", "worker"]
             if allow:
                 af = os.path.join(td, "allow.json")
                 Path(af).write_text(json.dumps(allow))
@@ -93,6 +103,18 @@ class LoosenedRun(unittest.TestCase):
         p = self.run_tool("import sys\nsys.exit(0)\n")
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertRegex(p.stdout, r"(?m)^LOOSENED .*danger-cmd")
+
+    def test_entry_deleted_from_pr_corpus_still_loosened(self):
+        pr_corpus = {"must_block": [], "must_allow": ["ls"]}
+        p = self.run_tool("import sys\nsys.exit(0)\n", pr_corpus=pr_corpus, base_corpus=True)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^LOOSENED .*danger-cmd")
+
+    def test_pr_corpus_alone_misses_deleted_entry(self):
+        """Why the step passes the base corpus: the PR copy alone lets the deletion through."""
+        pr_corpus = {"must_block": [], "must_allow": ["ls"]}
+        p = self.run_tool("import sys\nsys.exit(0)\n", pr_corpus=pr_corpus, base_corpus=False)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
     def test_unchanged_hook_passes(self):
         same = "import json, sys\nc = json.load(sys.stdin)['tool_input']['command']\nsys.exit(2 if c == 'danger-cmd' else 0)\n"

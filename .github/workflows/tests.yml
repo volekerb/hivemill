@@ -167,7 +167,7 @@ jobs:
         run: |
           if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request: skipped"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
-          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$|go/internal/guard/)'; then
+          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
@@ -188,6 +188,14 @@ jobs:
           else
             gd=ci/guard_diff.py; echo "tool: base has no ci/guard_diff.py, using the PR copy"
           fi
+          # corpus: the base copy too, so a PR cannot delete must_block entries; the PR copy adds its own entries (repeatable, de-duplicated)
+          corpus=(--corpus ci/guard_corpus.json)
+          if git archive "$BASE_SHA" ci/guard_corpus.json | tar -x -C "$tool"; then
+            corpus=(--corpus "$tool/ci/guard_corpus.json" --corpus ci/guard_corpus.json)
+            echo "corpus: base $tool/ci/guard_corpus.json ($(wc -l < "$tool/ci/guard_corpus.json") lines) + PR ci/guard_corpus.json"
+          else
+            echo "corpus: base has no ci/guard_corpus.json, using the PR copy only"
+          fi
           # planned loosening: PR-added ci/allow_loosen_*.json, merged into one list and printed for the reviewer
           allow=()
           files=$(git diff --name-only --diff-filter=AM "$BASE_SHA" HEAD -- 'ci/allow_loosen_*.json')
@@ -204,8 +212,8 @@ jobs:
             allow=(--allow-loosen "$RUNNER_TEMP/allow_loosen.json")
           fi
           rc=0
-          python3 "$gd" --base "$BASE_SHA" --repo . --corpus ci/guard_corpus.json --mode both "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" || rc=1
-          python3 "$gd" --base "$BASE_SHA" --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" || rc=1
+          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" || rc=1
+          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" || rc=1
           grep -E '^(LOOSENED|SETTINGS-LOOSENED|TIMEOUT)' "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt" || echo "no LOOSENED/TIMEOUT lines"
           echo "guard_diff failing runs: $rc"
           exit $rc
