@@ -1036,7 +1036,7 @@ class HighEntropyIdTests(Base):
             self.assertEqual(self.hits(bad)[0], [], bad)
 
     def test_long_line_of_slash_tokens_scans_fast(self):
-        line = "token " + " ".join(["Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Q/r9St"] * 13000)  # ~400 KB, 33-char tokens
+        line = "token " + " ".join(["Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Q/r9StUvW"] * 12000)  # ~400 KB, 33-char tokens
         self.assertGreater(len(line), 400000)
         f = self.tmp / "long.txt"
         f.write_text(line + "\n")
@@ -1044,7 +1044,7 @@ class HighEntropyIdTests(Base):
         r = scan("--path", f)
         self.assertLess(time.monotonic() - t0, 1.0)
         self.assertEqual(r.returncode, 0, r.stdout[:200])
-        # same with 45-char tokens, which do reach the lookback/slash predicate
+        # same with 46-char tokens, which do reach the lookback/slash predicate
         f.write_text("token " + " ".join(["Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Q/r9StUvWxYz0Zz1Zz2Zz3"] * 9000) + "\n")
         t0 = time.monotonic()
         r = scan("--path", f)
