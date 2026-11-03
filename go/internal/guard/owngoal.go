@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Decisions that read the factory DB (own_goal, the test_sandbox config, public_text_repos / frozen_repos, the
+// Decisions that read the factory DB (own_goal, the test_sandbox config, the
 // coder's task worktree) are made by the Python hook itself: Go opens no sqlite (stdlib only). Where the DB file
 // does not exist, Python's read fails and the rule takes its "no DB" branch, which Go takes too without
 // delegating; where it exists, the whole payload is re-run through the Python hook and its exit code and stderr

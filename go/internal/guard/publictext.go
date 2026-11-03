@@ -3,10 +3,10 @@ package guard
 import "strings"
 
 // The public-text / frozen-repo rule (G-021, PublicText in worker-guard.py) is switched on by two rows of the factory
-// DB config table (public_text_repos, frozen_repos) and decides with git subprocesses and the checker module
-// ci/public_text_guard.py. Go ports only its entry conditions (PublicText.command, .git, .gh, .gh_api up to the
-// point where Python starts to use the config): a command that cannot reach the rule is decided here, one that can
-// goes to the Python hook when the DB file exists (owngoal.go). With no DB file the rule is off, as in Python.
+// DB config table (public_text_repos, frozen_repos); the guard export carries them (guardexport.go). Since T-0887 the
+// whole rule is Go (ptrule.go, the checker in scrub.go and ptcheck.go): nothing goes to the Python hook. The entry
+// conditions below (PublicText.command, .git, .gh, .gh_api up to the point where Python starts to use the config)
+// decide whether the export is read at all: a command that cannot reach the rule needs no export, as before.
 
 var (
 	ptGitSubs  = set("commit", "tag", "push", "merge", "commit-tree", "notes")
@@ -17,31 +17,48 @@ var (
 	}
 )
 
-// ptCommand is the entry of PublicText.command (the Analyzer calls it with the command word first).
+// ptShellPayload is the code of `sh -c CODE` / `eval ARGS` for PublicText.command (HQ mode), "" for none.
+func ptShellPayload(name string, rest []string) string {
+	if name == "eval" {
+		return strings.Join(rest, " ")
+	}
+	for i := 0; i+1 < len(rest); i++ {
+		if dashLetters(rest[i], "c") && strings.ToLower(rest[i]) == rest[i] {
+			return rest[i+1]
+		}
+	}
+	return ""
+}
+
+// ptMayHoldGit reports whether code could, once its quoting is resolved, hold a git or gh word.
+func ptMayHoldGit(code string) bool {
+	plain := strings.NewReplacer("'", "", "\"", "", "\\", "").Replace(code)
+	return strings.Contains(plain, "git") || strings.Contains(plain, "gh")
+}
+
+// ptCommand is PublicText.command (the Analyzer calls it with the command word first).
 func (a *Analyzer) ptCommand(words []string) error {
+	pt := a.pt
 	words = ptPeel(words, a.HQ)
 	if len(words) == 0 {
 		return nil
 	}
 	name, rest := pyBasename(words[0]), words[1:]
+	if name == "cd" {
+		pt.cd(rest)
+		return nil
+	}
+	shell, payload := a.HQ && (in(Shells, name) || name == "eval"), ""
 	reaches := false
+	var cwd string
+	var cwdOK, alias bool
+	var j int
 	switch {
-	case name == "cd":
-	case a.HQ && (in(Shells, name) || name == "eval"):
-		payload := ""
-		if name == "eval" {
-			payload = strings.Join(rest, " ")
-		} else {
-			for i := 0; i+1 < len(rest); i++ {
-				if dashLetters(rest[i], "c") && strings.ToLower(rest[i]) == rest[i] {
-					payload = rest[i+1]
-					break
-				}
-			}
-		}
-		// the payload is analysed with the rule on: any git or gh word in it may reach a write
-		reaches = payload != "" && (strings.Contains(payload, "git") || strings.Contains(payload, "gh"))
+	case shell:
+		payload = ptShellPayload(name, rest)
+		reaches = payload != "" && ptMayHoldGit(payload) // the payload is analysed with the rule on
 	case name == "git":
+		cwd, cwdOK, j, alias = pt.gitWalk(rest)
 		reaches = ptGitReaches(rest)
 	case name == "gh":
 		reaches = ptGhReaches(rest)
@@ -49,15 +66,108 @@ func (a *Analyzer) ptCommand(words []string) error {
 	if !reaches {
 		return nil
 	}
-	on, err := publicTextOn()
+	if err := pt.loadConfig(); err != nil {
+		return err
+	}
+	if !pt.active {
+		return nil
+	}
+	switch {
+	case shell:
+		return pt.shellPayload(payload)
+	case name == "git":
+		return pt.git(rest, cwd, cwdOK, j, alias)
+	}
+	return pt.gh(rest)
+}
+
+// shellPayload is the shell branch of PublicText.command: the payload is analysed (HQ mode) with this rule.
+func (pt *publicText) shellPayload(payload string) error {
+	saved, savedOK := pt.pcwd, pt.pcwdOK
+	defer func() { pt.pcwd, pt.pcwdOK = saved, savedOK }()
+	an, err := NewAnalyzer(pt.cwd, "", true)
 	if err != nil {
 		return err
 	}
-	if on {
-		// the rule is on: its verdict needs git remotes and ci/public_text_guard.py, which stay Python's
-		return delegate("public-text rule is on (public_text_repos / frozen_repos set): the checker module is Python")
+	an.pt = pt
+	if err := an.script(payload, 1); err != nil {
+		if isPublicBlock(err) || IsDelegate(err) {
+			return err
+		}
+		if ptWriteHint(payload) {
+			return pubBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
+		}
 	}
 	return nil
+}
+
+// ptWriteHint is PT_WRITE_HINT.search:
+// \b(?:git\s+(?:-\S+\s+\S+\s+)*(?:commit|tag|push|merge)|gh\s+(?:pr|issue|release|api))\b
+func ptWriteHint(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] != 'g' || wordBefore(s, i) {
+			continue
+		}
+		if strings.HasPrefix(s[i:], "git") && ptGitHint(s, i+3) {
+			return true
+		}
+		if strings.HasPrefix(s[i:], "gh") && ptGhHint(s, i+2) {
+			return true
+		}
+	}
+	return false
+}
+
+func keywordAt(s string, p int, kws ...string) bool {
+	for _, k := range kws {
+		if strings.HasPrefix(s[p:], k) && !wordAt(s, p+len(k)) {
+			return true
+		}
+	}
+	return false
+}
+
+func skipNonSpace(s string, i int) int {
+	for i < len(s) && !isSpaceAt(s, i) {
+		i += runeLen(s, i)
+	}
+	return i
+}
+
+func ptGitHint(s string, p int) bool {
+	q := skipSpace(s, p)
+	if q == p {
+		return false
+	}
+	positions := []int{q}
+	for pos := q; pos < len(s) && s[pos] == '-'; {
+		a := skipNonSpace(s, pos+1)
+		if a == pos+1 {
+			break
+		}
+		b := skipSpace(s, a)
+		if b == a || b >= len(s) {
+			break
+		}
+		c := skipNonSpace(s, b)
+		d := skipSpace(s, c)
+		if c == b || d == c {
+			break
+		}
+		positions = append(positions, d)
+		pos = d
+	}
+	for k := len(positions) - 1; k >= 0; k-- {
+		if keywordAt(s, positions[k], "commit", "tag", "push", "merge") {
+			return true
+		}
+	}
+	return false
+}
+
+func ptGhHint(s string, p int) bool {
+	q := skipSpace(s, p)
+	return q > p && keywordAt(s, q, "pr", "issue", "release", "api")
 }
 
 // ptGitReaches is PublicText.git up to the first use of the config: the subcommand is one of PT_GIT_SUBS (or a

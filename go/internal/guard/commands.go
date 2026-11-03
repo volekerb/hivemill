@@ -624,7 +624,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	}
-	if a.pt {
+	if a.pt != nil {
 		if err := a.ptCommand(words); err != nil {
 			return err
 		}

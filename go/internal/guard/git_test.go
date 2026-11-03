@@ -516,24 +516,24 @@ func TestGitPrivKeys(t *testing.T) {
 	f.allowed(t, "git log --grep herdr", f.wt, "coder")
 }
 
-func TestGitDelegations(t *testing.T) {
+// The coder's push pin and the public-text rule both read the factory DB; both are decided here from the export.
+func TestGitDecisionsFromTheExport(t *testing.T) {
 	f := newGitFix(t)
 	home := dbHome(t)
 	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"}, Worktrees: map[string]string{"T-7": f.wt}})
 	t.Setenv("FACTORY_HOME", home)
 	// git_push_pin (a coder's push, after its own refusals) and the public-text rule (commit/tag -a/push/merge/
-	// commit-tree/notes, -c alias.*) read the factory DB: with a DB file Python decides, only for what its rule looks at.
+	// commit-tree/notes, -c alias.*) read the factory DB: the export holds both (T-0767, T-0887), nothing is delegated.
 	const (
-		deleg = "delegate"
 		allow = "allow"
 		block = "block"
 	)
 	for _, c := range []struct{ cmd, role, want string }{
-		{"git push origin HEAD:factory/t-7", "coder", deleg}, {"git push origin x", "judge", deleg},
+		{"git push origin HEAD:factory/t-7", "coder", block}, {"git push origin x", "judge", block},
 		{"git -C . send-pack x", "coder", block}, {"git push origin x", "coder", block},
-		{"git commit -m x", "coder", deleg}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", deleg},
-		{"git merge x", "judge", deleg}, {"git notes add", "coder", deleg}, {"git commit-tree x", "coder", deleg},
-		{"git -c alias.c=commit c", "coder", deleg}, {"git -C x commit -m y", "coder", deleg},
+		{"git commit -m x", "coder", allow}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", allow},
+		{"git merge x", "judge", allow}, {"git notes add", "coder", allow}, {"git commit-tree x", "coder", allow},
+		{"git -c alias.c=commit c", "coder", block}, {"git -C x commit -m y", "coder", allow},
 		{"git status", "coder", allow}, {"git add -A", "coder", allow}, {"git log commit", "coder", allow},
 		{"git rebase main", "coder", allow}, {"git branch -a", "coder", allow}, {"git checkout x", "coder", allow},
 		{"git --git-dir=x status", "coder", allow}, {"git stash", "judge", allow},
@@ -542,7 +542,7 @@ func TestGitDelegations(t *testing.T) {
 		got := allow
 		switch {
 		case IsDelegate(err):
-			got = deleg
+			got = "delegate"
 		case err != nil:
 			got = block
 		}
@@ -551,16 +551,16 @@ func TestGitDelegations(t *testing.T) {
 		}
 	}
 	// HQ mode: only the PRIV pass and public text run; the rest of the git rules are not part of it
-	if err := Check("git commit -m x", f.wt, "", true); !IsDelegate(err) {
-		t.Errorf("hq git commit: %v, want a delegation", err)
+	if err := Check("git commit -m x", f.wt, "", true); err != nil {
+		t.Errorf("hq git commit: %v, want allow", err)
 	}
 	for _, cmd := range []string{"git status", "git add -A", "git -C " + f.home + " reset --hard"} {
 		if err := Check(cmd, f.wt, "", true); err != nil {
 			t.Errorf("hq %q: %v", cmd, err)
 		}
 	}
-	if err := Check("nohup git commit -m x", f.wt, "", true); !IsDelegate(err) {
-		t.Errorf("hq nohup git commit: %v, want a delegation (wrapper peeled)", err)
+	if err := Check("nohup git commit -m x", f.wt, "", true); err != nil {
+		t.Errorf("hq nohup git commit: %v, want allow (wrapper peeled)", err)
 	}
 	// the public-text rule off (export without the rows): the same writes are decided here, nothing is delegated
 	off := dbHome(t)
@@ -644,15 +644,17 @@ func TestGitTopSharedWalksForDotGit(t *testing.T) {
 }
 
 // port of worker-guard.py:PT_WRITE_HINT in HQ mode: the one HQ rule that blocks on parse trouble is the public-text
-// rule, so an unparseable git/gh write is the Python hook's decision (delegate) and other parse trouble allows.
-func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
+// rule, so an unparseable git/gh write to a public repo is refused (a plain PublicBlock) and other parse trouble allows.
+func TestHQParseTroubleGitWriteBlocks(t *testing.T) {
 	f := newGitFix(t)
 	home := dbHome(t)
-	writeExport(t, home, exportDoc{Config: map[string]string{"frozen_repos": "o/f"}})
+	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"}})
 	t.Setenv("FACTORY_HOME", home)
+	cwd := t.TempDir() // no git repo: the target is unknown, so public
 	for _, cmd := range []string{"git commit -m 'unterminated", "gh pr create --title 'x"} {
-		if err := Check(cmd, f.wt, "", true); !IsDelegate(err) {
-			t.Errorf("hq %q: %v, want a delegation", cmd, err)
+		err := Check(cmd, cwd, "", true)
+		if !isPublicBlock(err) || !strings.Contains(err.Error(), "cannot be parsed") {
+			t.Errorf("hq %q: %v, want the public-text refusal", cmd, err)
 		}
 	}
 	for _, cmd := range []string{"echo 'unterminated", "ls 'x"} {
