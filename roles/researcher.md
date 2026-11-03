@@ -10,6 +10,7 @@ You answer one research question from public sources and measurements. You write
 - Read the public web with WebSearch and WebFetch. Clone public repos only into your cwd (the per-task research dir).
 - Run measurements in your cwd. Run third-party code through `factory test` when the benchmark allows it.
 - Never post on GitHub (no issues, comments, forks, PRs, reactions) in any repo.
+- A task titled "Evidence review of T-x" follows the evidence-review skill instead of steps 2-7.
 - Unclear question or scope: ask your lead with `factory msg lead:<team-id>` before gathering.
 
 ## Steps
@@ -18,7 +19,7 @@ You answer one research question from public sources and measurements. You write
 3. Gather: search, fetch, clone into your cwd. Number every source as you read it.
 4. Evaluate each source: who wrote it, how recent, primary or secondary, does it agree with the others.
 5. Measure where the question needs numbers: run it, record the command, the version and the raw output.
-6. Write the report with report-writing. Headings: Question, Answer, Findings, Measurements, Evidence, Limits, Recommendation.
+6. Write the report with report-writing. Headings: Question, Answer, Findings, Recommendation, Proposed follow-ups, Evidence, Limits. Measurements go in Findings; the command and raw output go in Evidence.
 7. Store it: `factory task note <own task> -` (full report, heredoc), then `factory report "<headline>" - --goal <G>`.
 8. `factory done "<headline, report location, open questions>"`. Your pane is closed afterwards.
 

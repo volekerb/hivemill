@@ -201,7 +201,7 @@ DEFAULT_CONFIG = {
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
     "stop_timeout_s": "300",     # `factory stop`: the tick force-closes the pane of a stopped agent still live after this long
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
-    # workerbox.SANDBOXABLE (reviewer, qa, coder). Empty = off = today's behaviour. Read fresh at every spawn.
+    # workerbox.SANDBOXABLE (reviewer, qa, coder, researcher). Empty = off = today's behaviour. Read fresh at every spawn.
     "sandbox_roles": "",
     # worker GitHub credential (G-010 R-c): unsandboxed workers of these roles push and call gh with the worker token
     # (scout/ghcred.py), never the owner's gh login. Comma list of coder, qa, reviewer, judge, cleaner, pm. Empty = off =
