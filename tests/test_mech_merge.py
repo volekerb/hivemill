@@ -11,8 +11,22 @@ import unittest
 from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
 from test_judge_wait import GH_STUB, GREEN, FAILED, git
 
+# st["run_list"] answers `gh run list` (the main push run check): {"exit": n} fails, {"raw": text} prints text, {"runs": [...]}
+# prints the runs with headSha "MAIN" replaced by main's sha. Unset: the latest run is completed/success for main's head.
+GH_MECH = GH_STUB.replace(
+    'elif argv[:2] == ["repo", "view"]:',
+    'elif argv[:2] == ["run", "list"]:\n'
+    '    rl = st.get("run_list") or {"runs": [{"databaseId": 7, "status": "completed", "conclusion": "success", "headSha": "MAIN"}]}\n'
+    '    if rl.get("exit"):\n'
+    '        print("gh: boom", file=sys.stderr)\n'
+    '        sys.exit(rl["exit"])\n'
+    '    main = subprocess.run(["git", "-C", st["main_repo"], "rev-parse", "refs/heads/main"],\n'
+    '                          capture_output=True, text=True, check=True).stdout.strip()\n'
+    '    print(rl["raw"] if "raw" in rl else json.dumps([dict(r, headSha=main if r["headSha"] == "MAIN" else r["headSha"]) for r in rl["runs"]]))\n'
+    'elif argv[:2] == ["repo", "view"]:')
+
 # st["race_sql"] = [db, sql] runs when the gate reads origin/main: the other run's merge, landing mid-gate
-GH_RACE = GH_STUB.replace(
+GH_RACE = GH_MECH.replace(
     'print(subprocess.run(["git", "-C"',
     'if st.get("race_sql"):\n        import sqlite3\n        c = sqlite3.connect(st["race_sql"][0]); c.execute(st["race_sql"][1]); c.commit()\n    '
     'print(subprocess.run(["git", "-C"')
@@ -34,7 +48,7 @@ class MechMergeTests(FactoryTestCase):
         self.gh_dir = e.home / "ghstub"
         self.gh_dir.mkdir()
         gh = self.gh_dir / "gh"
-        gh.write_text(GH_STUB)
+        gh.write_text(GH_MECH)
         gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
         self.jw_state, self.jw_calls = e.home / "jw-state.json", e.home / "jw-calls.jsonl"
         self.jw_calls.touch()
@@ -75,6 +89,24 @@ class MechMergeTests(FactoryTestCase):
             "views": views, "n": 0, "merges": merges or [{"exit": 0}], "m": 0,
             "repo_url": str(self.remote), "main_repo": str(self.remote)}))
         self.jw_calls.write_text("")
+
+    def main_run(self, **run):
+        """The latest main push run the gh stub reports (defaults: completed, headSha = main); run_list=... via raw=/exit=."""
+        st = json.loads(self.jw_state.read_text())
+        st["run_list"] = run.pop("run_list", None) or {"runs": [dict({"databaseId": 7, "status": "completed", "conclusion": "success",
+                                                                       "headSha": "MAIN"}, **run)]}
+        self.jw_state.write_text(json.dumps(st))
+
+    def assert_held(self, p, text):
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: blocked", p.stdout)
+        ev = self.events("mech-blocked")
+        self.assertEqual(len(ev), 1, ev)
+        self.assertIn("main push run" if "main push run" in text else text, ev[0])
+        self.assertIn(text, ev[0])
+        self.assertIn("hold", ev[0])
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
 
     def cli(self, *args, agent="zz-test-director"):
         env = {"PATH": f"{self.gh_dir}{os.pathsep}{self.env.env()['PATH']}", "JW_STATE": str(self.jw_state),
@@ -364,6 +396,66 @@ class MechMergeTests(FactoryTestCase):
         p = self.mech("bogus")
         self.assertIn("mech_merge is off", p.stdout)
         self.assertEqual(self.merges(), [])
+
+    # -- main push run (T-0917) ------------------------------------------
+    def test_main_run_success_for_main_head_reaches_the_gate(self):
+        self.main_run()
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+
+    def test_main_run_in_progress_holds(self):
+        for status in ("in_progress", "queued"):
+            self.main_run(status=status, conclusion="")
+            self.assert_held(self.mech("on"), f"main push run 7 still {status}")
+            self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+
+    def test_main_run_failure_holds(self):
+        for concl in ("failure", "cancelled"):
+            self.main_run(conclusion=concl)
+            self.assert_held(self.mech("on"), f"main push run 7 {concl}")
+            self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+
+    def test_main_run_for_another_sha_holds(self):
+        self.main_run(headSha="0" * 40)
+        main = git(self.wt, "rev-parse", "HEAD~1")
+        self.assert_held(self.mech("on"), f"no push run yet for main {main[:8]}")
+
+    def test_main_run_gh_error_and_bad_json_hold(self):
+        for rl in ({"exit": 1}, {"raw": "not json"}, {"raw": "[]"}):
+            self.main_run(run_list=rl)
+            self.assert_held(self.mech("on"), "cannot read main push run")
+            self.env.sql("DELETE FROM events WHERE action='mech-blocked'")
+
+    def fix_task(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.env.sql("INSERT INTO config(key,value) VALUES('red_main:zz-test/repo', ?)",
+                     (json.dumps({"run": "7", "sha": "abc", "url": "u", "since": "x", "task": "T-0001"}),))
+
+    def test_main_run_fix_task_passes_a_failed_run(self):
+        self.fix_task()
+        self.main_run(conclusion="failure")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_main_run_fix_task_still_waits_for_a_running_run(self):
+        self.fix_task()
+        self.main_run(status="in_progress", conclusion="")
+        self.assert_held(self.mech("on"), "main push run 7 still in_progress")
+
+    def test_main_run_hold_in_shadow_is_a_would_block(self):
+        self.main_run(conclusion="failure")
+        p = self.mech("shadow")
+        self.assertIn("T-0001: blocked", p.stdout)
+        self.assertEqual(len(self.events("mech-would-block")), 1)
+        self.assertEqual(self.merges(), [])
+
+    def test_main_run_hold_creates_no_red_main_record(self):
+        self.main_run(conclusion="failure")
+        self.mech("on")
+        self.assertEqual(self.env.sql("SELECT key FROM config WHERE key LIKE 'red_main:%'"), [])
 
 
 if __name__ == "__main__":
