@@ -1,6 +1,6 @@
 ---
 name: pr-description
-description: Write a concrete, short PR body in the factory template (Summary, Why, Changes, Test evidence, Risk / rollback). Use when opening or updating a PR, running gh pr create or gh pr edit, or writing or rewriting a PR body.
+description: Write a concrete, short PR body in the factory template (Summary, Why, Changes, Test evidence, Risk / rollback). Use when opening or updating a PR, running factory pr create or gh pr edit, or writing or rewriting a PR body.
 ---
 
 Purpose: a reviewer should grasp the change in one minute. Write like a professional engineer: concrete, terse, checkable. Template: `.github/pull_request_template.md`. Owner request M2502.
@@ -17,6 +17,6 @@ Follow these steps in order.
 8. No marketing tone ("robust", "seamless", "comprehensive"), no narration of your process, no restating the task spec.
 9. Add no "Generated with Claude Code" footer (owner M11175). The `Co-Authored-By` trailer belongs in the commit message, not the body.
 10. Do not add a `## Gates` block. Gates belong in QA and reviewer verdicts (`factory verdict`), not in PR bodies.
-11. Pass the text with `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` (coder.md C9). Re-check the body after every push that changes the story.
+11. Open a new PR with `factory pr create --title T --body -` and the full real body in a quoted heredoc, in one Bash call. Update an open PR with `gh pr edit <n> --body-file <file>`: write the file in one Bash call, then run `gh pr edit` alone in the next call (coder.md C9). Re-check the body after every push that changes the story.
 
 Examples: docs/pr-descriptions.md.
