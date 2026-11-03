@@ -335,6 +335,11 @@ GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VA
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(\+?=.*)?$")  # T-0788: zsh `path` is tied to PATH
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+# T-0808 F2: python long options that may precede -m (value-taking ones named separately); any other fails closed
+PY_LONG_FLAG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
+PY_LONG_VALUE = {"--check-hash-based-pycs"}
+# T-0808 F5: an inline interpreter program (-c/-e/-p/-r/--eval) may write anything, so it counts as a filesystem change
+INLINE_CODE_OPT = re.compile(r"^(-[A-Za-z]*[ceEpr][A-Za-z]*|--eval|--print|--command)$")
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 # T-0805 rule E: the only options an extracting tar/bsdtar/unzip may carry, matched exactly (no prefix matching: GNU tar
 # accepts --xfo= for --xform=); anything else can rewrite, add or re-read member names so the listing no longer matches
@@ -1600,10 +1605,21 @@ class Analyzer:
             extract = bool(args[:1]) and args[0] in ("x", "e")
             dirs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
         elif re.match(r"^python[\d.]*$", name):
-            mod, k = None, 0
-            while k < len(args) and args[k].startswith("-") and not args[k].startswith("--") and len(args[k]) > 1:
-                cl = args[k]  # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile
+            mod, k, code = None, 0, None
+            while k < len(args) and args[k].startswith("-") and len(args[k]) > 1:
+                cl = args[k]
                 k += 1
+                if cl.startswith("--"):  # T-0808 F2: skip a known long option (and its value); an unknown one fails closed
+                    if cl in PY_LONG_VALUE:
+                        k += 1
+                    elif cl not in PY_LONG_FLAG:
+                        if any(re.match(r"^-[A-Za-z]*m", a) for a in args[k:]):
+                            raise Block(f"`{name}` with the unknown option {cl!r} before -m: the module and its target cannot "
+                                        "be bounded; drop the option or extract with unzip -d")
+                        break
+                    continue
+                # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile. T-0808 F1: walk it char by char; only a bare c/m ends
+                # the loop, and -W/-X (value-taking) consume the rest of the cluster or the next argument as their value
                 for i, ch in enumerate(cl[1:], 1):
                     tail = cl[i + 1:]
                     if ch == "m":
@@ -1611,12 +1627,16 @@ class Analyzer:
                         k += 0 if tail else 1
                         break
                     if ch == "c":
+                        code = tail or (args[k] if k < len(args) else "")
                         break
                     if ch in "WXQ":  # takes a value
                         k += 0 if tail else 1
                         break
-                if mod is not None or "c" in cl:
+                if mod is not None or code is not None:
                     break
+            if code is not None and re.search(r"extractall|extract\s*\(|unpack_archive", code):
+                raise Block(f"`{name} -c` code that extracts an archive cannot be bounded (it may write .git/config or hooks): "
+                            f"{why}; use unzip -d or tar -C")
             if mod in ("zipfile", "tarfile"):
                 for j, a in enumerate(args[k:], k):
                     if a in ("-e", "--extract"):
@@ -1633,6 +1653,8 @@ class Analyzer:
                     k += 1
                 elif a.startswith("--output="):
                     outs.append(a.split("=", 1)[1])
+                elif a.startswith("@"):  # T-0808 F3: a response file adds options the hook cannot see
+                    raise Block("`ar @file`: the response file's options cannot be inspected; pass the options on the command line")
                 elif a == "--extract":
                     ops.append("x")
                 elif a.startswith("--"):
@@ -2639,7 +2661,8 @@ class Analyzer:
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
-            if self.archive_extract(name, rest) or name in FS_MUTATORS:
+            if self.archive_extract(name, rest) or name in FS_MUTATORS or (
+                    INTERPRETERS.match(name) and any(INLINE_CODE_OPT.match(a) for a in rest)):
                 self.fs_changed = True
         self.factory_unit(name, rest, assigns)
         if self.role == RESEARCHER and not self.hq:
