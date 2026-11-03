@@ -259,6 +259,45 @@ class PrcheckTests(FactoryTestCase):
         self.assertIn("FAIL affected: not run: load1 ", p.stdout)
         self.assertIn("CI is not green on the head yet", p.stdout)
 
+    # -- gate_fast_projects: never run affected locally, CI on the head stands in (owner M16816, T-0924) ----
+    def test_gate_fast_project_never_runs_affected_and_passes_on_green_ci(self):
+        self.ok("config", "gate_fast_projects", "zz-test-proj")
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b")])
+        p = self.prcheck(0, env={"AFF_MARK": str(mark)})
+        self.assertIn("PASS affected: not run locally (gate_fast_projects, M16816); CI is green on the PR head", p.stdout)
+        self.assertFalse(mark.exists(), "ci/affected.py must not be spawned for a gate_fast project")
+
+    def test_gate_fast_project_fails_and_says_wait_for_ci_when_not_green(self):
+        self.ok("config", "gate_fast_projects", "zz-test-proj")
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b", "FAILURE")])
+        p = self.prcheck(1, env={"AFF_MARK": str(mark)})
+        self.assertIn("FAIL affected: not run locally (gate_fast_projects, M16816); CI is not green on the head yet", p.stdout)
+        self.assertIn("push, wait for CI, rerun prcheck", p.stdout)
+        self.assertFalse(mark.exists())
+
+    def test_gate_fast_project_takes_no_test_slot(self):
+        self.ok("config", "gate_fast_projects", "zz-test-proj")
+        self.hold_slots(2)  # every slot busy: a slot-taking run would wait/fail with "no test slot free"
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b")])
+        p = self.prcheck(0, env={"FACTORY_PRCHECK_SLOT_WAIT_S": "0"})
+        self.assertNotIn("no test slot free", p.stdout)
+        self.assertIn("PASS affected: not run locally", p.stdout)
+
+    def test_non_gate_fast_project_still_runs_affected(self):
+        self.ok("config", "gate_fast_projects", "some-other-proj")
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        p = self.prcheck(0, env={"AFF_MARK": str(mark)})
+        self.assertIn("PASS affected: ci/affected.py --run ok", p.stdout)
+        self.assertEqual(mark.read_text().splitlines()[0], "ran")
+
     def test_affected_run_holds_slot_visible_to_res(self):
         self.ok("config", "test_slots", "2")
         mark = self.env.home / "mark"
