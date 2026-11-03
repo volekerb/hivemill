@@ -88,6 +88,8 @@ path:pattern-id:regex-of-line  # reason
 
 An entry suppresses only hits of its own pattern id on the lines its regex matches. A line holding an allowlisted email and a token is still reported for the token.
 
+`--tree` prints `scrub-scan: warning: unused allowlist entry path:pattern-id:regex` on stderr for each entry that suppressed no hit (a stale entry). The warning does not change the exit code. `--path` does not warn, since it scans only the files you name.
+
 - `owner-term` hits are never suppressed. An entry naming `owner-term` is a usage error.
 - Token-shape hits (`github-token`, `github-pat`, `anthropic-key`, `aws-access-key-id`, `private-key`, `railway-token`, `oauth-secret`, `generic-secret`, `high-entropy-id`, `cgnat`, `env-file`; for `env-file` the regex is searched in the path) are suppressed only by an entry naming that exact pattern id.
 - The old form `path:regex` is still read for one release. It prints a deprecation warning on stderr and suppresses only `home-path`, `rfc1918` and `email` hits. Migrate such lines to the new form.
