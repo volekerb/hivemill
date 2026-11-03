@@ -7707,8 +7707,11 @@ def start_confirm(con, agents):
             if info.get("flagless") and r["flagless"]:
                 con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (r["name"],))
                 event(con, "agent", r["name"], "flagless-cleared", {"via": "spawn"})
-            if info.get("kick") and herdr("agent", "prompt", h.get("name") or r["name"], info["kick"], check=False) is not None:
-                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
+            if info.get("kick"):
+                an = h.get("name") or r["name"]
+                if herdr("agent", "prompt", an, info["kick"], check=False) is not None:
+                    _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
+                    con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
             con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
         elif time.time() - r["start_pending"] > START_CONFIRM_S:
             event(con, "agent", r["name"], "start-uncertain", r["pane_id"])
@@ -7722,6 +7725,12 @@ def agent_runtime_of(row):
         return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
     except ValueError:
         return "claude"
+
+
+def _cursor_enter_after_prompt(name, runtime, prompt_ok):
+    """Cursor follow-up prompts sit in a drawer until Enter; Claude accepts the prompt immediately."""
+    if prompt_ok and runtime == "cursor":
+        herdr("agent", "send-keys", name, "Enter", check=False)
 
 
 def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
@@ -7816,6 +7825,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
         if herdr("agent", "prompt", name, kick, check=False) is not None:
+            _cursor_enter_after_prompt(name, runtime, True)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
                                         "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
@@ -11819,7 +11829,9 @@ def cmd_tick(a, locked=False):
         elif r["role"] == "director" and (not r["last_nudge"] or t - r["last_nudge"] > int(cfg(con, "director_cycle_s"))):
             text = "⏱ Director cycle: run your cycle checklist (survey, resources, unblock, report)."
         if text:
-            herdr("agent", "prompt", h.get("name") or r["name"], text, check=False)
+            an = h.get("name") or r["name"]
+            if herdr("agent", "prompt", an, text, check=False) is not None:
+                _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
     _pt_lap("nudge")
 
