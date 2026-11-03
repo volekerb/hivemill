@@ -5351,13 +5351,13 @@ def build_digest(con, goal=None, date=None, hours=24):
         return block
 
     for o in orgs.NAMES:
-        if o not in enabled:
+        org_goals = [g for g in shown_goals if digest_goal_org(g) == o]
+        if o not in enabled and not org_goals:
             continue
         if o == "claude":
             out += ["## Org claude", ""]
         else:
             out += ["## Org cursor", ""]
-        org_goals = [g for g in shown_goals if digest_goal_org(g) == o]
         if not org_goals:
             out += ["_no active goals_", ""]
         else:

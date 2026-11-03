@@ -1,9 +1,27 @@
 import argparse
 import datetime as dt
+import re
 import unittest
 from unittest import mock
 
 from harness import PR_URL, SHA_A, FactoryTestCase
+
+
+def _digest_goal_blocks_under_org(out, org):
+    marker = f"## Org {org}"
+    if marker not in out:
+        return 0
+    section = out.split(marker, 1)[1]
+    for stop in ("## Org claude", "## Org cursor", "## Closed earlier", "## Lessons", "## HQ"):
+        if stop != marker and stop in section:
+            section = section.split(stop, 1)[0]
+    return sum(1 for line in section.splitlines() if line.startswith("## G-"))
+
+
+def _digest_org_counts(out):
+    m = re.search(r"Orgs: claude (\d+) active · cursor (\d+) active", out)
+    assert m is not None
+    return int(m.group(1)), int(m.group(2))
 
 
 # Every DigestTests digest runs on this frozen clock (12:00 local, far from midnight); seeds are relative to it.
@@ -383,6 +401,25 @@ class DigestTests(DigestBase):
         g2_idx = out.index("## G-002 — zz-test cursor goal (active)")
         self.assertLess(claude_idx, g1_idx)
         self.assertLess(cursor_idx, g2_idx)
+
+    def test_digest_shows_disabled_org_when_it_has_goals(self):
+        e = self.env
+        e.run("config", "orgs_enabled", "claude")
+        e.seed_goal("G-002", title="zz-test cursor goal")
+        e.sql("UPDATE goals SET org='cursor' WHERE id='G-002'")
+        e.seed_team("g-002-a", goal="G-002", lead="zz-test-lead")
+        out = self.digest().stdout
+        self.assertIn("## G-002 — zz-test cursor goal (active)", out)
+        self.assertIn("## Org cursor", out)
+        claude_n, cursor_n = _digest_org_counts(out)
+        self.assertEqual(claude_n, _digest_goal_blocks_under_org(out, "claude"))
+        self.assertEqual(cursor_n, _digest_goal_blocks_under_org(out, "cursor"))
+
+    def test_digest_claude_only_omits_empty_cursor_section(self):
+        self.env.run("config", "orgs_enabled", "claude")
+        out = self.digest().stdout
+        self.assertIn("## Org claude", out)
+        self.assertNotIn("## Org cursor", out)
 
 
 class TickDigestTests(DigestBase):
