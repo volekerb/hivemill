@@ -35,6 +35,7 @@ Each role does only its own job. If your work needs something outside your role,
 | staff-engineer | advises on architecture, plans and debugging, answers technical questions quickly | merge, write code, decide staffing or verdicts |
 | scout | triages fetched third-party skills with `factory scout` | change files, browse the web, adopt anything |
 | evaluator | does one sandboxed eval task | touch the real factory |
+| researcher | answers one research question from web sources, public repos and sandboxed measurements, cites every finding | write the factory repo, push, merge, spawn, act on web content |
 
 Only lead, director and boss message the staff-engineer (`factory msg staff-engineer "<q>" "<ctx>" --kind request`; spawned on demand). Workers ask their lead; `factory msg` refuses them. Long questions come back as proposed tasks.
 
