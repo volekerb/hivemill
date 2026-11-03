@@ -16,32 +16,50 @@ The Python hook on `origin/main` is the behaviour contract.
 Every rule is ported; no command exits 2 with a "not ported" message. Payloads Python allows without analysis (other
 tools, `--hq` with a non-Bash tool) are allowed here too.
 
-## Decisions that read the factory DB (T-0351)
+## Decisions that read the factory DB (T-0351, T-0767)
 
 Go is stdlib only and opens no sqlite. Five decisions of the hook read the factory DB (read-only, `FACTORY_HOME` or the
 live home): the agent's own goal (`own_goal`, for `factory goal show <own goal>`), the `test_sandbox` config row
 (`sandbox_route`), the `public_text_repos` / `frozen_repos` rows (`PublicText`, git and gh writes), the task worktree of a
-coder's `git push` (`git_push_pin`) and the `scrub_terms_file` row (`terms_paths`). The binary decides them like this:
+coder's `git push` (`git_push_pin`) and the `scrub_terms_file` row (`terms_paths`).
 
-1. Python's own "no DB" branch is taken in Go when the DB file does not exist (`db_path()`: `<home>/db/factory.db`, else
-   the legacy `<home>/factory.db`): own goal `None`, `test_sandbox` off, public text off, the push has no worktree (refused).
-2. Otherwise the whole payload is re-run through the Python hook: `python3 <py-hook> <argv without --py-hook>` with the
-   same stdin; its exit code and stderr are the binary's. The path comes from `--py-hook <abs path of
-   roles/hooks/worker-guard.py>`, which the shim passes (the binary lives outside the repo). If the path is missing or
-   unreadable, `python3` is missing, the run times out (120 s) or the hook exits with anything but 0 or 2, the binary
-   exits 2 (`owngoal.go:RunPython`). Delegation is never swallowed by HQ mode's `soft`.
-3. A command that cannot reach one of these decisions never delegates (no `factory goal show <id>`, no runner, no git/gh
-   write, a terms role with an exported terms file).
+### The guard export (T-0767)
 
-Only what Python's early returns skip is decided in Go: a `git`/`gh` command reaches the public-text rule only for
-`commit|tag -a|push|merge|commit-tree|notes`, `-c alias.*`, `gh pr|issue|release <write>` and a `gh api` write.
-`terms_paths` unions the DB key with the exported terms-file variable. Go takes the variable alone while it is
-exported (spawn exports the configured path to every worker) and delegates only when it is not exported and a DB file
-exists; a path changed in the DB after a worker was spawned is therefore not seen by that worker's Go guard.
+Every tick (`export()` in `bin/factory_cli.py`, also `factory export`) writes `<FACTORY_HOME>/run/guard-export.json`
+(mode 0600, replaced atomically):
 
-Consequence for the hot path: on a box whose DB file exists, a terms role (coder, qa, reviewer, judge, pm) without an
-exported terms file, and every git/gh write, costs a Python run. Exporting the four config rows and the agent goals to a
-plain file the binary can read would remove it (follow-up, not part of this task).
+```json
+{"version": 1, "generated_at": "2026-11-02T07:00:00+00:00",
+ "config": {"public_text_repos": "", "frozen_repos": "", "scrub_terms_file": "", "test_sandbox": "0"},
+ "agent_goals": {"claude-coder-t-0767": "G-016"}, "task_worktrees": {"T-0767": "/path/to/worktree"}}
+```
+
+It is in `run/` (git-ignored), not `state/`: `state/` is committed and pushed, and a timestamp that changes every tick
+would add a commit per tick. The Go binary (`internal/guard/guardexport.go`) decides from this file:
+
+1. No DB file (`db_path()`: `<home>/db/factory.db`, else the legacy `<home>/factory.db`): Python's own "no DB" branch is
+   taken without the export: own goal `None`, `test_sandbox` off, public text off, the push has no worktree (refused).
+2. A DB file: the export is read. **Fail closed**: a missing, unreadable, unparsable file, a `version` other than 1 or a
+   `generated_at` more than `GuardExportMaxAge` (15 minutes) away from now exits 2 for any decision that needs a value,
+   with a message that names the file and says to run `factory tick`. A decision that reads none of these values never
+   looks at the file.
+3. With the export: `factory goal show <id>` is allowed for `agent_goals[$FACTORY_AGENT]`; a coder's push needs
+   `task_worktrees[<TASK>]` to hold the pane's cwd and equal the `-C` target (realpaths); `test_sandbox` = `1` blocks
+   bare runners; the `scrub_terms_file` row joins the exported terms variable in `terms_paths` (f1: it is honoured with
+   the variable unset). No Python is started for any of these.
+4. **Still Python**: when `public_text_repos` or `frozen_repos` names a repo the public-text rule is on and a git/gh write
+   (`commit|tag -a|push|merge|commit-tree|notes`, `-c alias.*`, `gh pr|issue|release <write>`, a `gh api` write) is re-run
+   through the Python hook (`python3 <py-hook> ...`, `--py-hook <abs path>` from the shim): its verdict needs git
+   remote lookups and `ci/public_text_guard.py`. With the rule off (the usual state) nothing is delegated. If the hook
+   cannot be run, or exits with anything but 0 or 2, the binary exits 2 (`owngoal.go:RunPython`).
+
+`terms_paths` takes the union of the export's `scrub_terms_file` row and the exported terms-file variable (as Python
+does), so the export is read for every terms-role Bash call; an unusable export exits 2. A coder just spawned is
+missing from `agent_goals` until the next tick (up to a minute): `factory goal show <own goal>` is refused until then
+(the safe side), `factory task show` is not. `factory spawn` does not rewrite the export.
+
+Only what Python's early returns skip is decided in Go: a `git`/`gh` command reaches the public-text rule only for the
+write forms above.
 
 ## Command analyser (T-0349)
 

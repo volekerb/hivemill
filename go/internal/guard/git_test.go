@@ -244,7 +244,9 @@ func TestGitHQModeUnchanged(t *testing.T) {
 func TestGitLinkedWorktreeAllowed(t *testing.T) {
 	f := newGitFix(t)
 	f.allowed(t, "git commit -m x", f.wt, "coder")
-	t.Setenv("FACTORY_HOME", dbHome(t)) // the pin reads the recorded worktree of the task: Python's decision
+	home := dbHome(t) // the pin reads the recorded worktree of the task from the guard export
+	writeExport(t, home, exportDoc{Worktrees: map[string]string{"T-7": f.wt}})
+	t.Setenv("FACTORY_HOME", home)
 	f.allowed(t, "git push origin HEAD:factory/t-7", f.wt, "coder")
 	t.Setenv("FACTORY_HOME", t.TempDir())
 	if err := os.MkdirAll(filepath.Join(f.wt, "sub"), 0o755); err != nil {
@@ -516,7 +518,9 @@ func TestGitPrivKeys(t *testing.T) {
 
 func TestGitDelegations(t *testing.T) {
 	f := newGitFix(t)
-	t.Setenv("FACTORY_HOME", dbHome(t))
+	home := dbHome(t)
+	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"}, Worktrees: map[string]string{"T-7": f.wt}})
+	t.Setenv("FACTORY_HOME", home)
 	// git_push_pin (a coder's push, after its own refusals) and the public-text rule (commit/tag -a/push/merge/
 	// commit-tree/notes, -c alias.*) read the factory DB: with a DB file Python decides, only for what its rule looks at.
 	const (
@@ -557,6 +561,19 @@ func TestGitDelegations(t *testing.T) {
 	}
 	if err := Check("nohup git commit -m x", f.wt, "", true); !IsDelegate(err) {
 		t.Errorf("hq nohup git commit: %v, want a delegation (wrapper peeled)", err)
+	}
+	// the public-text rule off (export without the rows): the same writes are decided here, nothing is delegated
+	off := dbHome(t)
+	writeExport(t, off, exportDoc{Worktrees: map[string]string{"T-7": f.wt}})
+	t.Setenv("FACTORY_HOME", off)
+	for _, c := range []struct{ cmd, role string }{{"git push origin HEAD:factory/t-7", "coder"}, {"git commit -m x", "coder"},
+		{"git tag -a v1 -m x", "judge"}, {"git merge x", "judge"}, {"git -c alias.c=commit c", "coder"}} {
+		if err := f.check(c.cmd, f.wt, c.role); err != nil {
+			t.Errorf("%q (%s) with the rule off: %v, want allow", c.cmd, c.role, err)
+		}
+	}
+	if err := Check("git commit -m x", f.wt, "", true); err != nil {
+		t.Errorf("hq git commit with the rule off: %v", err)
 	}
 	// without a DB file the public-text rule is off and a push has no recorded worktree: Go decides
 	t.Setenv("FACTORY_HOME", t.TempDir())
@@ -630,7 +647,9 @@ func TestGitTopSharedWalksForDotGit(t *testing.T) {
 // rule, so an unparseable git/gh write is the Python hook's decision (delegate) and other parse trouble allows.
 func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
 	f := newGitFix(t)
-	t.Setenv("FACTORY_HOME", dbHome(t))
+	home := dbHome(t)
+	writeExport(t, home, exportDoc{Config: map[string]string{"frozen_repos": "o/f"}})
+	t.Setenv("FACTORY_HOME", home)
 	for _, cmd := range []string{"git commit -m 'unterminated", "gh pr create --title 'x"} {
 		if err := Check(cmd, f.wt, "", true); !IsDelegate(err) {
 			t.Errorf("hq %q: %v, want a delegation", cmd, err)

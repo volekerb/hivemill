@@ -15,6 +15,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [demo-data.md](demo-data.md): how the fictional demo home used for screenshots and examples is generated.
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
+- [research-team.md](research-team.md): how to give the boss a research question and what report comes back.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
 - [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
 - [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
