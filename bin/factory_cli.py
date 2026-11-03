@@ -2789,7 +2789,7 @@ def cmd_task(a):
                 die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
         elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
                                              a.team, a.priority, a.after, a.waits, a.note, a.reason,
-                                             a.sandbox_required, a.judge_hold, a.judge_hold_clear)):
+                                             a.sandbox_required, a.judge_hold)) and not a.judge_hold_clear:
             die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
                 "--acceptance --team --priority --after --waits --note --goal --sandbox-required --judge-hold "
                 "--judge-hold-clear", 2)
