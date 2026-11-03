@@ -140,3 +140,39 @@ func TestAllowlistRegexNeedingBoundaryFailsClosed(t *testing.T) {
 		t.Errorf("a \\b regex must be refused with a bad regex message, got %v", err)
 	}
 }
+
+func TestAllowlistPOSIXClassRefused(t *testing.T) {
+	for _, line := range []string{"a.txt:email:^[[:alpha:]]+$  # posix", "a.txt:email:^[^[:digit:]]+$  # negated posix"} {
+		file := filepath.Join(t.TempDir(), "allow.txt")
+		if err := os.WriteFile(file, []byte(line+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadAllowlist(file); err == nil || !strings.Contains(err.Error(), "bad regex") {
+			t.Errorf("%q must be refused with a bad regex message, got %v", line, err)
+		}
+	}
+}
+
+func TestComplementTablesAreLazy(t *testing.T) {
+	before := negInits.Load()
+	for _, p := range []string{`^[\w./-]+$`, `^\w+\d\s$`, `^\W+$`, `^\D$`, `^\S$`} {
+		if _, err := pyRegexToRE2(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := negInits.Load() - before; n != 0 {
+		t.Errorf("%d complement tables built for patterns with no \\W/\\D/\\S inside a class", n)
+	}
+	for _, c := range []struct{ p, want string }{{`[\W]`, "word"}, {`[\D]`, "digit"}, {`[\S]`, "space"}} {
+		b := negInits.Load()
+		if _, err := pyRegexToRE2(c.p); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pyRegexToRE2(c.p); err != nil {
+			t.Fatal(err)
+		}
+		if n := negInits.Load() - b; n > 1 {
+			t.Errorf("%s: table built %d times", c.p, n)
+		}
+	}
+}

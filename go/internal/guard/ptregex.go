@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
@@ -12,8 +13,9 @@ import (
 // (reWord, \p{Nd}, rxSpace) so the same line matches the same paths (T-0887).
 
 var (
-	negOnce                     sync.Once
-	negWord, negDigit, negSpace string
+	negWordOnce, negDigitOnce, negSpaceOnce sync.Once
+	negWord, negDigit, negSpace             string
+	negInits                                atomic.Int32 // test hook: how many complement tables were built
 )
 
 // complementRanges is the RE2 class body of every rune (surrogates excluded) for which in is false.
@@ -46,16 +48,18 @@ func complementRanges(in func(rune) bool) string {
 	return sb.String()
 }
 
-func initNeg() {
-	negWord = complementRanges(isWord)
-	negDigit = complementRanges(isDecimal)
-	negSpace = complementRanges(pyIsSpace)
+// The complement tables walk every code point, so each is built on first use inside a character class only.
+func negTable(once *sync.Once, dst *string, in func(rune) bool) string {
+	once.Do(func() {
+		*dst = complementRanges(in)
+		negInits.Add(1)
+	})
+	return *dst
 }
 
 // pyRegexToRE2 returns the RE2 source with the same meaning as the Python str pattern p, or an error for a construct
 // RE2 cannot express (\b, \B: RE2 has ASCII word boundaries only), so the caller fails closed.
 func pyRegexToRE2(p string) (string, error) {
-	negOnce.Do(initNeg)
 	var sb strings.Builder
 	inClass := false
 	for i := 0; i < len(p); {
@@ -64,20 +68,21 @@ func pyRegexToRE2(p string) (string, error) {
 		case c == '\\' && i+1 < len(p):
 			e := p[i+1]
 			i += 2
-			var pos, neg, outer string
+			var pos, outer string
+			var neg func() string
 			switch e {
 			case 'w':
 				pos = `\p{L}\p{N}_`
 			case 'W':
-				neg, outer = negWord, `[^\p{L}\p{N}_]`
+				neg, outer = func() string { return negTable(&negWordOnce, &negWord, isWord) }, `[^\p{L}\p{N}_]`
 			case 'd':
 				pos = `\p{Nd}`
 			case 'D':
-				neg, outer = negDigit, `\P{Nd}`
+				neg, outer = func() string { return negTable(&negDigitOnce, &negDigit, isDecimal) }, `\P{Nd}`
 			case 's':
 				pos = rxSpace
 			case 'S':
-				neg, outer = negSpace, `[^`+rxSpace+`]`
+				neg, outer = func() string { return negTable(&negSpaceOnce, &negSpace, pyIsSpace) }, `[^`+rxSpace+`]`
 			case 'b', 'B':
 				if !inClass {
 					return "", fmt.Errorf(`\%c is not supported (RE2 has no Unicode word boundary); spell the boundary out`, e)
@@ -99,11 +104,14 @@ func pyRegexToRE2(p string) (string, error) {
 			case pos != "":
 				sb.WriteString(`[` + pos + `]`)
 			case inClass:
-				sb.WriteString(neg)
+				sb.WriteString(neg())
 			default:
 				sb.WriteString(outer)
 			}
 		case inClass:
+			if c == '[' && i+1 < len(p) && p[i+1] == ':' {
+				return "", fmt.Errorf("POSIX class [[:x:]] is not supported (Python reads it as a plain set, RE2 as a class); spell the set out")
+			}
 			if c == ']' {
 				inClass = false
 			}
@@ -172,9 +180,6 @@ func pyUTF8Error(b []byte) string {
 			}
 			lo, hi = 0x80, 0xbf
 			end++
-			if k == need-1 {
-				why = "" // cannot happen: DecodeRune accepted it
-			}
 		}
 		if end-i == 1 {
 			return fmt.Sprintf("'utf-8' codec can't decode byte 0x%02x in position %d: %s", lead, i, why)
