@@ -62,7 +62,7 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 	for _, w := range uniq([]string{word, valueOf(word)}) {
 		t := cfgExpand(w)
 		if strings.ContainsAny(t, "$`*?[{") {
-			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") {
+			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") {
 				return true
 			}
 			continue
@@ -80,6 +80,11 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 				return true
 			}
 		}
+		for _, d := range h.runExport { // the file itself and its temp sibling <file>.tmp<pid>
+			if p == d || strings.HasPrefix(p, d+".") || (ancestor && Under(d, p)) {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -88,7 +93,8 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 func (a *Analyzer) cfgRedirect(target string) error {
 	if a.cfgHit(target, false) {
 		return blockf("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live " +
-			"home) or <live>/run/settings (the rendered role settings); only the owner changes them")
+			"home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json (the guard's own " +
+			"decisions); only the owner and the tick change them")
 	}
 	return nil
 }

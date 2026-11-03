@@ -37,6 +37,11 @@ Every tick (`export()` in `bin/factory_cli.py`, also `factory export`) writes `<
 It is in `run/` (git-ignored), not `state/`: `state/` is committed and pushed, and a timestamp that changes every tick
 would add a commit per tick. The Go binary (`internal/guard/guardexport.go`) decides from this file:
 
+Workers cannot forge it (T-0883): every `roles/settings/*.json.in` denies Edit/Write/MultiEdit/NotebookEdit on
+`run/guard-export.json*` (the file and its `.tmp<pid>` sibling), and both guards refuse Bash writes, moves, links,
+removals and chmods of it and Edit-class calls on it (realpath and symlink forms included), through the
+`run/settings` machinery (`RUN_EXPORT`, `CFG_CODE`). Reads stay allowed. The exporter does not run under the hook.
+
 1. No DB file (`db_path()`: `<home>/db/factory.db`, else the legacy `<home>/factory.db`): Python's own "no DB" branch is
    taken without the export: own goal `None`, `test_sandbox` off, public text off, the push has no worktree (refused).
 2. A DB file: the export is read. **Fail closed**: a missing, unreadable, unparsable file, a `version` other than 1 or a

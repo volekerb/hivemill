@@ -44,6 +44,21 @@ func payloadCwd(data map[string]any) string {
 	return wd
 }
 
+const exportWhy = "run/guard-export.json holds the guard's own decisions (own goal, push pin, sandbox, terms file); only " +
+	"the tick writes it"
+
+// exportPath is a port of export_path (T-0883): p is run/guard-export.json of a live home or its temp sibling.
+func exportPath(p string) bool {
+	for _, c := range uniq([]string{pyNormpath(p), pyRealpath(p)}) {
+		for _, d := range mustHost().runExport {
+			if c == d || strings.HasPrefix(c, d+".") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // PersistEdit is a port of persist_edit (T-0334): an Edit/Write/MultiEdit/NotebookEdit call on a protected
 // config/init file is refused. A payload without a readable path cannot be decided and fails closed.
 func PersistEdit(data map[string]any, role string) (int, string) {
@@ -60,6 +75,9 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 	cwd := payloadCwd(data)
 	if !strings.HasPrefix(p, "/") {
 		p = pyJoin(cwd, p)
+	}
+	if exportPath(p) || (strings.Contains(p, "$") && strings.Contains(p, "guard-export")) {
+		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + exportWhy + ". Tell your lead if this is wrong.\n"
 	}
 	noPush := in(noPushRoles, role) // T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
 	if persistPath(p, false, !noPush) || (noPush && (gitHooksPath(p, false) || gitfilePath(p))) || (strings.Contains(p, "$") && PersistCode(p)) {
