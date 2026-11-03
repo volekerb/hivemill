@@ -6849,21 +6849,27 @@ def _project_remote_urls(common):
             rows = con.execute("SELECT repo_path, gh_repo FROM projects WHERE repo_path IS NOT NULL AND gh_repo IS NOT NULL").fetchall()
         finally:
             con.close()
-        urls = set()
+        matched = []  # gh_repo of every row whose repo_path is this clone's root
         for r in rows:
             gh, rp = r["gh_repo"], r["repo_path"]
             if not isinstance(gh, str) or not isinstance(rp, str):
                 continue
-            if (not _GH_REPO.fullmatch(gh) or ".." in gh or gh.endswith(".git")
-                    or f"https://github.com/{gh}.git".lower() == factory_remote_url().lower()):
-                continue
-            if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
-                continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
-            if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
-                continue
-            urls |= {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
-        return urls
-    except (sqlite3.Error, OSError, RuntimeError):
+            try:
+                if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
+                    continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
+                if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
+                    continue
+            except (ValueError, OSError, RuntimeError):
+                continue  # e.g. a NUL byte in repo_path: this row allows nothing
+            matched.append(gh)
+        if len(matched) != 1:
+            return set()  # two projects at one path is ambiguous: allow no project URL
+        gh = matched[0]
+        if (not _GH_REPO.fullmatch(gh) or ".." in gh or {".", ".."} & set(gh.split("/")) or gh.endswith(".git")
+                or f"https://github.com/{gh}.git".lower() == factory_remote_url().lower()):
+            return set()
+        return {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
+    except (sqlite3.Error, OSError, RuntimeError, ValueError):
         return set()
 
 
