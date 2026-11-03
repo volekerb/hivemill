@@ -11,7 +11,7 @@ import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
 OTHER = ("coder", "cleaner", "judge")
 HQ = ("boss", "director")
 

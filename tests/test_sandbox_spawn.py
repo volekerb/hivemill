@@ -122,6 +122,22 @@ class SandboxCase(FactoryTestCase):
     def set_roles(self, value):
         self.ok("config", "sandbox_roles", value)
 
+    def break_template(self, role):
+        """Swap the temp home's roles symlink for a copy-by-symlink whose <role> settings template is not JSON."""
+        roles = self.env.home_dir / "roles"
+        src = roles.resolve()
+        roles.unlink()
+        roles.mkdir()
+        for item in src.iterdir():
+            if item.name != "settings":
+                (roles / item.name).symlink_to(item)
+        (roles / "settings").mkdir()
+        for item in (src / "settings").iterdir():
+            (roles / "settings" / item.name).symlink_to(item)
+        broken = roles / "settings" / f"{role}.json.in"
+        broken.unlink()
+        broken.write_text("{ not json")
+
     def spawn(self, role, name=None, cwd=True):
         return self.env.run(*spawn_args(self.env, role, name, cwd))
 
@@ -442,6 +458,33 @@ class QueueTests(SandboxCase):
         self.assertEqual(self.mux("agent", "start"), [])
         self.ok(*spawn_args(self.env, "reviewer"))  # the lead spawns again: it starts
         self.assertEqual(self.agents("zz-reviewer")[0]["status"], "live")
+
+    def test_a_queued_spawn_with_a_broken_template_fails_once_and_the_lead_is_told_once(self):
+        self.queue_reviewer()
+        self.break_template("reviewer")
+        for _ in range(3):
+            self.ok("tick")
+        self.assertEqual(self.agents("zz-reviewer")[0]["status"], "cancelled")  # terminal: later ticks skip it
+        self.assertEqual(self.mux("agent", "start"), [])
+        ev = [json.loads(r["detail"]) for r in self.events("dequeued") if r["entity_id"] == "zz-reviewer"]
+        self.assertEqual([e["by"] for e in ev], ["settings-render-preflight"])
+        self.assertIn("invalid JSON", ev[0]["reason"])
+        msgs = self.env.sql("SELECT recipient, subject, body FROM messages WHERE subject LIKE 'settings-render refused%'")
+        self.assertEqual([(m["recipient"], m["subject"]) for m in msgs],
+                         [("zz-lead", "settings-render refused queued spawn zz-reviewer")])
+        self.assertIn("spawn again", msgs[0]["body"])
+        self.assertFalse((self.env.user_home / ".local/state/factory/workers/zz-reviewer").exists())
+
+    def test_a_render_failure_leaves_no_agent_dir_row_or_pane(self):
+        self.set_roles("reviewer")
+        self.break_template("reviewer")
+        p = self.spawn("reviewer")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("settings render failed", p.stderr)
+        self.assertFalse((self.env.user_home / ".local/state/factory/workers/zz-reviewer").exists())
+        self.assertEqual(self.agents("zz-reviewer"), [])
+        self.assertEqual(self.mux("agent", "start"), [])
+        self.assertEqual(self.mux("pane", "split") + self.mux("tab", "create") + self.mux("workspace", "create"), [])
 
     def test_a_direct_sandboxed_spawn_that_is_refused_exits_3_and_queues_nothing(self):
         (self.env.stub_bin / "unshare").write_text("#!/bin/sh\nexit 1\n")
