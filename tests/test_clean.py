@@ -337,6 +337,19 @@ class CleanTests(FactoryTestCase):
         self.list_agents()
         self.assertIn("1 would remove", self.clean("--dry-run").stdout)
 
+    def test_live_row_with_live_pane_elsewhere_keeps_worktree_until_pane_gone(self):
+        """T-0923 (T-0339): done task, MERGED PR, live agent row missing from the agent list, its pane alive but with its
+        cwd outside the worktree: kept; removed once the pane is gone."""
+        wt, _, _ = self.task()
+        self.live_agent(pane="p1")
+        self.list_agents()
+        self.env.set_herdr(panes=[{"pane_id": "p1", "workspace_id": "w1", "cwd": str(self.env.home)}])
+        self.assertIn("agent live", self.clean().stdout)
+        self.assertTrue(wt.exists())
+        self.env.set_herdr(panes=[])
+        self.assertIn("1 removed", self.clean().stdout)
+        self.assertFalse(wt.exists())
+
     def test_fresh_live_row_not_yet_listed_is_kept(self):
         self.task()
         now = self.env.sql("SELECT strftime('%Y-%m-%dT%H:%M:%S+00:00','now') t")[0]["t"]
