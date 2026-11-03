@@ -204,6 +204,7 @@ class Allowlist:
 
     def __init__(self, entries=()):
         self.entries = list(entries)  # (path, pattern id or None for legacy, compiled regex)
+        self.used = [False] * len(self.entries)
 
     @classmethod
     def load(cls, path):
@@ -240,8 +241,16 @@ class Allowlist:
     def allows(self, names, line, pid):
         if pid == OWNER_TERM:
             return False
-        return any(p in names and rx.search(line) and (e == pid or (e is None and pid in LEGACY_OK))
-                   for p, e, rx in self.entries)
+        hit = False
+        for i, (p, e, rx) in enumerate(self.entries):
+            if p in names and rx.search(line) and (e == pid or (e is None and pid in LEGACY_OK)):
+                self.used[i] = True
+                hit = True
+        return hit
+
+    def unused(self):
+        """Entries (path, pattern id or None, regex source) that suppressed no hit so far."""
+        return [(p, e, rx.pattern) for (p, e, rx), used in zip(self.entries, self.used) if not used]
 
 
 class HistoryAllowlist:
@@ -612,6 +621,9 @@ def run(argv):
     allow = Allowlist.load(args.allowlist)
     if args.tree is not None:
         scan_tree(args.tree, report, allow)
+        for apath, pid, rx in allow.unused():
+            print(f"scrub-scan: warning: unused allowlist entry {shown(scanner, apath.encode('utf-8', 'surrogateescape'))}:{pid or '-'}:{rx}",
+                  file=sys.stderr)
         return report.finish("tree")
     cwd = os.getcwd()
     for f in args.path:
