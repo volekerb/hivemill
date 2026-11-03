@@ -61,7 +61,7 @@ class HooksJsonShapeTests(unittest.TestCase):
                         f"{event} hook entry must set failClosed true: {entry!r}",
                     )
             matcher = hooks["hooks"]["preToolUse"][0].get("matcher")
-            self.assertEqual(matcher, "Shell|Write|Delete|Read|Grep")
+            self.assertEqual(matcher, "Shell|Write|Delete|Read|Grep|StrReplace|EditNotebook")
 
 
 if __name__ == "__main__":
