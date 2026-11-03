@@ -2627,6 +2627,8 @@ class Analyzer:
         words = stripped
         while words and (words[0] in ("noglob", "nocorrect") or words[0] == "repeat" and len(words) > 1):
             words = words[2:] if words[0] == "repeat" else words[1:]  # T-0826: zsh precommand modifiers run the next command word
+            if words and words[0] == "-":  # zsh precommand separator: `noglob - git push`
+                words = words[1:]
             stripped = strip_prefix(words)
             assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
             words = stripped
