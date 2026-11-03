@@ -1734,6 +1734,8 @@ class Analyzer:
                         dirs.append(val)
                 elif opt not in TAR_LONG_FLAG or eq:
                     bad(f"option {a!r}")
+            elif a.startswith("-C") and not a.startswith("--") and len(a) > 2:  # -CDIR: the same target as -C DIR
+                dirs.append(a[2:])
             elif (a.startswith("-") and len(a) > 1) or (j == 0 and re.match(r"^[A-Za-z]+$", a)):
                 for ch in a.lstrip("-"):
                     if ch not in TAR_SHORT_OK:

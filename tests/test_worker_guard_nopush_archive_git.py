@@ -211,7 +211,7 @@ class ArchiveGitTests(unittest.TestCase):
             f"bsdtar -xf {gitcfg} -C {o}", f"tar -xf {clean} -C {o} --strip-components=1",
             f"tar -xf {clean} -C {o} -P", f"tar -xf {clean} -C {o} -T list", f"tar --get -f {clean} -C {o}",
             f"tar -xf {clean} -C {o} --use-compress-program=sh", f"tar -xf {clean} -C {o} -I sh",
-            f"unzip {zclean} -d {o} -x foo", f"unzip -o {zclean} -d{o}/.git", f"unzip -P pw {zclean} -d {o}",
+            f"unzip {zclean} -d {o} -x foo", f"unzip -o {zclean} -d{o}/.git", f"tar -xf {clean} -C{o}/.git", f"tar -xf {gitcfg} -C{o}", f"unzip -P pw {zclean} -d {o}",
         ]
         allow = [f"tar -xf {clean} -C {o}", f"tar -xzf {clean} -C {o}", f"unzip {zclean} -d {o}",
                  f"tar -tf {evil}", f"unzip -l {s}/zevil.ZIP", f"unzip -l {zclean}"]
