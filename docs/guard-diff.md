@@ -2,7 +2,11 @@
 
 `ci/guard_diff.py` compares the worker-guard hook on a base ref (normally `origin/main`) with the hook in your working tree. It answers one question mechanically: does this PR silently loosen a block that main has, or add a false positive?
 
-## Usage
+## In CI
+
+The `guard-diff` job's real-corpus step in `.github/workflows/tests.yml` runs both commands below on every PR that changes `roles/hooks/**`, `roles/settings/**`, `ci/guard_corpus.json`, `ci/guard_diff.py`, `ci/public_text_guard.py`, `ci/scrub_scan.py` (the hook loads them), `.github/workflows/tests.yml` (so a gate change proves itself) or `go/internal/guard/**`, `go/cmd/worker-guard/**` or `go/internal/shlex/**`, with `--base` set to the PR base sha. The `guard-diff` job feeds the required `unittest` aggregate, so rc!=0 (a LOOSENED line) fails the PR. The tool (`ci/guard_diff.py`, `tests/_slot.py`) is extracted from the base commit, so a PR cannot weaken its own gate; a base without it falls back to the PR copy. The corpus is passed twice on both runs, `--corpus <base ci/guard_corpus.json> --corpus ci/guard_corpus.json`, so deleting a `must_block` entry in the PR still shows as LOOSENED. The job fails if `ci/guard_corpus.json` has 100 lines or fewer (not the real corpus). A PR that adds `ci/allow_loosen_*.json` has it merged into one `--allow-loosen` list and printed in the job log for the reviewer. Coders do not run the tool locally (load, M16816); they read this job's log.
+
+## Usage (local, for reviewers and the factory owner)
 
 ```
 git fetch origin

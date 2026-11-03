@@ -54,6 +54,8 @@ def _affected():
 def _match(path, pat):
     if pat.endswith("/**"):
         return path.startswith(pat[:-2])
+    if pat.endswith("/*.md") and path.count("/") != pat.count("/"):
+        return False  # only `<dir>/*.md` is one segment (roles/*.md is not roles/plugins/x/y.md); other globs keep fnmatch's `*` crossing `/`
     return fnmatch.fnmatchcase(path, pat)
 
 

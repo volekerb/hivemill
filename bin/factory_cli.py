@@ -2633,17 +2633,18 @@ def cmd_task(a):
                 die(f"--follow-up-of: no task {a.follow_up_of} in goal {g['id']}", 2)
             if par["status"] != "done":
                 die(f"--follow-up-of: {a.follow_up_of} is {par['status']}; follow-ups are filed against done tasks", 2)
-        if a.role not in ROLES:
+        new_role = a.role or "coder"
+        if new_role not in ROLES:
             die(f"role must be one of {ROLES}")
         if a.sandbox_required == "1":
-            check_sandbox_required_role(a.role)
+            check_sandbox_required_role(new_role)
         deps = split_after(a.after)
         tid = next_id(con, "tasks", "T", 4)
         check_after(con, tid, g["id"], deps)
         spec = read_text(a.spec)
         con.execute("INSERT INTO tasks(id,goal_id,team_id,title,spec,acceptance,role,depends_on,created,updated,follow_up_of) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                    (tid, g["id"], a.team, a.title, spec, read_text(a.acceptance), a.role,
+                    (tid, g["id"], a.team, a.title, spec, read_text(a.acceptance), new_role,
                      json.dumps(deps), now(), now(), a.follow_up_of))
         event(con, "task", tid, "add", a.title)
         if a.sandbox_required == "1":
@@ -2742,11 +2743,27 @@ def cmd_task(a):
                 die(f"only a lead, director or the owner may set a task's priority ({role} may not use --priority)", 3)
             if a.priority not in (1, 2, 3):
                 die("--priority must be 1, 2 or 3", 2)
+        if a.role is not None:
+            if role not in ("owner", "lead", "director", "boss"):
+                die(f"only a lead, director or the owner may change a task's role ({role} may not use --role)", 3)
+            if a.role not in ROLES:
+                die(f"role must be one of {ROLES}", 2)
+            if t["role"] == "coder" and (t["pr_url"] or a.pr) and role != "owner":
+                die("a coder task with a PR is closed only by the judge: only the owner may change its role", 3)
+            holder = con.execute("SELECT name FROM agents WHERE task_id=? AND status IN ('live','starting','queued') "
+                                 "AND stop_requested_at IS NULL "
+                                 f"AND role IN ({','.join('?' * len(WORKER_ROLES))}) LIMIT 1",
+                                 (a.id, *sorted(WORKER_ROLES))).fetchone()
+            if holder:
+                die(f"{a.id} is held by agent {holder['name']}; change the role with: factory stop {holder['name']} "
+                    f"--reason ..., then factory task update {a.id} --role {a.role}, then factory spawn {a.role} --task {a.id}", 2)
+            if a.sandbox_required == "1" or (a.sandbox_required is None and t["sandbox_required"]):
+                check_sandbox_required_role(a.role)  # the flag as it will be after this call
         if a.sandbox_required is not None:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may set a task's sandbox_required ({role} may not use --sandbox-required)", 3)
             if a.sandbox_required == "1":
-                check_sandbox_required_role(t["role"])
+                check_sandbox_required_role(a.role or t["role"])
         if a.judge_hold is not None or a.judge_hold_clear:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may set a task's judge hold ({role} may not use --judge-hold)", 3)
@@ -2789,10 +2806,10 @@ def cmd_task(a):
                 die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
         elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
                                              a.team, a.priority, a.after, a.waits, a.note, a.reason,
-                                             a.sandbox_required, a.judge_hold)) and not a.judge_hold_clear:
+                                             a.sandbox_required, a.judge_hold, a.role)) and not a.judge_hold_clear:
             die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
                 "--acceptance --team --priority --after --waits --note --goal --sandbox-required --judge-hold "
-                "--judge-hold-clear", 2)
+                "--judge-hold-clear --role", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
@@ -2806,7 +2823,7 @@ def cmd_task(a):
                 die("--merged-externally needs --status done and --reason (why the PR was merged outside the judge)", 2)
             extra = [f for f, v in (("--spec", a.spec), ("--acceptance", a.acceptance), ("--pr", a.pr), ("--team", a.team),
                                     ("--priority", a.priority), ("--after", a.after), ("--branch", a.branch),
-                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits)) if v is not None]
+                                    ("--assignee", a.assignee), ("--title", a.title), ("--waits", a.waits), ("--role", a.role)) if v is not None]
             if extra:
                 die(f"--merged-externally only closes the task; do not combine it with {', '.join(extra)}", 2)
             if t["role"] != "coder" or not t["pr_url"]:
@@ -2847,7 +2864,7 @@ def cmd_task(a):
             sets.append("depends_on=?"); args.append(json.dumps(deps))
         for col, val in (("status", a.status), ("pr_url", a.pr), ("branch", a.branch), ("assignee", a.assignee),
                          ("title", a.title), ("spec", spec), ("acceptance", acceptance),
-                         ("team_id", a.team), ("priority", a.priority), ("goal_id", a.goal)):
+                         ("team_id", a.team), ("priority", a.priority), ("goal_id", a.goal), ("role", a.role)):
             if val is not None:
                 if col == "status" and val not in TASK_STATUSES:
                     die(f"status must be one of {TASK_STATUSES}")
@@ -2876,6 +2893,8 @@ def cmd_task(a):
         parts = [f"{k}={v}" for k, v in (("status", a.status), ("pr", a.pr), ("team", a.team), ("priority", a.priority)) if v]
         if a.goal is not None:
             parts.append(f"goal={t['goal_id']} -> {a.goal}")
+        if a.role is not None:
+            parts.append(f"role={t['role']}->{a.role}")
         if a.status == "blocked":
             parts.append(f"waits={a.waits or (t['waits'] if t['status'] == 'blocked' else 'internal')}")
         if deps is not None:
@@ -8596,10 +8615,43 @@ def prcheck_test_count(wt, ref):
     return len(p.stdout.splitlines()) if p.returncode in (0, 1) else None
 
 
+_EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+_EVIDENCE_FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.M | re.S)
+
+
+def _evidence_is_command(text):
+    """True when text is a command line: 2+ tokens, first one (after VAR=x prefixes and `cd x &&`) a known runner."""
+    t = text.strip().lstrip("$").strip()
+    for seg in re.split(r"&&|;", t):  # `cd x && test -z .. && go test ..`: any chained segment may be the runner
+        toks = seg.split()
+        while toks and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=\S*$", toks[0]):
+            toks.pop(0)
+        if len(toks) >= 2 and (toks[0] in _EVIDENCE_RUNNERS or toks[0].startswith(("ci/", "./"))):
+            return True
+    return False
+
+
+def prcheck_evidence_problem(sec):
+    """T-0947: shape check of the `## Test evidence` section (outside <details>): a literal command line plus an output
+    line. It proves text is present, not that it is true. Returns a problem string or None."""
+    cands = [m.group(1) for m in re.finditer(r"`([^`\n]+)`", _EVIDENCE_FENCE.sub("", sec))]
+    for block in _EVIDENCE_FENCE.findall(sec):
+        cands += block.splitlines()
+    if not any(_evidence_is_command(c) for c in cands):
+        return ("`## Test evidence` has no command in backticks: a command line of 2+ words starting with a runner "
+                "(python3, pytest, go, bash, make, git, gh, grep, factory, ci/..., ./...), "
+                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK; a bare file or test name is not a command")
+    if not _EVIDENCE_OUTPUT.search(sec):
+        return ("`## Test evidence` has a command but no output line: add its key result, "
+                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, passed, rc=N, exit N, ->)")
+    return None
+
+
 def prcheck_body(wt, base, pr_url):
     """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
     if not pr_url:
-        return False, "no PR for this task yet: open it (gh pr create --body-file F) or pass --pr <url>, then rerun"
+        return False, "no PR for this task yet: open it (factory pr create --title T --body -) or pass --pr <url>, then rerun"
     try:
         p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
                            env=gh_git_env())
@@ -8613,8 +8665,9 @@ def prcheck_body(wt, base, pr_url):
     outside = pr_outside_details(body)
     sec = outside.split("## Test evidence", 1)[-1] if "## Test evidence" in outside else ""
     sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
-    if not re.search(r"`[^`\n]+`", sec):
-        problems.append("`## Test evidence` has no command in backticks (e.g. `python3 -m unittest discover -s tests -v`)")
+    ev = prcheck_evidence_problem(sec)
+    if ev:
+        problems.append(ev)
     # count against the merge-base, so tests main gained since the branch point do not look like removals
     mb = _git_out(wt, "merge-base", "HEAD", f"origin/{base}")
     n_head = prcheck_test_count(wt, "HEAD")
@@ -14791,7 +14844,7 @@ def main():
     x.add_argument("--base", default="origin/main"); x.add_argument("--head")
     x.add_argument("id", nargs="?"); x.add_argument("text", nargs="?"); x.add_argument("extra", nargs="?")
     x.add_argument("--goal"); x.add_argument("--team"); x.add_argument("--title"); x.add_argument("--spec")
-    x.add_argument("--acceptance"); x.add_argument("--role", default="coder"); x.add_argument("--after")
+    x.add_argument("--acceptance"); x.add_argument("--role"); x.add_argument("--after")
     x.add_argument("--status"); x.add_argument("--pr"); x.add_argument("--branch"); x.add_argument("--assignee")
     x.add_argument("--note"); x.add_argument("--all", action="store_true")
     x.add_argument("--reason"); x.add_argument("--follow-up-of", dest="follow_up_of")
