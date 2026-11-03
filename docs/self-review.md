@@ -2,6 +2,10 @@
 
 Skill `coder-skills:self-review` (roles/plugins/coder/coder-skills/skills/self-review/SKILL.md).
 
+## `<factory-root>`
+`<factory-root>` is the directory of your factory checkout (FACTORY_HOME's repo, e.g. ~/factory).
+The skills and docs use it instead of an absolute home path; this is its only definition.
+
 ## What it does
 A coder runs exactly one fresh Sonnet subagent on its own diff
 (`git diff origin/main...HEAD`) with the Steps 2-3 checklist of roles/reviewer.md
