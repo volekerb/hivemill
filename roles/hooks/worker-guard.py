@@ -335,6 +335,16 @@ GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
+# T-0805 rule E: the only options an extracting tar/bsdtar/unzip may carry, matched exactly (no prefix matching: GNU tar
+# accepts --xfo= for --xform=); anything else can rewrite, add or re-read member names so the listing no longer matches
+TAR_SHORT_OK = set("xfvzjJCopk")
+TAR_LONG_FLAG = {"--extract", "--gzip", "--bzip2", "--xz", "--verbose", "--no-same-owner", "--keep-old-files"}
+TAR_LONG_VALUE = {"--file", "--directory"}
+UNZIP_FLAG_OK = {"-o", "-n", "-q", "-qq"}
+ARCHIVE_ENV_NAMES = ("TAR_OPTIONS", "POSIXLY_CORRECT", "UNZIP", "UNZIPOPT", "UNZIP_OPTS", "TAR_READER_OPTIONS")
+ARCHIVE_ENV_RE = re.compile(r"\b(?:" + "|".join(ARCHIVE_ENV_NAMES) + r")\b")
+UNZIP_LISTING = {"-l", "-v", "-t", "-p", "-c", "-z", "-Z"}
+ARCHIVE_SIZE_MAX = 256 << 20  # T-0805: largest archive file the hook lists before refusing
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
 RESEARCHER = "researcher"
@@ -850,6 +860,8 @@ class Analyzer:
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
         self.text = ""
         self.ran_factory = False
+        self.may_create_before = False
+        self.may_create = False  # T-0805: an earlier command on this line may have created a file (an archive to extract)
         self.fs_changed = False  # T-0783: an earlier command on this line may have changed the filesystem
         self.scrub_with_factory = None
         self.gcwd = self.cwd  # directory a git command would run in, moved by `cd` (git rule only)
@@ -1562,31 +1574,11 @@ class Analyzer:
     def archive_extract(self, name, rest):
         """T-0783: NO_PUSH_ROLES extract tar/bsdtar/unzip/cpio/rsync only into a named directory that is not, under or
         holding a .git dir; an extraction with no named directory cannot be bounded and fails closed. Listing stays allowed."""
+        if name in ("tar", "gtar", "bsdtar", "unzip"):
+            return self.archive_rule_e(name, list(rest))  # `--` kept: P1 refuses it in extract mode
         args = [a for a in rest if a != "--"]
         dirs, extract, why = [], False, "name the target (tar -C, unzip -d, cpio -D) as a scratchpad dir that has no .git"
-        if name in ("tar", "gtar", "bsdtar"):
-            for j, a in enumerate(args):
-                short = re.match(r"^-?[A-Za-z]+$", a) and (j == 0 or a.startswith("-")) and not a.startswith("--")
-                if a in ("--extract", "--get") or (short and "x" in a):
-                    extract = True
-                if a in ("-C", "--directory") and j + 1 < len(args):
-                    dirs.append(args[j + 1])
-                elif a.startswith("--directory="):
-                    dirs.append(a.split("=", 1)[1])
-                elif short and "C" in a:
-                    tail = a.split("C", 1)[1]
-                    dirs += [tail] if tail else [x for x in args[j + 1:] if not x.startswith("-")]
-                elif a.startswith("-C") and len(a) > 2:
-                    dirs.append(a[2:])
-        elif name == "unzip":
-            if not any(a in ("-l", "-v", "-t", "-p", "-c", "-z", "-Z") for a in args):
-                extract = True
-            for j, a in enumerate(args):
-                if a == "-d" and j + 1 < len(args):
-                    dirs.append(args[j + 1])
-                elif a.startswith("-d") and len(a) > 2:
-                    dirs.append(a[2:])
-        elif name == "cpio":
+        if name == "cpio":
             pos = [a for a in args if not a.startswith("-")]
             for j, a in enumerate(args):
                 short = re.match(r"^-[A-Za-z]+$", a)
@@ -1659,12 +1651,6 @@ class Analyzer:
             if extract:
                 raise Block("`jar` extraction writes into the current directory under names the hook cannot see: "
                             f"{why.replace('(tar -C, unzip -d, cpio -D) ', '')}; use unzip -d")
-        if name in ("tar", "gtar", "bsdtar") and extract and any(
-                a in ("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level")
-                or a.startswith(("--transform=", "--xform=", "--to-command=")) or
-                (re.match(r"^-?[A-Za-z]+$", a) and "P" in a and not a.startswith("--")) for a in args):
-            raise Block(f"`{name}` option that rewrites member names (-P, --transform, --to-command) can escape the -C target "
-                        f"into a .git dir: {why}")
         if not extract:
             return False
         if not dirs:
@@ -1673,6 +1659,156 @@ class Analyzer:
         for d in dirs:
             self.archive_target(name, d)
         return True
+
+    @staticmethod
+    def listing_only(words):
+        """T-0805: True for a command that cannot create a file: cd and plain readers, tar -t, unzip -l."""
+        name, args = os.path.basename(words[0]), words[1:]
+        if name in ("cd", "pushd", "popd", "ls", "cat", "echo", "printf", "true", "pwd", "test", "[", "file", "stat", "head"):
+            return not any(a in (">", ">>") for a in args)
+        if name in ("tar", "gtar", "bsdtar"):
+            return any(re.match(r"^-?[A-Za-z]*t[A-Za-z]*$", a) for a in args[:1]) and not any(
+                re.match(r"^-?[A-Za-z]*[cxru][A-Za-z]*$", a) for a in args[:1]) or "--list" in args
+        if name == "unzip":
+            return unzip_listing(args)
+        return False
+
+    def archive_rule_e(self, name, args):
+        """T-0805 rule E for tar/gtar/bsdtar/unzip in extract mode, whatever the argument order: E1 every option is in a
+        fixed allowlist (exact match); E2 the archive resolves to one regular file; E3 its member list (never extracted by
+        the hook) has no .git member. Returns True for an extraction, False for a listing."""
+        why = ("name a scratchpad target (tar -C, unzip -d), use only -x -f -v -z -j -J -C -o -p -k (unzip -d -o -n -q) "
+               "and an archive that has no .git member")
+        why0 = "name the target (tar -C, unzip -d, cpio -D) as a scratchpad dir that has no .git"  # the T-0783 text (Go mirror)
+        zipped = name == "unzip"
+        if zipped:
+            extract = not unzip_listing(args)
+        else:
+            extract, tarch, tdirs, tproblems = parse_tar(args)
+        if not extract:
+            return False
+        if ARCHIVE_ENV_RE.search(re.sub(r"[\'\"\\]", "", self.text)) or any(n in os.environ for n in ARCHIVE_ENV_NAMES):
+            raise Block(f"`{name}` extraction with {'/'.join(ARCHIVE_ENV_NAMES)} on the line or in the environment: they change "
+                        f"the options or names tar/unzip use, so the listing the hook read may not match; unset it. {why}")
+        if not zipped and any(
+                a in ("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level")
+                or a.startswith(("--transform=", "--xform=", "--to-command=")) or
+                (re.match(r"^-?[A-Za-z]+$", a) and "P" in a and not a.startswith("--")) for a in args):
+            raise Block(f"`{name}` option that rewrites member names (-P, --transform, --to-command) can escape the -C target "
+                        f"into a .git dir: {why0}")
+
+        def bad(what):
+            raise Block(f"`{name}` extraction with {what}: names on disk may differ from the listing the hook read, so a "
+                        f".git/config member cannot be ruled out; {why}")
+
+        dirs, arch, pos, k = [], None, [], 0
+        if not zipped:
+            if tproblems:
+                bad(tproblems[0])
+            dirs, arch = tdirs, tarch[0] if tarch else None
+        while zipped and k < len(args):
+            a = args[k]
+            k += 1
+            if a == "--":
+                bad("a literal `--` (the hook and unzip would disagree on what follows)")
+            elif a == "-d":
+                if k >= len(args):
+                    bad("-d without a directory")
+                dirs.append(args[k])
+                k += 1
+            elif a.startswith("-d") and len(a) > 2:  # -dDIR: the same target as -d DIR
+                dirs.append(a[2:])
+            elif a.startswith("-") and len(a) > 1:
+                if a not in UNZIP_FLAG_OK:
+                    bad(f"option {a!r}")
+            else:
+                pos.append(a)
+        if zipped:
+            arch = pos[0] if pos else None
+        if not dirs:
+            raise Block(f"`{name}` extracting without a target directory cannot be bounded (an archive may carry .git/config "
+                        f"or hooks): {why0}")
+        for d in dirs:
+            self.archive_target(name, d)
+        self.archive_members(name, arch)
+        return True
+
+    def archive_path(self, arch):
+        """The absolute path of the archive named `arch`, or None when it is stdin, a glob, built from an expansion, a
+        remote name (host:path) or relative with an unknown cwd."""
+        if not arch or arch == "-" or any(c in arch for c in "$`*?[{~\\") or (not os.path.isabs(arch) and self.ccwd is None):
+            return None
+        if ":" in arch.split("/", 1)[0]:
+            return None
+        return arch if os.path.isabs(arch) else os.path.join(self.ccwd, arch)
+
+    @staticmethod
+    def archive_names(path, zipped):
+        """(member name, link target or None) for each member of the archive at `path`, read with the stdlib (never
+        extracted); raises OSError/tarfile.TarError/zipfile.BadZipFile/ValueError/RuntimeError when it cannot be listed or
+        holds more than ARCHIVE_WALK_MAX members."""
+        import tarfile  # lazy: the hook starts once per command, and only an extraction needs these
+        import zipfile
+        out = []
+        if zipped:
+            with zipfile.ZipFile(path) as z:
+                infos = z.infolist()
+                if len(infos) > ARCHIVE_WALK_MAX:
+                    raise RuntimeError("too many members")
+                out = [(i.filename, None) for i in infos]
+        else:
+            with tarfile.open(path, "r|*", ignore_zeros=True) as t:  # a concatenated archive: list every part, as tar -i extracts
+                for m in t:
+                    out.append((m.name, m.linkname if (m.issym() or m.islnk()) else None))
+                    if len(out) > ARCHIVE_WALK_MAX:
+                        raise RuntimeError("too many members")
+            if not out:  # ignore_zeros skips junk blocks: an archive with no readable member is not a tar the hook can vouch for
+                raise ValueError("no readable member")
+        return out
+
+    def archive_members(self, name, arch):
+        """T-0805: a NO_PUSH_ROLES extraction (tar, bsdtar, unzip) reads the member list first and refuses an archive with
+        a `.git` path component (also as a link target) or a directory holding both `config` and `HEAD` (a bare repo whose
+        config `git -C <dir>` would run). A list that cannot be obtained (stdin, no such file, unreadable, unknown format,
+        too many members) fails closed. The archive is only listed, never extracted by the hook."""
+        why = "extract an archive you have listed (tar -tf, unzip -l) that has no .git member and no config+HEAD pair"
+        arch = self.archive_path(arch)
+        if arch is None:
+            raise Block(f"`{name}` extracting from stdin, an expansion or an unresolvable archive name cannot be listed first "
+                        f"(it may carry .git/config): {why}")
+        zipped = name == "unzip"
+        import tarfile
+        import zipfile
+        # unzip opens <name>, then <name>.zip, then <name>.ZIP: list every candidate that exists, not just the first
+        cands = [arch] + ([arch + ".zip", arch + ".ZIP"] if zipped else [])
+        found = [c for c in cands if os.path.lexists(c)]
+        members = []
+        for arch in found or [arch]:
+            if os.path.exists(arch) and (not os.path.isfile(arch) or os.path.getsize(arch) > ARCHIVE_SIZE_MAX):
+                raise Block(f"`{name}` archive {arch!r} is not a regular file under {ARCHIVE_SIZE_MAX >> 20} MB, so it is not "
+                            f"listed (a FIFO or a bomb would hang the hook): {why}")
+            try:
+                members += self.archive_names(arch, zipped)
+            except FileNotFoundError:
+                if not self.may_create_before and not self.fs_changed:
+                    return  # the extraction is the first command on the line and the file does not exist: it extracts nothing
+                raise Block(f"`{name}` archive {arch!r} does not exist yet; an earlier command on this line may create it, so "
+                            f"its members cannot be listed: run the extraction in its own command, after the archive exists")
+            except (OSError, tarfile.TarError, zipfile.BadZipFile, ValueError, RuntimeError, EOFError, NotImplementedError) as e:
+                raise Block(f"`{name}` archive {arch!r} cannot be listed ({type(e).__name__}), so a .git/config member cannot be "
+                            f"ruled out: {why}")
+        dirs = collections.defaultdict(set)
+        for mem, link in members:
+            parts = [c for c in re.split(r"[/\\]", mem) if c not in ("", ".")]
+            if any(c.lower() == ".git" for c in parts) or (
+                    link and any(c.lower() == ".git" for c in re.split(r"[/\\]", link))):
+                raise Block(f"`{name}` archive {arch!r} has a member {mem!r} under a .git path: its config/hooks would run as "
+                            f"git ({PERSIST_WHY}); {why}")
+            if parts and parts[-1] in ("config", "HEAD"):
+                dirs[tuple(parts[:-1])].add(parts[-1])
+        if any(v >= {"config", "HEAD"} for v in dirs.values()):
+            raise Block(f"`{name}` archive {arch!r} has config and HEAD in one directory (a bare repo layout whose config "
+                        f"git runs: core.fsmonitor, core.hooksPath); {why}")
 
     @staticmethod
     def config_args_write(args):
@@ -2450,6 +2586,9 @@ class Analyzer:
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
+        self.may_create_before = self.may_create
+        if words and not self.listing_only(words):
+            self.may_create = True
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.git_config_env(assigns, words)
             self.builtin_assign(assigns, words, hstrs)
@@ -3039,6 +3178,75 @@ def evaluator_home_text(cmd):
 
 
 SESSION_ID = None  # the hook payload's session_id: names the worker's own scratchpad
+
+
+def unzip_listing(args):
+    """T-0805: unzip reads options only before the zip name (a later -l is a member pattern, not a listing flag)."""
+    k = 0
+    while k < len(args):
+        a = args[k]
+        if a in UNZIP_LISTING:
+            return True
+        if a == "-d":
+            k += 1
+        elif not a.startswith("-") or a == "-":
+            return False  # the zip name: the rest are member patterns
+        k += 1
+    return False
+
+
+def parse_tar(args):
+    """T-0805 P1: the one grammar for tar/gtar/bsdtar arguments. Returns (extract, archives, dirs, problems). A short word
+    (single leading `-`, or the first word without one) is classified only when it is `-C<dir>` (C first) or letters only,
+    every letter in TAR_SHORT_OK or `t` (g, K, N, T, I, s ... are unclassifiable), with at most one value letter (f or C) and that letter last; anything else (glued `-xf<path>`, `-xfC`, digits, `/`) is
+    unclassifiable and counts as extract mode, so E1 refuses it (unknown = extract, fail closed). `problems` lists every
+    reason the argv is outside the E1 allowlist (non-empty with extract = refuse)."""
+    extract, archives, dirs, problems, marks = False, [], [], [], []
+    k = 0
+    while k < len(args):
+        a, j = args[k], k
+        k += 1
+        if a == "--":
+            problems.append("a literal `--` (the hook and tar would disagree on what follows)")
+        elif a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            extract = extract or (len(opt) >= 5 and "--extract".startswith(opt)) or (len(opt) >= 4 and "--get".startswith(opt))
+            if opt in TAR_LONG_VALUE:
+                if not eq:
+                    if k >= len(args):
+                        problems.append(f"{opt} without a value")
+                        continue
+                    val, k = args[k], k + 1
+                (archives if opt == "--file" else dirs).append(val)
+            elif opt not in TAR_LONG_FLAG or eq:
+                problems.append(f"option {a!r}")
+        elif a.startswith("-C") and len(a) > 2:  # -CDIR: the same target as -C DIR
+            dirs.append(a[2:])
+        elif (a.startswith("-") and len(a) > 1) or (j == 0 and re.match(r"^[A-Za-z]", a)):
+            letters = a.lstrip("-")
+            values = [i for i, ch in enumerate(letters) if ch in "fC"]
+            if (not re.fullmatch(r"[A-Za-z]+", letters) or any(ch not in TAR_SHORT_OK | {"t"} for ch in letters)
+                    or len(values) > 1 or (values and values[0] != len(letters) - 1)):
+                extract = True  # unclassifiable: assume tar extracts
+                problems.append(f"option {a!r}")
+                continue
+            extract = extract or "x" in letters
+            problems += [f"option {a!r}" for ch in letters if ch not in TAR_SHORT_OK]
+            if values:
+                if k >= len(args):
+                    problems.append(f"-{letters[-1]} without a value")
+                    continue
+                (archives if letters[-1] == "f" else dirs).append(args[k])
+                k += 1
+        else:
+            marks.append(len(dirs))  # a member name: -C only applies to the names after it
+    if len(archives) > 1:
+        problems.append("more than one -f/--file")
+    if any(m < len(dirs) for m in marks):
+        problems.append("a member name before -C (GNU tar applies -C only to later names)")
+    if len(dirs) > 1:
+        problems.append("more than one -C/--directory (GNU tar chains them)")
+    return extract, archives, dirs, problems
 
 
 def in_scratchpad(path):
