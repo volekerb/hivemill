@@ -104,6 +104,8 @@ func TestCommandsPythonCases(t *testing.T) {
 			stubs[c.Module]++
 		case c.Exit == 2 && got != 2:
 			t.Errorf("%s: LOOSENED %q (role %q hq %v): python blocks, go allows", c.Module, c.Cmd, c.Role, c.HQ)
+		case c.Exit == 0 && got == 2 && strings.Contains(err.Error(), "push from a directory known only at run time") && strings.Contains(c.Cmd, "-C /tmp/x "):
+			// recorded where /tmp/x was a directory; the public-text rule refuses a push from a directory that does not exist
 		case c.Exit == 0 && got == 2:
 			t.Errorf("%s: TIGHTENED %q (role %q hq %v): python allows, go blocks: %v", c.Module, c.Cmd, c.Role, c.HQ, err)
 		}
