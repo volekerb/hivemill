@@ -27,7 +27,9 @@ except ImportError:  # run as a script by path
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from scout import ghcred, nsbox
 
-SANDBOXABLE = {"reviewer", "qa", "coder"}  # pm's cwd is ~/factory, which the cwd rule refuses (plan 7.5: documented)
+# pm's cwd is ~/factory, which the cwd rule refuses (plan 7.5: documented). researcher (G-029) is always sandboxed: it runs
+# third-party code in its per-task research dir (HQ passes the research root; allowed for that role only) with the read-only token.
+SANDBOXABLE = {"reviewer", "qa", "coder", "researcher"}
 SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 
 _HOME = nsbox.real_home()
@@ -35,8 +37,8 @@ WORKERS_ROOT = f"{_HOME}/.local/state/factory/workers"
 OAUTH_TOKEN = f"{_HOME}/.config/factory/worker-oauth-token"
 GH_RO = f"{_HOME}/.config/factory/gh-worker-ro-token"
 GH_RW = f"{_HOME}/.config/factory/gh-worker-rw-token"
-ROLE_GH = {"reviewer": GH_RO, "qa": GH_RO, "coder": GH_RW}
-_GH_KEY = {"reviewer": "gh_ro", "qa": "gh_ro", "coder": "gh_rw"}  # same mapping, for token_dir overrides
+ROLE_GH = {"reviewer": GH_RO, "qa": GH_RO, "coder": GH_RW, "researcher": GH_RO}
+_GH_KEY = {"reviewer": "gh_ro", "qa": "gh_ro", "coder": "gh_rw", "researcher": "gh_ro"}  # same mapping, for token_dir overrides
 
 # What the worker's claude may inherit from the shim caller (the pane); anything else is dropped. LC_* also passes.
 #   PATH, LANG, TERM            basics (PATH starts with the agent's bin/ so the pane's `claude` is the shim)
@@ -77,11 +79,15 @@ def _under(path, base):
     return path == base or path.startswith(base.rstrip("/") + "/")
 
 
-def _refuse_cwd(cwd, home, factory_home, agent_dir, hide):
+def _refuse_cwd(cwd, home, factory_home, agent_dir, hide, research_root=None):
     """T-0127's rule for the allow view: a cwd equal to or above home, factory_home, the agent dir or a hide tree
     would expose it; one inside a hide tree is hidden. Inside factory_home only worktrees/ qualifies: a writable cwd
     under bin/, roles/ or db/ would make code that HQ runs writable."""
     want = os.path.realpath(cwd)
+    if research_root:  # a researcher's cwd is a directory strictly below the research root HQ names, nothing else
+        root = os.path.realpath(research_root)
+        if want != root and _under(want, root) and not _under(want, agent_dir) and not _under(want, factory_home):
+            return want
     for guarded in (home, factory_home, agent_dir, *hide):
         if _under(guarded, want):
             raise ValueError(f"cwd {cwd} is equal to or above {guarded}, which the worker profile hides or protects; "
@@ -100,14 +106,14 @@ def _hide_trees(home, runtime, hide_extra=()):
     return [os.path.realpath(d) for d in (home, runtime, "/tmp", "/dev/shm", *hide_extra) if os.path.isdir(d)]
 
 
-def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home, runtime, hide_extra=()):
+def make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home, runtime, hide_extra=(), research_root=None):
     """The nsbox allow-list cfg for one worker. All paths are resolved here, in HQ, never inside."""
     home = os.path.realpath(home)
     factory_home = os.path.realpath(factory_home)
     db_dir = os.path.realpath(db_dir)
     agent_dir = str(agent_dir)
     hide = _hide_trees(home, runtime, hide_extra)
-    want = _refuse_cwd(cwd, home, factory_home, agent_dir, hide)
+    want = _refuse_cwd(cwd, home, factory_home, agent_dir, hide, research_root)
     claude = os.path.abspath(real_claude)
     install = os.path.realpath(claude)
     ro = [factory_home, f"{agent_dir}/bin", f"{agent_dir}/gitconfig"]
@@ -264,7 +270,7 @@ def _seed_claude_json(config_dir, cwd):
     _atomic_write(config_dir, ".claude.json", (json.dumps(cur, indent=1) + "\n").encode(), 0o600)
 
 
-def check_cwd(agent, cwd, factory_home, *, home=None, token_dir=None, workers_root=None, runtime=None, hide_extra=()):
+def check_cwd(agent, cwd, factory_home, *, home=None, token_dir=None, workers_root=None, runtime=None, hide_extra=(), research_root=None):
     """The cwd rule of prepare_agent, alone: no side effects. Raises ValueError("cwd ...") for a refused cwd.
     HQ's preflight calls it so a refusal comes before any pane is touched."""
     check_agent_name(agent)
@@ -272,11 +278,12 @@ def check_cwd(agent, cwd, factory_home, *, home=None, token_dir=None, workers_ro
     p = _paths(home, token_dir, workers_root)
     runtime = runtime or f"/run/user/{os.getuid()}"
     _refuse_cwd(cwd, home, os.path.realpath(factory_home), str(Path(p["workers"]).resolve() / agent),
-                _hide_trees(home, runtime, hide_extra))
+                _hide_trees(home, runtime, hide_extra), research_root)
 
 
 def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *, home=None, token_dir=None,
-                  workers_root=None, runtime=None, hide_extra=(), identity=None, repo=None, gh_token_path=None, gh_slugs=None):
+                  workers_root=None, runtime=None, hide_extra=(), identity=None, repo=None, gh_token_path=None, gh_slugs=None,
+                  research_root=None):
     """Create/refresh <workers_root>/<agent> and return it. See the module doc.
 
     The keyword-only args are test seams; HQ passes none of them: home defaults to the passwd home, token_dir to
@@ -285,7 +292,10 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     `repo` pins the checkout the shim imports from (HQ passes factory_home); default: the checkout this file is in.
     `gh_token_path` is the role's token file from config gh_token_ro / gh_token_rw (default: the fixed file of the role
     in token_dir); `gh_slugs` is the OWNER/NAME list the credential helper answers for (config worker_gh_repos): without
-    it there is no helper and the call is refused."""
+    it there is no helper and the call is refused. `research_root` (researcher only) is the one tree under the hidden
+    home a cwd may sit in; it is ignored for every other role."""
+    if role != "researcher":
+        research_root = None
     check_agent_name(agent)
     if role not in SANDBOXABLE:
         raise ValueError(f"role {role!r} is not sandboxable; one of {sorted(SANDBOXABLE)}")
@@ -297,7 +307,7 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     root = Path(p["workers"])
     # refuse a bad cwd before anything is created or written
     check_cwd(agent, cwd, factory_home, home=home, token_dir=token_dir, workers_root=workers_root, runtime=runtime,
-              hide_extra=hide_extra)
+              hide_extra=hide_extra, research_root=research_root)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     agent_dir = root.resolve() / agent
     if agent_dir.parent != root.resolve():
@@ -311,7 +321,7 @@ def prepare_agent(agent, role, cwd, factory_home, db_dir, real_claude, rw_cwd, *
     name, email = identity if identity is not None else owner_identity(home)
     _atomic_write(str(agent_dir), "gitconfig", render_gitconfig(helper, name, email).encode(), 0o644)  # before make_cfg: it refuses a symlink there
     cfg = make_cfg(agent_dir, cwd, factory_home, db_dir, real_claude, rw_cwd, home=home, runtime=runtime,
-                   hide_extra=hide_extra)
+                   hide_extra=hide_extra, research_root=research_root)
     config_dir = agent_dir / "claude"
     config_dir.mkdir(mode=0o700, exist_ok=True)
     cfd = _open_dir(str(config_dir))  # symlink / foreign owner => refuse, before anything is written below it

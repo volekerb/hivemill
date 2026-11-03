@@ -621,6 +621,61 @@ def vendor(gh, cand, root):
     return {"dir": out, "plugin": plugin_name, "meta": meta, "reclassified": fresh, "reused": False}
 
 
+def content_sha(src):
+    """A 40-hex content hash of the files under `src` (sorted relative paths + bytes): the vendor sha of a
+    repo-owned local plugin, so any edit to it is a new sha and a new set of trials."""
+    h = hashlib.sha1()
+    for p in sorted(x for x in Path(src).rglob("*") if x.is_file()):
+        h.update(p.relative_to(src).as_posix().encode() + b"\0" + p.read_bytes() + b"\0")
+    return h.hexdigest()
+
+
+def vendor_local(cand, root, src, plugin_name):
+    """Vendor a repo-owned plugin dir `src` for candidate row `cand` (id, head_sha, licence, install_risk, status)
+    into `root` with the same rules as vendor(): 0644 files, assert_prompt_only_tree and the pre-screen on the
+    written copy, VENDOR.json. Same return shape as vendor(). Raises VendorError."""
+    cid, sha = cand["id"], cand.get("head_sha") or ""
+    if not SHA_RE.fullmatch(sha):
+        raise VendorError(f"{cid}: needs a full head sha (have {sha!r})")
+    if cand.get("status") == NEEDS_OWNER:
+        raise VendorError(f"{cid} is {NEEDS_OWNER}: pre-screen hits wait for the owner; nothing is vendored", EXIT_PRESCREEN)
+    if (cand.get("install_risk") or "") != "prompt-only":
+        raise VendorError(f"{cid}: install_risk is {cand.get('install_risk')!r}, not prompt-only; refusing")
+    root, src = Path(root), Path(src)
+    done = vendored(root, cid, sha)
+    if done:
+        return {"dir": vendor_dir(root, cid, sha), "plugin": done["plugin"], "meta": done, "reclassified": None, "reused": True}
+    assert_prompt_only_tree(src)  # the source itself must already be clean
+    files = sorted(p for p in src.rglob("*") if p.is_file())
+    if len(files) > MAX_FILES or sum(p.stat().st_size for p in files) > MAX_BYTES:
+        raise VendorError(f"{cid}: local plugin exceeds the file or byte cap; refusing")
+    made_root, made_vendor = not root.exists(), not (root / "vendor").exists()
+    out = vendor_dir(root, cid, sha)
+    stage = out.with_name(out.name + ".partial")
+    shutil.rmtree(stage, ignore_errors=True)
+    try:
+        plugin = stage / plugin_name
+        copied = []
+        for p in files:
+            rel = p.relative_to(src).as_posix()
+            _write(plugin / rel, p.read_bytes())
+            copied.append(rel)
+        assert_prompt_only_tree(plugin)
+        hits = prescreen(plugin, None)
+        meta = {"candidate": cid, "repo": None, "path": "", "sha": sha, "licence": cand.get("licence"),
+                "plugin": plugin_name, "wrapped": False, "local": True, "copied": sorted(copied), "skipped": [],
+                "files": {rel: hashlib.sha256((plugin / rel).read_bytes()).hexdigest() for rel in sorted(copied)},
+                "prescreen_hits": hits}
+        _write(stage / "VENDOR.json", (json.dumps(meta, indent=2) + "\n").encode())
+        shutil.rmtree(out, ignore_errors=True)
+        os.replace(stage, out)
+    except BaseException:
+        shutil.rmtree(stage, ignore_errors=True)
+        _prune(root, made_root, made_vendor)
+        raise
+    return {"dir": out, "plugin": plugin_name, "meta": meta, "reclassified": None, "reused": False}
+
+
 def _write(p, body):
     p.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
