@@ -14,7 +14,7 @@ A research task answers questions with cited evidence. It has no PR and no code 
    - one item per sub-question: "Q<n> answered in ## Findings with at least one primary source [Sn]";
    - "report note present with the seven headings" (Question, Answer, Findings, Recommendation, Proposed follow-ups, Evidence, Limits);
    - "evidence review PASS".
-5. Add an evidence-review task for the reviewer, after the research task: `factory task add --goal G --team <team> --role reviewer --after T-x` with the title "Evidence review of T-x" and the research acceptance as its spec.
+5. Add an evidence-review task for a fresh researcher (never the report's author), after the research task: `factory task add --goal G --team <team> --role researcher --after T-x` with the title "Evidence review of T-x" and the research acceptance as its spec.
 6. Follow-ups the researcher proposes are not tasks. Only the owner's word, through the boss, turns them into goals.
 
 Check before you hand over: every sub-question has an acceptance line, and the time box is a number.

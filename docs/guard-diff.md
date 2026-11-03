@@ -45,7 +45,14 @@ guard-diff: 490 commands, 0 loosened, 0 tightened
 
 ## Settings templates
 
-The tool also diffs the permission rules of `roles/settings/<role>.json.in` against `--base` (a base that still has the old `roles/settings/<role>.json` is compared after mapping the owner's paths to the template tokens). A removed `deny` rule, an added `allow` rule or a removed hook command prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` and counts as LOOSENED (listable with `--allow-loosen`, one `<role> <kind> removed: <rule>` text per line); the reverse prints `SETTINGS-TIGHTENED`. See `docs/settings-templates.md`.
+The tool also diffs `roles/settings/<role>.json.in` against `--base` (a base that still has the old `roles/settings/<role>.json` is compared after mapping the owner's paths to the template tokens), over the union of the roles on base and in the tree. It covers:
+
+- rules: `permissions.allow` and `permissions.deny`;
+- hooks, for every event (not only `PreToolUse`): each hook is compared as `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), so deleting a matcher group or narrowing a matcher is a removal plus an addition;
+- the `env` block, as `K=V`;
+- the template set: a role whose template is on base but gone from the tree.
+
+A removed `deny` rule, an added `allow` rule, a removed hook, a removed or changed `env` entry or a removed template prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` (for a removed template: `SETTINGS-LOOSENED <role> template removed`) and counts as LOOSENED. A hook line reads for example `SETTINGS-LOOSENED qa hook removed: PreToolUse|Edit|Write|MultiEdit|NotebookEdit|command|python3 ...`. `--allow-loosen` takes the same text without the prefix, one `<role> <kind> removed: <rule>` or `<role> template removed` per line. The reverse of a loosening prints `SETTINGS-TIGHTENED`; a new `env` key (or the new value of a changed key) prints `SETTINGS-CHANGED <role> env added: K=V` and is not counted. See `docs/settings-templates.md`.
 
 ## Exit codes
 
