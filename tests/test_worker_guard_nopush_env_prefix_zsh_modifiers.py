@@ -95,6 +95,21 @@ SCRUB = [
     "env --ch /tmp -u FACTORY_ROLE ls",
     "env --arg x --unset=FACTORY_ROLE ls",
 ]
+# T-0826 attempt 4: (role, command) pairs that exit 2 on origin/main and must still exit 2 on head
+REGRESSION = [
+    ("coder", "env -aC -u FACTORY_ROLE ls"), ("lead", "env -aC -u FACTORY_ROLE ls"),
+    ("coder", "env -Ca -u FACTORY_ROLE ls"), ("coder", "env -Cdata -u FACTORY_ROLE ls"),
+    ("reviewer", "env -Cdata -u FACTORY_ROLE ls"), ("coder", "env -afooa -u HERDR_PANE_ID ls"),
+    ("qa", "env -aC -u FACTORY_ROLE git status"),
+    ("coder", "env -ia foo factory task show T-1"), ("coder", "env -iC /tmp factory task show T-1"),
+    ("qa", "env -ai git status"), ("qa", "env -Ci git status"), ("qa", "env -a -i git status"),
+    ("qa", "env -a -u GIT_DIR git status"), ("qa", "env -Cu GIT_DIR git status"),
+]
+SAME_PARSER = [
+    "env -u FOO -u FACTORY_ROLE ls",
+    "env --unset FOO -u FACTORY_ROLE ls",
+    "env -vuFACTORY_ROLE ls",
+]
 
 
 class EnvPrefixZshModifierTests(unittest.TestCase):
@@ -130,6 +145,21 @@ class EnvPrefixZshModifierTests(unittest.TestCase):
 
     def test_value_option_then_command_allowed_for_coder(self):
         for cmd in ("env -a foo ls", "env -C /tmp ls"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd, "coder").returncode, 0)
+
+    def test_regression_forms_refused_as_on_main(self):
+        for role, cmd in REGRESSION:
+            with self.subTest(role=role, cmd=cmd):
+                self.assertEqual(self.run_hook(cmd, role).returncode, 2)
+
+    def test_scrub_after_other_unset_refused_for_coder(self):
+        for cmd in SAME_PARSER:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd, "coder").returncode, 2)
+
+    def test_unset_of_other_var_then_command_allowed_for_coder(self):
+        for cmd in ("env -u FOO ls", "env -u FOO -u BAR ls", "env -a x -u FOO ls"):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd, "coder").returncode, 0)
 

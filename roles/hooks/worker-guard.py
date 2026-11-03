@@ -580,6 +580,24 @@ def env_long(a):
     return "unknown"
 
 
+def env_short(a):
+    """T-0826: walk a short env option cluster like builtin_assign did on main. Returns (has_i, has_u, uval, skip_next):
+    `i` before the first `u` clears the environment; the first `u` anywhere in the cluster is -u (fail closed, as on main:
+    `-Cu GIT_DIR` stays refused) with uval = the rest of the cluster or None (the next word); otherwise the first
+    a/C takes the rest of the cluster as its value and only takes the next word when it is the last character."""
+    body = a[1:]
+    u = body.find("u")
+    head = body if u < 0 else body[:u]
+    if u >= 0:
+        return "i" in head, True, body[u + 1:] or None, False
+    for k, c in enumerate(body):
+        if c in "aC":
+            return "i" in head, False, None, k == len(body) - 1
+        if c == "S":
+            break
+    return "i" in head, False, None, False
+
+
 def strip_prefix(words):
     """Drop env assignments, shell keywords, `time -p` options and `function NAME` before the command word."""
     words = list(words)
@@ -968,27 +986,36 @@ class Analyzer:
             return
         skip = False
         for j, a in enumerate(rest):
-            if skip:  # T-0826: the value of -a/--argv0/-C/--chdir is not an option and not the command word
+            if skip:  # T-0826: the value of -a/--argv0/-C/--chdir/-u/--unset is not an option and not the command word
                 skip = False
+                continue
+            if a == "-":
+                self.scrub_with_factory = "env -i"
                 continue
             if not a.startswith("-") and not ASSIGN.match(a):
                 break
-            if a.startswith("--") and env_long(a) == "value" and "=" not in a:
-                skip = True
-                continue
-            if re.match(r"^-[A-Za-z]*[aC]$", a) and not re.match(r"^-[A-Za-z]*[uS]", a):
-                skip = True
-                continue
-            if a in ("-u", "--unset") and rest[j + 1:j + 2] and rest[j + 1] in SCRUB_VARS:
-                raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a.startswith("-u") and a[2:] in SCRUB_VARS or a.startswith("--unset=") and a[8:] in SCRUB_VARS:
-                raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a.startswith("--") and env_long(a) == "unset":  # T-0826: --uns / --unse prefixes
-                val = a.split("=", 1)[1] if "=" in a else (rest[j + 1] if j + 1 < len(rest) else "")
-                if val in SCRUB_VARS:
-                    raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a == "-" or a.startswith("--") and env_long(a) == "ignore" or re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a):
-                self.scrub_with_factory = "env -i"
+            nxt = rest[j + 1] if j + 1 < len(rest) else ""
+            if a.startswith("--"):
+                kind = env_long(a)
+                if kind == "value" and "=" not in a:
+                    skip = True
+                elif kind == "unset":  # --uns / --unse prefixes
+                    val = a.split("=", 1)[1] if "=" in a else nxt
+                    if val in SCRUB_VARS:
+                        raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
+                    skip = "=" not in a
+                elif kind == "ignore":
+                    self.scrub_with_factory = "env -i"
+            elif a.startswith("-"):
+                has_i, has_u, uval, skip_next = env_short(a)
+                if has_i:
+                    self.scrub_with_factory = "env -i"
+                if has_u:
+                    if (nxt if uval is None else uval) in SCRUB_VARS:
+                        raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
+                    skip = uval is None
+                elif skip_next and not nxt.startswith("-"):
+                    skip = True
 
     def factory_unit(self, name, rest, assigns):
         """Block `factory up|tick|relaunch|spawn|clean` (also via python3 <path>/factory) in the live home."""
@@ -2534,17 +2561,14 @@ class Analyzer:
                 elif a.startswith("--unset="):
                     names = [a[8:]]
                 elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
+                    has_i, has_u, uval, skip_next = env_short(a)
+                    if has_i:
+                        deny("env " + a, "the whole environment", "clear or unset")
                     names = []
-                    for k, c in enumerate(a[1:], 1):
-                        if c == "i":
-                            deny("env " + a, "the whole environment", "clear or unset")
-                        if c in "aC":  # T-0826: value is the rest of the cluster or the next word
-                            if not a[k + 1:]:
-                                next(it, None)
-                            break
-                        if c == "u":  # -uNAME, or the next word
-                            names = [a[k + 1:] or next(it, "")]
-                            break
+                    if has_u:  # -uNAME, or the next word
+                        names = [uval if uval is not None else next(it, "")]
+                    elif skip_next and q and not q[0].startswith("-"):
+                        next(it, None)  # T-0826: the -a/-C value word
                 elif a == "--" or ASSIGN.match(a):
                     continue
                 elif a.startswith("--"):  # T-0826: GNU env takes any unique prefix of a long option; fail closed on the rest
