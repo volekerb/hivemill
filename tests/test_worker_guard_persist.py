@@ -275,6 +275,51 @@ class PersistEditToolTests(unittest.TestCase):
             self.assertFalse([g for g in settings_groups(role) if "Edit" in g.get("matcher", "")], role)
 
 
+# T-0957: ~/.local/bin is first on the tick's PATH, so workers must not write it (a planted git/factory runs with the
+# tick's credentials); writes exit 2, also through a symlink entry (spelled path), reads and running stay allowed.
+LB_BIN = f"{PW}/.local/bin"
+LB_BLOCKED = [
+    "echo x > ~/.local/bin/git", "echo x >> ~/.local/bin/go", "echo x > ~/.local/bin/factory",
+    "echo x > $HOME/.local/bin/nice", "cp /tmp/x ~/.local/bin/git", "mv /tmp/x ~/.local/bin/git",
+    "ln -s /tmp/x ~/.local/bin/git", "ln -sf /tmp/x ~/.local/bin/factory", "rm ~/.local/bin/factory",
+    "rm -r ~/.local/bin", "tee ~/.local/bin/git", "cd ~/.local/bin && echo x > git",
+    "cd ~/.local/bin && cp /tmp/x git", f"echo x > {LB_BIN}/git", f"cp /tmp/x {LB_BIN}/git",
+    f"echo x > {LB_BIN}/../bin/git", "sed -i s/a/b/ ~/.local/bin/git",
+    "python3 -c \"open('/h/.local/bin/git','w')\"",
+]
+LB_ALLOWED = [
+    "ls ~/.local/bin", "ls -la ~/.local/bin/factory", "cp ~/.local/bin/x /tmp/x", "~/.local/bin/factory whoami",
+    "grep -rn .local/bin docs", "echo x > /usr/local/bin/foo", "echo x > ~/.local/binx/foo",
+    f"echo x > {PW}/.local/binx/foo", "git commit -m 'note: ~/.local/bin is on PATH'",
+    "factory msg lead 'subj' 'see ~/.local/bin/git'", "export PATH=~/.local/bin:$PATH",
+    "cp /tmp/x ~/.local/share/foo",
+]
+
+
+def lb_run(cmd, role="coder"):
+    return hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": ROOT}), ["--role", role])
+
+
+class LocalBinGuardTest(unittest.TestCase):
+    def test_writes_into_local_bin_are_blocked(self):
+        for cmd in LB_BLOCKED:
+            r = lb_run(cmd)
+            self.assertEqual(r.returncode, 2, f"{cmd}: {r.stderr}")
+
+    def test_block_message_names_local_bin(self):
+        for cmd in ("echo x > ~/.local/bin/git", "cp /tmp/x ~/.local/bin/git", "rm ~/.local/bin/factory"):
+            self.assertIn("~/.local/bin", lb_run(cmd).stderr, cmd)
+
+    def test_reads_runs_look_alikes_and_text_are_allowed(self):
+        for cmd in LB_ALLOWED:
+            r = lb_run(cmd)
+            self.assertEqual(r.returncode, 0, f"{cmd}: {r.stderr}")
+
+    def test_blocked_for_every_worker_role(self):
+        for role in ("coder", "qa", "reviewer", "pm"):
+            self.assertEqual(lb_run("echo x > ~/.local/bin/git", role).returncode, 2, role)
+
+
 PERSIST_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 if __name__ == "__main__":
