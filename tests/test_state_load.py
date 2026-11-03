@@ -117,6 +117,26 @@ class StateLoadTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertEqual(list((self.home / "db").iterdir()), [])
 
+    def test_unknown_event_key_rejected_db_unchanged(self):
+        bad = dict(EVENTS[0], **{'x"; DROP TABLE tasks;--': "v"})
+        (self.state / "events.jsonl").write_text(json.dumps(bad) + "\n")
+        r = run(self.home, self.state)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("unknown column", r.stderr)
+        self.assertIn("DROP TABLE", r.stderr)
+        self.assertEqual(list((self.home / "db").iterdir()), [])  # no DB written at all
+
+    def test_unknown_event_key_raises_and_writes_no_db(self):
+        bad = dict(EVENTS[0], evil="v")
+        (self.state / "events.jsonl").write_text(json.dumps(bad) + "\n")
+        with self.assertRaises(RuntimeError):
+            state_load.load(self.home, self.state)
+        self.assertEqual(list((self.home / "db").iterdir()), [])
+
+    def test_known_event_keys_still_load(self):
+        r = run(self.home, self.state)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_missing_state_files(self):
         (self.state / "events.jsonl").unlink()
         r = run(self.home, self.state)
