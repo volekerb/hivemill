@@ -848,6 +848,139 @@ class SettingsCompareTests(GuardDiffCase):
         self.assertIn("SETTINGS-LOOSENED", p.stdout)
 
 
+class SettingsFollowUpTests(GuardDiffCase):
+    """T-0944: permissions.ask, autoMode, hook timeout and non-ASCII role names in the settings compare."""
+
+    def setUp(self):
+        super().setUp()
+        self.sdir = os.path.join(self.repo, "roles", "settings")
+        self.tpl = os.path.join(self.sdir, "qa.json.in")
+
+    commit_base = SettingsCompareTests.commit_base
+    write_tpl = SettingsCompareTests.write_tpl
+    edit_tree = SettingsCompareTests.edit_tree
+    settings = SettingsCompareTests.settings
+    settings_lines = SettingsCompareTests.settings_lines
+
+    @staticmethod
+    def seed(d):
+        d.setdefault("permissions", {})["ask"] = ["Bash(rm -rf *)", "Bash(git push *)"]
+        d["autoMode"] = {"environment": ["$defaults", "env text"], "allow": ["allow text"]}
+        for g in d["hooks"]["PreToolUse"]:
+            for h in g["hooks"]:
+                h["timeout"] = 10
+
+    def test_removed_ask_rule_is_loosened(self):
+        self.commit_base(self.seed)
+        self.edit_tree(lambda d: d["permissions"]["ask"].remove("Bash(rm -rf *)"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED qa ask removed: Bash(rm -rf *)", p.stdout)
+        self.assertIn("1 loosened", p.stdout)
+
+    def test_added_ask_rule_is_tightened(self):
+        self.commit_base(self.seed)
+        self.edit_tree(lambda d: d["permissions"]["ask"].append("Bash(curl *)"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-TIGHTENED qa ask added: Bash(curl *)", p.stdout)
+        self.assertIn("1 tightened", p.stdout)
+
+    def test_changed_automode_is_loosened_and_changed(self):
+        self.commit_base(self.seed)
+        self.edit_tree(lambda d: d["autoMode"]["allow"].__setitem__(0, "wider allow text"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED qa autoMode removed: allow: allow text", p.stdout)
+        self.assertIn("SETTINGS-CHANGED qa autoMode added: allow: wider allow text", p.stdout)
+
+    def test_changed_hook_timeout_is_loosened_keeps_hook_text(self):
+        self.commit_base(self.seed)
+        self.edit_tree(lambda d: d["hooks"]["PreToolUse"][0]["hooks"][0].__setitem__("timeout", 99))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        lines = self.settings_lines(p)
+        self.assertEqual(len([ln for ln in lines if ln.startswith("SETTINGS-LOOSENED qa hook-timeout removed: ")]), 1, lines)
+        self.assertEqual(len([ln for ln in lines if "hook-timeout added: " in ln and ln.startswith("SETTINGS-CHANGED")]), 1, lines)
+        self.assertFalse([ln for ln in lines if " hook removed: " in ln or " hook added: " in ln], lines)
+
+    def test_removed_hook_does_not_double_report_timeout(self):
+        self.commit_base(self.seed)
+        self.edit_tree(self.drop_edit_group)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa hook removed: PreToolUse\|Edit\|Write")
+        self.assertNotIn("hook-timeout", p.stdout)
+
+    drop_edit_group = staticmethod(SettingsCompareTests.drop_edit_group)
+
+    def test_non_ascii_role_template_removed_is_loosened(self):
+        self.commit_base()
+        extra = os.path.join(self.sdir, "q\u00e4.json.in")
+        shutil.copy(self.tpl, extra)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-q", "-m", "non-ascii role")
+        os.remove(extra)
+        git(self.repo, "add", "-A")
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED q\u00e4 template removed", p.stdout)
+
+    def test_pure_automode_addition_is_counted_and_added_hook_has_no_timeout_line(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["autoMode"]["allow"].append("brand new allow text")
+            d["hooks"]["Stop"] = [{"hooks": [{"type": "command", "command": "true", "timeout": 5}]}]
+        self.edit_tree(edit)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-CHANGED qa autoMode added: allow: brand new allow text", p.stdout)
+        self.assertIn("SETTINGS-TIGHTENED qa hook added: Stop||command|true", p.stdout)
+        self.assertNotIn("hook-timeout", p.stdout)
+
+    def test_automode_removal_and_addition_under_different_keys_counts_both(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["autoMode"]["environment"].remove("env text")
+            d["autoMode"]["allow"].append("wide allow text")
+        self.edit_tree(edit)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("2 loosened", p.stdout)
+        allow = os.path.join(self._tmp.name, "allow.txt")
+        with open(allow, "w", encoding="utf-8") as f:
+            f.write("qa autoMode removed: environment: env text\n")
+        p = self.settings("--allow-loosen", allow)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)  # the unrelated added allow entry is still unplanned
+        self.assertIn("qa autoMode added: allow: wide allow text", p.stdout)
+
+    def test_unchanged_template_with_new_keys_prints_no_settings_line(self):
+        self.commit_base(self.seed)
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.settings_lines(p), [])
+
+    def test_allow_loosen_honours_new_texts(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["permissions"]["ask"].pop()
+            d["autoMode"]["allow"][0] = "other"
+            d["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = 99
+        self.edit_tree(edit)
+        first = self.settings()
+        self.assertEqual(first.returncode, 1, first.stdout + first.stderr)
+        texts = [ln[len("SETTINGS-LOOSENED "):] for ln in first.stdout.splitlines() if ln.startswith("SETTINGS-LOOSENED")]
+        self.assertEqual(len(texts), 3, first.stdout)
+        allow = os.path.join(self._tmp.name, "allow.txt")
+        with open(allow, "w", encoding="utf-8") as f:
+            f.write("\n".join(texts) + "\n")
+        p = self.settings("--allow-loosen", allow)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
 
