@@ -77,7 +77,7 @@ class VendoredPluginsStaticTests(unittest.TestCase):
 
     def test_lead_skills_front_matter(self):
         skills = PLUGINS_ROOT / "lead" / "factory-lead" / "skills"
-        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["audit-round", "blocked-worker", "fix-loop", "park", "pr-triage", "spec-change", "worker-brief"])
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["audit-round", "blocked-worker", "fix-loop", "park", "pr-triage", "research-flow", "spec-change", "worker-brief"])
         for d in skills.iterdir():
             text = (d / "SKILL.md").read_text()
             m = re.match(r"---\n(.*?)\n---\n", text, re.S)
