@@ -2,6 +2,7 @@
 `factory done` is gated on a pass for the current HEAD when config prcheck_required is 1."""
 import fcntl
 import json
+import os
 import threading
 from pathlib import Path
 import unittest
@@ -205,6 +206,58 @@ class PrcheckTests(FactoryTestCase):
         self.assertIn("waiting for a test slot", p.stdout)
         self.assertIn("PASS affected:", p.stdout)
         self.assertEqual(mark.read_text().splitlines()[0], "ran")
+
+    # -- slots drop to 1 while load1 >= the load cap (owner M16816, T-0903) ----------------------
+    def cap(self):
+        return 1.25 * (os.cpu_count() or 1)
+
+    def test_below_load_cap_every_configured_slot_is_usable(self):
+        self.ok("config", "test_slots", "2")
+        self.hold_slots(1)  # slot 0 busy, slot 1 free: a second suite runs at normal load
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "FACTORY_LOADAVG": str(self.cap() - 0.5)})
+        self.assertIn("PASS affected:", p.stdout)
+        self.assertEqual(mark.read_text().splitlines()[0], "ran")
+
+    def test_at_or_above_load_cap_a_second_suite_is_refused_without_waiting(self):
+        self.ok("config", "test_slots", "2")
+        self.hold_slots(1)  # one suite already runs; slot 1 is free but the cap leaves one slot
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        p = self.prcheck(1, env={"AFF_MARK": str(mark), "FACTORY_LOADAVG": str(self.cap()), "FACTORY_PRCHECK_SLOT_WAIT_S": "30"})
+        self.assertIn("FAIL affected: not run: load1 ", p.stdout)
+        self.assertIn(">= cap ", p.stdout)
+        self.assertIn("one local suite box-wide (M16816); rely on PR CI", p.stdout)
+        self.assertNotIn("waiting for a test slot", p.stdout)
+        self.assertFalse(mark.exists(), "the affected run must not start for a second suite under load")
+
+    def test_at_load_cap_the_first_suite_still_runs(self):
+        self.ok("config", "test_slots", "2")
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "FACTORY_LOADAVG": str(self.cap() + 4)})
+        self.assertIn("PASS affected:", p.stdout)
+        self.assertEqual(mark.read_text().splitlines()[0], "ran")
+
+    def test_load_refusal_passes_when_ci_is_green_on_the_head(self):
+        self.hold_slots(1)
+        mark = self.env.home / "mark"
+        self.stub_marker()  # commits, so seed the PR head after it
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b")])
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "FACTORY_LOADAVG": str(self.cap() + 4)})
+        self.assertIn("PASS affected: not run: load1 ", p.stdout)
+        self.assertIn("CI is green on the PR head", p.stdout)
+        self.assertFalse(mark.exists())
+
+    def test_load_refusal_fails_when_ci_is_not_green(self):
+        self.hold_slots(1)
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b", "FAILURE")])
+        p = self.prcheck(1, env={"FACTORY_LOADAVG": str(self.cap() + 4)})
+        self.assertIn("FAIL affected: not run: load1 ", p.stdout)
+        self.assertIn("CI is not green on the head yet", p.stdout)
 
     def test_affected_run_holds_slot_visible_to_res(self):
         self.ok("config", "test_slots", "2")

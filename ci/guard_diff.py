@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 DEFAULT_HOOK = "roles/hooks/worker-guard.py"
 DEFAULT_CORPUS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard_corpus.json")
@@ -169,6 +170,12 @@ def make_seed_home(parent, seed, n):
             con.executemany("INSERT INTO config(key, value) VALUES (?, ?)", list(seed))
     finally:
         con.close()
+    # T-0767: the Go guard reads the DB rows from run/guard-export.json (what the tick writes), not the DB: same rows
+    os.makedirs(os.path.join(home, "run"))
+    doc = {"version": 1, "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "config": dict(seed), "agent_goals": {}, "task_worktrees": {}}
+    with open(os.path.join(home, "run", "guard-export.json"), "w") as fh:
+        json.dump(doc, fh)
     return home
 
 

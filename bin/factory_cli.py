@@ -8403,14 +8403,36 @@ def prcheck_public(con, t, wt, base):
     return True, "no hits"
 
 
+def load_slot_cap(con):
+    """(load1, cap, over): cap = gate_max_load_ratio x CPUs; over when load1 >= cap (owner M16816)."""
+    try:
+        ratio = float(cfg(con, "gate_max_load_ratio"))
+    except (TypeError, ValueError):
+        ratio = float(DEFAULT_CONFIG["gate_max_load_ratio"])
+    cap, now = ratio * (os.cpu_count() or 1), load1()
+    return now, cap, now >= cap
+
+
+def effective_test_slots(con, default=2):
+    """Test slots a new local suite may use now: 1 while load1 >= the load cap (one local suite box-wide, M16816),
+    else config test_slots."""
+    n = _int_cfg(con, "test_slots", default)
+    return 1 if load_slot_cap(con)[2] else n
+
+
 def prcheck_take_slot(con):
     """T-0876: take a host-wide test slot (tests/_slot.py, config test_slots) for the affected run, waiting up to
-    $FACTORY_PRCHECK_SLOT_WAIT_S (default PRCHECK_SLOT_WAIT_S). Returns True when held, False on timeout."""
+    $FACTORY_PRCHECK_SLOT_WAIT_S (default PRCHECK_SLOT_WAIT_S). Returns True when held, False on timeout, or the
+    refusal message (str) when load1 >= the load cap and another suite already runs: no waiting then (M16816)."""
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
     import _slot
     wait = float(os.environ.get("FACTORY_PRCHECK_SLOT_WAIT_S") or PRCHECK_SLOT_WAIT_S)
     poll = float(os.environ.get("FACTORY_PRCHECK_POLL_S") or 1)
-    n, start, last = _int_cfg(con, "test_slots", _slot.DEFAULT_SLOTS), time.monotonic(), None
+    start, last = time.monotonic(), None
+    n = effective_test_slots(con, _slot.DEFAULT_SLOTS)
+    now_load, cap, over = load_slot_cap(con)
+    if over and test_slot_usage(con)[0] >= 1:  # a second suite under load is refused, not queued
+        return f"load1 {now_load:.1f} >= cap {cap:.1f}: one local suite box-wide (M16816); rely on PR CI"
     while _slot.try_take(_slot.slot_dir(), n) is None:
         now = time.monotonic()
         if now - start >= wait:
@@ -8422,13 +8444,20 @@ def prcheck_take_slot(con):
     return True
 
 
-def prcheck_affected(wt, base, con=None):
+def prcheck_affected(wt, base, con=None, pr_url=None):
     """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
-    if not prcheck_take_slot(con):
+    got = prcheck_take_slot(con)
+    if isinstance(got, str):  # refused for load (M16816): green CI on the head stands in for the run (T-0873)
+        rc, head = _git_out(wt, "rev-parse", "HEAD")
+        ok, why = ci_green_on_head(con, head, pr_url) if rc == 0 and pr_url else (False, "no PR url or HEAD")
+        if ok:
+            return True, f"not run: {got}; CI is green on the PR head ({why})"
+        return False, f"not run: {got}; CI is not green on the head yet ({why}): push, wait for CI, rerun prcheck"
+    if not got:
         return False, ("no test slot free: not run, so this is NOT a pass; CI will verify. Rerun prcheck later, "
                        "or `factory done` is accepted once CI on the PR head is green")
     import _slot
@@ -8477,7 +8506,7 @@ def cmd_prcheck(a):
     results = []
     for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
                      ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
-                     ("affected", lambda: prcheck_affected(wt, base, con)), ("tier", lambda: prcheck_tier(wt, base))):
+                     ("affected", lambda: prcheck_affected(wt, base, con, pr_url)), ("tier", lambda: prcheck_tier(wt, base))):
         ok, note = fn()
         results.append((name, ok, note))
         print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
@@ -8491,6 +8520,23 @@ def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
     """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
     local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
     (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
+    ok, why = ci_green_on_head(con, head, pr_url)
+    if not ok:
+        return False, why
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+    base = t["base_branch"] or "main"
+    t = {**dict(t), "pr_url": pr_url}
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
+        ok, note = fn()
+        if not ok:
+            return False, f"{name} FAIL: {note}"
+    return True, "all checks SUCCESS"
+
+
+def ci_green_on_head(con, head, pr_url):
+    """(ok, reason): the PR is open, its head is `head`, and every check is green with the required ones present."""
     try:
         pr = pr_state(pr_url)
     except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
@@ -8504,15 +8550,6 @@ def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
     bad = checks_ok(pr) + missing_checks(con, pr, pr_url)
     if bad:
         return False, "CI not all green: " + ", ".join(bad[:5])
-    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
-                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
-    base = t["base_branch"] or "main"
-    t = {**dict(t), "pr_url": pr_url}
-    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
-                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
-        ok, note = fn()
-        if not ok:
-            return False, f"{name} FAIL: {note}"
     return True, "all checks SUCCESS"
 
 
@@ -12266,7 +12303,43 @@ def state_commit(msg):
     return rc == 0 and _git_rc(["update-ref", "refs/heads/state", new, old])[0] == 0  # compare-and-swap
 
 
+GUARD_EXPORT_VERSION = 1
+GUARD_EXPORT_KEYS = ("public_text_repos", "frozen_repos", "scrub_terms_file", "test_sandbox")
+
+
+def write_guard_export(con, path=None):
+    """T-0767: write run/guard-export.json (mode 0600, atomic) for the Go worker-guard: the guard-relevant config rows,
+    the agent -> goal map and the task -> worktree map, plus generated_at. The binary opens no sqlite and fails closed
+    when the file is missing, unparsable or older than guard.GuardExportMaxAge. It lives in run/ (git-ignored), not
+    state/, which is committed and pushed: a timestamp that changes every tick would add a commit per tick."""
+    path = path or RUN / "guard-export.json"
+    doc = {
+        "version": GUARD_EXPORT_VERSION,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "config": {k: cfg(con, k) for k in GUARD_EXPORT_KEYS},
+        "agent_goals": {r["name"]: r["goal_id"] for r in con.execute(
+            "SELECT name, goal_id FROM agents WHERE goal_id IS NOT NULL AND goal_id != ''")},
+        "task_worktrees": {r["id"]: r["worktree"] for r in con.execute(
+            "SELECT id, worktree FROM tasks WHERE worktree IS NOT NULL AND worktree != ''")},
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".tmp{os.getpid()}")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w") as fh:
+            json.dump(doc, fh, sort_keys=True)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def export(con, push=None):
+    try:  # first and on its own: the Go worker-guard fails closed on a stale file, whatever else export hits
+        write_guard_export(con)
+    except (OSError, sqlite3.Error) as e:
+        event(con, "export", "-", "guard-export-failed", str(e)[:200])
     push_ok = cfg(con, "git_push") == "1" and (push is None or push)
     state_ok = cfg(con, "state_push") == "1" and not _state_push_refusal(con)  # never to a public or frozen origin, whatever state_push says
     public_main_pr_check(con)  # before the sync: it must never move the checkout to a main with a non-PR commit

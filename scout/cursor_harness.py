@@ -206,7 +206,14 @@ def materialize_cursor_policy(
     agents_path = cwd / "AGENTS.md"
 
     write_atomic(hooks_path, json.dumps(cursor_hooks_json(hooks_dir, role, hq=hq), indent=2) + "\n")
-    write_atomic(cli_path, json.dumps({"permissions": perms}, indent=2) + "\n")
+    cli_body = {
+        "permissions": perms,
+        "attribution": {
+            "attributeCommitsToAgent": False,
+            "attributePRsToAgent": False,
+        },
+    }
+    write_atomic(cli_path, json.dumps(cli_body, indent=2) + "\n")
 
     rule_body = (
         "---\n"

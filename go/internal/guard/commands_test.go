@@ -72,9 +72,17 @@ func TestCommandsPythonCases(t *testing.T) {
 	cases := loadPyCases(t)
 	perModule := map[string]int{}
 	stubs := map[string]int{}
-	// The exits were recorded against a factory DB: the home has a DB file, so a decision that reads it is
-	// delegated (Python decides); one the DB does not touch must match the recorded exit.
-	home := dbHome(t)
+	// The exits were recorded against a factory DB seeded as below: the home has a DB file and a guard export of the
+	// same rows (agent coder-t-9 on goal G-005, its task's worktree is the cwd, public_text_repos set), so the
+	// decisions that read the DB are made from the export; a git/gh write still goes to the public-text checker
+	// (delegated). "bad" is a DB that cannot be read: no rows.
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, bad := dbHome(t), dbHome(t)
+	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"},
+		Goals: map[string]string{"coder-t-9": "G-005"}, Worktrees: map[string]string{"T-9": wd}})
 	missing := filepath.Join(t.TempDir(), "missing")
 	for _, c := range cases {
 		perModule[c.Module]++
@@ -83,6 +91,8 @@ func TestCommandsPythonCases(t *testing.T) {
 			if k == "FACTORY_HOME" {
 				if strings.HasSuffix(v, "/missing") {
 					v = missing
+				} else if strings.HasSuffix(v, "/bad") {
+					v = bad
 				} else {
 					v = home
 				}
@@ -457,8 +467,8 @@ func TestCommandsRawBackstop(t *testing.T) {
 	}
 }
 
-// A decision that reads the factory DB is delegated to the Python hook when the DB file exists; without one the hook
-// takes its "no DB" branch and so does Go.
+// With the DB file present the DB-reading decisions are made from the guard export (T-0767): nothing is delegated while
+// the public-text rule is off; without a DB file the hook's "no DB" branch applies and so does Go's.
 func TestCommandsDelegation(t *testing.T) {
 	clearTermsEnv(t)
 	t.Setenv("FACTORY_AGENT", "coder-t-9")
@@ -469,18 +479,40 @@ func TestCommandsDelegation(t *testing.T) {
 			t.Errorf("%q without a DB file: delegated (%v)", c, err)
 		}
 		t.Setenv("FACTORY_HOME", dbHome(t))
-		err := checkRole(c, "coder")
-		if !IsDelegate(err) {
-			t.Errorf("%q with a DB file: err = %v, want a delegation", c, err)
+		if err := checkRole(c, "coder"); IsDelegate(err) {
+			t.Errorf("%q with a DB file and the public-text rule off: delegated (%v)", c, err)
 		}
 	}
-	// HQ mode runs git and gh through the public-text rule, which reads the factory DB
-	t.Setenv("FACTORY_HOME", dbHome(t))
-	if err := Check("git push", "", "", true); !IsDelegate(err) {
-		t.Errorf("hq git push: %v", err)
+	// the public-text rule on (public_text_repos or frozen_repos set): its checker is Python, so a git/gh write is
+	// delegated; a command that cannot reach the rule is not
+	for _, cfg := range []map[string]string{{"public_text_repos": "o/r"}, {"frozen_repos": " o/f "}} {
+		home := dbHome(t)
+		writeExport(t, home, exportDoc{Config: cfg})
+		t.Setenv("FACTORY_HOME", home)
+		for _, c := range []string{"git commit -m x", "gh pr create --title x", "git tag -a v1 -m x"} {
+			if err := checkRole(c, "coder"); !IsDelegate(err) || IsClosed(err) {
+				t.Errorf("%v %q: %v, want a delegation", cfg, c, err)
+			}
+		}
+		if err := Check("git push", "", "", true); !IsDelegate(err) {
+			t.Errorf("%v hq git push: %v", cfg, err)
+		}
+		if err := Check("bash -c 'git commit -m x'", "", "", true); !IsDelegate(err) {
+			t.Errorf("%v hq bash -c git commit: %v", cfg, err)
+		}
+		for _, c := range []string{"ls -la", "git status", "git tag v1", "gh pr list", "gh api repos/o/r"} {
+			if err := checkRole(c, "coder"); IsDelegate(err) {
+				t.Errorf("%v %q: delegated (%v)", cfg, c, err)
+			}
+		}
 	}
-	if err := Check("bash -c 'git commit -m x'", "", "", true); !IsDelegate(err) {
-		t.Errorf("hq bash -c git commit: %v", err)
+	// the rule off, HQ mode: git and gh writes are decided here
+	t.Setenv("FACTORY_HOME", dbHome(t))
+	if err := Check("git push", "", "", true); IsDelegate(err) {
+		t.Errorf("hq git push with the rule off: %v", err)
+	}
+	if err := Check("bash -c 'git commit -m x'", "", "", true); IsDelegate(err) {
+		t.Errorf("hq bash -c git commit with the rule off: %v", err)
 	}
 	// commands that cannot reach a DB read are decided by Go whatever the DB file says
 	for _, c := range []string{"ls -la", "factory task show T-1", "factory inbox", "cat README.md", "git status", "git tag v1",
@@ -489,15 +521,12 @@ func TestCommandsDelegation(t *testing.T) {
 			t.Errorf("%q: delegated (%v)", c, err)
 		}
 	}
-	// the terms roles: with no exported terms file the scrub_terms_file key of the DB may name it, so Python decides
+	// the terms roles read scrub_terms_file from the export: no terms variable and no config row is a plain allow
 	unsetEnv(t, termsVar)
-	for _, role := range []string{"coder", "qa", "reviewer", "judge", "pm"} {
-		if err := checkRole("ls -la", role); !IsDelegate(err) {
-			t.Errorf("%s: ls without an exported terms file and with a DB: %v, want a delegation", role, err)
+	for _, role := range []string{"coder", "qa", "reviewer", "judge", "pm", "cleaner"} {
+		if err := checkRole("ls -la", role); err != nil {
+			t.Errorf("%s: ls with a DB and nothing to protect: %v", role, err)
 		}
-	}
-	if err := checkRole("ls -la", "cleaner"); err != nil {
-		t.Errorf("cleaner ls: %v", err)
 	}
 	t.Setenv(termsVar, filepath.Join(t.TempDir(), "t.txt"))
 	if err := checkRole("ls -la", "coder"); err != nil {
@@ -682,7 +711,8 @@ func TestClaudeOverPrivFailsClosed(t *testing.T) {
 // from the Python hook with test_sandbox=1): the routed runners reach the test_sandbox stub (exit 2), the others pass.
 func TestUvxRunnerRouting(t *testing.T) {
 	clearTermsEnv(t)
-	t.Setenv("FACTORY_HOME", dbHome(t))
+	on, off := dbHome(t), dbHome(t)
+	writeExport(t, on, exportDoc{Config: map[string]string{"test_sandbox": "1"}})
 	const url = "https://pypi.example.org/simple"
 	routed := []string{
 		"uvx --index-url " + url + " pytest",
@@ -709,11 +739,17 @@ func TestUvxRunnerRouting(t *testing.T) {
 	}
 	for _, role := range []string{"coder", "qa"} {
 		for _, c := range routed {
-			if err := checkRole(c, role); !IsDelegate(err) {
-				t.Errorf("%s: %q: err = %v, want a delegation (test_sandbox is read by the Python hook)", role, c, err)
+			t.Setenv("FACTORY_HOME", on)
+			if err := checkRole(c, role); err == nil || IsDelegate(err) || !strings.Contains(err.Error(), "test_sandbox=1") {
+				t.Errorf("%s: %q: err = %v, want the test_sandbox block", role, c, err)
+			}
+			t.Setenv("FACTORY_HOME", off)
+			if err := checkRole(c, role); err != nil {
+				t.Errorf("%s: %q with test_sandbox off: %v, want exit 0", role, c, err)
 			}
 		}
 		for _, c := range allowed {
+			t.Setenv("FACTORY_HOME", on)
 			if err := checkRole(c, role); err != nil {
 				t.Errorf("%s: %q: %v, want exit 0", role, c, err)
 			}

@@ -46,8 +46,16 @@ func (a *Analyzer) ptCommand(words []string) error {
 	case name == "gh":
 		reaches = ptGhReaches(rest)
 	}
-	if reaches && !dbMissing() {
-		return delegate("public-text rule: public_text_repos / frozen_repos are in the factory DB")
+	if !reaches {
+		return nil
+	}
+	on, err := publicTextOn()
+	if err != nil {
+		return err
+	}
+	if on {
+		// the rule is on: its verdict needs git remotes and ci/public_text_guard.py, which stay Python's
+		return delegate("public-text rule is on (public_text_repos / frozen_repos set): the checker module is Python")
 	}
 	return nil
 }

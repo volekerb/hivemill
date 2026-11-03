@@ -108,6 +108,7 @@ Models: factory `MODELS` / `model_<role>` pass through to Cursor `--model`.
 - Launch: `herdr --kind cursor`
 - Helpers: `factory cursor-pilot status|prepare|probe|run`
 - Research: `docs/research/cursor-harness.md`
+- Per-agent `.cursor/cli.json` under `run/cursor/<name>/` sets `attribution.attributeCommitsToAgent` and `attribution.attributePRsToAgent` to JSON `false` so the Cursor CLI does not add agent Co-authored-by trailers on commits or PRs. The worker-guard public-text rule is not loosened; those trailers and the Cursor agent attribution address remain refused on push (same as any other blocked public text).
 
 ## Safe claim wording
 

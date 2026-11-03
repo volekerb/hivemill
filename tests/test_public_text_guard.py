@@ -27,6 +27,9 @@ SUBST = {
     "{ANT}": "sk" + "-ant-" + "api03-" + "A1b2C3d4E5F6g7H8i9J0", "{AWS}": "AK" + "IA" + "ABCDEFGHIJKLMNOP",
     "{PEM}": "-----" + "BEGIN RSA " + "PRIVATE " + "KEY-----",
     "{RWT}": "RAILWAY_" + "TOKEN=" + "A1b2C3d4E5F6g7H8i9J0", "{OAUTH}": "client_" + "secret=" + "A1b2C3d4E5F6g7H8i9J0k1",
+    "{HEI}": "the to" + "ken is " + "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv" + "WxYz" * 3,
+    "{HEIBODY}": "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv" + "WxYz" * 3,
+    "{HEISLASH}": "Ab1Cd2Ef3Gh4Ij5Kl6Mn7/Op8Qr9St0Uv" + "WxYz" * 3,
     "{GSEC}": "api_" + "token=" + "A1b2C3d4E5F6g7H8i9J0k1",
     "{TERM}": TERM, "{TERM_UP}": TERM.upper(), "{TERMHOST}": TERMHOST,
 }
