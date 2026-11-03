@@ -149,9 +149,10 @@ func HasCfgEnvAssign(s string) bool {
 }
 
 // hasCfgCode ports CFG_CODE (worker-guard.py:225):
-// \.config/factory|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])   (explicit ASCII classes in the original)
+// \.config/factory|run/settings|guard-export|\.local/lib/factory|run/guard_impl|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])   (explicit ASCII classes in the original)
 func hasCfgCode(s string) bool {
-	if strings.Contains(s, ".config/factory") || strings.Contains(s, "run/settings") || strings.Contains(s, "guard-export") {
+	if strings.Contains(s, ".config/factory") || strings.Contains(s, "run/settings") || strings.Contains(s, "guard-export") ||
+		strings.Contains(s, ".local/lib/factory") || strings.Contains(s, "run/guard_impl") {
 		return true
 	}
 	for i := 0; i+len("live_home") <= len(s); i++ {
