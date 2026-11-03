@@ -680,6 +680,174 @@ def tearDownModule():
         os.environ["FACTORY_LOADAVG"] = _LOAD_PIN["old"]
 
 
+QA_TEMPLATE = os.path.join(ROOT, "roles", "settings", "qa.json.in")
+
+
+class SettingsCompareTests(GuardDiffCase):
+    """T-0327: the settings compare covers hook event+matcher+type, env and the template set."""
+
+    def setUp(self):
+        super().setUp()
+        self.sdir = os.path.join(self.repo, "roles", "settings")
+        self.tpl = os.path.join(self.sdir, "qa.json.in")
+
+    def commit_base(self, edit=None):
+        """Commit a copy of the repo's qa template (optionally edited) on main, then restore a clean tree."""
+        os.makedirs(self.sdir, exist_ok=True)
+        with open(QA_TEMPLATE, encoding="utf-8") as f:
+            d = json.load(f)
+        if edit:
+            edit(d)
+        self.write_tpl(d)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-q", "-m", "settings")
+
+    def write_tpl(self, d):
+        with open(self.tpl, "w", encoding="utf-8") as f:
+            json.dump(d, f, indent=2)
+
+    def edit_tree(self, edit):
+        with open(self.tpl, encoding="utf-8") as f:
+            d = json.load(f)
+        edit(d)
+        self.write_tpl(d)
+
+    def settings(self, *extra):
+        return self.run_tool("--mode", "worker", *extra)
+
+    def settings_lines(self, p):
+        return [ln for ln in p.stdout.splitlines() if ln.startswith("SETTINGS-")]
+
+    @staticmethod
+    def drop_edit_group(d):
+        d["hooks"]["PreToolUse"] = [g for g in d["hooks"]["PreToolUse"] if g["matcher"] != "Edit|Write|MultiEdit|NotebookEdit"]
+
+    def test_b1_deleted_matcher_group_is_loosened(self):
+        self.commit_base()
+        self.edit_tree(self.drop_edit_group)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa hook removed: PreToolUse\|Edit\|Write")
+
+    def test_b1_narrowed_matcher_is_loosened_and_tightened(self):
+        self.commit_base()
+
+        def narrow(d):
+            for g in d["hooks"]["PreToolUse"]:
+                if g["matcher"] == "Bash":
+                    g["matcher"] = "Bash(git:*)"
+        self.edit_tree(narrow)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        lines = self.settings_lines(p)
+        self.assertEqual(len([ln for ln in lines if ln.startswith("SETTINGS-LOOSENED qa hook")]), 1, lines)
+        self.assertEqual(len([ln for ln in lines if ln.startswith("SETTINGS-TIGHTENED qa hook")]), 1, lines)
+
+    def test_b2_non_pretooluse_event_removed_is_loosened(self):
+        def add_stop(d):
+            d["hooks"]["Stop"] = [{"hooks": [{"type": "command", "command": "python3 guard-stop.py"}]}]
+        self.commit_base(add_stop)
+        self.edit_tree(lambda d: d["hooks"].pop("Stop"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa hook removed: Stop\|")
+
+    def test_b3_env_removed_is_loosened(self):
+        self.commit_base()
+        self.edit_tree(lambda d: d["env"].pop("CLAUDE_CODE_DISABLE_ADVISOR_TOOL"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa env removed: CLAUDE_CODE_DISABLE_ADVISOR_TOOL=")
+
+    def test_b3_env_value_changed_is_loosened(self):
+        self.commit_base()
+        self.edit_tree(lambda d: d["env"].__setitem__("FACTORY_ROLE", "coder"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED qa env removed: FACTORY_ROLE=qa", p.stdout)
+        self.assertIn("SETTINGS-CHANGED qa env added: FACTORY_ROLE=coder", p.stdout)
+
+    def test_b3_env_new_key_is_shown_not_counted(self):
+        self.commit_base()
+        self.edit_tree(lambda d: d["env"].__setitem__("NEW_KEY", "1"))
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-CHANGED qa env added: NEW_KEY=1")
+        self.assertIn("0 loosened", p.stdout)
+
+    def test_b4_deleted_template_is_loosened(self):
+        self.commit_base()
+        git(self.repo, "rm", "-q", "roles/settings/qa.json.in")
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa template removed")
+
+    def test_b4_deleted_template_is_loosened_with_repo_subdir(self):
+        """--repo <repo>/<subdir>: ls-tree must be --full-tree, else the base role set is empty and this fails open."""
+        sub = os.path.join(self.repo, "subdir")
+        os.makedirs(sub)
+        with open(os.path.join(sub, "keep"), "w", encoding="utf-8") as f:
+            f.write("x\n")
+        self.commit_base()
+        git(self.repo, "rm", "-q", "roles/settings/qa.json.in")
+        argv = [sys.executable, TOOL, "--base", "main", "--repo", sub, "--hook", self.hook,
+                "--corpus", self.corpus, "--mode", "worker"]
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa template removed")
+
+    def test_b4_deleted_settings_dir_is_loosened(self):
+        self.commit_base()
+        shutil.rmtree(self.sdir)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa template removed")
+
+    def test_base_without_settings_dir_is_not_an_error(self):
+        os.makedirs(self.sdir)
+        shutil.copy(QA_TEMPLATE, self.tpl)
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-NEW qa", p.stdout)
+
+    def test_unchanged_template_prints_no_settings_line(self):
+        self.commit_base()
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.settings_lines(p), [])
+
+    def test_legacy_base_has_no_false_loosened(self):
+        # base: pre-template qa.json with the owner's absolute paths; tree: the template with tokens
+        with open(QA_TEMPLATE, encoding="utf-8") as f:
+            text = f.read()
+        legacy = text.replace("/@FACTORY_LIVE_HOME@", "/" + LIVE_HOME).replace("@FACTORY_LIVE_HOME@", LIVE_HOME)
+        legacy = legacy.replace("@FACTORY_HOME_DIR@", os.path.dirname(LIVE_HOME))
+        os.makedirs(self.sdir)
+        with open(os.path.join(self.sdir, "qa.json"), "w", encoding="utf-8") as f:
+            f.write(legacy)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-q", "-m", "legacy")
+        git(self.repo, "rm", "-q", "roles/settings/qa.json")
+        os.makedirs(self.sdir, exist_ok=True)
+        shutil.copy(QA_TEMPLATE, self.tpl)
+        p = self.settings()
+        self.assertNotIn("SETTINGS-LOOSENED", p.stdout)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_allow_loosen_honours_new_hook_text(self):
+        self.commit_base()
+        self.edit_tree(self.drop_edit_group)
+        first = self.settings()
+        texts = [ln[len("SETTINGS-LOOSENED "):] for ln in first.stdout.splitlines() if ln.startswith("SETTINGS-LOOSENED")]
+        self.assertEqual(len(texts), 1, first.stdout)
+        allow = os.path.join(self._tmp.name, "allow.txt")
+        with open(allow, "w") as f:
+            f.write("\n".join(texts) + "\n")
+        p = self.settings("--allow-loosen", allow)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
 
