@@ -36,6 +36,15 @@ DENIED = [
     "integer GIT_DIR=1",
     "repeat 1 env --uns GIT_DIR git status",
     "noglob env -i git status",
+    "noglob - - git push",
+    "- noglob git push",
+    "- git push",
+    "foreach x path (a) ls; end",
+    "foreach x GIT_DIR (a) ls; end",
+    "for x path in a; do ls; done",
+    "for x path (a) ls; done",
+    "repeat PATH=1 ls",
+    "repeat GIT_DIR=1 git status",
 ]
 ALLOWED = [
     "env FOO=1 ls",
@@ -51,6 +60,10 @@ ALLOWED = [
     "integer x",
     "vared x",
     "foreach x (a b) echo $x; end",
+    "foreach x y (a b) echo $x; end",
+    "for x y in a b; do ls; done",
+    "repeat 1 ls",
+    "- ls",
 ]
 
 

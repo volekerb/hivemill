@@ -2582,7 +2582,10 @@ class Analyzer:
                 elif name == "print" and re.fullmatch(r"-[A-Za-z]*v", a) and j + 1 < len(rest):  # T-0788: cluster -rv NAME
                     targets.append(rest[j + 1])
         elif name in ("for", "select", "foreach") and rest:
-            targets.append(rest[0])
+            for a in rest:  # T-0826: zsh assigns every name before `(` or `in`
+                if a == "in" or a.startswith("("):
+                    break
+                targets.append(a)
         elif name == "vared":  # T-0826: vared NAME edits (assigns) the parameter; options take values, so fail closed on every word
             targets += [a for a in rest if not a.startswith("-")]
         elif name in ("integer", "float"):  # T-0826: zsh declarers: `integer path` re-types the PATH-tied array
@@ -2640,10 +2643,14 @@ class Analyzer:
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
-        while words and (words[0] in ("noglob", "nocorrect") or words[0] == "repeat" and len(words) > 1):
-            words = words[2:] if words[0] == "repeat" else words[1:]  # T-0826: zsh precommand modifiers run the next command word
-            if words and words[0] == "-":  # zsh precommand separator: `noglob - git push`
-                words = words[1:]
+        while words and (words[0] in ("noglob", "nocorrect", "-") or words[0] == "repeat" and len(words) > 1):
+            if words[0] == "repeat":  # T-0826: zsh evaluates the count as arithmetic (`repeat PATH=1 ls` assigns PATH)
+                if not re.fullmatch(r"[0-9]+", words[1]) and self.role in NO_PUSH_ROLES and not self.hq:
+                    raise Block(f"{self.role} may not use a non-literal repeat count ({words[1]!r}: zsh evaluates it as "
+                                "arithmetic and can assign PATH or GIT_*); use a plain integer, or ask your lead")
+                words = words[2:]
+            else:
+                words = words[1:]  # T-0826: zsh precommand modifiers and the `-` separator run the next command word
             stripped = strip_prefix(words)
             assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
             words = stripped
