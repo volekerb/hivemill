@@ -23,18 +23,26 @@ import sys
 
 GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "worker-guard.py")
 
-# Cursor Write/Delete path keys seen in docs/examples; accept any of them.
-PATH_KEYS = ("file_path", "path", "notebook_path")
+# Cursor tool args may use any of these keys; the model chooses them — check all present values.
+PATH_KEYS = ("file_path", "path", "notebook_path", "target_notebook")
+
+
+def _paths_from_tool_input(ti: dict) -> list[str]:
+    if not isinstance(ti, dict):
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for k in PATH_KEYS:
+        v = ti.get(k)
+        if isinstance(v, str) and v and v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
 
 
 def _path_from_tool_input(ti: dict) -> str | None:
-    if not isinstance(ti, dict):
-        return None
-    for k in PATH_KEYS:
-        v = ti.get(k)
-        if isinstance(v, str) and v:
-            return v
-    return None
+    paths = _paths_from_tool_input(ti)
+    return paths[0] if paths else None
 
 
 def to_claude_payload(data: dict, event: str) -> dict | None:
@@ -93,6 +101,30 @@ def mcp_to_guard_payload(data: dict) -> dict:
     if not isinstance(ti, dict):
         ti = {}
     return {"tool_name": tool, "tool_input": ti, **base}
+
+
+_PATH_CHECK_TOOLS = frozenset(
+    {"Write", "Edit", "MultiEdit", "NotebookEdit", "Delete", "StrReplace", "EditNotebook", "Read", "Grep"}
+)
+
+
+def _guard_payloads_for_all_paths(payload: dict, data: dict) -> list[dict]:
+    """One worker-guard PreToolUse object per path-like key value in tool_input."""
+    tool = data.get("tool_name")
+    ti = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+    paths = _paths_from_tool_input(ti)
+    if not paths:
+        return [payload]
+    base = {k: v for k, v in payload.items() if k not in ("tool_name", "tool_input")}
+    out: list[dict] = []
+    for path in paths:
+        if tool in ("Read",):
+            out.append({"tool_name": "Read", "tool_input": {"file_path": path}, **base})
+        elif tool in ("Grep",):
+            out.append({"tool_name": "Grep", "tool_input": {"path": path}, **base})
+        else:
+            out.append({"tool_name": "Write", "tool_input": {"file_path": path}, **base})
+    return out
 
 
 def run_guard(payload: dict, role: str | None, hq: bool) -> subprocess.CompletedProcess:
@@ -184,8 +216,19 @@ def main(argv: list[str] | None = None) -> int:
     if payload is None:
         return emit_cursor_decision(event, True, "")
 
+    tool = data.get("tool_name")
+    if tool in _PATH_CHECK_TOOLS:
+        payloads = _guard_payloads_for_all_paths(payload, data)
+    else:
+        payloads = [payload]
+
+    last_reason = ""
     try:
-        r = run_guard(payload, args.role, args.hq)
+        for check in payloads:
+            r = run_guard(check, args.role, args.hq)
+            if r.returncode != 0:
+                last_reason = (r.stderr or r.stdout or f"worker-guard exit {r.returncode}").strip()
+                return emit_cursor_decision(event, False, last_reason)
     except Exception as e:
         print(json.dumps({
             "permission": "deny",
@@ -193,10 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         }))
         return 2
 
-    if r.returncode == 0:
-        return emit_cursor_decision(event, True, "")
-    reason = (r.stderr or r.stdout or f"worker-guard exit {r.returncode}").strip()
-    return emit_cursor_decision(event, False, reason)
+    return emit_cursor_decision(event, True, "")
 
 
 if __name__ == "__main__":

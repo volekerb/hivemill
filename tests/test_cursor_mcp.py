@@ -186,6 +186,42 @@ class CursorMcpHookTests(unittest.TestCase):
         self.assertEqual(body["permission"], "allow")
         self.assertEqual(r.returncode, 0)
 
+    def test_pretooluse_strreplace_decoy_file_path_real_path_denied(self):
+        home = _passwd_home()
+        r = self.run_adapter(
+            "preToolUse",
+            {
+                "tool_name": "StrReplace",
+                "tool_input": {
+                    "file_path": "/tmp/cursor-ok.txt",
+                    "path": f"{home}/.bashrc",
+                    "old_string": "a",
+                    "new_string": "b",
+                },
+                "cwd": "/tmp",
+            },
+        )
+        body = _last_json(r.stdout)
+        self.assertEqual(body["permission"], "deny")
+        self.assertEqual(r.returncode, 2)
+
+    def test_pretooluse_editnotebook_decoy_file_path_target_denied(self):
+        home = _passwd_home()
+        r = self.run_adapter(
+            "preToolUse",
+            {
+                "tool_name": "EditNotebook",
+                "tool_input": {
+                    "file_path": "/tmp/cursor-ok.ipynb",
+                    "target_notebook": f"{home}/.bashrc",
+                },
+                "cwd": "/tmp",
+            },
+        )
+        body = _last_json(r.stdout)
+        self.assertEqual(body["permission"], "deny")
+        self.assertEqual(r.returncode, 2)
+
     def test_before_mcp_hook_required_in_policy(self):
         """C4: drop beforeMCPExecution from cursor_hooks_json and this test fails."""
         h = load_harness()
