@@ -25,6 +25,7 @@ type hostInfo struct {
 	liveHome     string // LIVE_HOME
 	liveHomes    []string
 	runSettings  []string // RUN_SETTINGS
+	runExport    []string // RUN_EXPORT (T-0883)
 	hookReal     string   // HOOK_REAL ("" when --py-hook was not given)
 	persistFiles map[string]struct{}
 	persistTrees []string
@@ -91,6 +92,7 @@ func buildHost(pwDir string, uid int, pyHook string) *hostInfo {
 	}
 	for _, h2 := range homes {
 		h.runSettings = append(h.runSettings, pyRealpath(pyJoin(pyJoin(h2, "run"), "settings")))
+		h.runExport = append(h.runExport, pyRealpath(pyJoin(pyJoin(h2, "run"), "guard-export.json")))
 	}
 	for _, n := range PersistNames {
 		p := pyJoin(pwDir, n)
