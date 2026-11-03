@@ -14,13 +14,13 @@ word FULL with the rule that triggered it. --run executes the selection (all mod
   3b any other .py file also selects modules that import it (`from web.views import home`, `import web.views.home`).
   4 roles/** -> modules mentioning "roles/" or the role file name; docs/** and *.md -> the smoke set.
   5 smoke set (config key affected_smoke, default below) is always added; over 40% of the modules -> FULL.
-Quick mode (T-0642): `--quick` (or `--budget SECONDS`, default 120) is the role-facing form: one process, only the
+Quick mode (T-0642): `--quick` (or `--budget SECONDS`, default 120) is the role-facing form: only the
 affected modules, the elapsed time printed. A FULL selection is refused: it prints "FULL needed: rely on CI" and runs nothing
 (CI is the full suite). The budget is a hard wall-clock cap (T-0913): each module runs in its own child process group with the
 remaining budget as timeout; a module still running when it is spent is killed, and it and every unstarted module are listed
 ("budget spent, not run: ...; rely on CI for them"). Modules in QUICK_SKIP (known to exceed the budget alone, e.g. the
 guard_diff corpus) are never started: listed as "slow: rely on CI". Over budget or slow modules -> exit 4, rely on CI;
-a failure in a completed module still exits 1. Non-quick --run is unchanged (in process, no cap).
+a failure in a completed module, or 0 tests from the modules that ran, exits 1. Non-quick --run is unchanged (in process, no cap).
 Any other changed path: modules mentioning its path, file name or dotted module path, FULL if none does. Stdlib only. The judge's full gate is the backstop for a missed dependency.
 """
 import argparse
@@ -279,12 +279,17 @@ def run_child(module, tests_dir, timeout):
     try:
         out, _ = p.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(p.pid, signal.SIGKILL)
-        p.communicate()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # the group exited between the timeout and the kill
+        finally:
+            p.communicate(timeout=10)
         return None
-    m = re.search(r"^%s (\d+) (\d)$" % _RESULT, out, re.M)
+    ms = re.findall(r"^%s (\d+) (\d)$" % _RESULT, out, re.M)
+    m = ms[-1] if ms else None
     print(re.sub(r"^%s .*\n?" % _RESULT, "", out, flags=re.M), end="")
-    return (int(m.group(1)), m.group(2) == "1") if m else (0, False)
+    return (int(m[0]), m[1] == "1") if m else (0, False)
 
 
 def run_quick(modules, tests_dir, budget):
@@ -312,7 +317,7 @@ def run_quick(modules, tests_dir, budget):
         print("affected: budget spent, not run: %s; rely on CI for them" % " ".join(skipped), file=sys.stderr)
     if not ok:
         return 1
-    if tests == 0 and not (slow or skipped):
+    if tests == 0 and ran > 0:
         print("affected: ran 0 tests; that is a failure", file=sys.stderr)
         return 1
     return EXIT_BUDGET if (slow or skipped) else 0
