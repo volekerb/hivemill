@@ -409,6 +409,47 @@ class DequeueCmdTests(DequeueBase):
         self.assertEqual(self.status("zz-q"), "starting")
         self.assertEqual(self.starts(), [])
 
+    # T-0130: a re-queue must not reset aging (queued_at); only a new row or one from a terminal status gets a fresh one.
+    OLD = "2026-01-01T00:00:00+00:00"
+
+    def queued_at(self, name="zz-q"):
+        return self.env.sql("SELECT queued_at FROM agents WHERE name=?", (name,))[0]["queued_at"]
+
+    def requeue_from_queue(self):
+        """The tick's gate-closed re-spawn of zz-q (from_queue=True) while herdr is unreachable."""
+        s = json.loads(self.env.sql("SELECT spawn_args FROM agents WHERE name='zz-q'")[0]["spawn_args"])
+        self.env.set_herdr(fail=True)
+        with self.env.load_factory() as ns:
+            con = ns.db()
+            ns.spawn(con, s["role"], s["goal"], s["team"], s["task"], s["name"], s["cwd"], s["prompt"], s["model"], from_queue=True)
+            con.commit()
+
+    def test_gate_closed_requeue_of_queued_row_keeps_queued_at(self):
+        self.env.sql("UPDATE agents SET queued_at=? WHERE name='zz-q'", (self.OLD,))
+        self.requeue_from_queue()
+        self.assertEqual((self.status("zz-q"), self.queued_at()), ("queued", self.OLD))
+
+    def test_gate_closed_requeue_of_starting_row_keeps_queued_at(self):
+        self.env.sql("UPDATE agents SET status='starting', queued_at=? WHERE name='zz-q'", (self.OLD,))
+        self.requeue_from_queue()
+        self.assertEqual((self.status("zz-q"), self.queued_at()), ("queued", self.OLD))
+
+    def test_ttl_recovery_of_starting_row_keeps_queued_at(self):
+        self.env.sql("UPDATE agents SET status='starting', queued_at=?, "
+                     "spawn_args=json_set(spawn_args,'$.claimed_at',?) WHERE name='zz-q'", (self.OLD, time.time() - 86400))
+        self.ok("config", "max_live_agents", "0")  # gate closed: the recovered row stays queued
+        self.ok("tick")
+        self.assertEqual((self.status("zz-q"), self.queued_at()), ("queued", self.OLD))
+
+    def test_respawn_after_terminal_status_gets_fresh_queued_at(self):
+        for term in ("done", "stopped", "lost", "cancelled", "exited"):
+            with self.subTest(term):
+                self.env.sql("UPDATE agents SET status=?, queued_at=? WHERE name='zz-q'", (term, self.OLD))
+                self.env.set_herdr(fail=True)
+                self.assertIn("QUEUED", self.ok("spawn", "pm", "--name", "zz-q", "--goal", "G-001", agent="zz-director").stdout)
+                self.assertEqual(self.status("zz-q"), "queued")
+                self.assertGreater(self.queued_at(), "2026-11-01")
+
     def test_help_lists_dequeue(self):
         self.assertIn("dequeue", self.ok("--help").stdout)
 
