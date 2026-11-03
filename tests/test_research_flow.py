@@ -7,7 +7,7 @@ REPO = Path(__file__).resolve().parent.parent
 PL = REPO / "roles" / "plugins"
 PM = PL / "pm/pm-skills/skills/research-plan/SKILL.md"
 LEAD = PL / "lead/factory-lead/skills/research-flow/SKILL.md"
-REV = PL / "reviewer/reviewer-skills/skills/evidence-review/SKILL.md"
+REV = PL / "researcher/research-skills/skills/evidence-review/SKILL.md"
 DELIVERY = PL / "director/factory-director/skills/delivery/SKILL.md"
 BOSS_LINE = ("- Research reports: relay Answer, Recommendation, Proposed follow-ups and the cited sources "
              "to the owner in plain English; follow-ups become goals only on the owner's word "
@@ -27,7 +27,7 @@ class ResearchFlowTest(unittest.TestCase):
 
     def test_lead_relay_keeps_evidence(self):
         t = LEAD.read_text()
-        for needle in ("--role reviewer --after", 'factory msg director "research', "Evidence", "factory task reopen"):
+        for needle in ("--role researcher --after", 'factory msg director "research', "Evidence", "factory task reopen"):
             self.assertIn(needle, t)
 
     def test_every_reopen_line_carries_reason(self):
