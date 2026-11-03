@@ -118,6 +118,26 @@ class AdoptionTests(FactoryTestCase):
         self.assertEqual(self.report()["medians"]["reviewer_workflow_calls"], 1)   # median of 2, 1
         self.assertEqual(self.task(self.report(), "T-0003")["reviewer"]["workflow_calls"], "unknown")
 
+    def test_workflow_run_subagents_counted_without_tool_use_id(self):
+        # Real Workflow runs store <session>/subagents/workflows/<run>/agent-*.jsonl, meta has no toolUseId.
+        run = self.projects / "proj" / "sess-r2" / "subagents" / "workflows" / "wf_a"
+        run.mkdir(parents=True)
+        (run / "agent-1.meta.json").write_text('{"agentType": "workflow-subagent"}')
+        base = {"type": "assistant", "sessionId": "sess-r2", "isSidechain": True, "timestamp": "2026-10-12T10:00:00Z"}
+        lines = []
+        for n, cache in ((1, 300), (2, 200)):
+            d = dict(base, uuid=f"u-wf-{n}", requestId=f"r-wf-{n}",
+                     message={"id": f"m-wf-{n}", "model": "claude-sonnet-5-5", "content": [],
+                              "usage": {"input_tokens": 0, "output_tokens": 3, "cache_read_input_tokens": cache,
+                                        "cache_creation_input_tokens": 0}})
+            lines.append(json.dumps(d))
+        (run / "agent-1.jsonl").write_text("\n".join(lines) + "\n")
+        before = self.report()
+        rv = self.task(before, "T-0002")["reviewer"]
+        self.assertEqual((rv["workflow_calls"], rv["workflow_subagent_tokens"]), (1, 500))
+        # main-session totals are unchanged by sidechain lines
+        self.assertEqual(self.task(before, "T-0002")["tokens"]["reviewer"], 800)
+
     def test_coder_ci_wait_and_search(self):
         c = self.task(self.report(), "T-0001")["coder"]
         self.assertEqual(c["ci_checks_calls"], 2)

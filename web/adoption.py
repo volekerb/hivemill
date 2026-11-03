@@ -51,13 +51,14 @@ def _add(a, b):
 
 class _Sess:
     __slots__ = ("lines", "ctx", "sub_by_tool", "wf_ids", "turns", "create_turn", "done_turn", "ci", "ci_bg",
-                 "explore", "workflow", "search_n", "search_chars", "models", "n_cost", "first_ts", "done_any")
+                 "explore", "workflow", "wf_runs", "search_n", "search_chars", "models", "n_cost", "first_ts", "done_any")
 
     def __init__(self):
         self.lines = 0            # deduped main-transcript requests with usage
         self.ctx = 0
         self.sub_by_tool = {}     # meta.json toolUseId (None: no meta) -> tokens in that <session>/subagents file
         self.wf_ids = set()       # tool_use ids of the Workflow calls in the main transcript
+        self.wf_runs = {}         # workflow run id -> tokens in <session>/subagents/workflows/<run>/*.jsonl
         self.turns = 0
         self.create_turn = None
         self.done_turn = None
@@ -146,7 +147,9 @@ def scan(root, attr, since=None, until=None):
     for path in files:
         c["files"] += 1
         sub = "subagents" in path.parts
-        psid = path.parent.parent.name if sub else path.stem
+        # <session>/subagents/[workflows/<run>/]agent-*.jsonl: the session is the dir above `subagents`.
+        psid = path.parts[path.parts.index("subagents") - 1] if sub else path.stem
+        wf_run = path.parent.name if sub and path.parent.parent.name == "workflows" else None
         read_ids = {}             # tool_use id -> tool name, for Read/Grep/Glob results in this file
         sub_tool = _sub_tool_id(path) if sub else None
         try:
@@ -194,7 +197,7 @@ def scan(root, attr, since=None, until=None):
                 msg = d.get("message") if isinstance(d.get("message"), dict) else {}
                 content = msg.get("content") if isinstance(msg.get("content"), list) else []
                 if d.get("type") == "assistant":
-                    _assistant(d, msg, content, a, s, side, sub_tool, seen_usage, seen_tool, read_ids, since, until, c)
+                    _assistant(d, msg, content, a, s, side, sub_tool, wf_run, seen_usage, seen_tool, read_ids, since, until, c)
                 elif d.get("type") == "user" and not side:
                     for b in content:
                         if isinstance(b, dict) and b.get("type") == "tool_result" and b.get("tool_use_id") in read_ids:
@@ -204,7 +207,7 @@ def scan(root, attr, since=None, until=None):
     return sess, c
 
 
-def _assistant(d, msg, content, a, s, side, sub_tool, seen_usage, seen_tool, read_ids, since, until, c):
+def _assistant(d, msg, content, a, s, side, sub_tool, wf_run, seen_usage, seen_tool, read_ids, since, until, c):
     mid, rid = msg.get("id"), d.get("requestId")
     key = (mid, rid) if mid and rid else d.get("uuid")
     first_sight = key is not None and key not in seen_usage
@@ -219,6 +222,8 @@ def _assistant(d, msg, content, a, s, side, sub_tool, seen_usage, seen_tool, rea
             if t0 and not side and (s.first_ts is None or t0 < s.first_ts):
                 s.first_ts = t0
             if side:
+                if wf_run is not None:        # workflow subagents carry no toolUseId; keyed by run id instead
+                    s.wf_runs[wf_run] = s.wf_runs.get(wf_run, 0) + ctx
                 if sub_tool is not None:      # sidechain lines and files without a toolUseId link to no call
                     s.sub_by_tool[sub_tool] = s.sub_by_tool.get(sub_tool, 0) + ctx
             else:
@@ -371,6 +376,9 @@ def _task_row(r, day, agents_by_task, sess, gh_cache):
             matched = [v for k, v in s.sub_by_tool.items() if k in s.wf_ids]
             rev_files += len(matched)
             rev_sub = _add(rev_sub, sum(matched)) if matched else rev_sub
+            if s.wf_runs and not matched:
+                rev_files += len(s.wf_runs)
+                rev_sub = _add(rev_sub, sum(s.wf_runs.values()))
     coder["turns_pr_create_to_done"] = _turns_create_to_done([x[3] for x in sorted(coders, key=lambda x: x[:3])])
     known = [v for v in tokens.values() if v != UNKNOWN]
     tokens["total"] = sum(known) if known else UNKNOWN
