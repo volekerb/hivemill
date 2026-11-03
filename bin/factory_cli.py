@@ -7296,7 +7296,10 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
         cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
-                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, queued_at=excluded.queued_at, "
+                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
+                          # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
+                          "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
+                          "THEN agents.queued_at ELSE excluded.queued_at END, "
                           "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
                           + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
                           (name, role, goal, team, task, "queued", json.dumps(args), now()))
