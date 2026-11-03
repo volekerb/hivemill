@@ -41568,6 +41568,88 @@
 "src": "corpus"
 },
 {
+"input": "git push origin HEAD:factory/t-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-1"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-1"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-1"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-1",
+"mode": "quote",
+"quoted": "'git push origin HEAD:factory/t-1'",
+"src": "corpus"
+},
+{
+"input": "git push origin HEAD:factory/t-2",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-2"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-2",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD",
+":",
+"factory/t-2"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-2",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"push",
+"origin",
+"HEAD:factory/t-2"
+]
+},
+{
+"input": "git push origin HEAD:factory/t-2",
+"mode": "quote",
+"quoted": "'git push origin HEAD:factory/t-2'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -60767,7 +60849,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1380,
+"corpus_commands": 1382,
 "edge_inputs": 123,
 "python": "3.13"
 }
