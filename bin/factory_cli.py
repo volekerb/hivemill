@@ -8945,8 +8945,8 @@ def cmd_done(a):
         die("unread orders: read and act on them, then run factory done again", 3)
     qa_blocked = False
     if r["role"] == "qa" and r["task_id"] and summary.lstrip().startswith("BLOCKED"):
-        qt = con.execute("SELECT role, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
-        qa_blocked = bool(qt and qt["role"] == "qa" and not (qt["pr_url"] or "").strip() and not con.execute(
+        qt = con.execute("SELECT role, pr_url, status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+        qa_blocked = bool(qt and qt["role"] == "qa" and qt["status"] in ("todo", "in_progress", "in_review") and not (qt["pr_url"] or "").strip() and not con.execute(
             "SELECT 1 FROM verdicts WHERE task_id=? AND role='qa'", (r["task_id"],)).fetchone())
         if qa_blocked:  # T-0956: BLOCKED with no run and no verdict is not a finished QA task; the lead decides
             summary += (f"\n\nNOTE: {r['task_id']} is NOT closed: a QA task with no PR ended BLOCKED with no verdict, "
