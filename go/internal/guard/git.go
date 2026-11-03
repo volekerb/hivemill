@@ -933,7 +933,7 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	return nil
 }
 
-// coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)", agent): the task id part.
+// coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)(?:-a\d+)?", agent): the task id part.
 func coderTask(agent string) (string, bool) {
 	if r, ok := strings.CutPrefix(agent, "claude-"); ok {
 		agent = r
@@ -943,6 +943,18 @@ func coderTask(agent string) (string, bool) {
 	t, ok := strings.CutPrefix(agent, "coder-")
 	if !ok || !strings.HasPrefix(t, "t-") || len(t) == 2 {
 		return "", false
+	}
+	if i := strings.Index(t, "-a"); i >= 0 {
+		suffix := t[i+2:]
+		if suffix == "" {
+			return "", false
+		}
+		for _, r := range suffix {
+			if !isDecimal(r) {
+				return "", false
+			}
+		}
+		t = t[:i]
 	}
 	for _, r := range t[2:] {
 		if !isDecimal(r) {
