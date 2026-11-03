@@ -1768,6 +1768,507 @@
 "src": "corpus"
 },
 {
+"input": "echo x > ~/.local/lib/factory/worker-guard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "echo x > ~/.local/lib/factory/worker-guard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "echo x > ~/.local/lib/factory/worker-guard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "echo x > ~/.local/lib/factory/worker-guard",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/lib/factory/worker-guard'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/lib/factory/worker-guard'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/lib/factory/worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "quote",
+"quoted": "'mv /tmp/x ~/.local/lib/factory/worker-guard'",
+"src": "corpus"
+},
+{
+"input": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "quote",
+"quoted": "'ln -sf /tmp/x ~/.local/lib/factory/worker-guard'",
+"src": "corpus"
+},
+{
+"input": "rm ~/.local/lib/factory/worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "rm ~/.local/lib/factory/worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "rm ~/.local/lib/factory/worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "rm ~/.local/lib/factory/worker-guard.stamp",
+"mode": "quote",
+"quoted": "'rm ~/.local/lib/factory/worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "rm -r ~/.local/lib/factory",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "rm -r ~/.local/lib/factory",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "rm -r ~/.local/lib/factory",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "rm -r ~/.local/lib/factory",
+"mode": "quote",
+"quoted": "'rm -r ~/.local/lib/factory'",
+"src": "corpus"
+},
+{
+"input": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"tee",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"mode": "quote",
+"quoted": "'echo x | tee ~/.local/lib/factory/worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"echo",
+"x",
+">",
+"worker-guard.stamp"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"echo",
+"x",
+">",
+"worker-guard.stamp"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"echo",
+"x",
+">",
+"worker-guard.stamp"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"mode": "quote",
+"quoted": "'cd ~/.local/lib/factory && echo x > worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "echo go > @LIVE_HOME@/run/guard_impl",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"go",
+">",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "echo go > @LIVE_HOME@/run/guard_impl",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"go",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/run/guard_impl"
+]
+},
+{
+"input": "echo go > @LIVE_HOME@/run/guard_impl",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"go",
+">",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "echo go > @LIVE_HOME@/run/guard_impl",
+"mode": "quote",
+"quoted": "'echo go > @LIVE_HOME@/run/guard_impl'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@",
+"LIVE_HOME",
+"@",
+"/run/guard_impl"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"mode": "quote",
+"quoted": "'cp /tmp/x @LIVE_HOME@/run/guard_impl'",
+"src": "corpus"
+},
+{
+"input": "rm @LIVE_HOME@/run/guard_impl",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "rm @LIVE_HOME@/run/guard_impl",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"@",
+"LIVE_HOME",
+"@",
+"/run/guard_impl"
+]
+},
+{
+"input": "rm @LIVE_HOME@/run/guard_impl",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "rm @LIVE_HOME@/run/guard_impl",
+"mode": "quote",
+"quoted": "'rm @LIVE_HOME@/run/guard_impl'",
+"src": "corpus"
+},
+{
+"input": "echo go > ~/.config/factory/guard_impl",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"go",
+">",
+"~/.config/factory/guard_impl"
+]
+},
+{
+"input": "echo go > ~/.config/factory/guard_impl",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"go",
+">",
+"~/.config/factory/guard_impl"
+]
+},
+{
+"input": "echo go > ~/.config/factory/guard_impl",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"go",
+">",
+"~/.config/factory/guard_impl"
+]
+},
+{
+"input": "echo go > ~/.config/factory/guard_impl",
+"mode": "quote",
+"quoted": "'echo go > ~/.config/factory/guard_impl'",
+"src": "corpus"
+},
+{
 "input": "sed -i s/a/b/ @LIVE_HOME@/run/settings/coder.json",
 "mode": "script",
 "src": "corpus",
@@ -42103,6 +42604,108 @@
 "src": "corpus"
 },
 {
+"input": "ls ~/.local/lib/factory",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "ls ~/.local/lib/factory",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "ls ~/.local/lib/factory",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "ls ~/.local/lib/factory",
+"mode": "quote",
+"quoted": "'ls ~/.local/lib/factory'",
+"src": "corpus"
+},
+{
+"input": "cat ~/.local/lib/factory/worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "cat ~/.local/lib/factory/worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "cat ~/.local/lib/factory/worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+},
+{
+"input": "cat ~/.local/lib/factory/worker-guard.stamp",
+"mode": "quote",
+"quoted": "'cat ~/.local/lib/factory/worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "cat @LIVE_HOME@/run/guard_impl",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "cat @LIVE_HOME@/run/guard_impl",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"@",
+"LIVE_HOME",
+"@",
+"/run/guard_impl"
+]
+},
+{
+"input": "cat @LIVE_HOME@/run/guard_impl",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"@LIVE_HOME@/run/guard_impl"
+]
+},
+{
+"input": "cat @LIVE_HOME@/run/guard_impl",
+"mode": "quote",
+"quoted": "'cat @LIVE_HOME@/run/guard_impl'",
+"src": "corpus"
+},
+{
 "input": "factory test tests/test_x.py",
 "mode": "script",
 "src": "corpus",
@@ -61419,7 +62022,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1396,
+"corpus_commands": 1412,
 "edge_inputs": 123,
 "python": "3.13"
 }
