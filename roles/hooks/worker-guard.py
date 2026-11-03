@@ -343,8 +343,45 @@ PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=
 # T-0808 F2: python long options that may precede -m (value-taking ones named separately); any other fails closed
 PY_LONG_FLAG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
 PY_LONG_VALUE = {"--check-hash-based-pycs"}
-# T-0808 F5: an inline interpreter program (-c/-e/-p/-r/--eval) may write anything, so it counts as a filesystem change
-INLINE_CODE_OPT = re.compile(r"^(-[A-Za-z]*[ceEpr]|--(eval|print|command)(=|$)|eval$)")  # prefix match: -c'code', --eval=code
+# T-0808 F5: an inline interpreter program may write anything, so it counts as a filesystem change. Non-python: the exact
+# options -c/-e/-E/-p/-r (attached code too: -e'code'), --eval/--print/--command/--run (also --opt=code), bare `eval` (deno),
+# perl/ruby clusters ending in e/E (-pe, -lane), and no argument at all (program on stdin). Python: see py_inline_code.
+INLINE_CODE_OPT = re.compile(r"^(-[ceEpr]|--(eval|print|command|run)(=|$)|eval$)")
+INLINE_CLUSTER_OPT = re.compile(r"^-[A-Za-z]+[eE]$")  # perl/ruby only: -pe, -lane
+
+
+def py_inline_code(args):
+    """T-0808 F5: True when a python command line carries its program inline: -c (bare or in a cluster such as -Bc, attached
+    code too), `-` / no program at all (heredoc or pipe on stdin). -m module and a script file are not inline."""
+    k = 0
+    while k < len(args) and args[k].startswith("-") and len(args[k]) > 1:
+        cl = args[k]
+        k += 1
+        if cl.startswith("--"):
+            if cl.partition("=")[0] in PY_LONG_VALUE and "=" not in cl:
+                k += 1
+            continue
+        for i, ch in enumerate(cl[1:], 1):
+            if ch == "c":
+                return True
+            if ch == "m":
+                return False
+            if ch in "WXQ":
+                k += 0 if cl[i + 1:] else 1
+                break
+    return k >= len(args) or args[k] == "-"
+
+
+def inline_interpreter(name, rest):
+    """T-0808 F5: an interpreter invocation whose program is inline (option, stdin heredoc/pipe)."""
+    if not INTERPRETERS.match(name):
+        return False
+    if re.match(r"^python[\d.]*$", name):
+        return py_inline_code(rest)
+    return not rest or any(INLINE_CODE_OPT.match(a) or (
+        name in ("perl", "ruby") and INLINE_CLUSTER_OPT.match(a)) for a in rest)
+
+
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 # T-0805 rule E: the only options an extracting tar/bsdtar/unzip may carry, matched exactly (no prefix matching: GNU tar
 # accepts --xfo= for --xform=); anything else can rewrite, add or re-read member names so the listing no longer matches
@@ -1661,6 +1698,9 @@ class Analyzer:
                         dirs += args[j + 2:j + 3]
         elif name == "ar":
             ops, k, outs, opseen = [], 0, [], False
+            for a in args:
+                if a.startswith("@"):  # T-0808 F3: a response file adds options the hook cannot see, even as an option value
+                    raise Block("`ar @file`: the response file's options cannot be inspected; pass the options on the command line")
             while k < len(args):
                 a = args[k]
                 k += 1
@@ -1670,8 +1710,6 @@ class Analyzer:
                     k += 1
                 elif a.startswith("--output="):
                     outs.append(a.split("=", 1)[1])
-                elif a.startswith("@"):  # T-0808 F3: a response file adds options the hook cannot see
-                    raise Block("`ar @file`: the response file's options cannot be inspected; pass the options on the command line")
                 elif a == "--extract":
                     ops.append("x")
                 elif a.startswith("--"):
@@ -2678,8 +2716,7 @@ class Analyzer:
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
-            if self.archive_extract(name, rest) or name in FS_MUTATORS or (
-                    INTERPRETERS.match(name) and any(INLINE_CODE_OPT.match(a) for a in rest)):
+            if self.archive_extract(name, rest) or name in FS_MUTATORS or inline_interpreter(name, rest):
                 self.fs_changed = True
         self.factory_unit(name, rest, assigns)
         if self.role == RESEARCHER and not self.hq:

@@ -61,7 +61,8 @@ class ExtractFlagTests(unittest.TestCase):
                     f"python3 --check-hash-based-pycs always -m zipfile -l {s}/a.zip"], 0)
 
     def test_f3_ar_response_file(self):
-        self.check(["ar @optsfile a.a", "ar x @optsfile", "ar @opts"], 2)
+        self.check(["ar @optsfile a.a", "ar x @optsfile", "ar @opts", "ar --target @opts a.a", "ar --plugin @opts a.a",
+                    "ar --output @opts a.a"], 2)
         self.check(["ar t a.a"], 0)
 
     def test_f4_python_c_extraction(self):
@@ -82,6 +83,21 @@ class ExtractFlagTests(unittest.TestCase):
                     f"node --eval='1' && unzip {self.zip} -d {s}/clean",
                     f"deno eval '1' && unzip {self.zip} -d {s}/clean"], 2)
         self.check([f"unzip {self.zip} -d {s}/clean"], 0)
+
+    def test_f5_inline_program_without_option(self):
+        s, z = self.scratch, self.zip
+        self.check([f"python3 - <<'E'\nopen('x', 'w')\nE\nunzip {z} -d {s}/clean",
+                    f"python3 <<'E'\nopen('x', 'w')\nE\nunzip {z} -d {s}/clean",
+                    f"echo x | python3; unzip {z} -d {s}/clean",
+                    f"php --run 'x' && unzip {z} -d {s}/clean",
+                    f"python3 -Bc 'open(\"x\", \"w\")'; unzip {z} -d {s}/clean"], 2)
+
+    def test_f5_benign_option_values_allowed(self):
+        s, z = self.scratch, self.zip
+        self.check([f"python3 -Wonce -m json.tool f ; unzip {z} -d {s}/clean",
+                    f"python3 -Wignore -m json.tool f ; unzip {z} -d {s}/clean",
+                    f"python3 -Xdev -m json.tool f ; unzip {z} -d {s}/clean",
+                    f"node -type x ; unzip {z} -d {s}/clean"], 0)
 
 
 if __name__ == "__main__":
