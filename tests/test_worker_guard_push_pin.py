@@ -354,5 +354,105 @@ class PushPinTests(unittest.TestCase):
         self.assertNotIn("may not run git push", c.stderr)
 
 
+class AttemptSuffixPushPinTests(unittest.TestCase):
+    """T-0893: FACTORY_AGENT may end with -aN; the push ref still uses the task id before that suffix."""
+
+    TASK = "t-0817"
+    OWN = f"HEAD:factory/{TASK}"
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.tmp = os.path.realpath(td.name)
+        self.home = os.path.join(self.tmp, "factory")
+        self.wt = os.path.join(self.home, "worktrees", "G-027-T-0817")
+        os.makedirs(os.path.join(self.home, ".git"))
+        os.makedirs(os.path.join(self.home, "roles"))
+        self.write_db(self.wt)
+        origin = os.path.join(self.tmp, "origin.git")
+        ident = ("-c", "user.name=t", "-c", "user.ema" + "il=t@" + "t")
+        git(*ident, "init", "-q", "--bare", origin, cwd=self.tmp)
+        git(*ident, "init", "-q", "-b", "main", self.wt, cwd=self.tmp)
+        git(*ident, "commit", "-q", "--allow-empty", "-m", "i", cwd=self.wt)
+        git(*ident, "remote", "add", "origin", origin, cwd=self.wt)
+        git(*ident, "push", "-q", "origin", "main", cwd=self.wt)
+        git(*ident, "fetch", "-q", "origin", cwd=self.wt)
+        git(*ident, "checkout", "-q", "-b", f"factory/{self.TASK}", cwd=self.wt)
+
+    def write_db(self, worktree, task="T-0817"):
+        """Record tasks row id T-0817 for the push pin worktree lookup."""
+        os.makedirs(os.path.join(self.home, "db"), exist_ok=True)
+        db = os.path.join(self.home, "db", "factory.db")
+        if os.path.exists(db):
+            os.remove(db)
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES (?, ?)", (task, worktree))
+        con.commit()
+        con.close()
+
+    def run_hook(self, cmd, role="coder", agent="cursor-coder-t-0817-a2", cwd=None):
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home)
+        if agent:
+            env["FACTORY_AGENT"] = agent
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
+        return hook_run(payload, ["--role", role], env=env)
+
+    def pinned(self, cmd, **kw):
+        p = self.run_hook(cmd, **kw)
+        return p.returncode == 2 and ("coders push exactly" in p.stderr or "git push:" in p.stderr
+                                      or "before push" in p.stderr or "environment overrides" in p.stderr
+                                      or "by another name" in p.stderr or "whole command" in p.stderr)
+
+    def test_attempt_suffix_allowed(self):
+        push = "git push origin HEAD:factory/t-0817"
+        for agent in (
+            "cursor-coder-t-0817-a2", "cursor-coder-t-0817", "coder-t-0817-a2",
+            "claude-coder-t-0817-a2", "cursor-coder-t-0817-a10",
+        ):
+            with self.subTest(agent=agent):
+                p = self.run_hook(push, agent=agent)
+                self.assertEqual(p.returncode, 0, p.stderr)
+        p = self.run_hook(f"git -C {self.wt} push origin HEAD:factory/t-0817", agent="cursor-coder-t-0817-a2")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        db = os.path.join(self.home, "db", "factory.db")
+        con = sqlite3.connect(db)
+        row = con.execute("SELECT id, worktree FROM tasks WHERE id = ?", ("T-0817",)).fetchone()
+        con.close()
+        self.assertEqual(row, ("T-0817", self.wt))
+
+    def test_attempt_suffix_refused(self):
+        push = f"git push origin {self.OWN}"
+        for agent in (
+            "cursor-coder-t-0817-b2", "cursor-coder-t-0817-a", "cursor-coder-t-0817-a2x",
+            "cursor-coder-t-0817-a2-a3", "cursor-coder-t-0817-A2", "cursor-coder-t-0817-attempt2",
+            "evil-coder-t-0817-a2", "cursor-claude-coder-t-0817-a2",
+            "cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2",
+        ):
+            with self.subTest(agent=agent):
+                p = self.run_hook(push, agent=agent)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("cannot tell this pane's task id", p.stderr)
+
+    def test_attempt_suffix_push_unchanged(self):
+        agent = "cursor-coder-t-0817-a2"
+        for cmd in (
+            "git push other HEAD:factory/t-0817",
+            "git push origin HEAD:factory/t-0817-a2",
+            "git push --force origin HEAD:factory/t-0817",
+            "git push -u origin HEAD:factory/t-0817",
+            "FACTORY_AGENT=coder-t-0001 git push origin HEAD:factory/t-0817",
+            "GIT_DIR=/x git push origin HEAD:factory/t-0817",
+            "true && git push origin HEAD:factory/t-0817",
+            "git push origin HEAD:factory/t-0817; true",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assertTrue(self.pinned(cmd, agent=agent), cmd)
+        p = self.run_hook("git push origin HEAD:factory/t-0817-a2", agent=agent)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("HEAD:factory/t-0817", p.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

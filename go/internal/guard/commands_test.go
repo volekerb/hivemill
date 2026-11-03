@@ -74,15 +74,13 @@ func TestCommandsPythonCases(t *testing.T) {
 	stubs := map[string]int{}
 	// The exits were recorded against a factory DB seeded as below: the home has a DB file and a guard export of the
 	// same rows (agent coder-t-9 on goal G-005, its task's worktree is the cwd, public_text_repos set), so the
-	// decisions that read the DB are made from the export; a git/gh write still goes to the public-text checker
-	// (delegated). "bad" is a DB that cannot be read: no rows.
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// decisions that read the DB are made from the export, the public-text rule included (T-0887). "bad" is a DB
+	// that cannot be read: no rows.
+	ptHook(t)
+	// the cwd is a git repo whose origin is the public repo "o/r": a write is checked by the public-text rule
+	wd := ptRepo(t, "https://github.com/o/r.git")
 	home, bad := dbHome(t), dbHome(t)
-	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"},
-		Goals: map[string]string{"coder-t-9": "G-005"}, Worktrees: map[string]string{"T-9": wd}})
+	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"}, Goals: map[string]string{"coder-t-9": "G-005"}, Worktrees: map[string]string{"T-9": wd}})
 	missing := filepath.Join(t.TempDir(), "missing")
 	for _, c := range cases {
 		perModule[c.Module]++
@@ -106,6 +104,8 @@ func TestCommandsPythonCases(t *testing.T) {
 			stubs[c.Module]++
 		case c.Exit == 2 && got != 2:
 			t.Errorf("%s: LOOSENED %q (role %q hq %v): python blocks, go allows", c.Module, c.Cmd, c.Role, c.HQ)
+		case c.Exit == 0 && got == 2 && strings.Contains(err.Error(), "push from a directory known only at run time") && strings.Contains(c.Cmd, "-C /tmp/x ") && !tmpXExists():
+			// recorded where /tmp/x was a directory; the public-text rule refuses a push from a directory that does not exist
 		case c.Exit == 0 && got == 2:
 			t.Errorf("%s: TIGHTENED %q (role %q hq %v): python allows, go blocks: %v", c.Module, c.Cmd, c.Role, c.HQ, err)
 		}
@@ -483,22 +483,28 @@ func TestCommandsDelegation(t *testing.T) {
 			t.Errorf("%q with a DB file and the public-text rule off: delegated (%v)", c, err)
 		}
 	}
-	// the public-text rule on (public_text_repos or frozen_repos set): its checker is Python, so a git/gh write is
-	// delegated; a command that cannot reach the rule is not
+	// the public-text rule on (public_text_repos or frozen_repos set): since T-0887 it is decided here too, nothing
+	// is delegated; a clean write is allowed and one with an owner term (the terms file of dbHome holds "secret") is not
 	for _, cfg := range []map[string]string{{"public_text_repos": "o/r"}, {"frozen_repos": " o/f "}} {
 		home := dbHome(t)
 		writeExport(t, home, exportDoc{Config: cfg})
 		t.Setenv("FACTORY_HOME", home)
+		t.Chdir(t.TempDir())
 		for _, c := range []string{"git commit -m x", "gh pr create --title x", "git tag -a v1 -m x"} {
-			if err := checkRole(c, "coder"); !IsDelegate(err) || IsClosed(err) {
-				t.Errorf("%v %q: %v, want a delegation", cfg, c, err)
+			if err := checkRole(c, "coder"); IsDelegate(err) || (err != nil && cfg["public_text_repos"] == "") {
+				t.Errorf("%v %q: %v, want it decided here and allowed", cfg, c, err)
 			}
 		}
-		if err := Check("git push", "", "", true); !IsDelegate(err) {
-			t.Errorf("%v hq git push: %v", cfg, err)
+		if err := Check("git push", "", "", true); IsDelegate(err) {
+			t.Errorf("%v hq git push: delegated", cfg)
 		}
-		if err := Check("bash -c 'git commit -m x'", "", "", true); !IsDelegate(err) {
-			t.Errorf("%v hq bash -c git commit: %v", cfg, err)
+		if err := Check("bash -c 'git commit -m x'", "", "", true); IsDelegate(err) {
+			t.Errorf("%v hq bash -c git commit: delegated", cfg)
+		}
+		if cfg["public_text_repos"] != "" {
+			if err := checkRole("git commit -m 'a secret'", "coder"); !isPublicBlock(err) || !strings.Contains(err.Error(), "public text: 1 hits: owner-term") {
+				t.Errorf("%v commit with an owner term: %v", cfg, err)
+			}
 		}
 		for _, c := range []string{"ls -la", "git status", "git tag v1", "gh pr list", "gh api repos/o/r"} {
 			if err := checkRole(c, "coder"); IsDelegate(err) {
@@ -755,4 +761,11 @@ func TestUvxRunnerRouting(t *testing.T) {
 			}
 		}
 	}
+}
+
+// tmpXExists reports whether /tmp/x is a directory here; the corpus was recorded where it was one, so the tolerance
+// for a push from a missing directory applies only where it is missing.
+func tmpXExists() bool {
+	st, err := os.Stat("/tmp/x")
+	return err == nil && st.IsDir()
 }
