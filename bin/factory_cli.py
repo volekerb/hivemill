@@ -8632,7 +8632,7 @@ def prcheck_evidence_problem(sec):
 def prcheck_body(wt, base, pr_url):
     """Check 3: the PR body follows the template, shows a test command, and says `Tests removed:` when the count drops."""
     if not pr_url:
-        return False, "no PR for this task yet: open it (gh pr create --body-file F) or pass --pr <url>, then rerun"
+        return False, "no PR for this task yet: open it (factory pr create --title T --body -) or pass --pr <url>, then rerun"
     try:
         p = subprocess.run(["gh", "pr", "view", pr_url, "--json", "body"], capture_output=True, text=True, timeout=120,
                            env=gh_git_env())
