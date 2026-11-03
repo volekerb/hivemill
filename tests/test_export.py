@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import subprocess
+import time
 import unittest
 
 from harness import REPO, FactoryTestCase, git
@@ -181,6 +182,7 @@ class ExportTests(FactoryTestCase):
 
     def test_export_no_change_no_new_state_commit(self):
         self.start_push_mode(0)
+        self.ok("config", "state_dump_interval_s", "0")  # T-0902: the throttled tick skips the state/ dump, so a later manual export would find a drift
         self.tick_export()
         # a tick itself may log events; make the exported files settle first
         self.tick_export()
@@ -618,6 +620,57 @@ class ExportTests(FactoryTestCase):
         self.assertEqual(self.sync_events(), [])
         self.assertEqual(self.state_commits(), before + 1)
         self.assertEqual(self.remote_state(), self.local_state())
+
+    # ── state_dump_interval_s (T-0902) ──
+    def blob(self, path, rev="refs/heads/state"):
+        return git("rev-parse", f"{rev}:{path}", cwd=self.env.home_dir)
+
+    def set_cfg(self, key, value):
+        self.env.sql("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+
+    def test_tick_export_inside_interval_keeps_state_blobs(self):
+        self.ok("tick")  # no last_state_dump_ts yet: dumps state/ and records the time
+        self.set_cfg("last_state_dump_ts", str(time.time()))
+        sql, ev = self.blob("state/factory.sql"), self.blob("state/events.jsonl")
+        n = self.state_commits()
+        self.change(1)
+        self.ok("tick")
+        self.assertEqual(self.state_commits(), n + 1)
+        self.assertEqual(self.blob("state/factory.sql"), sql)
+        self.assertEqual(self.blob("state/events.jsonl"), ev)
+        self.assertIn("zz-test plan change 1", git("show", "refs/heads/state:exports/goals/G-001.md", cwd=self.env.home_dir))
+
+    def test_tick_export_after_interval_dumps_state(self):
+        self.ok("tick")
+        self.set_cfg("last_state_dump_ts", str(time.time()))
+        sql = self.blob("state/factory.sql")
+        self.change(1)
+        self.set_cfg("last_state_dump_ts", str(time.time() - 4000))  # older than the 3600 s default
+        self.ok("tick")
+        self.assertNotEqual(self.blob("state/factory.sql"), sql)
+        self.assertIn("zz-test plan change 1", git("show", "refs/heads/state:state/factory.sql", cwd=self.env.home_dir))
+        self.assertGreater(float(self.env.sql("SELECT value FROM config WHERE key='last_state_dump_ts'")[0]["value"]), time.time() - 600)
+
+    def test_tick_export_interval_zero_dumps_every_tick(self):
+        self.set_cfg("state_dump_interval_s", "0")
+        self.ok("tick")
+        sql = self.blob("state/factory.sql")
+        self.change(1)
+        self.ok("tick")
+        self.assertNotEqual(self.blob("state/factory.sql"), sql)
+
+    def test_manual_export_always_dumps_state_inside_interval(self):
+        self.ok("tick")
+        self.set_cfg("last_state_dump_ts", str(time.time()))
+        sql = self.blob("state/factory.sql")
+        self.change(1)
+        self.ok("export", "--no-push")
+        self.assertNotEqual(self.blob("state/factory.sql"), sql)
+
+    def test_last_state_dump_ts_not_in_dump(self):
+        self.set_cfg("last_state_dump_ts", "12345")
+        self.ok("export", "--no-push")
+        self.assertNotIn("last_state_dump_ts", self.read("state/factory.sql"))
 
 
 if __name__ == "__main__":

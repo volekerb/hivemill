@@ -23,8 +23,9 @@ The dump contains all agent mail and every spec and plan text. If the `origin` r
 | `public_text_repos` | empty | comma list of `OWNER/NAME` that are public. `factory export` and the tick never push the `state` branch when `origin` is one of them, or cannot be parsed while the list is set, whatever `state_push` says (G-021). |
 | `frozen_repos` | empty | comma list of `OWNER/NAME` that nothing in bin/factory may push to or merge into; the state push is refused for a frozen `origin` too. |
 | `push_interval_s` | `600` | the tick pushes the state branch at most this often. A manual `factory export` pushes at once. |
+| `state_dump_interval_s` | `3600` | the tick commits `state/` (`factory.sql`, `events.jsonl`) to the `state` branch at most this often; in between it commits only `exports/` and keeps the previous `state/` blobs. `0` = every tick (the old behaviour). A manual `factory export` always commits `state/`. The key `last_state_dump_ts` records the last dump and is left out of the dump itself. |
 
-With `state_push=0` the local `state` branch still gets a commit on every change, so you keep a local backup. Set it with `factory config state_push 1` (director) only when `origin` is a private repository. An unpushed state commit is pushed at the next export once the key is on.
+With `state_push=0` the local `state` branch still gets a commit whenever `exports/` changes, and a `state/` dump at least every `state_dump_interval_s`, so you keep a local backup. Set it with `factory config state_push 1` (director) only when `origin` is a private repository. An unpushed state commit is pushed at the next export once the key is on.
 
 `factory export` prints `state push disabled (state_push=0)` when it skips the push. It prints `state push refused: origin <slug> is public (G-021)` when `origin` is listed in `public_text_repos` (or `... cannot be parsed ...` when the list is set and `origin` names no `OWNER/NAME`); the local `state` commit is still made.
 
@@ -37,4 +38,4 @@ git show origin/state:state/factory.sql > /tmp/f.sql
 sqlite3 db/factory.db < /tmp/f.sql
 ```
 
-Use `refs/heads/state` instead of `origin/state` when restoring from the local backup. Restore into a new, empty `db/factory.db`.
+Use `refs/heads/state` instead of `origin/state` when restoring from the local backup. The local backup can be up to `state_dump_interval_s` (default 1 hour) stale; `db/factory.db` stays the source of truth. Restore into a new, empty `db/factory.db`.

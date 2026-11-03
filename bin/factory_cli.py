@@ -171,6 +171,7 @@ DEFAULT_CONFIG = {
     "hq_unblock_s": "900",       # T-0268: the tick denies (Esc) a permission dialog on an HQ pane after this long
     "prcheck_required": "0",     # 1 = a coder's `factory done` (task with a PR) needs a passing `factory prcheck` on its HEAD (G-022)
     "git_push": "1",
+    "state_dump_interval_s": "3600",  # tick-path export commits state/ (factory.sql, events.jsonl) to refs/heads/state at most this often; 0 = every tick (T-0902)
     "state_push": "0",           # push the state branch (full DB dump incl. messages) to origin; off by default because the dump is private
     "mech_merge": "off",         # off | shadow | on: the tick's mechanical merger for tier T0-T2 PRs (G-022 #4); shadow records mech-would-merge/block and merges nothing
     "mech_merge_retry_s": "600", # the merger looks at a PR head it already blocked on (or shadow-recorded) at most this often
@@ -12237,9 +12238,10 @@ def public_main_email_check(con):
             pass
 
 
-def state_commit(msg):
+def state_commit(msg, dump=True):
     """Commit exports/ and state/ to refs/heads/state with plumbing and a private index: main's index, HEAD and
-    branch are never touched. Returns True if a new commit was made."""
+    branch are never touched. dump=False stages only exports/, so the commit keeps the previous state/ blobs.
+    Returns True if a new commit was made."""
     env = {**os.environ, "GIT_INDEX_FILE": str(HOME / "run" / "state.index")}
     (HOME / "run").mkdir(exist_ok=True)
     tip = _git(HOME, "rev-parse", "-q", "--verify", "refs/heads/state^{commit}").stdout.strip()
@@ -12253,7 +12255,7 @@ def state_commit(msg):
                 return False  # no orphan root commit now (it could never be pushed); retry next tick
         tip = _git(HOME, "rev-parse", "-q", "--verify", "refs/remotes/origin/state^{commit}").stdout.strip()
     if _git_rc(["read-tree", tip] if tip else ["read-tree", "--empty"], env=env)[0] != 0 or \
-            _git_rc(["add", "-f", "-A", "--", "exports", "state"], env=env)[0] != 0:
+            _git_rc(["add", "-f", "-A", "--", *(("exports", "state") if dump else ("exports",))], env=env)[0] != 0:
         return False
     rc, tree, _ = _git_rc(["write-tree"], env=env)
     if rc != 0:
@@ -12318,12 +12320,22 @@ def export(con, push=None):
                 s += f"- **{m['created']}** {m['sender']} → {m['recipient']} [{m['kind']}] **{m['subject']}**" + \
                      (f"\n\n{textwrap.indent(m['body'], '  ')}\n" if m["body"] else "") + "\n"
         write_if_changed(EXPORTS / "goals" / f"{g['id']}.md", s)
-    dump = "\n".join(l for l in con.iterdump() if not l.startswith(("INSERT INTO \"events\"", "INSERT INTO \"throttle\"", "INSERT INTO \"util_samples\"", "INSERT INTO \"config\" VALUES('last_push_ts'", "INSERT INTO \"config\" VALUES('last_sync_fail_ts'", "INSERT INTO \"config\" VALUES('last_push_fail_ts'"))) + "\n"
+    dump = "\n".join(l for l in con.iterdump() if not l.startswith(("INSERT INTO \"events\"", "INSERT INTO \"throttle\"", "INSERT INTO \"util_samples\"", "INSERT INTO \"config\" VALUES('last_push_ts'", "INSERT INTO \"config\" VALUES('last_sync_fail_ts'", "INSERT INTO \"config\" VALUES('last_push_fail_ts'", "INSERT INTO \"config\" VALUES('last_state_dump_ts'"))) + "\n"
     write_if_changed(HOME / "state" / "factory.sql", dump)
     ev = "\n".join(json.dumps(dict(e)) for e in con.execute("SELECT * FROM events ORDER BY id")) + "\n"
     write_if_changed(HOME / "state" / "events.jsonl", ev)
     cfg_ok = git_config_guard(con, HOME)  # sync_pull already checked; this one covers the state commit and push
-    committed = cfg_ok and state_commit(f"state: {now()}")
+    dump_now = push is not None  # a manual `factory export` always commits state/
+    if not dump_now:  # tick path: commit state/ at most once per state_dump_interval_s (0 = every tick)
+        try:
+            last = con.execute("SELECT value FROM config WHERE key='last_state_dump_ts'").fetchone()
+            dump_now = time.time() - float(last["value"]) >= float(cfg(con, "state_dump_interval_s")) if last else True
+        except (ValueError, TypeError):  # unreadable ts or interval: dump rather than skip
+            dump_now = True
+    committed = cfg_ok and state_commit(f"state: {now()}", dump=dump_now)
+    if committed and dump_now:
+        con.execute("INSERT INTO config(key,value) VALUES('last_state_dump_ts',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (str(time.time()),))
     if push_ok and cfg_ok and state_ok:  # local state commits above always happen
         # an idle factory must still push what is committed but not yet pushed
         ahead = _git(HOME, "rev-list", "--count", "origin/state..refs/heads/state")
