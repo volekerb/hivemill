@@ -12,11 +12,11 @@ Follow these steps in order.
 3. Add every variant you listed to `ci/guard_corpus.json`: blocked forms to `must_block`, realistic look-alikes that must keep working to `must_allow` (commit and PR heredoc bodies, grep/rg, git log with PAGER, factory msg/verdict).
 4. Prefer a fail-closed rule for the whole class over enumerating each writer. A check that cannot decide blocks, never allows.
 5. Add tests through the real entry point (the hook as invoked, the CLI as a subprocess): one it must reject and one it must accept per rule. Run each new test once with the fix removed and see it fail.
-6. Do not run `ci/guard_diff.py` locally (load, M16816). The PR CI job `guard-diff-corpus` runs it against the real corpus (base tool, `--mode both` and `--mode worker --role evaluator`). Add `{"cmd": ..., "role": "evaluator"}` corpus entries for a rule that needs a temp FACTORY_HOME; read the job log once CI has run.
-7. Paste the `guard-diff:` summary lines and every LOOSENED and TIGHTENED line from the `guard-diff-corpus` job log into the PR body.
+6. Do not run `ci/guard_diff.py` locally (load, M16816). The PR CI `guard-diff` job has a real-corpus step that runs it against the real corpus (base tool, `--mode both` and `--mode worker --role evaluator`). Add `{"cmd": ..., "role": "evaluator"}` corpus entries for a rule that needs a temp FACTORY_HOME; read the job log once CI has run.
+7. Paste the `guard-diff:` summary lines and every LOOSENED and TIGHTENED line from the `guard-diff` job's real-corpus step log into the PR body.
 8. Expect zero LOOSENED lines. A planned loosening needs the spec to name it. Otherwise it ships as its own task (L-026): do not add a `ci/allow_loosen_*.json` yourself (CI passes it to `--allow-loosen` and prints it for the reviewer).
 9. On a retry, list the variants you tested per class in the PR body, and say which of them the previous round missed.
-10. Merge origin/main and rerun the tests right before updating the PR and re-read the `guard-diff-corpus` job log on the new head.
+10. Merge origin/main and rerun the tests right before updating the PR and re-read the `guard-diff` job's real-corpus step log on the new head.
 
 Stop and tell your lead if a probe command is blocked by your own guard (do not rephrase around it), or if the spec asks for a loosening without naming it.
 

@@ -134,6 +134,7 @@ jobs:
         if: steps.tier.outputs.go == 'true'
 
   # GUARD_IMPL=diff: every guard hook unittest module runs Python and Go together (docs/guard-diff.md).
+  # Last steps: ci/guard_diff.py base-vs-PR on the real corpus for guard-path PRs (tool from the BASE commit).
   # tests/ changes use ci/ci_tier affected/full modes like other test files; this job is not docs-gated.
   guard-diff:
     name: guard-diff
@@ -145,6 +146,8 @@ jobs:
       GOPROXY: "off"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -156,20 +159,6 @@ jobs:
           cache-dependency-path: go/go.mod
       - name: Guard hook unittests (GUARD_IMPL=diff)
         run: GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run
-
-  # Base-vs-PR "0 loosened" proof on the real corpus (docs/guard-diff.md). Runs on PRs that touch a guard path;
-  # the tool (ci/guard_diff.py + tests/_slot.py) comes from the BASE commit, so a PR cannot weaken its own gate.
-  guard-diff-corpus:
-    name: guard-diff-corpus
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       - name: Guard paths changed?
         id: paths
         env:
@@ -183,9 +172,6 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
-      - name: Install zsh
-        if: steps.paths.outputs.run == 'true'
-        run: sudo apt-get install -y zsh
       - name: guard_diff.py base vs PR (real corpus)
         if: steps.paths.outputs.run == 'true'
         env:
@@ -227,7 +213,7 @@ jobs:
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-diff, guard-diff-corpus]
+    needs: [unittest-shard, go, guard-diff]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -237,7 +223,6 @@ jobs:
           SHARD_RESULT: ${{ needs.unittest-shard.result }}
           GO_RESULT: ${{ needs.go.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
-          CORPUS_RESULT: ${{ needs.guard-diff-corpus.result }}
         run: |
           fail=0
           if [ "$SHARD_RESULT" != "success" ]; then
@@ -250,10 +235,6 @@ jobs:
           fi
           if [ "$GUARD_DIFF_RESULT" != "success" ]; then
             echo "guard-diff result: $GUARD_DIFF_RESULT (GUARD_IMPL=diff must succeed)" >&2
-            fail=1
-          fi
-          if [ "$CORPUS_RESULT" != "success" ]; then
-            echo "guard-diff-corpus result: $CORPUS_RESULT (ci/guard_diff.py must report 0 unlisted LOOSENED lines)" >&2
             fail=1
           fi
           exit $fail

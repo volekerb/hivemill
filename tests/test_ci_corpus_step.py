@@ -1,4 +1,4 @@
-"""CI wiring of ci/guard_diff.py (T-0928): the guard-diff-corpus job in tests.yml, the skill text, and a loosened run."""
+"""CI wiring of ci/guard_diff.py (T-0928): the real-corpus step of the guard-diff job in tests.yml, the skill text, and a loosened run."""
 import json
 import os
 import re
@@ -8,10 +8,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import _gitenv  # noqa: F401  (git-spawning tests use the hermetic env helper)
+
 ROOT = Path(__file__).resolve().parent.parent
 WF = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
 SKILL = (ROOT / "roles/plugins/coder/coder-skills/skills/guard-change/SKILL.md").read_text()
-JOB = "guard-diff-corpus"
+JOB = "guard-diff"
+STEP = "guard_diff.py base vs PR (real corpus)"
 
 
 def job_block(text, name):
@@ -25,7 +28,7 @@ class WorkflowWiring(unittest.TestCase):
     def test_job_runs_on_each_guard_path(self):
         block = job_block(WF, JOB)
         pattern = re.search(r"grep -E -q '([^']+)'", block).group(1)
-        for path in ("roles/hooks/worker-guard.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
+        for path in ("roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
                      "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py", ".github/workflows/tests.yml", "go/internal/guard/guard.go"):
             self.assertRegex(path, pattern, path)
         for path in ("docs/guard-diff.md", "ci/shard.py", "roles/prompts/coder.md", "go/internal/other/x.go"):
@@ -46,17 +49,20 @@ class WorkflowWiring(unittest.TestCase):
 
     def test_job_feeds_required_unittest_aggregate(self):
         agg = job_block(WF, "unittest")
-        self.assertRegex(agg, r"needs:\s*\[[^\]]*guard-diff-corpus[^\]]*\]")
-        self.assertIn("needs.guard-diff-corpus.result", agg)
-        self.assertRegex(agg, r'"\$CORPUS_RESULT" != "success"')
-        self.assertNotRegex(job_block(WF, JOB), r"continue-on-error:\s*true")
+        self.assertRegex(agg, r"needs:\s*\[[^\]]*\bguard-diff\b[^\]]*\]")
+        self.assertIn("needs.guard-diff.result", agg)
+        self.assertRegex(agg, r'"\$GUARD_DIFF_RESULT" != "success"')
+        block = job_block(WF, JOB)
+        self.assertIn("- name: " + STEP, block)
+        self.assertNotRegex(block, r"continue-on-error:\s*true")
+        self.assertIn("fetch-depth: 0", block)
 
     def test_skill_no_longer_tells_coders_to_run_guard_diff(self):
         for line in SKILL.splitlines():
             if "guard_diff.py" in line:
                 self.assertRegex(line, r"[Dd]o not run", line)
         self.assertNotIn("python3 ci/guard_diff.py", SKILL)
-        self.assertIn(JOB, SKILL)
+        self.assertIn("real-corpus step", SKILL)
 
 
 class LoosenedRun(unittest.TestCase):
@@ -66,7 +72,7 @@ class LoosenedRun(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo = os.path.join(td, "repo")
             os.makedirs(os.path.join(repo, "roles", "hooks"))
-            hook = os.path.join(repo, "roles/hooks/worker-guard.py")
+            hook = os.path.join(repo, "roles/hooks/stub-hook.py")
             base_src = "import json, sys\nc = json.load(sys.stdin)['tool_input']['command']\nsys.exit(2 if c == 'danger-cmd' else 0)\n"
             Path(hook).write_text(base_src)
             env = dict(os.environ, CI="true")
