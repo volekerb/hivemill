@@ -32,8 +32,11 @@ class SrcTests(FactoryTestCase):
         self.scratch.mkdir(parents=True)
         self.marker = e.home / "marker"
 
-    def src(self, *args, extra_env=None):
-        return self.env.run("src", *args, agent="zz-test-qa", extra_env=extra_env)
+    def src(self, *args, extra_env=None, live_home="default"):
+        """Runs in-process: the stand-in live home is a module global seeded into the CLI's namespace, never an env var.
+        live_home=None runs with no seam (the real LIVE_HOME)."""
+        self.env.ns_extra = {} if live_home is None else {"_SRC_TEST_LIVE_HOME": str(self.env.home_dir if live_home == "default" else live_home)}
+        return self.env.run("src", *args, agent="zz-test-qa", extra_env=extra_env, inproc=True)
 
     def fail(self, *args, **kw):
         p = self.src(*args, **kw)
@@ -272,9 +275,21 @@ class SrcTests(FactoryTestCase):
     def test_unreadable_live_home_refuses(self):
         evil = self.evil_home("sess", self.env.home)
         p = self.fail("main", str(self.scratch / "o"),
-                      extra_env={"FACTORY_HOME": str(evil.home_dir), "FACTORY_SRC_LIVE_HOME": str(self.env.home / "no-live")})
+                      extra_env={"FACTORY_HOME": str(evil.home_dir)}, live_home=str(self.env.home / "no-live"))
         self.assertIn("live agents DB", p.stderr)
         self.assertFalse((self.scratch / "o").exists())
+
+    def test_caller_env_cannot_name_the_live_home(self):
+        """FACTORY_SRC_LIVE_HOME / FACTORY_TMP_DIR from the caller's env must not move the agents row or the tmp base:
+        with the real LIVE_HOME (no test seam) the temp home is not live, so the call is refused and nothing is written."""
+        victim = self.other_scratch(self.env.home, sess="victim")
+        evil = self.evil_home("victim", self.env.home)
+        p = self.fail("main", str(victim / "planted"), live_home=None, extra_env={
+            "FACTORY_HOME": str(evil.home_dir), "FACTORY_SRC_LIVE_HOME": str(evil.home_dir),
+            "FACTORY_TMP_DIR": str(self.env.home / "faketmp")})
+        self.assertNotIn("FACTORY_SRC_LIVE_HOME", p.stdout)
+        self.assertFalse((victim / "planted").exists())
+        self.assertFalse((self.scratch / "planted").exists())
 
     def test_git_dir_env_does_not_redirect_the_config_check(self):
         """GIT_DIR names a clean repo while the archived repo has a refused config: still refused."""

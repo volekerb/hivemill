@@ -8970,11 +8970,12 @@ SRC_PATH = "/usr/bin:/bin"
 def src_live_con(con):
     """The DB the caller's identity is read from: the LIVE home's agents DB, never a caller-chosen FACTORY_HOME (a temp
     home is the caller's own DB: it could name a foreign or HQ scratchpad as its own). A live FACTORY_HOME is already it.
-    $FACTORY_SRC_LIVE_HOME replaces LIVE_HOME (tests only, like WORKER_GUARD_LIVE_HOME for the worker hook).
+    Only derive_live_homes()/LIVE_HOME names it. The tests' stand-in is a module global _SRC_TEST_LIVE_HOME that the
+    in-process test harness seeds into the module namespace; no env var can set it, so a caller cannot choose the row.
     Dies when the live DB cannot be read."""
     if home_is_live():
         return con
-    live = os.environ.get("FACTORY_SRC_LIVE_HOME") or LIVE_HOME
+    live = globals().get("_SRC_TEST_LIVE_HOME") or LIVE_HOME
     path = dbpath.resolve(live)
     try:
         lc = sqlite3.connect(f"file:{quote(str(path))}?mode=ro", uri=True, timeout=30)
@@ -8998,8 +8999,9 @@ def src_scratch_roots(con):
     agent_cwd = os.path.realpath(r["cwd"])
     if os.path.realpath(os.getcwd()) != agent_cwd:
         return [], f"run factory src from your own working directory {agent_cwd}, not {os.path.realpath(os.getcwd())}"
-    # only the tests' stand-in live home (FACTORY_SRC_LIVE_HOME) may move tmp; otherwise /tmp, whatever the caller's env says
-    base = (tmp_dir() if os.environ.get("FACTORY_SRC_LIVE_HOME") and not home_is_live() else Path("/tmp")) / f"claude-{os.getuid()}" / re.sub(r"[^A-Za-z0-9]", "-", agent_cwd)
+    # only the in-process tests' stand-in live home (_SRC_TEST_LIVE_HOME, not settable from env) may move tmp; otherwise /tmp,
+    # whatever the caller's FACTORY_TMP_DIR says
+    base = (tmp_dir() if globals().get("_SRC_TEST_LIVE_HOME") else Path("/tmp")) / f"claude-{os.getuid()}" / re.sub(r"[^A-Za-z0-9]", "-", agent_cwd)
     roots = []
     sid = r["session_id"]
     if sid and not re.fullmatch(r"[A-Za-z0-9_-]+", sid):

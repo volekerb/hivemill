@@ -348,7 +348,6 @@ class FactoryEnv:
             "FACTORY_PROC_DIR": str(self.proc_dir),
             "FACTORY_TMP_STATVFS": "1000000000,500000000",  # /tmp reads 50% full whatever the host says
             "FACTORY_TMP_DIR": str(self.home / "faketmp"),
-            "FACTORY_SRC_LIVE_HOME": str(self.home_dir),  # factory src reads the caller row from the live home: this env's (T-0339)
             "FACTORY_LOADAVG": "0",  # the box's real load must not decide whether a spawn test passes
             "FACTORY_KICKOFF_DELAY_S": "0",  # spawn() waits 2 s for the TUI; no test needs to
             "FACTORY_SHELL_SETTLE_S": "0.01",  # export_in_shell waits 1 s for the shell
@@ -388,7 +387,8 @@ class FactoryEnv:
             os.chdir(self.home)
             sys.argv = [str(FACTORY), *args]
             sys.stdin = io.StringIO(stdin or "")
-            ns = {"__name__": "factory_inproc", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__}
+            ns = {"__name__": "factory_inproc", "__file__": str(FACTORY_SRC), "__builtins__": __builtins__,
+                  **getattr(self, "ns_extra", {})}  # module-global test seams (no env var can set these)
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), warnings.catch_warnings():
                 warnings.simplefilter("ignore", ResourceWarning)  # a fresh interpreter hides them; unittest shows them
                 try:
