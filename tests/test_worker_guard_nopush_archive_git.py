@@ -186,6 +186,42 @@ class ArchiveGitTests(unittest.TestCase):
         for role in NO_PUSH:  # listing with the same options and plain extraction stay allowed
             self.allowed(f"tar -tf {tar} --xform=s,a,b,", role)
             self.allowed(f"tar -xf {tar} -C {o} --no-same-owner", role)
+    def test_frozen_probe_table(self):
+        """Rule E probe table: every block row exits 2 and every allow row exits 0, for each no-push role."""
+        s, o = self.scratch, self.out
+        evil = self.mk("evil", [".git/config"])
+        clean = self.mk("clean", ["a/b"])
+        cat = os.path.join(s, "cat.tar")
+        with open(cat, "wb") as f:
+            for src in (clean, evil):
+                with open(src, "rb") as g:
+                    f.write(g.read())
+        for suffix in (".ZIP", ".zip"):
+            with zipfile.ZipFile(os.path.join(s, "zevil" + suffix), "w") as z:
+                z.writestr(".git/config", "x")
+        gitcfg = self.mk("a", ["x/.git/config"])
+        zclean = self.mk("zclean", ["a/b"])
+        block = [
+            f"unzip {s}/zevil -d {o}", f"unzip {s}/zevil.ZIP -d {o}", f"unzip {s}/zevil.zip -d {o}",
+            f"tar -xif {cat} -C {o}", f"tar --ignore-zeros -xf {cat} -C {o}",
+            f"tar -xf {clean} --xfo='s/^x/.git/' -C {o}", f"tar --transform='s/x/.git/' -xf {clean} -C {o}",
+            f"bsdtar -xf {clean} -s ',x,.git,' -C {o}",
+            f"tar -xf host:/tmp/a.tar -C {o}", f"tar -xf - -C {o}", f"tar -xf {s}/*.tar -C {o}", f"tar -xf $A -C {o}",
+            f"tar -xf {gitcfg} -C {o}", f"tar -C {o} -xf {gitcfg}", f"tar -x -f {gitcfg} -C {o}",
+            f"bsdtar -xf {gitcfg} -C {o}", f"tar -xf {clean} -C {o} --strip-components=1",
+            f"tar -xf {clean} -C {o} -P", f"tar -xf {clean} -C {o} -T list", f"tar --get -f {clean} -C {o}",
+            f"tar -xf {clean} -C {o} --use-compress-program=sh", f"tar -xf {clean} -C {o} -I sh",
+            f"unzip {zclean} -d {o} -x foo", f"unzip -P pw {zclean} -d {o}",
+        ]
+        allow = [f"tar -xf {clean} -C {o}", f"tar -xzf {clean} -C {o}", f"unzip {zclean} -d {o}",
+                 f"tar -tf {evil}", f"unzip -l {s}/zevil.ZIP", f"unzip -l {zclean}"]
+        for role in NO_PUSH:
+            for c in block:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+            for c in allow:
+                with self.subTest(role=role, cmd=c):
+                    self.allowed(c, role)
 
 
 if __name__ == "__main__":
