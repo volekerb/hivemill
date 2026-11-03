@@ -71,7 +71,7 @@ class SpawnOrgTests(FactoryTestCase):
         fake.chmod(0o755)
 
     def test_cursor_goal_spawn_prefix_runtime_models(self):
-        p = self.ok("spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", "pm-g-002-a", agent="director")
+        p = self.ok("spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", "cursor-pm-g-002-a", agent="director")
         self.assertIn("SPAWNED cursor-pm-g-002-a", p.stdout)
         row = self.env.sql("SELECT org, model, spawn_args FROM agents WHERE name='cursor-pm-g-002-a'")[0]
         self.assertEqual(row["org"], "cursor")
@@ -95,7 +95,7 @@ class SpawnOrgTests(FactoryTestCase):
 
     def test_org_prefix_default_on(self):
         self.ok("config", "org_prefix_default", "1")
-        p = self.ok("spawn", "pm", "--goal", "G-001", "--name", "pm-g-001-a", agent="director")
+        p = self.ok("spawn", "pm", "--goal", "G-001", "--name", "claude-pm-g-001-a", agent="director")
         self.assertIn("SPAWNED claude-pm-g-001-a", p.stdout)
 
     def test_resume_dropped_when_runtime_changes(self):
