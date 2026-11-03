@@ -2050,7 +2050,7 @@ class Analyzer:
         if i >= len(rest) or rest[i] != "push":
             return
         args = rest[i + 1:]
-        m = re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)", os.environ.get("FACTORY_AGENT", ""))
+        m = re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)(?:-a\d+)?", os.environ.get("FACTORY_AGENT", ""))
         if not m:
             raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
         if args != ["origin", f"HEAD:factory/{m.group(1)}"]:

@@ -663,17 +663,78 @@ func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
 }
 
 func TestCoderTaskOrgPrefix(t *testing.T) {
+	// legacy refused names include "coder-t-1", "claude-coder-t-1x", "evil-coder-t-1"
 	for agent, want := range map[string]string{
 		"coder-t-1": "t-1", "claude-coder-t-1": "t-1", "cursor-coder-t-0844": "t-0844",
+		"cursor-coder-t-0817-a2": "t-0817", "cursor-coder-t-0817": "t-0817",
+		"coder-t-0817-a2": "t-0817", "claude-coder-t-0817-a2": "t-0817", "cursor-coder-t-0817-a10": "t-0817",
+		"cursor-coder-t-\u0661": "t-\u0661", "cursor-coder-t-\u0661-a2": "t-\u0661", "cursor-coder-t-\u0661\u0662\u0663": "t-\u0661\u0662\u0663",
 	} {
 		if got, ok := coderTask(agent); !ok || got != want {
 			t.Errorf("coderTask(%q) = %q, %v; want %q", agent, got, ok, want)
 		}
 	}
 	for _, agent := range []string{"evil-coder-t-1", "claude-cursor-coder-t-1", "cursor-claude-coder-t-1", "Claude-coder-t-1",
-		"claude-coder-t-1x", "claude-claude-coder-t-1", "claude-t-1", "claude-", "coder-t-", ""} {
+		"claude-coder-t-1x", "claude-claude-coder-t-1", "claude-t-1", "claude-", "coder-t-", "",
+		"cursor-coder-t-0817-b2", "cursor-coder-t-0817-a", "cursor-coder-t-0817-a2x", "cursor-coder-t-0817-a2-a3",
+		"cursor-coder-t-0817-A2", "evil-coder-t-0817-a2",
+		"cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2"} {
 		if got, ok := coderTask(agent); ok {
 			t.Errorf("coderTask(%q) = %q, true; want refused", agent, got)
+		}
+	}
+}
+
+func TestPushPinAttemptSuffix(t *testing.T) {
+	clearTermsEnv(t)
+	f := newGitFix(t)
+	home := dbHome(t)
+	wt0817 := filepath.Join(f.home, "worktrees", "G-027-T-0817")
+	if err := os.MkdirAll(filepath.Join(f.home, ".git", "worktrees", "G-027-T-0817"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(wt0817, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, wt0817, ".git", "gitdir: "+f.home+"/.git/worktrees/G-027-T-0817\n")
+	writeExport(t, home, exportDoc{Worktrees: map[string]string{"T-0817": wt0817}})
+	t.Setenv("FACTORY_HOME", home)
+	push := "git push origin HEAD:factory/t-0817"
+	for _, agent := range []string{"cursor-coder-t-0817-a2", "cursor-coder-t-0817"} {
+		t.Setenv("FACTORY_AGENT", agent)
+		err := Check(push, wt0817, "coder", false)
+		if err != nil {
+			t.Errorf("agent %q: %v, want allow", agent, err)
+		}
+	}
+	for _, agent := range []string{
+		"cursor-coder-t-0817-b2",
+		"cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2",
+	} {
+		t.Setenv("FACTORY_AGENT", agent)
+		err := Check(push, wt0817, "coder", false)
+		if err == nil || IsDelegate(err) {
+			t.Errorf("agent %q: %v, want block", agent, err)
+		} else if !strings.Contains(Explain(err), "cannot tell this pane's task id") {
+			t.Errorf("agent %q: %q, want task id message", agent, Explain(err))
+		}
+	}
+	t.Setenv("FACTORY_AGENT", "cursor-coder-t-0817-a2")
+	for _, cmd := range []string{
+		"git push origin HEAD:factory/t-0817-a2",
+		"true && git push origin HEAD:factory/t-0817",
+		"GIT_DIR=/x git push origin HEAD:factory/t-0817",
+	} {
+		err := Check(cmd, wt0817, "coder", false)
+		if err == nil || IsDelegate(err) {
+			t.Errorf("%q: %v, want block", cmd, err)
+			continue
+		}
+		msg := Explain(err)
+		if cmd == "git push origin HEAD:factory/t-0817-a2" {
+			if !strings.Contains(msg, "coders push exactly") || !strings.Contains(msg, "HEAD:factory/t-0817") {
+				t.Errorf("%q: %q, want pin message naming HEAD:factory/t-0817", cmd, msg)
+			}
 		}
 	}
 }

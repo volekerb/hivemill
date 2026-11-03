@@ -933,23 +933,49 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	return nil
 }
 
-// coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)", agent): the task id part.
+// coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)(?:-a\d+)?", agent): the task id part.
 func coderTask(agent string) (string, bool) {
 	if r, ok := strings.CutPrefix(agent, "claude-"); ok {
 		agent = r
 	} else if r, ok := strings.CutPrefix(agent, "cursor-"); ok {
 		agent = r
 	}
-	t, ok := strings.CutPrefix(agent, "coder-")
-	if !ok || !strings.HasPrefix(t, "t-") || len(t) == 2 {
+	body, ok := strings.CutPrefix(agent, "coder-")
+	if !ok || !strings.HasPrefix(body, "t-") {
 		return "", false
 	}
-	for _, r := range t[2:] {
+	body = body[2:]
+	if body == "" {
+		return "", false
+	}
+	i := 0
+	for i < len(body) {
+		c, n := utf8.DecodeRuneInString(body[i:])
+		if !isDecimal(c) {
+			break
+		}
+		i += n
+	}
+	if i == 0 {
+		return "", false
+	}
+	digits, rest := body[:i], body[i:]
+	if rest == "" {
+		return "t-" + digits, true
+	}
+	if !strings.HasPrefix(rest, "-a") {
+		return "", false
+	}
+	suffix := rest[2:]
+	if suffix == "" {
+		return "", false
+	}
+	for _, r := range suffix {
 		if !isDecimal(r) {
 			return "", false
 		}
 	}
-	return t, true
+	return "t-" + digits, true
 }
 
 // wholePush is re.fullmatch(r"git(?: -C ([\w./-]+))? push origin HEAD:factory/<task>", text).
