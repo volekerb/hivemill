@@ -45,21 +45,6 @@ DENIED = [
     "for x path (a) ls; done",
     "repeat PATH=1 ls",
     "repeat GIT_DIR=1 git status",
-    "env --argv0 foo --uns GIT_DIR git status",
-    "env -a foo -u GIT_DIR git status",
-    "env --argv0 foo --ignore-env git status",
-    "env --argv0 foo -i git status",
-    "env --argv0 foo --uns PATH ls",
-    "env --argv0 foo --xyz ls",
-    "env --argv0 foo --unset FACTORY_ROLE git status",
-    "env --argv0=foo -u GIT_DIR git status",
-    "env --arg foo -u GIT_DIR git status",
-    "env -afoo -u GIT_DIR git status",
-    "env -C /tmp -u GIT_DIR git status",
-    "env --chdir /tmp --uns GIT_DIR git status",
-    "env --chdir=/tmp -i git status",
-    "env --ch /tmp -i git status",
-    "env -C/tmp -i git status",
 ]
 ALLOWED = [
     "env FOO=1 ls",
@@ -84,17 +69,6 @@ ALLOWED = [
     "env --argv0 foo ls",
     "env --chdir=/tmp ls",
 ]
-SCRUB = [
-    "env -a x -u FACTORY_ROLE ls",
-    "env --argv0 x -u FACTORY_ROLE ls",
-    "env --chdir /tmp --unset FACTORY_ROLE ls",
-    "env -C /tmp -u FACTORY_ROLE ls",
-    "env -C /tmp --uns FACTORY_ROLE ls",
-    "env -afoo -u HERDR_PANE_ID ls",
-    "env -C/tmp -u FACTORY_ROLE ls",
-    "env --ch /tmp -u FACTORY_ROLE ls",
-    "env --arg x --unset=FACTORY_ROLE ls",
-]
 # T-0826 attempt 4: (role, command) pairs that exit 2 on origin/main and must still exit 2 on head
 REGRESSION = [
     ("coder", "env -aC -u FACTORY_ROLE ls"), ("lead", "env -aC -u FACTORY_ROLE ls"),
@@ -104,11 +78,22 @@ REGRESSION = [
     ("coder", "env -ia foo factory task show T-1"), ("coder", "env -iC /tmp factory task show T-1"),
     ("qa", "env -ai git status"), ("qa", "env -Ci git status"), ("qa", "env -a -i git status"),
     ("qa", "env -a -u GIT_DIR git status"), ("qa", "env -Cu GIT_DIR git status"),
-]
-SAME_PARSER = [
-    "env -u FOO -u FACTORY_ROLE ls",
-    "env --unset FOO -u FACTORY_ROLE ls",
-    "env -vuFACTORY_ROLE ls",
+    # T-0826 floor run (M20353): value words starting with - are never consumed; short options and check_scrub as on main
+    ("coder", "env --argv0 -i factory task show T-1"), ("coder", "env --chdir -i factory task show T-1"),
+    ("coder", "env --argv0 - factory task show T-1"), ("coder", "env --chdir - factory task show T-1"),
+    ("coder", "env --argv0 -u FACTORY_ROLE ls"), ("coder", "env --chdir -u FACTORY_ROLE ls"),
+    ("coder", "env --argv0 --unset FACTORY_ROLE ls"), ("coder", "env --chdir --unset=FACTORY_ROLE ls"),
+    ("coder", "env -u -i factory task show T-1"), ("coder", "env -u - factory task show T-1"),
+    ("coder", "env --unset -i factory task show T-1"), ("coder", "env --uns -i factory task show T-1"),
+    ("coder", "env --unset -u FACTORY_ROLE ls"), ("coder", "env -u -u FACTORY_ROLE ls"),
+    ("coder", "env -ui factory task show T-1"), ("coder", "env -uxi factory task show T-1"),
+    ("coder", "env -vuxi factory task show T-1"), ("coder", "env -Cui factory task show T-1"),
+    ("coder", "env -Suxi factory task show T-1"),
+    ("qa", "env --argv0 -i git status"), ("qa", "env --arg -i git status"),
+    ("qa", "env --argv0 -u GIT_DIR git status"), ("qa", "env --argv0 --unset=GIT_DIR git status"),
+    ("qa", "env --argv0 --ignore-environment git status"), ("qa", "env --argv0 - git status"),
+    ("qa", "env --uns -i git status"), ("qa", "env --uns -u GIT_DIR git status"),
+    ("reviewer", "env --argv0 -i git status"), ("reviewer", "env --argv0 -u GIT_DIR git status"),
 ]
 
 
@@ -132,17 +117,6 @@ class EnvPrefixZshModifierTests(unittest.TestCase):
                     p = self.run_hook(cmd, role)
                     self.assertEqual(p.returncode, 0, p.stderr)
 
-    def test_scrub_prefix_refused_for_every_role(self):
-        for role in ("coder", "qa"):
-            for cmd in ("env --uns FACTORY_ROLE ls", "env --uns=HERDR_PANE_ID ls"):
-                with self.subTest(role=role, cmd=cmd):
-                    self.assertEqual(self.run_hook(cmd, role).returncode, 2)
-
-    def test_scrub_after_value_option_refused_for_coder(self):
-        for cmd in SCRUB:
-            with self.subTest(cmd=cmd):
-                self.assertEqual(self.run_hook(cmd, "coder").returncode, 2)
-
     def test_value_option_then_command_allowed_for_coder(self):
         for cmd in ("env -a foo ls", "env -C /tmp ls"):
             with self.subTest(cmd=cmd):
@@ -152,11 +126,6 @@ class EnvPrefixZshModifierTests(unittest.TestCase):
         for role, cmd in REGRESSION:
             with self.subTest(role=role, cmd=cmd):
                 self.assertEqual(self.run_hook(cmd, role).returncode, 2)
-
-    def test_scrub_after_other_unset_refused_for_coder(self):
-        for cmd in SAME_PARSER:
-            with self.subTest(cmd=cmd):
-                self.assertEqual(self.run_hook(cmd, "coder").returncode, 2)
 
     def test_unset_of_other_var_then_command_allowed_for_coder(self):
         for cmd in ("env -u FOO ls", "env -u FOO -u BAR ls", "env -a x -u FOO ls"):

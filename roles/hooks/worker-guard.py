@@ -559,7 +559,7 @@ AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 ENV_LONG_OK = ("--null", "--debug", "--block-signal", "--default-signal", "--ignore-signal",
                "--list-signal-handling", "--help", "--version", "--split-string")
-ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: these take a value (next word or =value) that is not the command word
+ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; no word is consumed (as on main)
 
 
 def env_long(a):
@@ -578,24 +578,6 @@ def env_long(a):
     if "--ignore-environment".startswith(name):
         return "ignore"
     return "unknown"
-
-
-def env_short(a):
-    """T-0826: walk a short env option cluster like builtin_assign did on main. Returns (has_i, has_u, uval, skip_next):
-    `i` before the first `u` clears the environment; the first `u` anywhere in the cluster is -u (fail closed, as on main:
-    `-Cu GIT_DIR` stays refused) with uval = the rest of the cluster or None (the next word); otherwise the first
-    a/C takes the rest of the cluster as its value and only takes the next word when it is the last character."""
-    body = a[1:]
-    u = body.find("u")
-    head = body if u < 0 else body[:u]
-    if u >= 0:
-        return "i" in head, True, body[u + 1:] or None, False
-    for k, c in enumerate(body):
-        if c in "aC":
-            return "i" in head, False, None, k == len(body) - 1
-        if c == "S":
-            break
-    return "i" in head, False, None, False
 
 
 def strip_prefix(words):
@@ -984,38 +966,15 @@ class Analyzer:
             raise Block("unset of FACTORY_ROLE/HERDR_PANE_ID")
         if name != "env":
             return
-        skip = False
         for j, a in enumerate(rest):
-            if skip:  # T-0826: the value of -a/--argv0/-C/--chdir/-u/--unset is not an option and not the command word
-                skip = False
-                continue
-            if a == "-":
-                self.scrub_with_factory = "env -i"
-                continue
             if not a.startswith("-") and not ASSIGN.match(a):
                 break
-            nxt = rest[j + 1] if j + 1 < len(rest) else ""
-            if a.startswith("--"):
-                kind = env_long(a)
-                if kind == "value" and "=" not in a:
-                    skip = True
-                elif kind == "unset":  # --uns / --unse prefixes
-                    val = a.split("=", 1)[1] if "=" in a else nxt
-                    if val in SCRUB_VARS:
-                        raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-                    skip = "=" not in a
-                elif kind == "ignore":
-                    self.scrub_with_factory = "env -i"
-            elif a.startswith("-"):
-                has_i, has_u, uval, skip_next = env_short(a)
-                if has_i:
-                    self.scrub_with_factory = "env -i"
-                if has_u:
-                    if (nxt if uval is None else uval) in SCRUB_VARS:
-                        raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-                    skip = uval is None
-                elif skip_next and not nxt.startswith("-"):
-                    skip = True
+            if a in ("-u", "--unset") and rest[j + 1:j + 2] and rest[j + 1] in SCRUB_VARS:
+                raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
+            if a.startswith("-u") and a[2:] in SCRUB_VARS or a.startswith("--unset=") and a[8:] in SCRUB_VARS:
+                raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
+            if a == "-" or a == "--ignore-environment" or re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a):
+                self.scrub_with_factory = "env -i"
 
     def factory_unit(self, name, rest, assigns):
         """Block `factory up|tick|relaunch|spawn|clean` (also via python3 <path>/factory) in the live home."""
@@ -2549,6 +2508,9 @@ class Analyzer:
             q = collections.deque(rest)
             it = iter(lambda: q.popleft() if q else None, None)  # -S pushes its words back onto q
             for a in it:
+                if a in ("-C", "--chdir"):  # takes a directory argument: skip it, keep scanning for -u
+                    next(it, None)
+                    continue
                 if a in ("-S", "--split-string") or a.startswith("--split-string=") or (a.startswith("-S") and not a.startswith("--")):
                     # re-parse the string as env options
                     sval = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a[2:] if a.startswith("-S") and a != "-S" else next(it, "")
@@ -2561,14 +2523,13 @@ class Analyzer:
                 elif a.startswith("--unset="):
                     names = [a[8:]]
                 elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
-                    has_i, has_u, uval, skip_next = env_short(a)
-                    if has_i:
-                        deny("env " + a, "the whole environment", "clear or unset")
                     names = []
-                    if has_u:  # -uNAME, or the next word
-                        names = [uval if uval is not None else next(it, "")]
-                    elif skip_next and q and not q[0].startswith("-"):
-                        next(it, None)  # T-0826: the -a/-C value word
+                    for k, c in enumerate(a[1:], 1):
+                        if c == "i":
+                            deny("env " + a, "the whole environment", "clear or unset")
+                        if c == "u":  # -uNAME, or the next word
+                            names = [a[k + 1:] or next(it, "")]
+                            break
                 elif a == "--" or ASSIGN.match(a):
                     continue
                 elif a.startswith("--"):  # T-0826: GNU env takes any unique prefix of a long option; fail closed on the rest
@@ -2577,14 +2538,15 @@ class Analyzer:
                         deny("env " + a, "the whole environment", "clear or unset")
                     if kind == "unknown":
                         deny("env " + a, "an env option this guard does not model", "run")
-                    if kind == "value":
-                        if "=" not in a:
-                            next(it, None)
-                        continue
-                    if kind == "unset":
-                        names = [a.split("=", 1)[1]] if "=" in a else [next(it, "")]
+                    if kind == "unset":  # --uns / --unse prefixes; the value word is never an option
+                        if "=" in a:
+                            names = [a.split("=", 1)[1]]
+                        elif q and not q[0].startswith("-"):
+                            names = [next(it, "")]
+                        else:
+                            continue
                     else:
-                        continue
+                        continue  # "value" (--argv0/--chdir prefixes) and "ok": as on main, no word is consumed
                 else:
                     break  # the command word
                 for n in names:
