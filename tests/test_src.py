@@ -238,6 +238,67 @@ class SrcTests(FactoryTestCase):
         self.assertFalse((self.scratch / "p1").exists())
         self.assertTrue(self.scratch.exists())
 
+    def evil_home(self, sess, cwd):
+        """A second temp home whose agents DB names `cwd`/`sess` as zz-test-qa's registered scratchpad."""
+        from harness import FactoryEnv
+        evil = FactoryEnv()
+        self.addCleanup(evil.cleanup)
+        evil.sql("INSERT INTO projects(id,name,repo_path,created) VALUES('zz-test-proj','x',?,'t')", (str(self.repo),))
+        evil.seed_goal(project="zz-test-proj")
+        evil.seed_agent("zz-test-qa", "qa", goal="G-001")
+        evil.sql("UPDATE agents SET cwd=?, session_id=? WHERE name='zz-test-qa'", (str(cwd), sess))
+        return evil
+
+    def test_temp_factory_home_cannot_pick_the_agents_row(self):
+        """The caller's own temp FACTORY_HOME names a victim scratchpad (session 'victim') as its own; the live row
+        (this env's DB, session 'sess') decides, so the dest in the victim pad is refused and nothing is planted."""
+        victim = self.other_scratch(self.env.home, sess="victim")
+        evil = self.evil_home("victim", self.env.home)
+        p = self.fail("main", str(victim / "planted"), extra_env={"FACTORY_HOME": str(evil.home_dir)})
+        self.assertIn("not inside your scratchpad", p.stderr)
+        self.assertFalse((victim / "planted").exists())
+        # the same call with the live row's own scratchpad works
+        p = self.src("main", str(self.scratch / "ok"), extra_env={"FACTORY_HOME": str(evil.home_dir)})
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_live_row_must_match_cwd_even_if_temp_home_row_matches(self):
+        """Live row registers another cwd; the temp home's row names the real cwd: refused with a clear message."""
+        evil = self.evil_home("sess", self.env.home)
+        self.env.sql("UPDATE agents SET cwd=? WHERE name='zz-test-qa'", (str(self.env.home / "elsewhere"),))
+        p = self.fail("main", str(self.scratch / "o"), extra_env={"FACTORY_HOME": str(evil.home_dir)})
+        self.assertIn("working directory", p.stderr)
+        self.assertFalse((self.scratch / "o").exists())
+
+    def test_unreadable_live_home_refuses(self):
+        evil = self.evil_home("sess", self.env.home)
+        p = self.fail("main", str(self.scratch / "o"),
+                      extra_env={"FACTORY_HOME": str(evil.home_dir), "FACTORY_SRC_LIVE_HOME": str(self.env.home / "no-live")})
+        self.assertIn("live agents DB", p.stderr)
+        self.assertFalse((self.scratch / "o").exists())
+
+    def test_git_dir_env_does_not_redirect_the_config_check(self):
+        """GIT_DIR names a clean repo while the archived repo has a refused config: still refused."""
+        clean = self.env.home / "clean"
+        clean.mkdir()
+        git("init", "-q", "-b", "main", cwd=clean)
+        git("config", "filter.x.smudge", str(self.script()), cwd=self.repo)
+        for extra in ({"GIT_DIR": str(clean / ".git")},
+                      {"GIT_DIR": str(clean / ".git"), "GIT_WORK_TREE": str(clean)},
+                      {"GIT_COMMON_DIR": str(clean / ".git")}):
+            p = self.fail("main", str(self.scratch / "o"), extra_env=extra)
+            self.assertIn("filter.x", p.stderr, extra)
+            self.assertFalse(self.marker.exists())
+            self.assertFalse((self.scratch / "o").exists())
+
+    def test_git_dir_env_does_not_break_a_clean_export(self):
+        clean = self.env.home / "clean"
+        clean.mkdir()
+        git("init", "-q", "-b", "main", cwd=clean)
+        d = self.scratch / "o"
+        p = self.src("main", str(d), extra_env={"GIT_DIR": str(clean / ".git")})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual((d / "a.txt").read_text(), "hello\n")
+
     def test_help_documents_src(self):
         p = self.env.run("src", "--help")
         self.assertEqual(p.returncode, 0)
