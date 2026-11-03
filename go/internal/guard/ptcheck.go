@@ -71,8 +71,12 @@ func loadAllowlist(path string) (scrubAllowlist, error) {
 	if err != nil {
 		return nil, &usageError{"cannot read allowlist " + pyRepr(path) + ": " + pyStrerror(err)}
 	}
+	if msg := pyUTF8Error(raw); msg != "" {
+		// read_text(encoding="utf-8") raises UnicodeDecodeError, which is no UsageError: the hook fails closed
+		return nil, errors.New("UnicodeDecodeError: " + msg)
+	}
 	var entries scrubAllowlist
-	for n, line := range pyLines(pyDecodeReplace(raw)) {
+	for n, line := range pyLines(string(raw)) {
 		n++
 		if strings.TrimFunc(line, pyIsSpace) == "" || strings.HasPrefix(strings.TrimLeftFunc(line, pyIsSpace), "#") {
 			continue
@@ -98,7 +102,11 @@ func loadAllowlist(path string) (scrubAllowlist, error) {
 		} else {
 			pid, rxs = "", rest
 		}
-		re, err := regexp.Compile(strings.TrimFunc(rxs, pyIsSpace))
+		src, err := pyRegexToRE2(strings.TrimFunc(rxs, pyIsSpace))
+		var re *regexp.Regexp
+		if err == nil {
+			re, err = regexp.Compile(src)
+		}
 		if err != nil {
 			return nil, &usageError{path + ":" + strconv.Itoa(n) + ": bad regex: " + err.Error()}
 		}

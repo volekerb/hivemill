@@ -121,6 +121,11 @@ func textCorpus() []string {
 		"token=path/"+strings.Repeat("Ab1", 12), tk+" = /"+strings.Repeat("Ab1", 15), strings.Repeat("Ab1", 15), tk+"="+strings.Repeat("Ab", 20), tk+"="+strings.Repeat("Ab1", 15)+"==",
 		tk+"="+strings.Repeat("Ab1", 15)+"===x", tk+"="+strings.Repeat("Ab1", 15)+"=a", tk+"="+strings.Repeat("a", 64), tk+"="+strings.Repeat("a1", 32), "sha256 "+strings.Repeat("0f", 32),
 		tk+"="+strings.Repeat("test1", 9), "a "+strings.Repeat("x", 99)+" "+tk+" "+strings.Repeat("Ab1", 15), strings.Repeat("é", 120)+tk+"="+strings.Repeat("Ab1", 15))
+	// a slash-bearing value is a candidate only right after key word + [:=] with space/tab around it (KEY_DIRECT_RE),
+	// never with another Unicode space (T-0887 review: U+00A0 made Go block where Python allows)
+	pathv := "p/" + strings.Repeat("Ab1", 14)
+	add(tk+" = "+pathv, tk+"\t=\t"+pathv, tk+" = "+pathv, tk+": "+pathv, tk+" :"+pathv, tk+"　= "+pathv, tk+":\x0b"+pathv,
+		tk+":  "+pathv, tk+"\u0085="+pathv, tk+"\x1c="+pathv, tk+"= "+uu+".example"+strings.Repeat("Ab1", 12), tk+": "+strings.Repeat("Ab1", 14)+".example")
 	// long lines and mixtures
 	add(strings.Repeat("A clean line about T-0528 and PR #3.\n", 40), strings.Repeat("a", 5000), strings.Repeat("a@", 300), strings.Repeat("1.", 400),
 		"first\nzebracorp\nthird "+dot("10", "1", "1", "1")+"\n"+ghp, "\u0000nul\u0000", "\xef\xbb\xbfzebracorp", "zebra​corp", "é acme")

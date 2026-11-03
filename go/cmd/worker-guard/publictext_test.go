@@ -152,6 +152,25 @@ func TestPublicTextFailsClosed(t *testing.T) {
 	}
 }
 
+// An allowlist that is not valid UTF-8 crashes Python's read_text, which the hook turns into a refusal: Go says the same.
+func TestPublicTextAllowlistInvalidUTF8FailsClosed(t *testing.T) {
+	hook := absHook(t)
+	stub := failingHookLayout(t)
+	copyFile(t, hook, stub) // callPython runs the real hook from the same layout; the Go run never starts it
+	if err := os.WriteFile(filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(stub))), "ci", "scrub_allowlist.txt"), []byte("# caf\xe9\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := publicTextRepo(t, "https://github.com/o/pub.git")
+	home := seedDB(t, "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", "INSERT INTO config VALUES ('public_text_repos', 'o/pub')")
+	env := withTerms(t, "FACTORY_HOME="+home)
+	payload := []byte(`{"tool_name":"Bash","tool_input":{"command":"git push origin HEAD:factory/t-1"},"cwd":` + jsonString(repo) + `}`)
+	code, stderr := call(t, payload, env, "--role", "judge", "--py-hook", stub)
+	pcode, pstderr := callPython(t, stub, payload, env, "--role", "judge")
+	if code != 2 || code != pcode || stderr != pstderr || !strings.Contains(stderr, "UnicodeDecodeError") {
+		t.Errorf("invalid UTF-8 allowlist: go exit %d %q, python exit %d %q", code, stderr, pcode, pstderr)
+	}
+}
+
 func copyFile(t *testing.T, from, to string) {
 	t.Helper()
 	b, err := os.ReadFile(from)

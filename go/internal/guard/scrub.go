@@ -327,7 +327,7 @@ var keyWords = `(?:secret|token|ap` + `[i\x{130}\x{131}]` + `[_-]?key|passw(?:or
 
 var (
 	keyNear   = regexp.MustCompile(`(?i)` + keyWords)
-	keyDirect = regexp.MustCompile(`(?i)` + keyWords + `[` + reWord + `.-]{0,32}["']?[` + rxSpace + `]{0,8}[:=][` + rxSpace + `]{0,8}["']?\z`)
+	keyDirect = regexp.MustCompile(`(?i)` + keyWords + `[` + reWord + `.-]{0,32}["']?[ \t]{0,8}[:=][ \t]{0,8}["']?\z`) // space and tab only, as KEY_DIRECT_RE
 )
 
 var (
