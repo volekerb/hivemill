@@ -164,11 +164,12 @@ class PrcheckRaceTests(FactoryTestCase):
         with self.env.load_factory() as mod:
             mod.load1 = lambda: next(loads)
             ticks = iter(range(0, 1000))
-            mod.time.monotonic = lambda: float(next(ticks))
-            mod.time.sleep = sleeps.append
             os.environ["FACTORY_PRCHECK_SLOT_WAIT_S"] = "500"
             self.addCleanup(os.environ.pop, "FACTORY_PRCHECK_SLOT_WAIT_S", None)
-            got = mod.prcheck_take_slot(mod.db())
+            # mod.time is the real time module: patch and restore it, never assign
+            with mock.patch.object(mod.time, "monotonic", lambda: float(next(ticks))), \
+                    mock.patch.object(mod.time, "sleep", sleeps.append):
+                got = mod.prcheck_take_slot(mod.db())
         self.assertIsInstance(got, str)
         self.assertIn(MSG, got)
         self.assertEqual(len(sleeps), 2, "waited twice below the cap, then refused instead of a third wait")
