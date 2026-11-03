@@ -1932,9 +1932,23 @@ def guard_binary_state(src=None, lib=None):
     return "ok" if stamp == guard_srchash(src) else "stale"
 
 
-def _run_build(cmd, cwd, timeout):
-    """Run cmd in its own process group; on timeout kill the whole group so no go compile child survives."""
-    env = {**os.environ, "GOTOOLCHAIN": "local"}
+def guard_go_path():
+    """The one Go toolchain the build may run: ~/.local/go/bin/go. No PATH lookup (a worker controls PATH)."""
+    return Path.home() / ".local" / "go" / "bin" / "go"
+
+
+def guard_build_env(lib):
+    """The exact environment of the Go build: nothing is inherited, so GOFLAGS, GOENV, GOROOT, GOEXPERIMENT, GODEBUG
+    and ~/.config/go/env of the caller cannot reach the compiler; cache, modules and temp live in the lib dir."""
+    gohome = Path(lib) / "go"
+    return {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), "GOTOOLCHAIN": "local", "GOENV": "off", "GOFLAGS": "",
+            "GOWORK": "off", "GOPROXY": "off", "GOSUMDB": "off", "CGO_ENABLED": "0",
+            "GOCACHE": str(gohome / "cache"), "GOMODCACHE": str(gohome / "mod"), "GOPATH": str(gohome / "path"),
+            "GOTMPDIR": str(gohome / "tmp")}
+
+
+def _run_build(cmd, cwd, timeout, env):
+    """Run cmd with exactly env, in its own process group; on timeout kill the whole group so no go compile child survives."""
     p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
     try:
         _, err = p.communicate(timeout=timeout)
@@ -1946,22 +1960,21 @@ def _run_build(cmd, cwd, timeout):
     return p.returncode, err
 
 
-def build_guard_go(src=None, lib=None, tick=False):
+def build_guard_go(src=None, lib=None, tick=False, go=None):
     """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
 
     No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
     runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
     built | current | skipped | failed. tick=True (the tick path): 120 s budget, quiet when go is missing, and a
     failed build for this srchash is not retried for 30 min (worker-guard.failed). A lib=None build outside a live
-    home is skipped: it would write the real ~/.local/lib/factory. See docs/worker-guard-go.md."""
+    home is skipped: it would write the real ~/.local/lib/factory. go= is for tests; the default is ~/.local/go/bin/go
+    only. The caller decides whether to build at all (guard_tick builds only when guard_impl != python).
+    See docs/worker-guard-go.md."""
     if lib is None and not home_is_live():
         return "skipped"
     src, lib = Path(src or guard_src_home()), Path(lib or guard_lib_dir())
-    go = shutil.which("go")
-    if not go:
-        local = Path.home() / ".local" / "go" / "bin" / "go"
-        go = str(local) if os.access(local, os.X_OK) else None
-    if not go:
+    go = str(go) if go else str(guard_go_path())
+    if not os.access(go, os.X_OK):
         if not tick:
             print("guard go build: skipped (no go toolchain)", file=sys.stderr)
         return "skipped"
@@ -1991,8 +2004,11 @@ def build_guard_go(src=None, lib=None, tick=False):
             return "skipped"  # another build is running
         new = lib / "worker-guard.new"
         try:
-            rc, stderr = _run_build([*(["nice", "-n", "10"] if shutil.which("nice") else []), go, "build", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
-                                    src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S)
+            env = guard_build_env(lib)
+            Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
+            nice = ["/usr/bin/nice", "-n", "10"] if os.access("/usr/bin/nice", os.X_OK) else []
+            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+                                    src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S, env)
             ok = rc == 0
             first = (stderr or "").strip().splitlines()[:1]
             err = first[0] if first else f"exit {rc}"
@@ -2030,14 +2046,15 @@ def write_guard_impl(con, src=None):
     return line
 
 
-def guard_tick(con, build=True, tick=True, src=None, lib=None):
-    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (cheap no-op when stamped; skipped under
-    load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
+    default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
     (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
     try:
         write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
-        if build and load1() <= cap and build_guard_go(src, lib, tick=tick) in ("built", "failed"):
+        if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
+                and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
             write_guard_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
