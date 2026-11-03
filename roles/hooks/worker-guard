@@ -57,7 +57,7 @@ finish() { # finish <impl> <status>: map every status but 0 and 2 to a blocking 
 }
 
 json_str() { # JSON-escape the argument on stdout
-    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\t' '  '
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '[:cntrl:]'
 }
 
 case $impl in
@@ -73,7 +73,7 @@ case $impl in
         tmp=$(mktemp) || finish shadow 1
         trap 'rm -f "$tmp"' EXIT
         trap 'exit 2' HUP INT TERM
-        cat > "$tmp"
+        cat > "$tmp" || finish shadow 1
         python3 "$py_hook" "$@" < "$tmp"
         py=$?
         timeout 2 "$bin" --py-hook "$py_hook" "$@" < "$tmp" > /dev/null 2>&1

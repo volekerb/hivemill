@@ -217,3 +217,5 @@ live home):
 `sha256` is the hash of the command text (of the whole payload if the command cannot be parsed); the command text itself
 is never logged. A timeout shows as `go: 124`. A logging failure never changes the decision. The clean-week criterion
 before any default flip is no lines in this log.
+
+The shim locates the binary under `$HOME`; the guard protects the passwd home. They are equal for the factory user, and a worker cannot change the hook's environment.
