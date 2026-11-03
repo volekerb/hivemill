@@ -47,7 +47,7 @@ class CursorEnterBase(FactoryTestCase):
         self.assertLess(pi[-1], ei[-1], "Enter must follow prompt in the stub log")
 
     def spawn_cursor_pm(self):
-        return self.ok("spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", "pm-g-002-a", agent="director")
+        return self.ok("spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", self.CURSOR_PM, agent="director")
 
     def spawn_claude_pm(self):
         return self.ok("spawn", "pm", "--goal", "G-001", "--name", "pm-g-001-a", agent="director")
@@ -73,7 +73,7 @@ class Kickoff(CursorEnterBase):
                     return None
                 return real(*args, check=check, timeout=timeout)
 
-            argv = [str(FACTORY), "spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", "pm-g-002-a"]
+            argv = [str(FACTORY), "spawn", "pm", "--goal", "G-002", "--team", "g-002-a", "--name", self.CURSOR_PM]
             saved_agent = os.environ.get("FACTORY_AGENT")
             os.environ["FACTORY_AGENT"] = "director"
             with mock.patch.object(mod, "herdr", side_effect=herdr):

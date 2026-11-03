@@ -88,6 +88,30 @@ class ProjectRemoteTests(FactoryTestCase):
                 self.env.sql("UPDATE projects SET gh_repo=? WHERE id='example-project'", (gh,))
                 self.assertNotEqual(self.refusal(self.clone), [])
 
+    def test_nul_byte_repo_path_fails_closed(self):
+        """A NUL in repo_path must not raise out of the rule; the row allows nothing."""
+        self.env.sql("UPDATE projects SET repo_path=? WHERE id='other'", (str(self.root / "o\x00x"),))
+        self.assertEqual(self.refusal(self.clone), [])  # the clone's own row is unaffected
+        self.env.sql("UPDATE projects SET repo_path=? WHERE id='example-project'", (str(self.clone) + "\x00",))
+        self.assertEqual(self.refusal(self.clone), [f"remote.origin.url={EXAMPLE_URL}"])
+        with self.env.load_factory() as mod:
+            mod.HOME = Path(mod.LIVE_HOME)
+            self.assertEqual(mod._project_remote_urls(self.clone / ".git"), set())
+
+    def test_duplicate_repo_path_rows_allow_nothing(self):
+        self.env.sql("UPDATE projects SET repo_path=? WHERE id='other'", (str(self.clone),))
+        self.assertEqual(self.refusal(self.clone), [f"remote.origin.url={EXAMPLE_URL}"])
+        self.env.sql("UPDATE projects SET repo_path=? WHERE id='other'", (str(self.root / "other"),))
+        self.assertEqual(self.refusal(self.clone), [])  # single row again
+
+    def test_dot_components_in_gh_repo_allow_nothing(self):
+        for gh in ("example-org/.", "./example-project", "example-org/..", "../example-project", ".", ".."):
+            with self.subTest(gh=gh):
+                self.env.sql("UPDATE projects SET gh_repo=? WHERE id='example-project'", (gh,))
+                for url in (f"https://github.com/{gh}.git", f"https://github.com/{gh}"):
+                    self.set_url(url)
+                    self.assertEqual(self.refusal(self.clone), [f"remote.origin.url={url}"])
+
     def test_trailing_newline_gh_repo_allows_nothing(self):
         """`$` matches before a trailing newline; the registered gh_repo must fullmatch."""
         self.env.sql("UPDATE projects SET gh_repo=? WHERE id='example-project'", ("example-org/example-project\n",))
