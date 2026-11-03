@@ -584,6 +584,12 @@ class EnvTests(GuardDiffCase):
         # both sides identical: clean
         self.assertEqual(self.compare(agent, agent, [env_item, ("ls", None)]), ([], [], [], 0))
 
+    def test_evaluator_entry_keeps_its_env(self):
+        agent, loose = self.stub("agent.py", self.STUB_AGENT), self.stub("loose.py", STUB_LOOSE)
+        item = guard_diff.entry_item({"cmd": "ls", "role": "evaluator", "env": {"FACTORY_AGENT": "probe-agent"}})
+        lines, lo, bad, tight = self.compare(agent, loose, [item])
+        self.assertEqual((len(lines), lo, bad, tight), (1, ["ls"], [], 0))
+
     def test_entry_without_env_gets_no_injected_agent(self):
         self.assertEqual(guard_diff.entry_item("ls"), ("ls", None))
         self.assertEqual(guard_diff.entry_item({"cmd": "ls", "role": "qa"}), ("ls", "qa"))

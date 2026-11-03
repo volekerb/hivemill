@@ -275,7 +275,7 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
         if seed or task:  # a seeded entry runs both sides against its own temp home (its config rows), never the live DB
             env = {**(env or os.environ), "FACTORY_HOME": seed_homes[(seed or (), task)]}
         elif m == "worker" and r == "evaluator":
-            env = {**os.environ, "FACTORY_HOME": temp_home}
+            env = {**(env or os.environ), "FACTORY_HOME": temp_home}
         if roles:
             label = "hq" if m == "hq" else f"worker role={r}"
         else:
