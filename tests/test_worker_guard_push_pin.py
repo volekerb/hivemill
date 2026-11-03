@@ -416,6 +416,11 @@ class AttemptSuffixPushPinTests(unittest.TestCase):
                 self.assertEqual(p.returncode, 0, p.stderr)
         p = self.run_hook(f"git -C {self.wt} push origin HEAD:factory/t-0817", agent="cursor-coder-t-0817-a2")
         self.assertEqual(p.returncode, 0, p.stderr)
+        db = os.path.join(self.home, "db", "factory.db")
+        con = sqlite3.connect(db)
+        row = con.execute("SELECT id, worktree FROM tasks WHERE id = ?", ("T-0817",)).fetchone()
+        con.close()
+        self.assertEqual(row, ("T-0817", self.wt))
 
     def test_attempt_suffix_refused(self):
         push = f"git push origin {self.OWN}"
