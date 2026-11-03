@@ -13691,9 +13691,8 @@ def after_merge(con, t, pr_url):
     if not live:
         return
     changed = [f for f in files if f.startswith("roles/")]
-    stale = "Your running prompt is stale. Finish your current step; you will be relaunched with --resume (context kept)."
-    for ag in live:
-        _collapse_notice(con, ag["name"], "role files changed: relaunch pending", [pr_url], changed, [], stale, tid)
+    # One message per merge to the director (it relaunches every stale agent with --resume); persistent agents get no
+    # notice of their own. The boss hears only when the director itself is stale (the boss relaunches it).
     cmds = [f"- {ag['name']} ({ag['role']}): factory relaunch {ag['name']} --when-idle" for ag in live]
     _collapse_notice(con, "director", "role files changed: stale agents", [pr_url], changed, cmds,
                      "Live agents above have a stale prompt.", tid)
