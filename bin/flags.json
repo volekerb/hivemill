@@ -649,6 +649,14 @@
    "promoted_in": "baseline"
   },
   {
+   "key": "state_dump_interval_s",
+   "kind": "setting",
+   "default": "3600",
+   "summary": "tick-path export commits state/ to the state branch at most this often; 0 = every tick",
+   "goal": "G-005",
+   "doc": "docs/state-branch.md"
+  },
+  {
    "key": "state_push",
    "kind": "flag",
    "default": "0",
