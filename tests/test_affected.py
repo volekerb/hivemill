@@ -127,6 +127,7 @@ class AffectedTest(unittest.TestCase):
     def test_shard_timings_change_selects_test_shard(self):
         self.git("checkout", "-q", "base")
         self.write("ci/shard_timings.json", "{}\n")
+        self.write("tests/test_shard.py", "# ci/shard_timings.json\n")  # as in the repo: test_shard.py mentions it
         self.commit()
         self.git("checkout", "-q", "work")
         self.git("rebase", "-q", "base")

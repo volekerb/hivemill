@@ -228,8 +228,7 @@ def _select(root, base, head, tests_dir, modules):
             continue
         if path == "ci/shard_timings.json":
             if SHARD_TEST in modules:
-                sel.add(SHARD_TEST)  # rule 1b: the stale-module check lives in test_shard.py
-            continue
+                sel.add(SHARD_TEST)  # rule 1b: the stale-module check lives in test_shard.py; falls through to the generic rule
         c = re.fullmatch(r"ci/([^/]+)\.py", path)
         if c:
             x = c.group(1)
