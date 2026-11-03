@@ -14,15 +14,20 @@ word FULL with the rule that triggered it. --run executes the selection (all mod
   3b any other .py file also selects modules that import it (`from web.views import home`, `import web.views.home`).
   4 roles/** -> modules mentioning "roles/" or the role file name; docs/** and *.md -> the smoke set.
   5 smoke set (config key affected_smoke, default below) is always added; over 40% of the modules -> FULL.
-Quick mode (T-0642): `--quick` (or `--budget SECONDS`, default 120) is the role-facing form: one process, only the
+Quick mode (T-0642): `--quick` (or `--budget SECONDS`, default 120) is the role-facing form: only the
 affected modules, the elapsed time printed. A FULL selection is refused: it prints "FULL needed: rely on CI" and runs nothing
-(CI is the full suite). Modules still unrun when the budget is spent are listed and the exit code is 4: rely on CI for them.
+(CI is the full suite). The budget is a hard wall-clock cap (T-0913): each module runs in its own child process group with the
+remaining budget as timeout; a module still running when it is spent is killed, and it and every unstarted module are listed
+("budget spent, not run: ...; rely on CI for them"). Modules in QUICK_SKIP (known to exceed the budget alone, e.g. the
+guard_diff corpus) are never started: listed as "slow: rely on CI". Over budget or slow modules -> exit 4, rely on CI;
+a failure in a completed module, or 0 tests from the modules that ran, exits 1. Non-quick --run is unchanged (in process, no cap).
 Any other changed path: modules mentioning its path, file name or dotted module path, FULL if none does. Stdlib only. The judge's full gate is the backstop for a missed dependency.
 """
 import argparse
 import ast
 import os
 import re
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -248,34 +253,97 @@ EXIT_BUDGET = 4
 EXIT_LOAD = 5  # refused: load1 >= cap and another suite holds the slot (M16816); rely on PR CI
 
 
+# Modules whose own runtime exceeds QUICK_BUDGET_S (ci/shard_timings.json: guard_diff 156 s, screenshots 144 s): never
+# started in quick mode. Static on purpose; refresh from CI timings, not local runs.
+QUICK_SKIP = ("test_guard_diff.py", "test_screenshots.py")
+_RESULT = "AFFECTED_RESULT"
+_CHILD = ("import sys; sys.path.insert(0, sys.argv[1]); import affected; "
+          "sys.exit(affected.child(sys.argv[2], sys.argv[3]))")
+
+
+def child(tests_dir, module):
+    """Child process of a quick run: one module through the shard.py loader; prints a result line on stdout."""
+    root = os.path.dirname(os.path.abspath(tests_dir))
+    os.chdir(root)
+    sys.path.insert(0, root)
+    sys.path.insert(0, tests_dir)
+    res = unittest.TextTestRunner(verbosity=2).run(unittest.TestLoader().discover(tests_dir, pattern=module, top_level_dir=tests_dir))
+    print("%s %d %d" % (_RESULT, res.testsRun, int(res.wasSuccessful())), flush=True)
+    return 0
+
+
+def run_child(module, tests_dir, timeout):
+    """(tests, ok) from a child run, or None if it was killed after `timeout` s (its whole process group)."""
+    p = subprocess.Popen([sys.executable, "-c", _CHILD, os.path.dirname(os.path.abspath(__file__)), tests_dir, module],
+                         stdout=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        out, _ = p.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # the group exited between the timeout and the kill
+        finally:
+            p.communicate(timeout=10)
+        return None
+    ms = re.findall(r"^%s (\d+) (\d)$" % _RESULT, out, re.M)
+    m = ms[-1] if ms else None
+    print(re.sub(r"^%s .*\n?" % _RESULT, "", out, flags=re.M), end="")
+    return (int(m[0]), m[1] == "1") if m else (0, False)
+
+
+def run_quick(modules, tests_dir, budget):
+    """Hard-capped run: modules in QUICK_SKIP are not started; the rest each get the remaining budget; exit 1 on a
+    failure or 0 tests, else 4 if anything was skipped, slow or killed, else 0."""
+    tests, ok, start, skipped = 0, True, time.monotonic(), []
+    slow = [m for m in modules if m in QUICK_SKIP]
+    todo = [m for m in modules if m not in QUICK_SKIP]
+    for m in todo:
+        left = budget - (time.monotonic() - start)
+        t0 = time.monotonic()
+        r = run_child(m, tests_dir, left) if left > 0 else None
+        if r is None:
+            skipped.append(m)
+            continue
+        print("%s: %d tests, %.1f s" % (m, r[0], time.monotonic() - t0), file=sys.stderr)
+        tests += r[0]
+        ok = ok and r[1]
+    ran = len(todo) - len(skipped)
+    print("affected: Ran %d tests in %d modules: %s" % (tests, ran, "OK" if ok else "FAILED"))
+    print("affected: elapsed %.1f s of %d s budget" % (time.monotonic() - start, budget))
+    if slow:
+        print("affected: slow: %s; rely on CI for them" % " ".join(slow), file=sys.stderr)
+    if skipped:
+        print("affected: budget spent, not run: %s; rely on CI for them" % " ".join(skipped), file=sys.stderr)
+    if not ok:
+        return 1
+    if tests == 0 and ran > 0:
+        print("affected: ran 0 tests; that is a failure", file=sys.stderr)
+        return 1
+    return EXIT_BUDGET if (slow or skipped) else 0
+
+
 def run(modules, tests_dir, budget=None):
-    """Run the modules through the shard.py loader; exit 1 on failure or on 0 tests. With a budget (seconds), stop
-    starting modules once it is spent, list the rest and exit 4 (the unrun modules are CI's job)."""
+    """Run the modules through the shard.py loader; exit 1 on failure or on 0 tests. With a budget (seconds) this is
+    run_quick (hard cap, child processes); without one it runs in process, uncapped."""
+    if budget is not None:
+        return run_quick(modules, tests_dir, budget)
     root = os.path.dirname(os.path.abspath(tests_dir))
     os.chdir(root)
     sys.path.insert(0, root)
     sys.path.insert(0, tests_dir)
     loader, runner = unittest.TestLoader(), unittest.TextTestRunner(verbosity=2)
-    tests, ok, start, skipped = 0, True, time.monotonic(), []
+    tests, ok = 0, True
     for m in modules:
-        if budget is not None and time.monotonic() - start >= budget:
-            skipped.append(m)
-            continue
         t0 = time.monotonic()
         res = runner.run(loader.discover(tests_dir, pattern=m, top_level_dir=tests_dir))
         print("%s: %d tests, %.1f s" % (m, res.testsRun, time.monotonic() - t0), file=sys.stderr)
         tests += res.testsRun
         ok = ok and res.wasSuccessful()
-    ran = len(modules) - len(skipped)
-    print("affected: Ran %d tests in %d modules: %s" % (tests, ran, "OK" if ok else "FAILED"))
-    if budget is not None:
-        print("affected: elapsed %.1f s of %d s budget" % (time.monotonic() - start, budget))
+    print("affected: Ran %d tests in %d modules: %s" % (tests, len(modules), "OK" if ok else "FAILED"))
     if tests == 0:
         print("affected: ran 0 tests; that is a failure", file=sys.stderr)
         return 1
-    if ok and skipped:
-        print("affected: budget spent, not run: %s; rely on CI for them" % " ".join(skipped), file=sys.stderr)
-        return EXIT_BUDGET
     return 0 if ok else 1
 
 

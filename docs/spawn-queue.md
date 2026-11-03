@@ -3,8 +3,8 @@
 When the gate is closed a spawn is queued; each tick starts queued rows while the gate is open, in this order:
 
 1. Role class (drain before build): director, lead, judge, reviewer, qa, then everything else (coder, pm, cleaner, staff-engineer).
-2. Aged goal priority within the class: the goal priority (no goal counts as 2) minus 1 per full 30 minutes queued, floored at 0. Aging never crosses a class, so an old P3 coder still loses to any reviewer.
-3. `queued_at`, then agent name, for a stable order.
+2. Aged goal priority within the class: the goal priority (no goal counts as 2) minus 1 per full 30 minutes queued, floored at level 1: aging lifts a P2/P3 row to at most the level of a fresh P1, and a row queued 240 minutes or more goes first within its class (see `queue_order_key`). Aging never crosses a class, so an old P3 coder still loses to any reviewer.
+3. `queued_at`, then agent name, for a stable order. A re-queue (gate closed, failed start, TTL recovery) of a row that is already `queued` or `starting` keeps its original `queued_at`, so it keeps aging; only a new row or one coming from a terminal status (done, stopped, lost, cancelled, exited) gets a fresh one.
 
 ## Judge gate (T-0391)
 

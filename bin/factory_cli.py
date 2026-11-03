@@ -6902,8 +6902,10 @@ def git_config_refusal(repo):
     the factory repo or the clone's own registered project (exact https gh_repo URL), extensions.worktreeConfig other than false, a non-empty
     `<common-dir>/info/attributes` or `~/.config/git/attributes`. Fails closed: unreadable config is a refusal.
     Global/XDG config is out of scope (G-010, docs/git-hardening.md)."""
+    # GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR in the caller's env would redirect every git call below to another repo
+    base_env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")}
     try:
-        p = git_run(repo, "rev-parse", "--git-dir", "--git-common-dir", env={**os.environ, "LC_ALL": "C"}, timeout=30)
+        p = git_run(repo, "rev-parse", "--git-dir", "--git-common-dir", env={**base_env, "LC_ALL": "C"}, timeout=30)
     except subprocess.TimeoutExpired:
         return ["git rev-parse timed out"]
     if p.returncode != 0:
@@ -6921,7 +6923,7 @@ def git_config_refusal(repo):
         if not f.exists():
             continue
         try:
-            q = git_run(repo, "config", "--file", str(f), "--list", "-z", timeout=30)
+            q = git_run(repo, "config", "--file", str(f), "--list", "-z", env=base_env, timeout=30)
         except subprocess.TimeoutExpired:
             return keys + [f"git config {f.name} timed out"]
         if q.returncode != 0:
@@ -7294,7 +7296,10 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
         cur = con.execute("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?,?,?) "
-                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, queued_at=excluded.queued_at, "
+                          "ON CONFLICT(name) DO UPDATE SET status='queued', pane_id=NULL, spawn_args=excluded.spawn_args, "
+                          # a re-queue of a queued/starting row keeps its queued_at (aging); new or terminal rows get a fresh one
+                          "queued_at=CASE WHEN agents.status IN ('queued','starting') AND agents.queued_at IS NOT NULL "
+                          "THEN agents.queued_at ELSE excluded.queued_at END, "
                           "stop_requested_at=NULL, stop_attempt_at=NULL, stop_failed_kind=NULL"
                           + (" WHERE agents.status != 'cancelled'" if from_queue else ""),
                           (name, role, goal, team, task, "queued", json.dumps(args), now()))
@@ -8965,6 +8970,26 @@ def finish_pending_nudges(con, by_name, t):
 SRC_PATH = "/usr/bin:/bin"
 
 
+def src_live_con(con):
+    """The DB the caller's identity is read from: the LIVE home's agents DB, never a caller-chosen FACTORY_HOME (a temp
+    home is the caller's own DB: it could name a foreign or HQ scratchpad as its own). A live FACTORY_HOME is already it.
+    Only derive_live_homes()/LIVE_HOME names it. The tests' stand-in is a module global _SRC_TEST_LIVE_HOME that the
+    in-process test harness seeds into the module namespace; no env var can set it, so a caller cannot choose the row.
+    Dies when the live DB cannot be read."""
+    if home_is_live():
+        return con
+    live = globals().get("_SRC_TEST_LIVE_HOME") or LIVE_HOME
+    path = dbpath.resolve(live)
+    try:
+        lc = sqlite3.connect(f"file:{quote(str(path))}?mode=ro", uri=True, timeout=30)
+        lc.row_factory = sqlite3.Row
+        lc.execute("SELECT 1 FROM agents LIMIT 1")
+    except sqlite3.Error as e:
+        die(f"factory src: FACTORY_HOME {HOME} is not a live home and the live agents DB {path} cannot be read ({e}); "
+            "run factory src with the FACTORY_HOME your session started with", 2)
+    return lc
+
+
 def src_scratch_roots(con):
     """Realpaths of the caller's own scratchpad: <tmp>/claude-<uid>/<slug of the agent's registered cwd>/<its session>/scratchpad.
     The caller is FACTORY_AGENT (refused when unset) and the slug comes from its agents row, never from the cwd or an env
@@ -8977,8 +9002,9 @@ def src_scratch_roots(con):
     agent_cwd = os.path.realpath(r["cwd"])
     if os.path.realpath(os.getcwd()) != agent_cwd:
         return [], f"run factory src from your own working directory {agent_cwd}, not {os.path.realpath(os.getcwd())}"
-    # a temp FACTORY_HOME (tests) may move tmp; a live home always uses /tmp, whatever the caller's env says
-    base = (Path("/tmp") if home_is_live() else tmp_dir()) / f"claude-{os.getuid()}" / re.sub(r"[^A-Za-z0-9]", "-", agent_cwd)
+    # only the in-process tests' stand-in live home (_SRC_TEST_LIVE_HOME, not settable from env) may move tmp; otherwise /tmp,
+    # whatever the caller's FACTORY_TMP_DIR says
+    base = (tmp_dir() if globals().get("_SRC_TEST_LIVE_HOME") else Path("/tmp")) / f"claude-{os.getuid()}" / re.sub(r"[^A-Za-z0-9]", "-", agent_cwd)
     roots = []
     sid = r["session_id"]
     if sid and not re.fullmatch(r"[A-Za-z0-9_-]+", sid):
@@ -9011,8 +9037,12 @@ def src_repo(con):
 
 
 def cmd_src(a):
-    """Export a ref into the caller's scratchpad with no config, filter, attribute or hook of the caller's able to run."""
-    con = db()
+    """Export a ref into the caller's scratchpad with no config, filter, attribute or hook of the caller's able to run.
+    The caller's agents row, its project repo and the shared checkouts all come from the LIVE home's DB (src_live_con).
+    Accepted, self-only risk (T-0339): between the dest checks and tar's extraction the caller could swap its own
+    scratchpad subdirectory for a symlink. Only the caller's own processes can write there, so it can reach only what
+    it can already write; extraction relative to an O_NOFOLLOW fd would not cover the parent components anyway."""
+    con = src_live_con(db())
     if a.ref.startswith("-") or a.dest.startswith("-"):
         die("ref and dest must not start with '-'", 2)
     paths = a.paths[1:] if a.paths[:1] == ["--"] else a.paths
