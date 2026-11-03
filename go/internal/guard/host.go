@@ -26,6 +26,8 @@ type hostInfo struct {
 	liveHomes    []string
 	runSettings  []string // RUN_SETTINGS
 	runExport    []string // RUN_EXPORT (T-0883)
+	runGuardImpl []string // RUN_GUARD_IMPL (T-0353)
+	libDir       string   // LIB_DIR: ~/.local/lib/factory (T-0353)
 	hookReal     string   // HOOK_REAL ("" when --py-hook was not given)
 	persistFiles map[string]struct{}
 	persistTrees []string
@@ -82,6 +84,7 @@ func buildHost(pwDir string, uid int, pyHook string) *hostInfo {
 	h := &hostInfo{
 		pwDir:        pwDir,
 		cfgDir:       pyRealpath(pyJoin(pyJoin(pwDir, ".config"), "factory")),
+		libDir:       pyRealpath(pyJoin(pyJoin(pyJoin(pwDir, ".local"), "lib"), "factory")),
 		liveHome:     primary,
 		liveHomes:    homes,
 		persistFiles: map[string]struct{}{"/etc/gitconfig": {}},
@@ -92,6 +95,7 @@ func buildHost(pwDir string, uid int, pyHook string) *hostInfo {
 	}
 	for _, h2 := range homes {
 		h.runSettings = append(h.runSettings, pyRealpath(pyJoin(pyJoin(h2, "run"), "settings")))
+		h.runGuardImpl = append(h.runGuardImpl, pyRealpath(pyJoin(pyJoin(h2, "run"), "guard_impl")))
 		h.runExport = append(h.runExport, pyRealpath(pyJoin(pyJoin(h2, "run"), "guard-export.json")))
 	}
 	for _, n := range PersistNames {

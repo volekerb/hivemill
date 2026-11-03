@@ -438,6 +438,12 @@ def migrate(con):
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "sandbox_required" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
                 raise
+    if "judge_hold_reason" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+        try:  # non-empty = lead/director hold: no judge spawn until cleared (G-027 T-0835; not the CI judge_hold())
+            con.execute("ALTER TABLE tasks ADD COLUMN judge_hold_reason TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "judge_hold_reason" not in {r["name"] for r in con.execute("PRAGMA table_info(tasks)")}:
+                raise
     for col in ("parked_at", "resume_note"):
         if col not in {r["name"] for r in con.execute("PRAGMA table_info(teams)")}:
             try:
@@ -2688,7 +2694,7 @@ def cmd_task(a):
     elif a.action == "show":
         t = con.execute("SELECT * FROM tasks WHERE id=?", (a.id,)).fetchone() or die(f"no task {a.id}")
         for k in t.keys():
-            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]):
+            if t[k] not in (None, "", "[]") and k not in ("spec", "acceptance") and (k != "waits" or t["status"] == "blocked") and (k != "sandbox_required" or t[k]) and (k != "judge_hold_reason" or (t[k] or "").strip()):
                 print(f"{k}: {t[k]}")
         for k in ("spec", "acceptance"):
             if t[k]:
@@ -2741,6 +2747,13 @@ def cmd_task(a):
                 die(f"only a lead, director or the owner may set a task's sandbox_required ({role} may not use --sandbox-required)", 3)
             if a.sandbox_required == "1":
                 check_sandbox_required_role(t["role"])
+        if a.judge_hold is not None or a.judge_hold_clear:
+            if role not in ("owner", "lead", "director", "boss"):
+                die(f"only a lead, director or the owner may set a task's judge hold ({role} may not use --judge-hold)", 3)
+            if a.judge_hold is not None and a.judge_hold_clear:
+                die("give --judge-hold or --judge-hold-clear, not both", 2)
+            if a.judge_hold is not None and not (a.judge_hold or "").strip():
+                die("--judge-hold needs a non-empty reason", 2)
         if a.team is not None:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may change a task's team ({role} may not use --team)", 3)
@@ -2776,9 +2789,10 @@ def cmd_task(a):
                 die(f"{', '.join(dependents)} depend on {a.id} in {t['goal_id']}; clear their --after first", 2)
         elif not any(v is not None for v in (a.status, a.pr, a.branch, a.assignee, a.title, a.spec, a.acceptance,
                                              a.team, a.priority, a.after, a.waits, a.note, a.reason,
-                                             a.sandbox_required)):
+                                             a.sandbox_required, a.judge_hold)) and not a.judge_hold_clear:
             die(f"nothing to update on {a.id}: give at least one of --status --pr --branch --assignee --title --spec "
-                "--acceptance --team --priority --after --waits --note --goal --sandbox-required", 2)
+                "--acceptance --team --priority --after --waits --note --goal --sandbox-required --judge-hold "
+                "--judge-hold-clear", 2)
         if a.waits is not None and (a.status or t["status"]) != "blocked":
             die("--waits applies to blocked tasks: use it with --status blocked", 2)
         if a.reason and a.note:
@@ -2868,6 +2882,14 @@ def cmd_task(a):
         if a.sandbox_required is not None and int(a.sandbox_required) != t["sandbox_required"]:
             con.execute("UPDATE tasks SET sandbox_required=? WHERE id=?", (int(a.sandbox_required), a.id))
             event(con, "task", a.id, "sandbox-required", a.sandbox_required)
+        if a.judge_hold is not None:
+            reason = (a.judge_hold or "").strip()
+            con.execute("UPDATE tasks SET judge_hold_reason=? WHERE id=?", (reason, a.id))
+            event(con, "task", a.id, "judge-hold-set", reason)
+        elif a.judge_hold_clear:
+            if (t["judge_hold_reason"] or "").strip():
+                con.execute("UPDATE tasks SET judge_hold_reason=NULL WHERE id=?", (a.id,))
+                event(con, "task", a.id, "judge-hold-clear", "")
         if spec is not None:
             warn_file_overlap(con, a.id, t["goal_id"], spec)
         if a.status == "in_progress":
@@ -7451,8 +7473,12 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
-        held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
-        ok, why = (False, held) if held else (ok, why)
+        jhr = task_judge_hold_reason(con, task)
+        if jhr:
+            ok, why = False, jhr
+        else:
+            held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
+            ok, why = (False, held) if held else (ok, why)
     if not ok:
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
@@ -7491,6 +7517,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
                          f"{role} spawn for {task} not started: {why}", "report", goal, task, sender="factory")
                 return None
             held = judge_hold(con, task, cap=False) if role == "judge" else None  # after the refresh: it moved the head
+            if not held and role == "judge":
+                held = task_judge_hold_reason(con, task)
             if held:
                 con.execute("UPDATE agents SET status='queued', spawn_args=json_remove(spawn_args,'$.claimed_at') "
                             "WHERE name=? AND status='starting'", (name,))
@@ -11548,6 +11576,74 @@ def judge_hold(con, task, cap=True, behind_ok=False):
     return None
 
 
+def task_judge_hold_reason(con, task):
+    """Non-empty when a lead, director or the owner has held judge spawn on this task (G-027 T-0835)."""
+    if not task:
+        return None
+    r = con.execute("SELECT judge_hold_reason FROM tasks WHERE id=?", (task,)).fetchone()
+    if not r:
+        return None
+    s = (r["judge_hold_reason"] or "").strip()
+    return s or None
+
+
+def log_task_judge_hold(con, task, reason):
+    """One tick-visible line and a task event while judge spawn is held by the task flag."""
+    if not task:
+        return
+    print(f"judge-hold {task}: {reason}")
+    event(con, "task", task, "judge-hold", reason[:300])
+
+
+def judge_autospawn_candidates(con):
+    """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
+    mech_ids = {t["id"] for t in mech_candidates(con)} if mech_mode(con) == "on" else set()
+    out = []
+    for t in con.execute(
+            "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' "
+            "AND t.pr_url IS NOT NULL AND t.pr_url != '' AND g.status='active' "
+            "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
+        if t["id"] in mech_ids:
+            continue
+        if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                            (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
+               for role in ("reviewer", "qa")):
+            continue
+        if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
+                       (t["id"],)).fetchone():
+            continue
+        out.append(t)
+    return out
+
+
+def judge_autospawn_tick(con):
+    """Tick: after reviewer and QA PASS, start a judge when CI is ready unless the task is judge-held or mech will merge."""
+    for t in judge_autospawn_candidates(con):
+        tid = t["id"]
+        jhr = task_judge_hold_reason(con, tid)
+        if jhr:
+            log_task_judge_hold(con, tid, jhr)
+            continue
+        if judge_hold(con, tid, behind_ok=True):
+            continue
+        _o = org_for(con, t["goal_id"], tid)
+        name = oname(con, _o, slug(f"judge-{tid}"))
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
+            continue
+        if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
+            break
+        try:
+            spawn(con, "judge", t["goal_id"], t["team_id"], tid, name)
+        except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
+            event(con, "task", tid, "judge-autospawn-error",
+                  (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+            break
+        row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+        event(con, "task", tid, "judge-autospawn", {"agent": name, "status": row["status"] if row else "unknown"})
+        if not row or row["status"] == "queued":
+            break
+
+
 JUDGE_CI_PRUNE_AGE_S = 7 * 86400  # a judge_ci:<url> cache row older than this is dropped whatever its task says
 
 
@@ -12101,6 +12197,11 @@ def cmd_tick(a, locked=False):
             continue  # a msg is spawning this one right now
         if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
+        if s["role"] == "judge":
+            jhr = task_judge_hold_reason(con, s.get("task"))
+            if jhr:
+                log_task_judge_hold(con, s.get("task"), jhr)
+                continue
         if s["role"] == "judge" and judge_hold(con, s.get("task"), behind_ok=True):
             continue  # judge cap reached or PR CI not green: the rows behind it may start
         if s["role"] == "judge" and refresh_lane_hold(con, s.get("task"), queued):
@@ -12158,6 +12259,11 @@ def cmd_tick(a, locked=False):
         review_autospawn_tick(con)
     except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
         event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
+
+    try:
+        judge_autospawn_tick(con)
+    except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
+        event(con, "tick", "judge-autospawn", "judge-autospawn-error", str(e)[:300])
 
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
@@ -14696,6 +14802,10 @@ def main():
                    help="with --status done --reason: close a coder task whose PR was merged outside the judge (director/owner; verified on GitHub)")
     x.add_argument("--sandbox-required", dest="sandbox_required", choices=["0", "1"],
                    help="task must run in the worker sandbox: spawn refuses it without --sandbox; the tick starts it sandboxed")
+    x.add_argument("--judge-hold", dest="judge_hold",
+                   help="hold judge spawn on this task until cleared (lead, director, or owner)")
+    x.add_argument("--judge-hold-clear", dest="judge_hold_clear", action="store_true",
+                   help="clear the judge hold on this task (lead, director, or owner)")
     x.add_argument("--priority", type=int); x.set_defaults(fn=cmd_task)
 
     x = sp.add_parser("lesson"); x.add_argument("action", choices=["add", "list", "show", "edit", "link", "apply", "verify", "reopen"])

@@ -2153,6 +2153,614 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo x > ~/.local/lib/factory/worker-guard",
+"mask_quotes_pre": "echo x > ~/.local/lib/factory/worker-guard",
+"mask_quotes_raw": "echo x > ~/.local/lib/factory/worker-guard",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~/.local/lib/factory/worker-guard"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~/.local/lib/factory/worker-guard"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"echo",
+"x",
+">",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"echo",
+"x",
+">",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"mask_quotes_pre": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"mask_quotes_raw": "cp /tmp/x ~/.local/lib/factory/worker-guard",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/lib/factory/worker-guard"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/lib/factory/worker-guard"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_pre": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_raw": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp"
+},
+"segments_pre": [
+[
+0,
+49,
+[
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"segments_raw": [
+[
+0,
+49,
+[
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"mask_quotes_pre": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"mask_quotes_raw": "mv /tmp/x ~/.local/lib/factory/worker-guard",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/x ~/.local/lib/factory/worker-guard"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/x ~/.local/lib/factory/worker-guard"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"mv",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"mv",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"mask_quotes_pre": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"mask_quotes_raw": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -sf /tmp/x ~/.local/lib/factory/worker-guard"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rm ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_pre": "rm ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_raw": "rm ~/.local/lib/factory/worker-guard.stamp",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rm ~/.local/lib/factory/worker-guard.stamp"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rm ~/.local/lib/factory/worker-guard.stamp"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"rm",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"rm",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rm -r ~/.local/lib/factory",
+"mask_quotes_pre": "rm -r ~/.local/lib/factory",
+"mask_quotes_raw": "rm -r ~/.local/lib/factory",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rm -r ~/.local/lib/factory"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rm -r ~/.local/lib/factory"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"rm",
+"-r",
+"~/.local/lib/factory"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"rm",
+"-r",
+"~/.local/lib/factory"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_pre": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_raw": "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | tee ~/.local/lib/factory/worker-guard.stamp"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | tee ~/.local/lib/factory/worker-guard.stamp"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+52,
+[
+"tee",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+52,
+[
+"tee",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"mask_quotes_pre": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"mask_quotes_raw": "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/lib/factory && echo x > worker-guard.stamp"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/lib/factory && echo x > worker-guard.stamp"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"cd",
+"~/.local/lib/factory"
+]
+],
+[
+26,
+54,
+[
+"echo",
+"x",
+">",
+"worker-guard.stamp"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"cd",
+"~/.local/lib/factory"
+]
+],
+[
+26,
+54,
+[
+"echo",
+"x",
+">",
+"worker-guard.stamp"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo go > @LIVE_HOME@/run/guard_impl",
+"mask_quotes_pre": "echo go > @LIVE_HOME@/run/guard_impl",
+"mask_quotes_raw": "echo go > @LIVE_HOME@/run/guard_impl",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo go > @LIVE_HOME@/run/guard_impl"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo go > @LIVE_HOME@/run/guard_impl"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"echo",
+"go",
+">",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"echo",
+"go",
+">",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"mask_quotes_pre": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"mask_quotes_raw": "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x @LIVE_HOME@/run/guard_impl"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x @LIVE_HOME@/run/guard_impl"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rm @LIVE_HOME@/run/guard_impl",
+"mask_quotes_pre": "rm @LIVE_HOME@/run/guard_impl",
+"mask_quotes_raw": "rm @LIVE_HOME@/run/guard_impl",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rm @LIVE_HOME@/run/guard_impl"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rm @LIVE_HOME@/run/guard_impl"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"rm",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"rm",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo go > ~/.config/factory/guard_impl",
+"mask_quotes_pre": "echo go > ~/.config/factory/guard_impl",
+"mask_quotes_raw": "echo go > ~/.config/factory/guard_impl",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo go > ~/.config/factory/guard_impl"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo go > ~/.config/factory/guard_impl"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"echo",
+"go",
+">",
+"~/.config/factory/guard_impl"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"echo",
+"go",
+">",
+"~/.config/factory/guard_impl"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "sed -i s/a/b/ @LIVE_HOME@/run/settings/coder.json",
 "mask_quotes_pre": "sed -i s/a/b/ @LIVE_HOME@/run/settings/coder.json",
 "mask_quotes_raw": "sed -i s/a/b/ @LIVE_HOME@/run/settings/coder.json",
@@ -52756,6 +53364,132 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "ls ~/.local/lib/factory",
+"mask_quotes_pre": "ls ~/.local/lib/factory",
+"mask_quotes_raw": "ls ~/.local/lib/factory",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ls ~/.local/lib/factory"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ls ~/.local/lib/factory"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"ls",
+"~/.local/lib/factory"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"ls",
+"~/.local/lib/factory"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_pre": "cat ~/.local/lib/factory/worker-guard.stamp",
+"mask_quotes_raw": "cat ~/.local/lib/factory/worker-guard.stamp",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.local/lib/factory/worker-guard.stamp"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat ~/.local/lib/factory/worker-guard.stamp"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"cat",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"cat",
+"~/.local/lib/factory/worker-guard.stamp"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat @LIVE_HOME@/run/guard_impl",
+"mask_quotes_pre": "cat @LIVE_HOME@/run/guard_impl",
+"mask_quotes_raw": "cat @LIVE_HOME@/run/guard_impl",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat @LIVE_HOME@/run/guard_impl"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat @LIVE_HOME@/run/guard_impl"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"cat",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"cat",
+"@LIVE_HOME@/run/guard_impl"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -78558,7 +79292,7 @@
 ]
 }
 },
-"corpus_commands": 1396,
+"corpus_commands": 1412,
 "edge_inputs": 97,
 "python": "3.13"
 }

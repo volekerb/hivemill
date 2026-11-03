@@ -178,3 +178,44 @@ A later guard PR that changes `preprocess`, `extract_subs`, `mask_quotes`, `segm
 | 2243 `EVAL_HOME_PREFIX` | `MatchEvalHomePrefix` | `TestLookaroundEvalHomePrefix` |
 
 Expected values in the table tests come from running the Python regex (one-liners in the test file header).
+
+## Shim and flag
+
+The shim finds its own directory from `$0`; the live home is the parent of `roles/`.
+
+**Flag.** `<live home>/run/guard_impl` holds one line, `<impl> <srchash>`, with impl `python`, `go` or `shadow`. The
+factory CLI writes it (the DB key is director-only); the shim cannot read sqlite. A missing, unreadable, empty,
+multi-line or malformed file, or any other impl, means `python`.
+
+**Binary.** `~/.local/lib/factory/worker-guard` with the stamp `~/.local/lib/factory/worker-guard.stamp`, one line: the
+tree id of `go/` it was built from. The shim uses Go only when impl is `go` or `shadow`, the binary is executable and
+the stamp equals `<srchash>` (a string compare; the shim runs no extra process for it). Otherwise it runs Python, so a
+stale or missing binary never runs old rules. The binary is called as `worker-guard --py-hook <dir>/worker-guard.py <args>`.
+
+**Modes.** `python`: `python3 worker-guard.py <args>`. `go`: the binary. Both get stdin as is.
+
+**Fail closed.** The shim never `exec`s. Every exit status other than 0 and 2 (including 126/127 when python3 or the
+binary cannot run, and signals such as SIGKILL = 137) becomes exit 2 with
+`worker-guard shim: <impl> failed (<status>); blocking`. Exit 1 and 126/127 would otherwise be non-blocking for Claude Code.
+
+**Protected.** `<live home>/run/guard_impl` and the `~/.local/lib/factory` tree are write-protected from workers' Bash
+in both the Python and the Go guard (writers, redirects, `cd` + write); reads (`ls`, `cat` of the stamp) stay allowed.
+
+**Rollback.** Write `python` (or remove `run/guard_impl`): the next call uses Python, no relaunch.
+
+**Debugging.** `WORKER_GUARD_SHIM_TRACE=1` prints `impl=<python|go|shadow>` to stderr (used by tests/test_guard_shim.py).
+
+## Shadow mode
+
+Impl `shadow` runs both on the same payload (read once into a temp file removed on exit). Python is authoritative: its
+stdout, stderr and exit status are returned. Go runs with a 2 s timeout and its output is discarded. When the two exit
+statuses differ the shim appends one JSON line to `$FACTORY_HOME/logs/guard-shadow.log` (`FACTORY_HOME` defaults to the
+live home):
+
+    {"ts":"2026-01-02T03:04:05Z","role_args":"--role coder","sha256":"<64 hex>","py":0,"go":2}
+
+`sha256` is the hash of the command text (of the whole payload if the command cannot be parsed); the command text itself
+is never logged. A timeout shows as `go: 124`. A logging failure never changes the decision. The clean-week criterion
+before any default flip is no lines in this log.
+
+The shim locates the binary under `$HOME`; the guard protects the passwd home. They are equal for the factory user, and a worker cannot change the hook's environment.
