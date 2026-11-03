@@ -220,6 +220,7 @@ class ArchiveGitTests(unittest.TestCase):
             f"tar -xf {clean} -C {o} -P", f"tar -xf {clean} -C {o} -T list", f"tar --get -f {clean} -C {o}",
             f"tar -xf {clean} -C {o} --use-compress-program=sh", f"tar -xf {clean} -C {o} -I sh",
             f"tar -xf{clean} -C {o}", f"tar -xf{clean}", f"tar -xvf{clean} -C {o}", f"tar -C {o} -xf{clean}",
+            f"tar -gf -x -f - -C {o}", f"tar -Kf -x -f - -C {o}", f"tar -gf - -x -f - -C {o}",
             f"tar -xfC {clean} out", f"tar xfC {clean} out", f"tar -xf {clean} -f {gitcfg} -C {o}",
             f"tar -xf {clean} -C {o} -- x", f"unzip {zclean} -l -d {o}", f"unzip -q {zclean} .git/config -l",
             f"tar -xf {clean} foo -C {o}", f"tar -xf {clean} -C {o} -C ..", f"unzip {zclean} -d {o} -- x",
@@ -266,15 +267,18 @@ class ArchiveGitTests(unittest.TestCase):
             (["-xzf", "a.tar", "-Co"], True, ["a.tar"], ["o"], False),
             (["--extract", "--file=a.tar", "--directory", "o"], True, ["a.tar"], ["o"], False),
             (["-tf", "/x/a.tar"], False, ["/x/a.tar"], [], True),
-            (["-cf", "a.tar", "x"], False, ["a.tar"], [], True),
+            (["-cf", "a.tar", "x"], True, [], [], True),  # c not allowlisted: unclassifiable = extract
             (["-xf/x/a.tar"], True, [], [], True),       # glued value: unclassifiable = extract
             (["-xvf/x/a.tar", "-C", "o"], True, [], ["o"], True),
             (["-xfC", "a.tar", "out"], True, [], [], True),  # value letter not last
             (["xfC", "a.tar", "out"], True, [], [], True),
+            (["-gf", "-x", "-f", "-", "-C", "o"], True, ["-"], ["o"], True),  # g is not allowlisted: unclassifiable
+            (["-Kf", "-x", "-f", "-", "-C", "o"], True, ["-"], ["o"], True),
+            (["-gf", "a.tar"], True, [], [], True),
             (["-x2f", "a.tar"], True, [], [], True),     # digit
             (["-xf", "a", "-f", "b"], True, ["a", "b"], [], True),
             (["-xf", "a", "--", "x"], True, ["a"], [], True),
-            (["-xif", "a"], True, ["a"], [], True),      # not allowlisted
+            (["-xif", "a"], True, [], [], True),         # i not allowlisted: unclassifiable
             (["--ignore-zeros", "-xf", "a"], True, ["a"], [], True),
             (["-xf"], True, [], [], True),
             (["-xf", "a", "foo", "-C", "o"], True, ["a"], ["o"], True),

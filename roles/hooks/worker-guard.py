@@ -3197,8 +3197,8 @@ def unzip_listing(args):
 
 def parse_tar(args):
     """T-0805 P1: the one grammar for tar/gtar/bsdtar arguments. Returns (extract, archives, dirs, problems). A short word
-    (single leading `-`, or the first word without one) is classified only when it is `-C<dir>` (C first) or letters only
-    with at most one value letter (f or C) and that letter last; anything else (glued `-xf<path>`, `-xfC`, digits, `/`) is
+    (single leading `-`, or the first word without one) is classified only when it is `-C<dir>` (C first) or letters only,
+    every letter in TAR_SHORT_OK or `t` (g, K, N, T, I, s ... are unclassifiable), with at most one value letter (f or C) and that letter last; anything else (glued `-xf<path>`, `-xfC`, digits, `/`) is
     unclassifiable and counts as extract mode, so E1 refuses it (unknown = extract, fail closed). `problems` lists every
     reason the argv is outside the E1 allowlist (non-empty with extract = refuse)."""
     extract, archives, dirs, problems, marks = False, [], [], [], []
@@ -3225,7 +3225,8 @@ def parse_tar(args):
         elif (a.startswith("-") and len(a) > 1) or (j == 0 and re.match(r"^[A-Za-z]", a)):
             letters = a.lstrip("-")
             values = [i for i, ch in enumerate(letters) if ch in "fC"]
-            if not re.fullmatch(r"[A-Za-z]+", letters) or len(values) > 1 or (values and values[0] != len(letters) - 1):
+            if (not re.fullmatch(r"[A-Za-z]+", letters) or any(ch not in TAR_SHORT_OK | {"t"} for ch in letters)
+                    or len(values) > 1 or (values and values[0] != len(letters) - 1)):
                 extract = True  # unclassifiable: assume tar extracts
                 problems.append(f"option {a!r}")
                 continue
