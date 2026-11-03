@@ -76,6 +76,16 @@ class TaskUpdateRoleTests(Base):
         self.assertIn("cannot be sandboxed", p.stderr)
         self.assert_unchanged(before)
 
+    def test_role_and_sandbox_flag_in_one_call_use_the_end_state(self):
+        before = self.row()
+        p = self.upd("--role", "pm", "--sandbox-required", "1")
+        self.assertNotEqual(p.returncode, 0)
+        self.assert_unchanged(before)
+        self.env.sql("UPDATE tasks SET sandbox_required=1 WHERE id=?", (T,))
+        p = self.upd("--role", "pm", "--sandbox-required", "0")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual((self.row()["role"], self.row()["sandbox_required"]), ("pm", 0))
+
     def test_update_without_role_keeps_non_coder_role(self):
         self.env.sql("UPDATE tasks SET role='qa' WHERE id=?", (T,))
         p = self.upd("--title", "x")

@@ -2755,13 +2755,13 @@ def cmd_task(a):
             if holder:
                 die(f"{a.id} is held by agent {holder['name']}; change the role with: factory stop {holder['name']} "
                     f"--reason ..., then factory task update {a.id} --role {a.role}, then factory spawn {a.role} --task {a.id}", 2)
-            if t["sandbox_required"]:
-                check_sandbox_required_role(a.role)
+            if a.sandbox_required == "1" or (a.sandbox_required is None and t["sandbox_required"]):
+                check_sandbox_required_role(a.role)  # the flag as it will be after this call
         if a.sandbox_required is not None:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may set a task's sandbox_required ({role} may not use --sandbox-required)", 3)
             if a.sandbox_required == "1":
-                check_sandbox_required_role(t["role"])
+                check_sandbox_required_role(a.role or t["role"])
         if a.judge_hold is not None or a.judge_hold_clear:
             if role not in ("owner", "lead", "director", "boss"):
                 die(f"only a lead, director or the owner may set a task's judge hold ({role} may not use --judge-hold)", 3)
