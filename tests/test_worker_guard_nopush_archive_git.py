@@ -144,6 +144,49 @@ class ArchiveGitTests(unittest.TestCase):
                 self.allowed(f"tar -xf {tar} -C {self.out}", role, None, "--hq")
         self.blocked(f"tar -xf {tar} -C {self.out}", "qa")
 
+    def test_unzip_zip_suffix_candidates_listed(self):
+        # unzip opens <name>, <name>.zip, <name>.ZIP: only evil.ZIP / evil.zip exists, the command names `evil`
+        for suffix in (".ZIP", ".zip"):
+            d = os.path.join(self.scratch, "u" + suffix[1:])
+            os.makedirs(d)
+            with zipfile.ZipFile(os.path.join(d, "evil" + suffix), "w") as z:
+                z.writestr(".git/config", "x")
+            for role in NO_PUSH:
+                with self.subTest(role=role, suffix=suffix):
+                    self.blocked(f"unzip {d}/evil -d {self.out}", role)
+
+    def test_concatenated_tar_ignore_zeros_refused(self):
+        clean, evil = self.mk("clean", ["a"]), self.mk("evil", [".git/config"])
+        cat = os.path.join(self.scratch, "cat.tar")
+        with open(cat, "wb") as f:
+            for src in (clean, evil):
+                with open(src, "rb") as g:
+                    f.write(g.read())
+        o = self.out
+        cmds = [f"tar -xif {cat} -C {o}", f"tar -x -i -f {cat} -C {o}", f"tar xif {cat} -C {o}",
+                f"tar --ignore-zeros -xf {cat} -C {o}", f"tar -xf {cat} --ignore-zeros -C {o}",
+                f"tar -xf {cat} --ignore-z -C {o}", f"tar -xf {cat} --ig -C {o}", f"bsdtar -xif {cat} -C {o}"]
+        for role in NO_PUSH:
+            for c in cmds:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+
+    def test_name_rewrite_options_refused(self):
+        tar = self.mk("plain", ["a/b"])
+        o = self.out
+        cmds = [f"tar -xf {tar} -C {o} --xfo=s,a,.git,", f"tar -xf {tar} -C {o} --xform=s,a,.git,",
+                f"tar -xf {tar} -C {o} --transf=s,a,.git,", f"tar -xf {tar} -C {o} --tr=s,a,.git,",
+                f"tar -xf {tar} -C {o} --strip-components=1", f"tar -xf {tar} -C {o} --strip=1",
+                f"bsdtar -xf {tar} -C {o} -s /a/.git/", f"tar -xsf {tar} -C {o}", f"bsdtar -xf {tar} -C {o} -s/a/.git/",
+                f"tar -xf {tar} -C {o} --one-top=x", f"tar -xf {tar} -C {o} --to-comm=cat", f"tar -xf {tar} -C {o} --absolute"]
+        for role in NO_PUSH:
+            for c in cmds:
+                with self.subTest(role=role, cmd=c):
+                    self.blocked(c, role)
+        for role in NO_PUSH:  # listing with the same options and plain extraction stay allowed
+            self.allowed(f"tar -tf {tar} --xform=s,a,b,", role)
+            self.allowed(f"tar -xf {tar} -C {o} --no-same-owner", role)
+
 
 if __name__ == "__main__":
     unittest.main()

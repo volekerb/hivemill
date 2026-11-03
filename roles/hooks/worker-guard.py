@@ -335,6 +335,8 @@ GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
+ARCHIVE_REWRITE_LONG = ("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level",
+                        "--strip-components", "--ignore-zeros")
 ARCHIVE_SIZE_MAX = 256 << 20  # T-0805: largest archive file the hook lists before refusing
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
@@ -1662,12 +1664,18 @@ class Analyzer:
             if extract:
                 raise Block("`jar` extraction writes into the current directory under names the hook cannot see: "
                             f"{why.replace('(tar -C, unzip -d, cpio -D) ', '')}; use unzip -d")
-        if name in ("tar", "gtar", "bsdtar") and extract and any(
-                a in ("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level")
-                or a.startswith(("--transform=", "--xform=", "--to-command=")) or
-                (re.match(r"^-?[A-Za-z]+$", a) and "P" in a and not a.startswith("--")) for a in args):
-            raise Block(f"`{name}` option that rewrites member names (-P, --transform, --to-command) can escape the -C target "
-                        f"into a .git dir: {why}")
+        if name in ("tar", "gtar", "bsdtar") and extract:
+            for j, a in enumerate(args):
+                opt = a.split("=", 1)[0]
+                # GNU getopt accepts any unambiguous prefix of a long option (--xfo= is --xform=); an ambiguous one is an
+                # error for tar, so refusing every prefix of 3+ characters only costs a command that fails anyway
+                longs = a.startswith("--") and len(opt) >= 3 and any(o.startswith(opt) for o in ARCHIVE_REWRITE_LONG)
+                short = (not a.startswith("--") and re.match(r"^-?[A-Za-z]+$", a) and (j == 0 or a.startswith("-"))
+                         and re.search("[Pis]", a.lstrip("-")))
+                if longs or short or (a.startswith("-s") and not a.startswith("--")):
+                    raise Block(f"`{name}` option that rewrites or re-reads member names (-P, -s, -i/--ignore-zeros, "
+                                f"--transform/--xform, --strip-components, --to-command, --one-top-level) makes the names on "
+                                f"disk differ from the listing the hook read: {why}")
         if not extract:
             return False
         if not dirs:
@@ -1756,23 +1764,26 @@ class Analyzer:
             raise Block(f"`{name}` extracting from stdin, an expansion or an unresolvable archive name cannot be listed first "
                         f"(it may carry .git/config): {why}")
         zipped = name == "unzip"
-        if zipped and not os.path.exists(arch) and os.path.exists(arch + ".zip"):
-            arch += ".zip"
         import tarfile
         import zipfile
-        if os.path.exists(arch) and (not os.path.isfile(arch) or os.path.getsize(arch) > ARCHIVE_SIZE_MAX):
-            raise Block(f"`{name}` archive {arch!r} is not a regular file under {ARCHIVE_SIZE_MAX >> 20} MB, so it is not "
-                        f"listed (a FIFO or a bomb would hang the hook): {why}")
-        try:
-            members = self.archive_names(arch, zipped)
-        except FileNotFoundError:
-            if not self.may_create_before and not self.fs_changed:
-                return  # the extraction is the first command on the line and the file does not exist: it extracts nothing
-            raise Block(f"`{name}` archive {arch!r} does not exist yet; an earlier command on this line may create it, so "
-                        f"its members cannot be listed: run the extraction in its own command, after the archive exists")
-        except (OSError, tarfile.TarError, zipfile.BadZipFile, ValueError, RuntimeError, EOFError, NotImplementedError) as e:
-            raise Block(f"`{name}` archive {arch!r} cannot be listed ({type(e).__name__}), so a .git/config member cannot be "
-                        f"ruled out: {why}")
+        # unzip opens <name>, then <name>.zip, then <name>.ZIP: list every candidate that exists, not just the first
+        cands = [arch] + ([arch + ".zip", arch + ".ZIP"] if zipped else [])
+        found = [c for c in cands if os.path.lexists(c)]
+        members = []
+        for arch in found or [arch]:
+            if os.path.exists(arch) and (not os.path.isfile(arch) or os.path.getsize(arch) > ARCHIVE_SIZE_MAX):
+                raise Block(f"`{name}` archive {arch!r} is not a regular file under {ARCHIVE_SIZE_MAX >> 20} MB, so it is not "
+                            f"listed (a FIFO or a bomb would hang the hook): {why}")
+            try:
+                members += self.archive_names(arch, zipped)
+            except FileNotFoundError:
+                if not self.may_create_before and not self.fs_changed:
+                    return  # the extraction is the first command on the line and the file does not exist: it extracts nothing
+                raise Block(f"`{name}` archive {arch!r} does not exist yet; an earlier command on this line may create it, so "
+                            f"its members cannot be listed: run the extraction in its own command, after the archive exists")
+            except (OSError, tarfile.TarError, zipfile.BadZipFile, ValueError, RuntimeError, EOFError, NotImplementedError) as e:
+                raise Block(f"`{name}` archive {arch!r} cannot be listed ({type(e).__name__}), so a .git/config member cannot be "
+                            f"ruled out: {why}")
         dirs = collections.defaultdict(set)
         for mem, link in members:
             parts = [c for c in re.split(r"[/\\]", mem) if c not in ("", ".")]
