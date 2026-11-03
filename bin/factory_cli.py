@@ -8745,6 +8745,12 @@ def prcheck_done_refusal(con, r, t):
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
     if cfg(con, "prcheck_required") != "1" or not t or not t["pr_url"]:
         return
+    try:
+        merged = pr_state(t["pr_url"]).get("state") == "MERGED"
+    except (SystemExit, ValueError, KeyError):  # gh failed: cannot prove it landed, the gate below decides
+        merged = False
+    if merged:  # the work is on main: no prcheck on a HEAD can matter, and the worktree may already be gone
+        return
     row = con.execute("SELECT worktree FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
     wt = row and row["worktree"]
     rc, head = _git_out(wt, "rev-parse", "HEAD") if wt and Path(wt).is_dir() else (1, "")
@@ -9554,10 +9560,17 @@ def protected_by(con, wt, panes, listed=None):
     return None
 
 
-def task_agent_live(con, task_id, listed):
-    """True when an agent row of THIS task is live/starting/queued and still running (agent_row_live)."""
-    return any(agent_row_live(r, listed) for r in
-               con.execute("SELECT * FROM agents WHERE task_id=? AND status IN ('live','starting','queued')", (task_id,)))
+def task_agent_live(con, task_id, listed, panes=()):
+    """True when an agent row of THIS task is live/starting/queued and still running (agent_row_live), or its recorded
+    pane id is still in the live pane list (`panes`, from live_panes) and not proven reused by another agent: the agent
+    list can miss an idle agent whose pane is alive, and its cwd may have left the worktree (T-0339)."""
+    pane_ids = {pid for pid, _ in panes or () if pid}
+    for r in con.execute("SELECT * FROM agents WHERE task_id=? AND status IN ('live','starting','queued')", (task_id,)):
+        if agent_row_live(r, listed):
+            return True
+        if r["pane_id"] and r["pane_id"] in pane_ids and not pane_reused(r, listed):
+            return True
+    return False
 
 
 def landed_on_main(con, t, repo, base, head):
@@ -9593,7 +9606,7 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
     status = t["status"]
     if status not in ("done", "cancelled"):
         return f"task {status}", None, False
-    if task_agent_live(con, t["id"], listed):
+    if task_agent_live(con, t["id"], listed, panes):
         return "agent live", None, False
     branch = t["branch"]
     if branch and not branch.startswith("factory/"):
