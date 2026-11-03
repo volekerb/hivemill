@@ -237,6 +237,38 @@ class TickGitHardeningTests(FactoryTestCase):
         rows = self.env.sql("SELECT value FROM config WHERE key='factory_remote_url'")
         return rows[0][0] or None if rows else None
 
+    def test_remote_url_shape_rejects_dot_segments(self):
+        """'.' / '..' path segments and percent-encoded dots never match the factory URL shape (TOFU and config set)."""
+        bad = ("https://github.com/../factory.git", "https://github.com/./factory.git", "https://github.com/example-org/...git",
+               "https://github.com/example-org/./factory.git",
+               "https://github.com/%2e%2e/factory.git", "https://github.com/%2E./factory.git", "https://github.com/example-org/%2e%2e.git",
+               "https://github.com/example-org/../factory.git")
+        with self.env.load_factory() as mod:
+            for url in bad:
+                with self.subTest(url=url):
+                    self.assertIsNone(mod._FACTORY_URL_SHAPE.fullmatch(url))
+            self.assertTrue(mod._FACTORY_URL_SHAPE.fullmatch(self.URL))
+            self.assertTrue(mod._FACTORY_URL_SHAPE.fullmatch("https://github.com/a.b/c..d.git"))
+
+    def test_remote_url_tofu_ignores_a_dot_segment_origin(self):
+        live = self.live_checkout("https://github.com/../factory.git")
+        with self.env.load_factory() as mod:
+            mod.LIVE_HOME = str(live)
+            self.assertEqual(mod.factory_remote_url(), "")
+        self.assertIsNone(self.stored_url())
+
+    def test_config_set_factory_remote_url_validates_the_shape(self):
+        for bad in ("https://example.invalid/x", "https://github.com/../x.git", "ext::sh -c x", "https://github.com/a/b"):
+            with self.subTest(value=bad):
+                self.refused(2, "config", "factory_remote_url", bad, agent="zz-test-director")
+                self.assertIsNone(self.stored_url())
+        self.ok("config", "factory_remote_url", self.URL, agent="zz-test-director")
+        self.assertEqual(self.stored_url(), self.URL)
+        self.refused(2, "config", "factory_remote_url", "https://github.com/../x.git", agent="zz-test-director")
+        self.assertEqual(self.stored_url(), self.URL)
+        self.ok("config", "factory_remote_url", "", agent="zz-test-director")  # empty = back to trust on first use
+        self.assertIsNone(self.stored_url())
+
     def test_remote_url_tofu_stores_the_live_origin_and_records_an_event(self):
         live = self.live_checkout(self.URL)
         with self.env.load_factory() as mod:

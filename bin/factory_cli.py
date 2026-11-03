@@ -630,7 +630,10 @@ def derive_live_homes(uid=None):
     Never read from $HOME, $XDG_CONFIG_HOME or any env var (a worker can set those in its command), and never from
     where this script runs (a worker's worktree must not become "live"). <pw_dir>/factory is always live;
     <pw_dir>/.config/factory/live_home can only ADD one more (an invalid or tampered file is ignored).
-    Invariant: a forged live_home does at worst a denial of service. Parsing alone cannot keep that (a forged file
+    Invariant: a forged live_home does at worst a denial of service, plus one more thing: the live home also selects the
+    trust-on-first-use source of factory_remote_url (factory_remote_url() reads remote.origin.url from LIVE_HOME's
+    .git/config), so a forged file can pick which checkout's origin becomes the allowed factory remote. Set the key
+    explicitly on the live DB (`factory config factory_remote_url <url>`) so TOFU never runs. Parsing alone cannot keep that (a forged file
     names ANY directory, and the rendered hook command and live deny paths follow LIVE_HOME), so settings_tokens()
     pins it for a live FACTORY_HOME: it dies unless realpath(LIVE_HOME) == the checkout this bin/factory runs
     from == FACTORY_HOME, and renders nothing otherwise. Same rule as roles/hooks/worker-guard.py (it may not import this file)."""
@@ -1775,6 +1778,10 @@ def cmd_config(a):
                 die(str(e), 2)
         if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
             die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "factory_remote_url":
+            a.value = a.value.strip()
+            if a.value and not _FACTORY_URL_SHAPE.fullmatch(a.value):
+                die(f"factory_remote_url must be https://github.com/<owner>/<repo>.git (no '.' or '..' segments); {a.value!r} is not", 2)
         if a.key == "task_clones":
             a.value = a.value.strip()
             if a.value not in ("0", "1"):
@@ -6780,7 +6787,8 @@ def gh_git_env():
     return env
 
 
-_FACTORY_URL_SHAPE = re.compile(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git")
+# Owner and repo are never "." or ".." (a path segment); "%" is outside the class, so percent-encoded dots never match.
+_FACTORY_URL_SHAPE = re.compile(r"https://github\.com/(?!\.\.?/)[A-Za-z0-9_.-]+/(?!\.\.?\.git)[A-Za-z0-9_.-]+\.git")
 
 
 def factory_remote_url():
