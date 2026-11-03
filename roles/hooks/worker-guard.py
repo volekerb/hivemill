@@ -552,6 +552,26 @@ SED_E = re.compile(r"(?:^|[;{}]|\d|\$|,)\s*e\s+(.*)|/[gIpmM]*e[gIpmM]*(?:\s|;|$)
 AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 
+ENV_LONG_OK = ("--null", "--debug", "--argv0", "--block-signal", "--default-signal", "--ignore-signal",
+               "--list-signal-handling", "--help", "--version", "--chdir", "--split-string")
+
+
+def env_long(a):
+    """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "ignore"
+    (a prefix of --ignore-environment that is not an exact other long option), "ok" (an exact harmless long option) or
+    "unknown" (fail closed). `a` may carry an `=value`."""
+    name = a.split("=", 1)[0]
+    if len(name) < 3:
+        return "unknown"
+    if "--unset".startswith(name):
+        return "unset"
+    if name in ENV_LONG_OK:
+        return "ok"
+    if "--ignore-environment".startswith(name):
+        return "ignore"
+    return "unknown"
+
+
 def strip_prefix(words):
     """Drop env assignments, shell keywords, `time -p` options and `function NAME` before the command word."""
     words = list(words)
@@ -945,7 +965,11 @@ class Analyzer:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
             if a.startswith("-u") and a[2:] in SCRUB_VARS or a.startswith("--unset=") and a[8:] in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a == "-" or a == "--ignore-environment" or re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a):
+            if a.startswith("--") and env_long(a) == "unset":  # T-0826: --uns / --unse prefixes
+                val = a.split("=", 1)[1] if "=" in a else (rest[j + 1] if j + 1 < len(rest) else "")
+                if val in SCRUB_VARS:
+                    raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
+            if a == "-" or a.startswith("--") and env_long(a) == "ignore" or re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a):
                 self.scrub_with_factory = "env -i"
 
     def factory_unit(self, name, rest, assigns):
@@ -2492,8 +2516,18 @@ class Analyzer:
                         if c == "u":  # -uNAME, or the next word
                             names = [a[k + 1:] or next(it, "")]
                             break
-                elif a.startswith("--") or ASSIGN.match(a):
+                elif a == "--" or ASSIGN.match(a):
                     continue
+                elif a.startswith("--"):  # T-0826: GNU env takes any unique prefix of a long option; fail closed on the rest
+                    kind = env_long(a)
+                    if kind == "ignore":
+                        deny("env " + a, "the whole environment", "clear or unset")
+                    if kind == "unknown":
+                        deny("env " + a, "an env option this guard does not model", "run")
+                    if kind == "unset":
+                        names = [a.split("=", 1)[1]] if "=" in a else [next(it, "")]
+                    else:
+                        continue
                 else:
                     break  # the command word
                 for n in names:
@@ -2532,8 +2566,12 @@ class Analyzer:
                     targets.append(a[2:])
                 elif name == "print" and re.fullmatch(r"-[A-Za-z]*v", a) and j + 1 < len(rest):  # T-0788: cluster -rv NAME
                     targets.append(rest[j + 1])
-        elif name in ("for", "select") and rest:
+        elif name in ("for", "select", "foreach") and rest:
             targets.append(rest[0])
+        elif name == "vared":  # T-0826: vared NAME edits (assigns) the parameter; options take values, so fail closed on every word
+            targets += [a for a in rest if not a.startswith("-")]
+        elif name in ("integer", "float"):  # T-0826: zsh declarers: `integer path` re-types the PATH-tied array
+            targets += [a.split("=", 1)[0] for a in rest if not a.startswith("-") and not a.startswith("+")]
         elif name == "set":  # T-0788: `set -A path ...` assigns the array
             for j, a in enumerate(rest):
                 if a in ("-A", "+A", "-a", "+a") and j + 1 < len(rest):
@@ -2587,6 +2625,11 @@ class Analyzer:
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
+        while words and (words[0] in ("noglob", "nocorrect") or words[0] == "repeat" and len(words) > 1):
+            words = words[2:] if words[0] == "repeat" else words[1:]  # T-0826: zsh precommand modifiers run the next command word
+            stripped = strip_prefix(words)
+            assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+            words = stripped
         self.may_create_before = self.may_create
         if words and not self.listing_only(words):
             self.may_create = True
