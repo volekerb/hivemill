@@ -4,6 +4,8 @@ import sys
 import unittest
 from unittest import mock
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `-m unittest tests.test_cursor_enter` has no tests/ on the path
+
 from harness import FACTORY, FactoryTestCase
 
 
