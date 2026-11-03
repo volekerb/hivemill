@@ -994,6 +994,64 @@ class NewPatternTests(Base):
         out = self.mod().Scanner([addr]).hide_all(addr)
         self.assertNotIn("ab@", out)  # no crash, no term text
 
+class HighEntropyIdTests(Base):
+    """high-entropy-id: 40+ char base64-ish token with a digit near a key word; slash tokens only right after key + =/:."""
+    TOK = "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv" + "WxYz" * 3  # 46 chars, has digits, no slash
+    SLASH = "Ab1Cd2Ef3Gh4Ij5Kl6Mn7/Op8Qr9St0Uv" + "WxYz" * 3  # 46 chars with a slash
+
+    def hits(self, text):
+        f = self.tmp / "a.txt"
+        f.write_text(text + "\n")
+        r = scan("--path", f)
+        self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
+        return [ln for ln in r.stdout.splitlines() if ln.startswith("high-entropy-id ")], r
+
+    def test_token_near_key_word_is_a_hit_and_masked(self):
+        hits, r = self.hits("the token is " + self.TOK + " ok")
+        self.assertEqual(len(hits), 1, r.stdout)
+        self.assertNotIn(self.TOK, r.stdout)
+
+    def test_no_key_word_no_hit(self):
+        self.assertEqual(self.hits("the id is " + self.TOK)[0], [])
+
+    def test_key_word_beyond_lookback_is_not_a_hit(self):
+        self.assertEqual(self.hits("token " + "x" * 150 + " " + self.TOK)[0], [])
+        self.assertEqual(len(self.hits("token " + "x" * 40 + " " + self.TOK)[0]), 1)
+
+    def test_no_digit_or_short_is_not_a_hit(self):
+        self.assertEqual(self.hits("token " + "Abc" * 15)[0], [])
+        self.assertEqual(self.hits("token " + self.TOK[:39])[0], [])
+
+    def test_placeholder_is_not_a_hit(self):
+        self.assertEqual(self.hits("token " + "example1" + self.TOK)[0], [])
+
+    def test_sha256_hex_digest_is_not_a_hit(self):
+        self.assertEqual(self.hits("secret " + "0123456789abcdef" * 4)[0], [])
+
+    def test_slash_token_hits_only_directly_after_key_equals(self):
+        for good in ("token=" + self.SLASH, "api_key: " + self.SLASH, 'secret = "' + self.SLASH + '"'):
+            self.assertEqual(len(self.hits(good)[0]), 1, good)
+        for bad in ("token " + self.SLASH, "token is " + self.SLASH, "see token=1 and " + self.SLASH,
+                    "token at /srv/" + self.SLASH):
+            self.assertEqual(self.hits(bad)[0], [], bad)
+
+    def test_long_line_of_slash_tokens_scans_fast(self):
+        line = "token " + " ".join(["Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Q/r9StUvW"] * 12000)  # ~400 KB, 33-char tokens
+        self.assertGreater(len(line), 400000)
+        f = self.tmp / "long.txt"
+        f.write_text(line + "\n")
+        t0 = time.monotonic()
+        r = scan("--path", f)
+        self.assertLess(time.monotonic() - t0, 1.0)
+        self.assertEqual(r.returncode, 0, r.stdout[:200])
+        # same with 46-char tokens, which do reach the lookback/slash predicate
+        f.write_text("token " + " ".join(["Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Q/r9StUvWxYz0Zz1Zz2Zz3"] * 9000) + "\n")
+        t0 = time.monotonic()
+        r = scan("--path", f)
+        self.assertLess(time.monotonic() - t0, 1.0)
+        self.assertEqual(r.returncode, 0, r.stdout[:200])
+
+
 class UsageTests(Base):
     def test_no_mode(self):
         self.assertEqual(scan().returncode, 2)

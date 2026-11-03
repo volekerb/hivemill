@@ -50,6 +50,26 @@ def _real_value(m):
     return not v.startswith(("<", "$")) and not PLACEHOLDER_RE.search(v) and not CODE_REF_RE.fullmatch(v)
 
 
+# high-entropy-id: a 40+ char base64-ish token with a digit, near a key word. The key word is looked for only in the
+# LOOKBACK chars before the token (never the whole line prefix, so a long line stays linear). A token with a slash is a
+# candidate only directly after key word + '='/':' (a path or URL near the word `token` is not a secret).
+LOOKBACK = 100
+HIGH_ENTROPY_RE = re.compile(r"(?<![A-Za-z0-9+/_-])(?P<v>[A-Za-z0-9+/_-]{40,}={0,2})(?![A-Za-z0-9+/_-])")
+KEY_NEAR_RE = re.compile(KEY_WORDS, re.I)
+KEY_DIRECT_RE = re.compile(KEY_WORDS + r"[\w.-]{0,32}[\"']?[ \t]{0,8}[:=][ \t]{0,8}[\"']?\Z", re.I)
+
+
+SHA256_RE = re.compile(r"[0-9a-f]{64}")  # a hex digest (e.g. allowlist hashes) is an identifier, not a credential
+
+
+def _high_entropy(m):
+    v = m.group("v")
+    if not any(c.isdigit() for c in v) or PLACEHOLDER_RE.search(v) or SHA256_RE.fullmatch(v):
+        return False
+    window = m.string[max(0, m.start() - LOOKBACK):m.start()]
+    return bool((KEY_DIRECT_RE if "/" in v else KEY_NEAR_RE).search(window))
+
+
 # (pattern id, regex, optional predicate on the match deciding whether it is a real hit)
 GENERIC = (
     ("home-path", HOME_RE, lambda m: not _placeholder_home(m.group(1))),
@@ -66,6 +86,7 @@ GENERIC = (
     ("railway-token", RAILWAY_UUID, lambda m: "railway" in m.string.lower()),
     ("oauth-secret", re.compile(r"\b(?:client_secret|refresh_token|access_token)\b[\"']?\s*[:=]\s*[\"']?(?P<v>[A-Za-z0-9._~+/=-]{20,})", re.I), None),
     ("generic-secret", re.compile(KEY_WORDS + r"[\w.-]{0,64}[\"']?\s*[:=]\s*[\"']?(?P<v>[^\s\"'`(){}\[\]<>,;$]{16,})", re.I), _real_value),
+    ("high-entropy-id", HIGH_ENTROPY_RE, _high_entropy),
 )
 
 

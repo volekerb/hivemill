@@ -27,6 +27,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 
 - [operations.md](operations.md): recovery after a VM reboot and how an agent's identity is decided.
 - [state-branch.md](state-branch.md): the generated `state` branch that export commits to.
+- [state-load.md](state-load.md): build a temp DB, events included, from a `state/` directory with `ci/state_load.py`.
 - [db-layout.md](db-layout.md): where the live database sits and why it has its own directory.
 - [stopping-a-worker.md](stopping-a-worker.md): the `factory stop` command, who may use it and on whom.
 - [unblocking-a-worker.md](unblocking-a-worker.md): getting an agent out of a stuck permission dialog.
