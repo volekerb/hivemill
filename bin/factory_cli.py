@@ -11598,8 +11598,6 @@ def judge_autospawn_candidates(con):
             "ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if t["id"] in mech_ids:
             continue
-        if mech_dispute(con, t["id"]):
-            continue
         if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                             (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass"
                for role in ("reviewer", "qa")):
@@ -11623,7 +11621,7 @@ def judge_autospawn_tick(con):
             continue
         _o = org_for(con, t["goal_id"], tid)
         name = oname(con, _o, slug(f"judge-{tid}"))
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
             continue
         if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
             break

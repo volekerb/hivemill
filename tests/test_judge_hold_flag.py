@@ -22,13 +22,27 @@ class Base(FactoryTestCase):
         self.env.seed_task(T, team=TEAM, status="in_review")
         self.env.seed_pr(checks=GREEN)
 
+    def seed_verdict(self, role, verdict, summary="ok", sha=SHA_A, tid=T):
+        self.env.sql(
+            "INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (tid, PR_URL, sha, role, verdict, summary, "zz", "t"),
+        )
+
     def rq_pass(self, tid=T, sha=SHA_A):
         for role in ("reviewer", "qa"):
-            self.env.sql(
-                "INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
-                "VALUES(?,?,?,?,?,?,?,?)",
-                (tid, PR_URL, sha, role, "pass", "ok", "zz", "t"),
-            )
+            self.seed_verdict(role, "pass", "ok", sha, tid)
+
+    def rq_fail_then_pass(self, tid=T, sha=SHA_A):
+        for role in ("reviewer", "qa"):
+            self.seed_verdict(role, "fail", "bad", sha, tid)
+            self.seed_verdict(role, "pass", "ok", sha, tid)
+
+    def judge_agent_name(self):
+        with self.env.load_factory() as f:
+            con = f.db()
+            o = f.org_for(con, "G-001", T)
+            return f.oname(con, o, f.slug(f"judge-{T}"))
 
     def hold(self, reason="wait", tid=T, agent=LEAD):
         return self.ok("task", "update", tid, "--judge-hold", reason, agent=agent)
@@ -137,6 +151,38 @@ class AutospawnHoldTests(Base):
         calls, out = self.judge_autospawn_step(ignore_task_hold=True)
         self.assertEqual(len(calls), 1)
         self.assertNotIn("judge-hold", out)
+
+    def test_historical_fails_latest_pass_spawns_when_hold_clear(self):
+        """Regression @96b1939f: mech_dispute dropped the task before latest PASS was considered."""
+        self.rq_fail_then_pass()
+        calls, _ = self.judge_autospawn_step()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["task"], T)
+
+    def test_historical_fails_latest_pass_hold_still_logs(self):
+        """Regression @96b1939f: held task with R+Q PASS must log judge-hold even after earlier FAILs."""
+        self.rq_fail_then_pass()
+        self.hold("not yet")
+        calls, out = self.judge_autospawn_step()
+        self.assertEqual(calls, [])
+        self.assertIn(f"judge-hold {T}", out)
+
+    def test_judge_line_in_pass_summary_still_spawns(self):
+        """Regression @96b1939f: judge: in an old or PASS summary must not skip when latest R+Q are PASS."""
+        self.seed_verdict("reviewer", "pass", "ok\njudge: look at the migration")
+        self.seed_verdict("qa", "pass", "ok")
+        calls, _ = self.judge_autospawn_step()
+        self.assertEqual(len(calls), 1)
+
+    def test_exited_judge_row_does_not_block_autospawn(self):
+        """Regression @96b1939f: an exited judge-<task> row must not suppress a new spawn attempt."""
+        self.rq_pass()
+        self.env.seed_agent(
+            self.judge_agent_name(), "judge", goal="G-001", team=TEAM, task=T, status="exited",
+        )
+        calls, _ = self.judge_autospawn_step()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["task"], T)
 
 
 class DequeueHoldTests(Base):
