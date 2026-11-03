@@ -75,13 +75,17 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 // TermsTool is a port of terms_tool: a Read/Grep tool call that would read the owner-terms file (Grep over a
 // directory holding it counts).
 //
-// The third result is true when the decision is the Python hook's (no exported terms file, but a DB that may name it).
+// The third result is true when the guard export is unusable (the DB exists but the export is missing, stale or
+// unparsable): the caller exits 2, failing closed.
 func TermsTool(data map[string]any) (int, string, bool) {
 	ti := toolInput(data)
 	cwd := payloadCwd(data)
-	paths := termsPaths()
+	paths, perr := termsPaths()
+	if perr != nil {
+		return 0, perr.Error(), true
+	}
 	if len(paths) == 0 {
-		return 0, "", termsFromDBOnly()
+		return 0, "", false
 	}
 	var raw any
 	if data["tool_name"] == "Read" {

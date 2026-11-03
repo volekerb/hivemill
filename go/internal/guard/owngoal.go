@@ -19,11 +19,25 @@ import (
 
 // Delegate is the error that means "the Python hook decides this payload". It is never swallowed (HQ mode's
 // soft() keeps it), so the Python answer replaces the Go one whatever the Go rules would have said later.
-type Delegate struct{ Why string }
+type Delegate struct {
+	Why    string
+	Closed bool // not a delegation: the decision cannot be made (guard export unusable) and the binary exits 2
+}
 
-func (d *Delegate) Error() string { return "delegated to the Python hook: " + d.Why }
+func (d *Delegate) Error() string {
+	if d.Closed {
+		return d.Why
+	}
+	return "delegated to the Python hook: " + d.Why
+}
 
 func delegate(why string) error { return &Delegate{Why: why} }
+
+// IsClosed reports whether err is a Delegate that is really a fail-closed refusal (guard export unusable).
+func IsClosed(err error) bool {
+	var d *Delegate
+	return errors.As(err, &d) && d.Closed
+}
 
 // IsDelegate reports whether err asks for the Python hook.
 func IsDelegate(err error) bool {
@@ -53,12 +67,6 @@ func pathExists(p string) bool {
 // dbMissing is true when sqlite3.connect(file:<db>?mode=ro) cannot succeed because the file is not there: every
 // DB read of the hook then takes its failure branch (None / False / {}), so Go decides without Python.
 func dbMissing() bool { return !pathExists(dbPath()) }
-
-// ownGoalKnown is true when Analyzer.own_goal() is known to be None without the DB: no FACTORY_AGENT, or no DB file.
-// False means the goal must be read, so the decision is the Python hook's.
-func ownGoalKnown() bool {
-	return os.Getenv("FACTORY_AGENT") == "" || dbMissing()
-}
 
 // pyRunTimeout bounds one delegated run (the hook's own DB read waits 2 s, its git calls 10 s each).
 const pyRunTimeout = 120 * time.Second
