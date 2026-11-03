@@ -14,5 +14,6 @@ Research tasks have no PR. Evidence review replaces the PR review.
 5. PASS: send the report up, unchanged:
    `factory msg director "research T-x: <one-line answer>" - --kind report --goal G`
    Body = the report: Answer, Recommendation, Proposed follow-ups, Evidence (every [Sn] entry). Never drop the Evidence list.
-6. FAIL: add the reviewer's numbered gaps as a note (`factory task note T-x -`), then `factory task reopen T-x` and spawn the researcher again. Maximum 2 retries; after the third FAIL escalate to the director with the gaps.
-7. Proposed follow-ups stay proposals. Do not add tasks or goals for them.
+6. FAIL: reopen the research task with the reviewer's numbered gaps as the reason: `factory task reopen T-x --reason "<numbered gaps>"` (--reason is required; the value is used raw, not read from stdin). Spawn the researcher again.
+7. After the researcher finishes the retry, reopen the review task too: `factory task reopen T-y --reason "re-review after retry <n>"` (T-y = the evidence-review task). Spawn the reviewer again, so every retried report gets a fresh evidence review. Maximum 2 retries; after the third FAIL escalate to the director with the gaps.
+8. Proposed follow-ups stay proposals. Do not add tasks or goals for them.
