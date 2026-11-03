@@ -62,6 +62,9 @@ class SpawnName(FactoryTestCase):
 
     def test_cursor_goal_prefixed_name_honoured_exactly(self):
         self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        fake = self.env.stub_bin / "agent"  # the cursor runtime needs the agent binary on PATH (absent on CI)
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
         p = self.spawn("--name", "cursor-pm-x")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(self.names(), ["cursor-pm-x"])
