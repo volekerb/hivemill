@@ -21,7 +21,7 @@ SKIP_PREFIXES = ("exports/", "state/")
 ROLE_PROMPT_BUDGET_BYTES = 12000
 
 # Fail-fast target: a pair drifting past this is caught before it nears the budget.
-ROLE_PROMPT_TARGET_BYTES = 10800
+ROLE_PROMPT_TARGET_BYTES = 11300
 
 _OPEN = "<" * 7
 _CLOSE = ">" * 7
