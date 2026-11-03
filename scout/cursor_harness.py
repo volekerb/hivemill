@@ -126,17 +126,53 @@ def write_atomic(path: Path, text: str, mode: int = 0o644) -> None:
         tmp.unlink(missing_ok=True)
 
 
+def worktrees_root(home: Path | str) -> Path:
+    return Path(home).resolve() / "worktrees"
+
+
+def is_factory_worktree_path(home: Path | str, path: Path | str) -> bool:
+    """True when path is FACTORY_HOME/worktrees or any path under it (task worktree or clone)."""
+    home_r = Path(home).resolve()
+    path_r = Path(path).resolve()
+    wt = worktrees_root(home_r)
+    if path_r == wt:
+        return True
+    try:
+        path_r.relative_to(wt)
+    except ValueError:
+        return False
+    return True
+
+
+def isolated_policy_dir(home: Path | str, name: str) -> Path:
+    """run/cursor/<agent name>/ (0700): per-agent policy; never inside a task worktree."""
+    ws = Path(home).resolve() / "run" / "cursor" / name
+    ws.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(ws, 0o700)
+    return ws
+
+
 def policy_workspace(home: Path | str, name: str, cwd: Path | str) -> Path:
     """Where .cursor/ policy is written.
 
-    Shared FACTORY_HOME cwd (HQ) → run/cursor/<name> so the checkout is not polluted.
-    Worktree / task cwd → that directory (agent already owns it).
+    HQ cwd (FACTORY_HOME) and any task worktree cwd → run/cursor/<name> (isolated).
+    Other cwds (e.g. cursor-pilot --cwd temp dir) → that directory unchanged.
     """
     home_r = Path(home).resolve()
     cwd_r = Path(cwd).resolve()
-    if cwd_r == home_r:
-        return home_r / "run" / "cursor" / name
+    if cwd_r == home_r or is_factory_worktree_path(home_r, cwd_r):
+        return isolated_policy_dir(home_r, name)
     return cwd_r
+
+
+def assert_policy_target_allowed(home: Path | str, target: Path | str) -> None:
+    """Refuse to materialize Cursor policy into a shared checkout or task worktree."""
+    if is_factory_worktree_path(home, target):
+        path = Path(target).resolve()
+        raise ValueError(
+            f"cursor policy must not be written into a factory worktree ({path}); "
+            f"use policy_workspace() and --add-dir for the task tree"
+        )
 
 
 def materialize_cursor_policy(
@@ -147,12 +183,16 @@ def materialize_cursor_policy(
     claude_settings: dict,
     system_prompt: str,
     hq: bool = False,
+    factory_home: Path | str | None = None,
 ) -> dict:
     """Write .cursor/{hooks.json,cli.json,rules/...} and AGENTS.md under cwd.
 
     Returns a status dict: paths written and translation notes.
     """
     cwd = Path(cwd)
+    home = factory_home if factory_home is not None else os.environ.get("FACTORY_HOME")
+    if home:
+        assert_policy_target_allowed(home, cwd)
     cwd.mkdir(parents=True, exist_ok=True)
     notes = []
     perms = translate_permissions(claude_settings.get("permissions") or {})
@@ -259,7 +299,7 @@ def works_needs_work() -> list[dict]:
         {"item": "Headless agent CLI installed", "status": "WORKS" if agent else "NEEDS_WORK",
          "detail": agent or "install: curl https://cursor.com/install | bash"},
         {"item": "Materialize .cursor/hooks.json + cli.json + role rule", "status": "WORKS",
-         "detail": "scout.cursor_harness.materialize_cursor_policy; HQ → run/cursor/<name>"},
+         "detail": "scout.cursor_harness.materialize_cursor_policy; HQ and worktrees → run/cursor/<name>"},
         {"item": "Shell gate via beforeShellExecution → worker-guard", "status": "WORKS",
          "detail": "cursor-guard-adapter.py; require failClosed:true"},
         {"item": "Write gate via preToolUse → worker-guard", "status": "WORKS",

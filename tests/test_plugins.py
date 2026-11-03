@@ -4,10 +4,11 @@ import re
 import unittest
 
 from harness import REPO, FactoryTestCase, ROLES
+from test_sandbox_spawn import prep
 
 PLUGINS_ROOT = REPO / "roles" / "plugins"
 PLUGINS = PLUGINS_ROOT / "staff-engineer"
-WITH_PLUGINS = {"coder", "director", "lead", "pm", "qa", "reviewer", "staff-engineer"}
+WITH_PLUGINS = {"coder", "director", "lead", "pm", "qa", "researcher", "reviewer", "staff-engineer"}
 BAD_EXT = {".sh", ".py", ".js", ".ts", ".cmd", ".ps1", ".html"}
 BAD_NAMES = {"hooks", "hooks.json", ".mcp.json"}
 NAMED_WORKFLOW = REPO / "roles" / "workflows" / "multi-angle-review.js"
@@ -28,8 +29,7 @@ def spawn_cmd(role):
 class PluginDirSpawnTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
-        self.env.seed_goal()
-        self.env.seed_team(lead="zz-test-lead")
+        prep(self.env)  # goal, team and the sandbox ingredients: the researcher is always sandboxed (T-0847)
         self.env.seed_task("T-0001", role="coder", status="todo", pr_url=None, team="g-001-a")
         self.env.run("config", "max_live_agents", "99")
         self.env.run("config", "max_total_claude", "99")  # one pane per role now exceeds the default 10
@@ -65,6 +65,7 @@ class VendoredPluginsStaticTests(unittest.TestCase):
             "lead": ["factory-lead"],
             "pm": ["pm-skills"],
             "qa": ["qa-skills"],
+            "researcher": ["research-skills"],
             "reviewer": ["reviewer-skills"],
             "staff-engineer": ["feature-dev", "pr-review-toolkit", "staff-engineer-skills"],
         })
@@ -76,7 +77,7 @@ class VendoredPluginsStaticTests(unittest.TestCase):
 
     def test_lead_skills_front_matter(self):
         skills = PLUGINS_ROOT / "lead" / "factory-lead" / "skills"
-        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["audit-round", "blocked-worker", "fix-loop", "park", "pr-triage", "spec-change", "worker-brief"])
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["audit-round", "blocked-worker", "fix-loop", "park", "pr-triage", "research-flow", "spec-change", "worker-brief"])
         for d in skills.iterdir():
             text = (d / "SKILL.md").read_text()
             m = re.match(r"---\n(.*?)\n---\n", text, re.S)

@@ -84,9 +84,19 @@ def _placeholder_home(name):
     return name.lower() in HOME_OK or (name.startswith("<") and name.endswith(">"))
 
 
+SYSTEMD_UNIT_SUFFIXES = frozenset(
+    ("service", "socket", "target", "timer", "mount", "slice", "scope", "path", "device", "swap", "automount"))
+
+
+def _is_systemd_unit(low):
+    """True for templated unit names like user-at-uid.service (local part, at sign, one label, suffix): exactly one domain label, then a unit suffix."""
+    labels = low.rsplit("@", 1)[1].split(".")
+    return len(labels) == 2 and labels[1] in SYSTEMD_UNIT_SUFFIXES
+
+
 def _allowed_email(addr):
     low = addr.lower()
-    return low in EMAIL_OK_FULL or bool(EMAIL_OK_NOREPLY.fullmatch(low)) or bool(EMAIL_OK_DOMAIN.fullmatch(low.rsplit("@", 1)[1]))
+    return _is_systemd_unit(low) or low in EMAIL_OK_FULL or bool(EMAIL_OK_NOREPLY.fullmatch(low)) or bool(EMAIL_OK_DOMAIN.fullmatch(low.rsplit("@", 1)[1]))
 
 
 def is_env_file(path):

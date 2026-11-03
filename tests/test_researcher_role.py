@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from harness import REPO, FactoryTestCase, rendered_settings
+from test_sandbox_spawn import prep
 
 from scout import orgs
 
@@ -60,8 +61,7 @@ class SettingsTests(unittest.TestCase):
 class SpawnTests(FactoryTestCase):
     def setUp(self):
         super().setUp()
-        self.env.seed_goal()
-        self.env.seed_team(lead="zz-test-lead")
+        prep(self.env)  # the researcher is always sandboxed (T-0847): stubs, token files, goal and team
         self.env.seed_task("T-0001", role="researcher", status="todo", pr_url=None, team="g-001-a")
         self.state = Path(self.env.user_home) / "xdg-state"
         self.xdg = {"XDG_STATE_HOME": str(self.state)}

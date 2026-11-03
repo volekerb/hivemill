@@ -51,13 +51,14 @@ def _add(a, b):
 
 class _Sess:
     __slots__ = ("lines", "ctx", "sub_by_tool", "wf_ids", "turns", "create_turn", "done_turn", "ci", "ci_bg",
-                 "explore", "workflow", "search_n", "search_chars", "models", "n_cost", "first_ts", "done_any")
+                 "explore", "workflow", "wf_runs", "search_n", "search_chars", "models", "n_cost", "first_ts", "done_any")
 
     def __init__(self):
         self.lines = 0            # deduped main-transcript requests with usage
         self.ctx = 0
         self.sub_by_tool = {}     # meta.json toolUseId (None: no meta) -> tokens in that <session>/subagents file
         self.wf_ids = set()       # tool_use ids of the Workflow calls in the main transcript
+        self.wf_runs = {}         # workflow run id -> tokens in <session>/subagents/workflows/<run>/*.jsonl
         self.turns = 0
         self.create_turn = None
         self.done_turn = None
@@ -138,7 +139,7 @@ def scan(root, attr, since=None, until=None):
     `agent-name` record. Those sessions are added to `attr` (mutated). Sessions with neither are skipped and counted.
     """
     names = {a["agent"]: a["role"] for a in attr.values()}
-    sess, seen_usage, seen_tool = {}, set(), set()
+    sess, seen_usage, seen_tool, wf_seen = {}, set(), set(), set()
     fb_task, fb_name = {}, {}
     c = {"files": 0, "malformed_lines": 0, "duplicate_requests": 0, "unattributed_sessions": 0}
     unattributed = set()
@@ -146,7 +147,9 @@ def scan(root, attr, since=None, until=None):
     for path in files:
         c["files"] += 1
         sub = "subagents" in path.parts
-        psid = path.parent.parent.name if sub else path.stem
+        # <session>/subagents/[workflows/<run>/]agent-*.jsonl: the session is the dir above `subagents`.
+        psid = path.parts[path.parts.index("subagents") - 1] if sub else path.stem
+        wf_run = path.parent.name if sub and path.parent.parent.name == "workflows" else None
         read_ids = {}             # tool_use id -> tool name, for Read/Grep/Glob results in this file
         sub_tool = _sub_tool_id(path) if sub else None
         try:
@@ -173,6 +176,12 @@ def scan(root, attr, since=None, until=None):
                 if not isinstance(d, dict):
                     continue
                 sid = psid if sub else (d["sessionId"] if isinstance(d.get("sessionId"), str) else psid)
+                if wf_run is not None:
+                    # Workflow transcripts feed only workflow_subagent_tokens: they never touch the shared dedup
+                    # sets, the agent-name/cwd fallbacks or the cost buckets, so main-session attribution is unchanged.
+                    if attr.get(sid) is not None:
+                        _wf_usage(d, sess.setdefault(sid, _Sess()), wf_seen, wf_run)
+                    continue
                 if d.get("type") == "agent-name":
                     if isinstance(d.get("agentName"), str):
                         fb_name.setdefault(sid, d["agentName"])
@@ -202,6 +211,19 @@ def scan(root, attr, since=None, until=None):
                             s.search_chars += _result_chars(b.get("content"))
     c["unattributed_sessions"] = len(unattributed)
     return sess, c
+
+
+def _wf_usage(d, s, seen, wf_run):
+    """Add one workflow-subagent assistant request to its session's wf_runs (deduped among workflow files only)."""
+    msg = d.get("message") if isinstance(d.get("message"), dict) else {}
+    u = msg.get("usage")
+    if d.get("type") != "assistant" or not isinstance(u, dict):
+        return
+    key = (msg.get("id"), d.get("requestId")) if msg.get("id") and d.get("requestId") else d.get("uuid")
+    if key is None or key in seen:
+        return
+    seen.add(key)
+    s.wf_runs[wf_run] = s.wf_runs.get(wf_run, 0) + context_of(u)
 
 
 def _assistant(d, msg, content, a, s, side, sub_tool, seen_usage, seen_tool, read_ids, since, until, c):
@@ -371,6 +393,9 @@ def _task_row(r, day, agents_by_task, sess, gh_cache):
             matched = [v for k, v in s.sub_by_tool.items() if k in s.wf_ids]
             rev_files += len(matched)
             rev_sub = _add(rev_sub, sum(matched)) if matched else rev_sub
+            if s.wf_runs and not matched:
+                rev_files += len(s.wf_runs)
+                rev_sub = _add(rev_sub, sum(s.wf_runs.values()))
     coder["turns_pr_create_to_done"] = _turns_create_to_done([x[3] for x in sorted(coders, key=lambda x: x[:3])])
     known = [v for v in tokens.values() if v != UNKNOWN]
     tokens["total"] = sum(known) if known else UNKNOWN

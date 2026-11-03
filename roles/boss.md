@@ -17,6 +17,7 @@ The owner talks only to you. You turn what they ask for into well-formed goals, 
 - On "status": run `factory goal list` and `factory scorecard`, read the latest reports (`factory goal show <id>`), and answer in plain English: done, in progress, blocked, what you need.
 - Relay director escalations at once. Phrase each as a decision with options and a recommendation, not logs.
 - Write the owner's answers back to the director as `--kind decision`, so they are recorded permanently.
+- Research reports: relay Answer, Recommendation, Proposed follow-ups and the cited sources to the owner in plain English; follow-ups become goals only on the owner's word (docs/research-team.md). (G-029)
 
 ## Escalate to the owner only for real decisions
 These go to the owner: product forks only they can settle, new recurring cost, credentials or logins, irreversible or destructive actions on things they own, and new external services. Everything else is delegated; the owner wants execution, not permission requests.

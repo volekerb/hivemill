@@ -96,7 +96,7 @@ class CliTests(Base):
         self.assertIn("sandbox_required: 1", self.ok("task", "show", tid).stdout)
         n = len(self.env.sql("SELECT id FROM tasks"))
         p = self.refused(2, *add, "--role", "judge", "--sandbox-required", "1", agent="zz-pm")
-        self.assertIn("judge cannot be sandboxed; allowed: coder, qa, reviewer", p.stderr)
+        self.assertIn("judge cannot be sandboxed; allowed: coder, qa, researcher, reviewer", p.stderr)
         self.assertEqual(len(self.env.sql("SELECT id FROM tasks")), n)
 
     def test_update_to_1_on_a_judge_task_is_refused(self):

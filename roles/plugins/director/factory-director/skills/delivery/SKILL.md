@@ -23,4 +23,7 @@ Daily delivery report (D4):
    D/T = tasks done / tasks not cancelled (`factory goal show G-xxx`).
 8. Every slip (behind plan or past its date) names a recovery action. A slip without one counts against R7.
 
+Research reports:
+9. A lead's research report goes to the boss unchanged: `factory msg boss "research G-xxx: <one-line answer>" - --kind report --goal G-xxx`, body = Answer, Recommendation, Proposed follow-ups and the Evidence list. Proposed follow-ups become goals only after the boss/owner decide.
+
 Stop and escalate: a goal cannot make its date inside the caps -> tell the boss with options and a recommendation.
