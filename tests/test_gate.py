@@ -146,11 +146,14 @@ class GateTests(FactoryTestCase):
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
         self.addCleanup(sys.path.pop, 0)
         import factory_cli
-        with mock.patch.dict("os.environ", {"FACTORY_MEM_AVAILABLE_MB": "3900"}):
-            self.assertEqual(factory_cli.serve_mem_available_mb(), 3900)
-            self.assertNotEqual(factory_cli.mem_available_mb(), 3900)
-        with mock.patch.dict("os.environ", {"FACTORY_MEM_AVAILABLE_MB": "junk"}):
-            self.assertEqual(factory_cli.serve_mem_available_mb(), factory_cli.mem_available_mb())
+        # the live /proc/meminfo reader is mocked with a fixed value: no second live read to race the first
+        with mock.patch.object(factory_cli, "mem_available_mb", return_value=4242) as live:
+            with mock.patch.dict("os.environ", {"FACTORY_MEM_AVAILABLE_MB": "3900"}):
+                self.assertEqual(factory_cli.serve_mem_available_mb(), 3900)
+                live.assert_not_called()
+            with mock.patch.dict("os.environ", {"FACTORY_MEM_AVAILABLE_MB": "junk"}):
+                self.assertEqual(factory_cli.serve_mem_available_mb(), 4242)
+                live.assert_called_once_with()
 
     def test_gate_usage(self):
         self.env.write_usage(five_hour=95)
