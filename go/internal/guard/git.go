@@ -906,10 +906,31 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` as the whole command " +
 			"(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
 	}
-	if !dbMissing() {
-		return delegate("git_push_pin: the task worktree is recorded in the factory DB")
+	// T-0743: the own worktree is the one recorded for this task in the factory DB (the guard export), not whatever
+	// dir the pane sits in; the hook cwd and any -C target must be inside / equal to it. Unresolvable -> refuse.
+	own, found, err := taskWorktree(task)
+	if err != nil {
+		return err
 	}
-	return blockf("git push: cannot resolve the worktree recorded for " + task + " in the factory DB; ask your lead")
+	if !found {
+		return blockf("git push: cannot resolve the worktree recorded for " + task + " in the factory DB; ask your lead")
+	}
+	cwd := pyRealpath(a.Cwd)
+	if cwd != own && !strings.HasPrefix(cwd, own+"/") {
+		return blockf("coders push exactly `git push origin HEAD:factory/" + task + "` from their own worktree " + own +
+			"; this pane is in " + cwd + ": cd back to your worktree")
+	}
+	if dir, hasDir, _ := wholePush(strings.TrimFunc(a.text, pyIsSpace), task); hasDir {
+		tgt := dir
+		if !strings.HasPrefix(dir, "/") {
+			tgt = pyJoin(a.Cwd, dir)
+		}
+		if pyRealpath(tgt) != own {
+			return blockf("coders push exactly `git push origin HEAD:factory/" + task + "`: `-C` must be this task's own " +
+				"worktree " + own + ", not " + dir + "; drop -C or fix the path")
+		}
+	}
+	return nil
 }
 
 // coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)", agent): the task id part.

@@ -86,8 +86,29 @@ func seedDB(t *testing.T, stmts ...string) string {
 	if err := os.MkdirAll(filepath.Join(home, "db"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	script := "import sqlite3, sys\ncon = sqlite3.connect(sys.argv[1])\nfor s in sys.argv[2:]:\n    con.execute(s)\ncon.commit()\ncon.close()\n"
-	out, err := exec.Command("python3", append([]string{"-I", "-c", script, filepath.Join(home, "db", "factory.db")}, stmts...)...).CombinedOutput()
+	// the statements seed the DB the Python hook reads; the same rows go to the export file the Go binary reads
+	// (what the tick's write_guard_export does on a real home), so both see one source
+	script := `import datetime, json, os, sqlite3, sys
+home = sys.argv[1]
+con = sqlite3.connect(os.path.join(home, "db", "factory.db"))
+for s in sys.argv[2:]:
+    con.execute(s)
+con.commit()
+def rows(q):
+    try:
+        return con.execute(q).fetchall()
+    except sqlite3.Error:
+        return []
+doc = {"version": 1, "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+       "config": {k: v for k, v in rows("SELECT key, value FROM config")},
+       "agent_goals": {n: g for n, g in rows("SELECT name, goal_id FROM agents") if g},
+       "task_worktrees": {i: w for i, w in rows("SELECT id, worktree FROM tasks") if w}}
+os.makedirs(os.path.join(home, "run"), exist_ok=True)
+with open(os.path.join(home, "run", "guard-export.json"), "w") as fh:
+    json.dump(doc, fh)
+con.close()
+`
+	out, err := exec.Command("python3", append([]string{"-I", "-c", script, home}, stmts...)...).CombinedOutput()
 	if err != nil {
 		t.Fatalf("seeding the DB: %v\n%s", err, out)
 	}
@@ -183,14 +204,15 @@ func TestTermsToolThroughBinary(t *testing.T) {
 	}
 }
 
-// own_goal is read by the Python hook: a payload that needs it gets the Python exit and stderr (acceptance 4), and a
-// hook that cannot be run fails closed.
-func TestOwnGoalDelegatesToPython(t *testing.T) {
+// own_goal comes from the guard export (T-0767): the same exit and stderr as the Python hook, and no Python is run for
+// it (the hook path given is unreadable, so any delegation would exit 2 with "failing closed").
+func TestOwnGoalFromExport(t *testing.T) {
 	hook := absHook(t)
 	home := seedDB(t,
 		"CREATE TABLE agents (name TEXT PRIMARY KEY, role TEXT, goal_id TEXT)",
 		"INSERT INTO agents VALUES ('coder-t-9', 'coder', 'G-005')",
 		"INSERT INTO agents VALUES ('nogoal', 'coder', NULL)")
+	missing := filepath.Join(t.TempDir(), "missing.py")
 	for _, c := range []struct {
 		cmd, agent string
 		code       int
@@ -206,27 +228,10 @@ func TestOwnGoalDelegatesToPython(t *testing.T) {
 		if code, stderr := same(t, hook, bashPayload(c.cmd), env, "coder"); code != c.code {
 			t.Errorf("%q as %s: exit %d %q, want %d", c.cmd, c.agent, code, stderr, c.code)
 		}
-	}
-	// the Python hook made unreadable (or not named at all): exit 2, never an allow
-	env := withTerms(t, "FACTORY_HOME="+home, "FACTORY_AGENT=coder-t-9")
-	for _, args := range [][]string{
-		{"--role", "coder", "--py-hook", filepath.Join(t.TempDir(), "missing.py")},
-		{"--role", "coder"},
-		{"--role", "coder", "--py-hook", t.TempDir()},
-	} {
-		code, stderr := call(t, bashPayload("factory goal show G-005"), env, args...)
-		if code != 2 || !strings.Contains(stderr, "failing closed") {
-			t.Errorf("%v: exit %d %q, want 2 failing closed", args, code, stderr)
+		code, stderr := call(t, bashPayload(c.cmd), env, "--role", "coder", "--py-hook", missing)
+		if code != c.code || strings.Contains(stderr, "Python hook") {
+			t.Errorf("%q as %s without a Python hook: exit %d %q, want %d and no delegation", c.cmd, c.agent, code, stderr, c.code)
 		}
-	}
-	// a hook that crashes (exit 1) is a block too
-	bad := filepath.Join(t.TempDir(), "hook.py")
-	if err := os.WriteFile(bad, []byte("import sys\nsys.exit(1)\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	code, stderr := call(t, bashPayload("factory goal show G-005"), env, "--role", "coder", "--py-hook", bad)
-	if code != 2 || !strings.Contains(stderr, "exited 1") {
-		t.Errorf("crashing hook: exit %d %q, want 2", code, stderr)
 	}
 }
 

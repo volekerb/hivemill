@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 DEFAULT_HOOK = "roles/hooks/worker-guard.py"
 DEFAULT_CORPUS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard_corpus.json")
@@ -42,6 +43,21 @@ def git(repo, *args):
     if p.returncode != 0:
         raise UsageError(f"git {' '.join(args)} failed: {p.stderr.strip()}; check --base and --repo")
     return p.stdout
+
+
+def extract_base_ci(repo, base, dest):
+    """Write the base ref's ci/*.py (top level) under dest/ci, so the base hook finds ci/public_text_guard.py and the
+    ci/scrub_scan.py it loads by path, as the hook at that ref would in a checkout. A base without ci/ writes nothing."""
+    try:
+        names = git(repo, "ls-tree", "--name-only", "--end-of-options", base, "ci/").split("\n")
+    except UsageError:
+        return
+    for name in names:
+        if not (name.startswith("ci/") and name.endswith(".py") and "/" not in name[3:]):
+            continue
+        os.makedirs(os.path.join(dest, "ci"), exist_ok=True)
+        with open(os.path.join(dest, name), "w", encoding="utf-8") as f:
+            f.write(git(repo, "show", "--end-of-options", f"{base}:{name}"))
 
 
 def live_home():
@@ -169,6 +185,12 @@ def make_seed_home(parent, seed, n):
             con.executemany("INSERT INTO config(key, value) VALUES (?, ?)", list(seed))
     finally:
         con.close()
+    # T-0767: the Go guard reads the DB rows from run/guard-export.json (what the tick writes), not the DB: same rows
+    os.makedirs(os.path.join(home, "run"))
+    doc = {"version": 1, "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "config": dict(seed), "agent_goals": {}, "task_worktrees": {}}
+    with open(os.path.join(home, "run", "guard-export.json"), "w") as fh:
+        json.dump(doc, fh)
     return home
 
 
@@ -423,6 +445,11 @@ def main(argv=None):
         os.makedirs(os.path.dirname(base_hook))
         with open(base_hook, "w", encoding="utf-8") as f:
             f.write(base_src)
+        try:
+            extract_base_ci(a.repo, a.base, os.path.join(tmp, "base"))
+        except UsageError as e:
+            sys.stderr.write(f"guard-diff: {e}\n")
+            return 2
         temp_home = os.path.join(tmp, "home")
         os.makedirs(temp_home)
         lines, loosened, bad, tight = compare(base_hook, hook, cmds, modes, a.role, a.timeout, temp_home)
