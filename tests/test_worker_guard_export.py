@@ -39,9 +39,18 @@ WRITES = [
     f"bash -c \"sh -c 'cp /tmp/x {EXP}'\"",
     "cd " + PW + "/factory/run && echo '{}' > guard-export.json",
     f"sed -i s/a/b/ {EXP}",
+    f"echo x > {PW}/factory/run/guard-expor*",
+    f"echo x > {PW}/factory/run/g?ard-export.json",
+    f"echo x > {PW}/factory/run/guard-[e]xport.json",
+    f"echo x > {PW}/factory/run/guard-export.json.tmp*",
+    f"cd {PW}/factory/run; echo x > guard-*",
+    f"cd {PW}/factory/run && : > gua*",
+    f"cd {PW}/factory/run && tee < /tmp/x gu*",
+    f"rm {PW}/factory/run/*",
 ]
 READS = [f"cat {EXP}", f"jq .config {EXP}", f"grep generated_at {EXP}", f"ls -l {PW}/factory/run", f"head -c 20 {EXP}",
-         f"cp {EXP} /tmp/copy-of-export"]
+         f"cp {EXP} /tmp/copy-of-export",
+         f"echo x > {PW}/factory/run/other-*.log", "echo x > /tmp/zz-*.txt"]
 
 
 def run(cmd, role="coder"):

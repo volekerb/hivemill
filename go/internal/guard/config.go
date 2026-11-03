@@ -54,6 +54,28 @@ func valueOf(word string) string {
 	return word
 }
 
+// exportGlob is a port of Analyzer.export_glob (T-0883): a glob word that can expand to the export file or its temp
+// sibling.
+func (a *Analyzer) exportGlob(t string) bool {
+	if strings.ContainsAny(t, "$`") || !strings.ContainsAny(t, "*?[") {
+		return false
+	}
+	if !strings.HasPrefix(t, "/") {
+		if !a.ccwdKnown {
+			return false
+		}
+		t = pyJoin(a.ccwd, t)
+	}
+	for _, pat := range braceExpand(pyNormpath(t)) {
+		for _, d := range mustHost().runExport {
+			if fnmatchCase(d, pat) || fnmatchCase(d+".tmp1", pat) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // cfgHit is a port of Analyzer.cfg_hit: word (or the value of a --opt=value / of=value word) names CFG_DIR or
 // <live>/run/settings or something under them (or, with ancestor, a directory that contains one). A word with an
 // expansion we cannot resolve counts when it spells `.config/factory` or `run/settings`.
@@ -63,6 +85,9 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 		t := cfgExpand(w)
 		if strings.ContainsAny(t, "$`*?[{") {
 			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") {
+				return true
+			}
+			if a.exportGlob(t) {
 				return true
 			}
 			continue

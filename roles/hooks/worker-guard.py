@@ -1315,6 +1315,18 @@ class Analyzer:
         concatenation or joined pieces (`'live_'+'home'`): quotes, `+`, `,` and spaces are dropped before matching."""
         return bool(CFG_CODE.search(word) or CFG_CODE.search(re.sub(r"[\s'\"+,]", "", word)))
 
+    def export_glob(self, t):
+        """T-0883: True when a glob word (`g?ard-export.json`, `guard-*`, `run/*`) can expand to the export file or its
+        temp sibling: `echo x > gua*` truncates it without the word ever spelling the name."""
+        if any(c in t for c in "$`") or not any(c in t for c in "*?["):
+            return False
+        if not os.path.isabs(t):
+            if self.ccwd is None:
+                return False
+            t = os.path.join(self.ccwd, t)
+        return any(fnmatch.fnmatchcase(d + sfx, pat) for pat in brace_expand(os.path.normpath(t)) for d in RUN_EXPORT
+                   for sfx in ("", ".tmp1"))
+
     def cfg_hit(self, word, ancestor=False):
         """True when `word` (or the value of a --opt=value / of=value word) names CFG_DIR or <live>/run/settings or
         something under them (or, with ancestor, a directory that contains one). A word with an expansion we cannot
@@ -1323,6 +1335,8 @@ class Analyzer:
             t = self.cfg_expand(w)
             if any(c in t for c in "$`*?[{"):
                 if ".config/factory" in t or "run/settings" in t or "guard-export" in t:
+                    return True
+                if self.export_glob(t):
                     return True
                 continue
             if not t or (not os.path.isabs(t) and self.ccwd is None):
