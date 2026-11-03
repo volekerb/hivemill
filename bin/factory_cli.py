@@ -1185,11 +1185,105 @@ def claude_procs(session_id, argvs=None):
     return [(p, argv) for p, argv in sorted(argvs.items()) if session_id in _argv_sessions(argv)]
 
 
+def _argv_workspace(argv):
+    vals = [argv[i + 1] for i, x in enumerate(argv[:-1]) if x == "--workspace"]
+    vals += [x.split("=", 1)[1] for x in argv if x.startswith("--workspace=")]
+    return vals[0] if vals else None
+
+
+def _is_cursor_agent_argv(argv):
+    """True when argv names a Cursor CLI agent process (cursor-agent, or agent with --workspace)."""
+    if not argv:
+        return False
+    for x in argv[:3]:
+        base = os.path.basename(x)
+        if base == "cursor-agent":
+            return True
+        if base == "agent" and _argv_workspace(argv):
+            return True
+    return False
+
+
+def _scan_host_agent_procs():
+    """{pid: (argv, ppid)} of every claude and cursor-agent process; None when the proc dir is unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    found = {}
+    for d in entries:
+        if not d.name.isdigit():
+            continue
+        try:
+            argv = [x.decode(errors="replace") for x in (d / "cmdline").read_bytes().split(b"\0") if x]
+        except OSError:
+            continue
+        if not (any(os.path.basename(x) == "claude" for x in argv[:3]) or _is_cursor_agent_argv(argv)):
+            continue
+        ppid = None
+        try:
+            stat = (d / "stat").read_text(errors="replace")
+            ppid = int(stat[stat.rindex(")") + 1:].split()[1])
+        except (OSError, ValueError, IndexError):
+            pass
+        found[int(d.name)] = (argv, ppid)
+    return found
+
+
+def cursor_procs(workspace, argvs=None):
+    """[(pid, argv)] of live cursor-agent processes whose --workspace resolves to `workspace`."""
+    want = str(Path(workspace).resolve())
+    if argvs is None:
+        argvs = {p: v[0] for p, v in (_scan_host_agent_procs() or {}).items() if _is_cursor_agent_argv(v[0])}
+    out = []
+    for p, argv in sorted(argvs.items()):
+        w = _argv_workspace(argv)
+        if w and str(Path(w).resolve()) == want:
+            out.append((p, argv))
+    return out
+
+
+def agent_cursor_workspace(r):
+    """Policy workspace path for a cursor-runtime agent row."""
+    try:
+        args = json.loads(r["spawn_args"] or "{}") or {}
+    except ValueError:
+        args = {}
+    cw = args.get("cursor_workspace")
+    if cw:
+        return str(Path(cw).resolve())
+    if not r["name"]:
+        return None
+    cwd = r["cwd"] or str(HOME)
+    return str(cursor_harness.policy_workspace(HOME, r["name"], cwd).resolve())
+
+
+def cursor_hooks_ok(workspace):
+    """True when workspace/.cursor/hooks.json exists and every hook entry has failClosed true."""
+    hooks = Path(workspace) / ".cursor" / "hooks.json"
+    if not hooks.is_file():
+        return False
+    try:
+        data = json.loads(hooks.read_text())
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+    entries = data.get("hooks") or {}
+    if not entries:
+        return False
+    for val in entries.values():
+        if not isinstance(val, list):
+            return False
+        for item in val:
+            if not isinstance(item, dict) or item.get("failClosed") is not True:
+                return False
+    return True
+
+
 def total_claude_procs():
-    """{"total": n, "pids": [...], "argv": {pid: argv}} of top-level claude processes on the host (same match
-    rule as claude_procs). A claude whose parent is itself a counted claude is a child (subagent/MCP launcher)
-    and is skipped. total is None when the proc dir is unreadable."""
-    found = _scan_claude()
+    """{"total": n, "pids": [...], "argv": {pid: argv}} of top-level claude and cursor-agent processes on the host.
+    A child whose parent is another counted process is skipped (subagent/MCP launcher). total is None when unreadable."""
+    found = _scan_host_agent_procs()
     if found is None:
         return {"total": None, "pids": [], "argv": {}}
     pids = sorted(p for p, (_, pp) in found.items() if pp not in found)
@@ -1202,8 +1296,27 @@ def has_role_flags(argv, role):
     return any(v.endswith(f"/settings/{role}.json") for v in vals)
 
 
+def _agent_runtime(row):
+    try:
+        return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
+    except ValueError:
+        return "claude"
+
+
 def flagless_state(r):
     """('flagless', pid) | ('ok', pid) | ('unknown', None): unknown = no live process found for the session."""
+    if _agent_runtime(r) == "cursor":
+        ws = agent_cursor_workspace(r)
+        if not ws:
+            return "unknown", None
+        procs = cursor_procs(ws)
+        if not procs:
+            return "unknown", None
+        for pid, argv in procs:
+            w = _argv_workspace(argv)
+            if w and cursor_hooks_ok(w):
+                return "ok", pid
+        return "flagless", procs[0][0]
     if not r["session_id"]:
         return "unknown", None
     procs = claude_procs(r["session_id"])
@@ -1588,7 +1701,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             known.add(r["pane_id"])
         if listed or still_starting(r):
             live += 1
-    other = sum(1 for a in (agents or []) if a.get("agent") == "claude"
+    other = sum(1 for a in (agents or []) if a.get("agent") in ("claude", "cursor")
                 and a.get("name") not in known and a.get("pane_id") not in known)
     mem = mem_available_mb()
     u = usage()
@@ -1596,13 +1709,27 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     total = procs["total"]
     starting = 0
     sessions = set()
+    workspaces = set()
     for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
-        has_proc = bool(r["session_id"]) and bool(claude_procs(r["session_id"], procs["argv"]))
-        if has_proc:
-            sessions.add(r["session_id"])
+        if _agent_runtime(r) == "cursor":
+            ws = agent_cursor_workspace(r)
+            has_proc = bool(ws) and bool(cursor_procs(ws, procs["argv"]))
+            if has_proc and ws:
+                workspaces.add(ws)
+        else:
+            has_proc = bool(r["session_id"]) and bool(claude_procs(r["session_id"], procs["argv"]))
+            if has_proc:
+                sessions.add(r["session_id"])
         if still_starting(r) and not has_proc:
             starting += 1
-    matched = sum(1 for argv in procs["argv"].values() if any(x in sessions for x in _argv_sessions(argv)))
+
+    def _argv_matches_factory(argv):
+        if any(x in sessions for x in _argv_sessions(argv)):
+            return True
+        w = _argv_workspace(argv)
+        return bool(w) and str(Path(w).resolve()) in workspaces
+
+    matched = sum(1 for argv in procs["argv"].values() if _argv_matches_factory(argv))
     total_cap = int(cfg(con, "max_total_claude"))
     leads, hq, workers = 0, 0, 0
     for r in con.execute("SELECT role FROM agents WHERE status IN ('live','starting')").fetchall():
@@ -7777,10 +7904,7 @@ def start_confirm(con, agents):
 
 def agent_runtime_of(row):
     """Runtime recorded in spawn_args (default claude)."""
-    try:
-        return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
-    except ValueError:
-        return "claude"
+    return _agent_runtime(row)
 
 
 def _cursor_enter_after_prompt(name, runtime, prompt_ok):
