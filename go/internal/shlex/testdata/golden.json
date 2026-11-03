@@ -37164,6 +37164,459 @@
 "src": "corpus"
 },
 {
+"input": "gh api -XPOST repos/a/b/issues",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XPOST",
+"repos/a/b/issues"
+]
+},
+{
+"input": "gh api -XPOST repos/a/b/issues",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XPOST",
+"repos/a/b/issues"
+]
+},
+{
+"input": "gh api -XPOST repos/a/b/issues",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XPOST",
+"repos/a/b/issues"
+]
+},
+{
+"input": "gh api -XPOST repos/a/b/issues",
+"mode": "quote",
+"quoted": "'gh api -XPOST repos/a/b/issues'",
+"src": "corpus"
+},
+{
+"input": "gh api --method=POST x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=POST",
+"x"
+]
+},
+{
+"input": "gh api --method=POST x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=POST",
+"x"
+]
+},
+{
+"input": "gh api --method=POST x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=POST",
+"x"
+]
+},
+{
+"input": "gh api --method=POST x",
+"mode": "quote",
+"quoted": "'gh api --method=POST x'",
+"src": "corpus"
+},
+{
+"input": "gh api -X=post x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X=post",
+"x"
+]
+},
+{
+"input": "gh api -X=post x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X=post",
+"x"
+]
+},
+{
+"input": "gh api -X=post x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X=post",
+"x"
+]
+},
+{
+"input": "gh api -X=post x",
+"mode": "quote",
+"quoted": "'gh api -X=post x'",
+"src": "corpus"
+},
+{
+"input": "gh api x -f title=t",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"-f",
+"title=t"
+]
+},
+{
+"input": "gh api x -f title=t",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"-f",
+"title=t"
+]
+},
+{
+"input": "gh api x -f title=t",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"-f",
+"title=t"
+]
+},
+{
+"input": "gh api x -f title=t",
+"mode": "quote",
+"quoted": "'gh api x -f title=t'",
+"src": "corpus"
+},
+{
+"input": "gh api x -F a=1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"-F",
+"a=1"
+]
+},
+{
+"input": "gh api x -F a=1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"-F",
+"a=1"
+]
+},
+{
+"input": "gh api x -F a=1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"-F",
+"a=1"
+]
+},
+{
+"input": "gh api x -F a=1",
+"mode": "quote",
+"quoted": "'gh api x -F a=1'",
+"src": "corpus"
+},
+{
+"input": "gh api x --input f.json",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--input",
+"f.json"
+]
+},
+{
+"input": "gh api x --input f.json",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--input",
+"f.json"
+]
+},
+{
+"input": "gh api x --input f.json",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--input",
+"f.json"
+]
+},
+{
+"input": "gh api x --input f.json",
+"mode": "quote",
+"quoted": "'gh api x --input f.json'",
+"src": "corpus"
+},
+{
+"input": "gh api -X PATCH x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"x"
+]
+},
+{
+"input": "gh api -X PATCH x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"x"
+]
+},
+{
+"input": "gh api -X PATCH x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"x"
+]
+},
+{
+"input": "gh api -X PATCH x",
+"mode": "quote",
+"quoted": "'gh api -X PATCH x'",
+"src": "corpus"
+},
+{
+"input": "gh api -X DELETE x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"DELETE",
+"x"
+]
+},
+{
+"input": "gh api -X DELETE x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"DELETE",
+"x"
+]
+},
+{
+"input": "gh api -X DELETE x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"DELETE",
+"x"
+]
+},
+{
+"input": "gh api -X DELETE x",
+"mode": "quote",
+"quoted": "'gh api -X DELETE x'",
+"src": "corpus"
+},
+{
+"input": "gh -X GET api x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"-X",
+"GET",
+"api",
+"x"
+]
+},
+{
+"input": "gh -X GET api x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"-X",
+"GET",
+"api",
+"x"
+]
+},
+{
+"input": "gh -X GET api x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"-X",
+"GET",
+"api",
+"x"
+]
+},
+{
+"input": "gh -X GET api x",
+"mode": "quote",
+"quoted": "'gh -X GET api x'",
+"src": "corpus"
+},
+{
+"input": "gh --method GET api repos/a/b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"--method",
+"GET",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh --method GET api repos/a/b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"--method",
+"GET",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh --method GET api repos/a/b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"--method",
+"GET",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh --method GET api repos/a/b",
+"mode": "quote",
+"quoted": "'gh --method GET api repos/a/b'",
+"src": "corpus"
+},
+{
+"input": "gh -H 'Accept: x' api repos/a/b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"-H",
+"Accept: x",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh -H 'Accept: x' api repos/a/b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"-H",
+"Accept: x",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh -H 'Accept: x' api repos/a/b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"-H",
+"Accept: x",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh -H 'Accept: x' api repos/a/b",
+"mode": "quote",
+"quoted": "'gh -H '\"'\"'Accept: x'\"'\"' api repos/a/b'",
+"src": "corpus"
+},
+{
 "input": "factory spawn coder",
 "mode": "script",
 "src": "corpus",
@@ -55788,6 +56241,123 @@
 "src": "corpus"
 },
 {
+"input": "gh api repos/a/b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh api repos/a/b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh api repos/a/b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/a/b"
+]
+},
+{
+"input": "gh api repos/a/b",
+"mode": "quote",
+"quoted": "'gh api repos/a/b'",
+"src": "corpus"
+},
+{
+"input": "gh api -X GET repos/a/b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"repos/a/b"
+]
+},
+{
+"input": "gh api -X GET repos/a/b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"repos/a/b"
+]
+},
+{
+"input": "gh api -X GET repos/a/b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"repos/a/b"
+]
+},
+{
+"input": "gh api -X GET repos/a/b",
+"mode": "quote",
+"quoted": "'gh api -X GET repos/a/b'",
+"src": "corpus"
+},
+{
+"input": "gh api --method=GET repos/a/b/pulls?state=open",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=GET",
+"repos/a/b/pulls?state=open"
+]
+},
+{
+"input": "gh api --method=GET repos/a/b/pulls?state=open",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=GET",
+"repos/a/b/pulls?state=open"
+]
+},
+{
+"input": "gh api --method=GET repos/a/b/pulls?state=open",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=GET",
+"repos/a/b/pulls?state=open"
+]
+},
+{
+"input": "gh api --method=GET repos/a/b/pulls?state=open",
+"mode": "quote",
+"quoted": "'gh api --method=GET repos/a/b/pulls?state=open'",
+"src": "corpus"
+},
+{
 "input": "factory task show T-1",
 "mode": "script",
 "src": "corpus",
@@ -60767,7 +61337,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1380,
+"corpus_commands": 1394,
 "edge_inputs": 123,
 "python": "3.13"
 }
