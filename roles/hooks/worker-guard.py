@@ -74,9 +74,7 @@ import shlex
 import sqlite3
 import stat
 import sys
-import tarfile
 import urllib.parse
-import zipfile
 
 MAX_DEPTH = 6
 FACTORY_UNIT_CMDS = {"up", "tick", "relaunch", "spawn", "clean"}
@@ -337,6 +335,7 @@ GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
+ARCHIVE_SIZE_MAX = 256 << 20  # T-0805: largest archive file the hook lists before refusing
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
 NO_PUSH_ROLES = {"qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"}
 RESEARCHER = "researcher"
@@ -1729,6 +1728,8 @@ class Analyzer:
         """(member name, link target or None) for each member of the archive at `path`, read with the stdlib (never
         extracted); raises OSError/tarfile.TarError/zipfile.BadZipFile/ValueError/RuntimeError when it cannot be listed or
         holds more than ARCHIVE_WALK_MAX members."""
+        import tarfile  # lazy: the hook starts once per command, and only an extraction needs these
+        import zipfile
         out = []
         if zipped:
             with zipfile.ZipFile(path) as z:
@@ -1757,6 +1758,11 @@ class Analyzer:
         zipped = name == "unzip"
         if zipped and not os.path.exists(arch) and os.path.exists(arch + ".zip"):
             arch += ".zip"
+        import tarfile
+        import zipfile
+        if os.path.exists(arch) and (not os.path.isfile(arch) or os.path.getsize(arch) > ARCHIVE_SIZE_MAX):
+            raise Block(f"`{name}` archive {arch!r} is not a regular file under {ARCHIVE_SIZE_MAX >> 20} MB, so it is not "
+                        f"listed (a FIFO or a bomb would hang the hook): {why}")
         try:
             members = self.archive_names(arch, zipped)
         except FileNotFoundError:
