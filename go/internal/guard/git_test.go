@@ -676,7 +676,8 @@ func TestCoderTaskOrgPrefix(t *testing.T) {
 	for _, agent := range []string{"evil-coder-t-1", "claude-cursor-coder-t-1", "cursor-claude-coder-t-1", "Claude-coder-t-1",
 		"claude-coder-t-1x", "claude-claude-coder-t-1", "claude-t-1", "claude-", "coder-t-", "",
 		"cursor-coder-t-0817-b2", "cursor-coder-t-0817-a", "cursor-coder-t-0817-a2x", "cursor-coder-t-0817-a2-a3",
-		"cursor-coder-t-0817-A2", "evil-coder-t-0817-a2"} {
+		"cursor-coder-t-0817-A2", "evil-coder-t-0817-a2",
+		"cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2"} {
 		if got, ok := coderTask(agent); ok {
 			t.Errorf("coderTask(%q) = %q, true; want refused", agent, got)
 		}
@@ -705,12 +706,17 @@ func TestPushPinAttemptSuffix(t *testing.T) {
 			t.Errorf("agent %q: %v, want allow", agent, err)
 		}
 	}
-	t.Setenv("FACTORY_AGENT", "cursor-coder-t-0817-b2")
-	err := Check(push, wt0817, "coder", false)
-	if err == nil || IsDelegate(err) {
-		t.Errorf("b2 agent: %v, want block", err)
-	} else if !strings.Contains(Explain(err), "cannot tell this pane's task id") {
-		t.Errorf("b2 agent: %q, want task id message", Explain(err))
+	for _, agent := range []string{
+		"cursor-coder-t-0817-b2",
+		"cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2",
+	} {
+		t.Setenv("FACTORY_AGENT", agent)
+		err := Check(push, wt0817, "coder", false)
+		if err == nil || IsDelegate(err) {
+			t.Errorf("agent %q: %v, want block", agent, err)
+		} else if !strings.Contains(Explain(err), "cannot tell this pane's task id") {
+			t.Errorf("agent %q: %q, want task id message", agent, Explain(err))
+		}
 	}
 	t.Setenv("FACTORY_AGENT", "cursor-coder-t-0817-a2")
 	for _, cmd := range []string{

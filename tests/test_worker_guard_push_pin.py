@@ -424,6 +424,7 @@ class AttemptSuffixPushPinTests(unittest.TestCase):
             "cursor-coder-t-0817-b2", "cursor-coder-t-0817-a", "cursor-coder-t-0817-a2x",
             "cursor-coder-t-0817-a2-a3", "cursor-coder-t-0817-A2", "cursor-coder-t-0817-attempt2",
             "evil-coder-t-0817-a2", "cursor-claude-coder-t-0817-a2",
+            "cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2",
         ):
             with self.subTest(agent=agent):
                 p = self.run_hook(push, agent=agent)

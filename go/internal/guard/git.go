@@ -940,28 +940,38 @@ func coderTask(agent string) (string, bool) {
 	} else if r, ok := strings.CutPrefix(agent, "cursor-"); ok {
 		agent = r
 	}
-	t, ok := strings.CutPrefix(agent, "coder-")
-	if !ok || !strings.HasPrefix(t, "t-") || len(t) == 2 {
+	body, ok := strings.CutPrefix(agent, "coder-")
+	if !ok || !strings.HasPrefix(body, "t-") {
 		return "", false
 	}
-	if i := strings.Index(t, "-a"); i >= 0 {
-		suffix := t[i+2:]
-		if suffix == "" {
-			return "", false
-		}
-		for _, r := range suffix {
-			if !isDecimal(r) {
-				return "", false
-			}
-		}
-		t = t[:i]
+	body = body[2:]
+	if body == "" {
+		return "", false
 	}
-	for _, r := range t[2:] {
+	i := 0
+	for i < len(body) && isDecimal(rune(body[i])) {
+		i++
+	}
+	if i == 0 {
+		return "", false
+	}
+	digits, rest := body[:i], body[i:]
+	if rest == "" {
+		return "t-" + digits, true
+	}
+	if !strings.HasPrefix(rest, "-a") {
+		return "", false
+	}
+	suffix := rest[2:]
+	if suffix == "" {
+		return "", false
+	}
+	for _, r := range suffix {
 		if !isDecimal(r) {
 			return "", false
 		}
 	}
-	return t, true
+	return "t-" + digits, true
 }
 
 // wholePush is re.fullmatch(r"git(?: -C ([\w./-]+))? push origin HEAD:factory/<task>", text).
