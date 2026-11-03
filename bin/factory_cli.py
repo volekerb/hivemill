@@ -10762,6 +10762,33 @@ def gate_notify_fail(con, pr_url, r):
          f"`factory gate show {r['id']}`. Fix the head and push; the tick enqueues a new run.", "report", t["goal_id"], t["id"], sender="tick")
 
 
+_RES_HQ_ROLES = ("boss", "director", "staff-engineer")
+
+
+def res_org_mix(con):
+    """Live agent counts per org (same buckets as web.views.resources.org_mix); org from orgs.of_agent on each row."""
+    mix = {o: {"live": 0, "workers": 0, "leads": 0, "hq": 0, "queued": 0} for o in orgs.NAMES}
+    for r in con.execute("SELECT * FROM agents"):
+        row = dict(r)
+        o = orgs.of_agent(row)
+        if o not in mix:
+            continue
+        st = row["status"]
+        if st == "queued":
+            mix[o]["queued"] += 1
+        if st != "live":
+            continue
+        mix[o]["live"] += 1
+        role = row["role"]
+        if role == "lead":
+            mix[o]["leads"] += 1
+        elif role in _RES_HQ_ROLES:
+            mix[o]["hq"] += 1
+        else:
+            mix[o]["workers"] += 1
+    return mix
+
+
 def cmd_res(a):
     con = db()
     ok, why, s = gate(con)
@@ -10792,6 +10819,10 @@ def cmd_res(a):
     print(u2["line"])
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
+    om = res_org_mix(con)
+    c, u = om["claude"], om["cursor"]
+    print(f"org claude: live {c['live']} · workers {c['workers']} · leads {c['leads']} · hq {c['hq']} · queued {c['queued']}")
+    print(f"org cursor: live {u['live']} · workers {u['workers']} · leads {u['leads']} · hq {u['hq']} · queued {u['queued']}")
     bt = {r["waits"]: r["n"] for r in con.execute("SELECT waits, count(*) n FROM tasks WHERE status='blocked' GROUP BY waits")}
     print(f"blocked tasks: {bt.get('owner', 0)} owner-blocked · {bt.get('internal', 0)} internal-blocked")
     print(f"mem available {s['mem_mb']} MB (floor {cfg(con, 'min_mem_available_mb')}) · swap used "
