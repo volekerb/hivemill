@@ -233,6 +233,36 @@ def assert_hermetic(home_dir, stub_bin, tmp_root=None):
                            "Put the harness stub_bin first on PATH.")
 
 
+# T-0232: the live factory home(s) as seen at import, before any test patches os.environ.
+LIVE_HOMES = tuple(dict.fromkeys(
+    Path(p).expanduser().resolve() for p in ("~/factory", os.environ.get("FACTORY_HOME") or "~/factory")))
+
+
+class LiveHomeGuard:
+    """Snapshot the top-level entry NAMES of the live home(s); `new_entries()` lists names added since. Names only: the tick
+    rewrites state/ and exports/ every minute, so mtimes are noise. Read-only: never writes, deletes or chmods there."""
+
+    def __init__(self, homes=LIVE_HOMES):
+        self.homes = tuple(Path(h) for h in homes)
+        self.before = {h: self._names(h) for h in self.homes}
+
+    @staticmethod
+    def _names(home):
+        try:
+            return set(os.listdir(home))
+        except OSError:  # no such live home on this machine (CI): nothing to guard
+            return set()
+
+    def new_entries(self):
+        return sorted(str(h / n) for h in self.homes for n in self._names(h) - self.before[h])
+
+    def check(self, test):
+        new = self.new_entries()
+        if new:
+            test.fail("this test created new top-level entries under the live factory home (use FactoryEnv and a temp "
+                      "home): " + ", ".join(new))
+
+
 _FACTORY_CODE = None  # bin/factory_cli.py compiled once per process, for FactoryEnv.run_inproc
 
 
@@ -240,10 +270,22 @@ class FactoryEnv:
     def __init__(self, _build_template=False):
         self.inproc = False  # FactoryTestCase.INPROC: route run() through run_inproc
         self.home = Path(tempfile.mkdtemp(prefix="zz-test-factory-")).resolve()
+        try:
+            self._build(_build_template)
+        except BaseException:
+            self.cleanup()  # the constructor failed, so the caller has no handle to clean up with (T-0232)
+            raise
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.cleanup()  # outside FactoryTestCase: `with FactoryEnv() as env:` removes the home, passing or failing
+
+    def _build(self, _build_template):
         live = Path("~/factory").expanduser().resolve()
         for bad in (live, REPO):
             if bad in (self.home, *self.home.parents):  # not an assert: must survive python -O
-                shutil.rmtree(self.home, ignore_errors=True)
                 raise RuntimeError(f"temp home {self.home} is inside {bad}")
         self.user_home = self.home / "userhome"
         self.stub_bin = self.home / "stubbin"
@@ -269,14 +311,10 @@ class FactoryEnv:
         (self.user_home / ".local" / "bin").mkdir(parents=True)
         (self.user_home / ".local" / "bin" / "factory").symlink_to(self.home_dir / "bin" / "factory")
 
-        try:
-            if _build_template or os.environ.get("FACTORY_TEST_NO_TEMPLATE"):
-                self._init_home()
-            else:
-                shutil.copytree(_template_home(), self.home_dir, symlinks=True, dirs_exist_ok=True)
-        except BaseException:
-            self.cleanup()  # setUp failed, so addCleanup never runs
-            raise
+        if _build_template or os.environ.get("FACTORY_TEST_NO_TEMPLATE"):
+            self._init_home()
+        else:
+            shutil.copytree(_template_home(), self.home_dir, symlinks=True, dirs_exist_ok=True)
 
     def _init_home(self):
         git("init", "-q", "-b", "main", cwd=self.home_dir)
@@ -520,6 +558,8 @@ class FactoryTestCase(unittest.TestCase):
     INPROC = False  # True: env.run() calls bin/factory in-process (see FactoryEnv.run_inproc); inproc=False opts one call out
 
     def setUp(self):
+        guard = LiveHomeGuard()
+        self.addCleanup(guard.check, self)  # registered first, so it runs after every other cleanup
         self.env = FactoryEnv()
         self.env.inproc = self.INPROC
         self.addCleanup(self.env.cleanup)
