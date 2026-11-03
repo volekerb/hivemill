@@ -208,21 +208,20 @@ class JudgeHookTests(FlowBase):
 
     def test_roles_changed_lead(self):
         self.merge_with_files("roles/lead.md", "tests/x.py")
-        lead = [m for m in self.msgs() if m["recipient"] == "zz-test-lead"]
-        self.assertEqual(len(lead), 1)
-        self.assertEqual((lead[0]["kind"], lead[0]["sender"]), ("request", "factory"))
-        self.assertIn("roles/lead.md", lead[0]["body"])
-        self.assertIn("relaunched with --resume", lead[0]["body"])
+        self.assertEqual([m for m in self.msgs() if m["recipient"] == "zz-test-lead"], [])
         self.assertEqual([m for m in self.msgs() if m["recipient"] == "zz-test-boss"], [])
-        self.assertEqual(len([m for m in self.msgs() if m["recipient"] == "zz-test-director"]), 1)
+        self.assertEqual(len(self.msgs()), 1)
         d = self.msgs("role files changed: stale agents")
         self.assertEqual(len(d), 1)
+        self.assertEqual((d[0]["recipient"], d[0]["kind"], d[0]["sender"]), ("zz-test-director", "request", "factory"))
+        self.assertIn("roles/lead.md", d[0]["body"])
         self.assertIn("factory relaunch zz-test-lead --when-idle", d[0]["body"])
         self.assertTrue(self.env.sql("SELECT * FROM events WHERE action='roles-changed'"))
 
     def test_roles_changed_director_notifies_boss(self):
         self.merge_with_files("roles/director.md")
-        self.assertEqual(len([m for m in self.msgs() if m["recipient"] == "zz-test-director"]), 2)  # notice + stale list
+        self.assertEqual(len([m for m in self.msgs() if m["recipient"] == "zz-test-director"]), 1)  # one stale list, no own notice
+        self.assertEqual(len(self.msgs()), 2)  # director + boss only
         boss = self.msgs("role files changed: director stale")
         self.assertEqual(len(boss), 1)
         self.assertEqual(boss[0]["recipient"], "zz-test-boss")
@@ -230,8 +229,11 @@ class JudgeHookTests(FlowBase):
 
     def test_common_md_hits_all_persistent(self):
         self.merge_with_files("roles/_common.md")
-        names = {m["recipient"] for m in self.msgs() if m["subject"] == "role files changed: relaunch pending"}
-        self.assertEqual(names, {"zz-test-boss", "zz-test-director", "zz-test-lead"})
+        self.assertEqual(self.msgs("role files changed: relaunch pending"), [])
+        d = self.msgs("role files changed: stale agents")
+        self.assertEqual(len(d), 1)
+        for who in ("boss", "director", "lead"):
+            self.assertIn(f"factory relaunch zz-test-{who} --when-idle", d[0]["body"])
 
     def test_tests_only_no_messages(self):
         self.merge_with_files("tests/test_x.py", "roles/coder.md")
@@ -269,21 +271,23 @@ class CollapseTests(FlowBase):
 
     def test_lead_notice_collapsed(self):
         self.two_merges("roles/lead.md")
-        n = self.to("lead", "role files changed: relaunch pending")
+        self.assertEqual(self.to("lead", "role files changed: relaunch pending"), [])
+        n = self.to("director", "role files changed: stale agents")
         self.assertEqual(len(n), 1)
         self.assertIsNone(n[0]["read_at"])
         self.assertIn(PR_URL, n[0]["body"])
         self.assertIn(self.PR2, n[0]["body"])
         self.assertEqual(n[0]["body"].count("- roles/lead.md"), 1)
-        self.assertEqual(n[0]["body"].count("Your running prompt is stale"), 1)
+        self.assertEqual(n[0]["body"].count("factory relaunch zz-test-lead --when-idle"), 1)
+        self.assertEqual(len(self.msgs()), 1)
         self.assertEqual(len(self.env.sql("SELECT * FROM events WHERE action='roles-changed'")), 2)
 
     def test_read_notice_not_collapsed(self):
         self.merge_with_files("roles/lead.md")
-        first = self.to("lead", "role files changed: relaunch pending")[0]
+        first = self.to("director", "role files changed: stale agents")[0]
         self.env.sql("UPDATE messages SET read_at='2026-01-01T00:00:00+00:00' WHERE id=?", (first["id"],))
         self.merge2("roles/lead.md")
-        n = self.to("lead", "role files changed: relaunch pending")
+        n = self.to("director", "role files changed: stale agents")
         self.assertEqual(len(n), 2)
         self.assertEqual(n[0]["body"], first["body"])
         self.assertNotIn(self.PR2, n[0]["body"])

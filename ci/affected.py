@@ -245,6 +245,7 @@ def _select(root, base, head, tests_dir, modules):
 
 QUICK_BUDGET_S = 120
 EXIT_BUDGET = 4
+EXIT_LOAD = 5  # refused: load1 >= cap and another suite holds the slot (M16816); rely on PR CI
 
 
 def run(modules, tests_dir, budget=None):
@@ -291,6 +292,13 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.budget is not None and a.budget < 1:
         ap.error("--budget must be at least 1 second")
+    if a.run:  # M16816: at load1 >= cap only one local suite box-wide; selection-only mode is never gated
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import _slot
+        refused = _slot.local_run_gate()
+        if refused:
+            print("affected: %s" % refused, file=sys.stderr)
+            return EXIT_LOAD
     quick = a.quick or a.budget is not None
     budget = (a.budget or QUICK_BUDGET_S) if quick else None
     try:

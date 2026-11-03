@@ -356,6 +356,23 @@ class AllowlistTests(Base):
         self.assertIn("deprecated", r.stderr)
         self.assertIn("1 allowlisted", r.stdout)
 
+    def test_unused_tree_allowlist_entry_warns_and_names_it(self):
+        d = self.repo(files={"ok.txt": ALL["rfc1918"], "clean.txt": "x\n"})
+        self.commit(d)
+        r = scan("--tree", d, "--allowlist",
+                 self.allowlist(r"ok.txt:rfc1918:192\.168\.0\.  # reviewed", r"gone.txt:email:nobody  # stale"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(r.stderr.count("unused allowlist entry"), 1, r.stderr)
+        self.assertIn("unused allowlist entry gone.txt:email:nobody", r.stderr)
+        self.assertNotIn("ok.txt", r.stderr)
+
+    def test_all_used_tree_allowlist_does_not_warn(self):
+        d = self.repo(files={"ok.txt": ALL["rfc1918"]})
+        self.commit(d)
+        r = scan("--tree", d, "--allowlist", self.allowlist(r"ok.txt:rfc1918:192\.168\.0\.  # reviewed"))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("unused", r.stderr)
+
     def test_new_form_does_not_warn(self):
         d = self.repo(files={"ok.txt": ALL["rfc1918"]})
         self.commit(d)

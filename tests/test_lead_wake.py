@@ -123,7 +123,7 @@ class WakeTickTests(WakeBase):
         self.assertEqual(self.env.sql("SELECT count(*) c FROM messages WHERE recipient=? AND subject LIKE 'role files%'",
                                       (LEAD,))[0]["c"], 0)
         self.assertEqual(self.env.sql("SELECT count(*) c FROM messages WHERE recipient='lead-live' "
-                                      "AND subject LIKE 'role files changed%'")[0]["c"], 1)
+                                      "AND subject LIKE 'role files changed%'")[0]["c"], 0)  # T-0144: no per-agent notice
         self.assertIsNone(self.env.sql("SELECT relaunch_requested_at r FROM agents WHERE name=?", (LEAD,))[0]["r"])
         self.ok("tick")
         self.assertEqual(self.wakes(), [])
