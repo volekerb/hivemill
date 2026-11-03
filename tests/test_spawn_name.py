@@ -38,7 +38,33 @@ class SpawnName(FactoryTestCase):
 
     def test_help_documents_the_rule(self):
         p = self.env.run("spawn", "--help", agent="zz-director")
-        self.assertIn("else refused", " ".join((p.stdout + p.stderr).split()))
+        txt = " ".join((p.stdout + p.stderr).split())
+        self.assertIn("When the org prefix applies, the name must already be <org>-<name>; otherwise it is refused", txt)
+        self.assertNotIn("must already follow the org naming rule", txt)
+
+    def test_help_same_with_prefix_off(self):
+        self.ok("config", "org_prefix_default", "0")
+        p = self.env.run("spawn", "--help", agent="zz-director")
+        self.assertIn("When the org prefix applies", " ".join((p.stdout + p.stderr).split()))
+
+    def test_prefix_off_bare_name_accepted_exactly(self):
+        self.ok("config", "org_prefix_default", "0")
+        p = self.spawn("--name", "pm-x")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.names(), ["pm-x"])
+
+    def test_cursor_goal_bare_name_refused(self):
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        p = self.spawn("--name", "pm-x")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("cursor-pm-x", p.stdout + p.stderr)
+        self.assertEqual(self.names(), [])
+
+    def test_cursor_goal_prefixed_name_honoured_exactly(self):
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        p = self.spawn("--name", "cursor-pm-x")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.names(), ["cursor-pm-x"])
 
 
 if __name__ == "__main__":
