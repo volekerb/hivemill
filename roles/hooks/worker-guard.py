@@ -90,7 +90,7 @@ WRAP_VALUE_OPTS = {
     "env": {"-u", "-C", "--unset", "--chdir"}, "exec": {"-a"}, "nohup": set(), "command": set(), "builtin": set(),
     "setsid": set(), "timeout": {"-s", "-k", "--signal", "--kill-after"}, "nice": {"-n", "--adjustment"},
     "ionice": {"-c", "-n", "-p", "-P", "-u", "--class", "--classdata"}, "stdbuf": {"-i", "-o", "-e"},
-    "xargs": {"-I", "-J", "-n", "-P", "-d", "-L", "-l", "-s", "-E", "-a", "-R", "-S", "--max-args", "--max-procs",
+    "xargs": {"-I", "-J", "-n", "-P", "-d", "-L", "-s", "-E", "-a", "-R", "-S", "--max-args", "--max-procs",
               "--delimiter", "--max-lines", "--max-chars", "--arg-file", "--eof", "--process-slot-var"},
     "watch": {"-n", "--interval", "-w"}, "busybox": set(),
 }
@@ -806,6 +806,9 @@ def extract_subs(text):
 
 
 # ───────────────────────────── analysis ─────────────────────────────
+
+XARGS_GIT_TOKEN = re.compile(r'(?:^|[\s/;&|(`\x27"])git(?:-[a-z][a-z-]*)?(?=\Z|[\s;&|)`\x27"])')
+
 
 class Analyzer:
     def __init__(self, cwd, role=None, hq=False):
@@ -2747,40 +2750,18 @@ class Analyzer:
             j += 1
         if repl is not None and first == repl:
             raise Block("xargs replacement string used as the command word")
-        if self.role == "coder" and not self.hq and first is not None:
-            words = self.skip_launchers(rest[j:])
-            if words and os.path.basename(words[0]) == "git":
+        if self.role == "coder" and not self.hq:
+            n = sum(1 for w in rest if XARGS_GIT_TOKEN.search(w))
+            if n:
+                # fail closed: allowed only as exactly one git word that is the command word itself (no launcher between)
+                if not (n == 1 and first is not None and os.path.basename(first) == "git"):
+                    raise Block("xargs with git: the command or its arguments could come from stdin; run git directly, "
+                                "not through xargs")
+                words = rest[j:]
                 if repl is not None and any(repl in w for w in words[1:]):
                     raise Block("xargs git: the replacement string stands in for part of git's arguments (an alias or "
                                 "subcommand could come from stdin); coders push only `git push origin HEAD:factory/<task id>`")
                 self.xargs_git(words[1:])
-
-    @staticmethod
-    def skip_launchers(words):
-        """Drop leading launchers (env, nice, timeout N, stdbuf -oX, command, ...) with their options and VAR=x words,
-        returning the command they would run (reuses WRAP_VALUE_OPTS)."""
-        words = list(words)
-        while words and os.path.basename(words[0]) in WRAP_VALUE_OPTS:
-            name = os.path.basename(words.pop(0))
-            if name == "xargs":
-                return words  # a nested xargs is judged on its own words only by the outer rule; keep what follows
-            seen_dash = False
-            while words and not seen_dash:
-                w = words[0]
-                if w == "--":
-                    words.pop(0)
-                    seen_dash = True
-                elif w.startswith("-") and len(w) > 1:
-                    words.pop(0)
-                    if w in WRAP_VALUE_OPTS[name] and words:
-                        words.pop(0)
-                elif name == "env" and ASSIGN.match(w):
-                    words.pop(0)
-                else:
-                    break
-            if name == "timeout" and words:
-                words.pop(0)  # the duration
-        return words
 
     def xargs_git(self, gargs):
         """T-0799: `xargs git ...` takes part of its argv from stdin, so the subcommand may be `push` unseen. A coder may

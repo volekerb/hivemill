@@ -33,10 +33,24 @@ DENIED = [
     "echo alias.x=push | xargs -I% git -c % x origin main",
     "echo alias.x=push | xargs --replace git -c {} x origin main",
     "echo alias.x=push | xargs -i git -c {} x origin main",
+    "echo push origin main | xargs time git",
+    "echo push origin main | xargs taskset 1 git",
+    "echo push origin main | xargs flock /tmp/x git",
+    "echo push origin main | xargs chrt 0 git",
+    "echo push origin main | xargs unbuffer git",
+    "xargs xargs -n1 git",
+    "xargs xargs -r git",
+    "xargs nice xargs -n1 git",
+    "xargs -I{} xargs -n1 git",
+    "echo push origin main | xargs -l git",
+    "xargs -s git env git",
+    "xargs sh -c 'git \"$@\"' _",
+    "xargs git-send-pack",
+    "xargs /usr/bin/git push",
 ]
 ALLOWED = [
     f"git push origin HEAD:factory/{TASK}",
-    "git status", "git log", "git commit -m x", "xargs grep foo", "git -c core.pager=cat log", "git -c alias.x=status x",
+    "git status", "git log", "git commit -m x", "xargs grep foo", "xargs git status", "xargs -0 git log", "git -c core.pager=cat log", "git -c alias.x=status x",
 ]
 
 
@@ -78,6 +92,11 @@ class CoderXargsAliasTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_accepted_false_positives_blocked(self):
+        for cmd in ("xargs grep git", "xargs git log --grep git"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd).returncode, 2)
 
     OTHER_RC = {"qa": 2, "reviewer": 2, "pm": 2, "cleaner": 0, "judge": 0}  # unchanged by this task
     MINE = ("xargs git:", "can hide a push")
