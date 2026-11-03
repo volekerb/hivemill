@@ -3,7 +3,7 @@
 
   python3 ci/release_check.py <sha> [--version X.Y.Z] [--repo OWNER/NAME]
 
-Checks (one PASS/FAIL line each, all run): on-main, version, ci-green, notes, fresh-install-smoke, public-text, tag-free.
+Checks (one PASS/FAIL line each, all run): on-main, version, ci-green, notes, fresh-install-smoke, public-text, tag-free, cursor-runtime.
 Exit 0 all pass (tag commands printed), 1 a check failed, 2 usage error or unresolvable SHA.
 Read-only: it never tags, pushes or creates a release; it only prints the commands for the owner. See docs/RELEASING.md.
 Python 3 stdlib only.
@@ -30,6 +30,21 @@ PLACEHOLDER_RES = (re.compile(r"TODO|TBD|FIXME|XXX|__[A-Z_]+__|<[a-z][a-z -]*>|<
 SMOKE_VERSION_RE = re.compile(r"^hivemill (\S+)(?:\s|$)")
 REMOTE_RE = re.compile(r"^(?:https://github\.com/|git@github\.com:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
 SMOKE_WAIT_S = 20
+CURSOR_RUNTIME_PATHS = (
+    "scout/cursor_harness.py",
+    "roles/hooks/cursor-guard-adapter.py",
+    "scout/agent_runtime.py",
+)
+CURSOR_RUNTIME_SNIPPET = """
+from scout.agent_runtime import parse_runtimes, resolve_runtime
+if resolve_runtime("pm", "") != "claude":
+    raise SystemExit("empty agent_runtimes: pm must resolve to claude")
+m = parse_runtimes("*=cursor")
+if m.get("coder") != "cursor":
+    raise SystemExit("*=cursor: coder must resolve to cursor")
+if resolve_runtime("evaluator", "*=cursor") != "claude":
+    raise SystemExit("*=cursor: evaluator must stay claude")
+"""
 
 
 class UsageError(Exception):
@@ -206,6 +221,30 @@ class Gate:
             return False, f"tag {tag} already exists on origin"
         return True, f"{tag} is not on origin"
 
+    def file_at_sha(self, relpath):
+        rc, _, _ = self.git("show", f"{self.sha}:{relpath}")
+        return rc == 0
+
+    def cursor_runtime_tree(self):
+        """Checkout tree for imports, or the gate root when unit tests fake clone without materializing src."""
+        src = os.path.join(self.tmp, "src")
+        if os.path.isfile(os.path.join(src, "scout", "agent_runtime.py")):
+            return src
+        return self.root
+
+    def cursor_runtime(self):
+        missing = [p for p in CURSOR_RUNTIME_PATHS if not self.file_at_sha(p)]
+        if missing:
+            return False, "missing at %s: %s" % (self.sha[:12], ", ".join(missing))
+        tree = self.cursor_runtime_tree()
+        env = {k: v for k, v in self.env.items() if k != "PYTHONPATH"}
+        env["PYTHONPATH"] = tree
+        rc, out, err = self.run([sys.executable, "-c", CURSOR_RUNTIME_SNIPPET], cwd=tree, env=env, timeout=60)
+        if rc != 0:
+            msg = (err or out).strip().splitlines()[-1] if (err or out).strip() else "exit %s" % rc
+            return False, "runtime resolve check failed: %s" % msg
+        return True, "cursor harness files present; pm/claude, coder/cursor, evaluator/claude resolve"
+
     # --- driver ---
 
     def prepare_checkout(self):
@@ -219,11 +258,11 @@ class Gate:
         self.tmp = tempfile.mkdtemp(prefix="release-check-")
         try:
             broken = self.prepare_checkout()
-            needs_src = {"notes", "fresh-install-smoke", "public-text"}
+            needs_src = {"notes", "fresh-install-smoke", "public-text", "cursor-runtime"}
             results = []
             for name, fn in (("on-main", self.on_main), ("version", self.version_check), ("ci-green", self.ci_green),
                              ("notes", self.notes), ("fresh-install-smoke", self.smoke), ("public-text", self.public_text),
-                             ("tag-free", self.tag_free)):
+                             ("tag-free", self.tag_free), ("cursor-runtime", self.cursor_runtime)):
                 ok, detail = (False, broken) if broken and name in needs_src else fn()
                 out(f"{'PASS' if ok else 'FAIL'} {name}: {detail}")
                 results.append(ok)
