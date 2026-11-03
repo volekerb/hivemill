@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import threading
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from harness import FactoryTestCase  # noqa: E402
+from harness import FACTORY, FactoryTestCase  # noqa: E402
 from test_web_queries import make_db  # noqa: E402
 from web import html as wh  # noqa: E402
 from web import queries, server  # noqa: E402
@@ -543,6 +544,26 @@ class TestServeShim(FactoryTestCase):
                 r = self.env.run("serve", "--bind", addr, "--port", "0")
                 self.assertEqual(r.returncode, 2, r.stderr)
                 self.assertIn("refusing", r.stderr)
+
+    def test_serve_port_zero_binds_ephemeral_port_and_prints_url_first(self):
+        """QA starts `factory serve --port 0` in the background and reads the URL from the first stdout line."""
+        proc = subprocess.Popen([sys.executable, str(FACTORY), "serve", "--bind", "127.0.0.1", "--port", "0"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                env=self.env.env(), cwd=self.env.home)
+
+        def stop():
+            proc.terminate()
+            proc.communicate(timeout=30)   # reaps it and closes both pipes
+        self.addCleanup(stop)
+        first = proc.stdout.readline()
+        m = re.match(r"factory serve: http://127\.0\.0\.1:(\d+)/ ", first)
+        self.assertIsNotNone(m, f"first stdout line is not the URL: {first!r}")
+        port = int(m.group(1))
+        self.assertNotIn(port, (0, 8765, 18765))
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        self.addCleanup(conn.close)
+        conn.request("GET", "/", headers={"Host": f"127.0.0.1:{port}"})
+        self.assertEqual(conn.getresponse().status, 200)
 
     def test_serve_config_overrides(self):
         e = self.env

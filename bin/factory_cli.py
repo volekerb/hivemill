@@ -7385,6 +7385,8 @@ def sandbox_wanted(con, role, optin=False):
     has its own sandbox and the on-demand staff-engineer is never sandboxed.
     optin: this one agent was spawned with `--sandbox`; it counts like a listed role (SANDBOXABLE only)."""
     listed = {x.strip() for x in (cfg(con, "sandbox_roles") or "").split(",") if x.strip()}
+    if role == "researcher":  # always sandboxed (G-029): it runs third-party code; neither config nor --sandbox decides
+        return True
     return role not in ("evaluator", ON_DEMAND) and (role in listed or (optin and role in workerbox.SANDBOXABLE))
 
 
@@ -7428,7 +7430,7 @@ def sandbox_gh_token(con, role):
     home = Path(sandbox_home() or workerbox.nsbox.real_home())
     if con is None:
         return workerbox._paths(str(home))[workerbox._GH_KEY[role]], []
-    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) else "gh_token_ro"
+    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) and role != "researcher" else "gh_token_ro"  # researcher: never rw
     value = cfg(con, key).strip() or f"~/.config/factory/gh-worker-{key[-2:]}-token"
     path = str(home / value[2:]) if value.startswith("~/") else value
     try:
@@ -7498,8 +7500,13 @@ def sandbox_preflight(role, cwd, name, con=None):
         return "claude", "no claude on the pane PATH"
     if cwd is None:
         return None
+    rroot = None
+    if role == "researcher":  # the cwd must be a task dir directly in the research root, not any dir under it
+        rroot = str(research_base())
+        if Path(os.path.realpath(cwd)).parent != Path(os.path.realpath(rroot)):
+            return "cwd", f"researcher cwd must be its research dir directly under {rroot}, not {cwd}"
     try:  # the same pure rule prepare_agent applies, with the same arguments
-        workerbox.check_cwd(name, cwd, str(HOME), home=home)
+        workerbox.check_cwd(name, cwd, str(HOME), home=home, research_root=rroot)
     except ValueError as e:
         return "cwd", str(e)
     git = os.path.join(cwd or "", ".git")
@@ -7527,16 +7534,21 @@ def sandbox_refuse(con, role, name, reason, why):
     """Event (once an hour per agent and reason, so a queued row retried every tick does not flood), a director
     message at most once an hour per reason, then SandboxRefused (spawn() returns a queued row to the queue).
     Neither the event nor the message names a token path."""
+    if role == "researcher":  # always sandboxed: there is no "turn it off"; the owner steps are the only way
+        fix = ("The researcher is always sandboxed and never starts unsandboxed. Owner steps: docs/worker-sandbox.md section 3 "
+               "(O2 worker OAuth token ~/.config/factory/worker-oauth-token, read-only gh-worker-ro-token)")
+        hint, hint_mail = fix, fix
+    else:
+        hint, hint_mail = "Fix it or run: factory config sandbox_roles ''", "Fix it, or turn the sandbox off: factory config sandbox_roles ''"
     _hourly_once(con, f"sandbox_refused_ev:{name}:{reason}",
                lambda: event(con, "agent", name, "sandbox-refused", {"role": role, "name": name, "reason": reason}))
     _hourly_once(con, f"sandbox_refused:{reason}",
                lambda: send(con, "director", f"sandbox refused a {role} spawn ({reason})",
-                            f"{name} was not started: {why}. Fix it, or turn the sandbox off: "
-                            "factory config sandbox_roles ''. Further refusals for this reason are silent for an hour.",
+                            f"{name} was not started: {why}. {hint_mail}. "
+                            "Further refusals for this reason are silent for an hour.",
                             "alert", sender="factory"))
     con.commit()  # the exit follows: the event and the message must survive
-    print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
-          "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
+    print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. {hint}", file=sys.stderr)
     e = SandboxRefused(3)
     e.reason, e.why = reason, why
     raise e
@@ -7569,8 +7581,9 @@ def sandbox_prepare(con, role, name, cwd):
     gh_path, slugs = sandbox_gh_token(con, role)  # preflight passed, so this cannot raise
     try:  # repo=HOME pins the shim's imports to the factory checkout, never to wherever this bin/factory was run from
         agent_dir = workerbox.prepare_agent(name, role, cwd, str(HOME), str(DB.parent), sandbox_real_claude(home)[0],
-                                            role in ("qa", "coder"), home=home, repo=str(HOME),
-                                            gh_token_path=gh_path, gh_slugs=slugs)
+                                            role in ("qa", "coder", "researcher"), home=home, repo=str(HOME),
+                                            gh_token_path=gh_path, gh_slugs=slugs,
+                                            research_root=str(research_base()) if role == "researcher" else None)
     except (ValueError, OSError) as e:
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
     # the pane re-exports this PATH after its startup files (see _spawn_start): the shim must win then
@@ -7833,12 +7846,16 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     return name
 
 
+def research_base():
+    """<XDG_STATE_HOME or ~/.local/state>/factory/research: the one tree a researcher's cwd may sit in (nothing is created)."""
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "factory" / "research"
+
+
 def research_dir(task):
     """The per-task directory a researcher works in: <XDG_STATE_HOME or ~/.local/state>/factory/research/<task>, created
     mode 0700. Refused (exit 4) when it is a symlink, not ours, or inside the factory home: a researcher clones
     untrusted repos there and must never write into the factory."""
-    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
-    path = base / "factory" / "research" / slug(task)
+    path = research_base() / slug(task)
     try:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         try:
