@@ -926,6 +926,19 @@ class SettingsFollowUpTests(GuardDiffCase):
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertIn("SETTINGS-LOOSENED q\u00e4 template removed", p.stdout)
 
+    def test_pure_automode_addition_is_counted_and_added_hook_has_no_timeout_line(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["autoMode"]["allow"].append("brand new allow text")
+            d["hooks"]["Stop"] = [{"hooks": [{"type": "command", "command": "true", "timeout": 5}]}]
+        self.edit_tree(edit)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-CHANGED qa autoMode added: allow: brand new allow text", p.stdout)
+        self.assertIn("SETTINGS-TIGHTENED qa hook added: Stop||command|true", p.stdout)
+        self.assertNotIn("hook-timeout", p.stdout)
+
     def test_unchanged_template_with_new_keys_prints_no_settings_line(self):
         self.commit_base(self.seed)
         p = self.settings()

@@ -46,7 +46,7 @@ The tool also diffs `roles/settings/<role>.json.in` against `--base` (a base tha
 - rules: `permissions.allow` and `permissions.deny`;
 - hooks, for every event (not only `PreToolUse`): each hook is compared as `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), so deleting a matcher group or narrowing a matcher is a removal plus an addition;
 - `permissions.ask`: a removed rule is LOOSENED, an added one TIGHTENED (T-0944);
-- `autoMode`: each entry of a list value as `<key>: <text>` (a non-list value as `<key>=<json>`); any change prints `SETTINGS-LOOSENED <role> autoMode removed: ...` for the old value and `SETTINGS-CHANGED <role> autoMode added: ...` for the new one (fail closed; plan it in `--allow-loosen`);
+- `autoMode`: each entry of a list value as `<key>: <text>` (a non-list value as `<key>=<json>`); any change prints `SETTINGS-LOOSENED <role> autoMode removed: ...` for the old value and `SETTINGS-CHANGED <role> autoMode added: ...` for the new one (fail closed; plan it in `--allow-loosen`). A pure addition (no removed autoMode entry in that role) is also counted as LOOSENED, as `<role> autoMode added: ...`;
 - hook `timeout`, as its own `hook-timeout` line `<event>|<matcher>|<type>|<command>|timeout=<N>` (empty when unset), so the hook text above stays unchanged for consumers; a changed or removed timeout prints `SETTINGS-LOOSENED <role> hook-timeout removed: ...` plus `SETTINGS-CHANGED <role> hook-timeout added: ...`. A hook present on only one side reports only its hook line, not a timeout line;
 - the `env` block, as `K=V`;
 - the template set: a role whose template is on base but gone from the tree.

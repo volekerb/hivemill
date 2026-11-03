@@ -411,8 +411,8 @@ def compare_settings(repo, top, base):
         for kind, rule in sorted(x for x in new - old if paired(*x)):
             word = {"allow": "LOOSENED", "env": "CHANGED", "autoMode": "CHANGED", "hook-timeout": "CHANGED"}.get(kind, "TIGHTENED")
             lines.append(f"SETTINGS-{word} {role} {kind} added: {rule}")
-            if kind == "allow":
-                loosened.append(f"{role} {kind} added: {rule}")
+            if kind == "allow" or (kind == "autoMode" and not any(k == "autoMode" for k, _ in old - new)):
+                loosened.append(f"{role} {kind} added: {rule}")  # a pure autoMode addition has no old value: fail closed
     return lines, loosened
 
 
