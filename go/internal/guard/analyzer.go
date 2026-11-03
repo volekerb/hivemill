@@ -20,16 +20,16 @@ var shellLike = func() map[string]struct{} {
 	return m
 }()
 
-// Analyzer is a port of worker-guard.py:Analyzer. The public-text rule (PublicText, pt) is the Python hook's: see
-// ptCommand (publictext.go).
+// Analyzer is a port of worker-guard.py:Analyzer. The public-text rule (PublicText, pt) is ptrule.go; ptCommand
+// (publictext.go) is its entry.
 type Analyzer struct {
 	Cwd  string
 	Role string
 	HQ   bool
 
-	gcwd string // directory a git command would run in, moved by `cd` (git rule only)
-	gdyn bool   // true after a `cd` into a directory that is only known at run time
-	pt   bool   // Analyzer.pt is set: the public-text rule looks at git/gh writes (delegated, see ptCommand)
+	gcwd string      // directory a git command would run in, moved by `cd` (git rule only)
+	gdyn bool        // true after a `cd` into a directory that is only known at run time
+	pt   *publicText // Analyzer.pt: the public-text rule that looks at git/gh writes (nil = off), see ptCommand
 
 	vars      map[string]string // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
 	ccwd      string            // like gcwd, for the CFG_DIR write detector
@@ -276,14 +276,20 @@ func (a *Analyzer) script(text string, depth int) error {
 			}
 		}
 	}
-	var nbodies []Heredoc // T-0771: the heredoc bodies of this call only
-	text, extras, err := Preprocess(text, a.HQ, &nbodies)
+	var local []Heredoc // T-0771: the heredoc bodies of this call only
+	nbodies := &local
+	if a.pt != nil { // the public-text rule keeps every heredoc body of the command (PublicText.bodies)
+		nbodies = &a.pt.bodies
+	}
+	seen := len(*nbodies)
+	text, extras, err := Preprocess(text, a.HQ, nbodies)
 	if err != nil {
 		return err
 	}
 	if a.noPush() {
-		bodies := make([]string, len(nbodies))
-		for i, b := range nbodies {
+		fresh := (*nbodies)[seen:]
+		bodies := make([]string, len(fresh))
+		for i, b := range fresh {
 			bodies[i] = b.Body
 		}
 		if err := a.callAssign(text, bodies); err != nil {

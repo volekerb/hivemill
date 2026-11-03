@@ -1185,11 +1185,105 @@ def claude_procs(session_id, argvs=None):
     return [(p, argv) for p, argv in sorted(argvs.items()) if session_id in _argv_sessions(argv)]
 
 
+def _argv_workspace(argv):
+    vals = [argv[i + 1] for i, x in enumerate(argv[:-1]) if x == "--workspace"]
+    vals += [x.split("=", 1)[1] for x in argv if x.startswith("--workspace=")]
+    return vals[0] if vals else None
+
+
+def _is_cursor_agent_argv(argv):
+    """True when argv names a Cursor CLI agent process (cursor-agent, or agent with --workspace)."""
+    if not argv:
+        return False
+    for x in argv[:3]:
+        base = os.path.basename(x)
+        if base == "cursor-agent":
+            return True
+        if base == "agent" and _argv_workspace(argv):
+            return True
+    return False
+
+
+def _scan_host_agent_procs():
+    """{pid: (argv, ppid)} of every claude and cursor-agent process; None when the proc dir is unreadable."""
+    root = Path(os.environ.get("FACTORY_PROC_DIR") or "/proc")
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    found = {}
+    for d in entries:
+        if not d.name.isdigit():
+            continue
+        try:
+            argv = [x.decode(errors="replace") for x in (d / "cmdline").read_bytes().split(b"\0") if x]
+        except OSError:
+            continue
+        if not (any(os.path.basename(x) == "claude" for x in argv[:3]) or _is_cursor_agent_argv(argv)):
+            continue
+        ppid = None
+        try:
+            stat = (d / "stat").read_text(errors="replace")
+            ppid = int(stat[stat.rindex(")") + 1:].split()[1])
+        except (OSError, ValueError, IndexError):
+            pass
+        found[int(d.name)] = (argv, ppid)
+    return found
+
+
+def cursor_procs(workspace, argvs=None):
+    """[(pid, argv)] of live cursor-agent processes whose --workspace resolves to `workspace`."""
+    want = str(Path(workspace).resolve())
+    if argvs is None:
+        argvs = {p: v[0] for p, v in (_scan_host_agent_procs() or {}).items() if _is_cursor_agent_argv(v[0])}
+    out = []
+    for p, argv in sorted(argvs.items()):
+        w = _argv_workspace(argv)
+        if w and str(Path(w).resolve()) == want:
+            out.append((p, argv))
+    return out
+
+
+def agent_cursor_workspace(r):
+    """Policy workspace path for a cursor-runtime agent row."""
+    try:
+        args = json.loads(r["spawn_args"] or "{}") or {}
+    except ValueError:
+        args = {}
+    cw = args.get("cursor_workspace")
+    if cw:
+        return str(Path(cw).resolve())
+    if not r["name"]:
+        return None
+    cwd = r["cwd"] or str(HOME)
+    return str(cursor_harness.policy_workspace(HOME, r["name"], cwd).resolve())
+
+
+def cursor_hooks_ok(workspace):
+    """True when workspace/.cursor/hooks.json exists and every hook entry has failClosed true."""
+    hooks = Path(workspace) / ".cursor" / "hooks.json"
+    if not hooks.is_file():
+        return False
+    try:
+        data = json.loads(hooks.read_text())
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+    entries = data.get("hooks") or {}
+    if not entries:
+        return False
+    for val in entries.values():
+        if not isinstance(val, list):
+            return False
+        for item in val:
+            if not isinstance(item, dict) or item.get("failClosed") is not True:
+                return False
+    return True
+
+
 def total_claude_procs():
-    """{"total": n, "pids": [...], "argv": {pid: argv}} of top-level claude processes on the host (same match
-    rule as claude_procs). A claude whose parent is itself a counted claude is a child (subagent/MCP launcher)
-    and is skipped. total is None when the proc dir is unreadable."""
-    found = _scan_claude()
+    """{"total": n, "pids": [...], "argv": {pid: argv}} of top-level claude and cursor-agent processes on the host.
+    A child whose parent is another counted process is skipped (subagent/MCP launcher). total is None when unreadable."""
+    found = _scan_host_agent_procs()
     if found is None:
         return {"total": None, "pids": [], "argv": {}}
     pids = sorted(p for p, (_, pp) in found.items() if pp not in found)
@@ -1202,8 +1296,27 @@ def has_role_flags(argv, role):
     return any(v.endswith(f"/settings/{role}.json") for v in vals)
 
 
+def _agent_runtime(row):
+    try:
+        return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
+    except ValueError:
+        return "claude"
+
+
 def flagless_state(r):
     """('flagless', pid) | ('ok', pid) | ('unknown', None): unknown = no live process found for the session."""
+    if _agent_runtime(r) == "cursor":
+        ws = agent_cursor_workspace(r)
+        if not ws:
+            return "unknown", None
+        procs = cursor_procs(ws)
+        if not procs:
+            return "unknown", None
+        for pid, argv in procs:
+            w = _argv_workspace(argv)
+            if w and cursor_hooks_ok(w):
+                return "ok", pid
+        return "flagless", procs[0][0]
     if not r["session_id"]:
         return "unknown", None
     procs = claude_procs(r["session_id"])
@@ -1588,7 +1701,7 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             known.add(r["pane_id"])
         if listed or still_starting(r):
             live += 1
-    other = sum(1 for a in (agents or []) if a.get("agent") == "claude"
+    other = sum(1 for a in (agents or []) if a.get("agent") in ("claude", "cursor")
                 and a.get("name") not in known and a.get("pane_id") not in known)
     mem = mem_available_mb()
     u = usage()
@@ -1596,13 +1709,27 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
     total = procs["total"]
     starting = 0
     sessions = set()
+    workspaces = set()
     for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
-        has_proc = bool(r["session_id"]) and bool(claude_procs(r["session_id"], procs["argv"]))
-        if has_proc:
-            sessions.add(r["session_id"])
+        if _agent_runtime(r) == "cursor":
+            ws = agent_cursor_workspace(r)
+            has_proc = bool(ws) and bool(cursor_procs(ws, procs["argv"]))
+            if has_proc and ws:
+                workspaces.add(ws)
+        else:
+            has_proc = bool(r["session_id"]) and bool(claude_procs(r["session_id"], procs["argv"]))
+            if has_proc:
+                sessions.add(r["session_id"])
         if still_starting(r) and not has_proc:
             starting += 1
-    matched = sum(1 for argv in procs["argv"].values() if any(x in sessions for x in _argv_sessions(argv)))
+
+    def _argv_matches_factory(argv):
+        if any(x in sessions for x in _argv_sessions(argv)):
+            return True
+        w = _argv_workspace(argv)
+        return bool(w) and str(Path(w).resolve()) in workspaces
+
+    matched = sum(1 for argv in procs["argv"].values() if _argv_matches_factory(argv))
     total_cap = int(cfg(con, "max_total_claude"))
     leads, hq, workers = 0, 0, 0
     for r in con.execute("SELECT role FROM agents WHERE status IN ('live','starting')").fetchall():
@@ -5150,9 +5277,13 @@ def build_digest(con, goal=None, date=None, hours=24):
         die(f"no goal {goal}")
     events = [e for e in con.execute("SELECT * FROM events ORDER BY id") if inwin(e["ts"])]
     score_rows = scorecard_rows(con)
-    shown = 0
     fresh_shown = False
     closed_earlier = []
+    shown_goals = []
+
+    def digest_goal_org(g):
+        return goal_org(con, g["id"]) or orgs.DEFAULT_ORG
+
     for g in goals:
         if g["status"] in ("done", "cancelled"):
             closed = _ts(goal_closed_at(con, g))
@@ -5160,9 +5291,16 @@ def build_digest(con, goal=None, date=None, hours=24):
                 if closed is not None and (goal or inwin(closed.isoformat())):
                     closed_earlier.append(f"- {g['id']} — {g['title']} ({g['status']}, closed {goal_closed_at(con, g)})")
                 continue
-        shown += 1
+        shown_goals.append(g)
+
+    org_counts = {o: sum(1 for g in shown_goals if digest_goal_org(g) == o) for o in orgs.NAMES}
+    out += [f"Orgs: claude {org_counts['claude']} active · cursor {org_counts['cursor']} active", ""]
+    enabled = set(enabled_orgs(con))
+
+    def digest_goal_block(g):
+        nonlocal fresh_shown
+        block = [f"## {g['id']} — {g['title']} ({g['status']})", ""]
         tasks = {t["id"]: t for t in con.execute("SELECT * FROM tasks WHERE goal_id=?", (g["id"],))}
-        out += [f"## {g['id']} — {g['title']} ({g['status']})", ""]
 
         def tline(t, extra=""):
             return f"- {t['id']} {t['title']}{extra}"
@@ -5183,11 +5321,11 @@ def build_digest(con, goal=None, date=None, hours=24):
         for tid in sorted(done):
             t = tasks[tid]
             lines.append(tline(t, (f" — {t['pr_url']}" if t["pr_url"] else "") + (f" @{done[tid]}" if done[tid] else "")))
-        out += ["### Done", *(lines or ["_nothing_"]), ""]
+        block += ["### Done", *(lines or ["_nothing_"]), ""]
 
         lines = [tline(t, f" ({t['status']}, {t['assignee'] or 'unassigned'}, attempts {t['attempts']})")
                  for t in tasks.values() if t["status"] in ("in_progress", "in_review")]
-        out += ["### In progress", *(sorted(lines) or ["_nothing_"]), ""]
+        block += ["### In progress", *(sorted(lines) or ["_nothing_"]), ""]
 
         # Blocked: status=blocked tasks, plus judge-blocked/merge-failed events on open tasks not superseded by a later merge
         merges = [(e["ts"], e["entity_id"]) for e in events if e["entity"] == "task" and e["action"] == "merged"]
@@ -5229,28 +5367,41 @@ def build_digest(con, goal=None, date=None, hours=24):
                              "AND goal_id=? ORDER BY name", (g["id"],)):
             lines.append(f"- agent {f['name']} running without role flags since {f['flagless_since']}")
         nb = [t["waits"] for t in tasks.values() if t["status"] == "blocked"]
-        out += ["### Blocked", *(([f"Blocked tasks: {nb.count('owner')} owner-blocked, {nb.count('internal')} internal-blocked"]
+        block += ["### Blocked", *(([f"Blocked tasks: {nb.count('owner')} owner-blocked, {nb.count('internal')} internal-blocked"]
                                  if nb else []) + lines or ["_nothing_"]), ""]
 
         done_ids = {i for i, t in tasks.items() if t["status"] == "done"}
         ready = [t for t in tasks.values() if t["status"] == "todo" and set(json.loads(t["depends_on"] or "[]")) <= done_ids]
-        out += ["### Up next", f"{len(ready)} ready todo task(s)", ""]
+        block += ["### Up next", f"{len(ready)} ready todo task(s)", ""]
         drift = drift_items(con, g, end, drift_pr_states(con))  # D2 uses the PR states of the last tick: no gh call here
-        out += ["Drift: " + ("; ".join(drift) if drift else "none"), ""]
+        block += ["Drift: " + ("; ".join(drift) if drift else "none"), ""]
         if not fresh_shown:
             fresh_shown = True
             stale = stale_agents(con)
-            out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
+            block += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
 
         for t in con.execute("SELECT id, parked_at FROM teams WHERE status='active' AND parked_at IS NOT NULL AND goal_id=? ORDER BY id", (g["id"],)):
             wakes = sum(1 for e in events if e["action"] == "lead-wake" and e["entity_id"] == t["id"])
-            out += [f"- {t['id']} parked since {t['parked_at'][:16]} ({wakes} wakes in window)"]
-        out += [""]
+            block += [f"- {t['id']} parked since {t['parked_at'][:16]} ({wakes} wakes in window)"]
+        block += [""]
         teams = [r for r in score_rows if r["goal"] == g["id"]]
         cols = ["team", "tasks", "done", "merged", "rejections", "retries", "score"]
-        out += ["### Team scores", md_table(teams, cols).rstrip("\n") if teams else "_nothing_", ""]
-    if not shown:
-        out += ["_no active goals_", ""]
+        block += ["### Team scores", md_table(teams, cols).rstrip("\n") if teams else "_nothing_", ""]
+        return block
+
+    for o in orgs.NAMES:
+        org_goals = [g for g in shown_goals if digest_goal_org(g) == o]
+        if o not in enabled and not org_goals:
+            continue
+        if o == "claude":
+            out += ["## Org claude", ""]
+        else:
+            out += ["## Org cursor", ""]
+        if not org_goals:
+            out += ["_no active goals_", ""]
+        else:
+            for g in org_goals:
+                out += digest_goal_block(g)
     if not fresh_shown:  # no goal block printed it: the line is factory-wide, so it still shows
         stale = stale_agents(con)
         out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
@@ -7275,6 +7426,10 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"--sandbox: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
     if role == "researcher" and not task:
         die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
+    if task and not (goal and team):  # a team-less `spawn --task` still belongs to the task's goal/team (utilization, alerts)
+        trow = con.execute("SELECT goal_id, team_id FROM tasks WHERE id=?", (task,)).fetchone()
+        if trow:
+            goal, team = goal or trow["goal_id"], team or trow["team_id"]
     name = slug(name or f"{role}-{(task or team or goal or role)}")
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
@@ -7812,10 +7967,7 @@ def start_confirm(con, agents):
 
 def agent_runtime_of(row):
     """Runtime recorded in spawn_args (default claude)."""
-    try:
-        return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
-    except ValueError:
-        return "claude"
+    return _agent_runtime(row)
 
 
 def _cursor_enter_after_prompt(name, runtime, prompt_ok):
@@ -8401,8 +8553,9 @@ def prcheck_target(con, me):
     r = con.execute("SELECT * FROM agents WHERE name=?", (me,)).fetchone()
     if not r or r["role"] != "coder" or not r["task_id"]:
         die("prcheck is for a coder with a task; run it from your task worktree", 3)
-    t = con.execute("SELECT t.id, t.goal_id, t.worktree, t.pr_url, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
-                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (r["task_id"],)).fetchone()
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, t.pr_url, g.project_id, p.base_branch FROM tasks t "
+                    "JOIN goals g ON g.id=t.goal_id LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?",
+                    (r["task_id"],)).fetchone()
     if not t or not t["worktree"] or not Path(t["worktree"]).is_dir():
         die(f"{r['task_id']} has no worktree directory; ask your lead", 3)
     return t
@@ -8542,12 +8695,19 @@ def prcheck_take_slot(con):
     return True
 
 
-def prcheck_affected(wt, base, con=None, pr_url=None):
+def prcheck_affected(wt, base, con=None, pr_url=None, project_id=None):
     """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
     con = con or db()
+    if project_id and project_id in cfg(con, "gate_fast_projects").split():  # never run locally, no slot (M16816, T-0924)
+        rc, head = _git_out(wt, "rev-parse", "HEAD")
+        ok, why = ci_green_on_head(con, head, pr_url) if rc == 0 and pr_url else (False, "no PR url or HEAD")
+        pre = "not run locally (gate_fast_projects, M16816)"
+        if ok:
+            return True, f"{pre}; CI is green on the PR head ({why})"
+        return False, f"{pre}; CI is not green on the head yet ({why}): push, wait for CI, rerun prcheck"
     got = prcheck_take_slot(con)
     if isinstance(got, str):  # refused for load (M16816): green CI on the head stands in for the run (T-0873)
         rc, head = _git_out(wt, "rev-parse", "HEAD")
@@ -8604,7 +8764,7 @@ def cmd_prcheck(a):
     results = []
     for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
                      ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
-                     ("affected", lambda: prcheck_affected(wt, base, con, pr_url)), ("tier", lambda: prcheck_tier(wt, base))):
+                     ("affected", lambda: prcheck_affected(wt, base, con, pr_url, t["project_id"])), ("tier", lambda: prcheck_tier(wt, base))):
         ok, note = fn()
         results.append((name, ok, note))
         print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
@@ -8655,6 +8815,15 @@ def prcheck_done_refusal(con, r, t):
     """With config prcheck_required=1, a coder's `factory done` on a task that has a PR needs a passing prcheck on the
     worktree's current HEAD. Cannot read HEAD or the record = refuse."""
     if cfg(con, "prcheck_required") != "1" or not t or not t["pr_url"]:
+        return
+    try:
+        pr = pr_state(t["pr_url"])
+        # the PR must be this task's own (a coder can set pr_url to any PR): its head branch is the task's branch
+        own = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+        merged = pr.get("state") == "MERGED" and bool(own and own["branch"]) and pr.get("headRefName") == own["branch"]
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, AttributeError):  # cannot prove it landed: the gate below decides
+        merged = False
+    if merged:  # the work is on main: no prcheck on a HEAD can matter, and the worktree may already be gone
         return
     row = con.execute("SELECT worktree FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
     wt = row and row["worktree"]
@@ -9465,10 +9634,17 @@ def protected_by(con, wt, panes, listed=None):
     return None
 
 
-def task_agent_live(con, task_id, listed):
-    """True when an agent row of THIS task is live/starting/queued and still running (agent_row_live)."""
-    return any(agent_row_live(r, listed) for r in
-               con.execute("SELECT * FROM agents WHERE task_id=? AND status IN ('live','starting','queued')", (task_id,)))
+def task_agent_live(con, task_id, listed, panes=()):
+    """True when an agent row of THIS task is live/starting/queued and still running (agent_row_live), or its recorded
+    pane id is still in the live pane list (`panes`, from live_panes) and not proven reused by another agent: the agent
+    list can miss an idle agent whose pane is alive, and its cwd may have left the worktree (T-0339)."""
+    pane_ids = {pid for pid, _ in panes or () if pid}
+    for r in con.execute("SELECT * FROM agents WHERE task_id=? AND status IN ('live','starting','queued')", (task_id,)):
+        if agent_row_live(r, listed):
+            return True
+        if r["pane_id"] and r["pane_id"] in pane_ids and not pane_reused(r, listed):
+            return True
+    return False
 
 
 def landed_on_main(con, t, repo, base, head):
@@ -9504,7 +9680,7 @@ def clean_verdict(con, t, repo, base, panes=(), listed=None):
     status = t["status"]
     if status not in ("done", "cancelled"):
         return f"task {status}", None, False
-    if task_agent_live(con, t["id"], listed):
+    if task_agent_live(con, t["id"], listed, panes):
         return "agent live", None, False
     branch = t["branch"]
     if branch and not branch.startswith("factory/"):
@@ -10848,6 +11024,33 @@ def gate_notify_fail(con, pr_url, r):
          f"`factory gate show {r['id']}`. Fix the head and push; the tick enqueues a new run.", "report", t["goal_id"], t["id"], sender="tick")
 
 
+_RES_HQ_ROLES = ("boss", "director", "staff-engineer")
+
+
+def res_org_mix(con):
+    """Live agent counts per org (same buckets as web.views.resources.org_mix); org from orgs.of_agent on each row."""
+    mix = {o: {"live": 0, "workers": 0, "leads": 0, "hq": 0, "queued": 0} for o in orgs.NAMES}
+    for r in con.execute("SELECT * FROM agents"):
+        row = dict(r)
+        o = orgs.of_agent(row)
+        if o not in mix:
+            continue
+        st = row["status"]
+        if st == "queued":
+            mix[o]["queued"] += 1
+        if st != "live":
+            continue
+        mix[o]["live"] += 1
+        role = row["role"]
+        if role == "lead":
+            mix[o]["leads"] += 1
+        elif role in _RES_HQ_ROLES:
+            mix[o]["hq"] += 1
+        else:
+            mix[o]["workers"] += 1
+    return mix
+
+
 def cmd_res(a):
     con = db()
     ok, why, s = gate(con)
@@ -10878,6 +11081,10 @@ def cmd_res(a):
     print(u2["line"])
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
+    om = res_org_mix(con)
+    cl, cu = om["claude"], om["cursor"]
+    print(f"org claude: live {cl['live']} · workers {cl['workers']} · leads {cl['leads']} · hq {cl['hq']} · queued {cl['queued']}")
+    print(f"org cursor: live {cu['live']} · workers {cu['workers']} · leads {cu['leads']} · hq {cu['hq']} · queued {cu['queued']}")
     bt = {r["waits"]: r["n"] for r in con.execute("SELECT waits, count(*) n FROM tasks WHERE status='blocked' GROUP BY waits")}
     print(f"blocked tasks: {bt.get('owner', 0)} owner-blocked · {bt.get('internal', 0)} internal-blocked")
     print(f"mem available {s['mem_mb']} MB (floor {cfg(con, 'min_mem_available_mb')}) · swap used "

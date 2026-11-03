@@ -88,7 +88,7 @@ var (
 	// BroadReads is worker-guard.py:BROAD_READS: subcommand -> second words that are blocked; a nil set
 	// means any (or no) second word.
 	BroadReads = map[string]map[string]struct{}{
-		"res": nil, "agents": nil, "scorecard": nil, "digest": nil, "config": nil,
+		"res": nil, "agents": nil, "scorecard": nil, "digest": nil, "config": nil, "flags": nil,
 		"goal": set("list"), "task": set("list", "ready"), "team": set("list"),
 		"project": set("list"), "lesson": set("list"),
 	}

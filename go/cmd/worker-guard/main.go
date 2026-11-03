@@ -2,10 +2,11 @@
 // anywhere yet). It keeps the hook's I/O contract: argv (--role ROLE | --hq), a PreToolUse JSON payload on
 // stdin, exit 0 = allow, exit 2 = block with the reason on stderr.
 //
-// Every rule is ported. The decisions that read the factory DB (own goal, test_sandbox, public-text repos, the
-// coder's task worktree) are the Python hook's: the binary re-runs the payload through it (--py-hook <path>, given
-// by the shim) and returns its exit code and stderr, or exits 2 when that cannot be done. A panic or any internal
-// error also exits 2.
+// Every rule is ported, the public-text rule (T-0887) included. The decisions that read the factory DB (own goal,
+// test_sandbox, public-text repos, the coder's task worktree) are made from the guard export. No rule re-runs a
+// payload through the Python hook any more (the delegation, --py-hook <path>, stays for a DB value the export has no
+// row for); --py-hook still names the checkout the hook belongs to (ci/scrub_allowlist.txt for a push check).
+// A panic or any internal error exits 2.
 package main
 
 import (
