@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
@@ -304,7 +305,7 @@ class AffectedTest(unittest.TestCase):
         self.assertIn("affected: Ran 2 tests in 5 modules: OK", r.stdout)
         self.assertRegex(r.stdout, r"affected: elapsed [\d.]+ s of 120 s budget")
         pids = set(re.findall(r"PID (\d+)", r.stdout + r.stderr))
-        self.assertEqual(len(pids), 1, "quick mode must stay in one process")
+        self.assertEqual(len(pids), 2, "quick mode: one child process per module, none the parent")
 
     def test_quick_refuses_full_and_runs_nothing(self):
         self.write("tests/harness.py", "raise SystemExit('must not be imported')\n")
@@ -323,15 +324,56 @@ class AffectedTest(unittest.TestCase):
         self.assertIn("FULL (", r.stdout)
 
     def test_budget_stops_starting_modules_and_says_rely_on_ci(self):
+        self.write("tests/test_beta.py",
+                   "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n")
         self.write("tests/test_gamma.py",
-                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(1.3)\n")
+                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(60)\n")
         self.commit()
-        r = self.affected("--budget", "1", "--run")
+        r = self.affected("--budget", "3", "--run")
         self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
-        self.assertIn("Ran 1 tests in 2 modules: OK", r.stdout)
+        self.assertRegex(r.stdout, r"Ran 1 tests in \d+ modules: OK")  # beta ran; gamma was killed at the cap
         self.assertIn("elapsed", r.stdout)
         self.assertIn("rely on CI", r.stderr)
         self.assertIn("test_inbox.py", r.stderr)
+
+    def test_quick_zero_tests_with_skipped_module_exits_1(self):
+        self.write("tests/test_guard_diff.py", "# skipped\n")
+        self.commit()
+        r = self.affected("--quick", "--run")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("ran 0 tests", r.stderr)
+        self.assertIn("slow: test_guard_diff.py", r.stderr)
+
+    def test_budget_kills_a_module_running_past_it(self):
+        self.write("tests/test_beta.py",
+                   "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n")
+        self.write("tests/test_gamma.py",
+                   "import time\nimport unittest\nclass T(unittest.TestCase):\n    def test_slow(self):\n        time.sleep(60)\n")
+        self.commit()
+        t0 = time.monotonic()
+        r = self.affected("--budget", "2", "--run")
+        self.assertLess(time.monotonic() - t0, 2 + 5)
+        self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
+        self.assertRegex(r.stderr, r"budget spent, not run: test_gamma\.py.*rely on CI")
+
+    def test_quick_never_starts_quick_skip_modules(self):
+        self.write("tests/test_beta.py",
+                   "import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n")
+        self.write("tests/test_guard_diff.py", "raise SystemExit('must not be started')\n")
+        self.commit()
+        r = self.affected("--quick", "--run")
+        self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
+        self.assertIn("slow: test_guard_diff.py; rely on CI", r.stderr)
+        self.assertNotIn("must not be started", r.stdout + r.stderr)
+
+    def test_quick_failing_fast_module_exits_1(self):
+        self.write("tests/test_gamma.py",
+                   "import unittest\nclass T(unittest.TestCase):\n    def test_bad(self):\n        self.fail('x')\n")
+        self.write("tests/test_guard_diff.py", "# skipped\n")
+        self.commit()
+        r = self.affected("--quick", "--run")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("FAILED", r.stdout)
 
     def test_budget_must_be_positive(self):
         r = self.affected("--budget", "0")
