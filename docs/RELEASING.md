@@ -51,10 +51,15 @@ python3 ci/release_check.py <sha> [--version X.Y.Z] [--repo OWNER/NAME]
 5. `fresh-install-smoke`: from a detached checkout of the SHA, with a temporary `HOME` and `FACTORY_HOME`, `factory --version` prints `hivemill <version>`, `ci/demo_seed.py` succeeds and `factory serve` on the demo home answers HTTP 200. The live factory is never touched.
 6. `public-text`: the public-text guard passes on the release notes. Without owner terms the guard exits 2 and the check fails; it is never skipped.
 7. `tag-free`: `v<version>` is not on origin yet.
+8. `cursor-runtime`: `scout/cursor_harness.py`, `roles/hooks/cursor-guard-adapter.py` and `scout/agent_runtime.py` exist at the SHA, and runtime resolution matches the contract (empty `agent_runtimes` → pm is Claude; `*=cursor` → coder is Cursor; evaluator stays Claude).
 
 Exit 0: all checks passed, and the script prints the exact owner commands (fetch, `git tag -a`, `git push` of the tag). Exit 1: a check failed, no commands are printed. Exit 2: usage error or the SHA does not resolve. The script only reads; it never tags, pushes or creates a release.
 
-For a MINOR (patch 0) release it also prints a reminder that the owner runs `ci/freshbox_test.py` (needs `sudo`) before tagging. The automated smoke in check 5 runs for every release; the fresh-box test is for MINOR releases only.
+For a MINOR (patch 0) release it also prints a reminder that the owner runs `ci/freshbox_test.py` (needs `sudo`) before tagging. The automated smoke in check 5 runs for every release; the fresh-box test is for MINOR releases only. The fresh-box run includes `factory cursor-pilot probe --role pm` (hook policy only; it does not launch the Cursor agent binary).
+
+## Cursor runtime owner step
+
+After a fresh install, validating a real Cursor agent session (`cursor-pilot run` or a live pm spawn) may require `agent login` or `CURSOR_API_KEY`. That is normal: the owner performs it when they want Cursor on the box. It is not part of `ci/freshbox_test.py` and does not block release when the probe and release gate pass.
 
 Later merges to main do not invalidate the candidate: the tag points at the SHA.
 

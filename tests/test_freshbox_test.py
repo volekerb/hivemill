@@ -93,6 +93,8 @@ class FakeHost(fb.Host):
             return 0, "boss.json\ncoder.json\n"
         elif j.endswith("factory agents"):
             return 0, AGENTS
+        elif "cursor-pilot probe" in j:
+            return 0, "PROBE ok (6 cases) role=pm\n"
         return 0, ""
 
     def popen(self, argv, logpath, cwd=None):
