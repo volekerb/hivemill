@@ -284,7 +284,7 @@ class Allowlisted(Base):
         self.seed()
         r = self.export(self.root / "out", extra=self.allow())
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("1 allowlisted", r.stdout)
+        self.assertIn("0 hits not allowlisted, 1 allowlisted", r.stdout)
 
     def test_e4_line_changed_by_one_byte_exits_1(self):
         self.seed(line=self.LINE + " ")
