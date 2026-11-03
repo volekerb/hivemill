@@ -6,12 +6,17 @@
     ".github/**",
     "ci/public_text_guard.py", "ci/publish_repo.py", "ci/scrub_*", "ci/guard_*", "ci/test_count_gate.py",
     "ci/affected.py", "ci/risk_tier.py", "ci/tier_rules.json",
-    "roles/settings/**", "roles/hooks/**",
+    "roles/settings/**", "roles/hooks/**", "roles/*.md",
     "scout/nsbox.py", "scout/sandbox.py", "scout/workerbox.py", "scout/egress.py"
   ],
   "sensitive_defs": {
     "bin/factory": [
-      "cmd_judge", "judge_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
+      "cmd_judge", "judge_*", "mech_*", "red_main_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
+      "git_config_guard", "noreply_email", "_push_policy", "require_role", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA",
+      "<stmt>"
+    ],
+    "bin/factory_cli.py": [
+      "cmd_judge", "judge_*", "mech_*", "red_main_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
       "git_config_guard", "noreply_email", "_push_policy", "require_role", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA",
       "<stmt>"
     ]

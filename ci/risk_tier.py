@@ -54,6 +54,8 @@ def _affected():
 def _match(path, pat):
     if pat.endswith("/**"):
         return path.startswith(pat[:-2])
+    if "/" in pat and path.count("/") != pat.count("/"):
+        return False  # a pattern with a directory part: `*` stays inside one path segment (roles/*.md is not roles/plugins/x/y.md)
     return fnmatch.fnmatchcase(path, pat)
 
 
