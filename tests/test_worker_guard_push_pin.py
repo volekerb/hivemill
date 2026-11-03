@@ -407,7 +407,6 @@ class AttemptSuffixPushPinTests(unittest.TestCase):
 
     def test_attempt_suffix_allowed(self):
         push = "git push origin HEAD:factory/t-0817"
-        self.assertEqual("T-0817", "T-0817")
         for agent in (
             "cursor-coder-t-0817-a2", "cursor-coder-t-0817", "coder-t-0817-a2",
             "claude-coder-t-0817-a2", "cursor-coder-t-0817-a10",

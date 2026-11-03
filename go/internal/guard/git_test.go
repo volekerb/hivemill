@@ -668,6 +668,7 @@ func TestCoderTaskOrgPrefix(t *testing.T) {
 		"coder-t-1": "t-1", "claude-coder-t-1": "t-1", "cursor-coder-t-0844": "t-0844",
 		"cursor-coder-t-0817-a2": "t-0817", "cursor-coder-t-0817": "t-0817",
 		"coder-t-0817-a2": "t-0817", "claude-coder-t-0817-a2": "t-0817", "cursor-coder-t-0817-a10": "t-0817",
+		"cursor-coder-t-\u0661": "t-\u0661", "cursor-coder-t-\u0661-a2": "t-\u0661", "cursor-coder-t-\u0661\u0662\u0663": "t-\u0661\u0662\u0663",
 	} {
 		if got, ok := coderTask(agent); !ok || got != want {
 			t.Errorf("coderTask(%q) = %q, %v; want %q", agent, got, ok, want)

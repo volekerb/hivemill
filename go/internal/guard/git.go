@@ -949,8 +949,12 @@ func coderTask(agent string) (string, bool) {
 		return "", false
 	}
 	i := 0
-	for i < len(body) && isDecimal(rune(body[i])) {
-		i++
+	for i < len(body) {
+		c, n := utf8.DecodeRuneInString(body[i:])
+		if !isDecimal(c) {
+			break
+		}
+		i += n
 	}
 	if i == 0 {
 		return "", false
