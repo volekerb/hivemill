@@ -7064,16 +7064,25 @@ def prepare_worktree(con, task, role):
         install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
+    branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
     if p.returncode != 0:
         die(f"worktree add failed: {p.stderr.strip()}")
+
+    def drop_half_made():  # only reached for a worktree created in this call, never a pre-existing one
+        git_run(repo, "worktree", "remove", "--force", str(wt), text=False)
+        git_run(repo, "worktree", "prune", text=False)
+        if not branch_existed:
+            git_run(repo, "branch", "-D", branch, text=False)
+
     if not git_config_guard(con, wt):  # an includeIf scoped to worktrees/** only applies once the worktree exists
         why = ", ".join(git_config_refusal(wt))
-        git_run(repo, "worktree", "remove", "--force", str(wt), text=False)
+        drop_half_made()
         con.commit()
         die(f"spawn refused: git config in {wt} would run code: {why}", 4)
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
+        drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
