@@ -26,7 +26,7 @@ class WorkflowWiring(unittest.TestCase):
         block = job_block(WF, JOB)
         pattern = re.search(r"grep -E -q '([^']+)'", block).group(1)
         for path in ("roles/hooks/worker-guard.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
-                     "ci/guard_diff.py", "go/internal/guard/guard.go"):
+                     "ci/guard_diff.py", ".github/workflows/tests.yml", "go/internal/guard/guard.go"):
             self.assertRegex(path, pattern, path)
         for path in ("docs/guard-diff.md", "ci/shard.py", "roles/prompts/coder.md", "go/internal/other/x.go"):
             self.assertNotRegex(path, pattern, path)

@@ -178,7 +178,7 @@ jobs:
         run: |
           if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request: skipped"; exit 0; fi
           changed=$(git diff --name-only "$BASE_SHA" HEAD)
-          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|go/internal/guard/)'; then
+          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|\.github/workflows/tests\.yml$|go/internal/guard/)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
