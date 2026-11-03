@@ -373,10 +373,10 @@ GH_GRAPHQL_SETTINGS = re.compile(r"(?:update|create|delete)(?:BranchProtectionRu
 GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
 
 
-def gh_repo_change(args):
-    """Why `gh <args>` changes branch protection or repository settings (R-a, T-0638), else None: `gh repo
-    edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body, which makes gh use POST)
-    on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine."""
+def gh_parse(args):
+    """(positionals, method or None, body flag) of `gh <args>` as gh's pflag reads it: long options (--method=POST),
+    short clusters (-iX DELETE, -XPUT, -X=PUT), the last -X/--method wins; -f/-F/--field/--raw-field/--input set body
+    (gh api then uses POST). Shared by gh_repo_change and the researcher gh api rule (T-0874)."""
     pos, method, body, j = [], None, False, 0
 
     def note(opt, val):
@@ -410,6 +410,21 @@ def gh_repo_change(args):
         else:
             pos.append(x)
         j += 1
+    return pos, method, body
+
+
+def gh_api_is_get(args):
+    """True when `gh <args>` is a `gh api` call whose method resolves to GET: no -X/--method or an explicit GET (any
+    spelling or case), and no body flag (which makes gh use POST)."""
+    pos, method, body = gh_parse(args)
+    return pos[:1] == ["api"] and not body and method in (None, "GET")
+
+
+def gh_repo_change(args):
+    """Why `gh <args>` changes branch protection or repository settings (R-a, T-0638), else None: `gh repo
+    edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body, which makes gh use POST)
+    on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine."""
+    pos, method, body = gh_parse(args)
     if pos[:1] == ["repo"] and pos[1:2] and pos[1] in GH_REPO_VERBS:
         return f"gh repo {pos[1]}"
     if pos[:2] in (["alias", "set"], ["alias", "import"]):  # a stored alias would run the change later, unseen
@@ -2075,11 +2090,10 @@ class Analyzer:
         if name == "gh":
             ok = (pos[:1] == ["search"] or (pos[:1] and pos[0] in RESEARCH_GH_GROUPS and pos[1:2] and pos[1] in RESEARCH_GH_READ
                                             and rest[:2] == pos[:2])
-                  or (pos[:1] == ["api"] and not any(a.startswith(("-X", "-f", "-F", "--method", "--field", "--raw-field", "--input"))
-                                                  for a in rest)))
+                  or gh_api_is_get(rest))
             if not ok:
                 raise Block("a researcher may run gh only to read (search, <pr|issue|release|repo|run> view|list|diff|status|"
-                            "checks, api without a method or field flag)")
+                            "checks, api that resolves to GET: no method other than GET, no -f/-F/--field/--raw-field/--input)")
         elif name == "factory":
             ok = bool(pos) and (pos[0] in RESEARCH_FACTORY or pos[:2] in (["task", "show"], ["task", "note"], ["goal", "show"]))
             if not ok:
