@@ -229,13 +229,13 @@ class RoleBudgetTests(unittest.TestCase):
         self.assertEqual(check_role_budget(sizes), [])
 
     def test_hygiene_target_over_flagged_with_role_size_and_fix(self):
-        msgs = check_role_target({"big": (6000, 4801), "small": (6000, 4800)})
+        msgs = check_role_target({"big": (6000, 5301), "small": (6000, 5300)})
         self.assertEqual(len(msgs), 1)
-        for needle in ("big", "10801", "10800", "move detail into roles/plugins/big/"):
+        for needle in ("big", "11301", "11300", "move detail into roles/plugins/big/"):
             self.assertIn(needle, msgs[0])
 
     def test_hygiene_target_at_limit_accepted(self):
-        self.assertEqual(check_role_target({"r": (6000, 4800)}), [])
+        self.assertEqual(check_role_target({"r": (6000, 5300)}), [])
 
     def test_hygiene_target_real_roles(self):
         sizes = real_role_sizes()
