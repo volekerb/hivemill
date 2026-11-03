@@ -669,9 +669,9 @@ def _cfg_num(cfg, defaults, key, fallback):
         return float(fallback)
 
 
-def shell_status(con, usage, defaults, mem=None):
+def shell_status(con, usage, defaults, mem=None, now=None):
     """Data for the global status header and nav badges, the same on every page:
-    {needs, agents_attention, health: {tone, text}}. `usage` is the usage_fn() dict (or None), `defaults` the caps.
+    {needs, agents_attention, health: {tone, text}, cursor: {...}}. `usage` is the usage_fn() dict (or None), `defaults` the caps.
     needs = what owner_pending lists; agents_attention = queued or blocked agents (running agents never count).
     `mem` = MB available (mem_fn()), None when unknown.
     health, worst first: memory low, usage cap reached, gate closed, usage high, usage unknown, else all normal."""
@@ -702,7 +702,11 @@ def shell_status(con, usage, defaults, mem=None):
         health = {"tone": "neutral", "text": "Usage unknown"}
     else:
         health = {"tone": "success", "text": "All normal"}
-    return {"needs": needs, "agents_attention": queued + n.get("blocked", 0), "health": health}
+    from web import cursor_limits
+
+    t = _now(now)
+    return {"needs": needs, "agents_attention": queued + n.get("blocked", 0), "health": health,
+            "cursor": cursor_limits.display(con, t)}
 
 
 # ───────────────────────────── overview (G-019 B4) ─────────────────────────────

@@ -1562,7 +1562,7 @@ def _int_cfg(con, key, default):
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
@@ -1644,10 +1644,12 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
-    if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
-        return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-    if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
-        return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
+    if runtime != "cursor":
+        if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+            return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
+        if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+            return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
@@ -6467,7 +6469,8 @@ def scout_tick(con):
     try:
         scoutsched.tick(con, types.SimpleNamespace(
             clock=digest_clock, cfg=cfg, event=event, now=now, spawn=spawn, force_stop=force_stop,
-            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send))
+            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send,
+            agent_name=lambda con: org_agent_name(con, "scout", org=scoutsched.ORG)))
     except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
         try:
             today = digest_clock().date().isoformat()
@@ -6628,9 +6631,43 @@ def tick_drift(con):
             pass
 
 
+SERVE_UNIT_ALERT_S = 6 * 3600  # an unchanged drift is re-sent at most this often
+SERVE_UNIT_COMMANDS = "systemd/install.sh --with-serve\nsystemctl --user daemon-reload\nsystemctl --user restart factory-serve"
+
+
+def tick_serve_unit_drift(con):
+    """After the main sync: tell the director once when the installed factory-serve unit differs from the one on main.
+    Read-only: never runs systemctl or install.sh and never writes ~/.config. Missing installed unit = not installed, no
+    alert. The same main hash is not re-sent for 6 h (throttle key serve-unit-drift holds "<hash>@<time>"); a new main hash alerts."""
+    installed = Path.home() / ".config" / "systemd" / "user" / "factory-serve.service"
+    try:
+        have = installed.read_bytes()
+    except FileNotFoundError:
+        return
+    want = (HOME / "systemd" / "factory-serve.service").read_bytes()
+    if have == want:
+        return
+    h = hashlib.sha256(want).hexdigest()[:16]
+    old = con.execute("SELECT ts FROM throttle WHERE key='serve-unit-drift'").fetchone()
+    if old:
+        last_hash, _, last_ts = old["ts"].partition("@")
+        try:
+            fresh = time.time() - float(last_ts) < SERVE_UNIT_ALERT_S
+        except ValueError:
+            fresh = False
+        if last_hash == h and fresh:
+            return
+    con.execute("INSERT INTO throttle(key,ts) VALUES('serve-unit-drift',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (f"{h}@{time.time()}",))
+    event(con, "tick", "serve-unit", "serve-unit-drift", h)
+    send(con, "director", "factory-serve unit drifted from main",
+         "The installed ~/.config/systemd/user/factory-serve.service differs from systemd/factory-serve.service on main. "
+         "The owner runs, from the main checkout:\n" + SERVE_UNIT_COMMANDS, "alert", sender="tick")
+
+
 def _session_tokens(session):
     from web import tokens  # noqa: PLC0415 — web/ lives at the repo root, like scout/
-    return tokens.session_tokens(session)
+    return tokens.session_tokens_known(session)  # None = unknown (scout_runs.tokens NULL), never 0
 
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
@@ -7176,9 +7213,9 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         args.update(env_extra=env_extra, plugin_dirs=list(plugin_dirs or []), add_home_dir=add_home_dir)
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
-    org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
+    rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
     ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live")
+                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -11635,12 +11672,21 @@ def cmd_tick(a, locked=False):
         if not held and not gate(con)[0]:
             held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
+            try:
+                qorg = json.loads(q["spawn_args"] or "{}").get("org")
+            except ValueError:
+                qorg = None
+            qrt = org_runtime(con, q["role"], qorg)
             if q["role"] == "judge":
-                ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+                ok = gate(con, load_exempt=True, role="judge", runtime=qrt)[0]  # judges ignore the load cap, as in spawn()
             elif q["role"] == "lead":
-                ok = gate(con, load_exempt=True, role="lead")[0]  # leads skip only the load cap (T-0867); lead caps still apply
+                ok = gate(con, load_exempt=True, role="lead", runtime=qrt)[0]  # leads skip only the load cap (T-0867); lead caps still apply
+            elif q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
+                ok = True
+            elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
+                ok = True
             else:
-                ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
+                ok = False
             if not ok:
                 continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
@@ -11757,6 +11803,21 @@ def cmd_tick(a, locked=False):
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
     _pt_lap("sidebar")
+    try:
+        from web import cursor_limits
+
+        cursor_limits.tick_record(
+            con,
+            herdr_fn=herdr,
+            agent_runtime_of=agent_runtime_of,
+            agent_org_fn=agent_org,
+            send_fn=send,
+            event_fn=event,
+            now_fn=now,
+        )
+    except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
+        event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
+    _pt_lap("cursor_limits")
     _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
@@ -11773,6 +11834,11 @@ def cmd_tick(a, locked=False):
             con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
             event(con, "tick", "freshness", "freshness-failed", err)
     _pt_lap("freshness")
+
+    try:  # 4c. installed factory-serve unit vs main (read-only; the owner runs the commands)
+        tick_serve_unit_drift(con)
+    except (OSError, sqlite3.Error) as e:
+        event(con, "tick", "serve-unit", "serve-unit-check-failed", str(e)[:300])
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
@@ -14031,7 +14097,7 @@ def cmd_scout(a):
         rows = con.execute("SELECT * FROM scout_runs ORDER BY id DESC LIMIT 20").fetchall()
         for r in rows:
             print(f"{r['slot']} {r['status']:<8} agent={r['agent'] or '-'} new={r['new_candidates']} "
-                  f"triaged={r['triaged']} tokens={r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
+                  f"triaged={r['triaged']} tokens={'-' if r['tokens'] is None else r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
                   f"{r['stop_reason'] or ''}".rstrip())
         if not rows:
             print("(none)")

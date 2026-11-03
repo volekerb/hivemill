@@ -702,6 +702,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if err := a.factoryUnit(name, rest, assigns); err != nil {
 		return err
 	}
+	if a.Role == researcherRole && !a.HQ {
+		if err := a.researcherCmd(name, rest); err != nil {
+			return err
+		}
+	}
 	if in(Copiers, name) { // R3: no copying/encoding/reading the real herdr binary
 		for _, x := range rest {
 			if strings.HasPrefix(x, "if=") || strings.HasPrefix(x, "of=") {
