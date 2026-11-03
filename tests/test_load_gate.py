@@ -30,6 +30,13 @@ def hold(directory, n=1):
 
 
 class LoadStateTests(unittest.TestCase):
+    @staticmethod
+    def _restore_env(name, value):
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
     def test_below_at_above_cap(self):
         self.assertFalse(_slot.load_state(1.25, CAP - 0.01)[2])
         self.assertTrue(_slot.load_state(1.25, CAP)[2])
@@ -40,7 +47,7 @@ class LoadStateTests(unittest.TestCase):
     def test_load1_is_read_once_per_decision(self):
         calls = []
         with mock.patch.object(os, "getloadavg", lambda: calls.append(1) or (1.0, 0, 0)):
-            os.environ.pop("FACTORY_LOADAVG", None)
+            self.addCleanup(self._restore_env, "FACTORY_LOADAVG", os.environ.pop("FACTORY_LOADAVG", None))
             _slot.load_state(1.25)
         self.assertEqual(len(calls), 1)
 
@@ -133,6 +140,12 @@ class ToolGateTests(unittest.TestCase):
         self.assertEqual(p.returncode, 5, p.stdout + p.stderr)
         self.assertIn(MSG, p.stderr)
 
+    def test_guard_diff_help_not_gated_under_load(self):
+        p = self.run_tool("guard_diff.py", "--help")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("usage:", p.stdout)
+        self.assertNotIn(MSG, p.stderr)
+
     def test_guard_diff_never_gated_in_ci(self):
         p = self.run_tool("guard_diff.py", "--base", "HEAD", "--impl", "bogus", ci="true")
         self.assertNotEqual(p.returncode, 5)
@@ -173,6 +186,17 @@ class PrcheckRaceTests(FactoryTestCase):
         self.assertIsInstance(got, str)
         self.assertIn(MSG, got)
         self.assertEqual(len(sleeps), 2, "waited twice below the cap, then refused instead of a third wait")
+
+    def test_load_slot_cap_inserts_sys_path_once(self):
+        tests_dir = str(REPO / "tests")
+        saved = list(sys.path)
+        self.addCleanup(sys.path.__setitem__, slice(None), saved)
+        sys.path[:] = [p for p in sys.path if p != tests_dir]
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            for _ in range(3):
+                mod.load_slot_cap(con)
+        self.assertEqual(sys.path.count(tests_dir), 1)
 
     def test_effective_test_slots_reuses_one_reading(self):
         self.ok("config", "test_slots", "3")

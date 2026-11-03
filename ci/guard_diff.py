@@ -426,10 +426,6 @@ def load_refused():
 
 
 def main(argv=None):
-    refused = load_refused()
-    if refused:
-        sys.stderr.write(f"guard-diff: {refused}\n")
-        return 5  # same code as ci/affected.py EXIT_LOAD
     ap = argparse.ArgumentParser(description="Diff the base worker-guard hook against the working-tree hook.")
     ap.add_argument("--base", help="git ref holding the base hook, e.g. origin/main (required unless --impl go)")
     ap.add_argument("--impl", choices=("python", "go"), default="python",
@@ -447,7 +443,11 @@ def main(argv=None):
     try:
         a = ap.parse_args(argv)
     except SystemExit as e:
-        return 2 if e.code else 0
+        return 2 if e.code else 0  # --help and usage errors are never load-gated
+    refused = load_refused()
+    if refused:
+        sys.stderr.write(f"guard-diff: {refused}\n")
+        return 5  # same code as ci/affected.py EXIT_LOAD
     go = a.impl == "go"
     try:
         if go and a.allow_loosen is not None:
