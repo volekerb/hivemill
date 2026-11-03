@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
+import _gitenv
 from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -98,7 +99,7 @@ class PosixTest(ShimBase):
 
     def test_committed_mode_is_executable(self):
         out = subprocess.run(["git", "ls-files", "-s", "roles/hooks/worker-guard"], cwd=ROOT, capture_output=True,
-                             text=True, check=True).stdout
+                             text=True, check=True, env=_gitenv.scrub(os.environ, isolate_config=True)).stdout
         self.assertTrue(out.startswith("100755 "), out)
 
     def test_shim_runs_no_git_command(self):
