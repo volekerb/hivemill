@@ -74,7 +74,9 @@ import shlex
 import sqlite3
 import stat
 import sys
+import tarfile
 import urllib.parse
+import zipfile
 
 MAX_DEPTH = 6
 FACTORY_UNIT_CMDS = {"up", "tick", "relaunch", "spawn", "clean"}
@@ -850,6 +852,8 @@ class Analyzer:
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
         self.text = ""
         self.ran_factory = False
+        self.may_create_before = False
+        self.may_create = False  # T-0805: an earlier command on this line may have created a file (an archive to extract)
         self.fs_changed = False  # T-0783: an earlier command on this line may have changed the filesystem
         self.scrub_with_factory = None
         self.gcwd = self.cwd  # directory a git command would run in, moved by `cd` (git rule only)
@@ -1672,7 +1676,109 @@ class Analyzer:
                         f"or hooks): {why}")
         for d in dirs:
             self.archive_target(name, d)
+        if name in ("tar", "gtar", "bsdtar", "unzip"):
+            self.archive_members(name, args)
         return True
+
+    @staticmethod
+    def listing_only(words):
+        """T-0805: True for a command that cannot create a file: cd and plain readers, tar -t, unzip -l."""
+        name, args = os.path.basename(words[0]), words[1:]
+        if name in ("cd", "pushd", "popd", "ls", "cat", "echo", "printf", "true", "pwd", "test", "[", "file", "stat", "head"):
+            return not any(a in (">", ">>") for a in args)
+        if name in ("tar", "gtar", "bsdtar"):
+            return any(re.match(r"^-?[A-Za-z]*t[A-Za-z]*$", a) for a in args[:1]) and not any(
+                re.match(r"^-?[A-Za-z]*[cxru][A-Za-z]*$", a) for a in args[:1]) or "--list" in args
+        if name == "unzip":
+            return any(a in ("-l", "-v", "-t", "-Z") for a in args)
+        return False
+
+    def archive_path(self, name, args):
+        """The archive file a tar/bsdtar/unzip extraction reads, or None when it is stdin, built from an expansion or not
+        decidable (an option cluster that mixes f and C)."""
+        if name == "unzip":
+            pos, k = [], 0
+            while k < len(args):
+                a = args[k]
+                if a in ("-d", "-P"):
+                    k += 1
+                elif not a.startswith("-"):
+                    pos.append(a)
+                k += 1
+            arch = pos[0] if pos else None
+        else:
+            arch = None
+            for j, a in enumerate(args):
+                short = re.match(r"^-?[A-Za-z]+$", a) and (j == 0 or a.startswith("-")) and not a.startswith("--")
+                if a in ("-f", "--file") and j + 1 < len(args):
+                    arch = args[j + 1]
+                elif a.startswith("--file="):
+                    arch = a.split("=", 1)[1]
+                elif short and "f" in a:
+                    if "C" in a:
+                        return None
+                    arch = args[j + 1] if j + 1 < len(args) else None
+                elif a.startswith("-f") and len(a) > 2:
+                    arch = a[2:]
+        if not arch or arch == "-" or any(c in arch for c in "$`*?[{~\\") or (not os.path.isabs(arch) and self.ccwd is None):
+            return None
+        return arch if os.path.isabs(arch) else os.path.join(self.ccwd, arch)
+
+    @staticmethod
+    def archive_names(path, zipped):
+        """(member name, link target or None) for each member of the archive at `path`, read with the stdlib (never
+        extracted); raises OSError/tarfile.TarError/zipfile.BadZipFile/ValueError/RuntimeError when it cannot be listed or
+        holds more than ARCHIVE_WALK_MAX members."""
+        out = []
+        if zipped:
+            with zipfile.ZipFile(path) as z:
+                infos = z.infolist()
+                if len(infos) > ARCHIVE_WALK_MAX:
+                    raise RuntimeError("too many members")
+                out = [(i.filename, None) for i in infos]
+        else:
+            with tarfile.open(path, "r|*") as t:
+                for m in t:
+                    out.append((m.name, m.linkname if (m.issym() or m.islnk()) else None))
+                    if len(out) > ARCHIVE_WALK_MAX:
+                        raise RuntimeError("too many members")
+        return out
+
+    def archive_members(self, name, args):
+        """T-0805: a NO_PUSH_ROLES extraction (tar, bsdtar, unzip) reads the member list first and refuses an archive with
+        a `.git` path component (also as a link target) or a directory holding both `config` and `HEAD` (a bare repo whose
+        config `git -C <dir>` would run). A list that cannot be obtained (stdin, no such file, unreadable, unknown format,
+        too many members) fails closed. The archive is only listed, never extracted by the hook."""
+        why = "extract an archive you have listed (tar -tf, unzip -l) that has no .git member and no config+HEAD pair"
+        arch = self.archive_path(name, args)
+        if arch is None:
+            raise Block(f"`{name}` extracting from stdin, an expansion or an unresolvable archive name cannot be listed first "
+                        f"(it may carry .git/config): {why}")
+        zipped = name == "unzip"
+        if zipped and not os.path.exists(arch) and os.path.exists(arch + ".zip"):
+            arch += ".zip"
+        try:
+            members = self.archive_names(arch, zipped)
+        except FileNotFoundError:
+            if not self.may_create_before and not self.fs_changed:
+                return  # the extraction is the first command on the line and the file does not exist: it extracts nothing
+            raise Block(f"`{name}` archive {arch!r} does not exist yet; an earlier command on this line may create it, so "
+                        f"its members cannot be listed: run the extraction in its own command, after the archive exists")
+        except (OSError, tarfile.TarError, zipfile.BadZipFile, ValueError, RuntimeError, EOFError, NotImplementedError) as e:
+            raise Block(f"`{name}` archive {arch!r} cannot be listed ({type(e).__name__}), so a .git/config member cannot be "
+                        f"ruled out: {why}")
+        dirs = collections.defaultdict(set)
+        for mem, link in members:
+            parts = [c for c in re.split(r"[/\\]", mem) if c not in ("", ".")]
+            if any(c.lower() == ".git" for c in parts) or (
+                    link and any(c.lower() == ".git" for c in re.split(r"[/\\]", link))):
+                raise Block(f"`{name}` archive {arch!r} has a member {mem!r} under a .git path: its config/hooks would run as "
+                            f"git ({PERSIST_WHY}); {why}")
+            if parts and parts[-1] in ("config", "HEAD"):
+                dirs[tuple(parts[:-1])].add(parts[-1])
+        if any(v >= {"config", "HEAD"} for v in dirs.values()):
+            raise Block(f"`{name}` archive {arch!r} has config and HEAD in one directory (a bare repo layout whose config "
+                        f"git runs: core.fsmonitor, core.hooksPath); {why}")
 
     @staticmethod
     def config_args_write(args):
@@ -2450,6 +2556,9 @@ class Analyzer:
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
+        self.may_create_before = self.may_create
+        if words and not self.listing_only(words):
+            self.may_create = True
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.git_config_env(assigns, words)
             self.builtin_assign(assigns, words, hstrs)
