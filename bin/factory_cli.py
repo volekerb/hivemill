@@ -7079,6 +7079,45 @@ def prepare_worktree(con, task, role):
     return str(wt)
 
 
+# T-0857: the one definition of a "gated" PR (risky enough for the multi-angle-review workflow). The reviewer skill
+# multi-angle-review points here instead of restating it; spawn adds GATED_PR_LINE to the reviewer kickoff.
+GATE_PATH_PREFIXES = ("roles/hooks/", "roles/settings/", "ci/", ".github/")
+GATE_MAX_LINES = 500
+GATED_PR_LINE = "Gated PR: run the multi-angle-review workflow (reviewer skill multi-angle-review) before your verdict."
+
+
+def review_gate(files, changed_lines):
+    """True when a PR touches a gated path or changes more than GATE_MAX_LINES lines (additions + deletions)."""
+    return changed_lines > GATE_MAX_LINES or any(f.startswith(GATE_PATH_PREFIXES) for f in files)
+
+
+def gated_reviewer_prompt(con, role, task, prompt):
+    """Reviewer kickoff extra with GATED_PR_LINE appended when the task's PR is gated. Ungated PR, no PR, other roles:
+    prompt unchanged. A gh failure adds no line, prints the reason and records a gate-skipped event; never fails the spawn."""
+    t = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task,)).fetchone() if role == "reviewer" and task else None
+    if not t or not t["pr_url"]:
+        return prompt
+    try:
+        out = subprocess.run(["gh", "pr", "diff", t["pr_url"], "--name-only"], capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            raise OSError(out.stderr.strip() or f"gh pr diff exit {out.returncode}")
+        files = [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+        stats = subprocess.run(["gh", "pr", "view", t["pr_url"], "--json", "additions,deletions"],
+                               capture_output=True, text=True, timeout=60)
+        if stats.returncode != 0:
+            raise OSError(stats.stderr.strip() or f"gh pr view exit {stats.returncode}")
+        data = json.loads(stats.stdout)
+        changed = int(data["additions"]) + int(data["deletions"])
+    except (ValueError, KeyError, TypeError, subprocess.SubprocessError, OSError) as e:
+        why = f"gh failed: {e}"
+        print(f"multi-angle-review gate skipped: {why}", file=sys.stderr)
+        event(con, "task", task, "gate-skipped", f"reviewer: {why}")
+        return prompt
+    if not review_gate(files, changed):
+        return prompt
+    return f"{prompt} {GATED_PR_LINE}" if prompt else GATED_PR_LINE
+
+
 def kickoff_text(role, name, goal, team, task, extra):
     lines = [f"You are `{name}`, the factory {role}. Run `factory whoami` and `factory inbox` first."]
     if task:
@@ -7810,6 +7849,7 @@ def research_dir(task):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
+    prompt = gated_reviewer_prompt(con, role, task, prompt)
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
