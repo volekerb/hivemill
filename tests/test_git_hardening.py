@@ -363,36 +363,52 @@ class TickGitHardeningTests(FactoryTestCase):
         wt = next((self.env.home_dir / "worktrees").glob("*"))
         self.assertTrue(list(wt.glob("code*.txt")), "files must be checked out after --no-checkout + guard")
 
-    def test_retry_switch_is_guarded(self):
-        """B3a: a coder retry in an existing worktree runs `git switch`, which checks out; it is guarded too."""
+    def retry_switch_setup(self):
+        """Existing coder worktree left detached one commit behind its branch, so `git switch` must rewrite files
+        (and so run the smudge filter); the filter is configured in the project repo after the first spawn."""
         self.spawn_repo()
         self.commit_filter_attributes()
         self.assertEqual(self.prepare(), 0)
         wt = next((self.env.home_dir / "worktrees").glob("*"))
         self.env.sql("UPDATE tasks SET worktree=?, branch='factory/t-0001' WHERE id='T-0001'", (str(wt),))
-        git("checkout", "-q", "--detach", cwd=wt)
+        git("checkout", "-q", "--detach", "HEAD~1", cwd=wt)
         git("config", "filter.x.smudge", str(self.script("s.sh")), cwd=self.h)
         git("config", "filter.x.required", "true", cwd=self.h)
+
+    def test_retry_switch_is_guarded(self):
+        """B3a: a coder retry in an existing worktree runs `git switch`, which checks out; it is guarded too."""
+        self.retry_switch_setup()
         self.assertEqual(self.prepare(), 4)
         self.assertFalse(self.marker.exists(), "smudge filter ran during the retry switch")
         self.assertEqual(self.refused_events()[0]["keys"][0][:7], "filter.")
 
     def test_retry_switch_control_marker_appears_when_guard_bypassed(self):
-        """Control for test_retry_switch_is_guarded: same setup, guard bypassed -> the smudge filter DOES run."""
-        self.spawn_repo()
-        self.commit_filter_attributes()
-        self.assertEqual(self.prepare(), 0)
-        wt = next((self.env.home_dir / "worktrees").glob("*"))
-        self.env.sql("UPDATE tasks SET worktree=?, branch='factory/t-0001' WHERE id='T-0001'", (str(wt),))
-        git("checkout", "-q", "--detach", "HEAD~1", cwd=wt)  # the switch must change files, or no filter runs
-        git("config", "filter.x.smudge", str(self.script("s.sh")), cwd=self.h)
-        git("config", "filter.x.required", "true", cwd=self.h)
+        """Control for test_retry_switch_is_guarded: identical setup and real git_run; only the guard is bypassed,
+        and then the smudge filter DOES run."""
+        self.retry_switch_setup()
         with self.env.load_factory() as mod:
             mod.git_config_guard = lambda con, repo, always_event=False: True
-            mod.git_run = lambda cwd, *a, **k: subprocess.run(
-                ["git", *a], cwd=cwd, capture_output=True, text=k.get("text", True))
             mod.prepare_worktree(mod.db(), "T-0001", "coder")
         self.assertTrue(self.marker.exists(), "control: the filter must run when the guard is bypassed")
+
+    def test_guard_refusal_leaves_no_worktree_or_branch(self):
+        """The refused spawn (includeIf applies only to the new worktree) prunes the worktree entry and drops the branch."""
+        self.spawn_repo()
+        self.commit_filter_attributes()
+        (self.h / ".git" / "inc.cfg").write_text(f'[filter "x"]\n\tsmudge = {self.script("s.sh")}\n')
+        git("config", f"includeIf.gitdir:{self.h}/.git/worktrees/**.path", "inc.cfg", cwd=self.h)
+        with self.env.load_factory() as mod:
+            real, calls = mod.git_config_guard, []
+            def first_passes(con, repo, always_event=False):
+                calls.append(str(repo))
+                return True if len(calls) == 1 else real(con, repo, always_event)
+            mod.git_config_guard = first_passes
+            with self.assertRaises(SystemExit) as cm:
+                mod.prepare_worktree(mod.db(), "T-0001", "coder")
+        self.assertEqual(cm.exception.code, 4)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.g("worktree", "list", "--porcelain").count("worktree "), 1)  # only the main checkout
+        self.assertEqual(self.g("branch", "--list", "factory/*"), "")
 
     def failing_checkout(self):
         """origin/main has `* filter=x` with a required smudge filter that exits 1, so `git checkout` fails (guard bypassed)."""
