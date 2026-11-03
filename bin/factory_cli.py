@@ -7070,16 +7070,25 @@ def prepare_worktree(con, task, role):
         install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
+    branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
     if p.returncode != 0:
         die(f"worktree add failed: {p.stderr.strip()}")
+
+    def drop_half_made():  # only reached for a worktree created in this call, never a pre-existing one
+        git_run(repo, "worktree", "remove", "--force", str(wt), text=False)
+        git_run(repo, "worktree", "prune", text=False)
+        if not branch_existed:
+            git_run(repo, "branch", "-D", branch, text=False)
+
     if not git_config_guard(con, wt):  # an includeIf scoped to worktrees/** only applies once the worktree exists
         why = ", ".join(git_config_refusal(wt))
-        git_run(repo, "worktree", "remove", "--force", str(wt), text=False)
+        drop_half_made()
         con.commit()
         die(f"spawn refused: git config in {wt} would run code: {why}", 4)
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
+        drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
@@ -8417,19 +8426,20 @@ def prcheck_public(con, t, wt, base):
 
 def load_slot_cap(con):
     """(load1, cap, over): cap = gate_max_load_ratio x CPUs; over when load1 >= cap (owner M16816)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+    import _slot  # the formula is shared with tests/_slot.acquire, ci/affected.py and ci/guard_diff.py
     try:
         ratio = float(cfg(con, "gate_max_load_ratio"))
     except (TypeError, ValueError):
         ratio = float(DEFAULT_CONFIG["gate_max_load_ratio"])
-    cap, now = ratio * (os.cpu_count() or 1), load1()
-    return now, cap, now >= cap
+    return _slot.load_state(ratio, load1())  # load1 read once per decision
 
 
-def effective_test_slots(con, default=2):
+def effective_test_slots(con, default=2, state=None):
     """Test slots a new local suite may use now: 1 while load1 >= the load cap (one local suite box-wide, M16816),
-    else config test_slots."""
+    else config test_slots. Pass a load_slot_cap result as state to decide on a single load1 reading."""
     n = _int_cfg(con, "test_slots", default)
-    return 1 if load_slot_cap(con)[2] else n
+    return 1 if (state or load_slot_cap(con))[2] else n
 
 
 def prcheck_take_slot(con):
@@ -8441,11 +8451,13 @@ def prcheck_take_slot(con):
     wait = float(os.environ.get("FACTORY_PRCHECK_SLOT_WAIT_S") or PRCHECK_SLOT_WAIT_S)
     poll = float(os.environ.get("FACTORY_PRCHECK_POLL_S") or 1)
     start, last = time.monotonic(), None
-    n = effective_test_slots(con, _slot.DEFAULT_SLOTS)
-    now_load, cap, over = load_slot_cap(con)
-    if over and test_slot_usage(con)[0] >= 1:  # a second suite under load is refused, not queued
-        return f"load1 {now_load:.1f} >= cap {cap:.1f}: one local suite box-wide (M16816); rely on PR CI"
-    while _slot.try_take(_slot.slot_dir(), n) is None:
+    while True:
+        state = load_slot_cap(con)  # re-read on every iteration: load can climb while we wait (M16816)
+        n = effective_test_slots(con, _slot.DEFAULT_SLOTS, state)
+        if state[2] and test_slot_usage(con)[0] >= 1:  # a second suite under load is refused, not queued
+            return _slot.load_refusal_text(state)
+        if _slot.try_take(_slot.slot_dir(), n) is not None:
+            break
         now = time.monotonic()
         if now - start >= wait:
             return False
@@ -14478,7 +14490,7 @@ def main():
     x.set_defaults(fn=cmd_cursor_pilot)
     x = sp.add_parser("spawn"); x.add_argument("role", choices=ROLES); x.add_argument("--goal"); x.add_argument("--team")
     x.add_argument("--task")
-    x.add_argument("--name", help="agent name; must already follow the org naming rule (<org>-<name>), else refused")
+    x.add_argument("--name", help="agent name. When the org prefix applies, the name must already be <org>-<name>; otherwise it is refused")
     x.add_argument("--cwd"); x.add_argument("--prompt")
     x.add_argument("--model")
     x.add_argument("--org", help="the org this agent belongs to (default: the goal's org, else yours); e.g. cursor")

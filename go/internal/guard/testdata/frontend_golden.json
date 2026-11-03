@@ -52142,6 +52142,98 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git push origin HEAD:factory/t-1",
+"mask_quotes_pre": "git push origin HEAD:factory/t-1",
+"mask_quotes_raw": "git push origin HEAD:factory/t-1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-1"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git push origin HEAD:factory/t-2",
+"mask_quotes_pre": "git push origin HEAD:factory/t-2",
+"mask_quotes_raw": "git push origin HEAD:factory/t-2",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-2"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git push origin HEAD:factory/t-2"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-2"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"push",
+"origin",
+"HEAD:factory/t-2"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory test tests/test_x.py",
 "mask_quotes_pre": "factory test tests/test_x.py",
 "mask_quotes_raw": "factory test tests/test_x.py",
@@ -77805,7 +77897,7 @@
 ]
 }
 },
-"corpus_commands": 1380,
+"corpus_commands": 1382,
 "edge_inputs": 97,
 "python": "3.13"
 }
