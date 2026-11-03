@@ -11,12 +11,12 @@
   ],
   "sensitive_defs": {
     "bin/factory": [
-      "cmd_judge", "judge_*", "mech_*", "red_main_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
+      "cmd_judge", "judge_*", "_judge_*", "mech_*", "cmd_mech_merge", "tick_mech_merge", "red_main_*", "_red_main_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
       "git_config_guard", "noreply_email", "_push_policy", "require_role", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA",
       "<stmt>"
     ],
     "bin/factory_cli.py": [
-      "cmd_judge", "judge_*", "mech_*", "red_main_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
+      "cmd_judge", "judge_*", "_judge_*", "mech_*", "cmd_mech_merge", "tick_mech_merge", "red_main_*", "_red_main_*", "verdict_carries", "head_has_main", "verified_main", "refresh_branch", "gate*",
       "git_config_guard", "noreply_email", "_push_policy", "require_role", "OWNER_CAP_KEYS", "DEFAULT_CONFIG", "SCHEMA",
       "<stmt>"
     ]

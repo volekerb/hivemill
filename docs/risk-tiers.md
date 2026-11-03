@@ -11,9 +11,9 @@ ADR M10886, section "Risk tiers".
 | T1 | tests only (`tests/test_*.py`, `tests/fixtures/**`), or at most 150 changed lines |
 | T2 | everything else |
 
-Rules are checked in the order T3, T0, T1, T2. The lists (sensitive paths, sensitive defs of `bin/factory`, globs, line
+Rules are checked in the order T3, T0, T1, T2. The lists (sensitive paths, sensitive defs of `bin/factory` and `bin/factory_cli.py`, globs, line
 limits) are in `ci/tier_rules.json`; the code is `ci/risk_tier.py` (pure `tier(diff, paths, lines, rules)`). Def-level
-detection reuses the ast diff of `ci/affected.py`; an unparsable `bin/factory` or an edited unnamed top-level statement
+detection reuses the ast diff of `ci/affected.py`; an unparsable `bin/factory` or `bin/factory_cli.py`, or an edited unnamed top-level statement
 counts as sensitive (fail closed). Both files are sensitive paths themselves.
 
 **The PR cannot edit its own tier.** `bin/factory` loads `ci/risk_tier.py` and `ci/tier_rules.json` from the main checkout

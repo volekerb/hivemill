@@ -86,11 +86,16 @@ class TierRuleTests(unittest.TestCase):
         self.assertEqual(self.tier(["roles/plugins/x/y.md"], 5), "T1")
 
     def test_merge_gate_defs_in_cli_module_are_t3(self):
-        for name in ("cmd_judge", "judge_x", "mech_try", "red_main_check"):
+        for name in ("cmd_judge", "judge_x", "mech_try", "red_main_check", "_judge_gate_and_merge", "_judge_slugs",
+                     "_red_main_check", "cmd_mech_merge", "tick_mech_merge"):
             base = "def %s(a):\n    return 1\n\ndef cmd_other(a):\n    return 1\n" % name
             diff = {"bin/factory_cli.py": (base, base.replace("return 1\n\ndef", "return 2\n\ndef"))}
             self.assertEqual(self.tier(["bin/factory_cli.py"], 3, diff), "T3", name)
             self.assertEqual(rt.sensitive_defs(diff, self.rules), ["bin/factory_cli.py:" + name])
+
+    def test_nested_ci_guard_and_scrub_paths_stay_sensitive(self):
+        for p in ("ci/guard_x/y.py", "ci/scrub_x/y.py", "ci/guard_x.py"):
+            self.assertEqual(self.tier([p], 5), "T3", p)
 
     def test_unrelated_def_in_cli_module_keeps_tier(self):
         base = "def cmd_other(a):\n    return 1\n"
