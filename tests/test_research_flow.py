@@ -30,6 +30,12 @@ class ResearchFlowTest(unittest.TestCase):
         for needle in ("--role reviewer --after", 'factory msg director "research', "Evidence", "factory task reopen"):
             self.assertIn(needle, t)
 
+    def test_every_reopen_line_carries_reason(self):
+        lines = [l for l in LEAD.read_text().splitlines() if "factory task reopen" in l]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertIn("--reason", line)
+
     def test_evidence_review_rule(self):
         t = REV.read_text()
         self.assertEqual(t.count("The done summary starts with `evidence-review: PASS` or `evidence-review: FAIL`."), 1)
