@@ -1,5 +1,5 @@
 {
- "_doc": "Seed corpus for ci/guard_diff.py; see docs/guard-diff.md. A string entry is checked in worker mode (--role coder); an object {\"cmd\", \"modes\"} is checked in each listed mode (worker, hq). must_allow strings are checked in both modes. An entry with \"role\" (e.g. \"evaluator\") runs in worker mode only, under that role; for evaluator the tool and the sanity test set FACTORY_HOME to a temp dir in the hook's environment. The token @SHARED@ is a temp stand-in for the shared checkout (the hook gets WORKER_GUARD_LIVE_HOME for commands naming it).",
+ "_doc": "Seed corpus for ci/guard_diff.py; see docs/guard-diff.md. A string entry is checked in worker mode (--role coder); an object {\"cmd\", \"modes\"} is checked in each listed mode (worker, hq). must_allow strings are checked in both modes. An entry with \"role\" (e.g. \"evaluator\") runs in worker mode only, under that role; for evaluator the tool and the sanity test set FACTORY_HOME to a temp dir in the hook's environment. The token @SHARED@ is a temp stand-in for the shared checkout (the hook gets WORKER_GUARD_LIVE_HOME for commands naming it). An object may carry \"env\" (non-empty object of string keys to string values, e.g. {\"FACTORY_AGENT\": \"claude-coder-t-1\"}) which is added to the hook environment on both sides; a FACTORY_AGENT naming a task (t-N) also runs the hook from a stand-in own worktree recorded for that task (T-0871).",
  "must_block": [
  {"cmd": "uvx pytest", "config": {"test_sandbox": "1"}},
  {"cmd": "uvx --from x pytest", "config": {"test_sandbox": "1"}},
@@ -3464,7 +3464,13 @@
  {"cmd": "env -u PATH[0] ls", "role": "evaluator"},
  {"cmd": "zsh -c 'env -u PATH[0] ls'", "role": "evaluator"},
  {"cmd": "env -u 'GIT_$x' ls", "role": "evaluator"},
- {"cmd": "zsh -c 'env -u '\\''GIT_$x'\\'' ls'", "role": "evaluator"}
+ {"cmd": "zsh -c 'env -u '\\''GIT_$x'\\'' ls'", "role": "evaluator"},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "evil-coder-t-1"}},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "claude-cursor-coder-t-1"}},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "cursor-claude-coder-t-1"}},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "Claude-coder-t-1"}},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "claude-coder-t-1x"}},
+ {"cmd": "git push origin HEAD:factory/t-2", "role": "coder", "env": {"FACTORY_AGENT": "claude-coder-t-1"}}
  ],
  "must_allow": [
  {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},
@@ -4559,6 +4565,9 @@
  {"cmd": "zparseopts -a opts x", "role": "evaluator"},
  {"cmd": "set -e", "role": "evaluator"},
  {"cmd": "print -r path", "role": "evaluator"},
- {"cmd": "arr[1]=x", "role": "evaluator"}
+ {"cmd": "arr[1]=x", "role": "evaluator"},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "claude-coder-t-1"}},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "cursor-coder-t-1"}},
+ {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "coder-t-1"}}
  ]
 }

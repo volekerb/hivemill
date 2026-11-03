@@ -93,6 +93,21 @@ def scratch_fixture():
     return path
 
 
+def worktree_fixture():
+    """A stand-in coder worktree at a fixed temp path: an entry whose env names a FACTORY_AGENT with a task id runs with
+    this as the hook's cwd and as tasks.worktree of that task (what the coder push pin checks, T-0743)."""
+    path = os.path.join(tempfile.gettempdir(), f"guard-diff-worktree-{os.getuid()}", "worktrees", "G-000-T-0000")
+    os.makedirs(path, exist_ok=True)
+    return os.path.realpath(path)
+
+
+def agent_task(env):
+    """The task id (T-NNNN) a corpus entry's env FACTORY_AGENT carries, or None. Deliberately looser than the pin's own
+    name regex, so a look-alike agent name still gets a task row and is refused for its name, not for a missing row."""
+    m = re.search(r"t-\d+", dict(env or ()).get("FACTORY_AGENT", ""), re.I)
+    return m.group(0).upper() if m else None
+
+
 def hook_env(cmd, env=None):
     """env for one hook run: WORKER_GUARD_LIVE_HOME is set only for a command that names the @SHARED@ fixture,
     WORKER_GUARD_SCRATCH only for one that names the @SCRATCH@ fixture."""
@@ -114,22 +129,32 @@ def expand(cmd):
 
 
 def entry_item(e):
-    """(cmd, role) or (cmd, role, seed): role is the corpus entry's own `role` tag (e.g. "evaluator"), or None for the
-    --role default. seed is the entry's `config` dict (config rows the hook reads from the factory DB), as a tuple of
-    sorted (key, value) pairs; an unseeded entry stays a 2-tuple."""
+    """(cmd, role), (cmd, role, seed) or (cmd, role, seed-or-None, env): role is the corpus entry's own `role` tag (e.g.
+    "evaluator"), or None for the --role default. seed is the entry's `config` dict (config rows the hook reads from the
+    factory DB), as a tuple of sorted (key, value) pairs. env is the entry's `env` dict (extra hook environment, e.g.
+    FACTORY_AGENT; T-0871), likewise sorted pairs. An entry with neither keeps the 2-tuple, a seeded one the 3-tuple."""
     if isinstance(e, str):
         return expand(e), None
     if isinstance(e, dict) and isinstance(e.get("cmd"), str):
         role = e.get("role")
         if role is not None and not (isinstance(role, str) and role):
             raise UsageError(f"bad corpus entry {e!r}: 'role' must be a non-empty string")
-        if "config" not in e:
-            return expand(e["cmd"]), role
-        seed = e["config"]
-        if not (isinstance(seed, dict) and seed and all(isinstance(k, str) and k and isinstance(v, str)
-                                                         for k, v in seed.items())):
-            raise UsageError(f"bad corpus entry {e!r}: 'config' must be a non-empty object of string keys to string values")
-        return expand(e["cmd"]), role, tuple(sorted(seed.items()))
+        seed = env = None
+        if "config" in e:
+            seed = e["config"]
+            if not (isinstance(seed, dict) and seed and all(isinstance(k, str) and k and isinstance(v, str)
+                                                             for k, v in seed.items())):
+                raise UsageError(f"bad corpus entry {e!r}: 'config' must be a non-empty object of string keys to string values")
+            seed = tuple(sorted(seed.items()))
+        if "env" in e:
+            env = e["env"]
+            if not (isinstance(env, dict) and env and all(isinstance(k, str) and k and isinstance(v, str)
+                                                           for k, v in env.items())):
+                raise UsageError(f"bad corpus entry {e!r}: 'env' must be a non-empty object of string keys to string values")
+            env = tuple(sorted(env.items()))
+        if env:
+            return expand(e["cmd"]), role, seed, env
+        return (expand(e["cmd"]), role, seed) if seed else (expand(e["cmd"]), role)
     raise UsageError(f"bad corpus entry {e!r}: expected a string or an object with a string 'cmd'")
 
 
@@ -173,9 +198,10 @@ def seed_label(seed):
     return "config=" + ",".join(f"{k}:{v}" for k, v in seed)
 
 
-def make_seed_home(parent, seed, n):
+def make_seed_home(parent, seed, n, worktrees=None):
     """A fresh temp FACTORY_HOME under parent holding db/factory.db with the factory's config table (same DDL as the
-    factory CLI schema), seeded with exactly `seed` ((key, value) pairs). Returns the home path."""
+    factory CLI schema), seeded with exactly `seed` ((key, value) pairs). worktrees ({"T-0001": path}) adds the tasks
+    rows the coder push pin resolves the own worktree from. Returns the home path."""
     home = os.path.join(parent, f"seed-{n}")
     os.makedirs(os.path.join(home, "db"))
     con = sqlite3.connect(os.path.join(home, "db", "factory.db"))
@@ -183,20 +209,26 @@ def make_seed_home(parent, seed, n):
         with con:
             con.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             con.executemany("INSERT INTO config(key, value) VALUES (?, ?)", list(seed))
+            if worktrees:
+                con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+                con.executemany("INSERT INTO tasks(id, worktree) VALUES (?, ?)", list(worktrees.items()))
     finally:
         con.close()
     # T-0767: the Go guard reads the DB rows from run/guard-export.json (what the tick writes), not the DB: same rows
     os.makedirs(os.path.join(home, "run"))
     doc = {"version": 1, "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "config": dict(seed), "agent_goals": {}, "task_worktrees": {}}
+           "config": dict(seed), "agent_goals": {}, "task_worktrees": dict(worktrees or {})}
     with open(os.path.join(home, "run", "guard-export.json"), "w") as fh:
         json.dump(doc, fh)
     return home
 
 
-def run_hook(hook, argv_extra, cmd, timeout, env=None, exe=None):
+def run_hook(hook, argv_extra, cmd, timeout, env=None, exe=None, cwd=None):
     """Run the Python hook, or the executable `exe` (a Go candidate) when given, on one command."""
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
+    payload = {"tool_name": "Bash", "tool_input": {"command": cmd}}
+    if cwd:
+        payload["cwd"] = cwd
+    payload = json.dumps(payload)
     env = hook_env(cmd, env)
     try:
         argv = [*exe, *argv_extra] if exe else [sys.executable, hook, *argv_extra]
@@ -217,36 +249,43 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
     work = []
     for c, r, *sd in items:
         seed = sd[0] if sd else None
+        xenv = sd[1] if len(sd) > 1 else None
         if r is None:
             for m in modes:
-                work += [(m, x, c, seed) for x in roles] if roles and m == "worker" else [(m, role, c, seed)]
+                work += [(m, x, c, seed, xenv) for x in roles] if roles and m == "worker" else [(m, role, c, seed, xenv)]
         elif "worker" in modes:
-            work.append(("worker", r, c, seed))
+            work.append(("worker", r, c, seed, xenv))
     work = list(dict.fromkeys(work))
     seed_tmp = tempfile.TemporaryDirectory(prefix="guard-diff-seed-")
     try:
-        seed_homes = {s: make_seed_home(seed_tmp.name, s, i)
-                      for i, s in enumerate(dict.fromkeys(w[3] for w in work if w[3]))}
+        # one temp home per distinct (config seed, task of the entry's FACTORY_AGENT); a task adds its tasks row
+        specs = dict.fromkeys((w[3] or (), agent_task(w[4])) for w in work if w[3] or agent_task(w[4]))
+        seed_homes = {sp: make_seed_home(seed_tmp.name, sp[0], i, {sp[1]: worktree_fixture()} if sp[1] else None)
+                      for i, sp in enumerate(specs)}
     except BaseException:
         seed_tmp.cleanup()
         raise
 
     def one(item):
-        m, r, c, seed = item
+        m, r, c, seed, xenv = item
         argv = ["--role", r] if m == "worker" else ["--hq"]
-        env = None
-        if seed:  # a seeded entry runs both sides against its own temp home (its config rows), never the live DB
-            env = {**os.environ, "FACTORY_HOME": seed_homes[seed]}
+        env = {**os.environ, **dict(xenv)} if xenv else None  # T-0871: the entry's own env (e.g. FACTORY_AGENT)
+        task = agent_task(xenv)
+        cwd = worktree_fixture() if task else None  # a task's agent runs from its own worktree fixture
+        if seed or task:  # a seeded entry runs both sides against its own temp home (its config rows), never the live DB
+            env = {**(env or os.environ), "FACTORY_HOME": seed_homes[(seed or (), task)]}
         elif m == "worker" and r == "evaluator":
-            env = {**os.environ, "FACTORY_HOME": temp_home}
+            env = {**(env or os.environ), "FACTORY_HOME": temp_home}
         if roles:
             label = "hq" if m == "hq" else f"worker role={r}"
         else:
             label = m if m == "hq" or r == role else f"{m}:{r}"
         if seed:
             label += " " + seed_label(seed)
-        return (label, c, run_hook(base_hook, argv, c, timeout, env),
-                run_hook(pr_hook, [*argv, *pr_extra], c, timeout, env, pr_exe))
+        if xenv:
+            label += " env=" + ",".join(f"{k}:{v}" for k, v in xenv)
+        return (label, c, run_hook(base_hook, argv, c, timeout, env, cwd=cwd),
+                run_hook(pr_hook, [*argv, *pr_extra], c, timeout, env, pr_exe, cwd=cwd))
 
     try:
         with ThreadPoolExecutor(max_workers=jobs) as ex:
@@ -379,6 +418,13 @@ def go_candidate(top, go_bin, tmp):
     return out
 
 
+def load_refused():
+    """M16816: run locally (CI unset) at load1 >= cap, only one suite box-wide; returns the refusal text or None."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests"))
+    import _slot
+    return _slot.local_run_gate()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Diff the base worker-guard hook against the working-tree hook.")
     ap.add_argument("--base", help="git ref holding the base hook, e.g. origin/main (required unless --impl go)")
@@ -397,7 +443,11 @@ def main(argv=None):
     try:
         a = ap.parse_args(argv)
     except SystemExit as e:
-        return 2 if e.code else 0
+        return 2 if e.code else 0  # --help and usage errors are never load-gated
+    refused = load_refused()
+    if refused:
+        sys.stderr.write(f"guard-diff: {refused}\n")
+        return 5  # same code as ci/affected.py EXIT_LOAD
     go = a.impl == "go"
     try:
         if go and a.allow_loosen is not None:

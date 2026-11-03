@@ -16,12 +16,12 @@ ALLOWLIST = {
 }
 # the guard test modules known at this PR; a new one must use hook_run (and be added here) or go on the allowlist
 KNOWN = {
-    "test_ci_cursor_guard", "test_ci_wait_guard", "test_clean_remote_branch", "test_db_layout", "test_guard_diff", "test_guard_golden",
+    "test_ci_cursor_guard", "test_ci_wait_guard", "test_clean_remote_branch", "test_cursor_mcp", "test_db_layout", "test_guard_diff", "test_guard_golden",
     "test_guard_factory_cli", "test_guard_impl", "test_guard_probe", "test_worker_guard_units",
     "test_guard_test_sandbox", "test_guard_test_sandbox_pilot", "test_live_home", "test_local_fast_policy",
     "test_priv_guard", "test_risk_tier", "test_scout_roles", "test_settings_templates", "test_skilleval_guard_copy",
     "test_worker_guard", "test_worker_guard_data", "test_worker_guard_git", "test_worker_guard_heredoc", "test_worker_guard_nopush_gitcfg", "test_worker_guard_nopush_gitfile", "test_worker_guard_nopush_builtin_assign", "test_worker_guard_nopush_zsh_path", "test_worker_guard_nopush_env_unset", "test_worker_guard_nopush_interp_inline", "test_worker_guard_coder_xargs_alias",
-    "test_worker_guard_persist", "test_worker_guard_public_text", "test_worker_guard_push_pin", "test_worker_guard_push_pin_dynamic", "test_worker_guard_push_pin_org_prefix",
+    "test_worker_guard_export", "test_worker_guard_persist", "test_worker_guard_public_text", "test_worker_guard_push_pin", "test_worker_guard_push_pin_dynamic", "test_worker_guard_push_pin_org_prefix",
     "test_worker_guard_repocfg", "test_worker_guard_repoprot", "test_worker_guard_reads", "test_worker_guard_researcher",
     "test_worker_guard_terms_read", "test_worker_guard_unittest", "test_worker_guard_uv_runner",
 }

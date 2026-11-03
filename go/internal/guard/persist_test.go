@@ -146,7 +146,7 @@ func TestPersistSelfReviewBypassesBlocked(t *testing.T) {
 		"echo x > ~/.config/g*/config", "echo x > ~/.config/*/config", "ln -sfn /tmp/e ~/.config"} {
 		c.blocked(cmd, "coder", "")
 	}
-	for _, cmd := range []string{"cp /tmp/a.txt ~/", "f=/tmp/o; echo x > $f", "echo x > $(mktemp -d)/a", "echo x > $OUT/a",
+	for _, cmd := range []string{"cp /tmp/a.txt ~/a.txt", "f=/tmp/o; echo x > $f", "echo x > $(mktemp -d)/a", "echo x > $OUT/a",
 		"cp .bashrc.sample /tmp/"} {
 		c.allowed(cmd, "coder", "")
 	}

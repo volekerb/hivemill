@@ -74,7 +74,7 @@ A gate run without this file only proves the generic patterns; its output says `
 
 ## Output
 
-One line per hit: `<pattern-id> <path>:<line> <masked>` (`<masked>` is `owner-term#<n>` for an owner-term hit) for `--tree` and `--path`, and `<pattern-id> <commit>:<path> <masked>` for `--history` (the path part is `author`, `committer` or `message` for those fields; `<commit>:<path> (path name)` for a hit in a path name; `ref:<name>` or `tag:<name>` for refs and tags). A printed path has every hit in it masked and control characters escaped as `\xNN`, so a hit never prints the leaked value and a file name cannot forge report lines. The matched text is masked: at most its first 4 characters are shown, fewer for a short match. A per-pattern count and a total (`N hits`) follow.
+One line per hit: `<pattern-id> <path>:<line> <masked>` (`<masked>` is `owner-term#<n>` for an owner-term hit) for `--tree` and `--path`, and `<pattern-id> <commit>:<path> <masked>` for `--history` (the path part is `author`, `committer` or `message` for those fields; `<commit>:<path> (path name)` for a hit in a path name; `ref:<name>` or `tag:<name>` for refs and tags). A printed path has every hit in it masked and control characters escaped as `\xNN`, so a hit never prints the leaked value and a file name cannot forge report lines. The matched text is masked: at most its first 4 characters are shown, fewer for a short match. A per-pattern count and a total follow. With an allowlist (always for `--tree`, and for `--history` with `--history-allowlist`) the total reads `N hits not allowlisted, M allowlisted`: N counts only the hits that remain and M the suppressed ones, so M is never part of N. Without an allowlist the total is `N hits`.
 
 ## Allowlist
 
@@ -87,6 +87,8 @@ path:pattern-id:regex-of-line  # reason
 `path` is exact and relative to the scanned directory. `pattern-id` is one of the ids in the table above. `regex` is a Python regex searched in the full source line, so keep it as narrow as the hit. The `# reason` comment is required; a line without one is a usage error. Adding or widening a line changes what the public repository may contain, so it needs a reviewer's explicit approval in the PR.
 
 An entry suppresses only hits of its own pattern id on the lines its regex matches. A line holding an allowlisted email and a token is still reported for the token.
+
+`--tree` prints `scrub-scan: warning: unused allowlist entry path:pattern-id:regex` on stderr for each entry that suppressed no hit (a stale entry). The warning does not change the exit code. `--path` does not warn, since it scans only the files you name.
 
 - `owner-term` hits are never suppressed. An entry naming `owner-term` is a usage error.
 - Token-shape hits (`github-token`, `github-pat`, `anthropic-key`, `aws-access-key-id`, `private-key`, `railway-token`, `oauth-secret`, `generic-secret`, `high-entropy-id`, `cgnat`, `env-file`; for `env-file` the regex is searched in the path) are suppressed only by an entry naming that exact pattern id.

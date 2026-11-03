@@ -240,7 +240,23 @@ def persist_code(text):
 
 # the rendered settings of the live home(s): a Bash write there re-points the next spawn's deny rules and hook
 RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LIVE_HOMES}
-CFG_CODE = re.compile(r"\.config/factory|run/settings|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
+# T-0883: run/guard-export.json (what the Go guard decides own goal, push pin, sandbox and terms file from) and its
+# atomic-rename temp sibling guard-export.json.tmp<pid>: a Bash write there forges the guard's own decisions
+RUN_EXPORT = {os.path.realpath(os.path.join(h, "run", "guard-export.json")) for h in LIVE_HOMES}
+EXPORT_VERBS = {"cp", "mv", "ln", "install", "rsync", "rm", "rmdir", "unlink", "shred", "chmod", "chown", "truncate",
+                "touch", "dd", "tar", "tee"}
+
+
+def _ancestors(path):
+    out = set()
+    while path != os.path.dirname(path):
+        path = os.path.dirname(path)
+        out.add(path)
+    return out
+
+
+EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, the live home, ~, its parents, /
+CFG_CODE = re.compile(r"\.config/factory|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
 INTERPRETERS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs|php|lua|deno|bun)$")
@@ -1330,14 +1346,28 @@ class Analyzer:
         concatenation or joined pieces (`'live_'+'home'`): quotes, `+`, `,` and spaces are dropped before matching."""
         return bool(CFG_CODE.search(word) or CFG_CODE.search(re.sub(r"[\s'\"+,]", "", word)))
 
+    def export_glob(self, t):
+        """T-0883: True when a glob word (`g?ard-export.json`, `guard-*`, `run/*`) can expand to the export file or its
+        temp sibling: `echo x > gua*` truncates it without the word ever spelling the name."""
+        if any(c in t for c in "$`") or not any(c in t for c in "*?["):
+            return False
+        if not os.path.isabs(t):
+            if self.ccwd is None:
+                return False
+            t = os.path.join(self.ccwd, t)
+        return any(fnmatch.fnmatchcase(d + sfx, pat) for pat in brace_expand(os.path.normpath(t)) for d in RUN_EXPORT
+                   for sfx in ("", ".tmp1"))
+
     def cfg_hit(self, word, ancestor=False):
         """True when `word` (or the value of a --opt=value / of=value word) names CFG_DIR or <live>/run/settings or
         something under them (or, with ancestor, a directory that contains one). A word with an expansion we cannot
         resolve counts when it spells `.config/factory` or `run/settings`."""
         for w in {word, word.split("=", 1)[-1]}:
-            t = self.cfg_expand(w)
+            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             if any(c in t for c in "$`*?[{"):
-                if ".config/factory" in t or "run/settings" in t:
+                if ".config/factory" in t or "run/settings" in t or "guard-export" in t:
+                    return True
+                if self.export_glob(t):
                     return True
                 continue
             if not t or (not os.path.isabs(t) and self.ccwd is None):
@@ -1346,12 +1376,56 @@ class Analyzer:
             for d in {CFG_DIR} | RUN_SETTINGS:
                 if p == d or under(p, d) or (ancestor and under(d, p)):
                     return True
+            for d in RUN_EXPORT:  # the file itself and its temp sibling <file>.tmp<pid>
+                if p == d or p.startswith(d + ".") or (ancestor and under(d, p)):
+                    return True
         return False
 
     def cfg_redirect(self, target):
         if self.cfg_hit(target):
             raise Block("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live "
-                        "home) or <live>/run/settings (the rendered role settings); only the owner changes them")
+                        "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json "
+                        "(the guard's own decisions); only the owner and the tick change them")
+
+    def cfg_path(self, w):
+        """Realpath of a word for the export checks, None when it has an expansion we cannot resolve."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+        if not t or any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            return None
+        return os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+
+    def export_rule(self, name, args):
+        """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
+        verb in EXPORT_VERBS names the export, its temp sibling or one of their ancestor directories (R1), is an option
+        whose value does (R2: --target=X, of=X, -tX, -rtX), is a glob that can expand to one of them (R3), or is an
+        expansion we cannot resolve that spells guard-export or a /run directory (R4). Reads use cat/jq/grep/head."""
+        if name not in EXPORT_VERBS:
+            return False
+        for a in args:
+            words = {a, a.split("=", 1)[-1]}
+            m = re.match(r"^-[A-Za-z]*?[tC](.+)$", a)
+            if m:
+                words.add(m.group(1))
+            for w in words:
+                sub = re.sub(r"\$\{?(\w+)\}?", lambda k: self.vars.get(k.group(1), k.group(0)), w)
+                for e in brace_expand(self.cfg_expand(sub)):
+                    if any(c in e for c in "$`"):
+                        if "guard-export" in e or re.search(r"/run(?:/|$)", e):
+                            return True
+                        continue
+                    if not e or (not os.path.isabs(e) and self.ccwd is None):
+                        continue
+                    full = e if os.path.isabs(e) else os.path.join(self.ccwd, e)
+                    if any(c in e for c in "*?["):
+                        pat = os.path.normpath(full)
+                        if any(fnmatch.fnmatchcase(d + sfx, pat) for d in RUN_EXPORT | EXPORT_ANCESTORS
+                               for sfx in ("", ".tmp1")):
+                            return True
+                        continue
+                    p = os.path.realpath(full)
+                    if p in EXPORT_ANCESTORS or any(p == d or p.startswith(d + ".") for d in RUN_EXPORT):
+                        return True
+        return False
 
     def cfg_write(self, name, rest):
         """Best-effort (T-0212): refuse Bash writes to <pw_dir>/.config/factory, the directory and live_home. Reads
@@ -1363,6 +1437,9 @@ class Analyzer:
             abbrev = [x for x in rest if re.match(r"^--l[a-z-]*(=|$)", x) and "--live-home".startswith(x.split("=")[0])]
             if "init" in rest and abbrev:  # argparse accepts any unambiguous prefix of the option
                 raise Block(f"`factory init --live-home` writes ~/.config/factory: {why}")
+        if self.export_rule(name, [a for a in rest if a != "--"]):
+            raise Block(f"`{name}` on <live>/run/guard-export.json: it holds the guard's own decisions; only the "
+                        "tick writes it")
         if name in CFG_WRITERS:
             args = [a for a in rest if a != "--"]
             checked = [(j, a) for j, a in enumerate(args)]
@@ -1372,6 +1449,9 @@ class Analyzer:
             for j, a in checked:
                 anc = name in CFG_REMOVERS or (name == "mv" and j < len(args) - 1)
                 if self.cfg_hit(a, anc):
+                    if "guard-export" in a:
+                        raise Block(f"`{name}` on <live>/run/guard-export.json: it holds the guard's own decisions; "
+                                    "only the tick writes it")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):
@@ -3816,6 +3896,16 @@ def researcher_tool(data):
     return 0
 
 
+EXPORT_WHY = ("run/guard-export.json holds the guard's own decisions (own goal, push pin, sandbox, terms file); only "
+              "the tick writes it")
+
+
+def export_path(p):
+    """T-0883: True when `p` (absolute; `..` and symlinks resolved) is run/guard-export.json of a live home or its
+    atomic-rename temp sibling guard-export.json.tmp<pid>."""
+    return any(c == d or c.startswith(d + ".") for c in {os.path.normpath(p), os.path.realpath(p)} for d in RUN_EXPORT)
+
+
 def persist_edit(data, role=None):
     """T-0334: an Edit/Write/MultiEdit/NotebookEdit call on a protected config/init file is refused. A payload without a
     readable path cannot be decided and fails closed."""
@@ -3829,6 +3919,9 @@ def persist_edit(data, role=None):
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
     if not os.path.isabs(p):
         p = os.path.join(cwd, p)
+    if export_path(p) or ("$" in p and "guard-export" in p):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
     if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (
             "$" in p and persist_code(p)):

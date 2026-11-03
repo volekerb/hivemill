@@ -630,7 +630,10 @@ def derive_live_homes(uid=None):
     Never read from $HOME, $XDG_CONFIG_HOME or any env var (a worker can set those in its command), and never from
     where this script runs (a worker's worktree must not become "live"). <pw_dir>/factory is always live;
     <pw_dir>/.config/factory/live_home can only ADD one more (an invalid or tampered file is ignored).
-    Invariant: a forged live_home does at worst a denial of service. Parsing alone cannot keep that (a forged file
+    Invariant: a forged live_home does at worst a denial of service, plus one more thing: the live home also selects the
+    trust-on-first-use source of factory_remote_url (factory_remote_url() reads remote.origin.url from LIVE_HOME's
+    .git/config), so a forged file can pick which checkout's origin becomes the allowed factory remote. Set the key
+    explicitly on the live DB (`factory config factory_remote_url <url>`) so TOFU never runs. Parsing alone cannot keep that (a forged file
     names ANY directory, and the rendered hook command and live deny paths follow LIVE_HOME), so settings_tokens()
     pins it for a live FACTORY_HOME: it dies unless realpath(LIVE_HOME) == the checkout this bin/factory runs
     from == FACTORY_HOME, and renders nothing otherwise. Same rule as roles/hooks/worker-guard.py (it may not import this file)."""
@@ -1775,6 +1778,10 @@ def cmd_config(a):
                 die(str(e), 2)
         if a.key == "worker_gh_repos" and any(not ghcred.SLUG_RE.fullmatch(x.strip()) for x in a.value.split(",") if x.strip()):
             die(f"worker_gh_repos takes a comma list of OWNER/NAME; {a.value!r} has an entry that is not", 2)
+        if a.key == "factory_remote_url":
+            a.value = a.value.strip()
+            if a.value and not _FACTORY_URL_SHAPE.fullmatch(a.value):
+                die(f"factory_remote_url must be https://github.com/<owner>/<repo>.git (no '.' or '..' segments); {a.value!r} is not", 2)
         if a.key == "task_clones":
             a.value = a.value.strip()
             if a.value not in ("0", "1"):
@@ -6780,7 +6787,8 @@ def gh_git_env():
     return env
 
 
-_FACTORY_URL_SHAPE = re.compile(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git")
+# Owner and repo are never "." or ".." (a path segment); "%" is outside the class, so percent-encoded dots never match.
+_FACTORY_URL_SHAPE = re.compile(r"https://github\.com/(?!\.\.?/)[A-Za-z0-9_.-]+/(?!\.\.?\.git)[A-Za-z0-9_.-]+\.git")
 
 
 def factory_remote_url():
@@ -6849,21 +6857,27 @@ def _project_remote_urls(common):
             rows = con.execute("SELECT repo_path, gh_repo FROM projects WHERE repo_path IS NOT NULL AND gh_repo IS NOT NULL").fetchall()
         finally:
             con.close()
-        urls = set()
+        matched = []  # gh_repo of every row whose repo_path is this clone's root
         for r in rows:
             gh, rp = r["gh_repo"], r["repo_path"]
             if not isinstance(gh, str) or not isinstance(rp, str):
                 continue
-            if (not _GH_REPO.fullmatch(gh) or ".." in gh or gh.endswith(".git")
-                    or f"https://github.com/{gh}.git".lower() == factory_remote_url().lower()):
-                continue
-            if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
-                continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
-            if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
-                continue
-            urls |= {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
-        return urls
-    except (sqlite3.Error, OSError, RuntimeError):
+            try:
+                if not Path(rp).is_absolute() or os.path.realpath(rp) != os.path.abspath(rp):
+                    continue  # relative paths resolve against the caller's cwd; a symlink anywhere in the path is not the registered path
+                if Path(rp).resolve() != root or Path(rp).resolve() in (HOME.resolve(), Path(LIVE_HOME).resolve()):
+                    continue
+            except (ValueError, OSError, RuntimeError):
+                continue  # e.g. a NUL byte in repo_path: this row allows nothing
+            matched.append(gh)
+        if len(matched) != 1:
+            return set()  # two projects at one path is ambiguous: allow no project URL
+        gh = matched[0]
+        if (not _GH_REPO.fullmatch(gh) or ".." in gh or {".", ".."} & set(gh.split("/")) or gh.endswith(".git")
+                or f"https://github.com/{gh}.git".lower() == factory_remote_url().lower()):
+            return set()
+        return {f"https://github.com/{gh}.git", f"https://github.com/{gh}"}
+    except (sqlite3.Error, OSError, RuntimeError, ValueError):
         return set()
 
 
@@ -7064,16 +7078,25 @@ def prepare_worktree(con, task, role):
         install_pre_push_hook(wt)
         con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
         return str(wt)
+    branch_existed = git_run(repo, "rev-parse", "--verify", "-q", f"refs/heads/{branch}", text=False).returncode == 0
     p = git_run(repo, "worktree", "add", "--no-checkout", "-q", "-B", branch, str(wt), start)
     if p.returncode != 0:
         die(f"worktree add failed: {p.stderr.strip()}")
+
+    def drop_half_made():  # only reached for a worktree created in this call, never a pre-existing one
+        git_run(repo, "worktree", "remove", "--force", str(wt), text=False)
+        git_run(repo, "worktree", "prune", text=False)
+        if not branch_existed:
+            git_run(repo, "branch", "-D", branch, text=False)
+
     if not git_config_guard(con, wt):  # an includeIf scoped to worktrees/** only applies once the worktree exists
         why = ", ".join(git_config_refusal(wt))
-        git_run(repo, "worktree", "remove", "--force", str(wt), text=False)
+        drop_half_made()
         con.commit()
         die(f"spawn refused: git config in {wt} would run code: {why}", 4)
     p = git_run(wt, "checkout", "-q", "-f")
     if p.returncode != 0:
+        drop_half_made()
         die(f"worktree checkout failed: {p.stderr.strip()}")
     install_pre_push_hook(wt)
     con.execute("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(wt), branch, task))
@@ -7193,8 +7216,9 @@ def check_evaluator_spawn(con, role, cwd, env_extra, plugin_dirs, add_home_dir):
 
 def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, prompt=None, model=None,
           resume=None, from_queue=False, pane=None, relaunch=False, env_extra=None, plugin_dirs=None,
-          add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None):
-    """org: the org this agent belongs to (G-028); default: the goal's org (see org_for).
+          add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None, strict_name=False):
+    """strict_name: `factory spawn --name X`: refuse when the org naming rule would change X (never rename silently).
+    org: the org this agent belongs to (G-028); default: the goal's org (see org_for).
     env_extra, plugin_dirs, add_home_dir: evaluator only (see check_evaluator_spawn); stored in spawn_args and
     re-applied on dequeue. The eval token is never one of them: only the nsbox shim reads it, in the pane.
     pane: start in this existing pane at a shell prompt (a herdr-restored one) instead of placing a new one.
@@ -7231,7 +7255,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             event(con, "agent", name, "resume-dropped", f"runtime {prior_rt} -> {org_runtime(con, role, org)}")
             resume, fresh = None, True
     if role != "evaluator":
+        asked = name
         name = oname(con, org, name)
+        if strict_name and name != asked:
+            die(f"--name {asked} is refused: agents of the {org} org must be named {name} (org naming rule: every name "
+                f"starts with the org prefix). Use --name {name}, or omit --name for the default.", 2)
     try:
         check_evaluator_spawn(con, role, cwd, env_extra, plugin_dirs, add_home_dir)  # fail closed, before gate/place/pane
     except SystemExit as e:
@@ -8213,7 +8241,7 @@ def cmd_spawn(a):
         if a.goal and goal_org(con, a.goal) not in (None, a.org):
             die(f"{a.goal} belongs to the {goal_org(con, a.goal)} org; move it first: factory goal org {a.goal} {a.org}", 2)
     spawn(con, a.role, a.goal, a.team, a.task, a.name, a.cwd, read_text(a.prompt), a.model, sandbox_optin=a.sandbox,
-          org=a.org)
+          org=a.org, strict_name=bool(a.name))
 
 
 def mark_read(con, msgs):
@@ -8406,19 +8434,22 @@ def prcheck_public(con, t, wt, base):
 
 def load_slot_cap(con):
     """(load1, cap, over): cap = gate_max_load_ratio x CPUs; over when load1 >= cap (owner M16816)."""
+    tests_dir = str(Path(__file__).resolve().parent.parent / "tests")
+    if tests_dir not in sys.path:  # once, not per call (prcheck polls in a loop)
+        sys.path.insert(0, tests_dir)
+    import _slot  # the formula is shared with tests/_slot.acquire, ci/affected.py and ci/guard_diff.py
     try:
         ratio = float(cfg(con, "gate_max_load_ratio"))
     except (TypeError, ValueError):
         ratio = float(DEFAULT_CONFIG["gate_max_load_ratio"])
-    cap, now = ratio * (os.cpu_count() or 1), load1()
-    return now, cap, now >= cap
+    return _slot.load_state(ratio, load1())  # load1 read once per decision
 
 
-def effective_test_slots(con, default=2):
+def effective_test_slots(con, default=2, state=None):
     """Test slots a new local suite may use now: 1 while load1 >= the load cap (one local suite box-wide, M16816),
-    else config test_slots."""
+    else config test_slots. Pass a load_slot_cap result as state to decide on a single load1 reading."""
     n = _int_cfg(con, "test_slots", default)
-    return 1 if load_slot_cap(con)[2] else n
+    return 1 if (state or load_slot_cap(con))[2] else n
 
 
 def prcheck_take_slot(con):
@@ -8430,11 +8461,13 @@ def prcheck_take_slot(con):
     wait = float(os.environ.get("FACTORY_PRCHECK_SLOT_WAIT_S") or PRCHECK_SLOT_WAIT_S)
     poll = float(os.environ.get("FACTORY_PRCHECK_POLL_S") or 1)
     start, last = time.monotonic(), None
-    n = effective_test_slots(con, _slot.DEFAULT_SLOTS)
-    now_load, cap, over = load_slot_cap(con)
-    if over and test_slot_usage(con)[0] >= 1:  # a second suite under load is refused, not queued
-        return f"load1 {now_load:.1f} >= cap {cap:.1f}: one local suite box-wide (M16816); rely on PR CI"
-    while _slot.try_take(_slot.slot_dir(), n) is None:
+    while True:
+        state = load_slot_cap(con)  # re-read on every iteration: load can climb while we wait (M16816)
+        n = effective_test_slots(con, _slot.DEFAULT_SLOTS, state)
+        if state[2] and test_slot_usage(con)[0] >= 1:  # a second suite under load is refused, not queued
+            return _slot.load_refusal_text(state)
+        if _slot.try_take(_slot.slot_dir(), n) is not None:
+            break
         now = time.monotonic()
         if now - start >= wait:
             return False
@@ -13668,9 +13701,8 @@ def after_merge(con, t, pr_url):
     if not live:
         return
     changed = [f for f in files if f.startswith("roles/")]
-    stale = "Your running prompt is stale. Finish your current step; you will be relaunched with --resume (context kept)."
-    for ag in live:
-        _collapse_notice(con, ag["name"], "role files changed: relaunch pending", [pr_url], changed, [], stale, tid)
+    # One message per merge to the director (it relaunches every stale agent with --resume); persistent agents get no
+    # notice of their own. The boss hears only when the director itself is stale (the boss relaunches it).
     cmds = [f"- {ag['name']} ({ag['role']}): factory relaunch {ag['name']} --when-idle" for ag in live]
     _collapse_notice(con, "director", "role files changed: stale agents", [pr_url], changed, cmds,
                      "Live agents above have a stale prompt.", tid)
@@ -14466,7 +14498,9 @@ def main():
     x.add_argument("--dry-run", action="store_true", help="run: print argv only")
     x.set_defaults(fn=cmd_cursor_pilot)
     x = sp.add_parser("spawn"); x.add_argument("role", choices=ROLES); x.add_argument("--goal"); x.add_argument("--team")
-    x.add_argument("--task"); x.add_argument("--name"); x.add_argument("--cwd"); x.add_argument("--prompt")
+    x.add_argument("--task")
+    x.add_argument("--name", help="agent name. When the org prefix applies, the name must already be <org>-<name>; otherwise it is refused")
+    x.add_argument("--cwd"); x.add_argument("--prompt")
     x.add_argument("--model")
     x.add_argument("--org", help="the org this agent belongs to (default: the goal's org, else yours); e.g. cursor")
     x.add_argument("--sandbox", action="store_true", help="run this one agent in the worker sandbox (reviewer, qa, coder)")

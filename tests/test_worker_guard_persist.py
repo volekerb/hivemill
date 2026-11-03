@@ -163,7 +163,7 @@ class PersistGuardTests(unittest.TestCase):
                     "echo x > ~/.bash$'r'c", "git -c alias.c='!git config --global' c a b",
                     "echo x > ~/.config/g*/config", "echo x > ~/.config/*/config", "ln -sfn /tmp/e ~/.config"):
             self.blocked(cmd)
-        for cmd in ("cp /tmp/a.txt ~/", "f=/tmp/o; echo x > $f", "echo x > $(mktemp -d)/a", "echo x > $OUT/a",
+        for cmd in ("cp /tmp/a.txt ~/a.txt", "f=/tmp/o; echo x > $f", "echo x > $(mktemp -d)/a", "echo x > $OUT/a",
                     "cp .bashrc.sample /tmp/"):
             self.allowed(cmd)
 

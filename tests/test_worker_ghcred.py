@@ -175,7 +175,7 @@ class RefusalTests(GhCredCase):
     def test_no_repository_refuses(self):
         self.flag("coder")
         self.env.sql("DELETE FROM config WHERE key='worker_gh_repos'")
-        self.ok("config", "factory_remote_url", "https://example.invalid/x", agent="zz-test-director")
+        self.env.sql("UPDATE config SET value='https://example.invalid/x' WHERE key='factory_remote_url'")
         self.assert_refused("coder", "worker_gh_repos")
 
     def test_no_gh_refuses(self):
