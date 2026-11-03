@@ -1879,7 +1879,9 @@ def check_gh_roles(key, value):
 
 
 GUARD_IMPLS = ("python", "go", "shadow")
-GUARD_BUILD_TIMEOUT_S = 300
+GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
+GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
+GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
 
 
 def guard_src_home():
@@ -1910,10 +1912,15 @@ def _read_line(path):
 def _write_atomic(path, text, mode=0o644):
     """Write text to path through a temp file in the same dir + rename."""
     path = Path(path)
-    tmp = path.with_name(path.name + ".new")
-    tmp.write_text(text)
-    os.chmod(tmp, mode)
-    os.replace(tmp, path)
+    fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)  # unique name: never follows a planted link
+    try:
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), mode)
+            f.write(text)
+        os.replace(name, path)
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
 
 
 def guard_binary_state(src=None, lib=None):
@@ -1925,19 +1932,38 @@ def guard_binary_state(src=None, lib=None):
     return "ok" if stamp == guard_srchash(src) else "stale"
 
 
-def build_guard_go(src=None, lib=None):
+def _run_build(cmd, cwd, timeout):
+    """Run cmd in its own process group; on timeout kill the whole group so no go compile child survives."""
+    env = {**os.environ, "GOTOOLCHAIN": "local"}
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+    try:
+        _, err = p.communicate(timeout=timeout)
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(p.pid, signal.SIGKILL)
+        p.communicate()
+        raise
+    return p.returncode, err
+
+
+def build_guard_go(src=None, lib=None, tick=False):
     """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
 
     No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
     runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
-    built | current | skipped | failed. See docs/worker-guard-go.md."""
+    built | current | skipped | failed. tick=True (the tick path): 120 s budget, quiet when go is missing, and a
+    failed build for this srchash is not retried for 30 min (worker-guard.failed). A lib=None build outside a live
+    home is skipped: it would write the real ~/.local/lib/factory. See docs/worker-guard-go.md."""
+    if lib is None and not home_is_live():
+        return "skipped"
     src, lib = Path(src or guard_src_home()), Path(lib or guard_lib_dir())
     go = shutil.which("go")
     if not go:
         local = Path.home() / ".local" / "go" / "bin" / "go"
         go = str(local) if os.access(local, os.X_OK) else None
     if not go:
-        print("guard go build: skipped (no go toolchain)", file=sys.stderr)
+        if not tick:
+            print("guard go build: skipped (no go toolchain)", file=sys.stderr)
         return "skipped"
     srchash = guard_srchash(src)
     if not srchash:
@@ -1945,6 +1971,13 @@ def build_guard_go(src=None, lib=None):
     stamp, binary = lib / "worker-guard.stamp", lib / "worker-guard"
     if _read_line(stamp) == srchash and os.access(binary, os.X_OK):
         return "current"
+    failed = lib / "worker-guard.failed"
+    if tick and _read_line(failed) == srchash:
+        try:
+            if time.time() - failed.stat().st_mtime < GUARD_FAILED_BACKOFF_S:
+                return "skipped"
+        except OSError:
+            pass
     try:
         lib.mkdir(parents=True, exist_ok=True)
         lock = open(lib / ".build.lock", "a+")
@@ -1958,25 +1991,28 @@ def build_guard_go(src=None, lib=None):
             return "skipped"  # another build is running
         new = lib / "worker-guard.new"
         try:
-            p = subprocess.run([*(["nice", "-n", "10"] if shutil.which("nice") else []), go, "build", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
-                               cwd=src / "go", capture_output=True, text=True, timeout=GUARD_BUILD_TIMEOUT_S,
-                               env={**os.environ, "GOTOOLCHAIN": "local"})
-            ok = p.returncode == 0
-            first = (p.stderr or "").strip().splitlines()[:1]
-            err = first[0] if first else f"exit {p.returncode}"
+            rc, stderr = _run_build([*(["nice", "-n", "10"] if shutil.which("nice") else []), go, "build", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+                                    src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S)
+            ok = rc == 0
+            first = (stderr or "").strip().splitlines()[:1]
+            err = first[0] if first else f"exit {rc}"
         except (OSError, subprocess.SubprocessError) as e:
             ok, err = False, str(e)[:200]
         if not ok:
             stamp.unlink(missing_ok=True)
             new.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _write_atomic(failed, srchash + "\n")
             print(f"guard go build: failed ({err}); the guard stays on Python", file=sys.stderr)
             return "failed"
         try:
             os.chmod(new, 0o755)
             os.replace(new, binary)
             _write_atomic(stamp, srchash + "\n")
+            failed.unlink(missing_ok=True)
         except OSError as e:
             stamp.unlink(missing_ok=True)
+            new.unlink(missing_ok=True)
             print(f"guard go build: failed ({e}); the guard stays on Python", file=sys.stderr)
             return "failed"
     return "built"
@@ -1992,14 +2028,15 @@ def write_guard_impl(con, src=None):
     return line
 
 
-def guard_tick(con, build=True):
-    """`factory up` and the tick: build (cheap no-op when stamped; skipped under load) and refresh run/guard_impl.
-    Never raises: the guard falls back to Python on its own."""
+def guard_tick(con, build=True, tick=True, src=None, lib=None):
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (cheap no-op when stamped; skipped under
+    load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+    (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
     try:
+        write_guard_impl(con, src)
         cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
-        if build and load1() <= cap:
-            build_guard_go()
-        write_guard_impl(con)
+        if build and load1() <= cap and build_guard_go(src, lib, tick=tick) in ("built", "failed"):
+            write_guard_impl(con, src)
     except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
         print(f"guard go build: tick step failed ({e})", file=sys.stderr)
 
@@ -13003,7 +13040,7 @@ def cmd_up(a):
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
-    guard_tick(con)
+    guard_tick(con, tick=False)
     agents = herdr_agents()
     if agents is None:  # let systemd show the failure instead of queueing everything against a dead server
         die("herdr is unreachable (is herdr-server running?); nothing started")

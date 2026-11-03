@@ -244,3 +244,12 @@ set, after `factory up`'s build and once per tick, so the file always follows th
 home; with no `go/` tree or a git error the file holds `python -`. A pull that changes `go/` makes `srchash` differ from the
 stamp until the rebuild, and the shim uses Python meanwhile. `factory config` ends with `guard binary: ok|missing|stale`;
 setting `go` or `shadow` while it is not `ok` prints a warning (the key is still set). Rollback: `factory config guard_impl python`.
+
+### Tick budget, order and failure marker
+
+- **Live home only.** `build_guard_go()` without an explicit lib dir does nothing (`skipped`) unless `FACTORY_HOME` is a live home, so a tick in a test or scratch home never writes the real `~/.local/lib/factory`; it only refreshes `run/guard_impl`.
+- **Budget.** `factory up` builds with a 300 s timeout (`factory-up.service` allows 600 s). The tick builds with 120 s (`factory-tick.service` has `TimeoutStartSec=240`). The build is synchronous and runs in its own process group; on timeout the whole group is killed, so no compile child survives the tick.
+- **Order.** The tick writes `run/guard_impl` first, builds, then writes it again. After a pull that changes `go/` the flag already holds the new `srchash` during the build, so the shim uses Python even if the tick is killed mid-build.
+- **Failure marker.** A failed or timed-out build writes `~/.local/lib/factory/worker-guard.failed` holding the `srchash`. The tick does not rebuild while the marker holds the current `srchash` and is under 30 minutes old; a new `srchash` builds at once, `factory up` ignores the marker, and a successful build removes it.
+- The tick path stays silent when `go` is missing (it would log every minute); `factory up` logs the `skipped` line, and `factory config` shows `guard binary: missing`.
+- The flag and the stamp are written through a unique temp file in the same directory, never a fixed `.new` name, so a planted symlink is not followed.
