@@ -177,29 +177,37 @@ def real_hook_text():
 _HOOK_MOD = []
 
 
-def hook_rc_subprocess(cmd, mode, role="coder", home=None):
+def _payload(cmd, xenv):
+    """The hook payload the way guard_diff builds it: an entry whose env names a task runs from the worktree fixture."""
+    d = {"tool_name": "Bash", "tool_input": {"command": cmd}}
+    if guard_diff.agent_task(xenv):
+        d["cwd"] = guard_diff.worktree_fixture()
+    return json.dumps(d)
+
+
+def hook_rc_subprocess(cmd, mode, role="coder", home=None, xenv=None):
     args = ["--role", role] if mode == "worker" else ["--hq"]
-    env = {**os.environ, "FACTORY_HOME": home} if home else None
+    env = {**os.environ, "FACTORY_HOME": home, **dict(xenv or ())} if home else None
     env = guard_diff.hook_env(cmd, env)
-    p = hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}), list(args), env=env)
+    p = hook_run(_payload(cmd, xenv), list(args), env=env)
     return p.returncode
 
 
-def hook_rc(cmd, mode, role="coder", home=None):
+def hook_rc(cmd, mode, role="coder", home=None, xenv=None):
     """Exit code of the real hook's main(), run in-process: the corpus sanity checks make ~500 calls and a subprocess each
     costs ~40 ms of startup. CorpusSanityTests.check compares a sample with hook_rc_subprocess."""
     if impl() != "python":  # GUARD_IMPL=go|diff: the real binaries decide, never the in-process Python module
-        return hook_rc_subprocess(cmd, mode, role, home)
+        return hook_rc_subprocess(cmd, mode, role, home, xenv)
     if not _HOOK_MOD:
         loader = importlib.machinery.SourceFileLoader("worker_guard_under_test", HOOK)
         mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
         loader.exec_module(mod)
         _HOOK_MOD.append(mod)
     mod = _HOOK_MOD[0]
-    env = {**os.environ, "FACTORY_HOME": home} if home else None
+    env = {**os.environ, "FACTORY_HOME": home, **dict(xenv or ())} if home else None
     env = guard_diff.hook_env(cmd, env)
     argv = ["worker-guard.py"] + (["--role", role] if mode == "worker" else ["--hq"])
-    payload = io.StringIO(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}}))
+    payload = io.StringIO(_payload(cmd, xenv))
     mod.SESSION_ID = None
     with mock.patch.dict(os.environ, env if env is not None else os.environ, clear=env is not None), \
             mock.patch.object(sys, "argv", argv), mock.patch.object(sys, "stdin", payload), \
@@ -411,16 +419,20 @@ class CorpusSanityTests(unittest.TestCase):
                 modes = ["worker"]  # a role-tagged entry is a worker-mode check under that role
             elif key == "must_allow":
                 modes = ["worker", "hq"]
-            seed = guard_diff.entry_item(e)[2:]  # a seeded entry (T-0762) runs against its own seeded temp home
-            jobs += [(cmd, m, role or "coder", seed) for m in modes]
+            it = guard_diff.entry_item(e)  # a seeded entry (T-0762) runs against its own seeded temp home
+            seed, xenv = (it[2] if len(it) > 2 else None), (it[3] if len(it) > 3 else None)
+            jobs += [(cmd, m, role or "coder", seed, xenv) for m in modes]
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
-            homes = {sd: guard_diff.make_seed_home(home, sd[0], i)
-                     for i, sd in enumerate(dict.fromkeys(j[3] for j in jobs if j[3]))}
-            hm = [homes[j[3]] if j[3] else home for j in jobs]
-            got = [hook_rc(j[0], j[1], j[2], h) for j, h in zip(jobs, hm)]
+            specs = dict.fromkeys((j[3] or (), guard_diff.agent_task(j[4])) for j in jobs
+                                  if j[3] or guard_diff.agent_task(j[4]))
+            homes = {sp: guard_diff.make_seed_home(home, sp[0], i,
+                                                   {sp[1]: guard_diff.worktree_fixture()} if sp[1] else None)
+                     for i, sp in enumerate(specs)}
+            hm = [homes.get((j[3] or (), guard_diff.agent_task(j[4])), home) for j in jobs]
+            got = [hook_rc(j[0], j[1], j[2], h, j[4]) for j, h in zip(jobs, hm)]
             for i in range(0, len(jobs), 17):  # the real entry point on a sample of the same jobs
                 j = jobs[i]
-                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], hm[i]), got[i], j)
+                self.assertEqual(hook_rc_subprocess(j[0], j[1], j[2], hm[i], j[4]), got[i], j)
         wrong = [(j, g) for j, g in zip(jobs, got) if g != want]
         self.assertEqual(wrong, [], f"{key}: expected exit {want} on the current hook")
         return len(jobs)
@@ -538,6 +550,85 @@ class SeedTests(GuardDiffCase):
             con = sqlite3.connect(os.path.join(home, "db", "factory.db"))
             self.assertEqual(con.execute("SELECT key, value FROM config ORDER BY key").fetchall(), [("a", "1"), ("b", "2")])
             con.close()
+
+
+class EnvTests(GuardDiffCase):
+    """T-0871: a corpus entry's `env` map reaches both hook sides; an entry without it gets no injected FACTORY_AGENT."""
+
+    # stub hook: blocks `ls` only when its environment carries FACTORY_AGENT=probe-agent
+    STUB_AGENT = ("import json, os, sys\n"
+                  "c = json.load(sys.stdin)['tool_input']['command']\n"
+                  "sys.exit(2 if c == 'ls' and os.environ.get('FACTORY_AGENT') == 'probe-agent' else 0)\n")
+
+    def stub(self, name, src):
+        path = os.path.join(self.repo, name)
+        with open(path, "w") as f:
+            f.write(src)
+        return path
+
+    def compare(self, base, pr, items):
+        with tempfile.TemporaryDirectory() as t:
+            return guard_diff.compare(base, pr, items, ["worker"], "coder", 10, t)
+
+    def test_env_reaches_both_hook_sides(self):
+        agent, loose = self.stub("agent.py", self.STUB_AGENT), self.stub("loose.py", STUB_LOOSE)
+        env_item = guard_diff.entry_item({"cmd": "ls", "env": {"FACTORY_AGENT": "probe-agent"}})
+        self.assertEqual(env_item, ("ls", None, None, (("FACTORY_AGENT", "probe-agent"),)))
+        # PR side: a PR hook that stops blocking it is LOOSENED, and only the entry carrying the env is
+        lines, lo, bad, tight = self.compare(agent, loose, [env_item, ("ls", None)])
+        self.assertEqual((len(lines), lo, bad, tight), (1, ["ls"], [], 0))
+        self.assertIn("worker env=FACTORY_AGENT:probe-agent ls", lines[0])
+        # base side: the same entry is seen as blocking by the base hook, so TIGHTENED when only the PR blocks it
+        lines, lo, bad, tight = self.compare(loose, agent, [env_item])
+        self.assertEqual((len(lines), lo, bad, tight), (1, [], [], 1))
+        # both sides identical: clean
+        self.assertEqual(self.compare(agent, agent, [env_item, ("ls", None)]), ([], [], [], 0))
+
+    def test_evaluator_entry_keeps_its_env(self):
+        agent, loose = self.stub("agent.py", self.STUB_AGENT), self.stub("loose.py", STUB_LOOSE)
+        item = guard_diff.entry_item({"cmd": "ls", "role": "evaluator", "env": {"FACTORY_AGENT": "probe-agent"}})
+        lines, lo, bad, tight = self.compare(agent, loose, [item])
+        self.assertEqual((len(lines), lo, bad, tight), (1, ["ls"], [], 0))
+
+    def test_entry_without_env_gets_no_injected_agent(self):
+        self.assertEqual(guard_diff.entry_item("ls"), ("ls", None))
+        self.assertEqual(guard_diff.entry_item({"cmd": "ls", "role": "qa"}), ("ls", "qa"))
+        marker = os.path.join(self._tmp.name, "agent.txt")
+        hook = self.stub("rec.py", "import os\nopen(%r, 'a').write(os.environ.get('FACTORY_AGENT', 'unset') + '\\n')\n" % marker)
+        with mock.patch.dict(os.environ):
+            os.environ.pop("FACTORY_AGENT", None)
+            self.compare(hook, hook, [("ls", None)])
+        with open(marker) as f:
+            self.assertEqual(set(f.read().split()), {"unset"})
+
+    def test_agent_task_runs_from_its_own_worktree_fixture(self):
+        # stub: allows only when the payload cwd is the worktree the DB records for task T-1
+        hook = self.stub("wt.py",
+            "import json, os, sqlite3, sys\n"
+            "d = json.load(sys.stdin)\n"
+            "con = sqlite3.connect('file:%s?mode=ro' % os.path.join(os.environ['FACTORY_HOME'], 'db', 'factory.db'), uri=True)\n"
+            "row = con.execute(\"SELECT worktree FROM tasks WHERE id = 'T-1'\").fetchone()\n"
+            "sys.exit(0 if row and d.get('cwd') == row[0] else 2)\n")
+        item = guard_diff.entry_item({"cmd": "ls", "env": {"FACTORY_AGENT": "claude-coder-t-1"}})
+        self.assertEqual(self.compare(hook, hook, [item]), ([], [], [], 0))
+        loose = self.stub("loose.py", STUB_LOOSE)
+        self.assertEqual(self.compare(loose, hook, [item]), ([], [], [], 0))  # hook allows it too: same verdict
+
+    def test_malformed_env_fails_load_corpus(self):
+        for bad in ("claude-coder-t-1", [], {}, {"FACTORY_AGENT": 1}, {"FACTORY_AGENT": None}, {"": "x"}):
+            path = os.path.join(self._tmp.name, "raw-corpus.json")
+            with open(path, "w") as f:
+                json.dump({"must_block": [{"cmd": "ls", "env": bad}], "must_allow": []}, f)
+            with self.assertRaises(guard_diff.UsageError, msg=repr(bad)) as cm:
+                guard_diff.load_corpus(path)
+            self.assertIn("'env' must be a non-empty object of string keys to string values", str(cm.exception))
+
+    def test_malformed_env_exit_2(self):
+        with open(self.corpus, "w") as f:
+            json.dump({"must_block": [{"cmd": "ls", "env": {"FACTORY_AGENT": 1}}], "must_allow": []}, f)
+        p = self.run_tool("--mode", "worker")
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("'env' must be", p.stderr)
 
 
 class CorpusTokenTests(unittest.TestCase):

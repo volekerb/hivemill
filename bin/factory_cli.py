@@ -14478,7 +14478,7 @@ def main():
     x.set_defaults(fn=cmd_cursor_pilot)
     x = sp.add_parser("spawn"); x.add_argument("role", choices=ROLES); x.add_argument("--goal"); x.add_argument("--team")
     x.add_argument("--task")
-    x.add_argument("--name", help="agent name; must already follow the org naming rule (<org>-<name>), else refused")
+    x.add_argument("--name", help="agent name. When the org prefix applies, the name must already be <org>-<name>; otherwise it is refused")
     x.add_argument("--cwd"); x.add_argument("--prompt")
     x.add_argument("--model")
     x.add_argument("--org", help="the org this agent belongs to (default: the goal's org, else yours); e.g. cursor")
