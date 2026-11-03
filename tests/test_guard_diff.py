@@ -572,5 +572,22 @@ class CorpusTokenTests(unittest.TestCase):
             self.assertEqual(len(set(paths)), 1)
             self.assertTrue(os.path.islink(os.path.join(paths[0], "linked", "l")))
 
+
+_LOAD_PIN = {}
+
+
+def setUpModule():
+    """T-0905 (M16816): local runs are load-gated; pin load1 low so these tests do not depend on the box's real load."""
+    _LOAD_PIN["old"] = os.environ.get("FACTORY_LOADAVG")
+    os.environ["FACTORY_LOADAVG"] = "0"
+
+
+def tearDownModule():
+    if _LOAD_PIN["old"] is None:
+        os.environ.pop("FACTORY_LOADAVG", None)
+    else:
+        os.environ["FACTORY_LOADAVG"] = _LOAD_PIN["old"]
+
+
 if __name__ == "__main__":
     unittest.main()

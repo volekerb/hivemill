@@ -40,6 +40,79 @@ def slot_count():
     return DEFAULT_SLOTS
 
 
+LOAD_EXIT = 5  # ci/affected.py --run and ci/guard_diff.py exit code: refused for load (M16816); rely on PR CI
+DEFAULT_LOAD_RATIO = 1.25  # mirrors DEFAULT_CONFIG gate_max_load_ratio in bin/factory_cli.py
+
+
+def _config(key):
+    """A config value of the factory DB (read-only), or None."""
+    db = Path(os.environ.get("FACTORY_HOME") or "~/factory").expanduser() / "db" / "factory.db"
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+        try:
+            row = con.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None  # no DB or no such key
+    return row[0] if row else None
+
+
+def load_state(ratio=None, now=None, cpus=None):
+    """(load1, cap, over): the one load decision (owner M16816). cap = gate_max_load_ratio x CPUs; over when
+    load1 >= cap. load1 is read once here ($FACTORY_LOADAVG pins it for tests). Callers pass ratio/now to inject."""
+    if ratio is None:
+        try:
+            ratio = float(_config("gate_max_load_ratio"))
+        except (TypeError, ValueError):
+            ratio = DEFAULT_LOAD_RATIO
+    if now is None:
+        pinned = os.environ.get("FACTORY_LOADAVG")
+        now = float(pinned) if pinned else os.getloadavg()[0]
+    cap = ratio * (cpus or os.cpu_count() or 1)
+    return now, cap, now >= cap
+
+
+def load_refusal_text(state):
+    return f"load1 {state[0]:.1f} >= cap {state[1]:.1f}: one local suite box-wide (M16816); rely on PR CI"
+
+
+def slots_held(directory=None):
+    """Number of slot files another process (or this one) holds the flock of."""
+    directory = directory or slot_dir()
+    held = 0
+    for p in sorted(directory.glob("slot-*.lock")):
+        try:
+            f = open(p, "a+")
+        except OSError:
+            continue
+        try:
+            fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            held += 1
+        finally:
+            f.close()
+    return held
+
+
+def local_run_gate(env=os.environ, directory=None, state=None, take=True):
+    """Gate for a local suite run that is not the full-suite slot path (ci/affected.py --run, ci/guard_diff.py).
+    Returns None to run, or the M16816 refusal text. Never gated: CI (CI=true) or a parent that holds a slot
+    (FACTORY_TEST_SLOT_HELD). Below the cap: runs, takes nothing. At or above it: runs only if no suite holds a slot,
+    and then holds the one effective slot (until the process exits) so a second run is refused."""
+    if env.get("CI", "").lower() == "true" or env.get("FACTORY_TEST_SLOT_HELD"):
+        return None
+    state = state or load_state()
+    if not state[2]:
+        return None
+    directory = directory or slot_dir()
+    if slots_held(directory) >= 1:
+        return load_refusal_text(state)
+    if take and try_take(directory, 1) is None:  # lost the race for the one slot
+        return load_refusal_text(state)
+    return None
+
+
 def try_take(directory, n):
     """Lock the first free slot file without blocking; returns its number or None."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -60,12 +133,20 @@ def try_take(directory, n):
 
 
 def acquire(directory=None, n=None, wait_max=WAIT_MAX_S, notice=WAIT_NOTICE_S, sleep=time.sleep, clock=time.monotonic,
-            out=sys.stderr, require=False):
+            out=sys.stderr, require=False, state=None):
     """Take a slot, waiting up to wait_max seconds (a notice every `notice` s). Past that run anyway with a warning.
     Returns the slot number, or None when it ran without one. require=True (the local merge gate, T-0515) never runs
     slot-less: past wait_max it prints why and returns None, and the caller must treat None as "no slot, do not run"."""
     directory = directory or slot_dir()
     n = n or slot_count()
+    state = state or load_state()
+    if state[2]:  # M16816: one local suite box-wide while load1 >= the cap; a second one is refused, not queued
+        n = 1
+        if slots_held(directory) >= 1:
+            print(f"{'ERROR' if require else 'REFUSED'}: {load_refusal_text(state)}", file=out, flush=True)
+            if require:
+                return None
+            sys.exit(LOAD_EXIT)
     start = last = clock()
     first = True
     while True:
