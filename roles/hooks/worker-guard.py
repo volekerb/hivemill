@@ -1713,6 +1713,8 @@ class Analyzer:
                         bad("-d without a directory")
                     dirs.append(args[k])
                     k += 1
+                elif a.startswith("-d") and len(a) > 2:  # -dDIR: the same target as -d DIR
+                    dirs.append(a[2:])
                 elif a.startswith("-") and len(a) > 1:
                     if a not in UNZIP_FLAG_OK:
                         bad(f"option {a!r}")
