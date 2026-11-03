@@ -108,8 +108,10 @@ def local_run_gate(env=os.environ, directory=None, state=None, take=True):
     directory = directory or slot_dir()
     if slots_held(directory) >= 1:
         return load_refusal_text(state)
-    if take and try_take(directory, 1) is None:  # lost the race for the one slot
-        return load_refusal_text(state)
+    if take:
+        if try_take(directory, 1) is None:  # lost the race for the one slot
+            return load_refusal_text(state)
+        env["FACTORY_TEST_SLOT_HELD"] = "1"  # this process holds it: a FULL --run must not refuse itself in acquire()
     return None
 
 

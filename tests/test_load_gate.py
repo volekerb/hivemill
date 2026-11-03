@@ -146,7 +146,9 @@ class ToolGateTests(unittest.TestCase):
         for f in self.files:
             f.close()
         self.files = []
-        self.assertIsNone(_slot.local_run_gate({}, self.slots, (CAP + 1, CAP, True)))
+        env = {}
+        self.assertIsNone(_slot.local_run_gate(env, self.slots, (CAP + 1, CAP, True)))
+        self.assertEqual(env.get("FACTORY_TEST_SLOT_HELD"), "1")
         self.addCleanup(_slot.release)
         self.assertIn(MSG, _slot.local_run_gate({}, self.slots, (CAP + 1, CAP, True)))
 
