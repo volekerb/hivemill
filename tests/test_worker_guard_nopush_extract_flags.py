@@ -51,11 +51,12 @@ class ExtractFlagTests(unittest.TestCase):
     def test_f2_long_options_before_m(self):
         s = self.scratch
         self.check([f"python3 --check-hash-based-pycs always -m zipfile -e {s}/a.zip {s}/r/.git",
+                    f"python3 --check-hash-based-pycs=always -m zipfile -e {s}/a.zip {s}/r/.git",
                     f"python3 --some-unknown-opt -m zipfile -e {s}/a.zip {s}/r/.git"], 2)
 
     def test_f1_f2_benign_neighbours(self):
         s = self.scratch
-        self.check(["python3 -Wonce -m json.tool", f"python3 -m zipfile -l {s}/a.zip",
+        self.check(["python3 -Wonce -m json.tool", "python3 --check-hash-based-pycs=always -m json.tool", f"python3 -m zipfile -l {s}/a.zip",
                     f"python3 -Wonce -m zipfile -e {s}/a.zip {s}/clean",
                     f"python3 --check-hash-based-pycs always -m zipfile -l {s}/a.zip"], 0)
 

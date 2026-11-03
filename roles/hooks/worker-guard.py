@@ -1610,11 +1610,13 @@ class Analyzer:
                 cl = args[k]
                 k += 1
                 if cl.startswith("--"):  # T-0808 F2: skip a known long option (and its value); an unknown one fails closed
-                    if cl in PY_LONG_VALUE:
-                        k += 1
-                    elif cl not in PY_LONG_FLAG:
-                        if any(re.match(r"^-[A-Za-z]*m", a) for a in args[k:]):
-                            raise Block(f"`{name}` with the unknown option {cl!r} before -m: the module and its target cannot "
+                    base, eq, _ = cl.partition("=")
+                    if base in PY_LONG_VALUE:
+                        k += 0 if eq else 1  # `--opt=value` carries its value; `--opt value` takes the next argument
+                    elif base not in PY_LONG_FLAG:
+                        # unknown arity: block only when a later -m names an archive module (`--bogus -m pytest` stays allowed)
+                        if any(a.endswith(("zipfile", "tarfile")) for a in args[k:]):
+                            raise Block(f"`{name}` with the unknown option {cl!r} before -m zipfile/tarfile: the target cannot "
                                         "be bounded; drop the option or extract with unzip -d")
                         break
                     continue
