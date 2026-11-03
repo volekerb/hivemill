@@ -622,7 +622,7 @@ def run(argv):
     if args.tree is not None:
         scan_tree(args.tree, report, allow)
         for apath, pid, rx in allow.unused():
-            print(f"scrub-scan: warning: unused allowlist entry {shown(scanner, apath.encode('utf-8', 'surrogateescape'))}:{pid or '-'}:{rx}",
+            print(f"scrub-scan: warning: unused allowlist entry {shown(scanner, apath.encode('utf-8', 'surrogateescape'))}:{pid or '-'}:{scanner.hide_terms(rx)}",
                   file=sys.stderr)
         return report.finish("tree")
     cwd = os.getcwd()
