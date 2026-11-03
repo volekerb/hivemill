@@ -318,7 +318,7 @@ class HookTests(Tmp):
         c = self.cfg
         for role in ("coder", "qa"):
             for cmd in (f"cat {c}/live_home", "cat ~/.config/factory/live_home", "grep . ~/.config/factory/live_home",
-                        f"cd {c} && cat live_home", f"ls {c}", "echo hi > /tmp/x", "touch ~/notes.txt", "mv /tmp/a ~/",
+                        f"cd {c} && cat live_home", f"ls {c}", "echo hi > /tmp/x", "touch ~/notes.txt", "mv /tmp/a ~/a",
                         "rm ~/old.txt", "cp ~/.config/factory/live_home /tmp/copy", "factory init",
                         "sed -i s/a/b/ /tmp/f", "mkdir -p ~/.config/other",
                         "echo hi > /tmp/x 2>&1", "echo hi >&2", "echo hi 2>&-", "echo hi &> /tmp/x",
