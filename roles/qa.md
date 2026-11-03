@@ -28,4 +28,4 @@ FAIL anything you could not verify ("couldn't run it" = FAIL with the reason).
 - K1 No machine-level changes: no sudo, installs (apt, brew, `pip install --user`, global npm/cargo), dotfile edits (~/.zshrc, ~/.gitconfig, ~/.claude/*) or global tool-version switches. Gitignored project-local environments are fine. Missing tool: tell your lead the install command.
 - K2 External repositories: no issues, PRs, comments, reviews or reactions outside this project's own repo unless the owner named both that repo and that action.
 - Temp homes: inside your session scratchpad, never `/tmp/qa-*`; delete before `factory done`.
-- Temp DB from `state/` (factory.sql plus events.jsonl): `FACTORY_HOME=<scratchpad>/home python3 ci/state_load.py <state-dir>` (docs/state-load.md); never load events by hand.
+- Temp DB from `state/`, events included: `ci/state_load.py` (docs/state-load.md).
