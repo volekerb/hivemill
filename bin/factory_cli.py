@@ -4725,6 +4725,7 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
+LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t]*live-run:[ \t]*pending\b.*$")
 
 
 def mech_mode(con):
@@ -4806,20 +4807,11 @@ def mech_tier(con, t, sha, git_repo):
 def mech_try(con, t, mode, retry_s):
     """Evaluate one candidate: 'merged', 'blocked' (event written) or 'skipped' (not ready yet; nothing written)."""
     tid, url = t["id"], t["pr_url"]
-    ready, why = judge_pr_ready(con, url)
-    if not ready:
-        return "skipped"
-    try:
-        pr = pr_state(url)
-    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
-        return "skipped"  # gh failed: try again next run
-    sha = pr["headRefOid"]
-    wt = t["worktree"]
-    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    sha = None  # known after pr_state; the DB-only checks below run first
     block_kind = "mech-would-block" if mode == "shadow" else "mech-blocked"
 
     def block(msg):
-        detail = f"head={sha[:12]}: {msg}"[:900]
+        detail = (f"head={sha[:12]}: {msg}" if sha else msg)[:900]
         last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
                            "ORDER BY id DESC LIMIT 1", (tid, *MECH_EVENTS)).fetchone()
         if not last or last["detail"] != detail:  # a permanent block is recorded once, not every retry window
@@ -4830,6 +4822,21 @@ def mech_try(con, t, mode, retry_s):
     if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                    (tid,)).fetchone() or con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "in_review":
         return "skipped"  # a judge appeared (or the task moved) since the candidate list was built
+    qa = con.execute("SELECT summary FROM verdicts WHERE task_id=? AND role='qa' ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    pending = LIVE_RUN_PENDING.search((qa["summary"] or "") if qa else "")
+    if pending:  # QA's PASS rests on a live run it has not finished (roles/qa.md Q7): only the judge may merge
+        return block("QA live-run pending (%s); hold until QA records the result, or the judge decides" % pending.group(0).strip()[:120])
+
+    ready, why = judge_pr_ready(con, url)
+    if not ready:
+        return "skipped"
+    try:
+        pr = pr_state(url)
+    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+        return "skipped"  # gh failed: try again next run
+    sha = pr["headRefOid"]
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
 
     if not git_config_guard(con, git_repo, always_event=True):
         return block(f"git config in {git_repo} would run code")

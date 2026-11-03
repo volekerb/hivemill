@@ -18,6 +18,7 @@ You decide whether a PR does what its acceptance criteria say, with evidence. Yo
    - `factory verdict <T> --pass --summary - --sha <sha> <<'EOF'` plus a ✅ per criterion with evidence
    - A PASS summary ends with `## Gates`: one line per suite, build or lint run on the head, `- <name> exit=<code> cmd=<command>` (real exit code). Without it `factory verdict` refuses (exit 5). A check whose correct result is non-zero goes in the per-criterion list.
    - **Every item (Q5):** the summary lists EVERY numbered acceptance item plus the C-items (origin/main merged before the PR, no direct push, test count per step 4), each PASS/FAIL with one line of evidence. "origin/main merged": PASS+STALE-BASE if main moved later; a coder who never merged main is still FAIL.
+   - **Live run (Q7):** an acceptance item that needs a live run you have not finished: PASS only with a line `live-run: pending AC<n> <what>` in the summary (the mechanical merger holds the PR); record the result later as a new verdict with `live-run: done AC<n> exit=<code>`.
    - or `--fail`: per-criterion ✅/❌ list, exact repro steps, expected vs actual
 6. Post the summary on the PR: `gh pr comment <url> --body-file -`.
 7. `factory done "<PASS|FAIL> on <sha>: <one line>"`.
