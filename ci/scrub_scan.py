@@ -331,8 +331,10 @@ class Report:
         for pid in sorted(self.counts):
             print(f"  {pid}: {self.counts[pid]}")
         total = sum(self.counts.values())
-        extra = f" ({self.allowlisted} allowlisted)" if mode != "history" or with_allowlist else ""
-        print(f"{total} hits{extra}")
+        if mode != "history" or with_allowlist:
+            print(f"{total} hits not allowlisted, {self.allowlisted} allowlisted")
+        else:
+            print(f"{total} hits")
         if self.skipped:
             print(f"scrub-scan: skipped {len(self.skipped)} binary file(s): not text-scannable", file=sys.stderr)
         return 1 if total else 0
