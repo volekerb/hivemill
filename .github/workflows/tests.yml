@@ -157,10 +157,77 @@ jobs:
       - name: Guard hook unittests (GUARD_IMPL=diff)
         run: GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run
 
+  # Base-vs-PR "0 loosened" proof on the real corpus (docs/guard-diff.md). Runs on PRs that touch a guard path;
+  # the tool (ci/guard_diff.py + tests/_slot.py) comes from the BASE commit, so a PR cannot weaken its own gate.
+  guard-diff-corpus:
+    name: guard-diff-corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Guard paths changed?
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request: skipped"; exit 0; fi
+          changed=$(git diff --name-only "$BASE_SHA" HEAD)
+          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|go/internal/guard/)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
+          fi
+      - name: Install zsh
+        if: steps.paths.outputs.run == 'true'
+        run: sudo apt-get install -y zsh
+      - name: guard_diff.py base vs PR (real corpus)
+        if: steps.paths.outputs.run == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -o pipefail
+          lines=$(wc -l < ci/guard_corpus.json)
+          echo "corpus: ci/guard_corpus.json has $lines lines"
+          if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
+          tool="$RUNNER_TEMP/base-tool"
+          mkdir -p "$tool"
+          if git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py | tar -x -C "$tool"; then
+            gd="$tool/ci/guard_diff.py"; echo "tool: ci/guard_diff.py from base $BASE_SHA"
+          else
+            gd=ci/guard_diff.py; echo "tool: base has no ci/guard_diff.py, using the PR copy"
+          fi
+          # planned loosening: PR-added ci/allow_loosen_*.json, merged into one list and printed for the reviewer
+          allow=()
+          files=$(git diff --name-only --diff-filter=AM "$BASE_SHA" HEAD -- 'ci/allow_loosen_*.json')
+          if [ -n "$files" ]; then
+            echo "PLANNED LOOSENING listed by this PR (reviewer: check it against the spec):"
+            for f in $files; do echo "--- $f"; cat "$f"; done
+            python3 -I - $files > "$RUNNER_TEMP/allow_loosen.json" <<'PY'
+          import json, sys
+          out = []
+          for p in sys.argv[1:]:
+              out += json.load(open(p, encoding="utf-8"))
+          print(json.dumps(out))
+          PY
+            allow=(--allow-loosen "$RUNNER_TEMP/allow_loosen.json")
+          fi
+          rc=0
+          python3 "$gd" --base "$BASE_SHA" --repo . --corpus ci/guard_corpus.json --mode both "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" || rc=1
+          python3 "$gd" --base "$BASE_SHA" --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" || rc=1
+          grep -E '^(LOOSENED|SETTINGS-LOOSENED|TIMEOUT)' "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt" || echo "no LOOSENED/TIMEOUT lines"
+          echo "guard_diff failing runs: $rc"
+          exit $rc
+
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-diff]
+    needs: [unittest-shard, go, guard-diff, guard-diff-corpus]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -170,6 +237,7 @@ jobs:
           SHARD_RESULT: ${{ needs.unittest-shard.result }}
           GO_RESULT: ${{ needs.go.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
+          CORPUS_RESULT: ${{ needs.guard-diff-corpus.result }}
         run: |
           fail=0
           if [ "$SHARD_RESULT" != "success" ]; then
@@ -182,6 +250,10 @@ jobs:
           fi
           if [ "$GUARD_DIFF_RESULT" != "success" ]; then
             echo "guard-diff result: $GUARD_DIFF_RESULT (GUARD_IMPL=diff must succeed)" >&2
+            fail=1
+          fi
+          if [ "$CORPUS_RESULT" != "success" ]; then
+            echo "guard-diff-corpus result: $CORPUS_RESULT (ci/guard_diff.py must report 0 unlisted LOOSENED lines)" >&2
             fail=1
           fi
           exit $fail
