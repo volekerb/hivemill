@@ -464,8 +464,10 @@ class NsboxNamespaceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix="zz-test-nsbox-")).resolve()
-        cls.up = TcpUpstream()
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
         cls.fenv = FactoryEnv()
+        cls.addClassCleanup(cls.fenv.cleanup)  # registered before any step that can raise
+        cls.up = TcpUpstream()
         cls.fenv.seed_project()
         cls.fenv.seed_goal()
         cls.fenv.seed_task()
@@ -553,8 +555,6 @@ class NsboxNamespaceTests(unittest.TestCase):
         cls.sentinel.wait()
         cls.up.close()
         cls.herdr_srv.close()
-        cls.fenv.cleanup()
-        shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def test_a_no_network_inside(self):
         self.assertEqual(self.obs["fetch"], "fail")
