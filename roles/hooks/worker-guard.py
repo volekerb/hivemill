@@ -2090,7 +2090,7 @@ class Analyzer:
         if name == "gh":
             ok = (pos[:1] == ["search"] or (pos[:1] and pos[0] in RESEARCH_GH_GROUPS and pos[1:2] and pos[1] in RESEARCH_GH_READ
                                             and rest[:2] == pos[:2])
-                  or gh_api_is_get(rest))
+                  or (pos[:1] == ["api"] and gh_api_is_get(rest)))
             if not ok:
                 raise Block("a researcher may run gh only to read (search, <pr|issue|release|repo|run> view|list|diff|status|"
                             "checks, api that resolves to GET: no method other than GET, no -f/-F/--field/--raw-field/--input)")

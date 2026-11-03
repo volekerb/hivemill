@@ -52,7 +52,8 @@ class ResearcherBase(unittest.TestCase):
 GH_API_DENIED = ("gh api -XPOST repos/a/b/issues", "gh api --method=POST x", "gh api -X=post x", "gh api x -f title=t",
                  "gh api x -F a=1", "gh api x --input f.json", "gh api -X PATCH x", "gh api -X DELETE x",
                  "gh api x --field a=1", "gh api x --raw-field a=b", "gh api -iXPOST x", "gh api -if a=1 x",
-                 "gh api --method=get x -f a=1", "gh api -X GET -X POST x", "gh api --method put x")
+                 "gh api --method=get x -f a=1", "gh api -X GET -X POST x", "gh api --method put x",
+                 "gh -X GET api x", "gh --method GET api repos/a/b", "gh -H 'Accept: x' api repos/a/b")
 GH_API_ALLOWED = ("gh api repos/a/b", "gh api -X GET repos/a/b", "gh api --method=GET repos/a/b/pulls?state=open",
                   "gh api -XGET x", "gh api -X=get x", "gh api --method get x", "gh api x --jq .name")
 

@@ -46574,6 +46574,528 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api -XPOST repos/a/b/issues",
+"mask_quotes_pre": "gh api -XPOST repos/a/b/issues",
+"mask_quotes_raw": "gh api -XPOST repos/a/b/issues",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XPOST repos/a/b/issues"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XPOST repos/a/b/issues"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"gh",
+"api",
+"-XPOST",
+"repos/a/b/issues"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"gh",
+"api",
+"-XPOST",
+"repos/a/b/issues"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method=POST x",
+"mask_quotes_pre": "gh api --method=POST x",
+"mask_quotes_raw": "gh api --method=POST x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=POST x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=POST x"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"gh",
+"api",
+"--method=POST",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"gh",
+"api",
+"--method=POST",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X=post x",
+"mask_quotes_pre": "gh api -X=post x",
+"mask_quotes_raw": "gh api -X=post x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X=post x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X=post x"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"gh",
+"api",
+"-X=post",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"gh",
+"api",
+"-X=post",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api x -f title=t",
+"mask_quotes_pre": "gh api x -f title=t",
+"mask_quotes_raw": "gh api x -f title=t",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api x -f title=t"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api x -f title=t"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"gh",
+"api",
+"x",
+"-f",
+"title=t"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"gh",
+"api",
+"x",
+"-f",
+"title=t"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api x -F a=1",
+"mask_quotes_pre": "gh api x -F a=1",
+"mask_quotes_raw": "gh api x -F a=1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api x -F a=1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api x -F a=1"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"gh",
+"api",
+"x",
+"-F",
+"a=1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"gh",
+"api",
+"x",
+"-F",
+"a=1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api x --input f.json",
+"mask_quotes_pre": "gh api x --input f.json",
+"mask_quotes_raw": "gh api x --input f.json",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --input f.json"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --input f.json"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"gh",
+"api",
+"x",
+"--input",
+"f.json"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"gh",
+"api",
+"x",
+"--input",
+"f.json"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X PATCH x",
+"mask_quotes_pre": "gh api -X PATCH x",
+"mask_quotes_raw": "gh api -X PATCH x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PATCH x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PATCH x"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"gh",
+"api",
+"-X",
+"PATCH",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"gh",
+"api",
+"-X",
+"PATCH",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X DELETE x",
+"mask_quotes_pre": "gh api -X DELETE x",
+"mask_quotes_raw": "gh api -X DELETE x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X DELETE x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X DELETE x"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"gh",
+"api",
+"-X",
+"DELETE",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"gh",
+"api",
+"-X",
+"DELETE",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh -X GET api x",
+"mask_quotes_pre": "gh -X GET api x",
+"mask_quotes_raw": "gh -X GET api x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh -X GET api x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh -X GET api x"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"gh",
+"-X",
+"GET",
+"api",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"gh",
+"-X",
+"GET",
+"api",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh --method GET api repos/a/b",
+"mask_quotes_pre": "gh --method GET api repos/a/b",
+"mask_quotes_raw": "gh --method GET api repos/a/b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh --method GET api repos/a/b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh --method GET api repos/a/b"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"gh",
+"--method",
+"GET",
+"api",
+"repos/a/b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"gh",
+"--method",
+"GET",
+"api",
+"repos/a/b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh -H 'Accept: x' api repos/a/b",
+"mask_quotes_pre": "gh -H 'QQQQQQQQQ' api repos/a/b",
+"mask_quotes_raw": "gh -H 'QQQQQQQQQ' api repos/a/b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh -H 'Accept: x' api repos/a/b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh -H 'Accept: x' api repos/a/b"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"gh",
+"-H",
+"'QQQQQQQQQ'",
+"api",
+"repos/a/b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"gh",
+"-H",
+"'QQQQQQQQQ'",
+"api",
+"repos/a/b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory spawn coder",
 "mask_quotes_pre": "factory spawn coder",
 "mask_quotes_raw": "factory spawn coder",
@@ -69496,6 +70018,144 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api repos/a/b",
+"mask_quotes_pre": "gh api repos/a/b",
+"mask_quotes_raw": "gh api repos/a/b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/a/b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/a/b"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"gh",
+"api",
+"repos/a/b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"gh",
+"api",
+"repos/a/b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X GET repos/a/b",
+"mask_quotes_pre": "gh api -X GET repos/a/b",
+"mask_quotes_raw": "gh api -X GET repos/a/b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X GET repos/a/b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X GET repos/a/b"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"gh",
+"api",
+"-X",
+"GET",
+"repos/a/b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"gh",
+"api",
+"-X",
+"GET",
+"repos/a/b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method=GET repos/a/b/pulls?state=open",
+"mask_quotes_pre": "gh api --method=GET repos/a/b/pulls?state=open",
+"mask_quotes_raw": "gh api --method=GET repos/a/b/pulls?state=open",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=GET repos/a/b/pulls?state=open"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=GET repos/a/b/pulls?state=open"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"gh",
+"api",
+"--method=GET",
+"repos/a/b/pulls?state=open"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"gh",
+"api",
+"--method=GET",
+"repos/a/b/pulls?state=open"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "factory task show T-1",
 "mask_quotes_pre": "factory task show T-1",
 "mask_quotes_raw": "factory task show T-1",
@@ -77805,7 +78465,7 @@
 ]
 }
 },
-"corpus_commands": 1380,
+"corpus_commands": 1394,
 "edge_inputs": 97,
 "python": "3.13"
 }
