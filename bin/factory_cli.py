@@ -8426,7 +8426,9 @@ def prcheck_public(con, t, wt, base):
 
 def load_slot_cap(con):
     """(load1, cap, over): cap = gate_max_load_ratio x CPUs; over when load1 >= cap (owner M16816)."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+    tests_dir = str(Path(__file__).resolve().parent.parent / "tests")
+    if tests_dir not in sys.path:  # once, not per call (prcheck polls in a loop)
+        sys.path.insert(0, tests_dir)
     import _slot  # the formula is shared with tests/_slot.acquire, ci/affected.py and ci/guard_diff.py
     try:
         ratio = float(cfg(con, "gate_max_load_ratio"))
