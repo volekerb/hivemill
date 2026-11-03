@@ -591,3 +591,48 @@ def tearDownModule():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+STUB_LOADS_CI = '''import importlib.util, os, sys
+sys.stdin.read()
+path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), "ci", "public_text_guard.py")
+try:
+    spec = importlib.util.spec_from_file_location("ptg", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+except Exception:
+    sys.exit(2)
+sys.exit(0)
+'''
+
+
+class BaseCiExtractTests(GuardDiffCase):
+    """T-0875: the base hook is extracted with the base ref's ci/ files, so it can load public-text-guard."""
+
+    def setUp(self):
+        super().setUp()
+        ci = os.path.join(self.repo, "ci")
+        os.makedirs(ci)
+        with open(os.path.join(ci, "scrub_scan.py"), "w") as f:
+            f.write("MARK = 1\n")
+        with open(os.path.join(ci, "public_text_guard.py"), "w") as f:
+            f.write("import importlib.util, os\n"
+                    "_p = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'scrub_scan.py')\n"
+                    "_s = importlib.util.spec_from_file_location('s', _p)\n"
+                    "scrub = importlib.util.module_from_spec(_s)\n_s.loader.exec_module(scrub)\n")
+        self.write_hook(STUB_LOADS_CI)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-q", "-m", "base with ci")
+
+    def test_base_hook_loads_public_text_guard(self):
+        p = self.run_tool("--mode", "both")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("0 loosened, 0 tightened", p.stdout)
+        self.assertNotIn("LOOSENED", p.stdout)
+
+    def test_base_without_ci_still_runs(self):
+        git(self.repo, "rm", "-q", "-r", "ci")
+        git(self.repo, "commit", "-q", "-m", "drop ci")
+        p = self.run_tool("--mode", "worker")
+        self.assertIn(p.returncode, (0, 1), p.stderr)
+        self.assertNotIn("guard-diff:", p.stderr)

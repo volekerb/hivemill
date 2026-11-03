@@ -45,6 +45,21 @@ def git(repo, *args):
     return p.stdout
 
 
+def extract_base_ci(repo, base, dest):
+    """Write the base ref's ci/*.py (top level) under dest/ci, so the base hook finds ci/public_text_guard.py and the
+    ci/scrub_scan.py it loads by path, as the hook at that ref would in a checkout. A base without ci/ writes nothing."""
+    try:
+        names = git(repo, "ls-tree", "--name-only", "--end-of-options", base, "ci/").split("\n")
+    except UsageError:
+        return
+    for name in names:
+        if not (name.startswith("ci/") and name.endswith(".py") and "/" not in name[3:]):
+            continue
+        os.makedirs(os.path.join(dest, "ci"), exist_ok=True)
+        with open(os.path.join(dest, name), "w", encoding="utf-8") as f:
+            f.write(git(repo, "show", "--end-of-options", f"{base}:{name}"))
+
+
 def live_home():
     """The live factory home the hook derives under this user (T-0212); corpus commands spell it @LIVE_HOME@."""
     return os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")
@@ -441,6 +456,11 @@ def main(argv=None):
         os.makedirs(os.path.dirname(base_hook))
         with open(base_hook, "w", encoding="utf-8") as f:
             f.write(base_src)
+        try:
+            extract_base_ci(a.repo, a.base, os.path.join(tmp, "base"))
+        except UsageError as e:
+            sys.stderr.write(f"guard-diff: {e}\n")
+            return 2
         temp_home = os.path.join(tmp, "home")
         os.makedirs(temp_home)
         lines, loosened, bad, tight = compare(base_hook, hook, cmds, modes, a.role, a.timeout, temp_home)
