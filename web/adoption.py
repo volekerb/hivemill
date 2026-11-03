@@ -139,7 +139,7 @@ def scan(root, attr, since=None, until=None):
     `agent-name` record. Those sessions are added to `attr` (mutated). Sessions with neither are skipped and counted.
     """
     names = {a["agent"]: a["role"] for a in attr.values()}
-    sess, seen_usage, seen_tool = {}, set(), set()
+    sess, seen_usage, seen_tool, wf_seen = {}, set(), set(), set()
     fb_task, fb_name = {}, {}
     c = {"files": 0, "malformed_lines": 0, "duplicate_requests": 0, "unattributed_sessions": 0}
     unattributed = set()
@@ -176,6 +176,12 @@ def scan(root, attr, since=None, until=None):
                 if not isinstance(d, dict):
                     continue
                 sid = psid if sub else (d["sessionId"] if isinstance(d.get("sessionId"), str) else psid)
+                if wf_run is not None:
+                    # Workflow transcripts feed only workflow_subagent_tokens: they never touch the shared dedup
+                    # sets, the agent-name/cwd fallbacks or the cost buckets, so main-session attribution is unchanged.
+                    if attr.get(sid) is not None:
+                        _wf_usage(d, sess.setdefault(sid, _Sess()), wf_seen, wf_run)
+                    continue
                 if d.get("type") == "agent-name":
                     if isinstance(d.get("agentName"), str):
                         fb_name.setdefault(sid, d["agentName"])
@@ -197,7 +203,7 @@ def scan(root, attr, since=None, until=None):
                 msg = d.get("message") if isinstance(d.get("message"), dict) else {}
                 content = msg.get("content") if isinstance(msg.get("content"), list) else []
                 if d.get("type") == "assistant":
-                    _assistant(d, msg, content, a, s, side, sub_tool, wf_run, seen_usage, seen_tool, read_ids, since, until, c)
+                    _assistant(d, msg, content, a, s, side, sub_tool, seen_usage, seen_tool, read_ids, since, until, c)
                 elif d.get("type") == "user" and not side:
                     for b in content:
                         if isinstance(b, dict) and b.get("type") == "tool_result" and b.get("tool_use_id") in read_ids:
@@ -207,7 +213,20 @@ def scan(root, attr, since=None, until=None):
     return sess, c
 
 
-def _assistant(d, msg, content, a, s, side, sub_tool, wf_run, seen_usage, seen_tool, read_ids, since, until, c):
+def _wf_usage(d, s, seen, wf_run):
+    """Add one workflow-subagent assistant request to its session's wf_runs (deduped among workflow files only)."""
+    msg = d.get("message") if isinstance(d.get("message"), dict) else {}
+    u = msg.get("usage")
+    if d.get("type") != "assistant" or not isinstance(u, dict):
+        return
+    key = (msg.get("id"), d.get("requestId")) if msg.get("id") and d.get("requestId") else d.get("uuid")
+    if key is None or key in seen:
+        return
+    seen.add(key)
+    s.wf_runs[wf_run] = s.wf_runs.get(wf_run, 0) + context_of(u)
+
+
+def _assistant(d, msg, content, a, s, side, sub_tool, seen_usage, seen_tool, read_ids, since, until, c):
     mid, rid = msg.get("id"), d.get("requestId")
     key = (mid, rid) if mid and rid else d.get("uuid")
     first_sight = key is not None and key not in seen_usage
@@ -222,8 +241,6 @@ def _assistant(d, msg, content, a, s, side, sub_tool, wf_run, seen_usage, seen_t
             if t0 and not side and (s.first_ts is None or t0 < s.first_ts):
                 s.first_ts = t0
             if side:
-                if wf_run is not None:        # workflow subagents carry no toolUseId; keyed by run id instead
-                    s.wf_runs[wf_run] = s.wf_runs.get(wf_run, 0) + ctx
                 if sub_tool is not None:      # sidechain lines and files without a toolUseId link to no call
                     s.sub_by_tool[sub_tool] = s.sub_by_tool.get(sub_tool, 0) + ctx
             else:
