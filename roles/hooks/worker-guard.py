@@ -1413,6 +1413,11 @@ class Analyzer:
             return None
         return os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
 
+    def in_guard_impl(self, w):
+        """Message only (the block fires on cfg_hit): w resolves to run/guard_impl or to LIB_DIR or a file under it."""
+        p = self.cfg_path(w)
+        return p is not None and (p in RUN_GUARD_IMPL or under(p, LIB_DIR))
+
     def export_rule(self, name, args):
         """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
         verb in EXPORT_VERBS names the export, its temp sibling or one of their ancestor directories (R1), is an option
@@ -1471,7 +1476,7 @@ class Analyzer:
                     if "guard-export" in a:
                         raise Block(f"`{name}` on <live>/run/guard-export.json: it holds the guard's own decisions; "
                                     "only the tick writes it")
-                    if "guard_impl" in a or ".local/lib/factory" in a or self.cfg_path(a) in RUN_GUARD_IMPL | {LIB_DIR}:
+                    if "guard_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
                         raise Block(f"`{name}` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the "
                                     "guard implementation; only the owner and `factory` change them")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")

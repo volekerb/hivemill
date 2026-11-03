@@ -266,7 +266,7 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 				if strings.Contains(x, "guard-export") {
 					return blockf("`" + name + "` on <live>/run/guard-export.json: it holds the guard's own decisions; only the tick writes it")
 				}
-				if strings.Contains(x, "guard_impl") || strings.Contains(x, ".local/lib/factory") || a.cfgPathIn(x, append([]string{h0().libDir}, h0().runGuardImpl...)) {
+				if strings.Contains(x, "guard_impl") || strings.Contains(x, ".local/lib/factory") || a.inGuardImpl(x) {
 					return blockf("`" + name + "` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the " +
 						"guard implementation; only the owner and `factory` change them")
 				}
@@ -302,13 +302,16 @@ func dropDashDash(rest []string) []string {
 
 func h0() *hostInfo { return mustHost() }
 
-// cfgPathIn is `self.cfg_path(a) in dirs` of the Python block message: x resolves to one of paths.
-func (a *Analyzer) cfgPathIn(x string, paths []string) bool {
+// inGuardImpl is Python's in_guard_impl (block message only): x resolves to run/guard_impl, to libDir or to a file under libDir.
+func (a *Analyzer) inGuardImpl(x string) bool {
 	p, ok := a.cfgPath(x)
 	if !ok {
 		return false
 	}
-	for _, d := range paths {
+	if Under(p, h0().libDir) {
+		return true
+	}
+	for _, d := range h0().runGuardImpl {
 		if p == d {
 			return true
 		}

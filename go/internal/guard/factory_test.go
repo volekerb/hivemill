@@ -426,6 +426,15 @@ func TestGuardImplFlagAndLibDirProtected(t *testing.T) {
 	}
 }
 
+// T-0353 nit: the specific block message also covers a file under the lib dir that the word does not spell out.
+func TestGuardImplMessageUnderLibDir(t *testing.T) {
+	factoryFix(t, "")
+	err := Check("cd ~/.local/lib/factory && cp /tmp/x worker-guard.stamp", "", "coder", false)
+	if err == nil || !strings.Contains(err.Error(), "guard_impl or ~/.local/lib/factory") {
+		t.Errorf("want the guard-implementation message, got %v", err)
+	}
+}
+
 func TestCfgHelpers(t *testing.T) {
 	pw := mustHost().pwDir
 	for _, c := range []struct{ in, want string }{

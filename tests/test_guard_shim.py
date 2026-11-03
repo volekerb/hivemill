@@ -333,6 +333,12 @@ class ProtectedTreesTest(unittest.TestCase):
                         ("echo go > ~/.config/factory/guard_impl", 2), ("ls ~/.local/lib/factory", 0)):
             self.assertEqual(hook(cmd).returncode, rc, cmd)
 
+    def test_message_names_lib_dir_for_file_under_it(self):
+        # T-0353 nit: the word `worker-guard.stamp` does not spell the lib dir; the specific message still applies
+        r = hook("cd ~/.local/lib/factory && cp /tmp/x worker-guard.stamp")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("guard_impl or ~/.local/lib/factory", r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
