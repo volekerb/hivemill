@@ -7,6 +7,8 @@ Reads `git diff --name-only --no-renames BASE...HEAD` and prints the module name
 word FULL with the rule that triggered it. --run executes the selection (all modules for FULL) with the same loader as ci/shard.py
 (a selection above tests/_slot.py's full-run size takes a host-wide test slot). Rules, in order:
   1 tests/test_X.py -> X; tests/harness.py, tests/_slot.py, tests/stubs/** -> FULL.
+  1b a tests/test_*.py deleted at HEAD (a rename is delete + add) or any change to ci/shard_timings.json also selects
+    test_shard.py (its stale-module check; T-0916, #260). Never FULL by itself.
   2 ci/X.py -> modules mentioning "ci/X" or "X.py", plus tests/test_X.py.
   3 bin/factory -> top-level defs whose source changed (ast, base vs head). SCHEMA, DEFAULT_CONFIG, main, db, an
     unnamed top-level statement or a def with >= 15 call sites -> FULL; else modules mentioning a changed def name
@@ -41,6 +43,7 @@ CAP = 0.40
 HUB_CALLS = 15
 FULL_DEFS = {"SCHEMA", "DEFAULT_CONFIG", "main", "db"}
 BIN = "bin/factory_cli.py"
+SHARD_TEST = "test_shard.py"
 
 
 class AffectedError(Exception):
@@ -220,7 +223,12 @@ def _select(root, base, head, tests_dir, modules):
         if m:
             if exists and m.group(1) in modules:
                 sel.add(m.group(1))
+            elif not exists and SHARD_TEST in modules:
+                sel.add(SHARD_TEST)  # rule 1b: a deleted/renamed module may leave a stale ci/shard_timings.json entry
             continue
+        if path == "ci/shard_timings.json":
+            if SHARD_TEST in modules:
+                sel.add(SHARD_TEST)  # rule 1b: the stale-module check lives in test_shard.py; falls through to the generic rule
         c = re.fullmatch(r"ci/([^/]+)\.py", path)
         if c:
             x = c.group(1)

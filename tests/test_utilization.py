@@ -114,7 +114,8 @@ class UtilCase(Base):
         self.assertTrue(out[i + 1].startswith("workers live "), out[i + 1])
         self.assertEqual(out[i + 2], LINE)
         self.assertEqual(out[i + 3], RES2)
-        old = out[:i + 1] + out[i + 4:]
+        # Skip org claude / org cursor lines (same block as workers live + utilization pair above blocked tasks).
+        old = out[:i + 1] + out[i + 6:]
         self.assertTrue(old.pop(5).startswith("blocked tasks:"))
         for want, got in zip(["spawn gate:", "load gate:", "test runs:", "gate runs:", "agents live ", "mem available", "tmp used"], old):
             self.assertTrue(got.startswith(want), (want, got))
