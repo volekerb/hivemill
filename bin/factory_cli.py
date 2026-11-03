@@ -8034,6 +8034,7 @@ def _cursor_materialize(role, cwd, prompt_text=None, name="cursor-pilot"):
     return cursor_harness.materialize_cursor_policy(
         ws, role, hooks_dir=_cursor_hooks_dir(), claude_settings=settings,
         system_prompt=prompt_text, hq=role in cursor_harness.HQ_ROLES,
+        factory_home=HOME,
     )
 
 
