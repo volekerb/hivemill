@@ -78700,6 +78700,7 @@
 "agents": null,
 "config": null,
 "digest": null,
+"flags": null,
 "goal": [
 "list"
 ],

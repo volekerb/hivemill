@@ -80,6 +80,7 @@ MAX_DEPTH = 6
 FACTORY_UNIT_CMDS = {"up", "tick", "relaunch", "spawn", "clean"}
 # broad reads of the live home: subcommand -> second words that are blocked (None = any / no second word)
 BROAD_READS = {"res": None, "agents": None, "scorecard": None, "digest": None, "config": None,
+               "flags": None,
                "goal": {"list"}, "task": {"list", "ready"}, "team": {"list"},
                "project": {"list"}, "lesson": {"list"}}
 PRIV_WORDS = {"sudo", "su", "doas", "pkexec", "docker"}
