@@ -10820,9 +10820,9 @@ def cmd_res(a):
     print(f"utilization: workers {u2['workers']}/{u2['target']} target · leads+judges {u2['leads'] + u2['judges']}/{u2['live']} (max 1/3)"
           + (" · UNDER TARGET" if u2["under"] and u2["demand"] else "") + (" · HQ-HEAVY" if u2["hq_heavy"] else ""))
     om = res_org_mix(con)
-    c, u = om["claude"], om["cursor"]
-    print(f"org claude: live {c['live']} · workers {c['workers']} · leads {c['leads']} · hq {c['hq']} · queued {c['queued']}")
-    print(f"org cursor: live {u['live']} · workers {u['workers']} · leads {u['leads']} · hq {u['hq']} · queued {u['queued']}")
+    cl, cu = om["claude"], om["cursor"]
+    print(f"org claude: live {cl['live']} · workers {cl['workers']} · leads {cl['leads']} · hq {cl['hq']} · queued {cl['queued']}")
+    print(f"org cursor: live {cu['live']} · workers {cu['workers']} · leads {cu['leads']} · hq {cu['hq']} · queued {cu['queued']}")
     bt = {r["waits"]: r["n"] for r in con.execute("SELECT waits, count(*) n FROM tasks WHERE status='blocked' GROUP BY waits")}
     print(f"blocked tasks: {bt.get('owner', 0)} owner-blocked · {bt.get('internal', 0)} internal-blocked")
     print(f"mem available {s['mem_mb']} MB (floor {cfg(con, 'min_mem_available_mb')}) · swap used "
