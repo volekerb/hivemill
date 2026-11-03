@@ -48,7 +48,7 @@ The tool also diffs `roles/settings/<role>.json.in` against `--base` (a base tha
 - the `env` block, as `K=V`;
 - the template set: a role whose template is on base but gone from the tree.
 
-A removed `deny` rule, an added `allow` rule, a removed hook, a removed or changed `env` entry or a removed template prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` (for a removed template: `SETTINGS-LOOSENED <role> template removed`) and counts as LOOSENED. A hook line reads for example `SETTINGS-LOOSENED qa hook removed: PreToolUse|Edit|Write|MultiEdit|NotebookEdit||command|python3 ...`. `--allow-loosen` takes the same text without the prefix, one `<role> <kind> removed: <rule>` or `<role> template removed` per line. The reverse of a loosening prints `SETTINGS-TIGHTENED`; a new `env` key (or the new value of a changed key) prints `SETTINGS-CHANGED <role> env added: K=V` and is not counted. See `docs/settings-templates.md`.
+A removed `deny` rule, an added `allow` rule, a removed hook, a removed or changed `env` entry or a removed template prints `SETTINGS-LOOSENED <role> <kind> removed|added: <rule>` (for a removed template: `SETTINGS-LOOSENED <role> template removed`) and counts as LOOSENED. A hook line reads for example `SETTINGS-LOOSENED qa hook removed: PreToolUse|Edit|Write|MultiEdit|NotebookEdit|command|python3 ...`. `--allow-loosen` takes the same text without the prefix, one `<role> <kind> removed: <rule>` or `<role> template removed` per line. The reverse of a loosening prints `SETTINGS-TIGHTENED`; a new `env` key (or the new value of a changed key) prints `SETTINGS-CHANGED <role> env added: K=V` and is not counted. See `docs/settings-templates.md`.
 
 ## Exit codes
 

@@ -344,7 +344,7 @@ def settings_rules(text, legacy=False):
 
 def base_settings_roles(repo, base):
     """Roles that have a roles/settings/<role>.json.in or legacy <role>.json on <base> (none if the dir is absent)."""
-    out = git(repo, "ls-tree", "--name-only", "--end-of-options", base, SETTINGS_DIR + "/")
+    out = git(repo, "ls-tree", "--full-tree", "--name-only", "--end-of-options", base, SETTINGS_DIR + "/")
     roles = set()
     for path in out.splitlines():
         name = os.path.basename(path)

@@ -782,6 +782,20 @@ class SettingsCompareTests(GuardDiffCase):
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa template removed")
 
+    def test_b4_deleted_template_is_loosened_with_repo_subdir(self):
+        """--repo <repo>/<subdir>: ls-tree must be --full-tree, else the base role set is empty and this fails open."""
+        sub = os.path.join(self.repo, "subdir")
+        os.makedirs(sub)
+        with open(os.path.join(sub, "keep"), "w", encoding="utf-8") as f:
+            f.write("x\n")
+        self.commit_base()
+        git(self.repo, "rm", "-q", "roles/settings/qa.json.in")
+        argv = [sys.executable, TOOL, "--base", "main", "--repo", sub, "--hook", self.hook,
+                "--corpus", self.corpus, "--mode", "worker"]
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertRegex(p.stdout, r"(?m)^SETTINGS-LOOSENED qa template removed")
+
     def test_b4_deleted_settings_dir_is_loosened(self):
         self.commit_base()
         shutil.rmtree(self.sdir)
