@@ -939,6 +939,23 @@ class SettingsFollowUpTests(GuardDiffCase):
         self.assertIn("SETTINGS-TIGHTENED qa hook added: Stop||command|true", p.stdout)
         self.assertNotIn("hook-timeout", p.stdout)
 
+    def test_automode_removal_and_addition_under_different_keys_counts_both(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["autoMode"]["environment"].remove("env text")
+            d["autoMode"]["allow"].append("wide allow text")
+        self.edit_tree(edit)
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("2 loosened", p.stdout)
+        allow = os.path.join(self._tmp.name, "allow.txt")
+        with open(allow, "w", encoding="utf-8") as f:
+            f.write("qa autoMode removed: environment: env text\n")
+        p = self.settings("--allow-loosen", allow)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)  # the unrelated added allow entry is still unplanned
+        self.assertIn("qa autoMode added: allow: wide allow text", p.stdout)
+
     def test_unchanged_template_with_new_keys_prints_no_settings_line(self):
         self.commit_base(self.seed)
         p = self.settings()

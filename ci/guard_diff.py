@@ -366,6 +366,11 @@ def base_settings_roles(repo, base):
     return roles
 
 
+def automode_key(rule):
+    """The autoMode key of an entry rendered `<key>: <text>` or `<key>=<json>`."""
+    return re.split(r"[:=]", rule, maxsplit=1)[0]
+
+
 def compare_settings(repo, top, base):
     """Diff the rules of every roles/settings/<role>.json.in against <base>, over the union of the roles on base and
     in the tree. Returns (lines, loosened): a removed deny, ask, hook, hook timeout, autoMode or env entry, an added allow,
@@ -404,6 +409,7 @@ def compare_settings(repo, top, base):
 
         def paired(kind, rule):  # a timeout line only counts for a hook present on both sides
             return kind != "hook-timeout" or rule.rsplit("|timeout=", 1)[0] in (old_hooks & new_hooks)
+        removed_automode_keys = {automode_key(r) for k, r in old - new if k == "autoMode"}
         for kind, rule in sorted(x for x in old - new if paired(*x)):
             lines.append(f"SETTINGS-{'TIGHTENED' if kind == 'allow' else 'LOOSENED'} {role} {kind} removed: {rule}")
             if kind != "allow":
@@ -411,8 +417,8 @@ def compare_settings(repo, top, base):
         for kind, rule in sorted(x for x in new - old if paired(*x)):
             word = {"allow": "LOOSENED", "env": "CHANGED", "autoMode": "CHANGED", "hook-timeout": "CHANGED"}.get(kind, "TIGHTENED")
             lines.append(f"SETTINGS-{word} {role} {kind} added: {rule}")
-            if kind == "allow" or (kind == "autoMode" and not any(k == "autoMode" for k, _ in old - new)):
-                loosened.append(f"{role} {kind} added: {rule}")  # a pure autoMode addition has no old value: fail closed
+            if kind == "allow" or (kind == "autoMode" and automode_key(rule) not in removed_automode_keys):
+                loosened.append(f"{role} {kind} added: {rule}")  # no removed entry under the same key: fail closed
     return lines, loosened
 
 
