@@ -22,10 +22,12 @@ import unicodedata
 from pathlib import Path
 
 try:
+    from scout import db as scoutdb
     from scout import nsbox, sandbox
     from scout import vendor as scoutvendor
 except ImportError:  # run as a script by path
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from scout import db as scoutdb
     from scout import nsbox, sandbox
     from scout import vendor as scoutvendor
 
@@ -35,6 +37,14 @@ REASONS = ("timeout", "over-budget", "cancelled")
 TERMINAL = ("passed", "failed", "timeout", "over-budget", "error", "cancelled", "voided")
 VOIDABLE = ("passed", "failed", "timeout", "over-budget", "error")
 DELETE_SANDBOX = ("passed", "failed", "cancelled")  # error / timeout / over-budget are kept for T9 to clean later
+
+
+CONTROL_KEY = scoutdb.CONTROL_KEY  # reserved candidate key of the positive control (skilleval/controls/marker)
+CONTROL_DIR = sandbox.REPO / "skilleval" / "controls" / "marker"
+CONTROL_PLUGIN = "eval-control-marker"
+MARKER_FILE = "SKILL_MARKER.txt"
+MARKER_TEXT = "eval-marker-loaded"
+_MARKER_LINE = re.compile(r"control_marker=([01])")
 
 
 class CollectError(Exception):
@@ -109,6 +119,46 @@ def skill_names(root, trial):
         except OSError:
             pass
     return names, plugin
+
+
+def register_control(con, stamp):
+    """Insert or refresh the reserved control candidate row and return it (a dict). head_sha is a content hash of the
+    control dir; status 'triaged' and the reserved key keep it out of the scout's finds (scout/db.py, report.py)."""
+    sha = scoutvendor.content_sha(CONTROL_DIR)
+    row = con.execute("SELECT * FROM scout_candidates WHERE key=?", (CONTROL_KEY,)).fetchone()
+    if row is None:
+        cid = scoutdb._next_candidate_id(con)
+        con.execute("INSERT INTO scout_candidates(id,key,kind,head_sha,licence,install_risk,sources,first_seen,last_seen,status) "
+                    "VALUES(?,?,'skill',?,'repo-owned','prompt-only','[\"control\"]',?,?,'triaged')",
+                    (cid, CONTROL_KEY, sha, stamp, stamp))
+    else:
+        con.execute("UPDATE scout_candidates SET head_sha=?, install_risk='prompt-only', last_seen=?, "
+                    "status=CASE WHEN status IN ('new','needs-owner','dismissed') THEN 'triaged' ELSE status END WHERE id=?",
+                    (sha, stamp, row["id"]))
+    return dict(con.execute("SELECT * FROM scout_candidates WHERE key=?", (CONTROL_KEY,)).fetchone())
+
+
+def is_control(con, cid):
+    r = con.execute("SELECT key FROM scout_candidates WHERE id=?", (cid,)).fetchone()
+    return bool(r) and r["key"] == CONTROL_KEY
+
+
+def control_marker(work):
+    """1 if work/SKILL_MARKER.txt is a regular file holding exactly the marker text (one trailing newline allowed),
+    else 0. work/ is untrusted: no symlink is followed and the read is capped."""
+    try:
+        fd = os.open(Path(work) / MARKER_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return 0
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return 0
+        data = os.read(fd, 256)
+    except OSError:
+        return 0
+    finally:
+        os.close(fd)
+    return int(data in (MARKER_TEXT.encode(), MARKER_TEXT.encode() + b"\n"))
 
 
 def skill_was_invoked(projects, names, plugin):
@@ -272,6 +322,8 @@ def _collect(con, trial, root, api, reason=None, *, home=None, unshare="unshare"
             invoked = skill_was_invoked(projects, names, plugin)
     elif d:
         tok = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+    if d and is_control(con, row["candidate_id"]):  # positive control: did the skill's effect show up in work/?
+        output = (f"{tail(output)}\n" if output else "") + f"control_marker={control_marker(d / 'work')}"
     started = live["started"] if live is not None else row["started"]
     wall = wall_seconds(started, done_at if done and done_at else end)
     cur = con.execute(
@@ -297,6 +349,7 @@ def trial_line(r):
     return (f"{r['candidate_id']} {r['task']} {r['condition']}: trial {r['id']} status={r['status']} "
             f"passed={_cell(r['passed'])} tokens={_cell(tok)} wall_s={_cell(r['wall_s'])} "
             f"skill_invoked={_cell(r['skill_invoked'])}"
+            + (f" control_marker={m.group(1)}" if (m := _MARKER_LINE.search(r["check_output"] or "")) else "")
             + (f" void_reason={r['void_reason']} void_why={r['void_why']!r}" if r["status"] == "voided" else ""))
 
 
@@ -386,6 +439,9 @@ def result_lines(con, candidate=None):
         for r in mine:
             out += [trial_line(r)] + start_log_lines(r)
         out.append(summary_line(cid, mine))
+        if is_control(con, cid):
+            out.append(f"{cid} control: positive control ({CONTROL_KEY}), not a find; healthy = a with-trial has "
+                       "skill_invoked=1 or control_marker=1")
     return out
 
 

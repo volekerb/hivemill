@@ -13698,7 +13698,11 @@ def skilleval_vendor(con, cid):
     cand = dict(r)
     try:
         root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
-        res = scoutvendor.vendor(scoutsrc.Gh(), cand, root)
+        if cand["key"] == scoutdb.CONTROL_KEY:  # repo-owned positive control: same re-checks, local source
+            cand = _skilleval().register_control(con, now())  # refresh head_sha if the control dir changed since `control`
+            res = scoutvendor.vendor_local(cand, root, _skilleval().CONTROL_DIR, _skilleval().CONTROL_PLUGIN)
+        else:
+            res = scoutvendor.vendor(scoutsrc.Gh(), cand, root)
     except scoutvendor.VendorError as e:
         if e.fresh is not None:  # the stored risk was stale: keep the fresh one
             scoutdb.set_risk(con, cid, e.fresh.risk, e.fresh.detail)
@@ -13907,6 +13911,14 @@ def skilleval_queue(con, a):
     print("\n".join(scoutskilleval.trial_line(x) for x in rows))
 
 
+def skilleval_control(con, a):
+    """factory skilleval control [--tasks fix-bug]: register the reserved positive-control candidate (the repo-owned
+    marker plugin, skilleval/controls/marker) and queue its with/without trials through the normal queue path."""
+    cand = _skilleval().register_control(con, now())
+    event(con, "skilleval", cand["id"], "control", f"registered {cand['key']}@{cand['head_sha'][:9]}")
+    skilleval_queue(con, types.SimpleNamespace(id=cand["id"], tasks=a.tasks or "fix-bug"))
+
+
 def skilleval_cancel(con, a):
     scoutskilleval = _skilleval()
     root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
@@ -13944,7 +13956,7 @@ def cmd_skilleval(a):
     if w and not worker_stub_exempt():
         die(f"role '{w}' ({actor()}) may not run `factory skilleval {a.action}`; ask your lead", 3)
     con = db()
-    if a.action in ("queue", "cancel"):
+    if a.action in ("queue", "cancel", "control"):
         require_role(con, "director", "lead", "boss")
     else:
         require_role(con, "director", "lead")
@@ -13960,6 +13972,8 @@ def cmd_skilleval(a):
         skilleval_collect(con, a)
     elif a.action == "queue":
         skilleval_queue(con, a)
+    elif a.action == "control":
+        skilleval_control(con, a)
     elif a.action == "cancel":
         skilleval_cancel(con, a)
     elif a.action == "void":
@@ -14247,7 +14261,7 @@ def main():
     x.set_defaults(fn=cmd_scout)
 
     x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, void, list, results")
-    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
+    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "control", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
     x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled", "infra"]); x.add_argument("--tasks")
     x.add_argument("--why")
