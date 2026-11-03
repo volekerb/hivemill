@@ -441,6 +441,13 @@ class DequeueCmdTests(DequeueBase):
         self.ok("tick")
         self.assertEqual((self.status("zz-q"), self.queued_at()), ("queued", self.OLD))
 
+    def test_failed_start_returned_to_queued_keeps_queued_at(self):
+        self.env.sql("UPDATE agents SET queued_at=? WHERE name='zz-q'", (self.OLD,))
+        hook = (f"{sys.executable} -c \"import json,os;p=os.environ['FAKE_HERDR_STATE'];s=json.load(open(p));"
+                f"s['fail']=True;json.dump(s,open(p,'w'))\"")
+        self.env.run("tick", extra_env={"FAKE_HERDR_HOOK": hook, "FAKE_HERDR_HOOK_AT": "tab create"})
+        self.assertEqual((self.status("zz-q"), self.queued_at()), ("queued", self.OLD))
+
     def test_respawn_after_terminal_status_gets_fresh_queued_at(self):
         for term in ("done", "stopped", "lost", "cancelled", "exited"):
             with self.subTest(term):
