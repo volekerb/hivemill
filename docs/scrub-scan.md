@@ -34,8 +34,19 @@ Built-in generic shapes (committed):
 | `railway-token` | a `RAILWAY_TOKEN` or `RAILWAY_API_TOKEN` assignment with a value of 16 or more characters, or a UUID on a line that also contains `railway` (any case) |
 | `oauth-secret` | a `client_secret`, `refresh_token` or `access_token` assignment (quoted or bare) with a value of 20 or more characters from `[A-Za-z0-9._~+/=-]` |
 | `generic-secret` | an assignment whose key contains `secret`, `token`, `api_key`/`api-key`/`apikey`, `password`/`passwd` or `private_key`, with a value of 16 or more non-space characters that is not a placeholder (`<...>`, `${...}`, `$VAR`, or containing `xxx`, `changeme`, `example`, `dummy`, `test`) or a dotted code reference |
+| `high-entropy-id` | a token of 40 or more characters from `[A-Za-z0-9+/_-]` (optionally ending in `=` or `==`) that contains a digit, is not a placeholder (contains `xxx`, `changeme`, `example`, `dummy`, `test`), and has a key word (`secret`, `token`, `api_key`, `password`, `private_key`) within the 100 characters before it. See "High-entropy ids and the slash rule" |
 | `env-file` | a tracked path whose basename is `.env`, `*.env` or `.env.*`, except `.env.example` and `.env.sample`. Path only: the content is never printed (`--tree` and `--history`) |
 | `owner-term` | a literal term from the terms file (see below) |
+
+## High-entropy ids and the slash rule
+
+`high-entropy-id` finds long opaque ids that no fixed prefix gives away. Three rules keep it quiet on ordinary text:
+
+- The key word must sit in a bounded window: the 100 characters before the token. The scanner never searches the whole line prefix for each token, so a line of hundreds of KB with many candidate tokens still scans in linear time (a 400 KB line of 33-character slash tokens scans in well under a second; `tests/test_scrub_scan.py` pins this at 1 s).
+- Slash rule: a token that contains `/` (a path, a URL part, a base64 body) is a candidate only directly after a key word followed by `=` or `:`, for example `token=...`, `api_key: ...` or `secret = "..."`. A key word merely somewhere before it (`the token is /srv/...`) is not enough. Tokens without a slash only need the key word in the window.
+- The token needs a digit, so a long all-letter word or identifier is not a hit. A 64-character lowercase hex string (a SHA-256 digest, as in the history allowlist) is never a hit.
+
+A reviewed false positive is suppressed with an allowlist entry naming `high-entropy-id`.
 
 ## Owner terms
 
@@ -78,7 +89,7 @@ path:pattern-id:regex-of-line  # reason
 An entry suppresses only hits of its own pattern id on the lines its regex matches. A line holding an allowlisted email and a token is still reported for the token.
 
 - `owner-term` hits are never suppressed. An entry naming `owner-term` is a usage error.
-- Token-shape hits (`github-token`, `github-pat`, `anthropic-key`, `aws-access-key-id`, `private-key`, `railway-token`, `oauth-secret`, `generic-secret`, `cgnat`, `env-file`; for `env-file` the regex is searched in the path) are suppressed only by an entry naming that exact pattern id.
+- Token-shape hits (`github-token`, `github-pat`, `anthropic-key`, `aws-access-key-id`, `private-key`, `railway-token`, `oauth-secret`, `generic-secret`, `high-entropy-id`, `cgnat`, `env-file`; for `env-file` the regex is searched in the path) are suppressed only by an entry naming that exact pattern id.
 - The old form `path:regex` is still read for one release. It prints a deprecation warning on stderr and suppresses only `home-path`, `rfc1918` and `email` hits. Migrate such lines to the new form.
 
 ## History allowlist

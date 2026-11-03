@@ -49,5 +49,8 @@
  {"id": "oauth-1", "expect": "block", "pattern": "oauth-secret", "text": "{OAUTH}"},
  {"id": "oauth-ok-1", "expect": "allow", "pattern": "oauth-secret", "text": "client_secret=short"},
  {"id": "gsec-1", "expect": "block", "pattern": "generic-secret", "text": "{GSEC}"},
- {"id": "gsec-ok-1", "expect": "allow", "pattern": "generic-secret", "text": "api_token=${API_TOKEN_FROM_ENV_VAR}"}
+ {"id": "gsec-ok-1", "expect": "allow", "pattern": "generic-secret", "text": "api_token=${API_TOKEN_FROM_ENV_VAR}"},
+ {"id": "hei-1", "expect": "block", "pattern": "high-entropy-id", "text": "{HEI}"},
+ {"id": "hei-ok-1", "expect": "allow", "pattern": "high-entropy-id", "text": "the id is {HEIBODY}"},
+ {"id": "hei-ok-2", "expect": "allow", "pattern": "high-entropy-id", "text": "token is {HEISLASH}"}
 ]
