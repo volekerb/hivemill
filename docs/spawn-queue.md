@@ -29,3 +29,7 @@ A refused lead stays `queued`; the tick continues to the next queued row, so wor
 ## Task priority
 
 `factory task update T --priority 1|2|3` (lead, director, owner). A queued row of that task orders by `min(task priority, goal priority)`; aging and the 240-minute cap apply on top. Unset keeps the goal priority.
+
+## Settings render failure (T-0359)
+
+`_spawn_start` renders the role settings first, before any worktree, sandbox agent dir, pane or `agents` row, so a template that does not render (invalid JSON, unknown `@FACTORY_` token, LIVE_HOME pin refusal) leaves nothing behind. A direct `factory spawn` exits 3 (`settings render failed for <role>: ...`). A queued row is not retried each tick: the tick cancels it once (`dequeued` event, `by=settings-render-preflight`) and sends one alert to the team's lead (director with no lead). Fix the template and spawn again.
