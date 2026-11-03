@@ -369,6 +369,21 @@ class DigestTests(DigestBase):
             "\n"
             "director (24h, daytime 08-20): no utilization samples · cap breaches 0 · boss scores -\n"))
 
+    def test_digest_groups_active_goals_by_org(self):
+        e = self.env
+        e.run("config", "orgs_enabled", "claude,cursor")
+        e.seed_goal("G-002", title="zz-test cursor goal")
+        e.sql("UPDATE goals SET org='cursor' WHERE id='G-002'")
+        e.seed_team("g-002-a", goal="G-002", lead="zz-test-lead")
+        out = self.digest().stdout
+        self.assertIn("Orgs: claude 1 active · cursor 1 active", out)
+        claude_idx = out.index("## Org claude")
+        g1_idx = out.index("## G-001 — zz-test goal (active)")
+        cursor_idx = out.index("## Org cursor")
+        g2_idx = out.index("## G-002 — zz-test cursor goal (active)")
+        self.assertLess(claude_idx, g1_idx)
+        self.assertLess(cursor_idx, g2_idx)
+
 
 class TickDigestTests(DigestBase):
     def setUp(self):
@@ -400,6 +415,29 @@ class TickDigestTests(DigestBase):
         self.assertEqual(m[0]["subject"], f"daily digest {day}")
         self.tick()
         self.assertEqual(len(self.digests(day)), 1)
+
+    def test_tick_digest_both_orgs_enabled(self):
+        e = self.env
+        e.run("config", "orgs_enabled", "claude,cursor")
+        e.run("config", "org_prefix_default", "1")
+        e.seed_goal("G-002", title="zz-test cursor goal")
+        e.sql("UPDATE goals SET org='cursor' WHERE id='G-002'")
+        for name, role, org in (("claude-boss", "boss", "claude"), ("cursor-boss", "boss", "cursor"),
+                                ("claude-director", "director", "claude"), ("cursor-director", "director", "cursor")):
+            e.seed_agent(name, role)
+            e.sql("UPDATE agents SET org=? WHERE name=?", (org, name))
+        dates = self.tick()
+        m = self.digests()
+        self.assertEqual(len(m), 2)
+        by_rcpt = {r["recipient"]: r for r in m}
+        self.assertEqual(set(by_rcpt), {"claude-boss", "cursor-boss"})
+        self.assertEqual(by_rcpt["claude-boss"]["sender"], "claude-director")
+        self.assertEqual(by_rcpt["cursor-boss"]["sender"], "cursor-director")
+        day = self.stored("last_digest_date")
+        self.assertIn(day, dates)
+        for row in m:
+            self.assertIn("## Org claude", row["body"])
+            self.assertIn("## Org cursor", row["body"])
 
     def test_invalid_factory_now_does_not_abort_tick(self):
         p = self.env.run("tick", extra_env={"FACTORY_NOW": "not-a-time"})
