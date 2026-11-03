@@ -341,6 +341,8 @@ TAR_SHORT_OK = set("xfvzjJCopk")
 TAR_LONG_FLAG = {"--extract", "--gzip", "--bzip2", "--xz", "--verbose", "--no-same-owner", "--keep-old-files"}
 TAR_LONG_VALUE = {"--file", "--directory"}
 UNZIP_FLAG_OK = {"-o", "-n", "-q", "-qq"}
+ARCHIVE_ENV_NAMES = ("TAR_OPTIONS", "POSIXLY_CORRECT", "UNZIP", "UNZIPOPT", "UNZIP_OPTS", "TAR_READER_OPTIONS")
+ARCHIVE_ENV_RE = re.compile(r"\b(?:" + "|".join(ARCHIVE_ENV_NAMES) + r")\b")
 UNZIP_LISTING = {"-l", "-v", "-t", "-p", "-c", "-z", "-Z"}
 ARCHIVE_SIZE_MAX = 256 << 20  # T-0805: largest archive file the hook lists before refusing
 ARCHIVE_WALK_MAX = 20000  # T-0783: entries archive_target walks below an extraction dir before refusing
@@ -1572,9 +1574,9 @@ class Analyzer:
     def archive_extract(self, name, rest):
         """T-0783: NO_PUSH_ROLES extract tar/bsdtar/unzip/cpio/rsync only into a named directory that is not, under or
         holding a .git dir; an extraction with no named directory cannot be bounded and fails closed. Listing stays allowed."""
-        args = [a for a in rest if a != "--"]
         if name in ("tar", "gtar", "bsdtar", "unzip"):
-            return self.archive_rule_e(name, args)
+            return self.archive_rule_e(name, list(rest))  # `--` kept: P1 refuses it in extract mode
+        args = [a for a in rest if a != "--"]
         dirs, extract, why = [], False, "name the target (tar -C, unzip -d, cpio -D) as a scratchpad dir that has no .git"
         if name == "cpio":
             pos = [a for a in args if not a.startswith("-")]
@@ -1682,16 +1684,12 @@ class Analyzer:
         if zipped:
             extract = not any(a in UNZIP_LISTING for a in args)
         else:
-            extract = False
-            for j, a in enumerate(args):
-                opt = a.split("=", 1)[0]
-                if a.startswith("--"):
-                    extract = extract or (len(opt) >= 5 and "--extract".startswith(opt)) or (
-                        len(opt) >= 4 and "--get".startswith(opt))
-                elif re.match(r"^-?[A-Za-z]+$", a) and (j == 0 or a.startswith("-")) and "x" in a:
-                    extract = True
+            extract, tarch, tdirs, tproblems = parse_tar(args)
         if not extract:
             return False
+        if ARCHIVE_ENV_RE.search(re.sub(r"[\'\"\\]", "", self.text)) or any(n in os.environ for n in ARCHIVE_ENV_NAMES):
+            raise Block(f"`{name}` extraction with {'/'.join(ARCHIVE_ENV_NAMES)} on the line or in the environment: they change "
+                        f"the options or names tar/unzip use, so the listing the hook read may not match; unset it. {why}")
         if not zipped and any(
                 a in ("--absolute-names", "--transform", "--xform", "--to-command", "--one-top-level")
                 or a.startswith(("--transform=", "--xform=", "--to-command=")) or
@@ -1704,50 +1702,25 @@ class Analyzer:
                         f".git/config member cannot be ruled out; {why}")
 
         dirs, arch, pos, k = [], None, [], 0
-        while k < len(args):
+        if not zipped:
+            if tproblems:
+                bad(tproblems[0])
+            dirs, arch = tdirs, tarch[0] if tarch else None
+        while zipped and k < len(args):
             a = args[k]
-            j, k = k, k + 1
-            if zipped:
-                if a == "-d":
-                    if k >= len(args):
-                        bad("-d without a directory")
-                    dirs.append(args[k])
-                    k += 1
-                elif a.startswith("-d") and len(a) > 2:  # -dDIR: the same target as -d DIR
-                    dirs.append(a[2:])
-                elif a.startswith("-") and len(a) > 1:
-                    if a not in UNZIP_FLAG_OK:
-                        bad(f"option {a!r}")
-                else:
-                    pos.append(a)
-                continue
-            opt, eq, val = a.partition("=")
-            if a.startswith("--"):
-                if opt in TAR_LONG_VALUE:
-                    if not eq:
-                        if k >= len(args):
-                            bad(f"{opt} without a value")
-                        val, k = args[k], k + 1
-                    if opt == "--file":
-                        arch = val
-                    else:
-                        dirs.append(val)
-                elif opt not in TAR_LONG_FLAG or eq:
-                    bad(f"option {a!r}")
-            elif a.startswith("-C") and not a.startswith("--") and len(a) > 2:  # -CDIR: the same target as -C DIR
+            k += 1
+            if a == "--":
+                bad("a literal `--` (the hook and unzip would disagree on what follows)")
+            elif a == "-d":
+                if k >= len(args):
+                    bad("-d without a directory")
+                dirs.append(args[k])
+                k += 1
+            elif a.startswith("-d") and len(a) > 2:  # -dDIR: the same target as -d DIR
                 dirs.append(a[2:])
-            elif (a.startswith("-") and len(a) > 1) or (j == 0 and re.match(r"^[A-Za-z]+$", a)):
-                for ch in a.lstrip("-"):
-                    if ch not in TAR_SHORT_OK:
-                        bad(f"option {a!r}")
-                    if ch in "fC":
-                        if k >= len(args):
-                            bad(f"-{ch} without a value")
-                        if ch == "f":
-                            arch = args[k]
-                        else:
-                            dirs.append(args[k])
-                        k += 1
+            elif a.startswith("-") and len(a) > 1:
+                if a not in UNZIP_FLAG_OK:
+                    bad(f"option {a!r}")
             else:
                 pos.append(a)
         if zipped:
@@ -3205,6 +3178,53 @@ def evaluator_home_text(cmd):
 
 
 SESSION_ID = None  # the hook payload's session_id: names the worker's own scratchpad
+
+
+def parse_tar(args):
+    """T-0805 P1: the one grammar for tar/gtar/bsdtar arguments. Returns (extract, archives, dirs, problems). A short word
+    (single leading `-`, or the first word without one) is classified only when it is `-C<dir>` (C first) or letters only
+    with at most one value letter (f or C) and that letter last; anything else (glued `-xf<path>`, `-xfC`, digits, `/`) is
+    unclassifiable and counts as extract mode, so E1 refuses it (unknown = extract, fail closed). `problems` lists every
+    reason the argv is outside the E1 allowlist (non-empty with extract = refuse)."""
+    extract, archives, dirs, problems = False, [], [], []
+    k = 0
+    while k < len(args):
+        a, j = args[k], k
+        k += 1
+        if a == "--":
+            problems.append("a literal `--` (the hook and tar would disagree on what follows)")
+        elif a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            extract = extract or (len(opt) >= 5 and "--extract".startswith(opt)) or (len(opt) >= 4 and "--get".startswith(opt))
+            if opt in TAR_LONG_VALUE:
+                if not eq:
+                    if k >= len(args):
+                        problems.append(f"{opt} without a value")
+                        continue
+                    val, k = args[k], k + 1
+                (archives if opt == "--file" else dirs).append(val)
+            elif opt not in TAR_LONG_FLAG or eq:
+                problems.append(f"option {a!r}")
+        elif a.startswith("-C") and len(a) > 2:  # -CDIR: the same target as -C DIR
+            dirs.append(a[2:])
+        elif (a.startswith("-") and len(a) > 1) or (j == 0 and re.match(r"^[A-Za-z]", a)):
+            letters = a.lstrip("-")
+            values = [i for i, ch in enumerate(letters) if ch in "fC"]
+            if not re.fullmatch(r"[A-Za-z]+", letters) or len(values) > 1 or (values and values[0] != len(letters) - 1):
+                extract = True  # unclassifiable: assume tar extracts
+                problems.append(f"option {a!r}")
+                continue
+            extract = extract or "x" in letters
+            problems += [f"option {a!r}" for ch in letters if ch not in TAR_SHORT_OK]
+            if values:
+                if k >= len(args):
+                    problems.append(f"-{letters[-1]} without a value")
+                    continue
+                (archives if letters[-1] == "f" else dirs).append(args[k])
+                k += 1
+    if len(archives) > 1:
+        problems.append("more than one -f/--file")
+    return extract, archives, dirs, problems
 
 
 def in_scratchpad(path):

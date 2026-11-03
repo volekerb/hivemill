@@ -1,6 +1,7 @@
 """T-0805: a NO_PUSH_ROLES extraction (tar, bsdtar, unzip) is refused when the archive's member list holds a .git path
 component or a directory with both config and HEAD (a bare-repo layout), and when the list cannot be read. Archives
 without those, listing, and git in the role's own worktree stay allowed; coder, cleaner, judge and HQ are unchanged."""
+import importlib.util
 import io
 import json
 import os
@@ -11,6 +12,12 @@ import unittest
 import zipfile
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run
+
+_spec = importlib.util.spec_from_file_location(
+    "worker_guard_mod", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "roles", "hooks", "worker-guard.py"))
+guard_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(guard_mod)
+parse_tar = guard_mod.parse_tar
 
 GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 
@@ -54,14 +61,15 @@ class ArchiveGitTests(unittest.TestCase):
                     t.addfile(info)
         return path
 
-    def bash(self, cmd, role, cwd=None, *flags):
+    def bash(self, cmd, role, cwd=None, *flags, extra_env=None):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "WORKER_GUARD_SCRATCH")}
+        env.update(extra_env or {})
         env.update(WORKER_GUARD_LIVE_HOME=self.home, WORKER_GUARD_SCRATCH=self.scratch)
         payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.scratch}
         return hook_run(json.dumps(payload), ["--role", role, *flags], env=env)
 
-    def blocked(self, cmd, role, cwd=None):
-        p = self.bash(cmd, role, cwd)
+    def blocked(self, cmd, role, cwd=None, extra_env=None):
+        p = self.bash(cmd, role, cwd, extra_env=extra_env)
         self.assertEqual(p.returncode, 2, f"should block ({role}): {cmd!r}\n{p.stderr}")
 
     def allowed(self, cmd, role, cwd=None, *flags):
@@ -211,10 +219,18 @@ class ArchiveGitTests(unittest.TestCase):
             f"bsdtar -xf {gitcfg} -C {o}", f"tar -xf {clean} -C {o} --strip-components=1",
             f"tar -xf {clean} -C {o} -P", f"tar -xf {clean} -C {o} -T list", f"tar --get -f {clean} -C {o}",
             f"tar -xf {clean} -C {o} --use-compress-program=sh", f"tar -xf {clean} -C {o} -I sh",
+            f"tar -xf{clean} -C {o}", f"tar -xf{clean}", f"tar -xvf{clean} -C {o}", f"tar -C {o} -xf{clean}",
+            f"tar -xfC {clean} out", f"tar xfC {clean} out", f"tar -xf {clean} -f {gitcfg} -C {o}",
+            f"tar -xf {clean} -C {o} -- x", f"unzip {zclean} -d {o} -- x",
+            f"TAR_OPTIONS=--xform=s/x/.git/ tar -xf {clean} -C {o}", f"export TAR_OPTIONS=-i; tar -xf {cat} -C {o}",
+            f"env TAR_OPTIONS=-i tar -xf {cat} -C {o}", f"set -a; TAR_OPTIONS=-i; tar -xf {cat} -C {o}",
+            f"POSIXLY_CORRECT=1 tar -xf {clean} -C {o}", f"UNZIP=-j unzip {zclean} -d {o}",
+            f"UNZIPOPT=-j unzip {zclean} -d {o}", f"UNZIP_OPTS=-j unzip {zclean} -d {o}",
+            f"TAR_READER_OPTIONS=x bsdtar -xf {clean} -C {o}", f"env 'TAR_OPTIONS=-i' tar -xf {cat} -C {o}",
             f"unzip {zclean} -d {o} -x foo", f"unzip -o {zclean} -d{o}/.git", f"tar -xf {clean} -C{o}/.git", f"tar -xf {gitcfg} -C{o}", f"unzip -P pw {zclean} -d {o}",
         ]
         allow = [f"tar -xf {clean} -C {o}", f"tar -xzf {clean} -C {o}", f"unzip {zclean} -d {o}",
-                 f"tar -tf {evil}", f"unzip -l {s}/zevil.ZIP", f"unzip -l {zclean}"]
+                 f"tar -tf {evil}", f"tar -tzf {evil}", f"unzip -l {s}/zevil.ZIP", f"unzip -l {zclean}"]
         for role in NO_PUSH:
             for c in block:
                 with self.subTest(role=role, cmd=c):
@@ -222,6 +238,49 @@ class ArchiveGitTests(unittest.TestCase):
             for c in allow:
                 with self.subTest(role=role, cmd=c):
                     self.allowed(c, role)
+
+    def test_env_in_hook_process_refused(self):
+        clean = self.mk("clean", ["a/b"])
+        cmd = f"tar -xf {clean} -C {self.out}"
+        self.allowed(cmd, "qa")
+        for name in ("TAR_OPTIONS", "POSIXLY_CORRECT", "UNZIP", "UNZIPOPT", "UNZIP_OPTS", "TAR_READER_OPTIONS"):
+            for role in NO_PUSH:
+                with self.subTest(name=name, role=role):
+                    self.blocked(cmd, role, extra_env={name: "-i"})
+        # a listing is not an extraction: the env rule does not apply
+        p = self.bash(f"tar -tf {clean}", "qa", extra_env={"TAR_OPTIONS": "-i"})
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_env_rule_not_for_coder_and_hq(self):
+        clean = self.mk("clean", ["a/b"])
+        cmd = f"TAR_OPTIONS=-i tar -xf {clean} -C {self.out}"
+        self.allowed(cmd, "coder")
+        self.allowed(cmd, "qa", None, "--hq")
+
+    def test_parse_tar_grammar(self):
+        # (args, extract, archives, dirs, has_problem)
+        rows = [
+            (["-xf", "a.tar", "-C", "o"], True, ["a.tar"], ["o"], False),
+            (["xzf", "a.tar", "-C", "o"], True, ["a.tar"], ["o"], False),
+            (["-xzf", "a.tar", "-Co"], True, ["a.tar"], ["o"], False),
+            (["--extract", "--file=a.tar", "--directory", "o"], True, ["a.tar"], ["o"], False),
+            (["-tf", "/x/a.tar"], False, ["/x/a.tar"], [], True),
+            (["-cf", "a.tar", "x"], False, ["a.tar"], [], True),
+            (["-xf/x/a.tar"], True, [], [], True),       # glued value: unclassifiable = extract
+            (["-xvf/x/a.tar", "-C", "o"], True, [], ["o"], True),
+            (["-xfC", "a.tar", "out"], True, [], [], True),  # value letter not last
+            (["xfC", "a.tar", "out"], True, [], [], True),
+            (["-x2f", "a.tar"], True, [], [], True),     # digit
+            (["-xf", "a", "-f", "b"], True, ["a", "b"], [], True),
+            (["-xf", "a", "--", "x"], True, ["a"], [], True),
+            (["-xif", "a"], True, ["a"], [], True),      # not allowlisted
+            (["--ignore-zeros", "-xf", "a"], True, ["a"], [], True),
+            (["-xf"], True, [], [], True),
+        ]
+        for args, ext, arch, dirs, prob in rows:
+            with self.subTest(args=args):
+                e, a, d, p = parse_tar(args)
+                self.assertEqual((e, a, d, bool(p)), (ext, arch, dirs, prob))
 
 
 if __name__ == "__main__":
