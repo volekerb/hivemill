@@ -11,6 +11,7 @@ from pathlib import Path
 
 from scout import orgs as _orgs
 from web import charts, queries
+from web import cursor_limits
 from web.components import ctx_org, disclosure, empty_state, org_badge, section
 from web.html import badge, el, glyph, link, table, ts
 from web.views import agents
@@ -63,7 +64,7 @@ def derive_gate(ctx):
     elif u.get("unreadable"):
         usage_txt = "claude usage unreadable"
     else:
-        usage_txt = (f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
+        usage_txt = (f"claude usage 5h {_pct_txt(u['five_hour'])} · week {_pct_txt(u['seven_day'])}"
                      + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
     mix = " · ".join(f"{m['label']} {m['live']}" for m in mix_rows if m["live"] or m["org"] == queries.DEFAULT_ORG)
     checks = [f"agents live {live}/{cap} ({mix})",
@@ -78,9 +79,9 @@ def derive_gate(ctx):
         reason = f"{total}/{total_cap} claude processes on host"
     elif mem is not None and mem < floor:
         reason = f"MemAvailable {mem}MB < floor {floor}MB"
-    elif u and u["fresh"] and not u.get("unreadable") and u["five_hour"] >= h5:
+    elif u and u["fresh"] and not u.get("unreadable") and u["five_hour"] is not None and u["five_hour"] >= h5:
         reason = f"5h usage {u['five_hour']:.0f}% ≥ {h5:g}%"
-    elif u and u["fresh"] and not u.get("unreadable") and u["seven_day"] >= d7:
+    elif u and u["fresh"] and not u.get("unreadable") and u["seven_day"] is not None and u["seven_day"] >= d7:
         reason = f"weekly usage {u['seven_day']:.0f}% ≥ {d7:g}%"
     queued = ctx.db.execute("SELECT count(*) FROM agents WHERE status='queued'").fetchone()[0]
     return {"open": reason is None, "reason": reason, "checks": checks, "rows": rows, "orgs": mix_rows,
@@ -129,10 +130,10 @@ def _check_rows(live, cap, workers, leads, leads_cap, total, total_cap, mem, flo
     if u is None or u.get("unreadable"):
         out.append(row("Claude usage", "unreadable" if u else "unknown", f"cap {h5:g}% · {d7:g}%", "unknown", "Unknown"))
     else:
-        hot = u["five_hour"] >= h5 or u["seven_day"] >= d7
+        hot = (u["five_hour"] is not None and u["five_hour"] >= h5) or (u["seven_day"] is not None and u["seven_day"] >= d7)
         fresh = bool(u["fresh"]) and (u.get("age_min") or 0) <= 30        # the gauge's stale rule
         word = ("Over cap" if hot else "OK") if fresh else "Stale"
-        out.append(row("Claude usage", f"{u['five_hour']:.0f}% 5-hour · {u['seven_day']:.0f}% weekly", f"cap {h5:g}% · {d7:g}%",
+        out.append(row("Claude usage", f"{_pct_txt(u['five_hour'])} 5-hour · {_pct_txt(u['seven_day'])} weekly", f"cap {h5:g}% · {d7:g}%",
                        "over" if hot and fresh else "ok" if fresh else "unknown", word))
     return out
 
@@ -244,13 +245,34 @@ def _cfg(ctx, key, fallback):
     return queries._cfg_num(cfg, ctx.defaults or {}, key, fallback)
 
 
+def cursor_usage(ctx):
+    return cursor_limits.display(ctx.db, ctx.now)
+
+
+def cursor_row(data):
+    """Same three-line gauge-row shape as usage_row: Cursor usage, today's agent-hours, Pro · ok or limited-until."""
+    plan = cursor_limits.plan_line(data)
+    limited = any(m["status"] == "limited" for m in data["models"])
+    tone = "danger" if limited else "success"
+    hours = data["hours"]
+    value = f"{hours:g} h"
+    bar = charts.gauge_bar(0, [], tone, f"Cursor usage {value}, {plan}")
+    return el(
+        "div",
+        el("span", "Cursor usage", class_="gl"),
+        el("div", bar, class_="gauge-stack"),
+        el("span", value, el("span", plan), class_="gv"),
+        class_="gauge-row",
+    )
+
+
 def system_inputs(ctx, gate):
     """Inputs of the four gauges, the same numbers as the overview's System section (web/views/home.py _system)."""
     mem = ctx.mem_fn() if ctx.mem_fn else None
     m = machine()
     load, cpus = (m.get("load") or [None])[0], m.get("cpus")
     u = ctx.usage_fn() if ctx.usage_fn else None
-    fresh = bool(u) and not u.get("unreadable") and u.get("five_hour") is not None
+    fresh = bool(u) and not u.get("unreadable") and (u.get("five_hour") is not None or u.get("seven_day") is not None)
     return {"agents": {"live": gate["live"], "queued": gate["queued"], "cap": gate["cap"]},
             "memory": {"available_mb": mem, "floor_mb": int(_cfg(ctx, "min_mem_available_mb", 1024))},
             "load": {"load1": load, "cpus": cpus},
@@ -259,7 +281,8 @@ def system_inputs(ctx, gate):
                       "stale": bool(fresh and (not u.get("fresh") or (u.get("age_min") or 0) > 30)),
                       "age_min": u.get("age_min") if fresh else None,
                       "five_hour_resets_at": u.get("five_hour_resets_at") if fresh else None,
-                      "seven_day_resets_at": u.get("seven_day_resets_at") if fresh else None}}
+                      "seven_day_resets_at": u.get("seven_day_resets_at") if fresh else None},
+            "cursor": cursor_usage(ctx)}
 
 
 def data(ctx, **params):
@@ -309,19 +332,27 @@ def gauge_rows(s):
     return rows
 
 
+def _pct_txt(v):
+    """"96%" for a reading, "n/a" for a missing one (the status line may write only one of the two windows)."""
+    return "n/a" if v is None else f"{v:.0f}%"
+
+
 def usage_row(u):
-    """"Claude usage" (the same label on every page): 5-hour and weekly bars stacked, one zone word for the worse one."""
+    """"Claude usage" (the same label on every page): 5-hour and weekly bars stacked, one zone word for the worse one.
+    Either window may be missing (None): it shows n/a and the other still drives the bar and the word."""
     p5, p7 = u["five_hour"], u["seven_day"]
-    if p5 is None:
+    if p5 is None and p7 is None:
         return charts.gauge("Claude usage", "unknown", 0, [], ("neutral", "Unknown"), "5 h · week")
-    zones = [_tone(p5, u["cap_five_hour"])] + ([_tone(p7, u["cap_seven_day"])] if p7 is not None else [])
+    zones = ([_tone(p5, u["cap_five_hour"])] if p5 is not None else []) + ([_tone(p7, u["cap_seven_day"])] if p7 is not None else [])
     tone, word = max(zones, key=lambda z: ("success", "warning", "danger").index(z[0]))
     if u["stale"]:
         word = "Stale" if word == "OK" else f"{word}, stale"
-    bars = [charts.gauge_bar(p5, [u["cap_five_hour"]], zones[0][0], f"Claude usage 5-hour {p5:.0f}%, cap {u['cap_five_hour']:.0f}%")]
+    bars = []
+    if p5 is not None:
+        bars.append(charts.gauge_bar(p5, [u["cap_five_hour"]], zones[0][0], f"Claude usage 5-hour {p5:.0f}%, cap {u['cap_five_hour']:.0f}%"))
     if p7 is not None:
-        bars.append(charts.gauge_bar(p7, [u["cap_seven_day"]], zones[1][0], f"Claude usage weekly {p7:.0f}%, cap {u['cap_seven_day']:.0f}%"))
-    text = f"{p5:.0f}%" + (f" · {p7:.0f}%" if p7 is not None else "")
+        bars.append(charts.gauge_bar(p7, [u["cap_seven_day"]], zones[-1][0], f"Claude usage weekly {p7:.0f}%, cap {u['cap_seven_day']:.0f}%"))
+    text = _pct_txt(p5) + f" · {_pct_txt(p7)}"
     return el("div", el("span", "Claude usage", class_="gl"), el("div", bars, class_="gauge-stack"),
               el("span", text, el("span", el("b", word, class_=f"gz fg-{tone}"), " · 5 h · week"), class_="gv"), class_="gauge-row")
 
@@ -372,7 +403,11 @@ def _orgs_section(g, org):
 
 
 def _gauges_section(s):
-    return section("Capacity", el("div", [*gauge_rows(s), usage_row(s["usage"])], class_="ins-gauges"), usage_note(s["usage"]))
+    return section(
+        "Capacity",
+        el("div", [*gauge_rows(s), usage_row(s["usage"]), cursor_row(s["cursor"])], class_="ins-gauges"),
+        usage_note(s["usage"]),
+    )
 
 
 def _checks_section(g):

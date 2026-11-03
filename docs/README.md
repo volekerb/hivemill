@@ -16,6 +16,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [readme-media.md](readme-media.md): the marked image and video slots in the top-level README and how to swap them.
 - [adoption-metrics.md](adoption-metrics.md): read-only measurement of token spend per merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
+- [researcher.md](researcher.md): the researcher role, its per-task research directory and where its findings go.
 - [design/g-019/README.md](design/g-019/README.md): static mockups and screenshots for the web UI redesign.
 - [design/g-023/README.md](design/g-023/README.md): three draft README layouts for owner preview.
 - [design/g-023/readme-option-a.md](design/g-023/readme-option-a.md): README draft A, showcase.
@@ -26,6 +27,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 
 - [operations.md](operations.md): recovery after a VM reboot and how an agent's identity is decided.
 - [state-branch.md](state-branch.md): the generated `state` branch that export commits to.
+- [state-load.md](state-load.md): build a temp DB, events included, from a `state/` directory with `ci/state_load.py`.
 - [db-layout.md](db-layout.md): where the live database sits and why it has its own directory.
 - [stopping-a-worker.md](stopping-a-worker.md): the `factory stop` command, who may use it and on whom.
 - [unblocking-a-worker.md](unblocking-a-worker.md): getting an agent out of a stuck permission dialog.

@@ -212,6 +212,11 @@ func Check(cmd, cwd, role string, hq bool) error {
 			return err
 		}
 	}
+	if role == researcherRole {
+		if err := researcherText(cmd); err != nil {
+			return err
+		}
+	}
 	// layer 2: raw text, independent of the parser
 	if matchR2Set(cmd) || R2PathHit(cmd) {
 		return blockf("R2: re-targeting the herdr socket/session or naming herdr's socket/config path")

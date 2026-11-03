@@ -14,9 +14,15 @@ from test_web_queries import NOW, ts  # noqa: E402
 from test_web_views_agents import Base  # noqa: E402
 from test_web_views_tokens import TokensCase  # noqa: E402
 from web import components as wc, html as wh, queries  # noqa: E402
-from web.views import agents, goals, home, resources, tasks, tokens  # noqa: E402
+from web.views import agents, changelog, goals, home, quality, resources, tasks, throughput, tokens  # noqa: E402
 
 CLASS_RE = re.compile(r'class="([^"]+)"')
+
+
+def add_parked_at(w):
+    from web.db import has_column
+    if not has_column(w, "teams", "parked_at"):
+        w.execute("ALTER TABLE teams ADD COLUMN parked_at TEXT")
 
 
 def add_org_columns(w):
@@ -149,17 +155,64 @@ class TestTwoOrgs(Base):
         cur = lanes["cursor"]
         self.assertEqual((cur["boss"]["name"], cur["boss"]["status"]), ("cursor-boss", "live"))
         self.assertEqual(cur["director"]["name"], "cursor-director")
-        self.assertEqual((cur["teams_live"], cur["workers_live"], cur["goals_active"]), (1, 1, 1))
+        self.assertEqual((cur["teams_active"], cur["leads_awake"], cur["leads_parked"], cur["leads_waking"],
+                          cur["workers_live"], cur["goals_active"]), (1, 1, 0, 0, 1, 1))
         cl = lanes["claude"]
         self.assertEqual(cl["boss"]["name"], "boss")              # the legacy unprefixed boss is the claude org's
         self.assertIsNone(cl["director"])
         self.assertEqual(cl["health"]["tone"], "warning")         # active goal, no director
-        self.assertEqual((cl["teams_live"], cl["workers_live"]), (1, 1))   # t-a (lead-a live), coder-2
+        self.assertEqual((cl["teams_active"], cl["leads_awake"], cl["leads_parked"], cl["leads_waking"],
+                          cl["workers_live"]), (1, 1, 0, 0, 1))   # t-a (lead-a live), coder-2
         self.assertIn('class="lane lane--claude"', html)
         self.assertIn('class="lane lane--cursor"', html)
         self.assertIn('href="/agents?org=cursor"', html)
         self.assertLess(set(), classes(html))
         self.assertEqual(classes(html) - wh.CLASSES, set())
+
+    def test_overview_lane_parked_lead_still_counts_active_team(self):
+        add_parked_at(self.w)
+        self.w.execute("UPDATE teams SET parked_at=? WHERE id='t-c'", (ts(9, 0),))
+        self.w.execute("UPDATE agents SET status='exited', ended=? WHERE name='cursor-lead-g-4-a'", (ts(9, 30),))
+        d, html = self.page(home)
+        cur = next(ln for ln in d["lanes"] if ln["org"] == "cursor")
+        self.assertEqual(cur["teams_active"], 1)
+        self.assertIn("1 teams · 0 lead awake · 1 parked · 0 waking · 1 workers", html)
+        self.assertNotIn("0 active teams", html)
+
+    def test_overview_lane_three_lead_states_at_once(self):
+        add_parked_at(self.w)
+        self.w.execute(
+            "INSERT INTO teams(id, goal_id, scope, lead_agent, tab_id, status, created) "
+            "VALUES('t-c2','G-4','scope C2','cursor-lead-g-4-b',NULL,'active',?)", (ts(8, 0),))
+        self.w.execute(
+            "INSERT INTO teams(id, goal_id, scope, lead_agent, tab_id, status, created) "
+            "VALUES('t-c3','G-4','scope C3','cursor-lead-g-4-c',NULL,'active',?)", (ts(8, 0),))
+        self.w.execute("UPDATE teams SET parked_at=? WHERE id='t-c2'", (ts(9, 0),))
+        self.w.execute(
+            "INSERT INTO agents(name,role,goal_id,team_id,status,model,started,ended,org) "
+            "VALUES('cursor-lead-g-4-b','lead','G-4','t-c2','exited','grok-4.7-high',?,?, 'cursor')",
+            (ts(8, 0), ts(9, 0)))
+        self.w.execute(
+            "INSERT INTO agents(name,role,goal_id,team_id,status,model,started,queued_at,org) "
+            "VALUES('cursor-lead-g-4-c','lead','G-4','t-c3','queued','grok-4.7-high',?,?, 'cursor')",
+            (ts(8, 0), ts(9, 0)))
+        d, _ = self.page(home)
+        cur = next(ln for ln in d["lanes"] if ln["org"] == "cursor")
+        self.assertEqual((cur["leads_awake"], cur["leads_parked"], cur["leads_waking"]), (1, 1, 1))
+
+    def test_overview_workers_counted_on_org_lane_only(self):
+        d, _ = self.page(home)
+        lanes = {ln["org"]: ln for ln in d["lanes"]}
+        self.assertEqual(lanes["cursor"]["workers_live"], 1)
+        self.assertEqual(lanes["claude"]["workers_live"], 1)
+        self.w.execute(
+            "INSERT INTO agents(name,role,goal_id,team_id,task_id,status,model,started,org) "
+            "VALUES('claude-only-coder','coder','G-1','t-a','T-2','live','sonnet',?,'claude')",
+            (ts(11, 0),))
+        d, _ = self.page(home)
+        lanes = {ln["org"]: ln for ln in d["lanes"]}
+        self.assertEqual(lanes["claude"]["workers_live"], 2)
+        self.assertEqual(lanes["cursor"]["workers_live"], 1)
 
     def test_home_with_org_shows_only_that_lane_and_its_goals(self):
         d, html = self.page(home, query={"org": "cursor"})
@@ -277,6 +330,69 @@ class TestTokensByOrg(TokensCase):
         d, html = self.page(days="all", org="<x>", by="org")
         self.assertIsNone(d["org"])
         self.assertNotIn("<x>", html)
+
+
+def seed_insight_org_merges(w):
+    """One merged task on a claude goal (T-1/G-1) and one on a cursor goal (T-c/G-4)."""
+    add_org_columns(w)
+    w.execute("UPDATE goals SET org='cursor' WHERE id='G-4'")
+    w.execute("INSERT INTO teams VALUES('t-c','G-4','scope C','cursor-lead',NULL,'active',?)", (ts(8, 0),))
+    w.execute("INSERT INTO tasks(id,goal_id,team_id,title,role,status,created,updated) VALUES('T-c','G-4','t-c','cursor merge','coder','done',?,?)",
+              (ts(8, 0), ts(9, 0)))
+    w.execute("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
+              (ts(11, 40), "judge", "task", "T-c", "merged", "@cafe0001"))
+
+
+class TestInsightOrgFilter(Base):
+    def setUp(self):
+        super().setUp()
+        seed_insight_org_merges(self.w)
+
+    def test_throughput_org_filter_and_links(self):
+        base, _ = self.page(throughput)
+        self.assertEqual(base["merges"], 3)   # T-1, T-5 (claude goals) and T-c (cursor)
+        cur, _ = self.page(throughput, query={"org": "cursor"})
+        self.assertEqual(cur["merges"], 1)
+        cl, _ = self.page(throughput, query={"org": "claude"})
+        self.assertEqual(cl["merges"], 2)
+        evil, html_e = self.page(throughput, query={"org": "evil"})
+        self.assertEqual(evil["merges"], 3)
+        self.assertNotIn("evil", html_e)
+        self.assertIn("org=cursor", self.page(throughput, query={"org": "cursor", "days": "7"})[1])
+
+    def test_quality_merged_count_by_org(self):
+        cur, _ = self.page(quality, query={"org": "cursor"})
+        self.assertEqual(cur["overall"]["merged"], 1)
+
+    def test_quality_org_filter_keeps_team_with_only_unassigned_merges(self):
+        """Team on a goal with no direct tasks still gets team_id-NULL merges after ?org= filter."""
+        self.w.execute("INSERT INTO teams VALUES('t-g2','G-2','scope G2','lead-g2',NULL,'active',?)", (ts(8, 0),))
+        all_d, _ = self.page(quality)
+        self.assertEqual({t["team_id"]: t["merged"] for t in all_d["teams"]}["t-g2"], 1)
+        cl, _ = self.page(quality, query={"org": "claude"})
+        by_team = {t["team_id"]: t for t in cl["teams"]}
+        self.assertIn("t-g2", by_team)
+        self.assertEqual(by_team["t-g2"]["merged"], 1)
+        self.assertEqual(cl["overall"]["merged"], 2)
+
+    def test_changelog_org_and_chip_href(self):
+        cur, html = self.page(changelog, query={"org": "cursor"})
+        gids = {g["goal_id"] for g in cur["goals"]}
+        self.assertIn("G-4", gids)
+        self.assertNotIn("G-1", gids)
+        self.assertIn("org=cursor", html)
+
+
+class TestInsightOrgFilterLegacy(Base):
+    """Legacy DB (no goals.org): claude filter matches all merges; cursor filter is empty."""
+
+    def test_legacy_db_throughput_org(self):
+        all_d, _ = self.page(throughput)
+        n_all = all_d["merges"]
+        cur, _ = self.page(throughput, query={"org": "cursor"})
+        self.assertEqual(cur["merges"], 0)
+        cl, _ = self.page(throughput, query={"org": "claude"})
+        self.assertEqual(cl["merges"], n_all)
 
 
 if __name__ == "__main__":

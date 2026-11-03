@@ -102,12 +102,12 @@ agent_runtime = _LazyScout("agent_runtime")
 orgs = _LazyScout("orgs")
 
 ROLES = ["boss", "director", "lead", "pm", "coder", "qa", "reviewer", "judge", "cleaner",
-         "staff-engineer", "scout", "evaluator"]
+         "staff-engineer", "researcher", "scout", "evaluator"]
 # Opus for judgement-heavy roles, Sonnet for builders. Never Fable (owner rule).
 MODELS = {
     "boss": "claude-opus-5-5", "director": "claude-opus-5-5", "lead": "claude-opus-5-5",
     "pm": "claude-opus-5-5", "reviewer": "claude-opus-5-5", "judge": "claude-opus-5-5",
-    "staff-engineer": "claude-opus-5-5",
+    "staff-engineer": "claude-opus-5-5", "researcher": "claude-opus-5-5",
     "coder": "claude-sonnet-5-5", "qa": "claude-sonnet-5-5", "cleaner": "claude-haiku-5-5",
     "scout": "claude-sonnet-5-5", "evaluator": "claude-sonnet-5-5",
 }
@@ -178,7 +178,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
-    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often
+    "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
     "scrub_terms_file": "",      # path of the owner terms file (local only, never in the repo); env SCRUB_TERMS_FILE wins
@@ -622,7 +622,7 @@ def actor_role(con):
     return r["role"] if r else "unknown"
 
 
-WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "scout", "evaluator"}
+WORKER_ROLES = {"pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator"}
 
 def derive_live_homes(uid=None):
     """(primary, homes): the live factory home(s), derived from the passwd entry and nothing the caller controls.
@@ -1473,14 +1473,35 @@ def _epoch(v):
         return None
 
 
+def _pct_field(v):
+    """One usage percentage as a finite float; an empty, missing or bad value is None for that field only."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def usage_text(u):
+    """The "claude usage ..." line of `factory res`: a missing 5h or week reading shows as n/a, the other still shows."""
+    if u.get("unreadable"):
+        return "claude usage unreadable"
+    five = "n/a" if u["five_hour"] is None else f"{u['five_hour']:.0f}%"
+    week = "n/a" if u["seven_day"] is None else f"{u['seven_day']:.0f}%"
+    return f"claude usage 5h {five} · week {week}" + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)")
+
+
 def usage():
-    """5h/7d usage. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
+    """5h/7d usage. Each field is parsed on its own: an empty or bad one is None, the other still counts. A missing file is stale (age -1); a file that stays unreadable after one retry (it may be
     read mid-write) is "unreadable": five_hour/seven_day None, never fresh, so the gate neither opens nor closes on it."""
     for attempt in (0, 1):
         try:
             u = json.loads(USAGE_FILE.read_text())
             age = time.time() - float(u.get("updated_at", 0))
-            return {"five_hour": float(u.get("five_hour_pct", 0)), "seven_day": float(u.get("seven_day_pct", 0)),
+            five, seven = _pct_field(u.get("five_hour_pct")), _pct_field(u.get("seven_day_pct"))
+            if five is None and seven is None:
+                raise ValueError("neither five_hour_pct nor seven_day_pct is a number")
+            return {"five_hour": five, "seven_day": seven,
                     "fresh": age < 3 * 3600, "age_min": int(age // 60),
                     "five_hour_resets_at": _epoch(u.get("five_hour_resets_at")),
                     "seven_day_resets_at": _epoch(u.get("seven_day_resets_at"))}
@@ -1541,13 +1562,14 @@ def _int_cfg(con, key, default):
 REVIEW_RESERVE_BLOCKED = ("pm", "coder", "cleaner")  # roles that may not take the slots review_reserved_slots keeps for reviewer/qa
 
 
-def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
+def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runtime=None):
     """Return (ok, reason, stats). This is the hard cap: prompts can't override it.
     Only factory-registered agents count; stats["other"] is the number of unmatched Claude panes.
     own_slot: the caller restarts an agent that already holds a slot, so exactly that one slot is discounted
     from the live-agent and claude-process counts; every cap still applies (what spawn()'s gate sees after the close).
     The load cap (gate_max_load_ratio x nproc) does not apply to own_slot or load_exempt (persistent HQ relaunches, and
-    judges: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds; every other cap applies).
+    judges and leads: a judge is one pane plus GitHub API calls, so the merge queue is not held by builds, and a lead is
+    light orchestration that must not wait behind builders (T-0867); every other cap applies, including max_live_leads).
     role="lead" with config lead_parking=1 adds the lead cap (max_live_leads) and the worker reserve (HQ panes stay
     <= max_live_agents - reserved_worker_slots); own_slot or own_lead (a relaunch of a lead that holds its row) skips both.
     Any other role, or role=None, gets exactly the checks above."""
@@ -1622,10 +1644,12 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False):
     if not (own_slot or load_exempt) and stats["load1"] > stats["load_cap"]:
         return False, (f"load1 {stats['load1']:.1f} > {cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs"
                        f" ({stats['load_cap']:.1f}) — the tests or builds on the box are saturating the CPU"), stats
-    if u["fresh"] and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
-        return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
-    if u["fresh"] and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
-        return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    # Claude 5h/7d caps measure Anthropic quota only; cursor-runtime agents do not consume it (G-027 SC4).
+    if runtime != "cursor":
+        if u["fresh"] and u["five_hour"] is not None and u["five_hour"] >= float(cfg(con, "max_five_hour_pct")):
+            return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
+        if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
+            return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
@@ -5380,15 +5404,18 @@ def cmd_redmain(a):
 
 
 def red_main_check(con):
-    """Tick hook (flag red_main_freeze, default off): at most every red_main_interval_s read the latest completed push run
-    of tests.yml on main of each project repo. Red: store the freeze, message the director once per run id, file a revert
-    task. Green: clear it. gh trouble or no completed run leaves the state as it is. Never breaks the tick."""
+    """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
+    project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
+    interval is ignored and gh is asked on every tick, so a green run clears the freeze on the first tick that sees it
+    (T-0841). Red: store the freeze, message the director once per run id, file a revert task. Green: clear it. gh
+    trouble or no completed run leaves the state as it is. Never breaks the tick."""
     if cfg(con, "red_main_freeze") != "1":
         return
     try:
         t = time.time()
         last = con.execute("SELECT ts FROM throttle WHERE key='red-main'").fetchone()
-        if last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
+        any_red = con.execute("SELECT 1 FROM config WHERE key GLOB 'red_main:*' AND value!='' LIMIT 1").fetchone()
+        if not any_red and last and t - float(last["ts"]) < float(cfg(con, "red_main_interval_s")):
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('red-main',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
         slugs = [s for s in dict.fromkeys(_repo_slug(r["gh_repo"]) for r in
@@ -5893,6 +5920,22 @@ def _serve_mainpid():
     return int(out) if out.isdigit() and int(out) > 0 else None
 
 
+def _serve_unit_pids():
+    """Pids whose cgroup is factory-serve.service, read from /proc (no systemd call): the unit's process even when
+    _serve_mainpid() cannot reach systemd. Unreadable entries are skipped."""
+    out = set()
+    for d in _serve_proc_root().iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            text = (d / "cgroup").read_text(errors="replace")
+        except OSError:
+            continue
+        if re.search(r"/factory-serve\.service(/|$)", text, re.M):
+            out.add(int(d.name))
+    return out
+
+
 def _signal_serve(pid, sig, argv):
     """Send `sig` to pid only if its cmdline is still exactly `argv` (re-read right now: pid reuse guard)."""
     if _serve_argv(pid) != argv:
@@ -5937,11 +5980,11 @@ def reap_stray_serves(con):
         if last and t - float(last["ts"]) < SERVE_REAP_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('servereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
-        root, main_pid = _serve_proc_root(), _serve_mainpid()
+        root, unit_pids = _serve_proc_root(), _serve_unit_pids() | {_serve_mainpid()}
         grace = float(os.environ.get("FACTORY_SERVE_KILL_GRACE_S") or SERVE_KILL_GRACE_S)
         reaped = {}
         for d in sorted(root.iterdir()):
-            if not d.name.isdigit() or int(d.name) in (os.getpid(), main_pid):
+            if not d.name.isdigit() or int(d.name) in unit_pids or int(d.name) == os.getpid():
                 continue
             pid = int(d.name)
             try:
@@ -6105,8 +6148,8 @@ def _orphan_judge(con, pid, skip):
 
 
 def _orphan_skip(main_pid):
-    """The tick, its ancestors and the factory-serve unit's MainPID."""
-    skip, cur = {os.getpid(), main_pid}, os.getppid()
+    """The tick, its ancestors and the factory-serve unit's processes (MainPID, plus its cgroup members from /proc)."""
+    skip, cur = {os.getpid(), main_pid} | _serve_unit_pids(), os.getppid()
     for _ in range(64):
         if cur is None or cur <= 1:
             break
@@ -6426,7 +6469,8 @@ def scout_tick(con):
     try:
         scoutsched.tick(con, types.SimpleNamespace(
             clock=digest_clock, cfg=cfg, event=event, now=now, spawn=spawn, force_stop=force_stop,
-            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send))
+            cancel_queued=cancel_queued, session_tokens=_session_tokens, send=send,
+            agent_name=lambda con: org_agent_name(con, "scout", org=scoutsched.ORG)))
     except (Exception, SystemExit) as e:  # noqa: BLE001 — the tick must go on
         try:
             today = digest_clock().date().isoformat()
@@ -6587,9 +6631,43 @@ def tick_drift(con):
             pass
 
 
+SERVE_UNIT_ALERT_S = 6 * 3600  # an unchanged drift is re-sent at most this often
+SERVE_UNIT_COMMANDS = "systemd/install.sh --with-serve\nsystemctl --user daemon-reload\nsystemctl --user restart factory-serve"
+
+
+def tick_serve_unit_drift(con):
+    """After the main sync: tell the director once when the installed factory-serve unit differs from the one on main.
+    Read-only: never runs systemctl or install.sh and never writes ~/.config. Missing installed unit = not installed, no
+    alert. The same main hash is not re-sent for 6 h (throttle key serve-unit-drift holds "<hash>@<time>"); a new main hash alerts."""
+    installed = Path.home() / ".config" / "systemd" / "user" / "factory-serve.service"
+    try:
+        have = installed.read_bytes()
+    except FileNotFoundError:
+        return
+    want = (HOME / "systemd" / "factory-serve.service").read_bytes()
+    if have == want:
+        return
+    h = hashlib.sha256(want).hexdigest()[:16]
+    old = con.execute("SELECT ts FROM throttle WHERE key='serve-unit-drift'").fetchone()
+    if old:
+        last_hash, _, last_ts = old["ts"].partition("@")
+        try:
+            fresh = time.time() - float(last_ts) < SERVE_UNIT_ALERT_S
+        except ValueError:
+            fresh = False
+        if last_hash == h and fresh:
+            return
+    con.execute("INSERT INTO throttle(key,ts) VALUES('serve-unit-drift',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                (f"{h}@{time.time()}",))
+    event(con, "tick", "serve-unit", "serve-unit-drift", h)
+    send(con, "director", "factory-serve unit drifted from main",
+         "The installed ~/.config/systemd/user/factory-serve.service differs from systemd/factory-serve.service on main. "
+         "The owner runs, from the main checkout:\n" + SERVE_UNIT_COMMANDS, "alert", sender="tick")
+
+
 def _session_tokens(session):
     from web import tokens  # noqa: PLC0415 — web/ lives at the repo root, like scout/
-    return tokens.session_tokens(session)
+    return tokens.session_tokens_known(session)  # None = unknown (scout_runs.tokens NULL), never 0
 
 
 # ───────────────────────────── agents: spawn / done / list ─────────────────────────────
@@ -7001,6 +7079,45 @@ def prepare_worktree(con, task, role):
     return str(wt)
 
 
+# T-0857: the one definition of a "gated" PR (risky enough for the multi-angle-review workflow). The reviewer skill
+# multi-angle-review points here instead of restating it; spawn adds GATED_PR_LINE to the reviewer kickoff.
+GATE_PATH_PREFIXES = ("roles/hooks/", "roles/settings/", "ci/", ".github/")
+GATE_MAX_LINES = 500
+GATED_PR_LINE = "Gated PR: run the multi-angle-review workflow (reviewer skill multi-angle-review) before your verdict."
+
+
+def review_gate(files, changed_lines):
+    """True when a PR touches a gated path or changes more than GATE_MAX_LINES lines (additions + deletions)."""
+    return changed_lines > GATE_MAX_LINES or any(f.startswith(GATE_PATH_PREFIXES) for f in files)
+
+
+def gated_reviewer_prompt(con, role, task, prompt):
+    """Reviewer kickoff extra with GATED_PR_LINE appended when the task's PR is gated. Ungated PR, no PR, other roles:
+    prompt unchanged. A gh failure adds no line, prints the reason and records a gate-skipped event; never fails the spawn."""
+    t = con.execute("SELECT pr_url FROM tasks WHERE id=?", (task,)).fetchone() if role == "reviewer" and task else None
+    if not t or not t["pr_url"]:
+        return prompt
+    try:
+        out = subprocess.run(["gh", "pr", "diff", t["pr_url"], "--name-only"], capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            raise OSError(out.stderr.strip() or f"gh pr diff exit {out.returncode}")
+        files = [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+        stats = subprocess.run(["gh", "pr", "view", t["pr_url"], "--json", "additions,deletions"],
+                               capture_output=True, text=True, timeout=60)
+        if stats.returncode != 0:
+            raise OSError(stats.stderr.strip() or f"gh pr view exit {stats.returncode}")
+        data = json.loads(stats.stdout)
+        changed = int(data["additions"]) + int(data["deletions"])
+    except (ValueError, KeyError, TypeError, subprocess.SubprocessError, OSError) as e:
+        why = f"gh failed: {e}"
+        print(f"multi-angle-review gate skipped: {why}", file=sys.stderr)
+        event(con, "task", task, "gate-skipped", f"reviewer: {why}")
+        return prompt
+    if not review_gate(files, changed):
+        return prompt
+    return f"{prompt} {GATED_PR_LINE}" if prompt else GATED_PR_LINE
+
+
 def kickoff_text(role, name, goal, team, task, extra):
     lines = [f"You are `{name}`, the factory {role}. Run `factory whoami` and `factory inbox` first."]
     if task:
@@ -7091,6 +7208,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"role must be one of {ROLES}")
     if sandbox_optin and role not in workerbox.SANDBOXABLE:  # before any side effect (stale pane release, queue row)
         die(f"--sandbox: {role} cannot be sandboxed; allowed: {', '.join(sorted(workerbox.SANDBOXABLE))}", 2)
+    if role == "researcher" and not task:
+        die("researcher needs a task: factory spawn researcher --task T-NNNN (its research dir is per task)", 2)
     name = slug(name or f"{role}-{(task or team or goal or role)}")
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
@@ -7138,9 +7257,9 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         args.update(env_extra=env_extra, plugin_dirs=list(plugin_dirs or []), add_home_dir=add_home_dir)
     if existing and existing["status"] == "starting" and not from_queue:
         die(f"{name} is already starting (claimed by the tick); wait for it to go live", 2)
-    org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
-    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director", "lead")) or role == "judge", role=role,
-                          own_lead=relaunch and bool(existing) and existing["status"] == "live")
+    rt = org_runtime(con, role, org)  # a bad agent_runtimes value fails before the gate
+    ok, why, stats = gate(con, load_exempt=(relaunch and role in ("boss", "director")) or role in ("judge", "lead"), role=role,
+                          own_lead=relaunch and bool(existing) and existing["status"] == "live", runtime=rt)
     if ok and hold:  # the caller wants the row queued whatever the gate says (wake_lead: a higher-priority lead waits)
         ok, why = False, hold
     if ok and role == "judge" and not from_queue and not relaunch and not resume:
@@ -7271,6 +7390,8 @@ def sandbox_wanted(con, role, optin=False):
     has its own sandbox and the on-demand staff-engineer is never sandboxed.
     optin: this one agent was spawned with `--sandbox`; it counts like a listed role (SANDBOXABLE only)."""
     listed = {x.strip() for x in (cfg(con, "sandbox_roles") or "").split(",") if x.strip()}
+    if role == "researcher":  # always sandboxed (G-029): it runs third-party code; neither config nor --sandbox decides
+        return True
     return role not in ("evaluator", ON_DEMAND) and (role in listed or (optin and role in workerbox.SANDBOXABLE))
 
 
@@ -7314,7 +7435,7 @@ def sandbox_gh_token(con, role):
     home = Path(sandbox_home() or workerbox.nsbox.real_home())
     if con is None:
         return workerbox._paths(str(home))[workerbox._GH_KEY[role]], []
-    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) else "gh_token_ro"
+    key = "gh_token_rw" if role in _csv(cfg(con, "gh_rw_roles")) and role != "researcher" else "gh_token_ro"  # researcher: never rw
     value = cfg(con, key).strip() or f"~/.config/factory/gh-worker-{key[-2:]}-token"
     path = str(home / value[2:]) if value.startswith("~/") else value
     try:
@@ -7384,8 +7505,13 @@ def sandbox_preflight(role, cwd, name, con=None):
         return "claude", "no claude on the pane PATH"
     if cwd is None:
         return None
+    rroot = None
+    if role == "researcher":  # the cwd must be a task dir directly in the research root, not any dir under it
+        rroot = str(research_base())
+        if Path(os.path.realpath(cwd)).parent != Path(os.path.realpath(rroot)):
+            return "cwd", f"researcher cwd must be its research dir directly under {rroot}, not {cwd}"
     try:  # the same pure rule prepare_agent applies, with the same arguments
-        workerbox.check_cwd(name, cwd, str(HOME), home=home)
+        workerbox.check_cwd(name, cwd, str(HOME), home=home, research_root=rroot)
     except ValueError as e:
         return "cwd", str(e)
     git = os.path.join(cwd or "", ".git")
@@ -7413,16 +7539,21 @@ def sandbox_refuse(con, role, name, reason, why):
     """Event (once an hour per agent and reason, so a queued row retried every tick does not flood), a director
     message at most once an hour per reason, then SandboxRefused (spawn() returns a queued row to the queue).
     Neither the event nor the message names a token path."""
+    if role == "researcher":  # always sandboxed: there is no "turn it off"; the owner steps are the only way
+        fix = ("The researcher is always sandboxed and never starts unsandboxed. Owner steps: docs/worker-sandbox.md section 3 "
+               "(O2 worker OAuth token ~/.config/factory/worker-oauth-token, read-only gh-worker-ro-token)")
+        hint, hint_mail = fix, fix
+    else:
+        hint, hint_mail = "Fix it or run: factory config sandbox_roles ''", "Fix it, or turn the sandbox off: factory config sandbox_roles ''"
     _hourly_once(con, f"sandbox_refused_ev:{name}:{reason}",
                lambda: event(con, "agent", name, "sandbox-refused", {"role": role, "name": name, "reason": reason}))
     _hourly_once(con, f"sandbox_refused:{reason}",
                lambda: send(con, "director", f"sandbox refused a {role} spawn ({reason})",
-                            f"{name} was not started: {why}. Fix it, or turn the sandbox off: "
-                            "factory config sandbox_roles ''. Further refusals for this reason are silent for an hour.",
+                            f"{name} was not started: {why}. {hint_mail}. "
+                            "Further refusals for this reason are silent for an hour.",
                             "alert", sender="factory"))
     con.commit()  # the exit follows: the event and the message must survive
-    print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. "
-          "Fix it or run: factory config sandbox_roles ''", file=sys.stderr)
+    print(f"factory: sandbox refused for {name} ({reason}): {why}; no pane was started. {hint}", file=sys.stderr)
     e = SandboxRefused(3)
     e.reason, e.why = reason, why
     raise e
@@ -7455,8 +7586,9 @@ def sandbox_prepare(con, role, name, cwd):
     gh_path, slugs = sandbox_gh_token(con, role)  # preflight passed, so this cannot raise
     try:  # repo=HOME pins the shim's imports to the factory checkout, never to wherever this bin/factory was run from
         agent_dir = workerbox.prepare_agent(name, role, cwd, str(HOME), str(DB.parent), sandbox_real_claude(home)[0],
-                                            role in ("qa", "coder"), home=home, repo=str(HOME),
-                                            gh_token_path=gh_path, gh_slugs=slugs)
+                                            role in ("qa", "coder", "researcher"), home=home, repo=str(HOME),
+                                            gh_token_path=gh_path, gh_slugs=slugs,
+                                            research_root=str(research_base()) if role == "researcher" else None)
     except (ValueError, OSError) as e:
         sandbox_refuse(con, role, name, "cwd" if str(e).startswith("cwd ") else "prepare", str(e))
     # the pane re-exports this PATH after its startup files (see _spawn_start): the shim must win then
@@ -7593,8 +7725,11 @@ def start_confirm(con, agents):
             if info.get("flagless") and r["flagless"]:
                 con.execute("UPDATE agents SET flagless=0, flagless_since=NULL WHERE name=?", (r["name"],))
                 event(con, "agent", r["name"], "flagless-cleared", {"via": "spawn"})
-            if info.get("kick") and herdr("agent", "prompt", h.get("name") or r["name"], info["kick"], check=False) is not None:
-                con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
+            if info.get("kick"):
+                an = h.get("name") or r["name"]
+                if herdr("agent", "prompt", an, info["kick"], check=False) is not None:
+                    _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
+                    con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), r["name"]))
             con.execute("UPDATE agents SET start_pending=NULL, start_pending_info=NULL WHERE name=?", (r["name"],))
         elif time.time() - r["start_pending"] > START_CONFIRM_S:
             event(con, "agent", r["name"], "start-uncertain", r["pane_id"])
@@ -7608,6 +7743,12 @@ def agent_runtime_of(row):
         return (json.loads(row["spawn_args"] or "{}") or {}).get("runtime") or "claude"
     except ValueError:
         return "claude"
+
+
+def _cursor_enter_after_prompt(name, runtime, prompt_ok):
+    """Cursor follow-up prompts sit in a drawer until Enter; Claude accepts the prompt immediately."""
+    if prompt_ok and runtime == "cursor":
+        herdr("agent", "send-keys", name, "Enter", check=False)
 
 
 def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
@@ -7702,6 +7843,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
              sender="factory")
         time.sleep(float(os.environ.get("FACTORY_KICKOFF_DELAY_S") or 2))
         if herdr("agent", "prompt", name, kick, check=False) is not None:
+            _cursor_enter_after_prompt(name, runtime, True)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (time.time(), name))
     event(con, "agent", name, "spawn", {"pane": pane, "model": model, "cwd": cwd, "runtime": runtime,
                                         "launch": plan.launch, "kind": plan.herdr_kind, "live": stats["live"] + 1})
@@ -7709,9 +7851,37 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     return name
 
 
+def research_base():
+    """<XDG_STATE_HOME or ~/.local/state>/factory/research: the one tree a researcher's cwd may sit in (nothing is created)."""
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "factory" / "research"
+
+
+def research_dir(task):
+    """The per-task directory a researcher works in: <XDG_STATE_HOME or ~/.local/state>/factory/research/<task>, created
+    mode 0700. Refused (exit 4) when it is a symlink, not ours, or inside the factory home: a researcher clones
+    untrusted repos there and must never write into the factory."""
+    path = research_base() / slug(task)
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        st = os.lstat(path)
+    except OSError as e:
+        die(f"cannot prepare the research dir {path}: {e}; fix the path or XDG_STATE_HOME", 4)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        die(f"research dir {path} is a symlink or not owned by you; remove it and retry", 4)
+    real, home = Path(os.path.realpath(path)), Path(os.path.realpath(HOME))
+    if real == home or home in real.parents:
+        die(f"research dir {path} is inside the factory home; set XDG_STATE_HOME outside {HOME}", 4)
+    return str(path)
+
+
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
+    prompt = gated_reviewer_prompt(con, role, task, prompt)
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
@@ -7724,6 +7894,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         bad = sandbox_preflight(role, None, name, con)
         if bad:
             sandbox_refuse(con, role, name, *bad)
+    if role == "researcher":  # always validated, also for an explicit --cwd or the cwd recorded for a respawn
+        want = research_dir(task)
+        if cwd and cwd != want:
+            die(f"researcher cwd must be its research dir {want}, not {cwd}; drop --cwd (or fix the recorded cwd)", 4)
+        cwd = want
     cwd = cwd or (prepare_worktree(con, task, role) if role in ("coder", "qa", "reviewer") else None) or str(HOME)
     env = {"FACTORY_AGENT": name, "FACTORY_ROLE": role, "FACTORY_HOME": str(HOME)}
     terms = (cfg(con, "scrub_terms_file") or "").strip()
@@ -7881,6 +8056,7 @@ def _cursor_materialize(role, cwd, prompt_text=None, name="cursor-pilot"):
     return cursor_harness.materialize_cursor_policy(
         ws, role, hooks_dir=_cursor_hooks_dir(), claude_settings=settings,
         system_prompt=prompt_text, hq=role in cursor_harness.HQ_ROLES,
+        factory_home=HOME,
     )
 
 
@@ -8125,6 +8301,7 @@ def coder_done_findings(con, r, force=False):
 # ── prcheck (G-022 item 7): a coder's pre-PR check, and the `factory done` gate on it ──
 
 PRCHECK_AFFECTED_TIMEOUT_S = 3600
+PRCHECK_SLOT_WAIT_S = 900  # T-0876: how long the affected run waits for a test slot before it gives up (CI verifies instead)
 _TEST_DEF = "^[[:space:]]+(async[[:space:]]+)?def[[:space:]]+test_"
 _RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 _TESTS_REMOVED = re.compile(r"^\W*tests? removed:\s*\S", re.I | re.M)
@@ -8231,18 +8408,44 @@ def prcheck_public(con, t, wt, base):
     return True, "no hits"
 
 
-def prcheck_affected(wt, base):
-    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note)."""
+def prcheck_take_slot(con):
+    """T-0876: take a host-wide test slot (tests/_slot.py, config test_slots) for the affected run, waiting up to
+    $FACTORY_PRCHECK_SLOT_WAIT_S (default PRCHECK_SLOT_WAIT_S). Returns True when held, False on timeout."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+    import _slot
+    wait = float(os.environ.get("FACTORY_PRCHECK_SLOT_WAIT_S") or PRCHECK_SLOT_WAIT_S)
+    poll = float(os.environ.get("FACTORY_PRCHECK_POLL_S") or 1)
+    n, start, last = _int_cfg(con, "test_slots", _slot.DEFAULT_SLOTS), time.monotonic(), None
+    while _slot.try_take(_slot.slot_dir(), n) is None:
+        now = time.monotonic()
+        if now - start >= wait:
+            return False
+        if last is None or now - last >= 30:
+            print(f"waiting for a test slot ({test_slot_usage(con)[0]}/{n} busy; see `factory res`)", flush=True)
+            last = now
+        time.sleep(poll)
+    return True
+
+
+def prcheck_affected(wt, base, con=None):
+    """Check 5: ci/affected.py --run is green and ran at least one test. (ok, note). The run holds a test slot (T-0876)."""
     script = Path(wt) / "ci" / "affected.py"
     if not script.is_file():
         return False, "ci/affected.py is missing in the worktree: git fetch origin && git merge origin/main"
+    con = con or db()
+    if not prcheck_take_slot(con):
+        return False, ("no test slot free: not run, so this is NOT a pass; CI will verify. Rerun prcheck later, "
+                       "or `factory done` is accepted once CI on the PR head is green")
+    import _slot
     try:
         p = subprocess.run([sys.executable, str(script), "--base", f"origin/{base}", "--run"], cwd=wt, capture_output=True,
-                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S)
+                           text=True, timeout=PRCHECK_AFFECTED_TIMEOUT_S, env={**os.environ, "FACTORY_TEST_SLOT_HELD": "1"})
     except subprocess.TimeoutExpired:
         return False, f"ci/affected.py --run timed out after {PRCHECK_AFFECTED_TIMEOUT_S}s"
     except OSError as e:
         return False, f"cannot run ci/affected.py: {e}"
+    finally:
+        _slot.release()
     out = (p.stdout + p.stderr).strip()
     tail = "\n".join("      " + ln for ln in out.splitlines()[-8:])
     if p.returncode != 0:
@@ -8279,7 +8482,7 @@ def cmd_prcheck(a):
     results = []
     for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
                      ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base)),
-                     ("affected", lambda: prcheck_affected(wt, base)), ("tier", lambda: prcheck_tier(wt, base))):
+                     ("affected", lambda: prcheck_affected(wt, base, con)), ("tier", lambda: prcheck_tier(wt, base))):
         ok, note = fn()
         results.append((name, ok, note))
         print(f"{'PASS' if ok else 'FAIL'} {name}: {note}")
@@ -8287,6 +8490,35 @@ def cmd_prcheck(a):
     event(con, "task", t["id"], "prcheck", {"head": head, "ok": ok, "failed": [n for n, k, _ in results if not k]})
     print(f"prcheck {'passed' if ok else 'FAILED'} on {head[:9]}" + ("" if ok else ": fix the FAIL lines, commit, rerun"))
     sys.exit(0 if ok else 1)
+
+
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+    """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
+    local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
+    (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR checks: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push, wait for CI"
+    if not pr.get("statusCheckRollup"):
+        return False, "PR has no CI checks yet"
+    bad = checks_ok(pr) + missing_checks(con, pr, pr_url)
+    if bad:
+        return False, "CI not all green: " + ", ".join(bad[:5])
+    t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
+                    "LEFT JOIN projects p ON p.id=g.project_id WHERE t.id=?", (task_id,)).fetchone()
+    base = t["base_branch"] or "main"
+    t = {**dict(t), "pr_url": pr_url}
+    for name, fn in (("fresh", lambda: prcheck_fresh(wt, base)), ("identity", lambda: prcheck_identity(wt, base)),
+                     ("body", lambda: prcheck_body(wt, base, pr_url)), ("public-text", lambda: prcheck_public(con, t, wt, base))):
+        ok, note = fn()
+        if not ok:
+            return False, f"{name} FAIL: {note}"
+    return True, "all checks SUCCESS"
 
 
 def prcheck_done_refusal(con, r, t):
@@ -8309,7 +8541,11 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    die(f"no passing `factory prcheck` on the current HEAD {head[:9]}: run `factory prcheck` in your worktree, fix every "
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    if ok:
+        print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
+    die(f"no passing `factory prcheck` on the current HEAD {head[:9]} (CI path: {why}): run `factory prcheck` in your worktree, fix every "
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
@@ -10503,11 +10739,7 @@ def cmd_res(a):
         print("claude processes unknown")
     else:
         print(f"claude processes {s['total']}/{s['total_cap']} on host (factory {s['factory_procs']} · other {s['total'] - s['factory_procs']})")
-    if u.get("unreadable"):
-        print("claude usage unreadable")
-    else:
-        print(f"claude usage 5h {u['five_hour']:.0f}% · week {u['seven_day']:.0f}%"
-              + ("" if u["fresh"] else f" (stale: {u['age_min']} min old)"))
+    print(usage_text(u))
     mode = cfg(con, "lead_less_dispatch")
     if mode != "0":
         cut = (dt.datetime.now().astimezone() - dt.timedelta(hours=1)).isoformat(timespec="seconds")
@@ -11511,12 +11743,23 @@ def cmd_tick(a, locked=False):
     held = False
     for q in queued:
         if not held and not gate(con)[0]:
-            held = True  # a closed gate stops the queue, except for a judge (exempt from the load cap only) or a cleaner (tmp gate only)
+            held = True  # a closed gate stops the queue, except for a judge or a lead (exempt from the load cap only) or a cleaner (tmp gate only)
         if held:
+            try:
+                qorg = json.loads(q["spawn_args"] or "{}").get("org")
+            except ValueError:
+                qorg = None
+            qrt = org_runtime(con, q["role"], qorg)
             if q["role"] == "judge":
-                ok = gate(con, load_exempt=True)[0]  # judges ignore the load cap, as in spawn()
+                ok = gate(con, load_exempt=True, role="judge", runtime=qrt)[0]  # judges ignore the load cap, as in spawn()
+            elif q["role"] == "lead":
+                ok = gate(con, load_exempt=True, role="lead", runtime=qrt)[0]  # leads skip only the load cap (T-0867); lead caps still apply
+            elif q["role"] == "cleaner" and gate(con, role="cleaner")[0]:
+                ok = True
+            elif qrt == "cursor" and gate(con, role=q["role"], runtime="cursor")[0]:
+                ok = True
             else:
-                ok = q["role"] == "cleaner" and gate(con, role="cleaner")[0]
+                ok = False
             if not ok:
                 continue
         # the snapshot is stale after earlier (slow) spawns: a `factory dequeue` may have cancelled this row since
@@ -11609,7 +11852,9 @@ def cmd_tick(a, locked=False):
         elif r["role"] == "director" and (not r["last_nudge"] or t - r["last_nudge"] > int(cfg(con, "director_cycle_s"))):
             text = "⏱ Director cycle: run your cycle checklist (survey, resources, unblock, report)."
         if text:
-            herdr("agent", "prompt", h.get("name") or r["name"], text, check=False)
+            an = h.get("name") or r["name"]
+            if herdr("agent", "prompt", an, text, check=False) is not None:
+                _cursor_enter_after_prompt(an, agent_runtime_of(r), True)
             con.execute("UPDATE agents SET last_nudge=? WHERE name=?", (t, r["name"]))
     _pt_lap("nudge")
 
@@ -11633,6 +11878,21 @@ def cmd_tick(a, locked=False):
         herdr("pane", "report-metadata", r["pane_id"], "--source", "factory", "--display-agent",
               label, "--ttl-ms", "180000", check=False)
     _pt_lap("sidebar")
+    try:
+        from web import cursor_limits
+
+        cursor_limits.tick_record(
+            con,
+            herdr_fn=herdr,
+            agent_runtime_of=agent_runtime_of,
+            agent_org_fn=agent_org,
+            send_fn=send,
+            event_fn=event,
+            now_fn=now,
+        )
+    except Exception as e:  # noqa: BLE001 — limit recording must never stop the tick
+        event(con, "tick", "cursor-limits", "cursor-limits-error", str(e)[:300])
+    _pt_lap("cursor_limits")
     _pt_git(True)
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
@@ -11649,6 +11909,11 @@ def cmd_tick(a, locked=False):
             con.execute("INSERT INTO throttle(key,ts) VALUES('fresh-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
             event(con, "tick", "freshness", "freshness-failed", err)
     _pt_lap("freshness")
+
+    try:  # 4c. installed factory-serve unit vs main (read-only; the owner runs the commands)
+        tick_serve_unit_drift(con)
+    except (OSError, sqlite3.Error) as e:
+        event(con, "tick", "serve-unit", "serve-unit-check-failed", str(e)[:300])
 
     # 5. queued `relaunch --when-idle` requests: restart idle agents with --resume and the current role files
     try:
@@ -13508,7 +13773,11 @@ def skilleval_vendor(con, cid):
     cand = dict(r)
     try:
         root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
-        res = scoutvendor.vendor(scoutsrc.Gh(), cand, root)
+        if cand["key"] == scoutdb.CONTROL_KEY:  # repo-owned positive control: same re-checks, local source
+            cand = _skilleval().register_control(con, now())  # refresh head_sha if the control dir changed since `control`
+            res = scoutvendor.vendor_local(cand, root, _skilleval().CONTROL_DIR, _skilleval().CONTROL_PLUGIN)
+        else:
+            res = scoutvendor.vendor(scoutsrc.Gh(), cand, root)
     except scoutvendor.VendorError as e:
         if e.fresh is not None:  # the stored risk was stale: keep the fresh one
             scoutdb.set_risk(con, cid, e.fresh.risk, e.fresh.detail)
@@ -13717,6 +13986,14 @@ def skilleval_queue(con, a):
     print("\n".join(scoutskilleval.trial_line(x) for x in rows))
 
 
+def skilleval_control(con, a):
+    """factory skilleval control [--tasks fix-bug]: register the reserved positive-control candidate (the repo-owned
+    marker plugin, skilleval/controls/marker) and queue its with/without trials through the normal queue path."""
+    cand = _skilleval().register_control(con, now())
+    event(con, "skilleval", cand["id"], "control", f"registered {cand['key']}@{cand['head_sha'][:9]}")
+    skilleval_queue(con, types.SimpleNamespace(id=cand["id"], tasks=a.tasks or "fix-bug"))
+
+
 def skilleval_cancel(con, a):
     scoutskilleval = _skilleval()
     root = scoutvendor.resolve_root(cfg(con, "skilleval_root"), HOME)
@@ -13754,7 +14031,7 @@ def cmd_skilleval(a):
     if w and not worker_stub_exempt():
         die(f"role '{w}' ({actor()}) may not run `factory skilleval {a.action}`; ask your lead", 3)
     con = db()
-    if a.action in ("queue", "cancel"):
+    if a.action in ("queue", "cancel", "control"):
         require_role(con, "director", "lead", "boss")
     else:
         require_role(con, "director", "lead")
@@ -13770,6 +14047,8 @@ def cmd_skilleval(a):
         skilleval_collect(con, a)
     elif a.action == "queue":
         skilleval_queue(con, a)
+    elif a.action == "control":
+        skilleval_control(con, a)
     elif a.action == "cancel":
         skilleval_cancel(con, a)
     elif a.action == "void":
@@ -13907,7 +14186,7 @@ def cmd_scout(a):
         rows = con.execute("SELECT * FROM scout_runs ORDER BY id DESC LIMIT 20").fetchall()
         for r in rows:
             print(f"{r['slot']} {r['status']:<8} agent={r['agent'] or '-'} new={r['new_candidates']} "
-                  f"triaged={r['triaged']} tokens={r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
+                  f"triaged={r['triaged']} tokens={'-' if r['tokens'] is None else r['tokens']} started={r['started'] or '-'} ended={r['ended'] or '-'} "
                   f"{r['stop_reason'] or ''}".rstrip())
         if not rows:
             print("(none)")
@@ -14057,7 +14336,7 @@ def main():
     x.set_defaults(fn=cmd_scout)
 
     x = sp.add_parser("skilleval", help="skill evaluation: vendor, try, collect, queue, cancel, void, list, results")
-    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
+    x.add_argument("action", choices=["vendor", "try", "collect", "queue", "control", "cancel", "void", "list", "results"]); x.add_argument("id", nargs="?")
     x.add_argument("--candidate"); x.add_argument("--condition", choices=["with", "without"])
     x.add_argument("--reason", choices=["timeout", "over-budget", "cancelled", "infra"]); x.add_argument("--tasks")
     x.add_argument("--why")

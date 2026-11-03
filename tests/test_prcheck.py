@@ -1,6 +1,8 @@
 """factory prcheck (G-022 item 7): each of its checks has a failing and a passing case through the real CLI, and
 `factory done` is gated on a pass for the current HEAD when config prcheck_required is 1."""
+import fcntl
 import json
+import threading
 from pathlib import Path
 import unittest
 
@@ -161,6 +163,59 @@ class PrcheckTests(FactoryTestCase):
         p = self.prcheck(1, env={"AFF_OUT": "Ran 0 tests in 0.0s"})
         self.assertIn("reported no tests run", p.stdout)
 
+    # -- 5b affected holds a test slot (T-0876) ----------------------------------------
+    def hold_slots(self, n):
+        d = self.env.user_home / ".cache" / "factory-test-slots"
+        d.mkdir(parents=True, exist_ok=True)
+        files = []
+        for i in range(n):
+            f = open(d / f"slot-{i}.lock", "a+")
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            files.append(f)
+            self.addCleanup(f.close)
+        return files
+
+    def stub_marker(self):
+        """Make the base ci/affected.py stub leave a marker (so a test sees whether it ran) and record slot-0's lock state."""
+        probe = ("import fcntl, os\nopen(os.environ['AFF_MARK'], 'a').write('ran\\n')\n"
+                 "f = open(os.path.expanduser('~/.cache/factory-test-slots/slot-0.lock'), 'a+')\n"
+                 "try:\n    fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)\n    open(os.environ['AFF_MARK'], 'a').write('slot0=free\\n')\n"
+                 "except BlockingIOError:\n    open(os.environ['AFF_MARK'], 'a').write('slot0=held\\n')\n")
+        commit(self.wt, "ci/affected.py", probe + AFFECTED_STUB, msg="probe")
+
+    def test_affected_waits_when_all_slots_busy_and_gives_up(self):
+        self.ok("config", "test_slots", "2")
+        self.hold_slots(2)
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        p = self.prcheck(1, env={"AFF_MARK": str(mark), "FACTORY_PRCHECK_SLOT_WAIT_S": "1", "FACTORY_PRCHECK_POLL_S": "0.1"})
+        self.assertIn("waiting for a test slot (2/2 busy", p.stdout)
+        self.assertIn("FAIL affected: no test slot free", p.stdout)
+        self.assertIn("NOT a pass", p.stdout)
+        self.assertFalse(mark.exists(), "the affected run must not start while every slot is busy")
+        self.assertEqual(self.events()[-1]["failed"], ["affected"])
+
+    def test_affected_runs_once_a_slot_frees_and_holds_it(self):
+        self.ok("config", "test_slots", "2")
+        files = self.hold_slots(2)
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        threading.Timer(1.0, files[0].close).start()  # closing the file drops its flock: slot 0 frees up
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "FACTORY_PRCHECK_SLOT_WAIT_S": "30", "FACTORY_PRCHECK_POLL_S": "0.1"})
+        self.assertIn("waiting for a test slot", p.stdout)
+        self.assertIn("PASS affected:", p.stdout)
+        self.assertEqual(mark.read_text().splitlines()[0], "ran")
+
+    def test_affected_run_holds_slot_visible_to_res(self):
+        self.ok("config", "test_slots", "2")
+        mark = self.env.home / "mark"
+        self.stub_marker()
+        # the stub records into the marker file whether slot-0 was flocked while it ran
+        p = self.prcheck(0, env={"AFF_MARK": str(mark), "AFF_OUT": "Ran 3 tests in 0.1s"})
+        self.assertIn("PASS affected:", p.stdout)
+        self.assertEqual(mark.read_text(), "ran\nslot0=held\n")
+        self.assertIn("slots 0/2", self.ok("res").stdout)  # released again once prcheck exits
+
     # -- 6 tier ----------------------------------------------------------------------
     def test_tier_is_printed(self):
         p = self.prcheck(0)
@@ -221,6 +276,75 @@ class PrcheckTests(FactoryTestCase):
         self.pushed()
         p = self.done()
         self.assertEqual(p.returncode, 0, p.stderr)
+
+    # -- done accepts green CI on the PR head instead of the local affected run (T-0873) -----------
+    def ci_pr(self, checks, sha=None, body=None):
+        self.env.seed_pr(url=PR_URL, sha=sha or self.head(), checks=checks, body=body if body is not None else pr_body())
+
+    @staticmethod
+    def check(name="test", concl="SUCCESS", status="COMPLETED"):
+        return {"__typename": "CheckRun", "name": name, "workflowName": "ci", "status": status, "conclusion": concl,
+                "startedAt": "2026-01-01T00:00:00Z"}
+
+    def test_done_accepts_all_green_ci_on_head_without_affected_run(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.ci_pr([self.check("a"), self.check("b")])
+        p = self.done()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("accepted via green CI", p.stderr)
+        self.assertEqual(self.events(), [])  # no local prcheck (so no affected run) happened
+
+    def test_done_refused_when_a_check_fails_or_pends(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        for bad in (self.check("b", "FAILURE"), self.check("b", "", "IN_PROGRESS")):
+            self.ci_pr([self.check("a"), bad])
+            p = self.done()
+            self.assertEqual(p.returncode, 3, p.stderr)
+            self.assertIn("CI not all green", p.stderr)
+        self.assertEqual(self.agent_status(), "live")
+
+    def test_done_refused_when_pr_head_is_not_local_head(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.ci_pr([self.check()], sha="b" * 40)
+        p = self.done("--force")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("!= local HEAD", p.stderr)
+
+    def test_done_refused_when_pr_has_no_checks(self):
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.ci_pr([])
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("no CI checks", p.stderr)
+
+    def test_green_ci_still_enforces_cheap_parts(self):
+        self.ok("config", "prcheck_required", "1")
+        commit(self.wt, "more.txt", email="real.person@example.com")
+        self.pushed()
+        self.ci_pr([self.check()])
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("identity FAIL", p.stderr)
+        self.ci_pr([self.check()], body="just words\n")
+        git("reset", "-q", "--hard", "HEAD~1", cwd=self.wt)
+        git("push", "-q", "-f", "origin", "HEAD", cwd=self.wt)
+        self.ci_pr([self.check()], body="just words\n")
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("body FAIL", p.stderr)
+
+    def test_green_ci_refuses_when_behind_main_conflicting(self):
+        self.ok("config", "prcheck_required", "1")
+        self.advance_main("work.txt", "other\n")
+        self.pushed()
+        self.ci_pr([self.check()])
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("fresh FAIL", p.stderr)
 
 
 if __name__ == "__main__":

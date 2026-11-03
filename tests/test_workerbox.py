@@ -211,8 +211,8 @@ class AgentDirTests(unittest.TestCase):
         self.w = World(self)
 
     def test_sandboxable_roles(self):
-        self.assertEqual(workerbox.SANDBOXABLE, {"reviewer", "qa", "coder"})
-        self.assertEqual(set(workerbox.ROLE_GH), {"reviewer", "qa", "coder"})
+        self.assertEqual(workerbox.SANDBOXABLE, {"reviewer", "qa", "coder", "researcher"})
+        self.assertEqual(set(workerbox.ROLE_GH), {"reviewer", "qa", "coder", "researcher"})
         with self.assertRaises(ValueError):
             self.w.prepare(role="pm")
         with self.assertRaises(ValueError):
@@ -224,7 +224,8 @@ class AgentDirTests(unittest.TestCase):
         self.assertEqual(workerbox.OAUTH_TOKEN, f"{home}/.config/factory/worker-oauth-token")
         self.assertEqual(workerbox.GH_RO, f"{home}/.config/factory/gh-worker-ro-token")
         self.assertEqual(workerbox.GH_RW, f"{home}/.config/factory/gh-worker-rw-token")
-        self.assertEqual(workerbox.ROLE_GH, {"reviewer": workerbox.GH_RO, "qa": workerbox.GH_RO, "coder": workerbox.GH_RW})
+        self.assertEqual(workerbox.ROLE_GH, {"reviewer": workerbox.GH_RO, "qa": workerbox.GH_RO, "coder": workerbox.GH_RW,
+                                            "researcher": workerbox.GH_RO})
 
     def test_bad_agent_names_are_refused(self):
         for bad in ("../x", "a/b", "", ".", "..", "a b", "x\n", "-x", "a" * 65):

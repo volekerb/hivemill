@@ -471,7 +471,11 @@ def _stages(merged_e, evs, verdicts, spawns):
             "review_s": d(in_review, last_pass), "judge_s": d(last_pass, merged_e), "rework_s": rework}
 
 
-def throughput(con, days=14, now=None):
+def _task_goals(con):
+    return {r[0]: r[1] for r in con.execute("SELECT id, goal_id FROM tasks")}
+
+
+def throughput(con, days=14, now=None, *, goals=None):
     """Merges per local day, done tasks per goal, and per merged task stage durations (seconds).
 
     Stages: total = first agent spawn for the task -> merged; coding = first coder spawn -> first
@@ -488,8 +492,11 @@ def throughput(con, days=14, now=None):
         if e is not None:
             last[r["entity_id"]] = e
     per_day = {first_day + dt.timedelta(days=i): 0 for i in range(days)}
+    tgoal = _task_goals(con)
     win = {}
     for tid, e in last.items():
+        if goals is not None and tgoal.get(tid) not in goals:
+            continue
         if e >= cutoff:
             day = dt.datetime.fromtimestamp(e).astimezone().date()
             if day in per_day:
@@ -516,13 +523,15 @@ def throughput(con, days=14, now=None):
     per_goal = _dicts(con.execute(
         "SELECT t.goal_id, g.title, COUNT(*) done FROM tasks t LEFT JOIN goals g ON g.id=t.goal_id "
         "WHERE t.status='done' GROUP BY t.goal_id ORDER BY t.goal_id"))
+    if goals is not None:
+        per_goal = [r for r in per_goal if r["goal_id"] in goals]
     return {"days": days, "merges_per_day": [{"day": d.isoformat(), "merges": n} for d, n in per_day.items()],
             "tasks_per_goal": per_goal, "tasks": items}
 
 
 # ───────────────────────────── quality / changelog ─────────────────────────────
 
-def quality(con):
+def quality(con, *, goals=None):
     """Per team and overall quality numbers.
 
     merged = distinct tasks with a `merged` event. rejections = verdict rows fail/reject plus judge-reject
@@ -538,7 +547,11 @@ def quality(con):
     unassigned = {goal_id: row} for the tasks with team_id NULL, to be added to every team of that goal.
     """
     tinfo = {r["id"]: r for r in con.execute("SELECT id, team_id, goal_id, attempts FROM tasks")}
+    if goals is not None:
+        tinfo = {tid: r for tid, r in tinfo.items() if r["goal_id"] in goals}
     merged = {r[0] for r in con.execute("SELECT DISTINCT entity_id FROM events WHERE entity='task' AND action='merged'")}
+    if goals is not None:
+        merged &= set(tinfo)
     src = {}    # task -> {reviewer, qa, judge: rejection count}
     for r in con.execute("SELECT task_id, role FROM verdicts WHERE verdict IN ('fail','reject')"):
         d = src.setdefault(r["task_id"], {})
@@ -589,11 +602,12 @@ def quality(con):
         if r["team_id"] is None:
             by_goal.setdefault(r["goal_id"], []).append(tid)
     team_ids = sorted({r["id"] for r in con.execute("SELECT id FROM teams")} | {t for t in by_team if t})
-    return {"teams": [row(t, by_team.get(t, [])) for t in team_ids], "overall": row(None, list(tinfo)),
+    teams = [row(t, by_team.get(t, [])) for t in team_ids]
+    return {"teams": teams, "overall": row(None, list(tinfo)),
             "unassigned": {g: row(None, ids) for g, ids in by_goal.items()}}
 
 
-def changelog(con):
+def changelog(con, *, goals=None):
     """Merged tasks grouped by goal: [{goal_id, goal_title, items:[{task_id, title, pr_url, merged, sha}]}]."""
     last = {}
     for r in con.execute("SELECT id, ts, entity_id, detail FROM events WHERE entity='task' AND action='merged' ORDER BY id"):
@@ -602,6 +616,8 @@ def changelog(con):
                        "LEFT JOIN goals g ON g.id=t.goal_id ORDER BY t.goal_id, t.id")
     groups = {}
     for t in rows:
+        if goals is not None and t["goal_id"] not in goals:
+            continue
         ev = last.get(t["id"])
         if ev is None:
             continue
@@ -653,9 +669,9 @@ def _cfg_num(cfg, defaults, key, fallback):
         return float(fallback)
 
 
-def shell_status(con, usage, defaults, mem=None):
+def shell_status(con, usage, defaults, mem=None, now=None):
     """Data for the global status header and nav badges, the same on every page:
-    {needs, agents_attention, health: {tone, text}}. `usage` is the usage_fn() dict (or None), `defaults` the caps.
+    {needs, agents_attention, health: {tone, text}, cursor: {...}}. `usage` is the usage_fn() dict (or None), `defaults` the caps.
     needs = what owner_pending lists; agents_attention = queued or blocked agents (running agents never count).
     `mem` = MB available (mem_fn()), None when unknown.
     health, worst first: memory low, usage cap reached, gate closed, usage high, usage unknown, else all normal."""
@@ -667,18 +683,18 @@ def shell_status(con, usage, defaults, mem=None):
     cap = int(_cfg_num(cfg, defaults, "max_live_agents", 6))
     cap5 = _cfg_num(cfg, defaults, "max_five_hour_pct", 92)
     cap7 = _cfg_num(cfg, defaults, "max_seven_day_pct", 92)
-    fresh = bool(usage) and not usage.get("unreadable") and usage.get("five_hour") is not None
+    fresh = bool(usage) and not usage.get("unreadable") and (usage.get("five_hour") is not None or usage.get("seven_day") is not None)
     stale = fresh and (not usage.get("fresh") or (usage.get("age_min") or 0) > 30)
-    p5 = usage["five_hour"] if fresh else None
+    p5 = usage.get("five_hour") if fresh else None
     p7 = usage.get("seven_day") if fresh else None
     ok = fresh and not stale
     if mem is not None and mem < _cfg_num(cfg, defaults, "min_mem_available_mb", 1024):
         health = {"tone": "danger", "text": "Memory low"}
-    elif ok and (p5 >= cap5 or (p7 is not None and p7 >= cap7)):
+    elif ok and ((p5 is not None and p5 >= cap5) or (p7 is not None and p7 >= cap7)):
         health = {"tone": "danger", "text": "Usage cap reached"}
     elif n.get("live", 0) >= cap:
         health = {"tone": "warning", "text": f"Gate closed · {queued} queued" if queued else "Gate closed"}
-    elif ok and p5 >= 0.8 * cap5:
+    elif ok and p5 is not None and p5 >= 0.8 * cap5:
         health = {"tone": "warning", "text": f"Claude usage {p5:.0f}%"}
     elif ok and p7 is not None and p7 >= 0.8 * cap7:
         health = {"tone": "warning", "text": f"Weekly usage {p7:.0f}%"}
@@ -686,7 +702,11 @@ def shell_status(con, usage, defaults, mem=None):
         health = {"tone": "neutral", "text": "Usage unknown"}
     else:
         health = {"tone": "success", "text": "All normal"}
-    return {"needs": needs, "agents_attention": queued + n.get("blocked", 0), "health": health}
+    from web import cursor_limits
+
+    t = _now(now)
+    return {"needs": needs, "agents_attention": queued + n.get("blocked", 0), "health": health,
+            "cursor": cursor_limits.display(con, t)}
 
 
 # ───────────────────────────── overview (G-019 B4) ─────────────────────────────
@@ -823,7 +843,7 @@ def sort_rows(rows, key, direction, getters):
     return sorted(have, key=get, reverse=direction == "desc") + miss
 
 
-def quality_windows(con, days=14, now=None):
+def quality_windows(con, days=14, now=None, *, goals=None):
     """Quality numbers for the last `days` days and the `days` before them, for the deltas on /quality.
 
     {"days", "all": {median_attempts}, "current": w, "previous": w}; w = {merged, rejections, rejections_per_merged, first_try_pct, ci_blocked,
@@ -833,26 +853,36 @@ def quality_windows(con, days=14, now=None):
     with nothing to divide by is None."""
     end = _now(now).timestamp()
     wins = {"current": (end - days * 86400, end + 1), "previous": (end - 2 * days * 86400, end - days * 86400)}
+    tgoal = _task_goals(con)
     merged = {}
     for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='merged' ORDER BY id"):
+        if goals is not None and tgoal.get(r["entity_id"]) not in goals:
+            continue
         e = _epoch(r["ts"])
         if e is not None:
             merged[r["entity_id"]] = e
     rej, judge_rows = [], {}
     for r in con.execute("SELECT task_id, role, created FROM verdicts WHERE verdict IN ('fail','reject')"):
+        if goals is not None and tgoal.get(r["task_id"]) not in goals:
+            continue
         e = _epoch(r["created"])
         rej.append((r["task_id"], e))
         if r["role"] == "judge":
             judge_rows[r["task_id"]] = judge_rows.get(r["task_id"], 0) + 1
     by_task = {}
     for r in con.execute("SELECT entity_id, ts FROM events WHERE entity='task' AND action='judge-reject' ORDER BY id"):
+        if goals is not None and tgoal.get(r["entity_id"]) not in goals:
+            continue
         by_task.setdefault(r["entity_id"], []).append(_epoch(r["ts"]))
     for tid, es in by_task.items():
         extra = max(0, len(es) - judge_rows.get(tid, 0))
         rej += [(tid, e) for e in es[len(es) - extra:]]
     rejected = {t for t, _ in rej}
-    ci = [_epoch(r["ts"]) for r in con.execute("SELECT ts FROM events WHERE entity='task' AND action='judge-blocked' "
-                                              "AND detail LIKE '%checks not green%'")]
+    ci = [(r["entity_id"], _epoch(r["ts"])) for r in con.execute(
+        "SELECT entity_id, ts FROM events WHERE entity='task' AND action='judge-blocked' "
+        "AND detail LIKE '%checks not green%'")]
+    if goals is not None:
+        ci = [(tid, e) for tid, e in ci if tgoal.get(tid) in goals]
     attempts = {r["id"]: r["attempts"] or 0 for r in con.execute("SELECT id, attempts FROM tasks")}
     every = [attempts[t] for t in merged if t in attempts]
     out = {"days": days, "all": {"median_attempts": statistics.median(every) if every else None}}
@@ -864,6 +894,6 @@ def quality_windows(con, days=14, now=None):
         out[name] = {"merged": len(ids), "rejections": n_rej,
                      "rejections_per_merged": round(n_rej / len(ids), 2) if ids else None,
                      "first_try_pct": round(100 * first / len(ids)) if ids else None,
-                     "ci_blocked": sum(1 for e in ci if e is not None and lo <= e < hi),
+                     "ci_blocked": sum(1 for _, e in ci if e is not None and lo <= e < hi),
                      "median_attempts": statistics.median(att) if att else None}
     return out

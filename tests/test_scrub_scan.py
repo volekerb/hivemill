@@ -717,6 +717,21 @@ class EmailTests(Base):
             self.assertEqual(r.returncode, 1, (addr, r.stdout))
             self.assertIn("email a.txt:1", r.stdout)
 
+    def test_systemd_unit_names_are_not_emails(self):
+        at = "@"  # built from parts so the pre-fix scanner does not flag this file
+        for local, dom in (("user", "1000.service"), ("getty", "tty1.service"), ("systemd-fsck", "dev-sda1.service"),
+                           ("foo", "bar.socket"), ("x", "y.timer")):
+            unit = local + at + dom
+            r = self.emails(unit)
+            self.assertEqual(r.returncode, 0, (unit, r.stdout))
+
+    def test_real_emails_and_multilabel_unit_lookalike_still_hit(self):
+        at = "@"
+        for addr in ("alice" + at + "corp.io", "bob" + at + "mail.example.net", "a" + at + "b.c.service"):
+            r = self.emails(addr)
+            self.assertEqual(r.returncode, 1, (addr, r.stdout))
+            self.assertIn("email a.txt:1", r.stdout)
+
     def test_noreply_author_scans_clean_in_history(self):
         d = self.repo(files={"a.txt": "x\n"})
         self.commit(d, env={"GIT_AUTHOR_EMAIL": "12345+volekerb@users.noreply.github.com",

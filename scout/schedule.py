@@ -7,11 +7,12 @@ which compares the scout-slot event stamp with api.now() on purpose.
 import datetime as dt
 import sqlite3
 
-from scout import report
+from scout import orgs, report
 
 TERMINAL = ("done", "stopped", "failed", "skipped")
 CLAIM_STALE_S = 600      # a run still 'claimed' this long after its scout-slot event lost its spawn (a crash)
 NAME = "scout"
+ORG = orgs.DEFAULT_ORG   # the scheduled scout is a claude-org agent: spawn() must not inherit a legacy row's or the caller's org (T-0851)
 
 
 def parse_slots(text):
@@ -44,26 +45,33 @@ def _ts(s):
     return t.astimezone() if t.tzinfo is None else t
 
 
+def agent_name(con, api):
+    """The scout's agents-row name: org-prefixed once org_prefix_default is on (claude-scout), else the legacy 'scout'.
+    spawn() applies the same rule, so the rows this module reads, stops and counts are the ones spawn() wrote (T-0851)."""
+    fn = getattr(api, "agent_name", None)
+    return fn(con) if fn else NAME
+
+
 def _finish(con, api, run_id, status, reason=None, session=None):
     """Move a non-terminal run to a terminal status once; the tokens are read best effort from the session log."""
     tokens = None
     if session:
         try:
-            tokens = api.session_tokens(session)
+            tokens = api.session_tokens(session)  # None = log unreadable: stored as NULL, never 0
         except (OSError, ValueError):
             tokens = None
     con.execute("UPDATE scout_runs SET status=?, stop_reason=coalesce(stop_reason, ?), ended=coalesce(ended, ?), "
                 "tokens=coalesce(?, tokens) WHERE id=? AND status NOT IN ('done','stopped','failed','skipped')",
                 (status, reason, _stamp(api.clock()), tokens, run_id))
     if status != "skipped":
-        _count(con, run_id)
+        _count(con, run_id, api)
 
 
 SUPERSEDED = "superseded by a newer run"
 NEVER_SPAWNED = ("spawn failed", "claimed but never spawned", "scout agent row missing")
 
 
-def _count(con, run_id):
+def _count(con, run_id, api=None):
     """Store the counts of candidates first seen and triage rows created in the run's [started, ended] window.
     The bounds are made explicit-UTC here (a naive stamp is local time) and julianday() compares across offsets;
     the window opens at the earlier of the run's and the agent's started (a run queued and dequeued in one tick is
@@ -80,7 +88,7 @@ def _count(con, run_id):
     if run["started"] is None and (run["stop_reason"] or "").startswith(NEVER_SPAWNED):
         return
     superseded = run["started"] is None and (run["stop_reason"] or "").startswith(SUPERSEDED)
-    agent = None if superseded else con.execute("SELECT started FROM agents WHERE name=?", (NAME,)).fetchone()
+    agent = None if superseded else con.execute("SELECT started FROM agents WHERE name=?", (agent_name(con, api),)).fetchone()
     astart = _ts(agent["started"]) if agent else None
     if astart is not None:
         evs = [t for e in con.execute("SELECT ts FROM events WHERE entity='scout' AND entity_id=? AND action='scout-slot'",
@@ -90,8 +98,8 @@ def _count(con, run_id):
     starts = [t for t in (_ts(run["started"]), astart) if t is not None and t <= end]
     start = min(starts, default=end)
     lo, hi = (x.astimezone(dt.timezone.utc).isoformat() for x in (start, end))
-    n = con.execute("SELECT COUNT(*) FROM scout_candidates WHERE julianday(first_seen) BETWEEN julianday(?) AND julianday(?)",
-                    (lo, hi)).fetchone()[0]
+    n = con.execute("SELECT COUNT(*) FROM scout_candidates WHERE julianday(first_seen) BETWEEN julianday(?) AND julianday(?) "
+                    "AND key<>'local:skilleval-control'", (lo, hi)).fetchone()[0]
     t = con.execute("SELECT COUNT(*) FROM scout_triage WHERE julianday(created) BETWEEN julianday(?) AND julianday(?)",
                     (lo, hi)).fetchone()[0]
     con.execute("UPDATE scout_runs SET new_candidates=?, triaged=? WHERE id=?", (n, t, run_id))
@@ -111,16 +119,17 @@ def _budget(con, api, clock, run, agent):
     started = _ts(agent["started"])
     if started and (clock - started).total_seconds() > int(api.cfg(con, "scout_max_minutes")) * 60:
         why = "wall"
-    elif agent["session_id"] and api.session_tokens(agent["session_id"]) > int(api.cfg(con, "scout_max_tokens")):
-        why = "tokens"
+    elif agent["session_id"] and (used := api.session_tokens(agent["session_id"])) is not None \
+            and used > int(api.cfg(con, "scout_max_tokens")):
+        why = "tokens"  # an unreadable log (None) cannot prove the cap exceeded; the wall cap still stops the run
     if not why:
         return
     con.execute("UPDATE scout_runs SET stop_reason=? WHERE id=?", (why, run["id"]))
     if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
-                   "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (api.now(), NAME)).rowcount != 1:
+                   "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (api.now(), agent["name"])).rowcount != 1:
         return  # it finished meanwhile
     api.event(con, "scout", run["slot"], "scout-budget", why)
-    res, _note = api.force_stop(con, NAME, "budget")
+    res, _note = api.force_stop(con, agent["name"], "budget")
     if res == "stopped":
         _finish(con, api, run["id"], "stopped", why, agent["session_id"])
 
@@ -134,7 +143,7 @@ def sync(con, api, clock):
     if not runs:
         return
     run = runs[-1]
-    agent = con.execute("SELECT * FROM agents WHERE name=?", (NAME,)).fetchone()
+    agent = con.execute("SELECT * FROM agents WHERE name=?", (agent_name(con, api),)).fetchone()
     if run["status"] == "claimed":
         # normally spawned in the same call that claimed it; one older than CLAIM_STALE_S lost its spawn (a crash)
         ev = con.execute("SELECT ts FROM events WHERE entity='scout' AND entity_id=? AND action='scout-slot' "
@@ -152,7 +161,7 @@ def sync(con, api, clock):
         queued = _ts(agent["queued_at"])
         limit_h = int(api.cfg(con, "scout_queue_max_h"))
         if queued and (clock - queued).total_seconds() > limit_h * 3600:
-            if api.cancel_queued(con, NAME, "tick", f"scout queued > {limit_h}h"):
+            if api.cancel_queued(con, agent["name"], "tick", f"scout queued > {limit_h}h"):
                 _finish(con, api, run["id"], "skipped", f"gate closed > {limit_h}h")
     elif st == "starting":
         return  # claimed by the dequeue; live on a later tick
@@ -177,10 +186,11 @@ def claim(con, api, slot):
         if con.execute("SELECT 1 FROM scout_runs WHERE slot=?", (slot,)).fetchone():
             con.execute("ROLLBACK")
             return None
-        busy = con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (NAME,)).fetchone()
+        name = agent_name(con, api)
+        busy = con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone()
         status, reason = ("skipped", "previous run active") if busy else ("claimed", None)
         con.execute("INSERT INTO scout_runs(slot, agent, status, stop_reason, ended) VALUES(?,?,?,?,?)",
-                    (slot, None if busy else NAME, status, reason, _stamp(api.clock()) if busy else None))
+                    (slot, None if busy else name, status, reason, _stamp(api.clock()) if busy else None))
         api.event(con, "scout", slot, "scout-slot", slot if status == "claimed" else f"{slot} skipped: {reason}")
         con.execute("COMMIT")
         return status
@@ -196,15 +206,16 @@ def claim(con, api, slot):
 
 def start(con, api, slot):
     """Spawn the claimed run through spawn() (and so the gate): queued if the gate is closed, else running."""
+    name = agent_name(con, api)
     try:
-        api.spawn(con, NAME, name=NAME, prompt=f"Scheduled scout run, slot {slot}.")
+        api.spawn(con, NAME, name=name, org=ORG, prompt=f"Scheduled scout run, slot {slot}.")
     except (Exception, SystemExit) as e:  # noqa: BLE001 — spawn() reports refusals with die(); no retry for the slot
         why = f"exit {e.code}; see the tick's stderr" if isinstance(e, SystemExit) else str(e)
         con.execute("UPDATE scout_runs SET status='failed', stop_reason=?, ended=? WHERE slot=? AND status='claimed'",
                     (f"spawn failed: {why}"[:300], _stamp(api.clock()), slot))
         api.event(con, "scout", slot, "scout-spawn-failed", why[:300])
         return
-    agent = con.execute("SELECT status FROM agents WHERE name=?", (NAME,)).fetchone()
+    agent = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
     status = "running" if agent and agent["status"] == "live" else "queued"
     con.execute("UPDATE scout_runs SET status=?, started=CASE WHEN ?='running' THEN ? END WHERE slot=? AND status='claimed'",
                 (status, status, _stamp(api.clock()), slot))

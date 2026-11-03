@@ -8,7 +8,7 @@ import (
 // T-0755 (worker-guard.py): NO_PUSH_ROLES run only read-only git, fail closed.
 
 // noPushRoles is worker-guard.py:NO_PUSH_ROLES.
-var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+var noPushRoles = set("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher")
 
 var (
 	gitOptsAllowed = set("-P", "--no-pager", "--no-optional-locks", "--version", "--help")
@@ -31,7 +31,7 @@ var (
 	gitSp       = `\t-\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
 	reGitWord   = regexp.MustCompile(`(?:^|[` + gitSp + `/;&|])git(?:-[^` + gitSp + `]*)?(?:[` + gitSp + `]|$)`)
 	reGitConfig = regexp.MustCompile(`^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=`)
-	reGitSens   = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
+	reGitSens   = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
 	reGitDepth  = regexp.MustCompile(`^--(depth|deepen)=[0-9]+$`)
 	reGitRemote = regexp.MustCompile(`^[\p{L}\p{N}_.-]+@[\p{L}\p{N}_.-]+:`)
 	reGrepO     = regexp.MustCompile(`^-[^-]*O`)
@@ -118,6 +118,7 @@ func (a *Analyzer) gitLaunch(assigns, words []string) error {
 // gitAllow is a port of Analyzer.git_allow: only read-only git, matched against an allow-list.
 func (a *Analyzer) gitAllow(rest []string) error {
 	i := 0
+	usedC := false
 	for i < len(rest) && strings.HasPrefix(rest[i], "-") {
 		o := rest[i]
 		if IsDynamic(o, true) {
@@ -125,6 +126,7 @@ func (a *Analyzer) gitAllow(rest []string) error {
 		}
 		switch {
 		case o == "-C" && i+1 < len(rest) && !IsDynamic(rest[i+1], true):
+			usedC = true
 			i += 2
 		case in(gitOptsAllowed, o):
 			i++
@@ -147,6 +149,8 @@ func (a *Analyzer) gitAllow(rest []string) error {
 	switch {
 	case sub == "fetch" || sub == "ls-remote":
 		return a.gitFetchArgs(sub, args)
+	case sub == "clone" && a.Role == researcherRole:
+		return a.gitClone(args, usedC)
 	case in(gitAllowPlain, sub):
 		if h := gitAbbrev(args, gitForbidLong); h != "" {
 			return a.gitDeny(pyRepr(h) + " runs a program or writes a file")
