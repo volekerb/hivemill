@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS skill_trials (
   UNIQUE(candidate_id, vendor_sha, task, condition));
 """
 
+CONTROL_KEY = "local:skilleval-control"  # the skilleval positive control: a reserved row, never a find
+
 FACTS = ("kind", "repo", "path", "url", "licence", "last_commit", "default_branch", "head_sha",
          "stars", "install_risk", "risk_detail")
 RECS = ("adopt", "watch", "skip")
@@ -210,7 +212,7 @@ def pending(con, limit=8):
         raise ScoutError(f"--limit must be at least 1, got {limit}")
     return con.execute(
         "SELECT * FROM scout_candidates c WHERE NOT EXISTS (SELECT 1 FROM scout_triage t WHERE t.candidate_id=c.id) "
-        "AND c.status='new' ORDER BY " + PENDING_ORDER + " LIMIT ?", (limit,)).fetchall()
+        "AND c.status='new' AND c.key<>? ORDER BY " + PENDING_ORDER + " LIMIT ?", (CONTROL_KEY, limit)).fetchall()
 
 
 def inventory(plugins_dir):
@@ -230,7 +232,8 @@ def list_candidates(con, new=False, rec=None, risk=None, since=None):
     q, args = ("SELECT c.*, (SELECT recommendation FROM scout_triage t WHERE t.candidate_id=c.id "
                "ORDER BY t.id DESC LIMIT 1) AS rec FROM scout_candidates c WHERE 1=1"), []
     if new:
-        q += " AND c.status='new'"
+        q += " AND c.status='new' AND c.key<>?"
+        args.append(CONTROL_KEY)
     if since:
         try:
             since = _parse_ts(since).isoformat(timespec="seconds")

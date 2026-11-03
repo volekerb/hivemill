@@ -138,6 +138,31 @@ class AdoptionTests(FactoryTestCase):
         # main-session totals are unchanged by sidechain lines
         self.assertEqual(self.task(before, "T-0002")["tokens"]["reviewer"], 800)
 
+    def test_workflow_files_do_not_disturb_plain_subagent_attribution(self):
+        # sess-r1 has plain nested subagent files (linked to Workflow call w1). Add a workflows/<run> file under it that
+        # sorts before sess-r2.jsonl, repeats one of sess-r2's request keys and carries a foreign agent-name record.
+        base = self.projects / "proj"
+        dup = json.loads((base / "sess-r2.jsonl").read_text().splitlines()[0])
+        run = base / "sess-r1" / "subagents" / "workflows" / "wf_b"
+        run.mkdir(parents=True)
+        (run / "agent-1.meta.json").write_text('{"agentType": "workflow-subagent"}')
+        own = dict(dup, uuid="u-wf-own", requestId="r-wf-own", sessionId="sess-r1", isSidechain=True)
+        own["message"] = dict(dup["message"], id="m-wf-own", content=[], usage={
+            "input_tokens": 0, "output_tokens": 1, "cache_read_input_tokens": 70, "cache_creation_input_tokens": 0})
+        lines = [{"type": "agent-name", "agentName": "zz-qa-1", "sessionId": "sess-r1"},
+                 dict(dup, sessionId="sess-r1", isSidechain=True), own]
+        (run / "agent-1.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        rep = self.report()
+        t1, t2 = self.task(rep, "T-0001"), self.task(rep, "T-0002")
+        # plain nested subagent tokens still come from agent-1 (400 + 600) only; the workflow file adds nothing to them
+        self.assertEqual(t1["reviewer"]["workflow_calls"], 2)
+        self.assertEqual(t1["tokens"]["reviewer"], 3000)
+        self.assertEqual(t1["tokens"]["qa"], 300)
+        self.assertEqual(t1["reviewer"]["workflow_subagent_tokens"], 1000)
+        # the repeated request key is still counted once, in sess-r2's main transcript
+        self.assertEqual((t2["tokens"]["reviewer"], t2["reviewer"]["workflow_calls"]), (800, 1))
+        self.assertEqual(rep["window"]["duplicate_requests"], 1)
+
     def test_coder_ci_wait_and_search(self):
         c = self.task(self.report(), "T-0001")["coder"]
         self.assertEqual(c["ci_checks_calls"], 2)

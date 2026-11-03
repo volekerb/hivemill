@@ -7,6 +7,11 @@ import datetime as dt
 import json
 import statistics
 
+try:
+    from scout import db as scoutdb
+except ImportError:  # run by path
+    import db as scoutdb
+
 HEADING = "## Skill scout"
 FOOTER = "Adoption of any third-party skill needs owner approval through the boss."
 MAX_FINDS = 5
@@ -56,7 +61,7 @@ def _finds(con, since, until):
     rows = []
     for cid, t in by.items():
         c = con.execute("SELECT * FROM scout_candidates WHERE id=?", (cid,)).fetchone()
-        if c:
+        if c and c["key"] != scoutdb.CONTROL_KEY:  # the skilleval positive control is not a find
             rows.append((c, t))
     rows.sort(key=lambda r: (RANK.get(r[1]["recommendation"], 9),
                              -(r[0]["stars_per_day"] if r[0]["stars_per_day"] is not None else float("-inf")), r[0]["id"]))
@@ -98,8 +103,9 @@ def _tokens(r):
 
 
 def _eval_lines(con, since, until):
-    trials = [t for t in con.execute("SELECT * FROM skill_trials WHERE status IN (%s) ORDER BY id" % ",".join("?" * len(TRIAL_ENDED)),
-                                     TRIAL_ENDED) if _inwin(t["ended"], since, until)]
+    trials = [t for t in con.execute("SELECT * FROM skill_trials WHERE status IN (%s) AND candidate_id NOT IN "
+                                     "(SELECT id FROM scout_candidates WHERE key=?) ORDER BY id" % ",".join("?" * len(TRIAL_ENDED)),
+                                     (*TRIAL_ENDED, scoutdb.CONTROL_KEY)) if _inwin(t["ended"], since, until)]
     if not trials:
         return []
     out = ["### Eval results (indicative, n=1 per cell)", ""]

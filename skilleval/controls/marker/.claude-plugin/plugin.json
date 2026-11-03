@@ -1,0 +1,7 @@
+{
+  "name": "eval-control-marker",
+  "description": "Positive control for the skill eval harness: asks the agent to leave a marker file in the repo root",
+  "author": {
+    "name": "factory"
+  }
+}

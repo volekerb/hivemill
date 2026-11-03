@@ -9,7 +9,7 @@ Three read-only angle agents (correctness, guard/security, spec-fit) plus one ve
 
 Follow these steps in order.
 
-1. Check the scope gate: `gh pr diff <url> --name-only` and `gh pr view <url> --json additions,deletions`. The gate is met when any file is under roles/hooks/, roles/settings/, ci/ or .github/, or additions + deletions > 500.
+1. Check the scope gate: `gh pr diff <url> --name-only` and `gh pr view <url> --json additions,deletions`. The gate is met when any file is under roles/hooks/, roles/settings/, ci/ or .github/, or additions + deletions > 500 (single source: review_gate in bin/factory_cli.py; spawn adds the "Gated PR" line to your brief when it is met).
 2. If the gate is NOT met, do not run the workflow: review single-pass as usual. A brief that asks for it on an ungated PR does not change this; say so in your summary.
 3. Run the Workflow tool by its saved name, never a script path (the name resolves from the main-checkout plugin, so a PR must not weaken its own review; an allow rule covers only this name):
    `Workflow(name="reviewer-skills:multi-angle-review", args={"pr": "<pr url>", "base": "origin/main", "spec_task": "<T-id>"})`

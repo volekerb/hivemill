@@ -98,8 +98,8 @@ def _count(con, run_id, api=None):
     starts = [t for t in (_ts(run["started"]), astart) if t is not None and t <= end]
     start = min(starts, default=end)
     lo, hi = (x.astimezone(dt.timezone.utc).isoformat() for x in (start, end))
-    n = con.execute("SELECT COUNT(*) FROM scout_candidates WHERE julianday(first_seen) BETWEEN julianday(?) AND julianday(?)",
-                    (lo, hi)).fetchone()[0]
+    n = con.execute("SELECT COUNT(*) FROM scout_candidates WHERE julianday(first_seen) BETWEEN julianday(?) AND julianday(?) "
+                    "AND key<>'local:skilleval-control'", (lo, hi)).fetchone()[0]
     t = con.execute("SELECT COUNT(*) FROM scout_triage WHERE julianday(created) BETWEEN julianday(?) AND julianday(?)",
                     (lo, hi)).fetchone()[0]
     con.execute("UPDATE scout_runs SET new_candidates=?, triaged=? WHERE id=?", (n, t, run_id))
