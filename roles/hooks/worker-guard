@@ -1,0 +1,98 @@
+#!/bin/sh
+# worker-guard shim (G-016 W2-T6e, T-0353). Settings call `sh <live home>/roles/hooks/worker-guard <args>`; the shim
+# picks the Python hook or the Go binary and FAILS CLOSED: every exit status other than 0 and 2 (126/127 when the
+# interpreter or binary cannot run, a signal, any crash) becomes exit 2, which Claude Code treats as "blocked".
+# Never `exec` a guard: exec would lose that mapping.
+#
+# The flag is <live home>/run/guard_impl, one line "<impl> <srchash>" (impl: python | go | shadow), written by the
+# factory CLI; the shim cannot read the DB. Anything else (missing, unreadable, empty, malformed, unknown impl) means
+# python. The Go binary is used only when impl is go/shadow, ~/.local/lib/factory/worker-guard is executable and its
+# worker-guard.stamp equals <srchash> (plain string compare, no tool call per Bash call); else python.
+# See docs/worker-guard-go.md.
+
+self_dir=$(cd "$(dirname "$0")" 2>/dev/null && pwd)
+if [ -z "$self_dir" ]; then
+    echo "worker-guard shim: cannot locate its own directory; blocking" >&2
+    exit 2
+fi
+live_home=$(dirname "$(dirname "$self_dir")")
+py_hook="$self_dir/worker-guard.py"
+flag_file="$live_home/run/guard_impl"
+lib_dir="${HOME:-/nonexistent}/.local/lib/factory"
+bin="$lib_dir/worker-guard"
+stamp_file="$lib_dir/worker-guard.stamp"
+
+impl=python
+srchash=
+flag=$(cat "$flag_file" 2>/dev/null) || flag=
+case $flag in
+    *'
+'*) flag= ;; # more than one line: malformed
+esac
+if [ -n "$flag" ]; then
+    # shellcheck disable=SC2034  # extra swallows a third field so that "go h x" is rejected below
+    read -r f_impl f_hash f_extra <<EOF
+$flag
+EOF
+    if [ -n "$f_impl" ] && [ -n "$f_hash" ] && [ -z "$f_extra" ]; then
+        case $f_impl in
+            go | shadow) impl=$f_impl; srchash=$f_hash ;;
+        esac
+    fi
+fi
+if [ "$impl" != python ]; then
+    stamp=$(cat "$stamp_file" 2>/dev/null) || stamp=
+    if [ ! -x "$bin" ] || [ -z "$stamp" ] || [ "$stamp" != "$srchash" ]; then
+        impl=python # missing or stale binary
+    fi
+fi
+[ "$WORKER_GUARD_SHIM_TRACE" = 1 ] && echo "impl=$impl" >&2
+
+finish() { # finish <impl> <status>: map every status but 0 and 2 to a blocking 2
+    case $2 in
+        0 | 2) exit "$2" ;;
+    esac
+    echo "worker-guard shim: $1 failed ($2); blocking" >&2
+    exit 2
+}
+
+json_str() { # JSON-escape the argument on stdout
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '[:cntrl:]'
+}
+
+case $impl in
+    python)
+        python3 "$py_hook" "$@"
+        finish python $?
+        ;;
+    go)
+        "$bin" --py-hook "$py_hook" "$@"
+        finish go $?
+        ;;
+    shadow)
+        tmp=$(mktemp) || finish shadow 1
+        trap 'rm -f "$tmp"' EXIT
+        trap 'exit 2' HUP INT TERM
+        cat > "$tmp" || finish shadow 1
+        python3 "$py_hook" "$@" < "$tmp"
+        py=$?
+        timeout 2 "$bin" --py-hook "$py_hook" "$@" < "$tmp" > /dev/null 2>&1
+        go=$?
+        if [ "$py" != "$go" ]; then
+            # the log never holds the command text: only a sha256 of it (of the whole payload if it cannot be parsed)
+            cmd=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["tool_input"]["command"], end="")' < "$tmp" 2>/dev/null) || cmd=
+            if [ -n "$cmd" ]; then
+                sum=$(printf '%s' "$cmd" | sha256sum | cut -d' ' -f1)
+            else
+                sum=$(sha256sum < "$tmp" | cut -d' ' -f1)
+            fi
+            log_dir="${FACTORY_HOME:-$live_home}/logs"
+            ts=${FACTORY_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+            # a logging failure never changes the decision (Python's)
+            mkdir -p "$log_dir" 2>/dev/null &&
+                printf '{"ts":"%s","role_args":"%s","sha256":"%s","py":%s,"go":%s}\n' \
+                    "$ts" "$(json_str "$*")" "$sum" "$py" "$go" >> "$log_dir/guard-shadow.log" 2>/dev/null
+        fi
+        finish python "$py"
+        ;;
+esac
