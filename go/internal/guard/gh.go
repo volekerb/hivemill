@@ -18,12 +18,8 @@ var (
 	ghRepoVerbs = set("edit", "rename", "archive", "unarchive", "delete")
 )
 
-// ghRepoChange is a port of gh_repo_change: why `gh <args>` changes branch protection or repository settings (R-a,
-// T-0638), else "": `gh repo edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body,
-// which makes gh use POST) on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine.
-func ghRepoChange(args []string) string {
-	var pos []string
-	method, hasMethod, body := "", false, false
+// ghParse is the option reader of gh_parse: positionals, the last -X/--method (upper-cased) and whether a body flag is set.
+func ghParse(args []string) (pos []string, method string, hasMethod, body bool) {
 	note := func(opt, val string) {
 		switch opt {
 		case "-X", "--method":
@@ -73,6 +69,21 @@ func ghRepoChange(args []string) string {
 			pos = append(pos, x)
 		}
 	}
+	return pos, method, hasMethod, body
+}
+
+// ghAPIIsGet: `gh <args>` is a `gh api` call whose method resolves to GET (none or an explicit GET in any spelling or case)
+// and which has no body flag (gh then uses POST).
+func ghAPIIsGet(args []string) bool {
+	pos, method, hasMethod, body := ghParse(args)
+	return len(pos) > 0 && pos[0] == "api" && !body && (!hasMethod || method == "GET")
+}
+
+// ghRepoChange is a port of gh_repo_change: why `gh <args>` changes branch protection or repository settings (R-a,
+// T-0638), else "": `gh repo edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body,
+// which makes gh use POST) on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine.
+func ghRepoChange(args []string) string {
+	pos, method, hasMethod, body := ghParse(args)
 	if len(pos) > 1 && pos[0] == "repo" && in(ghRepoVerbs, pos[1]) {
 		return "gh repo " + pos[1]
 	}
