@@ -184,7 +184,7 @@ class GuardBuildTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.flag().read_text(), f"python {h}\n")
 
-class GuardBuildHardeningTests(GuardBuildTests.__bases__[0]):
+class GuardBuildHardeningTests(FactoryTestCase):
     """Attempt 2: non-live home, symlinked temp, tick budget/order/backoff, stamp order (reviewer B1-B4)."""
 
     def setUp(self):
@@ -346,6 +346,7 @@ class GuardBuildHardeningTests(GuardBuildTests.__bases__[0]):
                 return real(a, b, *args, **kw)
             with mock.patch.object(os, "replace", replace):
                 self.assertEqual(f.build_guard_go(self.repo, self.lib), "failed")
+        self.assertTrue((self.lib / "worker-guard.failed").exists())  # the tick backs off here too
         self.assertFalse((self.lib / "worker-guard.stamp").exists())
         self.assertFalse((self.lib / "worker-guard").exists())
 

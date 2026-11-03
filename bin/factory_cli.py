@@ -2013,6 +2013,8 @@ def build_guard_go(src=None, lib=None, tick=False):
         except OSError as e:
             stamp.unlink(missing_ok=True)
             new.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _write_atomic(failed, srchash + "\n")
             print(f"guard go build: failed ({e}); the guard stays on Python", file=sys.stderr)
             return "failed"
     return "built"
