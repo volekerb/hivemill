@@ -8453,6 +8453,11 @@ def cmd_spawn(a):
         if a.role in ("coder", "qa") and not (t["acceptance"] or "").strip():
             die(f"{a.task} has no acceptance in the DB; write it with factory task update {a.task} --acceptance - "
                 "before spawning (scratch files are lost on reboot)", 2)
+        if a.role == "qa" and not a.cwd:  # T-0956: no PR and no worktree = the shared checkout, where QA can do nothing
+            tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (a.task,)).fetchone()
+            if not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists()):
+                die(f"{a.task} has no PR and no worktree, so a qa agent would start in the shared checkout: create a worktree "
+                    f"for it, or pass one: factory spawn qa --task {a.task} --cwd <worktree>", 2)
         why = staleness_precheck(con, a.role, a.task)
         if why:
             event(con, "task", a.task, "spawn-bounced", f"{a.role}: {why}")
@@ -8938,6 +8943,14 @@ def cmd_done(a):
                 print(textwrap.indent(m["body"], "   "))
         mark_read(con, unread)
         die("unread orders: read and act on them, then run factory done again", 3)
+    qa_blocked = False
+    if r["role"] == "qa" and r["task_id"] and summary.lstrip().startswith("BLOCKED"):
+        qt = con.execute("SELECT role, pr_url FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+        qa_blocked = bool(qt and qt["role"] == "qa" and not (qt["pr_url"] or "").strip() and not con.execute(
+            "SELECT 1 FROM verdicts WHERE task_id=? AND role='qa'", (r["task_id"],)).fetchone())
+        if qa_blocked:  # T-0956: BLOCKED with no run and no verdict is not a finished QA task; the lead decides
+            summary += (f"\n\nNOTE: {r['task_id']} is NOT closed: a QA task with no PR ended BLOCKED with no verdict, "
+                        "so it is back to todo. Fix the blocker (worktree or cwd) and respawn, or cancel it.")
     unclean = ""
     if r["role"] == "coder" and r["task_id"]:
         dirty, untracked, unpushed, ci = coder_done_findings(con, r, a.force)
@@ -8984,9 +8997,12 @@ def cmd_done(a):
         send(con, to, f"{me} finished {r['task_id'] or ''}".strip(), summary, "report", r["goal_id"], r["task_id"])
     if r["task_id"] and r["role"] not in PERSISTENT_ROLES and r["role"] != "coder":
         # only open states close; cancelled/blocked/done stay as they are (T-0100)
-        cur = con.execute("UPDATE tasks SET status='done', updated=? WHERE id=? AND role=? "
-                          "AND status IN ('todo','in_progress','in_review')", (now(), r["task_id"], r["role"]))
-        if cur.rowcount:
+        cur = con.execute("UPDATE tasks SET status=?, updated=? WHERE id=? AND role=? "
+                          "AND status IN ('todo','in_progress','in_review')",
+                          ("todo" if qa_blocked else "done", now(), r["task_id"], r["role"]))
+        if cur.rowcount and qa_blocked:
+            event(con, "task", r["task_id"], "done-blocked-reopened", {"by": me})
+        elif cur.rowcount:
             event(con, "task", r["task_id"], "done", {"by": me})
         else:
             t = con.execute("SELECT status FROM tasks WHERE id=? AND role=?", (r["task_id"], r["role"])).fetchone()
