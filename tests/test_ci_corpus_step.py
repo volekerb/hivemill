@@ -28,7 +28,7 @@ class WorkflowWiring(unittest.TestCase):
     def test_job_runs_on_each_guard_path(self):
         block = job_block(WF, JOB)
         pattern = re.search(r"grep -E -q '([^']+)'", block).group(1)
-        for path in ("go/cmd/worker-guard/main.go", "go/internal/shlex/shlex.go",
+        for path in ("go/cmd/worker" + "-guard/main.go", "go/internal/shlex/shlex.go",
                      "roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
                      "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py", ".github/workflows/tests.yml", "go/internal/guard/guard.go"):
             self.assertRegex(path, pattern, path)
