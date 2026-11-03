@@ -141,19 +141,12 @@ func (a *Analyzer) researcherCmd(name string, rest []string) error {
 			case in(researchGhGroups, pos[0]):
 				ok = len(pos) > 1 && in(researchGhRead, pos[1]) && len(rest) > 1 && rest[0] == pos[0] && rest[1] == pos[1]
 			case pos[0] == "api":
-				ok = !anyOf(rest, func(x string) bool {
-					for _, p := range []string{"-X", "-f", "-F", "--method", "--field", "--raw-field", "--input"} {
-						if strings.HasPrefix(x, p) {
-							return true
-						}
-					}
-					return false
-				})
+				ok = ghAPIIsGet(rest)
 			}
 		}
 		if !ok {
 			return blockf("a researcher may run gh only to read (search, <pr|issue|release|repo|run> view|list|diff|status|" +
-				"checks, api without a method or field flag)")
+				"checks, api that resolves to GET: no method other than GET, no -f/-F/--field/--raw-field/--input)")
 		}
 	case "factory":
 		ok := len(pos) > 0 && (in(researchFactory, pos[0]) || (len(pos) > 1 && ((pos[0] == "task" && (pos[1] == "show" || pos[1] == "note")) ||

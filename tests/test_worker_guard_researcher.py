@@ -49,6 +49,28 @@ class ResearcherBase(unittest.TestCase):
         self.assertEqual(p.returncode, 2, f"should block {what}: {p.stdout}")
 
 
+GH_API_DENIED = ("gh api -XPOST repos/a/b/issues", "gh api --method=POST x", "gh api -X=post x", "gh api x -f title=t",
+                 "gh api x -F a=1", "gh api x --input f.json", "gh api -X PATCH x", "gh api -X DELETE x",
+                 "gh api x --field a=1", "gh api x --raw-field a=b", "gh api -iXPOST x", "gh api -if a=1 x",
+                 "gh api --method=get x -f a=1", "gh api -X GET -X POST x", "gh api --method put x",
+                 "gh -X GET api x", "gh --method GET api repos/a/b", "gh -H 'Accept: x' api repos/a/b")
+GH_API_ALLOWED = ("gh api repos/a/b", "gh api -X GET repos/a/b", "gh api --method=GET repos/a/b/pulls?state=open",
+                  "gh api -XGET x", "gh api -X=get x", "gh api --method get x", "gh api x --jq .name")
+
+
+class GhApiMethod(ResearcherBase):
+    """T-0874: a researcher's gh api must resolve to GET in every flag spelling (also implicit POST via a body flag)."""
+    def test_non_get_denied(self):
+        for cmd in GH_API_DENIED:
+            with self.subTest(cmd=cmd):
+                self.deny(self.bash(cmd), cmd)
+
+    def test_get_allowed(self):
+        for cmd in GH_API_ALLOWED:
+            with self.subTest(cmd=cmd):
+                self.ok(self.bash(cmd))
+
+
 class CloneAllowed(ResearcherBase):
     def test_public_clone(self):
         for cmd in (f"git clone --depth 1 {URL} hello",
