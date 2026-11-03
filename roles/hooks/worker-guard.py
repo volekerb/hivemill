@@ -1335,7 +1335,7 @@ class Analyzer:
         something under them (or, with ancestor, a directory that contains one). A word with an expansion we cannot
         resolve counts when it spells `.config/factory` or `run/settings`."""
         for w in {word, word.split("=", 1)[-1]}:
-            t = self.cfg_expand(w)
+            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             if any(c in t for c in "$`*?[{"):
                 if ".config/factory" in t or "run/settings" in t or "guard-export" in t:
                     return True
@@ -1356,8 +1356,32 @@ class Analyzer:
     def cfg_redirect(self, target):
         if self.cfg_hit(target):
             raise Block("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live "
-                        "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json (the guard's own "
-                        "decisions); only the owner and the tick change them")
+                        "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json "
+                        "(the guard's own decisions); only the owner and the tick change them")
+
+    def cfg_path(self, w):
+        """Realpath of a word for the export checks, None when it has an expansion we cannot resolve."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+        if not t or any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            return None
+        return os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+
+    def export_move(self, name, args):
+        """T-0883: cp/mv/install/rsync/ln of a guard-export.json* file INTO run/ (the destination is the directory, so
+        no word spells the export), or ln of run/ or the live home (a link made here is resolved later in the same
+        command). Reads (cp FROM the export) stay allowed."""
+        dirs = {os.path.dirname(d) for d in RUN_EXPORT}
+        if name == "ln":
+            return any(self.cfg_path(a) in dirs | {os.path.dirname(x) for x in dirs} for a in args[:-1]
+                       if not a.startswith("-"))
+        dests = [a for j, a in enumerate(args) if j > 0 and args[j - 1] in ("-t", "--target-directory")
+                 ] + [a.split("=", 1)[1] for a in args if a.startswith("--target-directory=")]
+        srcs = [a for j, a in enumerate(args)
+                if not a.startswith("-") and not (j > 0 and args[j - 1] in ("-t", "--target-directory"))]
+        if not dests:  # plain form: the last argument is the destination
+            dests, srcs = srcs[-1:], srcs[:-1]
+        return (any(self.cfg_path(d) in dirs for d in dests)
+                and any(os.path.basename(a).startswith("guard-export.json") for a in srcs))
 
     def cfg_write(self, name, rest):
         """Best-effort (T-0212): refuse Bash writes to <pw_dir>/.config/factory, the directory and live_home. Reads
@@ -1371,6 +1395,9 @@ class Analyzer:
                 raise Block(f"`factory init --live-home` writes ~/.config/factory: {why}")
         if name in CFG_WRITERS:
             args = [a for a in rest if a != "--"]
+            if name in ("cp", "mv", "install", "rsync", "ln") and self.export_move(name, args):
+                raise Block(f"`{name}` into <live>/run/guard-export.json: it holds the guard's own decisions; only the "
+                            "tick writes it")
             checked = [(j, a) for j, a in enumerate(args)]
             if name in ("cp", "install", "rsync", "dd"):  # reading FROM the config dir is fine: only the destination counts
                 checked = [(j, a) for j, a in checked if j == len(args) - 1 or a.startswith("of=")
@@ -1378,6 +1405,9 @@ class Analyzer:
             for j, a in checked:
                 anc = name in CFG_REMOVERS or (name == "mv" and j < len(args) - 1)
                 if self.cfg_hit(a, anc):
+                    if "guard-export" in a:
+                        raise Block(f"`{name}` on <live>/run/guard-export.json: it holds the guard's own decisions; "
+                                    "only the tick writes it")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):

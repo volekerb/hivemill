@@ -47,9 +47,21 @@ WRITES = [
     f"cd {PW}/factory/run && : > gua*",
     f"cd {PW}/factory/run && tee < /tmp/x gu*",
     f"rm {PW}/factory/run/*",
+    f"cp /tmp/guard-export.json {PW}/factory/run/",
+    f"cp -t {PW}/factory/run /tmp/guard-export.json",
+    f"install -t {PW}/factory/run /tmp/guard-export.json",
+    f"rsync /tmp/guard-export.json {PW}/factory/run/",
+    f"mv /tmp/guard-export.json.tmp4242 {PW}/factory/run/",
+    f"cd {PW}/factory/run && cp /tmp/guard-export.json .",
+    f"cd {PW}/factory/run && mv /tmp/guard-export.json .",
+    f"cd {PW}/factory/run && mv /tmp/guard-export.json.tmp4242 .",
+    f"ln -s {PW}/factory/run /tmp/zr && echo x > /tmp/zr/guard-export.json",
+    f"ln -s {PW}/factory /tmp/zf && echo x > /tmp/zf/run/guard-export.json",
+    f"f=guard-export.json; echo x > {PW}/factory/run/$f",
+    f"cd {PW}/factory/run && f=guard-export.json && echo x > $f",
 ]
 READS = [f"cat {EXP}", f"jq .config {EXP}", f"grep generated_at {EXP}", f"ls -l {PW}/factory/run", f"head -c 20 {EXP}",
-         f"cp {EXP} /tmp/copy-of-export",
+         f"cp {EXP} /tmp/copy-of-export", f"cp /tmp/x {PW}/factory/run/other.log", f"cd {PW}/factory/run && cp {EXP} /tmp/c",
          f"echo x > {PW}/factory/run/other-*.log", "echo x > /tmp/zz-*.txt"]
 
 

@@ -82,7 +82,7 @@ func (a *Analyzer) exportGlob(t string) bool {
 func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 	h := mustHost()
 	for _, w := range uniq([]string{word, valueOf(word)}) {
-		t := cfgExpand(w)
+		t := cfgExpand(substVars(w, a.vars))
 		if strings.ContainsAny(t, "$`*?[{") {
 			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") {
 				return true
@@ -124,6 +124,77 @@ func (a *Analyzer) cfgRedirect(target string) error {
 	return nil
 }
 
+// cfgPath is Analyzer.cfg_path: the realpath of a word for the export checks, "", false when unresolvable.
+func (a *Analyzer) cfgPath(w string) (string, bool) {
+	t := cfgExpand(substVars(w, a.vars))
+	if t == "" || strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
+		return "", false
+	}
+	if !strings.HasPrefix(t, "/") {
+		t = pyJoin(a.ccwd, t)
+	}
+	return pyRealpath(t), true
+}
+
+// exportMove is Analyzer.export_move (T-0883): cp/mv/install/rsync/ln of a guard-export.json* file INTO run/, or ln of
+// run/ or the live home (a link made here is resolved later in the same command). Reads stay allowed.
+func (a *Analyzer) exportMove(name string, args []string) bool {
+	dirs := map[string]bool{}
+	for _, d := range mustHost().runExport {
+		dirs[pyDirname(d)] = true
+		dirs[pyDirname(pyDirname(d))] = true
+	}
+	if name == "ln" {
+		for i, x := range args {
+			if i == len(args)-1 || strings.HasPrefix(x, "-") {
+				continue
+			}
+			if p, ok := a.cfgPath(x); ok && dirs[p] {
+				return true
+			}
+		}
+		return false
+	}
+	var dests, srcs []string
+	for j, x := range args {
+		switch {
+		case strings.HasPrefix(x, "--target-directory="):
+			dests = append(dests, strings.SplitN(x, "=", 2)[1])
+		case j > 0 && (args[j-1] == "-t" || args[j-1] == "--target-directory"):
+			dests = append(dests, x)
+		case !strings.HasPrefix(x, "-"):
+			srcs = append(srcs, x)
+		}
+	}
+	if len(dests) == 0 && len(srcs) > 0 { // plain form: the last argument is the destination
+		dests, srcs = srcs[len(srcs)-1:], srcs[:len(srcs)-1]
+	}
+	hitDest := false
+	for _, d := range dests {
+		if p, ok := a.cfgPath(d); ok && inRunDirs(p) {
+			hitDest = true
+		}
+	}
+	if !hitDest {
+		return false
+	}
+	for _, x := range srcs {
+		if strings.HasPrefix(pyBasename(x), "guard-export.json") {
+			return true
+		}
+	}
+	return false
+}
+
+func inRunDirs(p string) bool {
+	for _, d := range mustHost().runExport {
+		if p == pyDirname(d) {
+			return true
+		}
+	}
+	return false
+}
+
 // anyInPlace is the in-place test of cfg_write / persist_write:
 // re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace".
 func anyInPlace(rest []string) bool { return anyOf(rest, isInPlaceFlag) }
@@ -158,6 +229,9 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 				args = append(args, x)
 			}
 		}
+		if (name == "cp" || name == "mv" || name == "install" || name == "rsync" || name == "ln") && a.exportMove(name, args) {
+			return blockf("`" + name + "` into <live>/run/guard-export.json: it holds the guard's own decisions; only the tick writes it")
+		}
 		destOnly := name == "cp" || name == "install" || name == "rsync" || name == "dd"
 		for j, x := range args {
 			if destOnly && !isDestArg(args, j) {
@@ -165,6 +239,9 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 			}
 			anc := in(CfgRemovers, name) || (name == "mv" && j < len(args)-1)
 			if a.cfgHit(x, anc) {
+				if strings.Contains(x, "guard-export") {
+					return blockf("`" + name + "` on <live>/run/guard-export.json: it holds the guard's own decisions; only the tick writes it")
+				}
 				return blockf("`" + name + "` on ~/.config/factory: " + cfgWhy)
 			}
 		}
