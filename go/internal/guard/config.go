@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -136,64 +137,83 @@ func (a *Analyzer) cfgPath(w string) (string, bool) {
 	return pyRealpath(t), true
 }
 
-// exportMove is Analyzer.export_move (T-0883): cp/mv/install/rsync/ln of a guard-export.json* file INTO run/, or ln of
-// run/ or the live home (a link made here is resolved later in the same command). Reads stay allowed.
-func (a *Analyzer) exportMove(name string, args []string) bool {
-	dirs := map[string]bool{}
+// exportVerbs is EXPORT_VERBS: the verbs rule R covers (T-0883).
+var exportVerbs = set("cp", "mv", "ln", "install", "rsync", "rm", "rmdir", "unlink", "shred", "chmod", "chown",
+	"truncate", "touch", "dd", "tar", "tee")
+
+var runDirRe = regexp.MustCompile(`/run(?:/|$)`)
+
+// exportAncestors is EXPORT_ANCESTORS: every directory above the export (run/, the live home, ~, its parents, /).
+func exportAncestors() map[string]bool {
+	out := map[string]bool{}
 	for _, d := range mustHost().runExport {
-		dirs[pyDirname(d)] = true
-		dirs[pyDirname(pyDirname(d))] = true
-	}
-	if name == "ln" {
-		for i, x := range args {
-			if i == len(args)-1 || strings.HasPrefix(x, "-") {
-				continue
-			}
-			if p, ok := a.cfgPath(x); ok && dirs[p] {
-				return true
-			}
+		for p := pyDirname(d); !out[p]; p = pyDirname(p) {
+			out[p] = true
 		}
+	}
+	return out
+}
+
+// exportRule is Analyzer.export_rule (T-0883, rule R): ANY argument of an exportVerbs verb that names the export, its
+// temp sibling or an ancestor directory (R1), is an option whose value does (R2), is a glob that can expand to one of
+// them (R3), or is an unresolvable expansion spelling guard-export or a /run directory (R4). No argument position
+// is guessed.
+func (a *Analyzer) exportRule(name string, args []string) bool {
+	if !in(exportVerbs, name) {
 		return false
 	}
-	var dests, srcs []string
-	for j, x := range args {
-		switch {
-		case strings.HasPrefix(x, "--target-directory="):
-			dests = append(dests, strings.SplitN(x, "=", 2)[1])
-		case j > 0 && (args[j-1] == "-t" || args[j-1] == "--target-directory"):
-			dests = append(dests, x)
-		case !strings.HasPrefix(x, "-"):
-			srcs = append(srcs, x)
+	anc := exportAncestors()
+	for _, x := range args {
+		words := []string{x, valueOf(x)}
+		if m := shortOptValue.FindStringSubmatch(x); m != nil {
+			words = append(words, m[1])
 		}
-	}
-	if len(dests) == 0 && len(srcs) > 0 { // plain form: the last argument is the destination
-		dests, srcs = srcs[len(srcs)-1:], srcs[:len(srcs)-1]
-	}
-	hitDest := false
-	for _, d := range dests {
-		if p, ok := a.cfgPath(d); ok && inRunDirs(p) {
-			hitDest = true
-		}
-	}
-	if !hitDest {
-		return false
-	}
-	for _, x := range srcs {
-		if strings.HasPrefix(pyBasename(x), "guard-export.json") {
-			return true
+		for _, w := range uniq(words) {
+			for _, e := range braceExpand(cfgExpand(substVars(w, a.vars))) {
+				if strings.ContainsAny(e, "$`") {
+					if strings.Contains(e, "guard-export") || runDirRe.MatchString(e) {
+						return true
+					}
+					continue
+				}
+				if e == "" || (!strings.HasPrefix(e, "/") && !a.ccwdKnown) {
+					continue
+				}
+				full := e
+				if !strings.HasPrefix(e, "/") {
+					full = pyJoin(a.ccwd, e)
+				}
+				if strings.ContainsAny(e, "*?[") {
+					pat := pyNormpath(full)
+					for _, d := range mustHost().runExport {
+						if fnmatchCase(d, pat) || fnmatchCase(d+".tmp1", pat) {
+							return true
+						}
+					}
+					for d := range anc {
+						if fnmatchCase(d, pat) || fnmatchCase(d+".tmp1", pat) {
+							return true
+						}
+					}
+					continue
+				}
+				p := pyRealpath(full)
+				if anc[p] {
+					return true
+				}
+				for _, d := range mustHost().runExport {
+					if p == d || strings.HasPrefix(p, d+".") {
+						return true
+					}
+				}
+			}
 		}
 	}
 	return false
 }
 
-func inRunDirs(p string) bool {
-	for _, d := range mustHost().runExport {
-		if p == pyDirname(d) {
-			return true
-		}
-	}
-	return false
-}
+// shortOptValue is re.match(r"^-[A-Za-z]*?[tC](.+)$"): the value glued to a short -t / -C option or cluster.
+var shortOptValue = regexp.MustCompile(`^-[A-Za-z]*?[tC](.+)$`)
 
 // anyInPlace is the in-place test of cfg_write / persist_write:
 // re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace".
@@ -221,6 +241,10 @@ func isDestArg(args []string, j int) bool {
 // refuse Bash writes to <pw_dir>/.config/factory, the directory and live_home. Reads (cat, grep) stay allowed. NOT a
 // boundary: the file can only ADD a live home and is ignored unless owned by the user and not group/other-writable.
 func (a *Analyzer) cfgWrite(name string, rest []string) error {
+	if a.exportRule(name, dropDashDash(rest)) {
+		return blockf("`" + name + "` on <live>/run/guard-export.json: it holds the guard's own decisions; " +
+			"only the tick writes it")
+	}
 	switch {
 	case in(CfgWriters, name):
 		var args []string
@@ -228,9 +252,6 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 			if x != "--" {
 				args = append(args, x)
 			}
-		}
-		if (name == "cp" || name == "mv" || name == "install" || name == "rsync" || name == "ln") && a.exportMove(name, args) {
-			return blockf("`" + name + "` into <live>/run/guard-export.json: it holds the guard's own decisions; only the tick writes it")
 		}
 		destOnly := name == "cp" || name == "install" || name == "rsync" || name == "dd"
 		for j, x := range args {
@@ -259,4 +280,15 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 		}
 	}
 	return nil
+}
+
+// dropDashDash is [a for a in rest if a != "--"].
+func dropDashDash(rest []string) []string {
+	var out []string
+	for _, x := range rest {
+		if x != "--" {
+			out = append(out, x)
+		}
+	}
+	return out
 }

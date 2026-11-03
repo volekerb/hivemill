@@ -61,8 +61,27 @@ WRITES = [
     f"cd {PW}/factory/run && f=guard-export.json && echo x > $f",
 ]
 READS = [f"cat {EXP}", f"jq .config {EXP}", f"grep generated_at {EXP}", f"ls -l {PW}/factory/run", f"head -c 20 {EXP}",
-         f"cp {EXP} /tmp/copy-of-export", f"cp /tmp/x {PW}/factory/run/other.log", f"cd {PW}/factory/run && cp {EXP} /tmp/c",
+         f"cp /tmp/x {PW}/factory/run/other.log",
          f"echo x > {PW}/factory/run/other-*.log", "echo x > /tmp/zz-*.txt"]
+
+
+RUN = f"{PW}/factory/run"
+# T-0883 frozen probe table (rule R): every form exits 2 in python, go and diff; ~ and absolute spellings of RUN
+PROBES = [
+    f"cp -rt {RUN} src", f"install -Dt {RUN} src", f"cp -t{RUN} src", f"cp --target={RUN} src",
+    f"cp --target-directory={RUN} src", f"ln -s X {RUN}/", f"ln X {RUN}", f"ln -s -t DIR {RUN}", f"ln -st DIR {RUN}",
+    f"ln -s {RUN} /tmp/zr && echo x > /tmp/zr/guard-export.json", "ln -s ~ /tmp/zh && echo x > /tmp/zh/factory/run/g",
+    "ln -s $HOME /tmp/zh && echo x > /tmp/zh/factory/run/g", "ln -s / /tmp/zs && echo x > /tmp/zs${HOME}/factory/run/g",
+    f"ln -s {PW} /tmp/zp && echo x > /tmp/zp/factory/run/guard-export.json",
+    "cp x ~/factory/run/", "mv /tmp/x ~/factory/run/guard-export.json.tmp1", "cp /tmp/s/g* " + RUN + "/",
+    f"mv /tmp/s/g* {RUN}/", f"cp -t {RUN} /tmp/s/g*", f"rsync -a dir/ {RUN}/", f"cp -rT dir {RUN}",
+    f"cp -a z/run {PW}/factory/", f"cp -rs {RUN} /tmp/x", f"cd {RUN} && cp x .", f"cd {RUN} && mv x .",
+    f"f=guard-export.json; echo x > {RUN}/$f", f"cp {EXP} /tmp/copy-of-export", f"cd {RUN} && cp {EXP} /tmp/c",
+    f"rm -rf {PW}/factory", f"chmod 777 {PW}/factory/run", "touch ~/factory/run", f"tar -C {RUN} -xf x.tar",
+    f"tar xf x.tar --directory={RUN}", f"dd if=/dev/zero of={EXP}", f"cp x {PW}/", "cp x /", f"cp x ~/",
+]
+PROBES_ALLOWED = [f"cat {EXP}", f"jq . {EXP}", f"grep a {EXP}", f"head {EXP}", f"cp x {RUN}/other.log",
+                  "cp -r src /tmp/dst", "rm -rf /tmp/zz-build", "tar czf /tmp/o.tgz src"]
 
 
 def run(cmd, role="coder"):
@@ -79,6 +98,17 @@ class ExportGuardTest(unittest.TestCase):
         for cmd in WRITES:
             r = run(cmd)
             self.assertEqual(r.returncode, 2, f"{cmd}: {r.stderr}")
+
+    def test_frozen_probe_table_is_blocked_with_the_export_message(self):
+        for cmd in PROBES:
+            r = run(cmd)
+            self.assertEqual(r.returncode, 2, f"{cmd}: {r.stderr}")
+            self.assertIn("guard-export.json", r.stderr, cmd)
+
+    def test_frozen_probe_table_allows_reads_and_unrelated_writes(self):
+        for cmd in PROBES_ALLOWED:
+            r = run(cmd)
+            self.assertEqual(r.returncode, 0, f"{cmd}: {r.stderr}")
 
     def test_block_message_names_the_file(self):
         r = run(f"echo x > {EXP}")

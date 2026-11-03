@@ -243,6 +243,19 @@ RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LI
 # T-0883: run/guard-export.json (what the Go guard decides own goal, push pin, sandbox and terms file from) and its
 # atomic-rename temp sibling guard-export.json.tmp<pid>: a Bash write there forges the guard's own decisions
 RUN_EXPORT = {os.path.realpath(os.path.join(h, "run", "guard-export.json")) for h in LIVE_HOMES}
+EXPORT_VERBS = {"cp", "mv", "ln", "install", "rsync", "rm", "rmdir", "unlink", "shred", "chmod", "chown", "truncate",
+                "touch", "dd", "tar", "tee"}
+
+
+def _ancestors(path):
+    out = set()
+    while path != os.path.dirname(path):
+        path = os.path.dirname(path)
+        out.add(path)
+    return out
+
+
+EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, the live home, ~, its parents, /
 CFG_CODE = re.compile(r"\.config/factory|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
@@ -1366,22 +1379,38 @@ class Analyzer:
             return None
         return os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
 
-    def export_move(self, name, args):
-        """T-0883: cp/mv/install/rsync/ln of a guard-export.json* file INTO run/ (the destination is the directory, so
-        no word spells the export), or ln of run/ or the live home (a link made here is resolved later in the same
-        command). Reads (cp FROM the export) stay allowed."""
-        dirs = {os.path.dirname(d) for d in RUN_EXPORT}
-        if name == "ln":
-            return any(self.cfg_path(a) in dirs | {os.path.dirname(x) for x in dirs} for a in args[:-1]
-                       if not a.startswith("-"))
-        dests = [a for j, a in enumerate(args) if j > 0 and args[j - 1] in ("-t", "--target-directory")
-                 ] + [a.split("=", 1)[1] for a in args if a.startswith("--target-directory=")]
-        srcs = [a for j, a in enumerate(args)
-                if not a.startswith("-") and not (j > 0 and args[j - 1] in ("-t", "--target-directory"))]
-        if not dests:  # plain form: the last argument is the destination
-            dests, srcs = srcs[-1:], srcs[:-1]
-        return (any(self.cfg_path(d) in dirs for d in dests)
-                and any(os.path.basename(a).startswith("guard-export.json") for a in srcs))
+    def export_rule(self, name, args):
+        """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
+        verb in EXPORT_VERBS names the export, its temp sibling or one of their ancestor directories (R1), is an option
+        whose value does (R2: --target=X, of=X, -tX, -rtX), is a glob that can expand to one of them (R3), or is an
+        expansion we cannot resolve that spells guard-export or a /run directory (R4). Reads use cat/jq/grep/head."""
+        if name not in EXPORT_VERBS:
+            return False
+        for a in args:
+            words = {a, a.split("=", 1)[-1]}
+            m = re.match(r"^-[A-Za-z]*?[tC](.+)$", a)
+            if m:
+                words.add(m.group(1))
+            for w in words:
+                sub = re.sub(r"\$\{?(\w+)\}?", lambda k: self.vars.get(k.group(1), k.group(0)), w)
+                for e in brace_expand(self.cfg_expand(sub)):
+                    if any(c in e for c in "$`"):
+                        if "guard-export" in e or re.search(r"/run(?:/|$)", e):
+                            return True
+                        continue
+                    if not e or (not os.path.isabs(e) and self.ccwd is None):
+                        continue
+                    full = e if os.path.isabs(e) else os.path.join(self.ccwd, e)
+                    if any(c in e for c in "*?["):
+                        pat = os.path.normpath(full)
+                        if any(fnmatch.fnmatchcase(d + sfx, pat) for d in RUN_EXPORT | EXPORT_ANCESTORS
+                               for sfx in ("", ".tmp1")):
+                            return True
+                        continue
+                    p = os.path.realpath(full)
+                    if p in EXPORT_ANCESTORS or any(p == d or p.startswith(d + ".") for d in RUN_EXPORT):
+                        return True
+        return False
 
     def cfg_write(self, name, rest):
         """Best-effort (T-0212): refuse Bash writes to <pw_dir>/.config/factory, the directory and live_home. Reads
@@ -1393,11 +1422,11 @@ class Analyzer:
             abbrev = [x for x in rest if re.match(r"^--l[a-z-]*(=|$)", x) and "--live-home".startswith(x.split("=")[0])]
             if "init" in rest and abbrev:  # argparse accepts any unambiguous prefix of the option
                 raise Block(f"`factory init --live-home` writes ~/.config/factory: {why}")
+        if self.export_rule(name, [a for a in rest if a != "--"]):
+            raise Block(f"`{name}` on <live>/run/guard-export.json: it holds the guard's own decisions; only the "
+                        "tick writes it")
         if name in CFG_WRITERS:
             args = [a for a in rest if a != "--"]
-            if name in ("cp", "mv", "install", "rsync", "ln") and self.export_move(name, args):
-                raise Block(f"`{name}` into <live>/run/guard-export.json: it holds the guard's own decisions; only the "
-                            "tick writes it")
             checked = [(j, a) for j, a in enumerate(args)]
             if name in ("cp", "install", "rsync", "dd"):  # reading FROM the config dir is fine: only the destination counts
                 checked = [(j, a) for j, a in checked if j == len(args) - 1 or a.startswith("of=")
