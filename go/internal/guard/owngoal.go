@@ -11,11 +11,11 @@ import (
 	"time"
 )
 
-// Decisions that read the factory DB (own_goal, the test_sandbox config, public_text_repos / frozen_repos, the
-// coder's task worktree) are made by the Python hook itself: Go opens no sqlite (stdlib only). Where the DB file
-// does not exist, Python's read fails and the rule takes its "no DB" branch, which Go takes too without
-// delegating; where it exists, the whole payload is re-run through the Python hook and its exit code and stderr
-// are returned unchanged (owngoal.go:RunPython). A failure to run it is exit 2.
+// Decisions that read the factory DB (own_goal, the test_sandbox config, the coder's task worktree, public_text_repos /
+// frozen_repos) are made from the guard export (guardexport.go); Go opens no sqlite (stdlib only). Where the DB file
+// does not exist, Python's read fails and the rule takes its "no DB" branch, which Go takes too. No rule re-runs the
+// payload through the Python hook any more; RunPython stays for a DB value the export has no row for, and a failure to
+// run it is exit 2.
 
 // Delegate is the error that means "the Python hook decides this payload". It is never swallowed (HQ mode's
 // soft() keeps it), so the Python answer replaces the Go one whatever the Go rules would have said later.

@@ -516,24 +516,24 @@ func TestGitPrivKeys(t *testing.T) {
 	f.allowed(t, "git log --grep herdr", f.wt, "coder")
 }
 
-func TestGitDelegations(t *testing.T) {
+// The coder's push pin and the public-text rule both read the factory DB; both are decided here from the export.
+func TestGitDecisionsFromTheExport(t *testing.T) {
 	f := newGitFix(t)
 	home := dbHome(t)
 	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"}, Worktrees: map[string]string{"T-7": f.wt}})
 	t.Setenv("FACTORY_HOME", home)
 	// git_push_pin (a coder's push, after its own refusals) and the public-text rule (commit/tag -a/push/merge/
-	// commit-tree/notes, -c alias.*) read the factory DB: with a DB file Python decides, only for what its rule looks at.
+	// commit-tree/notes, -c alias.*) read the factory DB: the export holds both (T-0767, T-0887), nothing is delegated.
 	const (
-		deleg = "delegate"
 		allow = "allow"
 		block = "block"
 	)
 	for _, c := range []struct{ cmd, role, want string }{
-		{"git push origin HEAD:factory/t-7", "coder", deleg}, {"git push origin x", "judge", deleg},
+		{"git push origin HEAD:factory/t-7", "coder", block}, {"git push origin x", "judge", block},
 		{"git -C . send-pack x", "coder", block}, {"git push origin x", "coder", block},
-		{"git commit -m x", "coder", deleg}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", deleg},
-		{"git merge x", "judge", deleg}, {"git notes add", "coder", deleg}, {"git commit-tree x", "coder", deleg},
-		{"git -c alias.c=commit c", "coder", deleg}, {"git -C x commit -m y", "coder", deleg},
+		{"git commit -m x", "coder", allow}, {"git tag v1", "judge", allow}, {"git tag -a v1 -m x", "judge", allow},
+		{"git merge x", "judge", allow}, {"git notes add", "coder", allow}, {"git commit-tree x", "coder", allow},
+		{"git -c alias.c=commit c", "coder", block}, {"git -C x commit -m y", "coder", allow},
 		{"git status", "coder", allow}, {"git add -A", "coder", allow}, {"git log commit", "coder", allow},
 		{"git rebase main", "coder", allow}, {"git branch -a", "coder", allow}, {"git checkout x", "coder", allow},
 		{"git --git-dir=x status", "coder", allow}, {"git stash", "judge", allow},
@@ -542,7 +542,7 @@ func TestGitDelegations(t *testing.T) {
 		got := allow
 		switch {
 		case IsDelegate(err):
-			got = deleg
+			got = "delegate"
 		case err != nil:
 			got = block
 		}
@@ -551,16 +551,16 @@ func TestGitDelegations(t *testing.T) {
 		}
 	}
 	// HQ mode: only the PRIV pass and public text run; the rest of the git rules are not part of it
-	if err := Check("git commit -m x", f.wt, "", true); !IsDelegate(err) {
-		t.Errorf("hq git commit: %v, want a delegation", err)
+	if err := Check("git commit -m x", f.wt, "", true); err != nil {
+		t.Errorf("hq git commit: %v, want allow", err)
 	}
 	for _, cmd := range []string{"git status", "git add -A", "git -C " + f.home + " reset --hard"} {
 		if err := Check(cmd, f.wt, "", true); err != nil {
 			t.Errorf("hq %q: %v", cmd, err)
 		}
 	}
-	if err := Check("nohup git commit -m x", f.wt, "", true); !IsDelegate(err) {
-		t.Errorf("hq nohup git commit: %v, want a delegation (wrapper peeled)", err)
+	if err := Check("nohup git commit -m x", f.wt, "", true); err != nil {
+		t.Errorf("hq nohup git commit: %v, want allow (wrapper peeled)", err)
 	}
 	// the public-text rule off (export without the rows): the same writes are decided here, nothing is delegated
 	off := dbHome(t)
@@ -644,15 +644,17 @@ func TestGitTopSharedWalksForDotGit(t *testing.T) {
 }
 
 // port of worker-guard.py:PT_WRITE_HINT in HQ mode: the one HQ rule that blocks on parse trouble is the public-text
-// rule, so an unparseable git/gh write is the Python hook's decision (delegate) and other parse trouble allows.
-func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
+// rule, so an unparseable git/gh write to a public repo is refused (a plain PublicBlock) and other parse trouble allows.
+func TestHQParseTroubleGitWriteBlocks(t *testing.T) {
 	f := newGitFix(t)
 	home := dbHome(t)
-	writeExport(t, home, exportDoc{Config: map[string]string{"frozen_repos": "o/f"}})
+	writeExport(t, home, exportDoc{Config: map[string]string{"public_text_repos": "o/r"}})
 	t.Setenv("FACTORY_HOME", home)
+	cwd := t.TempDir() // no git repo: the target is unknown, so public
 	for _, cmd := range []string{"git commit -m 'unterminated", "gh pr create --title 'x"} {
-		if err := Check(cmd, f.wt, "", true); !IsDelegate(err) {
-			t.Errorf("hq %q: %v, want a delegation", cmd, err)
+		err := Check(cmd, cwd, "", true)
+		if !isPublicBlock(err) || !strings.Contains(err.Error(), "cannot be parsed") {
+			t.Errorf("hq %q: %v, want the public-text refusal", cmd, err)
 		}
 	}
 	for _, cmd := range []string{"echo 'unterminated", "ls 'x"} {
@@ -663,17 +665,78 @@ func TestHQParseTroubleGitWriteDelegates(t *testing.T) {
 }
 
 func TestCoderTaskOrgPrefix(t *testing.T) {
+	// legacy refused names include "coder-t-1", "claude-coder-t-1x", "evil-coder-t-1"
 	for agent, want := range map[string]string{
 		"coder-t-1": "t-1", "claude-coder-t-1": "t-1", "cursor-coder-t-0844": "t-0844",
+		"cursor-coder-t-0817-a2": "t-0817", "cursor-coder-t-0817": "t-0817",
+		"coder-t-0817-a2": "t-0817", "claude-coder-t-0817-a2": "t-0817", "cursor-coder-t-0817-a10": "t-0817",
+		"cursor-coder-t-\u0661": "t-\u0661", "cursor-coder-t-\u0661-a2": "t-\u0661", "cursor-coder-t-\u0661\u0662\u0663": "t-\u0661\u0662\u0663",
 	} {
 		if got, ok := coderTask(agent); !ok || got != want {
 			t.Errorf("coderTask(%q) = %q, %v; want %q", agent, got, ok, want)
 		}
 	}
 	for _, agent := range []string{"evil-coder-t-1", "claude-cursor-coder-t-1", "cursor-claude-coder-t-1", "Claude-coder-t-1",
-		"claude-coder-t-1x", "claude-claude-coder-t-1", "claude-t-1", "claude-", "coder-t-", ""} {
+		"claude-coder-t-1x", "claude-claude-coder-t-1", "claude-t-1", "claude-", "coder-t-", "",
+		"cursor-coder-t-0817-b2", "cursor-coder-t-0817-a", "cursor-coder-t-0817-a2x", "cursor-coder-t-0817-a2-a3",
+		"cursor-coder-t-0817-A2", "evil-coder-t-0817-a2",
+		"cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2"} {
 		if got, ok := coderTask(agent); ok {
 			t.Errorf("coderTask(%q) = %q, true; want refused", agent, got)
+		}
+	}
+}
+
+func TestPushPinAttemptSuffix(t *testing.T) {
+	clearTermsEnv(t)
+	f := newGitFix(t)
+	home := dbHome(t)
+	wt0817 := filepath.Join(f.home, "worktrees", "G-027-T-0817")
+	if err := os.MkdirAll(filepath.Join(f.home, ".git", "worktrees", "G-027-T-0817"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(wt0817, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, wt0817, ".git", "gitdir: "+f.home+"/.git/worktrees/G-027-T-0817\n")
+	writeExport(t, home, exportDoc{Worktrees: map[string]string{"T-0817": wt0817}})
+	t.Setenv("FACTORY_HOME", home)
+	push := "git push origin HEAD:factory/t-0817"
+	for _, agent := range []string{"cursor-coder-t-0817-a2", "cursor-coder-t-0817"} {
+		t.Setenv("FACTORY_AGENT", agent)
+		err := Check(push, wt0817, "coder", false)
+		if err != nil {
+			t.Errorf("agent %q: %v, want allow", agent, err)
+		}
+	}
+	for _, agent := range []string{
+		"cursor-coder-t-0817-b2",
+		"cursor-coder-t-a2", "coder-t-a2", "claude-coder-t-a9", "cursor-coder-t--a2",
+	} {
+		t.Setenv("FACTORY_AGENT", agent)
+		err := Check(push, wt0817, "coder", false)
+		if err == nil || IsDelegate(err) {
+			t.Errorf("agent %q: %v, want block", agent, err)
+		} else if !strings.Contains(Explain(err), "cannot tell this pane's task id") {
+			t.Errorf("agent %q: %q, want task id message", agent, Explain(err))
+		}
+	}
+	t.Setenv("FACTORY_AGENT", "cursor-coder-t-0817-a2")
+	for _, cmd := range []string{
+		"git push origin HEAD:factory/t-0817-a2",
+		"true && git push origin HEAD:factory/t-0817",
+		"GIT_DIR=/x git push origin HEAD:factory/t-0817",
+	} {
+		err := Check(cmd, wt0817, "coder", false)
+		if err == nil || IsDelegate(err) {
+			t.Errorf("%q: %v, want block", cmd, err)
+			continue
+		}
+		msg := Explain(err)
+		if cmd == "git push origin HEAD:factory/t-0817-a2" {
+			if !strings.Contains(msg, "coders push exactly") || !strings.Contains(msg, "HEAD:factory/t-0817") {
+				t.Errorf("%q: %q, want pin message naming HEAD:factory/t-0817", cmd, msg)
+			}
 		}
 	}
 }

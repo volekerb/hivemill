@@ -20,7 +20,7 @@ tools, `--hq` with a non-Bash tool) are allowed here too.
 
 Go is stdlib only and opens no sqlite. Five decisions of the hook read the factory DB (read-only, `FACTORY_HOME` or the
 live home): the agent's own goal (`own_goal`, for `factory goal show <own goal>`), the `test_sandbox` config row
-(`sandbox_route`), the `public_text_repos` / `frozen_repos` rows (`PublicText`, git and gh writes), the task worktree of a
+(`sandbox_route`), the `public_text_repos` / `frozen_repos` rows (`PublicText`, git and gh writes; decided in Go since T-0887), the task worktree of a
 coder's `git push` (`git_push_pin`) and the `scrub_terms_file` row (`terms_paths`).
 
 ### The guard export (T-0767)
@@ -52,19 +52,37 @@ removals and chmods of it and Edit-class calls on it (realpath and symlink forms
    `task_worktrees[<TASK>]` to hold the pane's cwd and equal the `-C` target (realpaths); `test_sandbox` = `1` blocks
    bare runners; the `scrub_terms_file` row joins the exported terms variable in `terms_paths` (f1: it is honoured with
    the variable unset). No Python is started for any of these.
-4. **Still Python**: when `public_text_repos` or `frozen_repos` names a repo the public-text rule is on and a git/gh write
-   (`commit|tag -a|push|merge|commit-tree|notes`, `-c alias.*`, `gh pr|issue|release <write>`, a `gh api` write) is re-run
-   through the Python hook (`python3 <py-hook> ...`, `--py-hook <abs path>` from the shim): its verdict needs git
-   remote lookups and `ci/public_text_guard.py`. With the rule off (the usual state) nothing is delegated. If the hook
-   cannot be run, or exits with anything but 0 or 2, the binary exits 2 (`owngoal.go:RunPython`).
+4. **Public text (T-0887)**: when `public_text_repos` or `frozen_repos` names a repo the public-text rule is on and a git/gh
+   write (`commit|tag -a|push|merge|commit-tree|notes`, `-c alias.*`, `gh pr|issue|release <write>`, a `gh api` write) is
+   decided in Go as well (`ptrule.go`, the checker in `scrub.go` / `ptcheck.go`): remote lookups and the push range use
+   `git` subprocesses as Python does, the owner terms come from the exported terms-file variable or the export's
+   `scrub_terms_file` row. Nothing is re-run through the Python hook for any decision any more. The refusal text is
+   Python's (`public text: N hits: <ids>`, `repo X is frozen, G-021`, ...), so exit code and stderr are the same.
+   `--py-hook` is no longer needed to decide anything, but it still names `HOOK_REAL` (the checkout the hook belongs
+   to): from it the rule reads `ci/scrub_allowlist.txt` for a push and checks that `ci/public_text_guard.py` and
+   `ci/scrub_scan.py` exist (Python's "cannot be loaded" refusal). A push with no `--py-hook` is refused (the allowlist
+   cannot be located); text checks do not need it. The delegation machinery (`Delegate`, `RunPython`) is still in the
+   package, now used by no rule, so a future DB read without an export row can use it.
+
+   The checker port: the patterns of `scrub_scan.py` (GENERIC) and `public_text_guard.py` (EXTRA, image metadata readers,
+   `check_push`) are RE2 expressions plus hand-written lookbehind/`\b` assertions (`scanRule`); owner terms are matched
+   rune by rune with Python's `re.IGNORECASE` folding (`foldKey`: simple lower case plus CPython's extra cases such as
+   U+0130/U+0131/U+017F/U+212A). Only the hit count and ids matter to the hook (the refusal never prints matched
+   text), so masking and labels are not ported. Known difference: Python prints a deprecation warning on stderr for a
+   legacy `path:regex` line of `ci/scrub_allowlist.txt` on every push check; Go does not (there is none today).
+   Tests: `internal/guard/scrub_diff_test.go` and `scrub_push_test.go` compare the Go scanner and `checkPush` with the
+   Python module on a corpus (case, Unicode, boundaries, images, merges, allowlist) and on fixed-seed mixes;
+   `cmd/worker-guard/publictext_diff_test.go` runs ~350 git/gh commands through the binary (with a `--py-hook` that fails if
+   started) and the Python hook and requires the same exit and stderr; `publictext_test.go` asserts that nothing is
+   delegated and that the rule fails closed.
 
 `terms_paths` takes the union of the export's `scrub_terms_file` row and the exported terms-file variable (as Python
 does), so the export is read for every terms-role Bash call; an unusable export exits 2. A coder just spawned is
 missing from `agent_goals` until the next tick (up to a minute): `factory goal show <own goal>` is refused until then
 (the safe side), `factory task show` is not. `factory spawn` does not rewrite the export.
 
-Only what Python's early returns skip is decided in Go: a `git`/`gh` command reaches the public-text rule only for the
-write forms above.
+A `git`/`gh` command reads the export for the public-text rule only when it can reach the rule (the write forms above); a
+shell payload in HQ mode is analysed only when it may hold a `git`/`gh` word once its quoting is resolved.
 
 ## Command analyser (T-0349)
 
@@ -97,7 +115,7 @@ reads the DB and a DB file exists, the test accepts the delegation.
   write detector); `persist.go`: `brace_expand`, `repo_cfg_path`, `persist_path`, `persist_hit`, `persist_redirect`,
   `persist_write`; `git.go`: `git_persist` (with `-C`, `--git-dir`, `--work-tree`), `repo_cfg_refuse`, `cfg_in_scratch`,
   `git_push_pin`; `factory.go`: `temp_home`, `outside_live`, `agent_temp_home`, `check_identity`, `evaluator_factory`,
-  `factory_unit`, `broad_read`; `gh.go`: `gh_repo_change`; `publictext.go`: the entry conditions of `PublicText`;
+  `factory_unit`, `broad_read`; `gh.go`: `gh_repo_change`; `publictext.go` / `ptrule.go`: `PublicText` (T-0887: the whole rule);
   `tools.go`: `persist_edit` and `terms_tool` (Edit/Write/MultiEdit/NotebookEdit and Read/Grep payloads).
 - Tests: `persist_test.go` ports `tests/test_worker_guard_persist.py` and `tests/test_worker_guard_repocfg.py`;
   `factory_test.go` ports `tests/test_worker_guard_repoprot.py`, `tests/test_worker_guard_data.py`, the
