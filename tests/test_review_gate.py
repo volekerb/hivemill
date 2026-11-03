@@ -31,7 +31,7 @@ def fake_gh(files, additions, deletions, fail=None):
 
 class GateFunctionTests(unittest.TestCase):
     def test_gated_paths(self):
-        for f in ("roles/hooks/worker-guard.py", "roles/settings/coder.json", "ci/affected.py", ".github/workflows/ci.yml"):
+        for f in ("roles/hooks/some_hook.py", "roles/settings/coder.json", "ci/affected.py", ".github/workflows/ci.yml"):
             with self.subTest(f=f):
                 self.assertTrue(factory_cli.review_gate(["README.md", f], 3))
 
