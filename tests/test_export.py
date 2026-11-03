@@ -667,6 +667,12 @@ class ExportTests(FactoryTestCase):
         self.ok("export", "--no-push")
         self.assertNotEqual(self.blob("state/factory.sql"), sql)
 
+    def test_tick_export_without_state_tip_dumps_even_inside_interval(self):
+        self.set_cfg("last_state_dump_ts", str(time.time()))  # fresh ts, but refs/heads/state does not exist yet
+        self.ok("tick")
+        names = git("ls-tree", "-r", "--name-only", "refs/heads/state", cwd=self.env.home_dir).splitlines()
+        self.assertIn("state/factory.sql", names)
+
     def test_last_state_dump_ts_not_in_dump(self):
         self.set_cfg("last_state_dump_ts", "12345")
         self.ok("export", "--no-push")

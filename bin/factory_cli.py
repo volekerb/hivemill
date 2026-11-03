@@ -12332,6 +12332,9 @@ def export(con, push=None):
             dump_now = time.time() - float(last["value"]) >= float(cfg(con, "state_dump_interval_s")) if last else True
         except (ValueError, TypeError):  # unreadable ts or interval: dump rather than skip
             dump_now = True
+        if not dump_now and not any(_git(HOME, "rev-parse", "-q", "--verify", f"{r}^{{commit}}").stdout.strip()
+                                    for r in ("refs/heads/state", "refs/remotes/origin/state")):
+            dump_now = True  # no state tip to keep the old state/ blobs from: the first commit must carry them
     committed = cfg_ok and state_commit(f"state: {now()}", dump=dump_now)
     if committed and dump_now:
         con.execute("INSERT INTO config(key,value) VALUES('last_state_dump_ts',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
