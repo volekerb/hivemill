@@ -5238,9 +5238,13 @@ def build_digest(con, goal=None, date=None, hours=24):
         die(f"no goal {goal}")
     events = [e for e in con.execute("SELECT * FROM events ORDER BY id") if inwin(e["ts"])]
     score_rows = scorecard_rows(con)
-    shown = 0
     fresh_shown = False
     closed_earlier = []
+    shown_goals = []
+
+    def digest_goal_org(g):
+        return goal_org(con, g["id"]) or orgs.DEFAULT_ORG
+
     for g in goals:
         if g["status"] in ("done", "cancelled"):
             closed = _ts(goal_closed_at(con, g))
@@ -5248,9 +5252,16 @@ def build_digest(con, goal=None, date=None, hours=24):
                 if closed is not None and (goal or inwin(closed.isoformat())):
                     closed_earlier.append(f"- {g['id']} — {g['title']} ({g['status']}, closed {goal_closed_at(con, g)})")
                 continue
-        shown += 1
+        shown_goals.append(g)
+
+    org_counts = {o: sum(1 for g in shown_goals if digest_goal_org(g) == o) for o in orgs.NAMES}
+    out += [f"Orgs: claude {org_counts['claude']} active · cursor {org_counts['cursor']} active", ""]
+    enabled = set(enabled_orgs(con))
+
+    def digest_goal_block(g):
+        nonlocal fresh_shown
+        block = [f"## {g['id']} — {g['title']} ({g['status']})", ""]
         tasks = {t["id"]: t for t in con.execute("SELECT * FROM tasks WHERE goal_id=?", (g["id"],))}
-        out += [f"## {g['id']} — {g['title']} ({g['status']})", ""]
 
         def tline(t, extra=""):
             return f"- {t['id']} {t['title']}{extra}"
@@ -5271,11 +5282,11 @@ def build_digest(con, goal=None, date=None, hours=24):
         for tid in sorted(done):
             t = tasks[tid]
             lines.append(tline(t, (f" — {t['pr_url']}" if t["pr_url"] else "") + (f" @{done[tid]}" if done[tid] else "")))
-        out += ["### Done", *(lines or ["_nothing_"]), ""]
+        block += ["### Done", *(lines or ["_nothing_"]), ""]
 
         lines = [tline(t, f" ({t['status']}, {t['assignee'] or 'unassigned'}, attempts {t['attempts']})")
                  for t in tasks.values() if t["status"] in ("in_progress", "in_review")]
-        out += ["### In progress", *(sorted(lines) or ["_nothing_"]), ""]
+        block += ["### In progress", *(sorted(lines) or ["_nothing_"]), ""]
 
         # Blocked: status=blocked tasks, plus judge-blocked/merge-failed events on open tasks not superseded by a later merge
         merges = [(e["ts"], e["entity_id"]) for e in events if e["entity"] == "task" and e["action"] == "merged"]
@@ -5317,28 +5328,41 @@ def build_digest(con, goal=None, date=None, hours=24):
                              "AND goal_id=? ORDER BY name", (g["id"],)):
             lines.append(f"- agent {f['name']} running without role flags since {f['flagless_since']}")
         nb = [t["waits"] for t in tasks.values() if t["status"] == "blocked"]
-        out += ["### Blocked", *(([f"Blocked tasks: {nb.count('owner')} owner-blocked, {nb.count('internal')} internal-blocked"]
+        block += ["### Blocked", *(([f"Blocked tasks: {nb.count('owner')} owner-blocked, {nb.count('internal')} internal-blocked"]
                                  if nb else []) + lines or ["_nothing_"]), ""]
 
         done_ids = {i for i, t in tasks.items() if t["status"] == "done"}
         ready = [t for t in tasks.values() if t["status"] == "todo" and set(json.loads(t["depends_on"] or "[]")) <= done_ids]
-        out += ["### Up next", f"{len(ready)} ready todo task(s)", ""]
+        block += ["### Up next", f"{len(ready)} ready todo task(s)", ""]
         drift = drift_items(con, g, end, drift_pr_states(con))  # D2 uses the PR states of the last tick: no gh call here
-        out += ["Drift: " + ("; ".join(drift) if drift else "none"), ""]
+        block += ["Drift: " + ("; ".join(drift) if drift else "none"), ""]
         if not fresh_shown:
             fresh_shown = True
             stale = stale_agents(con)
-            out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
+            block += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
 
         for t in con.execute("SELECT id, parked_at FROM teams WHERE status='active' AND parked_at IS NOT NULL AND goal_id=? ORDER BY id", (g["id"],)):
             wakes = sum(1 for e in events if e["action"] == "lead-wake" and e["entity_id"] == t["id"])
-            out += [f"- {t['id']} parked since {t['parked_at'][:16]} ({wakes} wakes in window)"]
-        out += [""]
+            block += [f"- {t['id']} parked since {t['parked_at'][:16]} ({wakes} wakes in window)"]
+        block += [""]
         teams = [r for r in score_rows if r["goal"] == g["id"]]
         cols = ["team", "tasks", "done", "merged", "rejections", "retries", "score"]
-        out += ["### Team scores", md_table(teams, cols).rstrip("\n") if teams else "_nothing_", ""]
-    if not shown:
-        out += ["_no active goals_", ""]
+        block += ["### Team scores", md_table(teams, cols).rstrip("\n") if teams else "_nothing_", ""]
+        return block
+
+    for o in orgs.NAMES:
+        org_goals = [g for g in shown_goals if digest_goal_org(g) == o]
+        if o not in enabled and not org_goals:
+            continue
+        if o == "claude":
+            out += ["## Org claude", ""]
+        else:
+            out += ["## Org cursor", ""]
+        if not org_goals:
+            out += ["_no active goals_", ""]
+        else:
+            for g in org_goals:
+                out += digest_goal_block(g)
     if not fresh_shown:  # no goal block printed it: the line is factory-wide, so it still shows
         stale = stale_agents(con)
         out += ["Freshness: " + ("; ".join(f"{n} ({rs.replace(',', ', ')})" for n, rs in stale) if stale else "all current"), ""]
