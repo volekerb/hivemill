@@ -2718,21 +2718,21 @@
 {
 "module": "test_priv_guard",
 "cmd": "git push -u origin HEAD",
-"role": "qa",
+"role": "judge",
 "hq": false,
 "exit": 0
 },
 {
 "module": "test_priv_guard",
 "cmd": "git push origin factory/t-1",
-"role": "qa",
+"role": "judge",
 "hq": false,
 "exit": 0
 },
 {
 "module": "test_priv_guard",
 "cmd": "git push",
-"role": "qa",
+"role": "judge",
 "hq": false,
 "exit": 0
 },

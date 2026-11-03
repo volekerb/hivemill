@@ -76,33 +76,6 @@ func TestDecisionsFromExportMatchPythonWithoutSpawn(t *testing.T) {
 	}
 }
 
-// The public-text rule on: the checker module is Python, so a git/gh write is still the hook's, and everything else
-// is not.
-func TestPublicTextOnStillDelegatesWrites(t *testing.T) {
-	hook := absHook(t)
-	home := seedDB(t, "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", "INSERT INTO config VALUES ('frozen_repos', 'o/frozen')")
-	env := withTerms(t, "FACTORY_HOME="+home)
-	noPy := filepath.Join(t.TempDir(), "no-such-hook.py")
-	code, stderr := call(t, bashPayload("git commit -m x"), env, "--role", "coder", "--py-hook", noPy)
-	if code != 2 || !strings.Contains(stderr, "Python hook") {
-		t.Errorf("git commit with the rule on: exit %d %q, want the delegation to fail", code, stderr)
-	}
-	// a delegation that cannot run is exit 2, never an allow: no --py-hook, a directory, a hook that crashes
-	bad := filepath.Join(t.TempDir(), "hook.py")
-	if err := os.WriteFile(bad, []byte("import sys\nsys.exit(1)\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"--role", "coder"}, {"--role", "coder", "--py-hook", t.TempDir()}, {"--role", "coder", "--py-hook", bad}} {
-		if code, stderr := call(t, bashPayload("git commit -m x"), env, args...); code != 2 || !strings.Contains(stderr, "failing closed") {
-			t.Errorf("%v: exit %d %q, want 2 failing closed", args, code, stderr)
-		}
-	}
-	if code, stderr := call(t, bashPayload("git status"), env, "--role", "coder", "--py-hook", noPy); code != 0 {
-		t.Errorf("git status with the rule on: exit %d %q, want 0", code, stderr)
-	}
-	same(t, hook, bashPayload("git status"), env, "coder")
-}
-
 // Fail closed: a missing, unparsable or stale export is exit 2 for any decision that needs it, with a message that
 // says how to fix it; a payload that needs nothing from the DB still passes.
 func TestExportMissingUnparsableStaleExitsTwo(t *testing.T) {

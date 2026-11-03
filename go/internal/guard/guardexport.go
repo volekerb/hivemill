@@ -147,22 +147,6 @@ func testSandboxOn() (bool, error) {
 	return strings.TrimFunc(e.Config["test_sandbox"], pyIsSpace) == "1", nil
 }
 
-// publicTextOn is PublicText.active: public_text_repos or frozen_repos names a repo.
-func publicTextOn() (bool, error) {
-	e, err := exportNeeded()
-	if e == nil {
-		return false, err
-	}
-	for _, k := range []string{"public_text_repos", "frozen_repos"} {
-		for _, s := range strings.Split(e.Config[k], ",") {
-			if strings.TrimFunc(s, pyIsSpace) != "" {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
-}
-
 // scrubTermsFile is cfg.get("scrub_terms_file") of PublicText: "" for none.
 func scrubTermsFile() (string, error) {
 	e, err := exportNeeded()

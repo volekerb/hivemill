@@ -168,13 +168,19 @@ func envOption(s string, i int) bool {
 
 // Check is a port of worker-guard.py:check. A nil result is exit 0; any error is a block (exit 2), see Explain.
 func Check(cmd, cwd, role string, hq bool) error {
+	pt, err := newPublicText(cwd, cmd) // one PublicText for both passes: its directories and heredoc bodies carry over
+	if err != nil {
+		return err
+	}
 	// PRIV pass (the whole of HQ mode): parse trouble allows
 	an, err := NewAnalyzer(cwd, role, true)
 	if err != nil {
 		return err
 	}
 	an.unitRule = hq
-	an.pt = hq
+	if hq {
+		an.pt = pt
+	}
 	if err := an.script(cmd, 0); err != nil {
 		switch {
 		case IsPrivBlock(err):
@@ -187,15 +193,20 @@ func Check(cmd, cwd, role string, hq bool) error {
 		case IsDelegate(err) || isPublicBlock(err):
 			return err
 		default:
-			// a plain Block. The one HQ rule that blocks on parse trouble is the public-text rule, which reads the
-			// factory DB to know whether it is on: stay closed for any command that may be a git or gh write.
-			if hq && (strings.Contains(cmd, "git") || strings.Contains(cmd, "gh")) {
-				on, perr := publicTextOn() // PublicText.active reads public_text_repos / frozen_repos
-				if perr != nil {
+			// a plain Block. The one HQ rule that blocks on parse trouble is the public-text rule: a command that may be
+			// a git or gh write and cannot be parsed is refused when the rule is on for the repo it would write to.
+			if hq && ptWriteHint(cmd) {
+				if perr := pt.loadConfig(); perr != nil {
 					return perr
 				}
-				if on {
-					return delegate("public-text rule: a git/gh write that cannot be parsed")
+				if pt.active {
+					slug := pt.remoteSlug(cwd, cwd != "", "origin", false)
+					if ferr := pt.frozenHit(slug, "origin", true); ferr != nil {
+						return ferr
+					}
+					if pt.applies(slug, "origin", true) {
+						return pubBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
+					}
 				}
 			}
 		}
@@ -241,7 +252,7 @@ func Check(cmd, cwd, role string, hq bool) error {
 	if err != nil {
 		return err
 	}
-	an2.pt = true
+	an2.pt = pt
 	if err := an2.script(cmd, 0); err != nil {
 		if IsPrivBlock(err) {
 			if cerr := claudeOverPriv(cmd, cwd, role); cerr != nil {
