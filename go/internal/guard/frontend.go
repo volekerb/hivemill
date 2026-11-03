@@ -97,7 +97,7 @@ var (
 		"env": set("-u", "-C", "--unset", "--chdir"), "exec": set("-a"), "nohup": set(), "command": set(), "builtin": set(),
 		"setsid": set(), "timeout": set("-s", "-k", "--signal", "--kill-after"), "nice": set("-n", "--adjustment"),
 		"ionice": set("-c", "-n", "-p", "-P", "-u", "--class", "--classdata"), "stdbuf": set("-i", "-o", "-e"),
-		"xargs": set("-I", "-J", "-n", "-P", "-d", "-L", "-l", "-s", "-E", "-a", "-R", "-S", "--max-args", "--max-procs",
+		"xargs": set("-I", "-J", "-n", "-P", "-d", "-L", "-s", "-E", "-a", "-R", "-S", "--max-args", "--max-procs",
 			"--delimiter", "--max-lines", "--max-chars", "--arg-file", "--eof", "--process-slot-var"),
 		"watch": set("-n", "--interval", "-w"), "busybox": set(),
 	}

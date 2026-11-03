@@ -65,9 +65,11 @@ factory up                                # starts the missing <org>-director / 
 
 | Key | Example | Meaning |
 |---|---|---|
-| `agent_runtimes` | `pm=cursor` | Per-role runtime. Empty = all Claude. |
-| `agent_runtimes` | `*=cursor` or `all=cursor` | Every Cursor-capable role (not `evaluator`). |
+| `agent_runtimes` | `pm=cursor` | Per-role runtime override on the **default** org only. |
+| `agent_runtimes` | `*=cursor` or `all=cursor` | Every role in `CURSOR_ROLES` → `cursor` (not `evaluator`). |
 | `cursor_pilot_roles` | `pm,coder` | Legacy alias → `pm=cursor,coder=cursor`. Prefer `agent_runtimes`. |
+
+**Resolution (`org_runtime`):** On the default org, **empty** `agent_runtimes` resolves **every** role to Claude. `*=cursor` (or `all=cursor`) resolves every role in `scout/cursor_harness.CURSOR_ROLES` to `cursor`. The skilleval **evaluator always stays Claude**, even with `*=cursor`. A **non-default org** ignores `agent_runtimes` for runtime choice and uses `scout/orgs.py` instead — the **cursor org is `cursor` even when `agent_runtimes` is empty** on the default org.
 
 Allow-lists: `scout/agent_runtime.ALLOWED` / `scout.cursor_harness.CURSOR_ROLES`.
 
@@ -87,9 +89,9 @@ Models: factory `MODELS` / `model_<role>` pass through to Cursor `--model`.
 ### Caveats
 
 - **skilleval evaluator** stays Claude.
-- Claude **nsbox** is not used for Cursor; `sandbox_roles` → Cursor `--sandbox enabled` + worker-guard.
-- **worker ghcred** works (same pane env as Claude).
-- User `~/.cursor/mcp.json` is not fully blinded.
+- **nsbox vs Cursor sandbox:** Claude **nsbox** (user/mount namespace around `claude`) is **not** wrapped around Cursor agents. For a Cursor role listed in `sandbox_roles`, spawn turns on Cursor **`--sandbox enabled`** and still runs **worker-guard** via hooks — that is separate from nsbox.
+- **Worker GitHub credentials (M15876):** When the role is in config **`worker_gh_roles`**, an unsandboxed Cursor worker pane gets the same **`ghcred` shim env** as a Claude worker (`GIT_CONFIG_GLOBAL`, `GH_CONFIG_DIR`, `PATH` prefix, token file paths). This is normal spawn wiring, **not** a spawn-time refusal.
+- **User MCP blinding:** Materializing an empty project `.cursor/mcp.json` at spawn does **not** hide the owner's **`~/.cursor/mcp.json`**. User MCP is **not fully blinded** for Cursor the way Claude uses `--strict-mcp-config`. Status **NEEDS_WORK** — tracked as **T-0828**; do not document full MCP isolation as done.
 - **flagless / claude_procs** audits ignore Cursor argv (expected).
 - Auth: `agent login` or `CURSOR_API_KEY`.
 
