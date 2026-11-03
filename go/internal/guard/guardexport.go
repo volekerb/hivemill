@@ -119,6 +119,9 @@ func ownGoal() (string, error) {
 	if e == nil {
 		return "", err
 	}
+	// agent_goals is rewritten by the tick (about once a minute), not by `factory spawn`: an agent spawned since
+	// the last tick is absent from the map for up to one tick and reads as "no goal" (own-goal decisions deny, which
+	// is the safe side). A stale or missing export fails closed (exit 2, see GuardExportMaxAge).
 	return e.AgentGoals[agent], nil
 }
 

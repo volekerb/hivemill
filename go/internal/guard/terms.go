@@ -111,15 +111,11 @@ func pyRealpath(p string) string {
 // "guard export unusable" one.
 func termsPaths() (map[string]struct{}, error) {
 	out := map[string]struct{}{}
-	// spawn exports the configured path to every worker: while the variable is set the export is not read (a path
-	// changed in the DB after the spawn is not seen, as documented), so a dead tick does not lock every terms role
-	// out of Bash; with the variable unset the export is the source of the row (T-0767, f1).
-	cfgPath := ""
-	if strings.TrimFunc(os.Getenv(termsVar), pyIsSpace) == "" {
-		var err error
-		if cfgPath, err = scrubTermsFile(); err != nil {
-			return nil, err
-		}
+	// Always read the export row and union it with the exported variable, as Python's terms_paths does: with the
+	// variable set to file A and the row naming file B, both are protected. An unusable export fails closed (exit 2).
+	cfgPath, err := scrubTermsFile()
+	if err != nil {
+		return nil, err
 	}
 	for _, v := range []string{cfgPath, os.Getenv(termsVar)} {
 		v = strings.TrimFunc(v, pyIsSpace)

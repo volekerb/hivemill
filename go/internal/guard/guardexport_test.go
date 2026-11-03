@@ -141,3 +141,49 @@ func TestPushPinFromExport(t *testing.T) {
 	t.Setenv("FACTORY_AGENT", "coder-t-6") // no worktree recorded for t-6
 	f.blocked(t, "git push origin HEAD:factory/t-6", f.wt, "coder")
 }
+
+// Round 2 b: the export row is unioned with the terms variable (Python terms_paths), whichever of the two is set.
+func TestScrubTermsFileUnionWithEnv(t *testing.T) {
+	dir := t.TempDir()
+	fileA := filepath.Join(dir, "a-terms.txt")
+	fileB := filepath.Join(dir, "b-terms.txt")
+	for _, f := range []string{fileA, fileB} {
+		if err := os.WriteFile(f, []byte("secret\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []struct {
+		name, env, row string
+		blockA, blockB bool
+	}{
+		{"env A, row B: both protected", fileA, fileB, true, true},
+		{"env unset, row B", "", fileB, false, true},
+		{"env A, no row", fileA, "", true, false},
+	} {
+		home := dbHome(t)
+		cfg := map[string]string{}
+		if c.row != "" {
+			cfg["scrub_terms_file"] = c.row
+		}
+		writeExport(t, home, exportDoc{Config: cfg})
+		t.Setenv("FACTORY_HOME", home)
+		if c.env == "" {
+			unsetEnv(t, termsVar)
+		} else {
+			t.Setenv(termsVar, c.env)
+		}
+		for f, want := range map[string]bool{fileA: c.blockA, fileB: c.blockB} {
+			if err := checkRole("cat "+f, "coder"); (err != nil) != want {
+				t.Errorf("%s: cat %s: %v, want block=%v", c.name, filepath.Base(f), err, want)
+			}
+		}
+	}
+	// env set and the export unusable: fail closed, not a silent allow
+	home := dbHome(t)
+	writeExport(t, home, exportDoc{Age: 2 * GuardExportMaxAge})
+	t.Setenv("FACTORY_HOME", home)
+	t.Setenv(termsVar, fileA)
+	if err := checkRole("ls -la", "coder"); !IsClosed(err) {
+		t.Errorf("env set, stale export: %v, want a closed refusal", err)
+	}
+}

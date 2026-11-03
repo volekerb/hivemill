@@ -135,9 +135,13 @@ func TestExportMissingUnparsableStaleExitsTwo(t *testing.T) {
 		if code != 2 || !strings.Contains(stderr, c.want) || !strings.Contains(stderr, "factory tick") {
 			t.Errorf("%s: exit %d %q, want 2 with %q and the fix", c.name, code, stderr, c.want)
 		}
-		// own tool calls need nothing from the export
-		if code, stderr := call(t, bashPayload("factory task show T-9"), env, "--role", "coder"); code != 0 {
-			t.Errorf("%s: factory task show: exit %d %q, want 0", c.name, code, stderr)
+		// a terms role reads scrub_terms_file from the export even with the terms variable set (union, round 2 b)
+		if code, stderr := call(t, bashPayload("factory task show T-9"), env, "--role", "coder"); code != 2 || !strings.Contains(stderr, c.want) {
+			t.Errorf("%s: coder factory task show: exit %d %q, want 2", c.name, code, stderr)
+		}
+		// a role that is not a terms role needs nothing from the export for its own tool calls
+		if code, stderr := call(t, bashPayload("factory task show T-9"), env, "--role", "cleaner"); code != 0 {
+			t.Errorf("%s: cleaner factory task show: exit %d %q, want 0", c.name, code, stderr)
 		}
 		// the Read/Grep terms tools need scrub_terms_file when no terms variable is exported
 		terms := `{"tool_name":"Read","tool_input":{"file_path":"/etc/hostname"}}`

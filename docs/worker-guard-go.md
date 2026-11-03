@@ -53,10 +53,10 @@ would add a commit per tick. The Go binary (`internal/guard/guardexport.go`) dec
    remote lookups and `ci/public_text_guard.py`. With the rule off (the usual state) nothing is delegated. If the hook
    cannot be run, or exits with anything but 0 or 2, the binary exits 2 (`owngoal.go:RunPython`).
 
-While the terms-file environment variable is exported (spawn does this for every worker) `terms_paths` takes it alone and
-does not read the export, so a dead tick does not lock the terms roles out of every Bash call; a path changed in the DB
-after a worker was spawned is not seen by that worker's Go guard. A coder just spawned is missing from `agent_goals`
-until the next tick (up to a minute): `factory goal show <own goal>` is refused until then, `factory task show` is not.
+`terms_paths` takes the union of the export's `scrub_terms_file` row and the exported terms-file variable (as Python
+does), so the export is read for every terms-role Bash call; an unusable export exits 2. A coder just spawned is
+missing from `agent_goals` until the next tick (up to a minute): `factory goal show <own goal>` is refused until then
+(the safe side), `factory task show` is not. `factory spawn` does not rewrite the export.
 
 Only what Python's early returns skip is decided in Go: a `git`/`gh` command reaches the public-text rule only for the
 write forms above.
