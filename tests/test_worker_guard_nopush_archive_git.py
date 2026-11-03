@@ -221,7 +221,8 @@ class ArchiveGitTests(unittest.TestCase):
             f"tar -xf {clean} -C {o} --use-compress-program=sh", f"tar -xf {clean} -C {o} -I sh",
             f"tar -xf{clean} -C {o}", f"tar -xf{clean}", f"tar -xvf{clean} -C {o}", f"tar -C {o} -xf{clean}",
             f"tar -xfC {clean} out", f"tar xfC {clean} out", f"tar -xf {clean} -f {gitcfg} -C {o}",
-            f"tar -xf {clean} -C {o} -- x", f"unzip {zclean} -d {o} -- x",
+            f"tar -xf {clean} -C {o} -- x", f"unzip {zclean} -l -d {o}", f"unzip -q {zclean} .git/config -l",
+            f"tar -xf {clean} foo -C {o}", f"tar -xf {clean} -C {o} -C ..", f"unzip {zclean} -d {o} -- x",
             f"TAR_OPTIONS=--xform=s/x/.git/ tar -xf {clean} -C {o}", f"export TAR_OPTIONS=-i; tar -xf {cat} -C {o}",
             f"env TAR_OPTIONS=-i tar -xf {cat} -C {o}", f"set -a; TAR_OPTIONS=-i; tar -xf {cat} -C {o}",
             f"POSIXLY_CORRECT=1 tar -xf {clean} -C {o}", f"UNZIP=-j unzip {zclean} -d {o}",
@@ -276,6 +277,9 @@ class ArchiveGitTests(unittest.TestCase):
             (["-xif", "a"], True, ["a"], [], True),      # not allowlisted
             (["--ignore-zeros", "-xf", "a"], True, ["a"], [], True),
             (["-xf"], True, [], [], True),
+            (["-xf", "a", "foo", "-C", "o"], True, ["a"], ["o"], True),
+            (["-xf", "a", "-C", "o", "foo"], True, ["a"], ["o"], False),
+            (["-xf", "a", "-C", "o", "-C", ".."], True, ["a"], ["o", ".."], True),
         ]
         for args, ext, arch, dirs, prob in rows:
             with self.subTest(args=args):

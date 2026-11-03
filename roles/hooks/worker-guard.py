@@ -1670,7 +1670,7 @@ class Analyzer:
             return any(re.match(r"^-?[A-Za-z]*t[A-Za-z]*$", a) for a in args[:1]) and not any(
                 re.match(r"^-?[A-Za-z]*[cxru][A-Za-z]*$", a) for a in args[:1]) or "--list" in args
         if name == "unzip":
-            return any(a in ("-l", "-v", "-t", "-Z") for a in args)
+            return unzip_listing(args)
         return False
 
     def archive_rule_e(self, name, args):
@@ -1682,7 +1682,7 @@ class Analyzer:
         why0 = "name the target (tar -C, unzip -d, cpio -D) as a scratchpad dir that has no .git"  # the T-0783 text (Go mirror)
         zipped = name == "unzip"
         if zipped:
-            extract = not any(a in UNZIP_LISTING for a in args)
+            extract = not unzip_listing(args)
         else:
             extract, tarch, tdirs, tproblems = parse_tar(args)
         if not extract:
@@ -3180,13 +3180,28 @@ def evaluator_home_text(cmd):
 SESSION_ID = None  # the hook payload's session_id: names the worker's own scratchpad
 
 
+def unzip_listing(args):
+    """T-0805: unzip reads options only before the zip name (a later -l is a member pattern, not a listing flag)."""
+    k = 0
+    while k < len(args):
+        a = args[k]
+        if a in UNZIP_LISTING:
+            return True
+        if a == "-d":
+            k += 1
+        elif not a.startswith("-") or a == "-":
+            return False  # the zip name: the rest are member patterns
+        k += 1
+    return False
+
+
 def parse_tar(args):
     """T-0805 P1: the one grammar for tar/gtar/bsdtar arguments. Returns (extract, archives, dirs, problems). A short word
     (single leading `-`, or the first word without one) is classified only when it is `-C<dir>` (C first) or letters only
     with at most one value letter (f or C) and that letter last; anything else (glued `-xf<path>`, `-xfC`, digits, `/`) is
     unclassifiable and counts as extract mode, so E1 refuses it (unknown = extract, fail closed). `problems` lists every
     reason the argv is outside the E1 allowlist (non-empty with extract = refuse)."""
-    extract, archives, dirs, problems = False, [], [], []
+    extract, archives, dirs, problems, marks = False, [], [], [], []
     k = 0
     while k < len(args):
         a, j = args[k], k
@@ -3222,8 +3237,14 @@ def parse_tar(args):
                     continue
                 (archives if letters[-1] == "f" else dirs).append(args[k])
                 k += 1
+        else:
+            marks.append(len(dirs))  # a member name: -C only applies to the names after it
     if len(archives) > 1:
         problems.append("more than one -f/--file")
+    if any(m < len(dirs) for m in marks):
+        problems.append("a member name before -C (GNU tar applies -C only to later names)")
+    if len(dirs) > 1:
+        problems.append("more than one -C/--directory (GNU tar chains them)")
     return extract, archives, dirs, problems
 
 
