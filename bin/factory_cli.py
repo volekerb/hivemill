@@ -8746,8 +8746,11 @@ def prcheck_done_refusal(con, r, t):
     if cfg(con, "prcheck_required") != "1" or not t or not t["pr_url"]:
         return
     try:
-        merged = pr_state(t["pr_url"]).get("state") == "MERGED"
-    except (SystemExit, ValueError, KeyError):  # gh failed: cannot prove it landed, the gate below decides
+        pr = pr_state(t["pr_url"])
+        # the PR must be this task's own (a coder can set pr_url to any PR): its head branch is the task's branch
+        own = con.execute("SELECT branch FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+        merged = pr.get("state") == "MERGED" and bool(own and own["branch"]) and pr.get("headRefName") == own["branch"]
+    except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, AttributeError):  # cannot prove it landed: the gate below decides
         merged = False
     if merged:  # the work is on main: no prcheck on a HEAD can matter, and the worktree may already be gone
         return

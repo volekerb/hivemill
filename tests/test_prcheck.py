@@ -369,6 +369,19 @@ class PrcheckTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.agent_status(), "done")
 
+    def test_done_refused_for_merged_pr_of_another_branch(self):
+        """A coder-set pr_url pointing at an unrelated merged PR must not skip the gate."""
+        self.ok("config", "prcheck_required", "1")
+        self.pushed()
+        self.env.seed_pr(url=PR_URL, state="MERGED", body=pr_body())
+        st = json.loads(self.env.gh_state.read_text())
+        st["prs"][PR_URL]["headRefName"] = "factory/t-9999"
+        self.env.gh_state.write_text(json.dumps(st))
+        git("worktree", "remove", "--force", str(self.wt), cwd=self.main)
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("cannot be read", p.stderr)
+
     def test_done_still_refused_for_open_pr_with_worktree_gone(self):
         self.ok("config", "prcheck_required", "1")
         self.pushed()
