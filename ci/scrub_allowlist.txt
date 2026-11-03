@@ -26,7 +26,6 @@ roles/plugins/staff-engineer/feature-dev/README.md:email:sbidasaria@anthropic\.c
 roles/plugins/staff-engineer/pr-review-toolkit/.claude-plugin/plugin.json:email:support@anthropic\.com  # vendored plugin author email (licence attribution, THIRD_PARTY.md); never edit vendored files
 roles/plugins/staff-engineer/pr-review-toolkit/README.md:email:daisy@anthropic\.com  # vendored plugin author credit (licence attribution, THIRD_PARTY.md)
 docs/demo-data.md:home-path:<dir>/hom[e]/\.claude/  # prose: the demo dir layout, not a user home path
-roles/plugins/reviewer/reviewer-skills/skills/multi-angle-review/SKILL.md:home-path:/hom[e]/[a-z]+/factory/roles/workflows/  # absolute workflow path the test pins; follow-up: make it path-relative
 tests/test_review_workflow.py:home-path:/hom[e]/[a-z]+/factory/roles/workflows/  # asserts the SKILL.md text above still names the workflow path
 tests/fixtures/web_tokens/projects/-home-synth-factory-worktrees-G-900-T-9000/synth-sess-0002.jsonl:home-path:"cwd":"/hom[e]/synth/  # synthetic Claude session log; the path is the test data
 tests/test_web_tokens.py:home-path:"cwd": "/hom[e]/v/factory/worktrees/  # synthetic cwd the project-name derivation test needs

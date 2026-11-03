@@ -19,6 +19,7 @@ Follow these steps in order.
 7. If the Workflow tool is unavailable or errors, do the normal single-pass review and say so; do not retry in a loop.
 
 Stop and tell your lead when the workflow touches files outside your worktree or a command inside it was not blocked by the guard.
+Workflow scripts live under `<factory-root>/roles/workflows/` (`<factory-root>` is defined in docs/self-review.md).
 Source: G-011 T-0242; cost and off switch in docs/review-workflow.md.
 
 ## Stale base (S1)

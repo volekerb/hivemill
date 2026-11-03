@@ -17,7 +17,9 @@ from pathlib import Path
 
 def live_homes(uid=None, base=None):
     """The live factory homes, derived like bin/factory_cli.py derive_live_homes (which cannot be imported without
-    side effects): <passwd home>/factory, plus the one line of <passwd home>/.config/factory/live_home if valid."""
+    side effects): <passwd home>/factory, plus the one line of <passwd home>/.config/factory/live_home if it is a single absolute
+    line. Unlike the CLI it does not check the file's type, owner or permissions: a file the CLI would ignore still
+    adds a live home here, which can only make this script refuse more."""
     if base is None:
         base = pwd.getpwuid(os.getuid() if uid is None else uid).pw_dir
     homes = {os.path.realpath(os.path.join(base, "factory"))}
@@ -57,15 +59,20 @@ def load(home, state_dir):
     con = sqlite3.connect(tmp)
     try:
         con.executescript(sql.read_text(encoding="utf-8"))
-        for e in events:
+        valid = {r[1] for r in con.execute("PRAGMA table_info(events)")}
+        for n, e in enumerate(events, 1):
             cols = list(e)
+            bad = [c for c in cols if c not in valid]
+            if bad:
+                raise ValueError(f"events.jsonl line {n}: unknown column {bad[0]!r}; "
+                                 f"allowed: {', '.join(sorted(valid))}")
             con.execute(f"INSERT INTO events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
                         [e[c] for c in cols])
         con.commit()
         tables = [r[0] for r in con.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
         counts = {t: con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
-    except (sqlite3.Error, TypeError, AttributeError) as e:
+    except (sqlite3.Error, TypeError, AttributeError, ValueError) as e:
         con.close()
         tmp.unlink(missing_ok=True)
         raise RuntimeError(f"load failed ({e}); nothing was written") from e

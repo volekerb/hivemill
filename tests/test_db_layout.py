@@ -44,8 +44,8 @@ def counts(path):
     try:
         out = {t: con.execute(f'SELECT count(*) FROM "{t}"').fetchone()[0]
                for (t,) in con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
-        # the tick keeps this bookkeeping key (util_alerts); it is not a setting the test changes
-        out["config"] = con.execute("SELECT count(*) FROM config WHERE key != 'util_cap_breach_last_id'").fetchone()[0]
+        # the tick keeps these bookkeeping keys (util_alerts, state dump throttle); they are not settings the test changes
+        out["config"] = con.execute("SELECT count(*) FROM config WHERE key NOT IN ('util_cap_breach_last_id', 'last_state_dump_ts')").fetchone()[0]
         return out
     finally:
         con.close()
