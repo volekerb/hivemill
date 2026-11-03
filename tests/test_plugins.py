@@ -7,7 +7,7 @@ from harness import REPO, FactoryTestCase, ROLES
 
 PLUGINS_ROOT = REPO / "roles" / "plugins"
 PLUGINS = PLUGINS_ROOT / "staff-engineer"
-WITH_PLUGINS = {"coder", "director", "lead", "pm", "qa", "reviewer", "staff-engineer"}
+WITH_PLUGINS = {"coder", "director", "lead", "pm", "qa", "researcher", "reviewer", "staff-engineer"}
 BAD_EXT = {".sh", ".py", ".js", ".ts", ".cmd", ".ps1", ".html"}
 BAD_NAMES = {"hooks", "hooks.json", ".mcp.json"}
 NAMED_WORKFLOW = REPO / "roles" / "workflows" / "multi-angle-review.js"
@@ -65,6 +65,7 @@ class VendoredPluginsStaticTests(unittest.TestCase):
             "lead": ["factory-lead"],
             "pm": ["pm-skills"],
             "qa": ["qa-skills"],
+            "researcher": ["research-skills"],
             "reviewer": ["reviewer-skills"],
             "staff-engineer": ["feature-dev", "pr-review-toolkit", "staff-engineer-skills"],
         })

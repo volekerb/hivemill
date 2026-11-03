@@ -1,0 +1,8 @@
+{
+  "name": "research-skills",
+  "description": "Text-only factory skills for the researcher: research-brief, source-evaluation, tool-comparison, benchmark-protocol, plugin-evaluation, report-writing",
+  "version": "1.0.0",
+  "author": {
+    "name": "factory"
+  }
+}
