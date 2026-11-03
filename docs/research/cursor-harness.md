@@ -18,17 +18,7 @@ Multi-runtime harness landed (`docs/runtimes.md`). Claude path unchanged when `a
 | Config | `agent_runtimes=pm=cursor` (legacy: `cursor_pilot_roles=pm`) |
 | Tests | `tests/test_cursor_pilot.py` |
 
-**Try it:**
-
-```bash
-agent login   # or export CURSOR_API_KEY=...
-factory config agent_runtimes pm=cursor
-factory cursor-pilot probe --role pm
-factory spawn pm --name zz-cursor-pm --goal G-001 --team g-001-a
-# → SPAWNED … runtime=cursor pid=… log=run/<name>.cursor.log
-```
-
-Live throwaway-factory check: prepare/probe/spawn subprocess **WORKS**; LLM turn needs CLI auth (`agent` reported Not logged in here).
+Operators: auth (`agent login` or `CURSOR_API_KEY`), config, probe, spawn, and org/runtime rules are in **`docs/runtimes.md`** (including `factory spawn` via `herdr agent start --kind cursor` on main since PR #242).
 
 ---
 
@@ -286,7 +276,7 @@ Do **not** pilot boss/director/lead first (HQ herdr coupling, interactive owner 
 | Materialize `.cursor/hooks.json` (`failClosed`), `cli.json`, role rule, empty `mcp.json` | **WORKS** (`cursor-pilot prepare`) |
 | Permission translation `Bash→Shell`, `Edit→Write(**)` | **WORKS** |
 | Headless argv builder (`agent -p --force --trust`) | **WORKS** |
-| `factory spawn` for pilot roles | **NEEDS_WORK** — refused on purpose; herdr `--kind claude` cannot host `agent` |
+| `factory spawn` for Cursor-capable roles | **WORKS** on main (#242) — `place()` → `herdr agent start --kind cursor` → `herdr agent prompt` (see `docs/runtimes.md`) |
 | Session resume / `herdr agent prompt` / tick list | **NEEDS_WORK** |
 | MCP user-blind parity with `--strict-mcp-config` | **NEEDS_WORK** |
 | Process audits for `cursor-agent` argv | **NEEDS_WORK** |

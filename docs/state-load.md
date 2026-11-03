@@ -15,8 +15,9 @@ The export leaves the `events`, `throttle` and `util_samples` rows out of `facto
 ## Refusals (exit 1, nothing written)
 
 - `FACTORY_HOME` unset or empty.
-- `FACTORY_HOME` resolves to a live factory home: `<passwd home>/factory`, or the one line in `<passwd home>/.config/factory/live_home`. Symlinks are resolved. This repeats the CLI's own rule (`derive_live_homes` in `bin/factory_cli.py`), which cannot be imported without side effects.
+- `FACTORY_HOME` resolves to a live factory home: `<passwd home>/factory`, or the one line in `<passwd home>/.config/factory/live_home`. Symlinks are resolved. The `live_home` file counts when it holds exactly one absolute line. This follows the CLI's `derive_live_homes` in `bin/factory_cli.py` (which cannot be imported without side effects) except that it does not check the file's type, owner or permissions, so it can only refuse more than the CLI, never less.
 - `$FACTORY_HOME/db/factory.db` (or the legacy `$FACTORY_HOME/factory.db`) already exists.
+- An `events.jsonl` line has a key that is not a column of the `events` table (checked with `PRAGMA table_info`); the error names the line and the key.
 - `factory.sql` or `events.jsonl` missing, or either fails to load. The DB is built as `factory.db.tmp` and renamed only on success, so a failed load leaves no DB.
 
 Delete the temp home when done.
