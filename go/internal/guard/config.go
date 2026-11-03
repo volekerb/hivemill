@@ -85,7 +85,8 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 	for _, w := range uniq([]string{word, valueOf(word)}) {
 		t := cfgExpand(substVars(w, a.vars))
 		if strings.ContainsAny(t, "$`*?[{") {
-			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") {
+			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") ||
+				strings.Contains(t, ".local/lib/factory") || strings.Contains(t, "run/guard_impl") {
 				return true
 			}
 			if a.exportGlob(t) {
@@ -101,7 +102,8 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 			full = pyJoin(a.ccwd, t)
 		}
 		p := pyRealpath(full)
-		for _, d := range append([]string{h.cfgDir}, h.runSettings...) {
+		dirs := append([]string{h.cfgDir, h.libDir}, h.runSettings...)
+		for _, d := range append(dirs, h.runGuardImpl...) {
 			if p == d || Under(p, d) || (ancestor && Under(d, p)) {
 				return true
 			}
@@ -120,7 +122,8 @@ func (a *Analyzer) cfgRedirect(target string) error {
 	if a.cfgHit(target, false) {
 		return blockf("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live " +
 			"home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json (the guard's own " +
-			"decisions); only the owner and the tick change them")
+			"decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation flag and binary); only the " +
+			"owner and the tick change them")
 	}
 	return nil
 }
@@ -263,6 +266,10 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 				if strings.Contains(x, "guard-export") {
 					return blockf("`" + name + "` on <live>/run/guard-export.json: it holds the guard's own decisions; only the tick writes it")
 				}
+				if strings.Contains(x, "guard_impl") || strings.Contains(x, ".local/lib/factory") || a.cfgPathIn(x, append([]string{h0().libDir}, h0().runGuardImpl...)) {
+					return blockf("`" + name + "` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the " +
+						"guard implementation; only the owner and `factory` change them")
+				}
 				return blockf("`" + name + "` on ~/.config/factory: " + cfgWhy)
 			}
 		}
@@ -291,4 +298,20 @@ func dropDashDash(rest []string) []string {
 		}
 	}
 	return out
+}
+
+func h0() *hostInfo { return mustHost() }
+
+// cfgPathIn is `self.cfg_path(a) in dirs` of the Python block message: x resolves to one of paths.
+func (a *Analyzer) cfgPathIn(x string, paths []string) bool {
+	p, ok := a.cfgPath(x)
+	if !ok {
+		return false
+	}
+	for _, d := range paths {
+		if p == d {
+			return true
+		}
+	}
+	return false
 }

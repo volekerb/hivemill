@@ -405,6 +405,27 @@ func TestCfgDirWritesBlockedReadsAllowed(t *testing.T) {
 	}
 }
 
+// T-0353: <live>/run/guard_impl and ~/.local/lib/factory are protected like run/settings; reads stay allowed.
+func TestGuardImplFlagAndLibDirProtected(t *testing.T) {
+	factoryFix(t, "")
+	live := mustHost().liveHome
+	for _, cmd := range []string{"cp /tmp/x ~/.local/lib/factory/worker-guard", "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+		"echo x > ~/.local/lib/factory/worker-guard.stamp", "mv /tmp/x ~/.local/lib/factory/worker-guard", "rm -r ~/.local/lib/factory",
+		"ln -sf /tmp/x ~/.local/lib/factory/worker-guard", "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+		"echo go > " + live + "/run/guard_impl", "rm " + live + "/run/guard_impl", "sed -i s/a/b/ " + live + "/run/guard_impl",
+		"python3 -c \"open('" + live + "/run/guard_impl','w')\"", "echo go > ~/.config/factory/guard_impl"} {
+		if err := Check(cmd, "", "coder", false); err == nil {
+			t.Errorf("should block: %q", cmd)
+		}
+	}
+	for _, cmd := range []string{"ls ~/.local/lib/factory", "cat ~/.local/lib/factory/worker-guard.stamp",
+		"cat " + live + "/run/guard_impl", "cp ~/.local/lib/factory/worker-guard /tmp/copy"} {
+		if err := Check(cmd, "", "coder", false); err != nil {
+			t.Errorf("should allow: %q: %v", cmd, err)
+		}
+	}
+}
+
 func TestCfgHelpers(t *testing.T) {
 	pw := mustHost().pwDir
 	for _, c := range []struct{ in, want string }{
