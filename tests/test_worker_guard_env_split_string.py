@@ -25,11 +25,29 @@ DENY = [
     ("coder", "X=FACTORY_ROLE env -S '-u ${X} ls'"), ("coder", "X=ROLE env -S '-u FACTORY_${X} ls'"),
     ("coder", "export X=FACTORY_ROLE; env -S '-u ${X} ls'"),
     ("qa", "env -S '-u ${NOPE} GIT_DIR' git status"), ("qa", "env -S '-${X} GIT_DIR' git status"), ("coder", "env -S '\"-i\"' factory task show T-1"),
+    # D: reviewer blocking 1 (expansion in an -S option word)
+    ("coder", "X=FACTORY_ROLE env -S '-v -u${X}' ls"), ("coder", "X=ROLE env -S '-v -uFACTORY_${X}' ls"),
+    ("coder", "X=FACTORY_ROLE env -S '--debug --unset=${X}' ls"), ("coder", "X=FACTORY_ROLE env -S '-a foo -u${X}' ls"),
+    ("coder", "export X=FACTORY_ROLE; env -S '-v -u${X}' ls"), ("coder", "X=uFACTORY_ROLE env -S '-0 -${X}' ls"),
+    ("coder", "X=i env -S '-v -${X}' factory task show T-1"), ("coder", "X=-uFACTORY_ROLE env -S '-v ${X}' ls"),
+    ("coder", "X=-i env -S '-v ${X}' factory task show T-1"),
+    # E: any scanned -S word or -u value with $ or a backtick
+    ("coder", 'env -S "-v -u$X" ls'), ("coder", 'env -S "-u $X" ls'), ("coder", 'env -S "-v $X" ls'),
+    ("coder", 'env -S "-v -u$(echo FACTORY_ROLE)" ls'), ("coder", 'env --sp="-v -$X" factory task show T-1'),
+    ("coder", 'env -S "-v" -u"$X" ls'), ("coder", 'env -v -u"$X" ls'), ("coder", "env -S '-v ${A}${X}' ls"),
+    ("coder", "env -S '-v \"${X}\"' ls"), ("coder", "env --sp='-v ${X}' ls"), ("coder", "env -vS'-v ${X}' ls"),
+    ("qa", 'env -S "-v $X" git status'),
+    # F: comments, \c and quotes in -S strings keep exit 2 (main's parse is the floor)
+    ("coder", "env -S '# -u FACTORY_ROLE' ls"), ("coder", "env -S '# -i' factory task show T-1"),
+    ("coder", "env -S 'ls \\c -u FACTORY_ROLE'"), ("coder", "env -S 'ls # -u FACTORY_ROLE'"),
+    ("coder", "env -S \"x' -u FACTORY_ROLE '\" ls"),
+    ("qa", "env -S '# -u GIT_DIR' git status"), ("qa", "env -S '# -i' git status"),
+    ("qa", "env -S \"x' -u GIT_DIR '\" git status"),
 ]
 ALLOW = [
     ("qa", "git status"), ("coder", "env -S 'ls -l'"), ("qa", "env -S 'git status'"),
     ("coder", "env -S '\"ls\" -l'"), ("coder", "env --sp='ls -l'"), ("coder", "env -S \"'-u FACTORY_ROLE'\" ls"),
-    ("coder", "env -S '# -u FACTORY_ROLE' ls"),
+    ("coder", "FOO=$X env ls"),
 ]
 
 

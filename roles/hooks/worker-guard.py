@@ -961,6 +961,12 @@ def env_long(a):
 
 
 def env_options(words):
+    """T-1037: two separate passes. env_split models env's quoting; str.split (main's parse) is kept as a floor."""
+    yield from env_scan(words, env_split)
+    yield from env_scan(words, str.split)
+
+
+def env_scan(words, split):
     """T-0964: yield (kind, value) for the GNU env options before the command word: ("clear", opt) for -i/-/--ignore-env*
     (an `i` in a short cluster before any `u` and outside an -S string), ("clear-attached", opt) for an `i` anywhere
     else in a cluster (text attached to -S, text after `u`; check_scrub counts it, no-push ignores it), ("unset", name), ("unknown", opt) for a long option this guard does not
@@ -980,14 +986,14 @@ def env_options(words):
         return q.popleft()[0] if q else ""
 
     def push(sval):
-        q.extendleft((w, True) for w in reversed(env_split(sval)))
+        q.extendleft((w, True) for w in reversed(split(sval)))
 
     while q:
         a, from_s = q.popleft()
         if a == "--" or ASSIGN.match(a):
             continue
-        if from_s and a.startswith("-") and "${" in a:
-            yield "unknown", a  # T-1037: an expansion in an -S option word is dynamic: fail closed
+        if from_s and re.search(r"[$`]", a):
+            yield "unknown", a  # T-1037: an expansion in any -S word is dynamic: fail closed
             continue
         if a == "-":
             yield "clear", a
@@ -1491,8 +1497,8 @@ class Analyzer:
         for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
             if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if kind == "unset" and "${" in v:
-                raise Block("env -u with a ${...} expansion: the guard cannot tell whether it names FACTORY_ROLE/HERDR_PANE_ID")
+            if kind in ("unknown", "unset") and re.search(r"[$`]", v):
+                raise Block("env -u or -S with an expansion: the guard cannot tell whether it names FACTORY_ROLE/HERDR_PANE_ID")
             if kind in ("clear", "clear-attached"):
                 self.scrub_with_factory = "env -i"
 
