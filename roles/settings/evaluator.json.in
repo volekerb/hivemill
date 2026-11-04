@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role evaluator"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role evaluator"
           }
         ]
       },
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role evaluator"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role evaluator"
           }
         ]
       }

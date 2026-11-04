@@ -729,9 +729,10 @@ def evaluator_settings(rdir):
         for group in groups:
             for hook in group.get("hooks", []):
                 cmd = hook.get("command", "")
-                tail = cmd.partition("worker-guard.py")[2]
-                if "worker-guard.py" not in cmd:
-                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                m = re.fullmatch(r"(?:python3|sh) \S*/worker-guard(?:\.py)?( .*)?", cmd)  # the python3 form or the sh shim
+                if not m:
+                    die(f"evaluator hook command {cmd!r} runs neither `python3 .../worker-guard.py` nor `sh .../worker-guard`; fix roles/settings/evaluator.json.in", 3)
+                tail = m.group(1) or ""
                 hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
                 n += 1
     if not n:
