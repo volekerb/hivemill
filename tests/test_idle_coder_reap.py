@@ -163,7 +163,7 @@ class NotStopped(Base):
         self.host(("zz-test-coder", "p-1", "working"))
         self.tick("2026-03-01T10:10:00+00:00")
         self.host(("zz-test-coder", "p-1", "idle"))
-        self.tick(T1)  # idle again only since 10:16:40 minus nothing: the clock restarted here
+        self.tick(T1)  # idle only since the last working tick: the clock restarted, so 900 s have not passed
         self.assert_not_stopped()
 
     def test_flag_off(self):

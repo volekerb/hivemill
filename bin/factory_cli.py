@@ -6944,6 +6944,10 @@ def reap_idle_coders(con, agents):
         except FactoryNowError:
             clock = time.time()
         by_name = {x.get("name"): x for x in agents if x.get("name")}
+        live_keys = {f"{p}{r['name']}" for r in rows for p in ("idlereap:", "idlereap-dry:")}
+        for k in con.execute("SELECT key FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'").fetchall():
+            if k["key"] not in live_keys:  # an exited/lost agent's clock must not carry over to a reused name
+                con.execute("DELETE FROM throttle WHERE key=?", (k["key"],))
         due = []
         for r in rows:
             key = f"idlereap:{r['name']}"
