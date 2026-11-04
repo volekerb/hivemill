@@ -115,7 +115,7 @@ reads the DB and a DB file exists, the test accepts the delegation.
   write detector); `persist.go`: `brace_expand`, `repo_cfg_path`, `persist_path`, `persist_hit`, `persist_redirect`,
   `persist_write`; `git.go`: `git_persist` (with `-C`, `--git-dir`, `--work-tree`), `repo_cfg_refuse`, `cfg_in_scratch`,
   `git_push_pin`; `factory.go`: `temp_home`, `outside_live`, `agent_temp_home`, `check_identity`, `evaluator_factory`,
-  `factory_unit`, `broad_read`; `gh.go`: `gh_repo_change`; `publictext.go` / `ptrule.go`: `PublicText` (T-0887: the whole rule);
+  `factory_unit`, `broad_read`, `scratch_homes`, `install_dry_run`, `scratch_form` (T-0331); `gh.go`: `gh_repo_change`; `publictext.go` / `ptrule.go`: `PublicText` (T-0887: the whole rule);
   `tools.go`: `persist_edit` and `terms_tool` (Edit/Write/MultiEdit/NotebookEdit and Read/Grep payloads).
 - Tests: `persist_test.go` ports `tests/test_worker_guard_persist.py` and `tests/test_worker_guard_repocfg.py`;
   `factory_test.go` ports `tests/test_worker_guard_repoprot.py`, `tests/test_worker_guard_data.py`, the

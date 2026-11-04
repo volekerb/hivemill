@@ -1,7 +1,10 @@
 package guard
 
 import (
+	"bytes"
+	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -95,6 +98,123 @@ func (a *Analyzer) agentTempHome(assigns []string) bool {
 	return a.outsideLive(v)
 }
 
+// scratchHomes is Analyzer.scratch_homes (T-0331): BOTH HOME and FACTORY_HOME are static absolute paths whose realpath is
+// inside the worker's own scratchpad. Each comes from this command's assignments, else an earlier assignment/export in
+// the same command line, else the hook's environment.
+func (a *Analyzer) scratchHomes(assigns []string) bool {
+	for _, name := range []string{"HOME", "FACTORY_HOME"} {
+		var vals []string
+		for _, x := range assigns {
+			if v, ok := strings.CutPrefix(x, name+"="); ok {
+				vals = append(vals, v)
+			}
+		}
+		var v string
+		if len(vals) > 0 {
+			v = vals[len(vals)-1]
+		} else if pv, ok := a.vars[name]; ok {
+			v = pv
+		} else {
+			v = os.Getenv(name)
+		}
+		if v == "" || strings.ContainsAny(v, "$`*?[{~\\\"'") || !strings.HasPrefix(v, "/") {
+			return false
+		}
+		if !inScratchpad(pyRealpath(v)) {
+			return false
+		}
+	}
+	return true
+}
+
+// installDryRun is Analyzer.install_dry_run (T-0331): args is exactly `systemd/install.sh --dry-run`, run by a coder/qa
+// with both homes in the scratchpad, and the script is byte-for-byte the install.sh of a live checkout (which a worker
+// cannot write). Its body is then not parsed; any edited copy goes through the normal script inspection.
+func (a *Analyzer) installDryRun(args, assigns []string) bool {
+	if (a.Role != "coder" && a.Role != "qa") || len(args) != 2 || args[1] != "--dry-run" {
+		return false
+	}
+	if IsDynamic(args[0], true) || !a.scratchHomes(assigns) {
+		return false
+	}
+	p := expandUser(args[0])
+	if !strings.HasPrefix(p, "/") {
+		p = pyJoin(a.Cwd, p)
+	}
+	p = pyRealpath(p)
+	if pyBasename(p) != "install.sh" || pyBasename(pyDirname(p)) != "systemd" {
+		return false
+	}
+	if st, err := os.Stat(p); err != nil || !st.Mode().IsRegular() {
+		return false
+	}
+	h := mustHost()
+	homes := h.liveHomes
+	if o := os.Getenv("WORKER_GUARD_LIVE_HOME"); o != "" {
+		homes = []string{pyRealpath(o)} // as protTrees: never the hook's own repo root
+	}
+	mine, err := readHead(p, 1<<20)
+	if err != nil {
+		return false
+	}
+	seen := map[string]struct{}{}
+	for _, home := range homes {
+		seen[home] = struct{}{}
+	}
+	sorted := make([]string, 0, len(seen))
+	for home := range seen {
+		sorted = append(sorted, home)
+	}
+	sort.Strings(sorted)
+	for _, home := range sorted {
+		live := pyJoin(pyJoin(home, "systemd"), "install.sh")
+		if st, err := os.Lstat(live); err != nil || !st.Mode().IsRegular() {
+			continue
+		}
+		if theirs, err := readHead(live, 1<<20); err == nil && bytes.Equal(theirs, mine) {
+			return true
+		}
+	}
+	return false
+}
+
+// readHead reads at most n bytes of the file at path.
+func readHead(path string, n int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, n))
+}
+
+// scratchForm is Analyzer.scratch_form (T-0331): words is exactly one of the commands a qa/coder may run with HOME in the
+// scratchpad: factory init, factory project add, or bash systemd/install.sh --dry-run.
+func (a *Analyzer) scratchForm(words, assigns []string) bool {
+	if len(words) == 0 {
+		return false
+	}
+	name := pyBasename(words[0])
+	if name == "factory" {
+		var nonopt []string
+		for _, x := range words[1:] {
+			if !strings.HasPrefix(x, "-") {
+				nonopt = append(nonopt, x)
+			}
+		}
+		return (len(nonopt) >= 1 && nonopt[0] == "init" || len(nonopt) >= 2 && nonopt[0] == "project" && nonopt[1] == "add") &&
+			a.scratchHomes(assigns)
+	}
+	if in(Shells, name) {
+		k := 1
+		for k < len(words) && strings.HasPrefix(words[k], "-") && len(words[k]) > 1 {
+			k++
+		}
+		return a.installDryRun(words[k:], assigns)
+	}
+	return false
+}
+
 // checkIdentity is a port of Analyzer.check_identity.
 func (a *Analyzer) checkIdentity(assigns []string) error {
 	own := os.Getenv("FACTORY_AGENT")
@@ -171,6 +291,15 @@ func (a *Analyzer) factoryUnit(name string, rest []string, assigns []string) err
 		if err := a.evaluatorFactory(sub, hasSub, nonopt, assigns); err != nil {
 			return err
 		}
+	}
+	if (a.Role == "coder" || a.Role == "qa") && !a.HQ && hasSub &&
+		(sub == "init" || len(nonopt) >= 2 && nonopt[0] == "project" && nonopt[1] == "add") && !a.scratchHomes(assigns) {
+		add := ""
+		if sub == "project" {
+			add = " add"
+		}
+		return blockf("workers may run `factory " + sub + add + "` only with HOME and FACTORY_HOME both set (same command or " +
+			"exported earlier) to absolute paths inside your own scratchpad")
 	}
 	if hasSub {
 		if _, ok := BroadReads[sub]; ok {
