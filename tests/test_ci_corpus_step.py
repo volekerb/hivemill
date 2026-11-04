@@ -58,12 +58,21 @@ class WorkflowWiring(unittest.TestCase):
                     return posixpath.join(*a)
             return None
 
+        parent = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+        uses = [n for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id == "__file__"]
         reads = set()
-        for n in ast.walk(tree):
-            if isinstance(n, ast.Call) and any(isinstance(x, ast.Name) and x.id == "__file__" for x in ast.walk(n)):
-                v = ev(n)
-                if v and v != "ci/guard_diff.py":
-                    reads.add(posixpath.normpath(v))
+        unresolved = []
+        for u in uses:
+            top = u
+            while isinstance(parent.get(top), ast.Call) and ev(parent[top]) is not None:
+                top = parent[top]
+            v = ev(top)
+            if top is u or v in (None, "ci"):  # bare "ci" is a dirname held in a variable: the read is hidden
+                unresolved.append("line %d" % u.lineno)
+            else:
+                reads.add(posixpath.normpath(v))
+        self.assertEqual(unresolved, [], "ci/guard_diff.py uses __file__ in a form this test cannot resolve (%d of %d uses): "
+                         "spell the read as one nested os.path.join/dirname/abspath call, or extend ev() here" % (len(unresolved), len(uses)))
         # the pins: install.sh and the tests dir (_slot import) must be seen, or the derivation went blind
         self.assertIn("systemd/install.sh", reads)
         self.assertIn("tests", reads)

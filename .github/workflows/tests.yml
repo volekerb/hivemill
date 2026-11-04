@@ -237,7 +237,7 @@ jobs:
           if git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py systemd/install.sh | tar -x -C "$tool"; then
             gd="$tool/ci/guard_diff.py"; echo "tool: ci/guard_diff.py from base $BASE_SHA"
           else
-            gd=ci/guard_diff.py; echo "tool: base lacks ci/guard_diff.py, tests/_slot.py or systemd/install.sh (git archive fails if any one is missing), using the PR copy"
+            gd=ci/guard_diff.py; echo "tool: git archive of ci/guard_diff.py, tests/_slot.py, systemd/install.sh from base failed (a path missing from the base fails all), using the PR copy"
           fi
           # corpus: the base copy too, so a PR cannot delete must_block entries; the PR copy adds its own entries (repeatable, de-duplicated)
           corpus=(--corpus ci/guard_corpus.json)
