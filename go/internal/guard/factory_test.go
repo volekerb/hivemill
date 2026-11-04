@@ -386,7 +386,8 @@ func TestCfgDirWritesBlockedReadsAllowed(t *testing.T) {
 		"factory init --live-home /x", "factory init --live /x", "python3 bin/factory init --live-home=/x",
 		"cd ~/.config/factory && echo x > live_home", "cd && cd .config/factory && touch live_home",
 		"echo x > " + mustHost().liveHome + "/run/settings/coder.json", "chmod 777 " + mustHost().liveHome + "/run/settings",
-		"echo x > $X/.config/factory/live_home", "ln -sf /tmp/x ~/.config/factory/live_home"} {
+		"echo x > $X/.config/factory/live_home", "ln -sf /tmp/x ~/.config/factory/live_home",
+		"echo x > ~/.config/f*/live_home"} { // T-0925: a glob that can match a protected path is blocked
 		if err := Check(cmd, "", "coder", false); err == nil {
 			t.Errorf("should block: %q", cmd)
 		}
@@ -394,7 +395,7 @@ func TestCfgDirWritesBlockedReadsAllowed(t *testing.T) {
 	for _, cmd := range []string{"cat ~/.config/factory/live_home", "grep x ~/.config/factory/live_home", "cp ~/.config/factory/live_home /tmp/x",
 		"ls ~/.config", "ls ~/.config/factory", "echo x > ~/.config/factoryx", "factory init", "echo live_homes > /tmp/x",
 		"cd /tmp && echo x > live_home_x", "cat " + mustHost().liveHome + "/run/settings/coder.json", "rm -r ~/.cache", "mv /tmp/a /tmp/b",
-		"python3 -c \"open('live_'+'home','w')\"", "echo x > ~/.config/f*/live_home"} {
+		"python3 -c \"open('live_'+'home','w')\""} {
 		if err := Check(cmd, "", "coder", false); err != nil {
 			t.Errorf("should allow: %q: %v", cmd, err)
 		}
