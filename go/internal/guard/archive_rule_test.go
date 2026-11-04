@@ -1,12 +1,6 @@
 package guard
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"bytes"
-	"compress/gzip"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,54 +8,6 @@ import (
 
 // T-1001 (tests/test_worker_guard_nopush_archive_git.py, T-0805): the Go mirror of parse_tar and the rule E extraction
 // check for tar/gtar/bsdtar/unzip. The reason text is the Python text, byte for byte.
-
-func tarBytes(t *testing.T, names ...string) []byte {
-	t.Helper()
-	var b bytes.Buffer
-	w := tar.NewWriter(&b)
-	for _, n := range names {
-		if err := w.WriteHeader(&tar.Header{Name: n, Mode: 0o644, Size: 1, Typeflag: tar.TypeReg}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := w.Write([]byte("x")); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return b.Bytes()
-}
-
-func gzBytes(t *testing.T, raw []byte) []byte {
-	t.Helper()
-	var b bytes.Buffer
-	w := gzip.NewWriter(&b)
-	if _, err := w.Write(raw); err != nil {
-		t.Fatal(err)
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return b.Bytes()
-}
-
-func zipBytes(t *testing.T, names ...string) []byte {
-	t.Helper()
-	var b bytes.Buffer
-	w := zip.NewWriter(&b)
-	for _, n := range names {
-		f, err := w.Create(n)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f.Write([]byte("x"))
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return b.Bytes()
-}
 
 func TestParseTarGrammar(t *testing.T) {
 	cases := []struct {
@@ -100,14 +46,6 @@ func TestParseTarGrammar(t *testing.T) {
 func TestNoPushTarUnzipRuleE(t *testing.T) {
 	a := newArchiveFix(t)
 	s, o := a.scratch, a.out
-	for name, body := range map[string][]byte{
-		"a.tar": tarBytes(t, "f", "d/g"), "a.tgz": gzBytes(t, tarBytes(t, "f")), "a.zip": zipBytes(t, "f"),
-		"bad.tar": tarBytes(t, "x/.git/config"), "bare.zip": zipBytes(t, "r/config", "r/HEAD"), "x.txz": append([]byte{0xfd, '7', 'z', 'X', 'Z', 0}, make([]byte, 600)...),
-	} {
-		if err := os.WriteFile(filepath.Join(s, name), body, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
 	// the forms T-0925 parked as coder-only in ci/guard_corpus.json: python=2, go was 0
 	gap := []string{
 		"tar -df ~/.local/go/pkg.tar", "tar -czf /tmp/x.tgz -C ~/.local/go .", "tar -tf~/.local/go/pkg.tar",
@@ -117,17 +55,55 @@ func TestNoPushTarUnzipRuleE(t *testing.T) {
 	}
 	a.expect(t, noPushRolesList, s, 2, gap...)
 	a.expect(t, []string{"coder"}, s, 0, gap...)
+	// refused in Go itself (grammar, env, target, stdin), before any delegation
 	a.expect(t, noPushRolesList, s, 2,
 		"tar -xf a.tar -C "+o+" -C "+o, "tar -xf a.tar f -C "+o, "tar -xf a.tar -- -C "+o, "tar -xf a.tar -C "+o+" --strip-components=1",
 		"TAR_OPTIONS=x tar -xf a.tar -C "+o, "tar -xf a.tar -f b.tar -C "+o, "tar -xfC a.tar "+o, "tar -xf/tmp/a.tar -C "+o,
 		"unzip a.zip", "unzip -x a.zip -d "+o, "unzip -d "+o+" -- a.zip", "tar -xf a.tar -C "+o+" --exclude=x",
-		"tar -xf bad.tar -C "+o, "unzip bare.zip -d "+o, "tar -xJf x.txz -C "+o, "tar --get -f a.tar -C "+o,
-		"touch n.tar; tar -xf n.tar -C "+o, "tar -cf n.tar f; tar -xf n.tar -C "+o, "tar -xf - -C "+o, "tar -xf $A -C "+o)
+		"tar --get -f a.tar -C "+o, "touch n.tar; tar -xf n.tar -C "+o, "tar -xf - -C "+o, "tar -xf $A -C "+o)
+	for _, role := range noPushRolesList {
+		for _, c := range gap {
+			if err := a.check(c, s, role); err == nil || IsDelegate(err) {
+				t.Errorf("role %s: %q must be refused in Go, got %v", role, c, err)
+			}
+		}
+	}
+	// listings are allowed in Go; a clean extraction passes every Go check and is delegated, not decided
 	a.expect(t, noPushRolesList, s, 0,
-		"tar -tf a.tar", "tar --list -f a.tar", "tar tvf a.tar", "unzip -l a.zip", "tar --diff -f a.tar",
-		"tar -xf a.tar -C "+o, "tar xf a.tar -C "+o, "tar -xzf a.tgz -C "+o, "tar -x -f a.tar -C "+o,
-		"tar --extract --file=a.tar --directory="+o, "tar -xvf a.tar -C "+o, "unzip a.zip -d "+o, "unzip -o a.zip -d "+o,
-		"unzip a -d "+o, "tar -xf gone.tar -C "+o)
+		"tar -tf a.tar", "tar --list -f a.tar", "tar tvf a.tar", "unzip -l a.zip", "tar --diff -f a.tar")
+	for _, role := range noPushRolesList {
+		for _, c := range []string{
+			"tar -xf a.tar -C " + o, "tar xf a.tar -C " + o, "tar -xzf a.tgz -C " + o, "tar -x -f a.tar -C " + o,
+			"tar --extract --file=a.tar --directory=" + o, "tar -xvf a.tar -C " + o, "unzip a.zip -d " + o, "unzip -o a.zip -d " + o,
+			"unzip a -d " + o, "tar -xf gone.tar -C " + o, "tar -xf bad.tar -C " + o,
+			"unzip bare.zip -d " + o, "tar -xJf x.txz -C " + o, "noglob cat ok.tar; tar -xf n.tar -C " + o,
+		} {
+			if err := a.check(c, s, role); !IsDelegate(err) {
+				t.Errorf("role %s: %q: want a Delegate, got %v", role, c, err)
+			}
+		}
+	}
+	a.expect(t, []string{"coder"}, s, 0, "tar -xf a.tar", "unzip a.zip")
+}
+
+// FuzzParseTar checks parseTar neither panics nor hangs and keeps its invariants for any argument list.
+func FuzzParseTar(f *testing.F) {
+	for _, s := range []string{
+		"-tf a.tar", "tf a.tar", "--list -f a.tar", "-xf a.tar -C out", "--extract --file=a.tar --directory=out", "-df p.tar",
+		"-tf~/p.tar", "ft p.tar", "-fc p.tar", "-xf a.tar -- -C out", "-xf a.tar f -C out", "-xf a.tar -C o -C p", "-xf", "-C", "--", "-", "",
+		"-xf a.tar --strip-components=1", "--ext -f a.tar", "-xfC a.tar out", "-xvzjJf\n a.tar",
+	} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		args := strings.Fields(s)
+		within(t, s, func() {
+			extract, archives, dirs, problems := parseTar(args)
+			if !extract && len(dirs) > 0 && len(problems) == 0 {
+				_ = archives // listing with a -C is a legal spelling; only the absence of a panic is asserted here
+			}
+		})
+	})
 }
 
 func TestNoPushTarUnzipReasonText(t *testing.T) {
@@ -142,16 +118,5 @@ func TestNoPushTarUnzipReasonText(t *testing.T) {
 	err = a.check("unzip a.zip -x", a.scratch, "qa")
 	if err == nil || !strings.Contains(err.Error(), "`unzip` extraction with option '-x': names on disk may differ") {
 		t.Errorf("unzip reason = %v", err)
-	}
-}
-
-func TestListingOnly(t *testing.T) {
-	for cmd, want := range map[string]bool{
-		"tar -tf a.tar": true, "tar tf a.tar": true, "tar --list -f a.tar": true, "tar -xf a.tar": false, "tar -cf a.tar x": false,
-		"tar -tcf a.tar": false, "unzip -l a.zip": true, "unzip a.zip": false, "ls -l": true, "cat > f": false, "touch f": false,
-	} {
-		if got := listingOnly(strings.Fields(cmd)); got != want {
-			t.Errorf("listingOnly(%q) = %v, want %v", cmd, got, want)
-		}
 	}
 }

@@ -31,12 +31,10 @@ type Analyzer struct {
 	gdyn bool        // true after a `cd` into a directory that is only known at run time
 	pt   *publicText // Analyzer.pt: the public-text rule that looks at git/gh writes (nil = off), see ptCommand
 
-	vars            map[string]string // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
-	ccwd            string            // like gcwd, for the CFG_DIR write detector
-	fsChanged       bool              // T-0783: an earlier command on this line may have changed the filesystem
-	mayCreate       bool              // T-0805: an earlier command on this line may have created a file (an archive to extract)
-	mayCreateBefore bool              // mayCreate as it was before the current command
-	ccwdKnown       bool              // false where Python holds None: a `cd` target is only known at run time
+	vars      map[string]string // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
+	ccwd      string            // like gcwd, for the CFG_DIR write detector
+	fsChanged bool              // T-0783: an earlier command on this line may have changed the filesystem
+	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
 	skipPriv         bool
 	unitRule         bool // HQ mode: block mutating systemctl (workers keep the factory unit rule)

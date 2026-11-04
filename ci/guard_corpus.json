@@ -3692,10 +3692,10 @@
  {"cmd": "tar -xf a.tar -f b.tar -C @SCRATCH@/out", "role": "qa"},
  {"cmd": "tar -xfC a.tar @SCRATCH@/out", "role": "qa"},
  {"cmd": "tar -xf/tmp/a.tar -C @SCRATCH@/out", "role": "qa"},
- {"cmd": "unzip a.zip", "role": "qa"},
  {"cmd": "unzip -x a.zip -d @SCRATCH@/out", "role": "qa"},
  {"cmd": "unzip -d @SCRATCH@/out -- a.zip", "role": "qa"},
- {"cmd": "tar -xf a.tar -C @SCRATCH@/out --exclude=x", "role": "qa"}
+ {"cmd": "tar -xf a.tar -C @SCRATCH@/out --exclude=x", "role": "qa"},
+ {"cmd": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'", "role": "qa"}
  ],
  "must_allow": [
  "tar -xCf /tmp/x a.tar",
