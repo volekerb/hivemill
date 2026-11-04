@@ -2308,7 +2308,8 @@ class Analyzer:
         while i < len(rest) and rest[i].startswith("-"):
             if rest[i] != "-C" and "push" in rest[i + 1:]:
                 raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
-            if rest[i] == "-c" and i + 1 < len(rest) and re.match(r"(?i)alias\.[^=]*=.*(?:push|send-pack)", rest[i + 1]):
+            cv = rest[i + 1] if rest[i] == "-c" and i + 1 < len(rest) else (rest[i][2:] if re.match(r"-c.", rest[i]) else None)
+            if cv is not None and re.match(r"(?i)alias\.[^=]*=.*(?:push|send-pack)", cv):
                 raise Block("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
             ce = rest[i][len("--config-env="):] if rest[i].startswith("--config-env=") else (
                 rest[i + 1] if rest[i] == "--config-env" and i + 1 < len(rest) else None)

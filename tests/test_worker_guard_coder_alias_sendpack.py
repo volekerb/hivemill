@@ -22,11 +22,22 @@ DENIED = [
     "echo alias.x push | xargs git config",
     "printf 'alias.x\\npush\\n' | xargs git config",
 ]
+EXTRA_DENIED = [
+    "git -calias.x=send-pack x origin HEAD",
+    "git -calias.x=push x origin main",
+    "echo user.name | xargs git config --get --add",
+]
 ALLOWED = [
     "git -c alias.st=status st",
     "git config --get user.name",
     "echo user.name | xargs git config --get",
     f"git push origin HEAD:factory/{TASK}",
+]
+EXTRA_ALLOWED = [
+    "echo x | xargs git config --list",
+    "echo x | xargs git config --get-all",
+    "git --config-env=user.name=X status",
+    "git -cuser.name=x status",
 ]
 
 
@@ -56,7 +67,7 @@ class CoderAliasSendPackTests(unittest.TestCase):
         return hook_run(payload, ["--role", role], env=env)
 
     def test_denied_for_coder(self):
-        for base in DENIED:
+        for base in DENIED + EXTRA_DENIED:
             for cmd in (base, f"cd /x && {base}", "bash -c " + json.dumps(base), "zsh -c " + json.dumps(base)):
                 with self.subTest(cmd=cmd):
                     p = self.run_hook(cmd)
@@ -64,7 +75,7 @@ class CoderAliasSendPackTests(unittest.TestCase):
                     self.assertTrue(p.stderr.strip(), "refusal needs a message")
 
     def test_allowed_for_coder(self):
-        for cmd in ALLOWED:
+        for cmd in ALLOWED + EXTRA_ALLOWED:
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 0, p.stderr)
