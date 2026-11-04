@@ -80,8 +80,32 @@ class PackTest(unittest.TestCase):
         timings = shard.load_timings()
         self.assertTrue(timings, "ci/shard_timings.json is empty; regenerate it (docs/tests-and-ci.md)")
         w = shard.weights(mods, timings)
-        loads = self.loads(shard.pack(mods, 10, timings), w)
-        self.assertLessEqual(max(loads), sum(w.values()) / 10 * 1.15, loads)
+        self.assert_packed(w, self.loads(shard.pack(mods, 10, timings), w))
+
+    def assert_packed(self, w, loads):
+        """Pack rule for 10 shards. A module bigger than total/10*1.15 must sit alone on a shard, and the
+        other 9 shards must still pack within 15% of their own mean (no flat max(limit, largest) bound)."""
+        total, biggest = sum(w.values()), max(w.values())
+        limit = total / 10 * 1.15
+        if biggest <= limit:
+            self.assertLessEqual(max(loads), limit, loads)
+            return
+        self.assertAlmostEqual(max(loads), biggest, msg="big module shares its shard: %s" % loads)
+        rest = sorted(loads)[:-1]
+        self.assertLessEqual(max(rest), (total - biggest) / 9 * 1.15, loads)
+
+    def test_oversize_rule_goes_red_on_unbalanced_rest_or_shared_big_shard(self):
+        w = {"test_big.py": 100.0}
+        w.update({"test_s%d.py" % i: 10.0 for i in range(9)})  # total 190, limit 21.85, biggest 100 > limit
+        self.assert_packed(w, [100.0] + [10.0] * 9)  # alone + balanced rest: green
+        with self.assertRaises(AssertionError):  # other work shares the big module's shard
+            self.assert_packed(w, [110.0] + [10.0] * 8 + [0.0])
+        with self.assertRaises(AssertionError):  # rest unbalanced: 40 > 90/9*1.15 = 11.5
+            self.assert_packed(w, [100.0, 40.0] + [5.0] * 8)
+        small = {"test_s%d.py" % i: 10.0 for i in range(10)}  # biggest <= limit: plain bound still applies
+        self.assert_packed(small, [10.0] * 10)
+        with self.assertRaises(AssertionError):
+            self.assert_packed(small, [30.0] + [7.0] * 9)
 
     def test_real_modules_assigned_exactly_once_for_10_shards(self):
         mods = shard.all_modules()
