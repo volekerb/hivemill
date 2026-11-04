@@ -133,12 +133,17 @@ jobs:
       - run: go build ./...
         if: steps.tier.outputs.go == 'true'
 
-  # GUARD_IMPL=diff: every guard hook unittest module runs Python and Go together (docs/guard-diff.md).
-  # Its own job (own 30 min cap) so a slow unittest run cannot eat the corpus step's time; the unittest aggregate needs both jobs.
-  guard-unittest:
-    name: guard-unittest
+  # GUARD_IMPL=diff: every guard hook unittest runs Python and Go together (docs/guard-diff.md).
+  # T-1039: one 30 min job hit its cap, so the test ids (not modules: one module holds ~21 min) are split round-robin over
+  # 3 shards (ci/guard_impl_unittest.py run --shard I --shards N). Keep the matrix equal to --shards below.
+  guard-unittest-shard:
+    name: guard-unittest-shard (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -157,7 +162,29 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
       - name: Guard hook unittests (GUARD_IMPL=diff)
-        run: GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run
+        run: |
+          start=$(date +%s)
+          rc=0
+          GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --shard "${{ matrix.shard }}" --shards 3 || rc=$?
+          echo "guard-unittest shard ${{ matrix.shard }}: job time $(( $(date +%s) - start ))s rc=$rc"
+          exit "$rc"
+
+  # Fan-in: the required check name stays exactly "guard-unittest"; any shard result but success (failed, cancelled, skipped) fails it.
+  guard-unittest:
+    name: guard-unittest
+    needs: [guard-unittest-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every guard-unittest shard succeeded
+        env:
+          SHARD_RESULT: ${{ needs.guard-unittest-shard.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "guard-unittest-shard result: $SHARD_RESULT (all 3 shards must succeed)" >&2
+            exit 1
+          fi
 
   # ci/guard_diff.py base-vs-PR on the real corpus for guard-path PRs (tool from the BASE commit), its own cap.
   # Steps skip when no guard path changed, so the job is green (not skipped) then.
