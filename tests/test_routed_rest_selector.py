@@ -72,6 +72,15 @@ class RoutedRestSelectorTest(unittest.TestCase):
         self.assertNotRegex(head, r"(?m)^    (if|needs):")
         self.assertIn('echo "run=false"', job)  # non-guard paths skip the steps, the job still succeeds
 
+    def test_guard_equiv_keeps_name_timeout_and_shape(self):
+        with open(WF, encoding="utf-8") as f:
+            text = f.read()
+        job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
+        self.assertIn("    name: guard-equiv\n", job)
+        self.assertIn("    timeout-minutes: 30\n", job)  # T-1009: cut by running modules in parallel, never by a raise
+        self.assertIn("--roles all --mode both --strict", job)
+        self.assertIn("run --routed-rest", job)
+
     def test_unknown_selector_flag_is_refused(self):
         self.assertNotEqual(run("list", "--bogus").returncode, 0)
 
@@ -93,7 +102,7 @@ FAIL = "    def test_bad(self):\n        self.fail('x')\n    def test_ok(self):\
 
 
 class RoutedRestRunnerTest(unittest.TestCase):
-    def go(self, mods):
+    def go(self, mods, jobs=None):
         sys.path.insert(0, os.path.join(ROOT, "ci"))
         try:
             import guard_impl_unittest as g
@@ -103,7 +112,7 @@ class RoutedRestRunnerTest(unittest.TestCase):
             for n, b in mods:
                 _mod(d, n, b)
             out = io.StringIO()
-            rc = g.run_routed_rest(out=out, names=[n for n, _ in mods], tests_dir=d)
+            rc = g.run_routed_rest(out=out, names=[n for n, _ in mods], tests_dir=d, jobs=jobs)
         return rc, out.getvalue()
 
     def test_failing_module_does_not_stop_later_ones(self):
@@ -112,6 +121,43 @@ class RoutedRestRunnerTest(unittest.TestCase):
         self.assertIn("module test_a.py: ran=2 failures=1 errors=0 skipped=0 rc=1", out)
         self.assertIn("module test_b.py: ran=1 failures=0 errors=0 skipped=0 rc=0", out)
         self.assertIn("summary: modules_run=2 modules_failed=1 tests_run=3 tests_skipped=0 tests_failed=1 failed=test_a.py", out)
+
+    def test_modules_run_in_parallel_and_report_in_list_order(self):
+        # Each module waits (max 20s) until all three have started: only true concurrency lets them finish.
+        # A serial runner would see 1 marker, time out and fail the test. Output stays in list order.
+        barrier = (RAW + "import os, time, unittest\nD = os.environ['T1009_DIR']\n"
+                   "class T(unittest.TestCase):\n    def test_meet(self):\n"
+                   "        open(os.path.join(D, %r), 'w').close()\n"
+                   "        end = time.time() + 20\n"
+                   "        while len(os.listdir(D)) < 3 and time.time() < end:\n            time.sleep(0.05)\n"
+                   "        self.assertEqual(len(os.listdir(D)), 3)\n")
+        with tempfile.TemporaryDirectory() as sync:
+            os.environ["T1009_DIR"] = sync
+            self.addCleanup(os.environ.pop, "T1009_DIR", None)
+            mods = [("test_%s.py" % c, barrier % c) for c in "abc"]
+            rc, out = self.go(mods, jobs=3)
+        self.assertEqual(rc, 0, out)
+        lines = [l.split(":")[0] for l in out.splitlines() if l.startswith("module ")]
+        self.assertEqual(lines, ["module test_a.py", "module test_b.py", "module test_c.py"])
+
+    def test_parallel_red_module_output_is_whole_and_every_module_runs(self):
+        rc, out = self.go([("test_a.py", PASS), ("test_b.py", FAIL), ("test_c.py", PASS), ("test_d.py", FAIL)], jobs=4)
+        self.assertEqual(rc, 1)
+        self.assertIn("modules_run=4 modules_failed=2 tests_run=6 tests_skipped=0 tests_failed=2 failed=test_b.py,test_d.py", out)
+        # a red module's traceback sits directly before its own result line, never split by another module's lines
+        for m in ("test_b.py", "test_d.py"):
+            before = out.split("module %s: ran=" % m)[0].rstrip().splitlines()
+            self.assertIn("FAILED (failures=1)", before[-1])
+        self.assertEqual(out.count("FAIL: test_bad"), 2)
+
+    def test_jobs_flag_is_accepted_and_bounded(self):
+        sys.path.insert(0, os.path.join(ROOT, "ci"))
+        try:
+            import guard_impl_unittest as g
+        finally:
+            sys.path.pop(0)
+        self.assertTrue(1 <= g.default_jobs() <= 4)
+        self.assertNotEqual(run("run", "--routed-rest", "--jobs", "x").returncode, 0)
 
     def test_first_fails_last_passes_is_still_red(self):
         rc, _ = self.go([("test_a.py", FAIL), ("test_b.py", PASS), ("test_c.py", PASS)])
