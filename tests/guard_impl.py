@@ -139,13 +139,22 @@ def seed_guard_export(env=None):
                 pass
             _seeded.pop(path, None)
         return
-    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = f"{path}.tmp{os.getpid()}"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(data)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if not _under_tmp(os.path.dirname(path)):  # run/ may be a symlink out of the temp dir
+            return
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except OSError:  # nothing seeded: Go's fail-closed shows as a diff
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return
     _seeded[path] = data
 
 

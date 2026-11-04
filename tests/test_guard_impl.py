@@ -180,6 +180,16 @@ class SeedGuardExportTests(unittest.TestCase):
             guard_impl.seed_guard_export()
         self.assertFalse(os.path.exists(self.export))
 
+    def test_no_write_through_a_run_symlink_leaving_the_temp_dir(self):
+        with mock.patch.object(guard_impl.tempfile, "gettempdir", return_value=os.path.join(self.home, "only")):
+            os.makedirs(os.path.join(self.home, "only", "h", "db"))
+            os.makedirs(os.path.join(self.home, "outside"))
+            h = os.path.join(self.home, "only", "h")
+            os.rename(self.db, os.path.join(h, "db", "factory.db"))
+            os.symlink(os.path.join(self.home, "outside"), os.path.join(h, "run"))
+            guard_impl.seed_guard_export({"FACTORY_HOME": h})
+        self.assertEqual(os.listdir(os.path.join(self.home, "outside")), [])
+
     def test_no_write_when_the_db_is_absent(self):
         os.unlink(self.db)
         guard_impl.seed_guard_export()
