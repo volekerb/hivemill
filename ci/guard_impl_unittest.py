@@ -8,6 +8,7 @@ Stdlib only except importing tests/test_guard_impl_coverage.py to verify hook_ru
 import argparse
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 
@@ -80,6 +81,48 @@ def run_guard_diff_unittest(extra_env=None, routed_rest=False):
     return last
 
 
+_RAN = re.compile(r"^Ran (\d+) tests?", re.M)
+_FAILED = re.compile(r"^FAILED \((.*)\)", re.M)
+
+
+def _count(pattern_text, key):
+    m = re.search(r"%s=(\d+)" % key, pattern_text or "")
+    return int(m.group(1)) if m else 0
+
+
+def run_routed_rest(extra_env=None, out=None, names=None, tests_dir="tests"):
+    """Run EVERY routed-rest module (never stop at the first failure); one flushed line per module, then a summary.
+
+    Returns 0 only if every module passed (director M20747: stays red on any failure, not just the last).
+    """
+    out = out or sys.stdout
+    env = dict(os.environ, GUARD_IMPL="diff", GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
+    if extra_env:
+        env.update(extra_env)
+    failed_mods, tests_failed, total = [], 0, 0
+    names = module_names(True) if names is None else names
+    for base in names:
+        cmd = [sys.executable, "-m", "unittest", "discover", "-s", tests_dir, "-p", base]
+        r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+        text = (r.stdout or "") + (r.stderr or "")
+        if r.returncode != 0:
+            out.write(text if text.endswith("\n") else text + "\n")  # the evidence for a red module
+        ran = _RAN.search(text)
+        ran_n = int(ran.group(1)) if ran else 0
+        fm = _FAILED.search(text)
+        fails, errs = (_count(fm.group(1), "failures"), _count(fm.group(1), "errors")) if fm else (0, 0)
+        if r.returncode != 0:
+            failed_mods.append(base)
+            tests_failed += fails + errs
+        total += ran_n
+        out.write("module %s: ran=%d failures=%d errors=%d rc=%d\n" % (base, ran_n, fails, errs, r.returncode))
+        out.flush()
+    out.write("summary: modules_run=%d modules_failed=%d tests_run=%d tests_failed=%d failed=%s\n" % (
+        len(names), len(failed_mods), total, tests_failed, ",".join(failed_mods) or "-"))
+    out.flush()
+    return 1 if failed_mods else 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -96,7 +139,9 @@ def main(argv=None):
     if a.cmd == "modules":
         print("\n".join(unittest_modules(a.routed_rest)))
         return 0
-    return run_guard_diff_unittest(routed_rest=a.routed_rest).returncode
+    if a.routed_rest:
+        return run_routed_rest()
+    return run_guard_diff_unittest().returncode
 
 
 if __name__ == "__main__":

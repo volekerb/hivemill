@@ -277,7 +277,7 @@ jobs:
           python3 ci/guard_impl_unittest.py list --routed-rest
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --routed-rest
       - name: REAL_GO build tests (tests/test_guard_build.py)
-        if: steps.paths.outputs.run == 'true'
+        if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}
         run: |
           set -o pipefail
           python3 -m unittest discover -s tests -p test_guard_build.py -v 2>&1 | tee "$RUNNER_TEMP/real-go.txt"
