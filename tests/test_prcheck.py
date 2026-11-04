@@ -631,6 +631,30 @@ class PrcheckTests(FactoryTestCase):
         p = self.body_result("`pytest tests/test_x.py` 2 failed in a row", 1)
         self.assertIn("no output line", p.stdout)
 
+    # -- T-0979 attempt 2: CRLF closer, no mixed fence characters, "failed in <duration>"
+    def test_evidence_crlf_body_with_closed_fence_passes(self):
+        body = evidence_body("```\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```").replace("\n", "\r\n")
+        self.env.seed_pr(url=PR_URL, body=body)
+        p = self.prcheck(0)
+        self.assertNotIn("never closed", p.stdout)
+        self.assertNotIn("missing section", p.stdout)
+
+    def test_evidence_mixed_character_closer_does_not_close_backtick_fence(self):
+        p = self.body_result("```\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```~~~", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_evidence_mixed_character_closer_does_not_close_tilde_fence(self):
+        p = self.body_result("~~~\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n~~~```", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_evidence_failed_in_attempts_is_not_output(self):
+        p = self.body_result("`pytest tests/test_x.py` 2 failed in 3 attempts", 1)
+        self.assertIn("no output line", p.stdout)
+
+    def test_evidence_failed_with_passed_and_duration_is_output(self):
+        p = self.body_result("`pytest tests/test_x.py` 2 failed, 3 passed in 1s", 0)
+        self.assertIn("PASS body:", p.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

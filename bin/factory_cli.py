@@ -9017,11 +9017,11 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in[ \t]+\d)[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in[ \t]+\d[\d.]*(?:s|m(?![a-z])))[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
 # An unclosed fence runs to the end of the body (CommonMark), so a heading after it is text, not a section.
 # CommonMark: a backtick opener's info string has no backtick (so a line-start inline ```x``` is text); the closer is a run
-# of the same character at least as long as the opener, with nothing after it.
-_EVIDENCE_FENCE = re.compile(r"^[ \t]*(`{3,}(?=[^`\n]*\n)|~{3,})[^\n]*\n(.*?)(?:(^[ \t]*\1[`~]*[ \t]*$)|\Z)", re.M | re.S)
+# of the opener's own character only (no mixing) at least as long as the opener, with nothing after it (a trailing \r is allowed).
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(`{3,}(?=[^`\n]*\n)|~{3,})[^\n]*\n(.*?)(?:(^[ \t]*\1(?:(?<=`)`*|(?<=~)~*)[ \t]*\r?$)|\Z)", re.M | re.S)
 
 
 def _evidence_section(outside):
