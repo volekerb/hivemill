@@ -305,6 +305,7 @@ jobs:
         run: |
           set -o pipefail
           python3 -m unittest discover -s tests -p test_guard_build.py -v 2>&1 | tee "$RUNNER_TEMP/real-go.txt"
+          python3 -m unittest tests.test_guard_impl.SeedGuardExportTests.test_go_binary_accepts_the_seeded_export -v 2>&1 | tee -a "$RUNNER_TEMP/real-go.txt"
           echo "REAL_GO skipped: $(grep -c 'skipped' "$RUNNER_TEMP/real-go.txt" || true)"
 
   # Required check: the name must stay exactly "unittest".
