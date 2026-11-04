@@ -2233,7 +2233,7 @@ class Analyzer:
                         "force, --all/--mirror/--tags/--delete or option)")
         # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
         # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
-        w = re.fullmatch(rf"git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
+        w = re.fullmatch(rf"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
         if not w:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
                         "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
@@ -2766,6 +2766,16 @@ class Analyzer:
             self.kill(rest)
         elif "/" in w and not in_loose:
             self.exec_path(w, depth)
+        if name in ("uv", "uvx"):
+            inner = self.uv_inner(name, rest)
+            if inner:  # T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly (git/gh writes, inline code)
+                if os.path.basename(inner[0]) == "git":
+                    self.git_push_pin(inner[1:])
+                elif os.path.basename(inner[0]) == "gh" and self.role in NO_PUSH_ROLES and not self.hq \
+                        and INLINE_GH_WRITE.search(" ".join(inner)):  # same gh-write scan as inline code (T-0789)
+                    raise Block(f"{name} running a gh write (pr merge/create, repo, api with a write method); "
+                                "no-push roles never write to GitHub; ask your lead")
+                self.cmd(inner, depth + 1, piped, in_loose, hstrs, assigns)
         if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):
             return
         if name == "find":
@@ -2913,6 +2923,33 @@ class Analyzer:
             if base in ("pytest", "py.test", "unittest"):
                 return f"{prefix} {base}"
         return None
+
+    UV_VALUED = {"--with", "--with-requirements", "--with-editable", "--from", "--python", "-p", "--project",
+                 "--directory", "--env-file", "--extra", "--group", "--package", "--only-group", "--no-group", "-w",
+                 "--index", "--config-file", "--cache-dir"}
+
+    @classmethod
+    def uv_inner(cls, name, rest):
+        """T-0880: the command `uv [opts] run [opts] [--] CMD...` / `uvx [opts] CMD...` runs, or [] when there is none.
+        Skips options (those in UV_VALUED take the next word). Defense in depth only: an option this list does not know
+        that takes a value shifts the command word, and the sandbox + worker PAT are the boundary (M15349)."""
+        def skip(i):
+            while i < len(rest) and rest[i] != "--" and rest[i].startswith("-") and len(rest[i]) > 1:
+                i += 2 if rest[i] in cls.UV_VALUED else 1
+            return i
+
+        i = 0
+        if name == "uv":
+            i = skip(0)
+            if rest[i:i + 1] == ["tool"]:
+                i = skip(i + 1)
+            if rest[i:i + 1] != ["run"]:
+                return []
+            i += 1
+        i = skip(i)
+        if rest[i:i + 1] == ["--"]:
+            i += 1
+        return rest[i:]
 
     def uv_run_runner(self, rest, prefix="uv run"):
         """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""
