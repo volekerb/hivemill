@@ -39,19 +39,25 @@ def stub_go(td, body):
     return path
 
 
-def workflow_guard_diff_job_block(text):
-    m = re.search(r"(?ms)^  guard-diff:\n(.*?)(?=^  [a-z].*:|\Z)", text)
+def workflow_job_block(text, job):
+    m = re.search(r"(?ms)^  %s:\n(.*?)(?=^  [a-z].*:|\Z)" % re.escape(job), text)
     if not m:
-        raise AssertionError("tests.yml has no guard-diff job")
+        raise AssertionError("tests.yml has no %s job" % job)
     return m.group(1)
 
 
+def workflow_guard_diff_job_block(text):
+    return workflow_job_block(text, "guard-diff")
+
+
 def assert_workflow_guard_diff(text):
-    if "GUARD_IMPL=diff" not in text:
-        raise AssertionError("tests.yml must set GUARD_IMPL=diff for the guard-diff job")
-    block = workflow_guard_diff_job_block(text)
-    if re.search(r"(?m)^\s+continue-on-error:\s*true", block):
-        raise AssertionError("guard-diff job must not use continue-on-error: true")
+    """GUARD_IMPL=diff runs in guard-unittest; neither it nor guard-diff may use continue-on-error: true."""
+    unit = workflow_job_block(text, "guard-unittest")
+    if "GUARD_IMPL=diff" not in unit:
+        raise AssertionError("tests.yml must set GUARD_IMPL=diff in the guard-unittest job")
+    for job, block in (("guard-unittest", unit), ("guard-diff", workflow_guard_diff_job_block(text))):
+        if re.search(r"(?m)^\s+continue-on-error:\s*true", block):
+            raise AssertionError("%s job must not use continue-on-error: true" % job)
 
 
 class WorkflowGuardDiffTest(unittest.TestCase):
@@ -74,6 +80,15 @@ class WorkflowGuardDiffTest(unittest.TestCase):
         stripped = wf.replace("GUARD_IMPL=diff", "")
         with self.assertRaises(AssertionError):
             assert_workflow_guard_diff(stripped)
+
+    def test_continue_on_error_in_guard_unittest_or_guard_diff_fails_this_check(self):
+        wf = WF.read_text()
+        for job in ("guard-unittest", "guard-diff"):
+            block = workflow_job_block(wf, job)
+            mutated = wf.replace(block, block.rstrip("\n") + "\n    continue-on-error: true\n\n", 1)
+            self.assertNotEqual(mutated, wf)
+            with self.assertRaises(AssertionError):
+                assert_workflow_guard_diff(mutated)
 
     def test_guard_diff_run_exits_nonzero_on_python_go_disagreement(self):
         """The CI run line is GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run; hook_run must not pass silently."""

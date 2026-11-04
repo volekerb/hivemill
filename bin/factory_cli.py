@@ -231,6 +231,7 @@ DEFAULT_CONFIG = {
     "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
+    "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -4973,7 +4974,8 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
-LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t>*`-]*live-run:[ \t]*pending\b.*$")  # optional leading bullet, quote or backtick
+LIVE_RUN_PENDING = re.compile(  # optional bullet/quote/backtick, "1." number, "[ ]" checkbox, bold/backtick around the key
+    r"(?im)^[ \t>*`_-]*(?:\d+[.)][ \t]+)?(?:\[[ xX]?\][ \t]*)?[ \t>*`_-]*live-run[*`_]*:[*`_]*[ \t]*pending\b.*$")
 
 
 def mech_mode(con):
@@ -6728,6 +6730,66 @@ def reap_orphans(con):
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+EXITED_PANE_THROTTLE_S = 600   # same cadence as the orphan reaper
+EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before its pane is touched
+EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
+
+
+def reap_exited_panes(con, agents):
+    """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
+    one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
+    and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
+    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
+    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
+    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    `agents` is the tick's host agent list (None or empty = nothing to do)."""
+    try:
+        mode = cfg(con, "exited_pane_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off" or not agents:
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='exitedpanereap'").fetchone()
+        if last and t - float(last["ts"]) < EXITED_PANE_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('exitedpanereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        for h in agents:
+            name, pane = h.get("name"), h.get("pane_id")
+            if not name or not pane:
+                continue
+            r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
+            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
+                continue
+            ended = _ts(r["ended"])
+            if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
+                continue
+            if con.execute("SELECT 1 FROM agents WHERE pane_id=? AND name!=? AND status IN ('live','starting','queued','stopped')",
+                           (pane, name)).fetchone():
+                continue  # the pane id was handed to a newer live agent
+            if pane_gone(pane) is not False:
+                continue  # the tick's list is stale (e.g. its reap loop just closed it) or the host cannot be asked
+            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"]}
+            key = json.dumps({"agent": name, "pane": pane})[:-1] + ","
+
+            def seen(action):
+                return con.execute("SELECT 1 FROM events WHERE action=? AND substr(detail,1,?)=?",
+                                   (action, len(key), key)).fetchone()
+            if mode == "dry-run":
+                if not seen("exited-pane-would-close"):
+                    event_as(con, "tick", "agent", name, "exited-pane-would-close", detail)
+                continue
+            herdr("pane", "close", pane, check=False)
+            if pane_gone(pane) is True:
+                event_as(con, "tick", "agent", name, "exited-pane-closed", detail)
+            elif not seen("exited-pane-close-failed"):
+                event_as(con, "tick", "agent", name, "exited-pane-close-failed", detail)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "exited-pane-reap", "exited-pane-reap-failed", str(e))
         except Exception:  # noqa: BLE001
             pass
 
@@ -12499,6 +12561,8 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
 
     _pt_lap("reap_loop")
+    reap_exited_panes(con, agents)
+    _pt_lap("exited_panes")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
     _pt_lap("drift")
 
@@ -13749,7 +13813,7 @@ def dispatch_tick(con):
                 send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
-                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+                     "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
             continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
@@ -13784,7 +13848,7 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
                   "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds). "
+                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
                   "Two verdicts on the same head, then factory done. ")
 
 
