@@ -14570,10 +14570,11 @@ def _link_unmerged(con, lid):
 
 def _roles_affected(paths):
     out = set()
+    role_paths = [f for f in paths if f.startswith("roles/")]
+    if role_paths and all(f.startswith("roles/hooks/") for f in role_paths):
+        return out  # T-0992: hook-only PR: per-call scripts run from disk on every tool call; no pane needs a relaunch
     for f in paths:
-        if f.startswith("roles/hooks/"):
-            continue  # T-0992: per-call hook scripts run from disk on every tool call; no pane needs a relaunch
-        if f == "roles/_common.md":
+        if f == "roles/_common.md" or f.startswith("roles/hooks/"):
             out |= {"boss", "director", "lead"}
             continue
         m = re.match(r"roles/(?:settings/)?([a-z-]+)\.(?:md|json\.in|json)$", f) or re.match(r"roles/plugins/([a-z-]+)/", f)
