@@ -232,7 +232,7 @@ DEFAULT_CONFIG = {
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
-    "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
+    "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
     "scout_max_minutes": "20",   # wall budget of one scout run; over it the tick force-stops the scout
