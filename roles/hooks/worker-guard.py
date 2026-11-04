@@ -2978,29 +2978,45 @@ class Analyzer:
 
     @staticmethod
     def uv_inner(name, rest):
-        """T-0880: the words after `uv [opts] run` / `uv [opts] tool run` / `uvx`, or [] when uv runs nothing. Fail
-        closed on options: no option model (an unknown valued option such as --index-url or --color would shift the
-        command word), so the caller checks EVERY suffix of these words as a command (as loose() does for other
-        wrappers; accepted false positive: `uv run python3 script.py git push`). Defense in depth only; the sandbox +
-        worker PAT are the boundary (M15349)."""
+        """T-0880: the words after `uv [opts] run` / `uv [opts] tool run` / `uvx`, or [] when uv runs nothing."""
         if name == "uvx":
             return rest
         return rest[rest.index("run") + 1:] if "run" in rest else []
 
+    UV_VALUED = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--env-file",
+                 "--extra", "--group", "--package", "--only-group", "--no-group", "--with-editable", "-w", "--index",
+                 "--config-file", "--from"}
+
     def uv_check(self, name, rest, depth, piped, in_loose, hstrs, assigns):
+        """T-0880: `uv run [opts] [--] CMD...` / `uvx [opts] CMD...` is checked like CMD run directly, for the coder and
+        the no-push roles only (cleaner, judge and HQ stay as before). Only the first word after the uv options gets
+        the full command check. A suffix scan looks ONLY for git/gh writes, so an unknown valued uv option cannot
+        hide them (accepted false positive: `uv run python3 x.py git push`); a later word never reaches exec_path,
+        kill or the other command rules. Defense in depth only; the sandbox + worker PAT are the boundary (M15349)."""
+        if self.hq or not (self.role == "coder" or self.role in NO_PUSH_ROLES):
+            return
         words = self.uv_inner(name, rest)
+        i = 0
+        while i < len(words):
+            a = words[i]
+            if a == "--":
+                i += 1
+                break
+            if not a.startswith("-"):
+                break
+            i += 2 if a in self.UV_VALUED else 1
         for k in range(len(words)):
             cand = words[k:]
-            if cand[0].startswith("-") or cand[0] == "--":
-                continue
             base = os.path.basename(cand[0])
             if base == "git":
-                self.git_push_pin(cand[1:])
-            elif base == "gh" and self.role in NO_PUSH_ROLES and not self.hq \
-                    and INLINE_GH_WRITE.search(" ".join(cand)):  # same gh-write scan as inline code (T-0789)
+                self.cmd(cand, depth + 1, piped, True, hstrs, assigns)  # in_loose: git rules only, no exec_path
+            elif self.role in NO_PUSH_ROLES and base == "gh" and INLINE_GH_WRITE.search(" ".join(cand)):
                 raise Block(f"{name} running a gh write (pr merge/create, repo, api with a write method); "
                             "no-push roles never write to GitHub; ask your lead")
-            self.cmd(cand, depth + 1, piped, in_loose, hstrs, assigns)
+            elif self.role in NO_PUSH_ROLES and k > i:
+                self.interp_inline_push(base, cand[1:])  # inline code after an unknown valued option (T-0789 scan)
+        if i < len(words):
+            self.cmd(words[i:], depth + 1, piped, in_loose, hstrs, assigns)
 
     def uv_run_runner(self, rest, prefix="uv run"):
         """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""

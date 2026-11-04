@@ -54,7 +54,15 @@ ALLOWED = [
     "uv run gh pr view 1",
     "uv sync",
     "cd /x && uv run python3 -c 'import json'",
+    # T-0880 B1: real file arguments (a shebang script, a Python file with no shebang)
+    "uv run python3 ci/affected.py --base origin/main --quick --run",
+    "uv run pytest tests/test_worker_guard_uv_wrapper.py -q",
+    "uv run python3 -m unittest tests/test_worker_guard_uv_wrapper.py",
+    "uvx ruff check roles/hooks/worker-guard.py",
+    "uv run mypy bin/factory",
+    "uv run --with requests pytest tests/test_worker_guard_uv_wrapper.py -q",
 ]
+DATA_WORDS = ["uv run python3 x.py herdr", "uv run python3 script.py kill 1", "uvx --from foo python3 x.py herdr"]
 
 
 class UvWrapperTests(unittest.TestCase):
@@ -71,8 +79,8 @@ class UvWrapperTests(unittest.TestCase):
                     self.assertEqual(p.returncode, 2, p.stderr)
 
     def test_denied_reason_names_the_rule(self):
-        self.assertIn("git push", self.run_hook("uv run git push origin main", "qa").stderr)
-        self.assertIn("git push", self.run_hook("uv run -- git push", "reviewer").stderr)
+        self.assertIn("push", self.run_hook("uv run git push origin main", "qa").stderr)
+        self.assertIn("push", self.run_hook("uv run -- git push", "reviewer").stderr)
         self.assertIn("gh write", self.run_hook("uv run --with requests python3 -c '%s'" % 'import os; os.system("gh pr merge 1")', "qa").stderr)
 
     def test_allowed_for_no_push_roles(self):
@@ -82,16 +90,30 @@ class UvWrapperTests(unittest.TestCase):
                     p = self.run_hook(cmd, role)
                     self.assertEqual(p.returncode, 0, p.stderr)
 
+    def test_real_files_exist(self):
+        for rel in ("ci/affected.py", "tests/test_worker_guard_uv_wrapper.py", "roles/hooks/worker-guard.py", "bin/factory"):
+            self.assertTrue(os.path.exists(os.path.join(ROOT, rel)), rel)
+
+    def test_data_words_match_bare_command(self):
+        """T-0880 B2: a later uv suffix never meets the kill/herdr rules; same exit as the bare command."""
+        for role in NO_PUSH:
+            for cmd in DATA_WORDS:
+                bare = cmd.replace("uvx --from foo ", "").replace("uv run ", "")
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(self.run_hook(cmd, role).returncode, self.run_hook(bare, role).returncode)
+
     def test_cleaner_judge_unchanged(self):
         for role in ("cleaner", "judge"):
-            for cmd in ("uv run pytest -q", "uvx ruff check .", "uv pip list", "uv run git status"):
+            for cmd in ("uv run pytest -q", "uvx ruff check .", "uv pip list", "uv run git status") + tuple(DATA_WORDS):
                 with self.subTest(role=role, cmd=cmd):
                     self.assertEqual(self.run_hook(cmd, role).returncode, 0)
+        # the cleaner's uv wrapper is not tightened: same exit as on origin/main (0)
+        self.assertEqual(self.run_hook("uv run git push origin main", "cleaner").returncode, 0)
 
     def test_hq_unchanged(self):
         for role in HQ:
             for cmd in ("uv run git push origin main", "uvx --from gh gh pr merge 1", "uv run -- git push",
-                        "uv run pytest -q", "uv pip list"):
+                        "uv run pytest -q", "uv pip list", "uv run git push origin --delete factory/t-1") + tuple(DATA_WORDS):
                 with self.subTest(role=role, cmd=cmd):
                     self.assertEqual(self.run_hook(cmd, role).returncode, 0)
 
@@ -138,6 +160,18 @@ class CoderUvPushTests(unittest.TestCase):
 
     def test_own_push_allowed_with_separator(self):
         self.assertEqual(self.run_hook("uv run -- git push origin HEAD:factory/%s" % TASK).returncode, 0)
+
+    def test_data_words_match_bare_command(self):
+        for cmd in DATA_WORDS:
+            bare = cmd.replace("uvx --from foo ", "").replace("uv run ", "")
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd).returncode, self.run_hook(bare).returncode)
+
+    def test_real_file_arguments_allowed(self):
+        for cmd in ("uv run python3 %s/ci/affected.py --help" % ROOT, "uv run pytest %s/tests/test_worker_guard_uv_wrapper.py -q" % ROOT,
+                    "uvx ruff check %s/roles/hooks/worker-guard.py" % ROOT, "uv run mypy %s/bin/factory" % ROOT):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd).returncode, 0)
 
     def test_other_uv_commands_allowed(self):
         for cmd in ("uv run pytest -q", "uvx ruff check .", "uv pip list", "uv run python3 -m unittest x"):
