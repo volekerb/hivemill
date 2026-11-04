@@ -34,6 +34,17 @@ class Base(FactoryTestCase):
         e.seed_pr(url=PR_URL, sha=git("rev-parse", "HEAD", cwd=self.wt))
         self.coder("zz-test-coder", "p-1")
         self.run_ok("config", "idle_coder_reap", "on")
+        self.proc = e.home / "fakeproc-idle"
+        self.proc.mkdir()
+        self.fake_proc(100, 1, ["claude"], agent="zz-test-coder")
+
+    def fake_proc(self, pid, ppid, argv, agent=None):
+        """A fake /proc/<pid>/{cmdline,stat,environ}; a claude process carries FACTORY_AGENT."""
+        d = self.proc / str(pid)
+        d.mkdir()
+        (d / "cmdline").write_bytes(b"\0".join(x.encode() for x in argv) + b"\0")
+        (d / "stat").write_text(f"{pid} ({argv[0]}) S {ppid} {pid} {pid} 0 -1 " + " ".join(["0"] * 30) + "\n")
+        (d / "environ").write_bytes((f"FACTORY_AGENT={agent}\0" if agent else "X=1\0").encode())
 
     def run_ok(self, *args):
         p = self.env.run(*args)
@@ -55,7 +66,7 @@ class Base(FactoryTestCase):
 
     def tick(self, when):
         self.env.sql("DELETE FROM throttle WHERE key NOT LIKE 'idlereap%'")
-        p = self.env.run("tick", extra_env={"FACTORY_NOW": when})
+        p = self.env.run("tick", extra_env={"FACTORY_NOW": when, "FACTORY_SERVE_PROC_DIR": str(self.proc)})
         self.assertEqual(p.returncode, 0, p.stderr)
 
     def two_ticks(self, second=T1):
@@ -108,6 +119,7 @@ class Stops(Base):
             self.env.seed_task(f"T-000{i}", "G-001", status="in_review")
             self.env.sql("UPDATE tasks SET worktree=?, branch=? WHERE id=?", (str(self.wt), BRANCH, f"T-000{i}"))
             self.coder(f"zz-test-coder{i}", f"p-{i}", task=f"T-000{i}")
+            self.fake_proc(100 + i, 1, ["claude"], agent=f"zz-test-coder{i}")
         names = ["zz-test-coder"] + [f"zz-test-coder{i}" for i in range(2, 6)]
         self.env.sql("UPDATE tasks SET pr_url=? WHERE pr_url IS NOT NULL", (PR_URL,))
         self.host(*[(n, f"p-{i + 1}", "idle") for i, n in enumerate(names)])
@@ -115,6 +127,58 @@ class Stops(Base):
         self.assertEqual(len(self.events("idle-coder-stopped")), 3)
         self.tick(T1)  # the remaining two go on the next tick
         self.assertEqual(len(self.events("idle-coder-stopped")), 5)
+
+
+class Shells(Base):
+    """B1: a Bash-tool shell runs in its own session, so the pane foreground misses it; the claude process tree is walked.
+    A shell that only waits for CI does not protect the coder; any other shell does."""
+
+    def shell_run(self, cmd, via_child=False):
+        self.fake_proc(101, 100, ["bash", "-c", cmd])
+        if via_child:
+            self.fake_proc(102, 101, ["sleep", "30"])
+        self.host(("zz-test-coder", "p-1", "idle"))
+        self.two_ticks()
+
+    def test_ci_watch_shells_do_not_protect(self):
+        for i, cmd in enumerate(("gh run watch 123 --exit-status", "gh pr checks 398 --watch --fail-fast",
+                                 "until gh run list --branch b | grep -q completed; do sleep 30; done")):
+            with self.subTest(cmd=cmd):
+                self.env.sql("DELETE FROM throttle")
+                self.env.sql("DELETE FROM events")
+                self.env.sql("DELETE FROM messages")
+                self.env.sql("UPDATE agents SET stop_requested_at=NULL WHERE name='zz-test-coder'")
+                self.fake_proc_reset()
+                self.shell_run(cmd, via_child=bool(i))
+                self.assertEqual(len(self.stop_orders()), 1)
+
+    def test_other_shells_protect(self):
+        for cmd in ("python3 -m unittest tests.test_x", "make build", "sleep 900",
+                    "gh run watch 1 && python3 deploy.py", "gh run watch 1; rm -rf x", "gh run list > out.txt",
+                    "gh pr merge 1"):
+            with self.subTest(cmd=cmd):
+                self.env.sql("DELETE FROM throttle")
+                self.fake_proc_reset()
+                self.shell_run(cmd)
+                self.assert_not_stopped()
+
+    def test_bare_shell_protects(self):
+        self.fake_proc(101, 100, ["bash"])
+        self.host(("zz-test-coder", "p-1", "idle"))
+        self.two_ticks()
+        self.assert_not_stopped()
+
+    def test_no_claude_process_found_is_not_stopped(self):
+        self.fake_proc_reset(keep_claude=False)
+        self.host(("zz-test-coder", "p-1", "idle"))
+        self.two_ticks()
+        self.assert_not_stopped()
+
+    def fake_proc_reset(self, keep_claude=True):
+        import shutil
+        for d in self.proc.iterdir():
+            if d.name != "100" or not keep_claude:
+                shutil.rmtree(d)
 
 
 class NotStopped(Base):
