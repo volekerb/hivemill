@@ -8629,6 +8629,13 @@ def cmd_cursor_pilot(a):
     die(f"unknown cursor-pilot action {action!r}", 2)
 
 
+def qa_without_pr_or_worktree(con, task):
+    """True when task has no PR and no existing worktree: a qa agent spawned without --cwd would start in the shared
+    checkout (T-0956; dispatch_tick checks it too, T-0966)."""
+    tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(tw) and not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists())
+
+
 def cmd_spawn(a):
     refuse_worker("spawn")
     if a.role == "evaluator":  # only the skilleval harness calls spawn() for it, for everyone else the CLI says no
@@ -8653,8 +8660,7 @@ def cmd_spawn(a):
             die(f"{a.task} has no acceptance in the DB; write it with factory task update {a.task} --acceptance - "
                 "before spawning (scratch files are lost on reboot)", 2)
         if a.role == "qa" and not a.cwd:  # T-0956: no PR and no worktree = the shared checkout, where QA can do nothing
-            tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (a.task,)).fetchone()
-            if not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists()):
+            if qa_without_pr_or_worktree(con, a.task):
                 die(f"{a.task} has no PR and no worktree, so a qa agent would start in the shared checkout: create a worktree "
                     f"for it, or pass one: factory spawn qa --task {a.task} --cwd <worktree>", 2)
         why = staleness_precheck(con, a.role, a.task)
@@ -13617,6 +13623,20 @@ def dispatch_tick(con):
         if not gate(con, role=role)[0]:
             break
         name = f"{role}-{tid.lower()}"
+        if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            key = f"dispatch-refused:{tid}"
+            if not _throttled(con, key, clock, 10 * 365 * 86400):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
+                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                     f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
+                     f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
+                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+            continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
                  "Never call the advisor tool.")
