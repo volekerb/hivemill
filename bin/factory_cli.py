@@ -729,9 +729,10 @@ def evaluator_settings(rdir):
         for group in groups:
             for hook in group.get("hooks", []):
                 cmd = hook.get("command", "")
-                tail = cmd.partition("worker-guard.py")[2]
-                if "worker-guard.py" not in cmd:
-                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                m = re.fullmatch(r"(?:python3|sh) \S*/worker-guard(?:\.py)?( .*)?", cmd)  # the python3 form or the sh shim
+                if not m:
+                    die(f"evaluator hook command {cmd!r} runs neither `python3 .../worker-guard.py` nor `sh .../worker-guard`; fix roles/settings/evaluator.json.in", 3)
+                tail = m.group(1) or ""
                 hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
                 n += 1
     if not n:
@@ -1815,6 +1816,13 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
         if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
             return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    if runtime == "cursor" and role:
+        from web import cursor_limits
+        slug = role_model(con, role, org="cursor")
+        ent = cursor_limits.load_state(con).get(slug) or {}
+        if ent.get("status") == "limited":
+            reset = ent.get("reset") or "unknown date"
+            return False, f"Cursor pane limit: {slug} limited until {reset}", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
