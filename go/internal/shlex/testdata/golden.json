@@ -2615,6 +2615,158 @@
 "src": "corpus"
 },
 {
+"input": "echo x > $Q/.local/bin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/bin"
+]
+},
+{
+"input": "echo x > $Q/.local/bin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$",
+"Q/.local/bin"
+]
+},
+{
+"input": "echo x > $Q/.local/bin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/bin"
+]
+},
+{
+"input": "echo x > $Q/.local/bin",
+"mode": "quote",
+"quoted": "'echo x > $Q/.local/bin'",
+"src": "corpus"
+},
+{
+"input": "echo x > $Q/.local/bin\u00e9",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/bin\u00e9"
+]
+},
+{
+"input": "echo x > $Q/.local/bin\u00e9",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$",
+"Q/.local/bin\u00e9"
+]
+},
+{
+"input": "echo x > $Q/.local/bin\u00e9",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/bin\u00e9"
+]
+},
+{
+"input": "echo x > $Q/.local/bin\u00e9",
+"mode": "quote",
+"quoted": "'echo x > $Q/.local/bin\u00e9'",
+"src": "corpus"
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/bin"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/bin"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/bin"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\"",
+"mode": "quote",
+"quoted": "'python3 -c \"open(1,2).write(0) # .local/bin\"'",
+"src": "corpus"
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/bin\u00e9"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/bin\u00e9"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/bin\u00e9"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
+"mode": "quote",
+"quoted": "'python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"'",
+"src": "corpus"
+},
+{
 "input": "echo go > @LIVE_HOME@/run/guard_impl",
 "mode": "script",
 "src": "corpus",
@@ -45176,6 +45328,122 @@
 "src": "corpus"
 },
 {
+"input": "echo x > $Q/.local/binx",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/binx"
+]
+},
+{
+"input": "echo x > $Q/.local/binx",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$",
+"Q/.local/binx"
+]
+},
+{
+"input": "echo x > $Q/.local/binx",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/binx"
+]
+},
+{
+"input": "echo x > $Q/.local/binx",
+"mode": "quote",
+"quoted": "'echo x > $Q/.local/binx'",
+"src": "corpus"
+},
+{
+"input": "echo x > $Q/.local/bin_",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/bin_"
+]
+},
+{
+"input": "echo x > $Q/.local/bin_",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$",
+"Q/.local/bin_"
+]
+},
+{
+"input": "echo x > $Q/.local/bin_",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"$Q/.local/bin_"
+]
+},
+{
+"input": "echo x > $Q/.local/bin_",
+"mode": "quote",
+"quoted": "'echo x > $Q/.local/bin_'",
+"src": "corpus"
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/binx\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/binx"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/binx\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/binx"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/binx\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(1,2).write(0) # .local/binx"
+]
+},
+{
+"input": "python3 -c \"open(1,2).write(0) # .local/binx\"",
+"mode": "quote",
+"quoted": "'python3 -c \"open(1,2).write(0) # .local/binx\"'",
+"src": "corpus"
+},
+{
 "input": "git commit -m 'note: ~/.local/bin is on PATH'",
 "mode": "script",
 "src": "corpus",
@@ -64645,7 +64913,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1475,
+"corpus_commands": 1482,
 "edge_inputs": 123,
 "python": "3.13"
 }

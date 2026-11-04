@@ -3197,6 +3197,186 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo x > $Q/.local/bin",
+"mask_quotes_pre": "echo x > $Q/.local/bin",
+"mask_quotes_raw": "echo x > $Q/.local/bin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/bin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/bin"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"echo",
+"x",
+">",
+"$Q/.local/bin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"echo",
+"x",
+">",
+"$Q/.local/bin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > $Q/.local/bin\u00e9",
+"mask_quotes_pre": "echo x > $Q/.local/bin\u00e9",
+"mask_quotes_raw": "echo x > $Q/.local/bin\u00e9",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/bin\u00e9"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/bin\u00e9"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"echo",
+"x",
+">",
+"$Q/.local/bin\u00e9"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"echo",
+"x",
+">",
+"$Q/.local/bin\u00e9"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\"",
+"mask_quotes_pre": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open(1,2).write(0) # .local/bin\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open(1,2).write(0) # .local/bin\""
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
+"mask_quotes_pre": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\""
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "echo go > @LIVE_HOME@/run/guard_impl",
 "mask_quotes_pre": "echo go > @LIVE_HOME@/run/guard_impl",
 "mask_quotes_raw": "echo go > @LIVE_HOME@/run/guard_impl",
@@ -56338,6 +56518,142 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo x > $Q/.local/binx",
+"mask_quotes_pre": "echo x > $Q/.local/binx",
+"mask_quotes_raw": "echo x > $Q/.local/binx",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/binx"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/binx"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"echo",
+"x",
+">",
+"$Q/.local/binx"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"echo",
+"x",
+">",
+"$Q/.local/binx"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > $Q/.local/bin_",
+"mask_quotes_pre": "echo x > $Q/.local/bin_",
+"mask_quotes_raw": "echo x > $Q/.local/bin_",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/bin_"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > $Q/.local/bin_"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"echo",
+"x",
+">",
+"$Q/.local/bin_"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"echo",
+"x",
+">",
+"$Q/.local/bin_"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c \"open(1,2).write(0) # .local/binx\"",
+"mask_quotes_pre": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open(1,2).write(0) # .local/binx\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"open(1,2).write(0) # .local/binx\""
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "git commit -m 'note: ~/.local/bin is on PATH'",
 "mask_quotes_pre": "git commit -m 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
 "mask_quotes_raw": "git commit -m 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
@@ -82318,7 +82634,7 @@
 ]
 }
 },
-"corpus_commands": 1475,
+"corpus_commands": 1482,
 "edge_inputs": 97,
 "python": "3.13"
 }

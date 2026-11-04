@@ -156,6 +156,28 @@ func TestLookaroundCfgCode(t *testing.T) {
 	})
 }
 
+// TestLookaroundLocalBin: the T-0957 regex \.local/bin(?![A-Za-z0-9_]) (ASCII word classes: a non-ASCII letter after
+// "bin" does not end the match's protection, a letter, digit or underscore does)
+func TestLookaroundLocalBin(t *testing.T) {
+	cases := []strCase{
+		{".local/bin", true},
+		{".local/bin/x", true},
+		{"~/.local/bin", true},
+		{".local/binx", false},
+		{".local/bin_", false},
+		{".local/bin1", false},
+		{".local/biné", true},
+		{".local/bin日", true},
+		{".local/bin-old", true},
+		{".local/bin.", true},
+		{".local/bi", false},
+		{"local/bin", false},
+		{".local/binx .local/bin", true},
+	}
+	runBool(t, "hasLocalBin", hasLocalBin, cases)
+	runBool(t, "hasCfgCode", hasCfgCode, cases)
+}
+
 // TestLookaroundCfgCodeWord: Analyzer.cfg_code (worker-guard.py:1232-1235)
 func TestLookaroundCfgCodeWord(t *testing.T) {
 	runBool(t, "CfgCode", CfgCode, []strCase{
