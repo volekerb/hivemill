@@ -1048,12 +1048,13 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
-def preprocess(cmd, fold_ticks=False, bodies=None):
+def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
     """Make newlines separators, drop comments and non-shell heredoc bodies.
 
     Returns (text, extras): extras are texts to analyze too (bodies of heredocs fed to a shell) and
     text blocks fed to other interpreters (only searched for the word herdr). When bodies is a list, every heredoc
     is appended to it as (the command line up to its newline, the body): the public-text rule reads `-F -` from it.
+    When slots is a list, one single-item list per `<<` in text order is appended; a resolved heredoc's slot holds its body.
     """
     out, extras = [], []
     i, n, q = 0, len(cmd), None
@@ -1103,10 +1104,15 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
             r = heredoc_delim(cmd, i)
             if r:
-                pending.append((r[0], r[1], r[3]))
+                slot = [None]
+                if slots is not None:
+                    slots.append(slot)
+                pending.append((r[0], r[1], r[3], slot))
                 out.append(cmd[i:r[2]])
                 i = r[2]
             else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
+                if slots is not None:
+                    slots.append([None])
                 out.append("<<")
                 i += 2
             continue
@@ -1114,7 +1120,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             head = "".join(out[line_start:])
             out.append(" ; ")
             i += 1
-            for strip, delim, quoted in pending:
+            for strip, delim, quoted, slot in pending:
                 body = []
                 while i < n:
                     seg = i
@@ -1133,6 +1139,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                     if cmp != line:
                         body.append(cmp)  # what bash feeds the inner command after joining
                 body = "\n".join(body)
+                slot[0] = body
                 if bodies is not None:
                     bodies.append((head, body))
                 if re.search(r"\b(%s|eval|source)\b" % "|".join(SHELLS), head):
@@ -1420,10 +1427,10 @@ class Analyzer:
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
-        text, extras = preprocess(text, self.hq, nbodies)
+        slots = []
+        text, extras = preprocess(text, self.hq, nbodies, slots)
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.call_assign(text, [b for _, b in nbodies[seen:]])
-            self.stdin_heredocs(nbodies[seen:])
         for kind, body in extras:
             if kind == "sh":
                 self.soft(self.script, body, depth + 1)
@@ -1446,6 +1453,7 @@ class Analyzer:
             self.soft(self.script, sub, depth + 1)
         cmds, cur, piped, i, hs = [], [], False, 0, []
         reds = []  # (index of the command it belongs to, redirect target word)
+        hds = {}  # command index -> heredoc bodies (T-0882: they join the here-string stdin channel)
         stack, dollar = [], False  # saved (cur, piped, hs) of the commands that open a $( )
         while i < len(toks):
             tok = toks[i]
@@ -1477,6 +1485,12 @@ class Analyzer:
                     if nxt is not None and not is_punct(nxt):
                         if tok == "<<<":
                             hs.append(nxt)
+                        elif tok == "<<":
+                            b = slots.pop(0)[0] if slots else None
+                            if b is not None:
+                                hds.setdefault(len(cmds), []).append(b)
+                            if nxt == "-" and i + 2 < len(toks) and not is_punct(toks[i + 2]):
+                                i += 1  # `<<- EOF`
                         elif ">" in tok and ("&" not in tok or (re.match(r"^[0-9]*(&>>?|>&)$", tok)
                                                                  and not re.match(r"^([0-9]+|-)$", nxt))):
                             reds.append((len(cmds), nxt))  # `>&2` / `>&-` duplicate or close an fd: no file target
@@ -1516,7 +1530,9 @@ class Analyzer:
                 k -= 1  # pass-through stages (`echo ... | tee f | python3`) keep the literal
             prev = cmds[k][0] if piped and k >= 0 else []
             self.pipe_src = " ".join(prev[1:]) if prev and os.path.basename(prev[0]) in ("echo", "printf") else None
-            self.soft(self.cmd, words, depth, piped, False, hstrs)
+            if prev and os.path.basename(prev[0]) == "cat" and (hds.get(k) or cmds[k][2]):
+                self.pipe_src = "\n".join([*hds.get(k, []), *cmds[k][2]])
+            self.soft(self.cmd, words, depth, piped, False, hstrs, (), (piped, [*hstrs, *hds.get(n, [])], self.pipe_src))
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
                 self.fs_changed = True
 
@@ -1659,8 +1675,6 @@ class Analyzer:
             return False
         if si is not None and PT_STDIN_PATH.match(os.path.normpath(rest[si])):
             return True
-        if re.match(r"^python[\d.]*$", name) and not py_inline_code(rest):
-            return False  # -m module, --version
         return si is None or rest[si] == "-" or bool(PT_STDIN_PATH.match(os.path.normpath(rest[si])))
 
     def stdin_scan(self, name, text):
@@ -1672,68 +1686,6 @@ class Analyzer:
         if re.match(r"^python[\d.]*$", name) and re.search(r"extractall|extract\s*\(|unpack_archive", text):
             raise Block(f"`{name}` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); "
                         "use unzip -d or tar -C")
-
-    def stdin_interp(self, w):
-        """T-0882: (name, args) of the interpreter that reads stdin in the plain words `w`, or None. After an exec wrapper
-        (timeout/nice/stdbuf/env/nohup...: WRAPPERS minus the data-only ones) any later word may be the interpreter, as
-        `loose` does for -c code."""
-        if not w:
-            return None
-        wrapped = os.path.basename(w[0]) in WRAPPERS and os.path.basename(w[0]) not in WRAP_DATA
-        for k in range(len(w) if wrapped else 1):
-            name = os.path.basename(w[k])
-            if INLINE_CODE_INTERPS.match(name) and self.stdin_program(name, w[k + 1:]):
-                return name
-        return None
-
-    def stdin_heredocs(self, bodies):
-        """T-0882: heredoc bodies (head, body) of a no-push role: scan those fed to an interpreter program on stdin, directly or
-        through `cat <<EOF |`. Bodies of one line share its head: the nth body belongs to the nth `<<` of that line."""
-        seen = {}
-        for head, body in bodies:
-            parts = re.split(r"(&&|\|\||[;&|(])", head)
-            idx = [k for k, p in enumerate(parts) if re.search(r"(?<!<)<<(?!<)", p)]
-            if not idx:
-                continue
-            n = seen.get(head, 0)
-            seen[head] = n + 1
-            k = idx[min(n, len(idx) - 1)]
-            cands, c = [k], k
-            if self.plain_words(parts[k])[:1] == ["cat"]:
-                while c + 2 < len(parts) and parts[c + 1] == "|":
-                    c += 2
-                    cands.append(c)
-                    if self.plain_words(parts[c])[:1] not in (["tee"], ["cat"]):
-                        break
-            for cand in cands:
-                name = self.stdin_interp(self.plain_words(parts[cand]))
-                if name:
-                    self.stdin_scan(name, body)
-
-    @staticmethod
-    def plain_words(seg):
-        """Command words of one simple-command text: assignments, env/exec/command wrappers and redirections dropped."""
-        seg = re.sub(r"(?<!<)\d*<<-?\s*(?:'[^']*'|\"[^\"]*\"|[^\s;&|()<>]+)", " ", seg)
-        try:
-            ws = shlex.split(seg)
-        except ValueError:
-            return []
-        out, skip = [], False
-        for x in ws:
-            if skip:
-                skip = False
-            elif re.match(r"^\d*[<>]+&?$", x):
-                skip = True
-            elif re.match(r"^\d*[<>]", x):
-                pass
-            else:
-                out.append(x)
-        out = strip_prefix(out)  # then/do/else/{/! before the command
-        while out and (ASSIGN.match(out[0]) or out[0] in ("env", "exec", "command", "nohup", "time")):
-            out.pop(0)
-        if out:
-            out[0] = os.path.basename(out[0])
-        return out
 
     def git_priv(self, rest, depth):
         """git runs shell text from `-c alias.x=!cmd`, `-c core.pager=cmd` and `git config <key> <value>`."""
@@ -3380,7 +3332,7 @@ class Analyzer:
             self.interp_priv(name, rest)
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
-                if self.stdin_program(name, rest):  # T-0882: here-string / echo|printf piped in (heredocs: stdin_heredocs)
+                if self.stdin_program(name, rest):  # T-0882: here-string, heredoc, echo|printf piped in
                     for h in list(stdin_hs) + ([stdin_pipe] if stdin_piped and stdin_pipe else []):
                         self.stdin_scan(name, h)
             self.unittest_full(name, rest)
@@ -3424,7 +3376,7 @@ class Analyzer:
         elif name in WRAPPERS and not in_loose:
             if name == "xargs":
                 self.xargs(rest)
-            self.loose(rest, depth, assigns, (piped, hstrs, getattr(self, "pipe_src", None)))
+            self.loose(rest, depth, assigns, (stdin_piped, stdin_hs, stdin_pipe))
 
     def test_sandbox_on(self):
         """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""

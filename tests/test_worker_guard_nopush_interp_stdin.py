@@ -83,6 +83,31 @@ DENIED += [
     "python3 /dev/fd/0 <<'EOF'\n%s\nEOF" % PY,
 ]
 
+# attempt 3 (LIST A): wrapper options, subshell, -m, several heredocs per line, quoted <<, assignment with ;, cat <<< | python3
+for wrap in ("env -u FOO", "env --", "env -C /tmp", "command -p", "exec -a x", "nohup --"):
+    DENIED.append(heredoc(wrap + " python3", PY))
+DENIED += [
+    "(python3 <<'EOF')\n%s\nEOF" % PY,
+    heredoc("python3 -m code", PY),
+    heredoc("python3 -m asyncio", PY),
+    "python3 -m code <<< '%s'" % PY,
+    "echo '%s' | python3 -m code" % PY,
+    "echo 'a << b'; python3 <<'EOF'\n%s\nEOF" % PY,
+    "python3 <<EOF\n%s\nEOF" % PY.replace('"', "'"),
+    "python3 <<'A' <<'B'\nok\nA\n%s\nB" % PY,
+    "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\n%s\nB" % PY,  # cat <<C with the code in B
+    "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\n%s\nA\nok\nB" % PY,  # repeated line
+    "FOO='a;b' python3 <<'EOF'\n%s\nEOF" % PY,
+    "cat <<< '%s' | python3" % PY,
+]
+
+# LIST B: still exit 0
+ALLOWED_B = [
+    heredoc("python3 -m json.tool", '{"a": 1}'),
+    "cat <<'A'; python3 <<'B'\n%s\nA\nprint(1)\nB" % PY,  # push text only in cat's body
+    "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+]
+
 ALLOWED = [
     "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
     "timeout 5 python3 <<< 'print(1)'",
@@ -103,6 +128,7 @@ ALLOWED = [
     "python3 -c 'print(1)' <<< 'git push'",  # -c code: stdin is data
     heredoc("python3 -", "import tarfile; tarfile.open('a.tar').getnames()"),
 ]
+ALLOWED += ALLOWED_B
 
 
 class InterpStdinTests(unittest.TestCase):
