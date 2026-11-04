@@ -71,6 +71,7 @@ ALLOWED = [
     "uv run --with git pytest -q",
     "uv run pytest tests/git tests/test_harness.py",
     "uv run --color never git commit -m x",  # accepted, same as main (unknown option hides the command word)
+    "python3 -m uv run git push",  # accepted, same as main (item 11): uv is not the command word
 ]
 # exit 2 for qa/reviewer/coder: the command word gets the bare command's rules
 FIRST_WORD_DENIED = ["uv run git config user.name x", "uv run herdr list", "uv run kill 1", "uv run su" + "do ls"]
@@ -182,7 +183,8 @@ class CoderUvPushTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd).returncode, 2)
         for cmd in ("uv run pytest -k git -q", "uv run pytest -k git tests/test_harness.py", "uv run --with git pytest -q",
-                    "uv run pytest tests/git tests/test_harness.py", "uv run --color never git commit -m x"):
+                    "uv run pytest tests/git tests/test_harness.py", "uv run --color never git commit -m x",
+                    "python3 -m uv run git push"):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd).returncode, 0)
 
