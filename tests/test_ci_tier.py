@@ -209,7 +209,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_job_names_unchanged(self):
         self.assertEqual(re.findall(r"(?m)^    name: (.+)$", self.wf),
-                         ["unittest-shard (${{ matrix.shard }})", "go", "guard-unittest", "guard-diff", "unittest"])
+                         ["unittest-shard (${{ matrix.shard }})", "go", "guard-unittest", "guard-diff", "guard-equiv", "unittest"])
 
     def test_classifier_runs_from_the_base_commit(self):
         self.assertEqual(self.wf.count('git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py'), 3)
