@@ -4167,6 +4167,14 @@ def persist_edit(data, role=None):
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
         return 2
+    # T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
+    # a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
+    if any(q == d or under(q, d) for q in (os.path.normpath(p), os.path.realpath(p)) for d in BIN_DIRS) or (
+            "$" in p and re.search(r"\.local/bin(?![A-Za-z0-9_])", p)):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): ~/.local/bin is first on the tick's PATH, so a file "
+                         "planted there runs with the tick's credentials; only the owner changes it. "
+                         "Tell your lead if this is wrong.\n")
+        return 2
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
     if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (
             "$" in p and persist_code(p)):

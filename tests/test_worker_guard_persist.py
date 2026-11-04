@@ -322,5 +322,36 @@ class LocalBinGuardTest(unittest.TestCase):
 
 PERSIST_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
+class LocalBinEditToolsTest(unittest.TestCase):
+    """T-0957 AC11: Write/Edit/MultiEdit/NotebookEdit into ~/.local/bin exit 2 (spelled, resolved, symlink entry)."""
+
+    def call(self, tool, path, cwd=ROOT):
+        key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+        return hook_subprocess({"tool_name": tool, "tool_input": {key: path}, "cwd": cwd})
+
+    def test_edit_tools_into_local_bin_are_blocked(self):
+        paths = [("~/.local/bin/git", ROOT), ("$HOME/.local/bin/git", ROOT), (f"{LB_BIN}/git", ROOT),
+                 ("git", LB_BIN), (f"{LB_BIN}/factory", ROOT), (f"{LB_BIN}/../bin/git", ROOT),
+                 ("/tmp/$X/.local/bin/git", ROOT)]
+        for tool in sorted(PERSIST_TOOLS):
+            for path, cwd in paths:
+                r = self.call(tool, path, cwd)
+                self.assertEqual(r.returncode, 2, f"{tool} {path}\n{r.stderr}")
+                self.assertIn("~/.local/bin", r.stderr)
+
+    def test_symlink_entry_with_realpath_outside_tree_is_blocked(self):
+        # a fixture symlink in a temp tree cannot sit inside the real ~/.local/bin (never written); the spelled path of
+        # the live entry (factory -> repo bin/factory) is decided on its text, so the check needs no file there
+        self.assertEqual(self.call("Write", f"{LB_BIN}/factory").returncode, 2)
+
+    def test_other_paths_are_allowed(self):
+        for tool in sorted(PERSIST_TOOLS):
+            for path in ("~/.local/binx/foo", f"{PW}/.local/binx/foo", os.path.join(ROOT, "notes.md")):
+                r = self.call(tool, path)
+                self.assertEqual(r.returncode, 0, f"{tool} {path}\n{r.stderr}")
+        main = hook_subprocess({"tool_name": "Write", "tool_input": {"file_path": "/usr/local/bin/foo"}}).returncode
+        self.assertEqual(main, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
