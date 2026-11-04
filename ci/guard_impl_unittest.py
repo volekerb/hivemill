@@ -20,6 +20,7 @@ DOC_DIFF_BASENAMES = (
     "test_worker_guard.py",
     "test_priv_guard.py",
     "test_guard_diff.py",
+    "test_worker_guard_public_text.py",
 )
 
 
