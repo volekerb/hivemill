@@ -13745,7 +13745,7 @@ def dispatch_tick(con):
                 send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
-                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+                     "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
             continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
