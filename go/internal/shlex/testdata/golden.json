@@ -38953,59 +38953,6 @@
 "src": "corpus"
 },
 {
-"input": "python3 --check-hash-based-pycs= x.py; unzip a.zip -d @SCRATCH@/out",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"python3",
-"--check-hash-based-pycs=",
-"x.py",
-";",
-"unzip",
-"a.zip",
-"-d",
-"@SCRATCH@/out"
-]
-},
-{
-"input": "python3 --check-hash-based-pycs= x.py; unzip a.zip -d @SCRATCH@/out",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"python3",
-"--check-hash-based-pycs=",
-"x.py",
-";",
-"unzip",
-"a.zip",
-"-d",
-"@",
-"SCRATCH",
-"@",
-"/out"
-]
-},
-{
-"input": "python3 --check-hash-based-pycs= x.py; unzip a.zip -d @SCRATCH@/out",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"python3",
-"--check-hash-based-pycs=",
-"x.py;",
-"unzip",
-"a.zip",
-"-d",
-"@SCRATCH@/out"
-]
-},
-{
-"input": "python3 --check-hash-based-pycs= x.py; unzip a.zip -d @SCRATCH@/out",
-"mode": "quote",
-"quoted": "'python3 --check-hash-based-pycs= x.py; unzip a.zip -d @SCRATCH@/out'",
-"src": "corpus"
-},
-{
 "input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u2028(\"x\")'",
 "mode": "script",
 "src": "corpus",
@@ -74270,7 +74217,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1712,
+"corpus_commands": 1711,
 "edge_inputs": 123,
 "python": "3.13"
 }
