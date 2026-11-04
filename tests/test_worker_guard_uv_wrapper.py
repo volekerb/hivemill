@@ -32,6 +32,12 @@ DENIED = [
     "uv --directory /x run git push",
     "uv run --env-file .env -p 3.12 gh pr merge 1",
     "uv run --with=x git push",
+    "uv run --index-url http://x git push",
+    "uv run --color never git push",
+    "uv --color never run git push",
+    "uvx --index-url http://x gh pr merge 1",
+    "uv run --python-preference only-system git push",
+    "uv run --index-url http://x python3 -c '%s'" % PY_PUSH,
     "cd /x && uv run git push origin main",
     "cd /x && uvx --from gh gh pr merge 1",
     "bash -c 'uv run git push origin main'",
@@ -129,6 +135,9 @@ class CoderUvPushTests(unittest.TestCase):
     def test_own_push_allowed(self):
         p = self.run_hook("uv run git push origin HEAD:factory/%s" % TASK)
         self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_own_push_allowed_with_separator(self):
+        self.assertEqual(self.run_hook("uv run -- git push origin HEAD:factory/%s" % TASK).returncode, 0)
 
     def test_other_uv_commands_allowed(self):
         for cmd in ("uv run pytest -q", "uvx ruff check .", "uv pip list", "uv run python3 -m unittest x"):
