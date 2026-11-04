@@ -18,7 +18,7 @@ RUNNERS = (
     "python3 -m unittest tests.test_y -v",
     "python -m unittest tests.test_x",
     "python3 -m pytest tests/test_x.py -q",
-    "pytest -q tests",
+    "pytest -q tests/test_x.py",
     "go test ./...",
 )
 SHAPES = (
