@@ -369,7 +369,11 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+# T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
+INLINE_GH_API_BODY = re.compile(
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
+INLINE_GH_GET = re.compile(r"(?<![\w-])(?:-X|--method)\W*(?i:GET)\b")
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
 
@@ -1314,8 +1318,8 @@ class Analyzer:
         for t in texts:
             if all(p.search(t) for p in INLINE_GIT_PUSH):
                 raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t):
-                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method); "
+            if INLINE_GH_WRITE.search(t) or (INLINE_GH_API_BODY.search(t) and not INLINE_GH_GET.search(t)):
+                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
                             "no-push roles never write to GitHub; ask your lead")
 
     def git_priv(self, rest, depth):
@@ -2338,6 +2342,17 @@ class Analyzer:
             self.git_deny(f"`git {sub}` is not on the read-only list (aliases, push, send-pack, subtree, rebase --exec, "
                           "bisect run, submodule foreach, archive --remote ... are refused)")
 
+    def nopush_gh_write(self, rest):
+        """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
+        POST) unless the method is GET, nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
+        pos, method, body = gh_parse(rest)
+        if pos[:1] == ["api"] and body and method != "GET":
+            raise Block("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to "
+                        "GitHub; use -X GET for a read with fields, or ask your lead")
+        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
+            raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
+
     def researcher_cmd(self, name, rest):
         """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
         report, task show|note, goal show); merge, PR, judge, spawn and every other form is refused."""
@@ -2715,6 +2730,8 @@ class Analyzer:
         self.factory_unit(name, rest, assigns)
         if self.role == RESEARCHER and not self.hq:
             self.researcher_cmd(name, rest)
+        if self.role in NO_PUSH_ROLES and not self.hq and name == "gh":
+            self.nopush_gh_write(rest)
         if name in COPIERS:  # R3: no copying/encoding/reading the real herdr binary
             for a in rest:
                 a = a.split("=", 1)[1] if re.match(r"^(if|of)=", a) else a
