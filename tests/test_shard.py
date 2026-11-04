@@ -253,7 +253,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_required_check_name_and_timeouts(self):
         self.assertRegex(self.wf, r"(?m)^  unittest:\n    name: unittest\n    needs: \[unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest\]\n    if: always\(\)")
-        self.assertEqual(re.findall(r"timeout-minutes: (\d+)", self.wf), ["20", "10", "30", "20", "30", "30", "5"])
+        self.assertEqual(re.findall(r"timeout-minutes: (\d+)", self.wf), ["20", "10", "30", "5", "20", "30", "30", "5"])
 
     def test_edited_trigger_is_not_used(self):
         # An `edited` run would put a second `unittest` check (or a skipped one, which counts as
