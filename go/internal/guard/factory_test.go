@@ -393,7 +393,7 @@ func TestCfgDirWritesBlockedReadsAllowed(t *testing.T) {
 		}
 	}
 	for _, cmd := range []string{"cat ~/.config/factory/live_home", "grep x ~/.config/factory/live_home", "cp ~/.config/factory/live_home /tmp/x",
-		"ls ~/.config", "ls ~/.config/factory", "echo x > ~/.config/factoryx", "factory init", "echo live_homes > /tmp/x",
+		"ls ~/.config", "ls ~/.config/factory", "echo x > ~/.config/factoryx", "factory inbox", "echo live_homes > /tmp/x",
 		"cd /tmp && echo x > live_home_x", "cat " + mustHost().liveHome + "/run/settings/coder.json", "rm -r ~/.cache", "mv /tmp/a /tmp/b",
 		"python3 -c \"open('live_'+'home','w')\""} {
 		if err := Check(cmd, "", "coder", false); err != nil {
