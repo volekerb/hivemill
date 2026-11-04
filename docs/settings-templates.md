@@ -18,7 +18,7 @@ The values are absolute, so an Edit/Write/Read rule is written `Edit(/@FACTORY_L
 
 Every template denies Edit/Write on `<live home>/run/settings/**`, so no agent can edit the rendered files. Every worker role also denies Edit/Write on `<user config>/factory`, `<user config>/factory/**` and `<user config>/factory/live_home`.
 
-The worker-guard hook command stays an absolute path inside the live checkout (`python3 <live home>/roles/hooks/worker-guard.py ...`): the hook trusts the root it was started from, so it is never a worktree or a relative path.
+The worker-guard hook command is an absolute path inside the live checkout: `sh <live home>/roles/hooks/worker-guard ...` (the shim) for the 10 worker templates, `python3 <live home>/roles/hooks/worker-guard.py --hq` for boss, director and lead: the hook trusts the root it was started from, so it is never a worktree or a relative path.
 
 T-0356 (M22079): the 10 worker templates (cleaner, coder, evaluator, judge, pm, qa, researcher, reviewer, scout, staff-engineer) call the `sh` shim, so the `guard_impl` flag takes effect without a relaunch. The 3 HQ templates (boss, director, lead) keep the direct Python hook. Old -> new, worker lines only (27 lines, `--role <role>` and the matchers unchanged):
 

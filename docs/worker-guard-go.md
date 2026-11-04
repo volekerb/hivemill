@@ -1,7 +1,7 @@
 # worker-guard in Go (G-016 SC4)
 
 `go/cmd/worker-guard` is the Go port of `roles/hooks/worker-guard.py`. It was built in four section tasks and is
-**not wired anywhere**: no settings file, shim or flag calls it, and Python stays the default (`guard_impl=python`).
+wired only behind the shim: the 10 worker settings templates call `roles/hooks/worker-guard` (T-0356), which picks Go or Python from the `guard_impl` flag; Python stays the default (`guard_impl=python`). HQ (boss, director, lead) calls the Python hook directly.
 The Python hook on `origin/main` is the behaviour contract.
 
 ## Status
