@@ -743,6 +743,7 @@ func TestUvxRunnerRouting(t *testing.T) {
 		"uv tool -q run black", "uv tool uvx ruff", "uvx 'ruff >=0.5'",
 		"uvx pytestx", "uvx pytest-cov",
 	}
+	offRefused := map[string]bool{"uv -q tool run pytest": true, "uv tool -q run pytest": true, "uvx path/to/py.test": true}
 	for _, role := range []string{"coder", "qa"} {
 		for _, c := range routed {
 			t.Setenv("FACTORY_HOME", on)
@@ -750,7 +751,12 @@ func TestUvxRunnerRouting(t *testing.T) {
 				t.Errorf("%s: %q: err = %v, want the test_sandbox block", role, c, err)
 			}
 			t.Setenv("FACTORY_HOME", off)
-			if err := checkRole(c, role); err != nil {
+			err := checkRole(c, role)
+			if offRefused[c] { // T-0435 through uv (T-1018): a bare uv-wrapped pytest is the full suite, refused sandbox or not
+				if err == nil || !strings.Contains(err.Error(), "runs the full suite") {
+					t.Errorf("%s: %q with test_sandbox off: %v, want the full-suite refusal", role, c, err)
+				}
+			} else if err != nil {
 				t.Errorf("%s: %q with test_sandbox off: %v, want exit 0", role, c, err)
 			}
 		}

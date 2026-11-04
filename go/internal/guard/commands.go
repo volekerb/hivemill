@@ -880,6 +880,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	}
+	if name == "uv" || name == "uvx" { // T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
+		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns); err != nil {
+			return err
+		}
+	}
 	if name == "command" && len(rest) > 0 && (rest[0] == "-v" || rest[0] == "-V" || rest[0] == "-pv") {
 		return nil
 	}
