@@ -7,10 +7,12 @@ Stdlib only except importing tests/test_guard_impl_coverage.py to verify hook_ru
 """
 import argparse
 import importlib.util
+import json
 import os
-import re
 import subprocess
 import sys
+import tempfile
+import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.join(ROOT, "tests")
@@ -81,44 +83,91 @@ def run_guard_diff_unittest(extra_env=None, routed_rest=False):
     return last
 
 
-_RAN = re.compile(r"^Ran (\d+) tests?", re.M)
-_FAILED = re.compile(r"^FAILED \((.*)\)", re.M)
+class CountingResult(unittest.TextTestResult):
+    """Counts tests that really executed: a whole-test skip (or a test whose every subTest skipped) is not one.
+
+    Text output cannot tell a setUpClass skip beside a passing class from an all-skipped module (T-0989).
+    """
+    executed = 0
+
+    def startTest(self, t):
+        super().startTest(t)
+        self._cur, self._whole, self._sub_skip, self._sub_ok = t, False, False, False
+
+    def addSkip(self, t, reason):
+        super().addSkip(t, reason)
+        cur = getattr(self, "_cur", None)
+        if t is cur:
+            self._whole = True
+        elif cur is not None and getattr(t, "test_case", None) is cur:
+            self._sub_skip = True
+
+    def addSubTest(self, t, sub, err):
+        super().addSubTest(t, sub, err)
+        self._sub_ok = True
+
+    def stopTest(self, t):
+        super().stopTest(t)
+        if not self._whole and not (self._sub_skip and not self._sub_ok):
+            CountingResult.executed += 1
+        self._cur = None
 
 
-def _count(pattern_text, key):
-    m = re.search(r"%s=(\d+)" % key, pattern_text or "")
-    return int(m.group(1)) if m else 0
+def _count_child(base, tests_dir, json_path):
+    """Run one module through CountingResult; write its counts to json_path. rc 0 only if wasSuccessful()."""
+    sys.path[0] = os.getcwd()  # as `python -m unittest` does
+    prog = unittest.main(module=None, argv=["unittest", "discover", "-s", tests_dir, "-p", base],
+                         testRunner=unittest.TextTestRunner(resultclass=CountingResult), exit=False)
+    res = prog.result
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump({"testsRun": res.testsRun, "executed": CountingResult.executed, "skipped": len(res.skipped),
+                   "failures": len(res.failures), "errors": len(res.errors)}, f)
+    return 0 if res.wasSuccessful() else 1
 
 
 def run_routed_rest(extra_env=None, out=None, names=None, tests_dir="tests"):
     """Run EVERY routed-rest module (never stop at the first failure); one flushed line per module, then a summary.
 
     Returns 0 only if every module passed (director M20747: stays red on any failure, not just the last).
+    Green = child rc 0 AND its counts file exists AND at least one test really executed (T-0989).
     """
     out = out or sys.stdout
     env = dict(os.environ, GUARD_IMPL="diff", GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
     if extra_env:
         env.update(extra_env)
-    failed_mods, tests_failed, total = [], 0, 0
+    failed_mods, tests_failed, total, skipped_total = [], 0, 0, 0
     names = module_names(True) if names is None else names
-    for base in names:
-        cmd = [sys.executable, "-m", "unittest", "discover", "-s", tests_dir, "-p", base]
-        r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
-        text = (r.stdout or "") + (r.stderr or "")
-        if r.returncode != 0:
-            out.write(text if text.endswith("\n") else text + "\n")  # the evidence for a red module
-        ran = _RAN.search(text)
-        ran_n = int(ran.group(1)) if ran else 0
-        fm = _FAILED.search(text)
-        fails, errs = (_count(fm.group(1), "failures"), _count(fm.group(1), "errors")) if fm else (0, 0)
-        if r.returncode != 0:
-            failed_mods.append(base)
-            tests_failed += fails + errs
-        total += ran_n
-        out.write("module %s: ran=%d failures=%d errors=%d rc=%d\n" % (base, ran_n, fails, errs, r.returncode))
-        out.flush()
-    out.write("summary: modules_run=%d modules_failed=%d tests_run=%d tests_failed=%d failed=%s\n" % (
-        len(names), len(failed_mods), total, tests_failed, ",".join(failed_mods) or "-"))
+    with tempfile.TemporaryDirectory() as tmp:
+        for i, base in enumerate(names):
+            jpath = os.path.join(tmp, "%d.json" % i)
+            cmd = [sys.executable, os.path.abspath(__file__), "_count", base, tests_dir, jpath]
+            r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+            text = (r.stdout or "") + (r.stderr or "")
+            counts = None
+            if os.path.isfile(jpath):
+                with open(jpath, encoding="utf-8") as f:
+                    counts = json.load(f)
+            ran_n = counts["testsRun"] if counts else 0
+            fails = counts["failures"] if counts else 0
+            errs = counts["errors"] if counts else 0
+            skipped = counts["skipped"] if counts else 0
+            executed = counts["executed"] if counts else 0
+            green = r.returncode == 0 and counts is not None and executed > 0
+            if not green:
+                out.write(text if text.endswith("\n") else text + "\n")  # the evidence for a red module
+                if r.returncode == 0:
+                    why = "no counts file (child exited early)" if counts is None else \
+                        "ALL %d tests skipped" % ran_n if ran_n else "no tests ran"
+                    out.write("module %s: %s: not counted green; fix the skip condition\n" % (base, why))
+                failed_mods.append(base)
+                tests_failed += fails + errs
+            total += ran_n
+            skipped_total += skipped
+            out.write("module %s: ran=%d failures=%d errors=%d skipped=%d rc=%d\n" % (
+                base, ran_n, fails, errs, skipped, r.returncode))
+            out.flush()
+    out.write("summary: modules_run=%d modules_failed=%d tests_run=%d tests_skipped=%d tests_failed=%d failed=%s\n" % (
+        len(names), len(failed_mods), total, skipped_total, tests_failed, ",".join(failed_mods) or "-"))
     out.flush()
     return 1 if failed_mods else 0
 
@@ -132,7 +181,12 @@ def main(argv=None):
     sub.add_parser("modules", help="unittest module paths, one per line").add_argument(rest, action="store_true", help=rest_help)
     sub.add_parser("run", help="run GUARD_IMPL=diff over the module set; exit code from unittest").add_argument(
         rest, action="store_true", help=rest_help)
+    hidden = sub.add_parser("_count", help=argparse.SUPPRESS)
+    for arg in ("base", "tests_dir", "json_path"):
+        hidden.add_argument(arg)
     a = ap.parse_args(argv)
+    if a.cmd == "_count":
+        return _count_child(a.base, a.tests_dir, a.json_path)
     if a.cmd == "list":
         print("\n".join(module_names(a.routed_rest)))
         return 0
