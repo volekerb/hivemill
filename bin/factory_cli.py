@@ -1079,6 +1079,25 @@ def herdr_agents():
     return (r or {}).get("agents", []) if r is not None else None
 
 
+def close_named_pane(con, name, pane):
+    """T-1007: the one way to close an agent's pane. Ask the host which pane carries the agent's exact name and close
+    THAT pane id (host ids can differ from the row's; a stale row id may now belong to another pane). Returns
+    (state, host_pane): "closed" (close issued on the host's id), "not-found" (the host lists no pane under this name,
+    so nothing of ours is closed; one "pane-close-skipped" event says whether the row's id is held by another name),
+    "unknown" (the host cannot be asked: nothing closed, the caller retries on its next run, no event)."""
+    listed = herdr_agents()
+    if listed is None:
+        return "unknown", None
+    h = next((x for x in listed if x.get("name") == name and x.get("pane_id")), None)
+    if h is None:
+        other = next((x.get("name") for x in listed if pane and x.get("pane_id") == pane), None)
+        event(con, "agent", name, "pane-close-skipped",
+              {"agent": name, "pane": pane, "reason": f"pane held by {other}" if other else "no host pane under this name"})
+        return "not-found", None
+    herdr("pane", "close", h["pane_id"], check=False)
+    return "closed", h["pane_id"]
+
+
 def herdr_workspaces():
     r = herdr("workspace", "list", check=False)
     return {w["workspace_id"]: w for w in (r or {}).get("workspaces", [])}
@@ -1428,7 +1447,7 @@ def sandbox_escape_close(con, name, pane, pid):
         return False
     start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
     if pane:
-        herdr("pane", "close", pane, check=False)
+        close_named_pane(con, name, pane)
     key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
@@ -3236,15 +3255,19 @@ def release_stale_pane(con, name):
     pane = r["pane_id"]
     gone = False
     if r["status"] == "done":
-        herdr("pane", "close", pane, check=False)
-        gone = pane_gone(pane) is True
+        st, hp = close_named_pane(con, name, pane)
+        if st == "not-found":  # the host has no pane under this name: nothing of ours to close
+            con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
+            event(con, "agent", name, "reaped", pane)
+            return True
+        gone = st == "closed" and pane_gone(hp) is True
     else:
         listed = herdr_agents()
         if listed is not None and not any(h.get("name") == name and h.get("pane_id") == pane for h in listed):
             return True  # the host does not list that pane under this name: nothing of ours to close (as before)
         if listed is not None:  # never close a pane we cannot attribute to this name
-            herdr("pane", "close", pane, check=False)
-            gone = pane_gone(pane) is True
+            st, hp = close_named_pane(con, name, pane)
+            gone = st == "closed" and pane_gone(hp) is True
     if gone:
         con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
         event(con, "agent", name, "reaped", pane)
@@ -9539,10 +9562,14 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
             cur = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (name,)).fetchone()
             if not cur or cur["status"] != "live" or cur["stop_requested_at"] is None:
                 return "skip", None
-            herdr("pane", "close", pane, check=False)
+            st, hp = close_named_pane(con, name, pane)
+            if st == "unknown":
+                gone = None  # the host cannot be asked: nothing closed, the stop is retried
+            elif st == "not-found":
+                gone = True  # no host pane under this name (today's no-pane path); the process check below decides
             end = time.time() + wait
-            while True:  # confirm: the host must stop listing the pane
-                gone = pane_gone(pane)
+            while st == "closed":  # confirm: the host must stop listing the pane it closed
+                gone = pane_gone(hp)
                 if gone or time.time() >= end:
                     break
                 time.sleep(min(1.0, max(0.05, end - time.time())))
@@ -12520,8 +12547,8 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if r["status"] == "done":
-            if r["pane_id"]:
-                herdr("pane", "close", r["pane_id"], check=False)
+            if r["pane_id"] and close_named_pane(con, r["name"], r["pane_id"])[0] == "unknown":
+                continue  # the host cannot be asked: nothing closed, the row stays 'done' and is retried next tick
             con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
             try:
                 reap_agent_tests(con, r["name"], "done")
