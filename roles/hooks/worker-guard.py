@@ -2327,7 +2327,7 @@ class Analyzer:
                         "force, --all/--mirror/--tags/--delete or option)")
         # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
         # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
-        w = re.fullmatch(rf"git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
+        w = re.fullmatch(rf"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
         if not w:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
                         "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
@@ -2873,6 +2873,8 @@ class Analyzer:
             self.kill(rest)
         elif "/" in w and not in_loose:
             self.exec_path(w, depth)
+        if name in ("uv", "uvx"):  # T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
+            self.uv_check(name, rest, depth, piped, in_loose, hstrs, assigns)
         if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):
             return
         if name == "find":
@@ -3020,6 +3022,51 @@ class Analyzer:
             if base in ("pytest", "py.test", "unittest"):
                 return f"{prefix} {base}"
         return None
+
+    @staticmethod
+    def uv_inner(name, rest):
+        """T-0880: the words after `uv [opts] run` / `uv [opts] tool run` / `uvx`, or [] when uv runs nothing."""
+        if name == "uvx":
+            return rest
+        return rest[rest.index("run") + 1:] if "run" in rest else []
+
+    UV_VALUED = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--env-file",
+                 "--extra", "--group", "--package", "--only-group", "--no-group", "--with-editable", "-w", "--index",
+                 "--config-file", "--from"}
+
+    def uv_check(self, name, rest, depth, piped, in_loose, hstrs, assigns):
+        """T-0880: `uv run [opts] [--] CMD...` / `uvx [opts] CMD...` is checked like CMD run directly, for the coder and
+        the no-push roles only (cleaner, judge and HQ stay as before). Only the first word after the uv options gets
+        the full command check (exactly the bare command's rules). Later words are a closed predicate: a word whose
+        basename is git followed by the word push (coder and no-push roles), or, for no-push roles, a gh word matching
+        INLINE_GH_WRITE or inline interpreter code (T-0789). No later word reaches exec_path, kill or any other rule
+        (accepted false positive: `uv run python3 x.py git push`). Defense in depth only; the sandbox + worker PAT are the boundary (M15349)."""
+        if self.hq or not (self.role == "coder" or self.role in NO_PUSH_ROLES):
+            return
+        words = self.uv_inner(name, rest)
+        i = 0
+        while i < len(words):
+            a = words[i]
+            if a == "--":
+                i += 1
+                break
+            if not a.startswith("-"):
+                break
+            i += 2 if a in self.UV_VALUED else 1
+        for k in range(i, len(words)):  # git / inline code: later words only, so values of known options are never scanned
+            cand = words[k:]
+            base = os.path.basename(cand[0])
+            if base == "git" and k > i and "push" in cand[1:]:
+                raise Block(f"{name} running git push behind an unknown uv option; push only your own task branch "
+                            "with a plain `git push origin HEAD:factory/<task>`")
+            if self.role in NO_PUSH_ROLES:
+                if base == "gh" and INLINE_GH_WRITE.search(" ".join(cand)):  # item 1: includes the command word
+                    raise Block(f"{name} running a gh write (pr merge/create, repo, api with a write method); "
+                                "no-push roles never write to GitHub; ask your lead")
+                if k > i:
+                    self.interp_inline_push(base, cand[1:])  # inline code after an unknown valued option (T-0789 scan)
+        if i < len(words):
+            self.cmd(words[i:], depth + 1, piped, in_loose, hstrs, assigns)
 
     def uv_run_runner(self, rest, prefix="uv run"):
         """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""
