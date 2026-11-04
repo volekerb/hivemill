@@ -275,6 +275,19 @@ class MechMergeTests(FactoryTestCase):
     def test_live_run_older_pending_latest_without_does_not_hold(self):
         self.assert_not_held("ok again", older="ok\nlive-run: pending AC2 rerun")
 
+    def test_live_run_pending_bullet_quote_backtick_forms_hold(self):
+        for form in ("- live-run: pending AC2 x", "* live-run: pending AC2 x",
+                     "`live-run: pending AC2 x`", "> live-run: pending AC2 x"):
+            with self.subTest(form=form):
+                self.env.sql("DELETE FROM events WHERE action IN ('mech-blocked','mech-would-block')")
+                self.env.sql("DELETE FROM verdicts WHERE role='qa'")
+                self.qa_verdict(f"ok\n{form}")
+                p = self.mech("on")
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertIn("T-0001: blocked", p.stdout)
+                self.assertGreaterEqual(len(self.live_events()), 1)
+                self.assertEqual(self.merges(), [])
+
     def test_live_run_pending_mid_line_does_not_hold(self):
         self.assert_not_held("ok\nnotes: live-run: pending AC2")
 
