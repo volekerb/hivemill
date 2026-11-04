@@ -1657,11 +1657,11 @@ class Analyzer:
             return True
         if ci is not None:
             return False
-        if si is not None and rest[si] == "/dev/stdin":
+        if si is not None and PT_STDIN_PATH.match(os.path.normpath(rest[si])):
             return True
         if re.match(r"^python[\d.]*$", name) and not py_inline_code(rest):
             return False  # -m module, --version
-        return si is None or rest[si] in ("-", "/dev/stdin")
+        return si is None or rest[si] == "-" or bool(PT_STDIN_PATH.match(os.path.normpath(rest[si])))
 
     def stdin_scan(self, name, text):
         """T-0882: scan code fed to an interpreter on stdin (heredoc body, here-string, echo/printf piped in) with the T-0789
@@ -1673,15 +1673,31 @@ class Analyzer:
             raise Block(f"`{name}` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); "
                         "use unzip -d or tar -C")
 
+    def stdin_interp(self, w):
+        """T-0882: (name, args) of the interpreter that reads stdin in the plain words `w`, or None. After an exec wrapper
+        (timeout/nice/stdbuf/env/nohup...: WRAPPERS minus the data-only ones) any later word may be the interpreter, as
+        `loose` does for -c code."""
+        if not w:
+            return None
+        wrapped = os.path.basename(w[0]) in WRAPPERS and os.path.basename(w[0]) not in WRAP_DATA
+        for k in range(len(w) if wrapped else 1):
+            name = os.path.basename(w[k])
+            if INLINE_CODE_INTERPS.match(name) and self.stdin_program(name, w[k + 1:]):
+                return name
+        return None
+
     def stdin_heredocs(self, bodies):
         """T-0882: heredoc bodies (head, body) of a no-push role: scan those fed to an interpreter program on stdin, directly or
-        through `cat <<EOF |`."""
+        through `cat <<EOF |`. Bodies of one line share its head: the nth body belongs to the nth `<<` of that line."""
+        seen = {}
         for head, body in bodies:
             parts = re.split(r"(&&|\|\||[;&|(])", head)
             idx = [k for k, p in enumerate(parts) if re.search(r"(?<!<)<<(?!<)", p)]
             if not idx:
                 continue
-            k = idx[-1]
+            n = seen.get(head, 0)
+            seen[head] = n + 1
+            k = idx[min(n, len(idx) - 1)]
             cands, c = [k], k
             if self.plain_words(parts[k])[:1] == ["cat"]:
                 while c + 2 < len(parts) and parts[c + 1] == "|":
@@ -1690,14 +1706,14 @@ class Analyzer:
                     if self.plain_words(parts[c])[:1] not in (["tee"], ["cat"]):
                         break
             for cand in cands:
-                w = self.plain_words(parts[cand])
-                if w and INLINE_CODE_INTERPS.match(w[0]) and self.stdin_program(w[0], w[1:]):
-                    self.stdin_scan(w[0], body)
+                name = self.stdin_interp(self.plain_words(parts[cand]))
+                if name:
+                    self.stdin_scan(name, body)
 
     @staticmethod
     def plain_words(seg):
         """Command words of one simple-command text: assignments, env/exec/command wrappers and redirections dropped."""
-        seg = re.sub(r"(?<!<)<<-?\s*(?:'[^']*'|\"[^\"]*\"|[^\s;&|()<>]+)", " ", seg)
+        seg = re.sub(r"(?<!<)\d*<<-?\s*(?:'[^']*'|\"[^\"]*\"|[^\s;&|()<>]+)", " ", seg)
         try:
             ws = shlex.split(seg)
         except ValueError:
@@ -1712,6 +1728,7 @@ class Analyzer:
                 pass
             else:
                 out.append(x)
+        out = strip_prefix(out)  # then/do/else/{/! before the command
         while out and (ASSIGN.match(out[0]) or out[0] in ("env", "exec", "command", "nohup", "time")):
             out.pop(0)
         if out:
@@ -3260,8 +3277,10 @@ class Analyzer:
             return None
         return os.path.realpath(row[0]) if row and row[0] else None
 
-    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
+    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
         words = list(words)
+        # T-0882: a wrapped interpreter keeps the wrapper's stdin (here-strings, the echo/printf literal piped in)
+        stdin_piped, stdin_hs, stdin_pipe = stdin if stdin else (piped, hstrs, getattr(self, "pipe_src", None))
         assigns = list(env_assigns)
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
@@ -3362,7 +3381,7 @@ class Analyzer:
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
                 if self.stdin_program(name, rest):  # T-0882: here-string / echo|printf piped in (heredocs: stdin_heredocs)
-                    for h in list(hstrs) + ([self.pipe_src] if piped and getattr(self, "pipe_src", None) else []):
+                    for h in list(stdin_hs) + ([stdin_pipe] if stdin_piped and stdin_pipe else []):
                         self.stdin_scan(name, h)
             self.unittest_full(name, rest)
             self.pytest_full(name, rest)
@@ -3405,7 +3424,7 @@ class Analyzer:
         elif name in WRAPPERS and not in_loose:
             if name == "xargs":
                 self.xargs(rest)
-            self.loose(rest, depth, assigns)
+            self.loose(rest, depth, assigns, (piped, hstrs, getattr(self, "pipe_src", None)))
 
     def test_sandbox_on(self):
         """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
@@ -3729,7 +3748,7 @@ class Analyzer:
             if any(CLAUDE_CLI.search(a) or CLAUDE_PKG in a for a in rest):
                 raise ClaudeBlock(f"{name} running the Claude Code cli")
 
-    def loose(self, rest, depth, env_assigns=()):
+    def loose(self, rest, depth, env_assigns=(), stdin=None):
         for k in range(len(rest)):
             whole = True
             if ASSIGN.match(rest[k]):
@@ -3746,7 +3765,7 @@ class Analyzer:
             if whole and re.search(r"\s", rest[k]):
                 self.script(rest[k], depth + 1)
             self.cmd(rest[k:], depth, False, True,
-                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))])
+                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))], stdin=stdin)
 
     def xargs(self, rest):
         repl, j, first = None, 0, None

@@ -65,7 +65,30 @@ def dq(c):
 DENIED += ["cd /x && " + c for c in BASE]
 DENIED += ["bash -c %s" % dq(c) for c in BASE]
 
+# B1 same-line keyword before the heredoc; B2 exec wrappers on every stdin form; B3 several heredocs on one line
+for kw in ("then", "do", "else", "{", "!"):
+    DENIED.append("if true; %s python3 <<'EOF'\n%s\nEOF" % (kw, PY))
+for wrap in ("timeout 5", "nice", "nice -n 5", "stdbuf -oL", "env", "nohup", "env FOO=1"):
+    DENIED += [
+        heredoc(wrap + " python3 -", PY),
+        "%s python3 <<< '%s'" % (wrap, PY),
+        "echo '%s' | %s python3" % (PY, wrap),
+        "cat <<'EOF' | %s python3\n%s\nEOF" % (wrap, PY),
+    ]
+DENIED += [
+    "python3 <<'A'; cat <<'B'\n%s\nA\nok\nB" % PY,  # code in the first body
+    "cat <<'A' | python3; cat <<'B'\n%s\nA\nok\nB" % PY,
+    "cat <<'A'; python3 <<'B'\nok\nA\n%s\nB" % PY,  # code in the last body
+    "python3 0<<'EOF'\n%s\nEOF" % PY,  # nits
+    "python3 /dev/fd/0 <<'EOF'\n%s\nEOF" % PY,
+]
+
 ALLOWED = [
+    "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+    "timeout 5 python3 <<< 'print(1)'",
+    "echo 'print(1)' | nice python3",
+    "python3 <<'A'; cat <<'B'\nprint(1)\nA\n%s\nB" % PY,  # the push text is only the body of cat
+    "timeout 5 python3 script.py <<< 'git push'",
     heredoc("python3 -", "print(1)"),
     "echo 'print(1)' | python3",
     "python3 script.py <<< input",
@@ -108,9 +131,9 @@ class InterpStdinTests(unittest.TestCase):
                     self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_other_roles_unchanged(self):
+        # coder/cleaner/judge are not no-push roles: every denied form stays exit 0 for them (fails if the role check goes)
         for role in OTHER:
-            for cmd in (heredoc("perl -", PERL.replace("git push", "gh pr view 1")), "echo 'print(1)' | python3",
-                        "python3 <<< 'print(1)'"):
+            for cmd in DENIED:
                 with self.subTest(role=role, cmd=cmd):
                     self.assertEqual(self.run_hook(cmd, role).returncode, 0)
 
