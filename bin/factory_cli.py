@@ -4973,7 +4973,7 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
-LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t]*live-run:[ \t]*pending\b.*$")
+LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t>*`-]*live-run:[ \t]*pending\b.*$")  # optional leading bullet, quote or backtick
 
 
 def mech_mode(con):
@@ -13780,7 +13780,8 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
                   "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Two verdicts on the same head, then factory done. ")
+                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds). "
+                  "Two verdicts on the same head, then factory done. ")
 
 
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day
