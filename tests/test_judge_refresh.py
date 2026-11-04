@@ -313,6 +313,38 @@ class JudgeRefreshTests(FactoryTestCase):
         reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE task_id='T-0001' AND role='judge'")]
         self.assertTrue(any("tests.yml unchanged on main since the merge-base" in d for d in reasons), reasons)
 
+    def _pr_edits_base_main_edits_other_line(self):
+        # T-1025: the PR and main both change base.txt on different lines: merge-tree is clean, no CI ever ran the sum
+        git(self.wt, "checkout", "-q", BRANCH)
+        self.commit(self.wt, "base.txt", "PR\nline2\nline3\n", "pr edits base")
+        git(self.wt, "push", "-q", "origin", f"HEAD:refs/heads/{BRANCH}", "HEAD:refs/pull/1/head")
+        self.head = git(self.wt, "rev-parse", "HEAD")
+        (self.zz / "pushes.log").write_text("")
+        self.main_commit("base.txt", "line1\nline2\nMAIN\n")
+        self.ok_verdicts()
+        self.write_state(strict=False)
+
+    def test_g7_behind_ok_refreshes_when_main_changed_a_file_the_pr_also_changes(self):
+        self._pr_edits_base_main_edits_other_line()
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.events("refreshed")), 1)  # refreshed (CI reruns on the combined tree), not merged behind
+        self.assertEqual(len(self.pushes()), 1)
+        self.assertMergedPinned(self.remote_ref(f"refs/heads/{BRANCH}"))
+        reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE role='judge'")]
+        self.assertFalse(any("behind_ok" in d for d in reasons), reasons)
+
+    def test_g8_named_red_main_fix_with_shared_file_refreshes_and_merges_not_deadlocked(self):
+        # the fix task of a frozen main is exempt from the freeze; the overlap rule makes it refresh, never wait forever
+        self._pr_edits_base_main_edits_other_line()
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('red_main_freeze','1')")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('red_main:zz-test/repo',?)",
+                     (json.dumps({"run": "1", "sha": "abc", "url": "u", "since": "t", "task": "T-0001"}),))
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.events("refreshed")), 1)
+        self.assertMergedPinned(self.remote_ref(f"refs/heads/{BRANCH}"))
+
     def _strict_refreshes(self, strict):
         self.main_commit()
         self.write_state(strict=strict)

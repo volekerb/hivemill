@@ -207,6 +207,20 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.status(), "done")
         self.assertIn("tests.yml unchanged on main since the merge-base", self.events("merged")[0])
 
+    def test_behind_ok_with_a_file_changed_by_main_and_the_pr_is_refused_for_refresh(self):
+        # T-1025: main edits a file the PR also edits (different lines, merge-tree clean): refused, never refreshed
+        self.commit("base.txt", "PR\nb\nc\n", "pr edits base")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("base.txt")
+        self.mech("on")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("main and the PR both changed base.txt", self.events("mech-blocked")[0])
+        self.assertEqual(self.events("refreshed"), [])
+
     # -- who goes to the LLM judge ---------------------------------------
     def test_t3_goes_to_the_judge(self):
         self.commit(".github/workflows/x.yml", "name: x\n", "touch ci")
