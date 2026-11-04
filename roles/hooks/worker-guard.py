@@ -836,7 +836,8 @@ def env_long(a):
 
 def env_options(words):
     """T-0964: yield (kind, value) for the GNU env options before the command word: ("clear", opt) for -i/-/--ignore-env*
-    (an `i` anywhere in a short cluster counts), ("unset", name), ("unknown", opt) for a long option this guard does not
+    (an `i` in a short cluster before any `u` and outside an -S string), ("clear-attached", opt) for an `i` anywhere
+    else in a cluster (text attached to -S, text after `u`; check_scrub counts it, no-push ignores it), ("unset", name), ("unknown", opt) for a long option this guard does not
     model. Hard rule: a word starting with - is always parsed as an option, never consumed as a value. A -u/--unset
     value that starts with - is still reported (peeked, not consumed) so a dynamic `-$X` stays denied as on main.
     -a/-C/-P and --argv0/--chdir take the next word only when it exists and does not start with `-`. -S/--split-string
@@ -874,8 +875,11 @@ def env_options(words):
             elif "=" not in a and kind == "value":
                 val()
         elif a.startswith("-"):
-            if "i" in a[1:]:
+            scan = "" if a.startswith("-S") else a[1:].split("u", 1)[0]  # main's no-push rule
+            if "i" in scan:
                 yield "clear", a
+            elif "i" in a[1:]:
+                yield "clear-attached", a  # check_scrub only (spec hard rule)
             pending = []  # -S strings are pushed after the cluster, so a later `u` still takes the outer next word
             for k, c in enumerate(a[1:], 1):
                 if c == "u":
@@ -1284,7 +1288,7 @@ class Analyzer:
         for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
             if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if kind == "clear":
+            if kind in ("clear", "clear-attached"):
                 self.scrub_with_factory = "env -i"
 
     def factory_unit(self, name, rest, assigns):
