@@ -4676,6 +4676,9 @@ def cmd_judge(a):
         con.execute("UPDATE tasks SET status='in_progress', updated=? WHERE id=?", (now(), a.task))
         event(con, "task", a.task, "judge-reject", reason)
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
+        if t["assignee"]:
+            send(con, t["assignee"], f"judge reject: {a.task} in_progress",
+                 judge_reject_coder_notice(a.task, reason), "request", t["goal_id"], a.task, sender=actor())
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
     return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
@@ -7547,6 +7550,41 @@ def gated_reviewer_prompt(con, role, task, prompt):
     return f"{prompt} {GATED_PR_LINE}" if prompt else GATED_PR_LINE
 
 
+def judge_reject_coder_next_cmd(task_id):
+    return f"factory task update {task_id} --status in_review"
+
+
+def judge_reject_coder_notice(task_id, reason):
+    """Tell the assignee the DB status after judge --reject and the command to re-enter review."""
+    return (f"Task {task_id} status is in_progress after judge reject.\n\n{reason}\n\n"
+            f"After the fix is pushed: {judge_reject_coder_next_cmd(task_id)} (existing PR checks apply).")
+
+
+def task_in_progress_from_judge_reject(con, task_id):
+    """True while the task is in_progress because the judge rejected it (not a lead retry after QA fail)."""
+    if not task_id:
+        return False
+    t = con.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+    if not t or t["status"] != "in_progress":
+        return False
+    jr = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='judge-reject' "
+                     "ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    if not jr:
+        return False
+    upd = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                      "AND detail LIKE '%status=in_progress%' ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    return not upd or upd["ts"] <= jr["ts"]
+
+
+def coder_judge_reject_kickoff(con, role, task, prompt):
+    """Coder kickoff extra after a judge reject: same status word as the DB and the in_review update command."""
+    if role != "coder" or not task or not task_in_progress_from_judge_reject(con, task):
+        return prompt
+    line = (f"Task status is in_progress (same as the DB). After the fix is pushed: "
+            f"{judge_reject_coder_next_cmd(task)}.")
+    return f"{prompt} {line}" if prompt else line
+
+
 def kickoff_text(role, name, goal, team, task, extra):
     lines = [f"You are `{name}`, the factory {role}. Run `factory whoami` and `factory inbox` first."]
     if task:
@@ -8340,7 +8378,7 @@ def render_settings_early(role):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    prompt = gated_reviewer_prompt(con, role, task, prompt)
+    prompt = coder_judge_reject_kickoff(con, role, task, gated_reviewer_prompt(con, role, task, prompt))
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
