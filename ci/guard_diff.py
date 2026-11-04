@@ -382,9 +382,9 @@ def settings_rules(text, legacy=False, name="settings"):
         ev = f"hooks.{json.dumps(event)}"  # json.dumps keeps a newline in the event name off the error line
         for group in _shape(name, ev, groups, "list"):
             _shape(name, f"{ev}[]", group, "object")
+            matcher = _text(name, f"{ev}[].matcher", group, "matcher")
             for h in _shape(name, f"{ev}[].hooks", group.get("hooks", []), "list"):
                 _shape(name, f"{ev}[].hooks[]", h, "object")
-                matcher = _text(name, f"{ev}[].matcher", group, "matcher")
                 htype = _text(name, f"{ev}[].hooks[].type", h, "type")
                 command = _text(name, f"{ev}[].hooks[].command", h, "command")
                 ident = "|".join((event, matcher, htype, fix(command)))
