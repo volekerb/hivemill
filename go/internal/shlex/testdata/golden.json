@@ -53248,6 +53248,2993 @@
 "src": "corpus"
 },
 {
+"input": "HOME=@SCRATCH@/h factory up",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"factory",
+"up"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory up",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"factory",
+"up"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory up",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"factory",
+"up"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory up",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h factory up'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h factory init'",
+"src": "corpus"
+},
+{
+"input": "FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"init"
+]
+},
+{
+"input": "factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"init"
+]
+},
+{
+"input": "factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"init"
+]
+},
+{
+"input": "factory init",
+"mode": "quote",
+"quoted": "'factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"LIVE_HOME",
+"@",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@LIVE_HOME@",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"LIVE_HOME",
+"@",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@LIVE_HOME@",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=./f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=./f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=./f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=./f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/../x",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/../x",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/../x",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f/../../x",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f/../../x",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f/../../x",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=/tmp/other-agent/scratchpad",
+"FACTORY_HOME=/tmp/other-agent/scratchpad/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=/tmp/other-agent/scratchpad",
+"FACTORY_HOME=/tmp/other-agent/scratchpad/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=/tmp/other-agent/scratchpad",
+"FACTORY_HOME=/tmp/other-agent/scratchpad/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"mode": "quote",
+"quoted": "'HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live-home",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init",
+"--live-home",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live-home",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init",
+"--live"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live'",
+"src": "corpus"
+},
+{
+"input": "export HOME=@SCRATCH@/h; factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h; factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h; factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h;",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h; factory init",
+"mode": "quote",
+"quoted": "'export HOME=@SCRATCH@/h; factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=$X",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"$",
+"X",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=$X",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=$X factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"LIVE_HOME",
+"@",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h bash systemd/install.sh --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"systemd/install.sh"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run",
+"--with-serve"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"systemd/install.sh",
+"--dry-run",
+"--with-serve"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run",
+"--with-serve"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sudo",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"sudo",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sudo",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"LIVE_HOME",
+"@",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h factory project add demo /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"--x",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"--x",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"--x",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"project",
+"add",
+"demo"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"--gh",
+"add",
+"update",
+"demo"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"project",
+"--gh",
+"add",
+"update",
+"demo"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"--gh",
+"add",
+"update",
+"demo"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/esc",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/esc",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/esc",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/esc",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/esc/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/esc",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad",
+"FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad",
+"FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad",
+"FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"mode": "quote",
+"quoted": "'HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"up"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"LIVE_HOME",
+"@",
+"factory",
+"up"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"up"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up'",
+"src": "corpus"
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+";",
+"unset",
+"FACTORY_HOME",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+";",
+"unset",
+"FACTORY_HOME",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f;",
+"unset",
+"FACTORY_HOME;",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"mode": "quote",
+"quoted": "'export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"env",
+"-u",
+"FACTORY_HOME",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"env",
+"-u",
+"FACTORY_HOME",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"env",
+"-u",
+"FACTORY_HOME",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init'",
+"src": "corpus"
+},
+{
+"input": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"(",
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+");",
+"factory",
+"init"
+]
+},
+{
+"input": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"(",
+"export",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+");",
+"factory",
+"init"
+]
+},
+{
+"input": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"(export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f);",
+"factory",
+"init"
+]
+},
+{
+"input": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"mode": "quote",
+"quoted": "'(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init'",
+"src": "corpus"
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+";",
+"unset",
+"FACTORY_HOME",
+";",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+";",
+"unset",
+"FACTORY_HOME",
+";",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f;",
+"unset",
+"FACTORY_HOME;",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"zsh",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"zsh",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"zsh",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sh",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"sh",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sh",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"dash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"dash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"dash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"/bin/bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"/bin/bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"/bin/bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"@",
+"SCRATCH",
+"@",
+"/factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"./factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"./factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"./factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"@",
+"SCRATCH",
+"@",
+"/factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"PATH=",
+"@",
+"SCRATCH",
+"@",
+"/bin",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init'",
+"src": "corpus"
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"PATH=",
+"@",
+"SCRATCH",
+"@",
+"/bin",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"BASH_ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init'",
+"src": "corpus"
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"BASH_ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init'",
+"src": "corpus"
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"factory",
+"init"
+]
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mode": "quote",
+"quoted": "'ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"PATH=",
+"@",
+"SCRATCH",
+"@",
+"/bin",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"PATH=",
+"@",
+"SCRATCH",
+"@",
+"/bin",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"BASH_ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"BASH_ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ENV=",
+"@",
+"SCRATCH",
+"@",
+"/e",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"bash",
+"@",
+"INSTALL",
+"@",
+"--dry-run"
+]
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+},
+{
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mode": "quote",
+"quoted": "'ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run'",
+"src": "corpus"
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f\u00a0",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+"\u00a0",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f\u00a0;",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"mode": "quote",
+"quoted": "'export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -71928,6 +74915,58 @@
 "src": "corpus"
 },
 {
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=",
+"@",
+"SCRATCH",
+"@",
+"/h",
+"FACTORY_HOME=",
+"@",
+"SCRATCH",
+"@",
+"/f",
+";",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f;",
+"factory",
+"init"
+]
+},
+{
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"mode": "quote",
+"quoted": "'export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -75959,7 +78998,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1753,
+"corpus_commands": 1813,
 "edge_inputs": 123,
 "python": "3.13"
 }

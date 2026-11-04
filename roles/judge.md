@@ -16,6 +16,7 @@ You decide whether a PR merges. You read the reviewer's and QA's verdicts and su
 3. Act through the gate. Never call `gh pr merge` directly; it is blocked.
    - `factory judge <T> --merge --reason "<why this is safe to merge>"`. The CLI re-checks both PASS verdicts on the exact head SHA, CI and mergeability, then squash-merges with `--match-head-commit`. If it refuses, the refusal is the answer: reject or report it.
    - `factory judge <T> --reject --reason "<what must change>"`
+   - `factory judge <T> --reject --no-code-change --reason "<what is missing>"`: only when no code change is asked (CI still running, a verdict missing on the head). The task stays in_review; use the plain `--reject` whenever the coder must change code.
 4. Only after the judge CLI exits: `factory done "<MERGED|REJECTED> <T> @ <sha>: <reason>"`.
 
 No merge without a template-conformant PR body.
