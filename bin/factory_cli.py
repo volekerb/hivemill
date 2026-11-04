@@ -12220,9 +12220,17 @@ def log_task_judge_hold(con, task, reason):
     event(con, "task", task, "judge-hold", reason[:300])
 
 
+def mech_refused(con, task):
+    """True when the merger's latest verdict on the task is a block ("the judge decides"): the LLM judge owns it from then
+    on, however old the event, so the merger's retry window can never take it back from the judge (T-1025 B1)."""
+    last = con.execute("SELECT action FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                       "ORDER BY id DESC LIMIT 1", (task, *MECH_EVENTS)).fetchone()
+    return bool(last) and last["action"] == "mech-blocked"
+
+
 def judge_autospawn_candidates(con):
     """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
-    mech_ids = {t["id"] for t in mech_candidates(con)} if mech_mode(con) == "on" else set()
+    mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
             "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' "

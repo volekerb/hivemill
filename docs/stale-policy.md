@@ -37,9 +37,11 @@ BEHIND head spawns on its current head, a conflict is still refused (`CONFLICT-O
 | path | result |
 |---|---|
 | `factory judge --merge` (judge) | refreshes the branch, CI reruns on the combined tree, merges on the new head |
-| mechanical merger (`mech_try`) | refuses `STALE-ONLY` and never refreshes; the PR goes to the LLM judge, which refreshes |
+| mechanical merger (`mech_try`) | refuses `STALE-ONLY` and never refreshes; the PR goes to the LLM judge, which refreshes. A `mech-blocked` as the latest merger event hands the task to the judge for good (`mech_refused`): the merger's `mech_merge_retry_s` window never takes it back, so a full judge pool delays but never loses the route, a named red-main fix included |
 | `refresh_lane=on` | still treats a clean BEHIND head as "no refresh needed" (`refresh_lane_hold` only knows `stale_behind_ok`), so a judge blocked by the overlap rule is not held by the lane and refreshes outside it. Cost only, not safety. Follow-up. |
 | red-main fix task named with `factory redmain fix` | exempt from the freeze (`red_main_refusal`), refreshes like any head: it cannot deadlock behind the red main it repairs |
 | dependabot PRs | have no factory task and no `factory judge` path: unaffected |
 
-Cost: only a PR that shares a file with a newer main commit refreshes; it pays one extra CI run, the same as under `strict`.
+Cost: only a PR that shares a file with a newer main commit refreshes; it pays one extra CI run, the same as under `strict`. One CI run is about 30 runner minutes (`guard-unittest` alone ran 20-27 min in runs 41801135322, 41805677536, 41805809739).
+
+STALE-LOOP risk: `bin/factory_cli.py` is edited by most PRs. A refresh triggers CI (about 30 runner min); if another PR touching the same file merges meanwhile, the refreshed head overlaps again and needs another refresh. It converges only while main moves slower than one CI cycle; merging factory_cli.py PRs serially is the mitigation. Follow-up if it shows.

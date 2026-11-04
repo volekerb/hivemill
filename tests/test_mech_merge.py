@@ -221,6 +221,29 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("main and the PR both changed base.txt", self.events("mech-blocked")[0])
         self.assertEqual(self.events("refreshed"), [])
 
+    def _judge_candidates(self):
+        with self.env.load_factory() as f:
+            con = f.db()
+            return [r["id"] for r in f.judge_autospawn_candidates(con)]
+
+    def test_a_mech_refused_overlap_pr_keeps_its_judge_route_after_the_retry_window(self):
+        # T-1025 B1: T0-T2 overlap PR refused by the merger; 10+ minutes later (judge slots full) it must still reach the judge
+        self.commit("base.txt", "PR\nb\nc\n", "pr edits base")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("base.txt")
+        self.mech("on")
+        self.assertEqual(len(self.events("mech-blocked")), 1)
+        self.assertIn("T-0001", self._judge_candidates())
+        self.env.sql("UPDATE events SET ts='2020-01-01T00:00:00+00:00' WHERE action='mech-blocked'")
+        self.assertIn("T-0001", self._judge_candidates())
+
+    def test_a_task_the_merger_has_not_refused_stays_with_the_merger(self):
+        self.ok("config", "mech_merge", "on")
+        self.assertNotIn("T-0001", self._judge_candidates())
+
     # -- who goes to the LLM judge ---------------------------------------
     def test_t3_goes_to_the_judge(self):
         self.commit(".github/workflows/x.yml", "name: x\n", "touch ci")
