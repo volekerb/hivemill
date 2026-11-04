@@ -41,3 +41,17 @@ When `coder_ci_handoff` is `resume` or `fresh`, the coder leaves at PR open whil
 starts the reviewer and QA only once `ci_verdict` of the PR head is green, as the new-head pass already does. A pending or red head
 starts no reviewer or QA row; the next tick retries. `judge_autospawn_candidates` and `mech_candidates` are unchanged (they still need
 verdicts and green CI). With the flag `off` the first-round pass starts review at PR open as before. See [prcheck.md](prcheck.md#ci-handoff-coder_ci_handoff-t-1003).
+
+## Ordering, missing roles and verdict heads (T-1048)
+
+- **No review while the coder works.** Both passes skip a task (retry next tick, nothing logged) while an agent of
+  role `coder` for it is `queued`, `starting` or `live`. The prcheck result does not gate review.
+- **A verdict of one role never closes the head.** The new-head pass starts the role that has neither an agent row `<role>-<task>-<sha8>`
+  (the stored, org-prefixed name, e.g. `claude-qa-t-0001-1234abcd`) nor a verdict of that role on the head, even when the other role already has a verdict. A head whose only verdict is under
+  `REVIEW_VERDICT_GRACE_S` (300 s) and that has no tick-started agent waits, so a lead who is about to start the other half is not doubled.
+- **Ended without a verdict.** If a tick-started `<role>-<task>-<sha8>` row has ended with no verdict of its role on that head, the tick
+  sends one `request` to the lead (or director) and logs one `review-no-verdict` event, once per task, head and role. It starts no third agent.
+- **Verdict bound to the started head.** The `review-autospawn` event stores the full head (`sha`). A `factory verdict --pass` whose `--sha`
+  differs from the head that worker was started on is refused; a `--fail` without `--sha` is recorded on the started head. Verdicts of workers
+  the lead spawned (no event) behave as before, as do those of a same-name worker the lead respawned after the tick's event (the event
+  describes the earlier worker). No schema change; the merge gate is untouched.

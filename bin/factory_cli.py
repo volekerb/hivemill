@@ -3782,6 +3782,29 @@ def combined_name(task, org=None, con=None):
     return oname(con, org, base) if con is not None else (orgs.name(org, base) if org and org != orgs.DEFAULT_ORG else base)
 
 
+def verdict_start_head(con, task, agent):
+    """The full PR head the tick started `agent` on (newest review-autospawn event for it, T-1048), else None. None too when the agent was
+    (re)started after that event (a lead's respawn of the same name records none): the event then describes an earlier worker."""
+    row = con.execute("SELECT started FROM agents WHERE name=?", (agent,)).fetchone()
+    try:
+        began = dt.datetime.fromisoformat(row["started"]) if row and row["started"] else None
+    except ValueError:
+        began = None
+    for e in con.execute("SELECT ts, detail FROM events WHERE entity='task' AND entity_id=? AND action='review-autospawn' ORDER BY id DESC", (task,)):
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("agent") == agent and re.fullmatch(r"[0-9a-f]{7,40}", str(d.get("sha", ""))):
+            try:
+                if began and dt.datetime.fromisoformat(e["ts"]) < began:
+                    return None
+            except ValueError:
+                return None
+            return d["sha"].lower()
+    return None
+
+
 def cmd_verdict(a):
     con = db()
     role = require_role(con, "qa", "reviewer")
@@ -3802,6 +3825,12 @@ def cmd_verdict(a):
     checked = (a.sha or "").lower()
     if checked and not re.fullmatch(r"[0-9a-f]{7,40}", checked):
         die(f"--sha must be 7-40 hex characters of the commit you checked, got {a.sha!r}", 5)
+    started_at = verdict_start_head(con, a.task, actor())
+    if started_at and not checked and not a.passed:
+        checked = started_at  # a FAIL with no --sha is bound to the head this worker was started on, not to whatever the head is now
+    if a.passed and started_at and checked and not started_at.startswith(checked) and not checked.startswith(started_at):
+        die(f"{role} PASS refused, nothing recorded: the tick started you on head {started_at}, you named {checked}. The PR head moved "
+            "after you started, so this worker's check is not of that head: record a FAIL/finding at the head you tested, or let the tick start a fresh round", 5)
     if a.passed:
         if not checked:
             die(f"{role} PASS refused, nothing recorded: pass --sha <the commit you checked> "
@@ -4750,8 +4779,14 @@ def judge_requeue(con, task, proj, pr_url, new_head):
           "The tick launches the run and a judge is spawned when it passes.")
 
 
+STATUS_ONLY_PREFIX = "status-only: "
+STATUS_ONLY_HELD = STATUS_ONLY_PREFIX + "[head ready] "  # PR was ready when rejected: only a new verdict lifts the hold
+
+
 def cmd_judge(a):
     con = db()
+    if getattr(a, "no_code_change", False) and not a.reject:
+        die("--no-code-change only goes with --reject; nothing was merged or rejected", 2)
     if getattr(a, "train", None):
         if a.task or a.reason is not None:
             die("--train takes only task ids and --dry-run, no task argument or --reason", 2)
@@ -4781,6 +4816,19 @@ def cmd_judge(a):
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
         sha = pr["headRefOid"]
+    if a.reject and getattr(a, "no_code_change", False):
+        # T-1055: status-only reject (CI wait, missing verdict on head): no code change asked, so the task stays in_review.
+        # The verdict row still counts as a reject in the scorecard; judge autospawn skips the task until a newer
+        # reviewer/QA verdict lands (judge_status_only_hold), and the merge gate is untouched.
+        # CI wait (PR not ready now): no hold; judge_hold keeps a judge queued and one spawns once CI is green.
+        # PR already ready (e.g. verdict missing on head): hold until a newer reviewer/QA verdict, or it would loop.
+        ready, _why = judge_pr_ready(con, t["pr_url"], True)
+        con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                    (a.task, t["pr_url"], sha, "judge", "reject",
+                     (STATUS_ONLY_HELD if ready else STATUS_ONLY_PREFIX) + reason, actor(), now()))
+        event(con, "task", a.task, "judge-reject-status-only", reason)
+        print(f"{a.task} REJECTED (status-only, stays in_review) @ {sha[:8]}")
+        return
     if a.reject:
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                     (a.task, t["pr_url"], sha, "judge", "reject", reason, actor(), now()))
@@ -9705,7 +9753,7 @@ def prcheck_done_refusal(con, r, t):
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
-JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject")  # what cmd_judge records
+JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject", "judge-reject-status-only")  # what cmd_judge records
 
 
 def judge_done_refusal(con, r):
@@ -12504,8 +12552,23 @@ def judge_autospawn_candidates(con):
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
             continue
+        if judge_status_only_hold(con, t["id"]):
+            continue
         out.append(t)
     return out
+
+
+def judge_status_only_hold(con, task_id):
+    """True while the newest judge verdict is a status-only reject made while the PR was ready (T-1055) and no
+    reviewer/QA verdict is newer: a judge would only repeat it. A fresh verdict lifts the hold. A CI-wait reject (PR not
+    ready then) never holds: judge_hold waits for CI and one judge spawns once it is green."""
+    jr = con.execute("SELECT id, summary FROM verdicts WHERE task_id=? AND role='judge' ORDER BY id DESC LIMIT 1",
+                     (task_id,)).fetchone()
+    if not jr or not (jr["summary"] or "").startswith(STATUS_ONLY_HELD):
+        return False
+    newer = con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') AND id>?",
+                        (task_id, jr["id"])).fetchone()
+    return not newer
 
 
 def judge_autospawn_tick(con):
@@ -14426,19 +14489,61 @@ def review_rerun_candidates(con):
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
+def _rerun_name(con, tid, role, head):
+    """The stored agent name of the re-run <role> on head: spawn() keeps the org prefix (claude-qa-t-0001-1234abcd), so every lookup,
+    spawn, event and alert uses this one name (T-1048: unprefixed lookups never found the row)."""
+    return oname(con, org_for(con, None, tid), slug(f"{role}-{tid}-{head[:8]}"))
+
+
 def _rerun_agents(con, tid, head):
-    """The reviewer/qa agent rows the re-run pass started on head, by name (<role>-<task>-<sha8>)."""
-    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
+    """The reviewer/qa agent rows the re-run pass started on head, by stored name (<org>-<role>-<task>-<sha8>)."""
+    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (_rerun_name(con, tid, r, head),)).fetchone()]
 
 
 def _rerun_missing(con, tid, head):
     """The roles (reviewer, qa) the re-run pass still has to start on head. A role is done when it has an agent row named <role>-<task>-<sha8>
-    or a verdict of that role on head. A head with a verdict but no re-run agent at all (a round the lead ran) is done as a whole."""
+    or a verdict of that role on head. A verdict of one role never marks the other done (T-1048: a reviewer verdict with a qa that ended
+    without one left the head "done" and nothing started the qa)."""
     started = _rerun_agents(con, tid, head)
-    if not started and con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone():
-        return []
     return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
         "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+
+
+REVIEW_VERDICT_GRACE_S = 300  # a verdict this young may belong to a round whose other half the lead is about to start
+
+
+def _review_hold(con, t, head, clock):
+    """True when review must not start yet (T-1048): a coder agent of the task is queued, starting or live. The prcheck result does not gate review."""
+    return bool(con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('queued','starting','live')", (t["id"],)).fetchone())
+
+
+def _review_verdict_fresh(con, tid, head, clock):
+    """True when the newest verdict on head is younger than REVIEW_VERDICT_GRACE_S (an unreadable stamp counts as old)."""
+    row = con.execute("SELECT created FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) ORDER BY id DESC", (tid, head)).fetchone()
+    try:
+        return clock - dt.datetime.fromisoformat(row["created"]).timestamp() < REVIEW_VERDICT_GRACE_S
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
+def _review_alert_no_verdict(con, t, head, boss, clock):
+    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role."""
+    for role in _rerun_agents(con, t["id"], head):
+        name = _rerun_name(con, t["id"], role, head)
+        row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+        if not row or row["status"] in ("queued", "starting", "live"):
+            continue
+        if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (t["id"], head, role)).fetchone():
+            continue
+        key = f"review-noverdict:{t['id']}:{head}:{role}"
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        event(con, "task", t["id"], "review-no-verdict", {"agent": name, "role": role, "head": head[:8]})
+        send(con, boss, f"review autospawn: {role} ended with no verdict on {t['id']} @{head[:8]}",
+             f"{t['title']}\n\n{name} ended (status {row['status']}) without recording a {role} verdict on head {head}. "
+             f"The tick starts no further {role} on this head: spawn one or decide.",
+             kind="request", goal=t["goal_id"], task=t["id"], sender="tick")
 
 
 def _review_head_done(con, tid, head, clock):
@@ -14467,7 +14572,9 @@ def review_rerun_tick(con):
         if _review_dead_recent(con, t, clock):
             continue
         head = _ci_remote_head(t["branch"], batch)
-        if head and _review_head_done(con, tid, head, clock):
+        if head:
+            _review_alert_no_verdict(con, t, head, f"lead:{team}" if team else "director", clock)
+        if head and (_review_head_done(con, tid, head, clock) or _review_hold(con, t, head, clock)):
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
@@ -14475,12 +14582,16 @@ def review_rerun_tick(con):
         sha = pr["headRefOid"]
         if _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             continue
+        if _review_hold(con, t, sha, clock):
+            continue
+        if not _rerun_agents(con, tid, sha) and _review_verdict_fresh(con, tid, sha, clock):
+            continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
         started = []
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
-            name = slug(f"{role}-{tid}-{sha[:8]}")
+            name = _rerun_name(con, tid, role, sha)
             if not gate(con, role=role)[0]:
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
@@ -14491,7 +14602,7 @@ def review_rerun_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8]})
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8], "sha": sha})
             started.append(name)
             if status == "queued":
                 break
@@ -14535,6 +14646,8 @@ def review_autospawn_tick(con):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
+        if _review_hold(con, t, pr["headRefOid"], clock):
+            continue  # T-1048: a coder is still live/queued, or the latest prcheck on this head is not ok: retry next tick
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
         # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
@@ -14561,7 +14674,7 @@ def review_autospawn_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status})
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "sha": pr["headRefOid"]})
             started.append(name)
             if status == "queued":
                 return
@@ -15963,6 +16076,7 @@ def main():
     g.add_argument("--record-merged", metavar="SHA", help="record a PR whose squash already landed on origin/main (judge, director)")
     g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
+    x.add_argument("--no-code-change", action="store_true", help="with --reject: no code change is asked (CI wait, missing verdict on head); the task stays in_review")
     x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
     x.set_defaults(fn=cmd_refresh)
