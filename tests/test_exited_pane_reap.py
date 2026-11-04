@@ -138,6 +138,29 @@ class Never(Base):
         self.assertEqual(self.events("exited-pane-would-close"), [])
         self.assertEqual(self.closes(), [])
 
+    def _no_session_host(self):
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "x"}],
+            panes=[{"pane_id": "p-1", "tab_id": "t1", "workspace_id": "w1"}],
+            agents=[{"name": "qa-old", "agent": "claude", "pane_id": "p-1", "agent_status": "working"}])
+
+    def test_no_host_session_with_unlisted_live_row_is_kept_in_both_modes(self):
+        """Host reports no session; live qa-new (stale row pane) is not listed by name: p-1 may be its pane."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-stale", ended=None)
+        self._no_session_host()
+        self.tick()
+        self.assertKept("p-1")
+        self.tick(mode="dry-run")
+        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual(self.closes(), [])
+
+    def test_no_host_session_with_every_live_row_listed_still_closes(self):
+        self.agent("qa-old", pane="p-old")
+        self._no_session_host()
+        self.tick()
+        self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
+
     def test_stale_pane_id_dry_run_logs_would_close_with_the_host_pane(self):
         self.agent("qa-t-9", pane="p-old")
         self.host(("qa-t-9", "p-1"))

@@ -6792,7 +6792,8 @@ def reap_exited_panes(con, agents):
     silently on the next run. A pane qualifies only when the host lists it under the exact name of an agents row that,
     re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
     stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
-    the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks).
+    the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
+    names no session, the pane is kept while any live/starting (or lost within 10 min) row is not listed by the host under its own name.
     Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
@@ -6805,6 +6806,7 @@ def reap_exited_panes(con, agents):
         if last and t - float(last["ts"]) < EXITED_PANE_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('exitedpanereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        host_names = {h.get("name") for h in agents}
         for h in agents:
             name, pane = h.get("name"), h.get("pane_id")
             if not name or not pane:
@@ -6815,6 +6817,12 @@ def reap_exited_panes(con, agents):
             sess = (h.get("agent_session") or {}).get("value")
             if sess and sess != r["session_id"]:
                 continue  # the pane runs another session (a newer agent under this name): never ours to close
+            if not sess and any(x["name"] not in host_names and (x["status"] != "lost" or (
+                    (e := _ts(x["ended"])) is not None
+                    and (dt.datetime.now().astimezone() - e).total_seconds() <= EXITED_PANE_MIN_AGE_S))
+                    for x in con.execute("SELECT name,status,ended FROM agents WHERE name!=? AND status IN ('live','starting','lost')",
+                                         (name,))):
+                continue  # session unknown: a live (or just-lost this tick) row the host does not list by name may own this pane
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
