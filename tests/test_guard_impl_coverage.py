@@ -11,6 +11,7 @@ SELF = "test_guard_impl_coverage"
 ALLOWLIST = {
     "test_ci_corpus_step": "asserts the CI workflow guard-diff job paths; names the Go guard dir as a path fixture",
     "test_guard_build": "builds and stamps the Go binary and checks run/guard_impl; never runs the hook",
+    "test_lessons_flow": "lists roles/hooks/worker-guard.py as a path in a merge fixture; never runs the hook",
     "test_local_fast_policy": "checks that the coder role text mentions worker-guard",
     "test_risk_tier": "lists roles/hooks/worker-guard.py as a path in a risk-tier fixture",
     "test_scout_roles": "asserts the rendered settings call worker-guard.py with the right --role flag",
@@ -21,10 +22,10 @@ KNOWN = {
     "test_guard_build",
     "test_ci_corpus_step", "test_ci_cursor_guard", "test_ci_wait_guard", "test_clean_remote_branch", "test_cursor_mcp", "test_db_layout", "test_guard_diff", "test_guard_golden",
     "test_guard_factory_cli", "test_guard_impl", "test_guard_probe", "test_guard_shim", "test_worker_guard_units",
-    "test_guard_test_sandbox", "test_guard_test_sandbox_pilot", "test_judge_merged_tree_route", "test_live_home", "test_local_fast_policy",
+    "test_guard_test_sandbox", "test_guard_test_sandbox_pilot", "test_judge_merged_tree_route", "test_lessons_flow", "test_live_home", "test_local_fast_policy",
     "test_priv_guard", "test_risk_tier", "test_scout_roles", "test_settings_templates", "test_skilleval_guard_copy",
-    "test_worker_guard", "test_worker_guard_data", "test_worker_guard_git", "test_worker_guard_heredoc", "test_worker_guard_nopush_gitcfg", "test_worker_guard_nopush_gitfile", "test_worker_guard_nopush_archive_git", "test_worker_guard_nopush_extract_flags", "test_worker_guard_nopush_builtin_assign", "test_worker_guard_nopush_zsh_path", "test_worker_guard_nopush_env_unset", "test_worker_guard_nopush_env_prefix_zsh_modifiers", "test_worker_guard_nopush_interp_inline", "test_worker_guard_nopush_gh_api_release", "test_worker_guard_coder_xargs_alias",
-    "test_worker_guard_export", "test_worker_guard_flags_read", "test_worker_guard_persist", "test_worker_guard_public_text", "test_worker_guard_push_pin", "test_worker_guard_push_pin_dynamic", "test_worker_guard_push_pin_org_prefix",
+    "test_worker_guard", "test_worker_guard_data", "test_worker_guard_git", "test_worker_guard_heredoc", "test_worker_guard_nopush_gitcfg", "test_worker_guard_nopush_gitfile", "test_worker_guard_nopush_archive_git", "test_worker_guard_nopush_archive_main", "test_worker_guard_nopush_extract_flags", "test_worker_guard_nopush_builtin_assign", "test_worker_guard_nopush_zsh_path", "test_worker_guard_nopush_env_unset", "test_worker_guard_nopush_env_prefix_zsh_modifiers", "test_worker_guard_nopush_interp_inline", "test_worker_guard_nopush_gh_api_release", "test_worker_guard_nopush_gh_api_method", "test_worker_guard_uv_wrapper", "test_worker_guard_coder_xargs_alias",
+    "test_worker_guard_export", "test_worker_guard_flags_read", "test_worker_guard_persist", "test_worker_guard_prot_trees", "test_worker_guard_public_text", "test_worker_guard_push_pin", "test_worker_guard_push_pin_dynamic", "test_worker_guard_push_pin_org_prefix",
     "test_worker_guard_repocfg", "test_worker_guard_repoprot", "test_worker_guard_reads", "test_worker_guard_researcher",
     "test_worker_guard_terms_read", "test_worker_guard_unittest", "test_worker_guard_uv_runner",
 }

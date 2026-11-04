@@ -63,7 +63,8 @@ class PruneCase(FactoryTestCase):
         self.env.seed_agent("zz-c", "coder", pane_id="p-c")
         with self.env.load_factory() as mod:
             con = mod.db()
-            mod.herdr = lambda *a, **k: None
+            mod.herdr = lambda *a, **k: ({"agents": [{"name": "zz-c", "agent": "claude", "pane_id": "p-c"}]}
+                                         if a[:2] == ("agent", "list") else None)
             self.live(100, "555")
             (self.env.proc_dir / "100" / "ns").mkdir()
             os.symlink("user:[4026531837]", self.env.proc_dir / "100" / "ns" / "user")

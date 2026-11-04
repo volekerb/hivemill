@@ -117,7 +117,7 @@ Every unit test that runs the worker-guard hook goes through `tests/guard_impl.p
 - A test helper that runs the hook in-process (loads the hook module and calls `main()`) must branch on `guard_impl.impl()` and call `hook_run` when it is not `python`; `tests/test_guard_impl_coverage.py` fails a guard test module that calls `main()` in-process without it.
 
 ```
-GUARD_IMPL=diff python3 -m unittest tests.test_worker_guard tests.test_priv_guard tests.test_guard_diff
+GUARD_IMPL=diff python3 -m unittest tests.test_worker_guard tests.test_priv_guard tests.test_guard_diff tests.test_worker_guard_public_text
 GUARD_IMPL=go python3 -m unittest tests.test_worker_guard_git
 ```
 

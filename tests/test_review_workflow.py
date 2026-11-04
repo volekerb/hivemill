@@ -103,6 +103,73 @@ class WorkflowRunTests(unittest.TestCase):
         self.assertEqual((len(out["confirmed"]), out["dropped"], out["unverified"]), (1, 1, []))
 
 
+class ArgsValidationTests(unittest.TestCase):
+    """Bad args must stop the script with an error naming the field, before any agent starts."""
+
+    def run_args(self, args):
+        if subprocess.run(["which", "node"], capture_output=True).returncode:
+            self.skipTest("node not installed")
+        body = SCRIPT.read_text().replace("export const meta", "const meta", 1)
+        harness = (
+            "const args = %s;\n"
+            "let calls = 0;\n"
+            "const phase = () => {};\n"
+            "const parallel = fns => Promise.all(fns.map(f => f()));\n"
+            "const agent = async () => { calls++; return {findings: []}; };\n"
+            "(async () => {\n%s\n})().then(r => console.log(JSON.stringify({ok: true, calls})),"
+            " e => console.log(JSON.stringify({ok: false, calls, error: String(e.message)})));\n"
+        ) % (json.dumps(args), body)
+        r = subprocess.run(["node", "-"], input=harness, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def assert_rejected(self, args, field):
+        out = self.run_args(args)
+        self.assertFalse(out["ok"], out)
+        self.assertEqual(out["calls"], 0)
+        self.assertIn("args." + field, out["error"])
+
+    def test_bare_string_args_rejected(self):
+        self.assert_rejected("https://github.com/o/r/pull/1", "(args)")
+
+    def test_null_and_array_args_rejected(self):
+        self.assert_rejected(None, "(args)")
+        self.assert_rejected(["x"], "(args)")
+
+    def test_missing_pr_rejected(self):
+        self.assert_rejected({"base": "origin/main", "spec_task": "T-1"}, "pr")
+        self.assert_rejected({"pr": "", "spec_task": "T-1"}, "pr")
+        self.assert_rejected({"pr": 12, "spec_task": "T-1"}, "pr")
+
+    def test_non_numeric_pr_rejected(self):
+        for bad in ("undefined", "T-1031", "https://github.com/o/r/pull/abc"):
+            self.assert_rejected({"pr": bad, "spec_task": "T-1"}, "pr")
+
+    def test_pr_number_or_url_accepted(self):
+        for ok in ("392", "https://github.com/o/r/pull/392", "https://github.com/o/r/pull/392/files"):
+            out = self.run_args({"pr": ok, "spec_task": "T-1"})
+            self.assertTrue(out["ok"], out)
+            self.assertEqual(out["calls"], 3)
+
+    def test_missing_or_bad_spec_task_rejected(self):
+        self.assert_rejected({"pr": "http://x/1"}, "spec_task")
+        self.assert_rejected({"pr": "http://x/1", "spec_task": 5}, "spec_task")
+
+    def test_bad_base_rejected(self):
+        self.assert_rejected({"pr": "http://x/1", "spec_task": "T-1", "base": 3}, "base")
+
+    def test_coder_mode_needs_pr_but_not_spec_task(self):
+        self.assert_rejected({"mode": "coder", "task": "T-1"}, "pr")
+        out = self.run_args({"mode": "coder", "pr": "http://x/1"})
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(out["calls"], 3)
+
+    def test_valid_args_start_three_agents(self):
+        out = self.run_args({"pr": "http://x/1", "base": "origin/main", "spec_task": "T-1"})
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(out["calls"], 3)
+
+
 class SkillAndBriefTests(unittest.TestCase):
     def test_skill_states_gate_path_and_verdict(self):
         t = SKILL.read_text()
@@ -110,6 +177,12 @@ class SkillAndBriefTests(unittest.TestCase):
                        'Workflow(name="reviewer-skills:multi-angle-review"',
                        "write your own `factory verdict", "do not run the workflow"):
             self.assertIn(needle, t)
+
+    def test_skill_shows_only_object_form_of_args(self):
+        t = SKILL.read_text()
+        for m in re.finditer(r"args\s*=\s*(\S)", t):
+            self.assertEqual(m.group(1), "{", t[m.start():m.start() + 40])
+        self.assertIn("never a bare string", t)
 
     def test_lead_brief_line(self):
         t = BRIEF.read_text()
