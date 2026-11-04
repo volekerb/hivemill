@@ -652,6 +652,10 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	}
 	words = stripped
+	a.mayCreateBefore = a.mayCreate
+	if len(words) > 0 && !listingOnly(words) {
+		a.mayCreate = true
+	}
 	if a.noPush() {
 		if err := a.gitConfigEnv(assigns, words); err != nil {
 			return err
