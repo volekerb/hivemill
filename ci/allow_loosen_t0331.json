@@ -2,5 +2,7 @@
  "HOME=/tmp/guard-diff-scratch-1000/h FACTORY_HOME=/tmp/guard-diff-scratch-1000/f factory init",
  "HOME=/tmp/guard-diff-scratch-1000/h FACTORY_HOME=/tmp/guard-diff-scratch-1000/f factory project add demo /tmp/guard-diff-scratch-1000/repo",
  "HOME=/tmp/guard-diff-scratch-1001/h FACTORY_HOME=/tmp/guard-diff-scratch-1001/f factory init",
- "HOME=/tmp/guard-diff-scratch-1001/h FACTORY_HOME=/tmp/guard-diff-scratch-1001/f factory project add demo /tmp/guard-diff-scratch-1001/repo"
+ "HOME=/tmp/guard-diff-scratch-1001/h FACTORY_HOME=/tmp/guard-diff-scratch-1001/f factory project add demo /tmp/guard-diff-scratch-1001/repo",
+ "HOME=/tmp/guard-diff-scratch-1000/h FACTORY_HOME=/tmp/guard-diff-scratch-1000/f bash /tmp/guard-diff-install-1000/factory/systemd/install.sh --dry-run",
+ "HOME=/tmp/guard-diff-scratch-1001/h FACTORY_HOME=/tmp/guard-diff-scratch-1001/f bash /tmp/guard-diff-install-1001/factory/systemd/install.sh --dry-run"
 ]

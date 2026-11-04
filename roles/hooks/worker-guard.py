@@ -1206,7 +1206,10 @@ class Analyzer:
         """T-0331: True when BOTH HOME and FACTORY_HOME are static absolute paths whose realpath is inside the worker's own
         scratchpad. Each comes from this command's assignments, else an earlier assignment/export in the same command
         line, else the hook's environment; unset, relative, dynamic, `~`, a symlink or `..` out of the scratchpad, the
-        live home and another agent's scratchpad all fail."""
+        live home and another agent's scratchpad all fail. The command line must also be the lone form (lone_command):
+        nothing in it (unset, env -u, a subshell, another assignment) may change what is read here."""
+        if not self.lone_command():
+            return False
         for name in ("HOME", "FACTORY_HOME"):
             vals = [a.split("=", 1)[1] for a in assigns if a.startswith(name + "=")]
             v = vals[-1] if vals else self.vars.get(name, os.environ.get(name))
@@ -1223,7 +1226,7 @@ class Analyzer:
         the glob and dynamic-word rules. Any edited copy goes through the normal script inspection (and is refused)."""
         if self.role not in ("coder", "qa") or len(args) != 2 or args[1] != "--dry-run":
             return False
-        if is_dynamic(args[0], strict=True) or not self.scratch_homes(assigns) or not self.lone_command():
+        if is_dynamic(args[0], strict=True) or not self.scratch_homes(assigns):
             return False
         p = os.path.expanduser(args[0])
         p = os.path.realpath(p if os.path.isabs(p) else os.path.join(self.cwd, p))
@@ -1245,23 +1248,31 @@ class Analyzer:
         return False
 
     def lone_command(self):
-        """T-0331: the whole command line is the one command, optionally after plain `NAME=value;` / `export NAME=value;`
-        statements. Nothing before it can edit the script it then runs unparsed (no redirect, pipe, chain, substitution)."""
+        """T-0331: the whole command line is one command, optionally after plain `HOME=v` / `FACTORY_HOME=v` /
+        `export HOME=v FACTORY_HOME=v;` statements, and the command itself is the literal word `factory` or `bash` after
+        only HOME= / FACTORY_HOME= prefixes. Nothing before it can edit what it runs or what the guard read (no redirect,
+        pipe, chain, substitution, subshell, unset, env, other assignment such as PATH or BASH_ENV). Printable ASCII only,
+        so the regexes agree with the Go RE2 mirror."""
         text = getattr(self, "text", "") or ""
-        if any(c in text for c in "\n|&<>`$(){}\"'\\"):
+        if not all(" " <= c < "\x7f" or c == "\t" for c in text) or any(c in text for c in "|&<>`$(){}\"'\\"):
             return False
         *pre, last = text.split(";")
-        return bool(last.strip()) and all(re.fullmatch(r"\s*(export\s+)?(\w+=\S*\s*)+", x) for x in pre)
+        if not all(re.fullmatch(r"[ \t]*(export[ \t]+)?((HOME|FACTORY_HOME)=[^ \t]*[ \t]*)+", x) for x in pre):
+            return False
+        words = last.split()
+        while words and re.fullmatch(r"(HOME|FACTORY_HOME)=[^ \t]*", words[0]):
+            words = words[1:]
+        return bool(words) and words[0] in ("factory", "bash")
 
     def scratch_form(self, words, assigns):
-        """T-0331: words is exactly one of the commands a qa/coder may run with HOME in the scratchpad."""
+        """T-0331: words is exactly one of the commands a qa/coder may run with HOME in the scratchpad: the real `factory`
+        (not a script merely named so, not a path) or `bash` (no other shell) running systemd/install.sh."""
         if not words:
             return False
-        name = os.path.basename(words[0])
-        if name == "factory":
+        if words[0] == "factory":
             nonopt = [a for a in words[1:] if not a.startswith("-")]
             return (nonopt[:1] == ["init"] or nonopt[:2] == ["project", "add"]) and self.scratch_homes(assigns)
-        if name in SHELLS:
+        if words[0] == "bash":
             return self.install_dry_run(words[1:], assigns)  # no shell option (-s runs stdin, the file is then an argument)
         return False
 

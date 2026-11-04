@@ -103,6 +103,9 @@ func (a *Analyzer) agentTempHome(assigns []string) bool {
 // inside the worker's own scratchpad. Each comes from this command's assignments, else an earlier assignment/export in
 // the same command line, else the hook's environment.
 func (a *Analyzer) scratchHomes(assigns []string) bool {
+	if !a.loneCommand() {
+		return false
+	}
 	for _, name := range []string{"HOME", "FACTORY_HOME"} {
 		var vals []string
 		for _, x := range assigns {
@@ -135,7 +138,7 @@ func (a *Analyzer) installDryRun(args, assigns []string) bool {
 	if (a.Role != "coder" && a.Role != "qa") || len(args) != 2 || args[1] != "--dry-run" {
 		return false
 	}
-	if IsDynamic(args[0], true) || !a.scratchHomes(assigns) || !a.loneCommand() {
+	if IsDynamic(args[0], true) || !a.scratchHomes(assigns) {
 		return false
 	}
 	p := expandUser(args[0])
@@ -189,35 +192,45 @@ func readHead(path string, n int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, n))
 }
 
-// loneCommand is Analyzer.lone_command (T-0331): the whole command line is the one command, optionally after plain
-// NAME=value; / export NAME=value; statements, so nothing before it can edit the script it then runs unparsed.
+// loneCommand is Analyzer.lone_command (T-0331): the whole command line is one command, optionally after plain
+// HOME=v / FACTORY_HOME=v / export HOME=v FACTORY_HOME=v; statements, and the command itself is the literal word factory
+// or bash after only HOME= / FACTORY_HOME= prefixes. Nothing before it can edit what it runs or what the guard read.
+// Printable ASCII only (space and tab), so the ASCII-only RE2 classes and strings.Fields agree with Python.
 func (a *Analyzer) loneCommand() bool {
-	if strings.ContainsAny(a.text, "\n|&<>`$(){}\"'\\") {
+	for i := 0; i < len(a.text); i++ {
+		if c := a.text[i]; !(c >= ' ' && c < 0x7f || c == '\t') {
+			return false
+		}
+	}
+	if strings.ContainsAny(a.text, "|&<>`$(){}\"'\\") {
 		return false
 	}
 	parts := strings.Split(a.text, ";")
-	last := parts[len(parts)-1]
-	if strings.TrimSpace(last) == "" {
-		return false
-	}
 	for _, x := range parts[:len(parts)-1] {
 		if !reLoneAssign.MatchString(x) {
 			return false
 		}
 	}
-	return true
+	words := strings.Fields(parts[len(parts)-1])
+	for len(words) > 0 && reLoneHome.MatchString(words[0]) {
+		words = words[1:]
+	}
+	return len(words) > 0 && (words[0] == "factory" || words[0] == "bash")
 }
 
-var reLoneAssign = regexp.MustCompile(`^\s*(export\s+)?(\w+=\S*\s*)+$`)
+var (
+	reLoneAssign = regexp.MustCompile(`^[ \t]*(export[ \t]+)?((HOME|FACTORY_HOME)=[^ \t]*[ \t]*)+$`)
+	reLoneHome   = regexp.MustCompile(`^(HOME|FACTORY_HOME)=[^ \t]*$`)
+)
 
 // scratchForm is Analyzer.scratch_form (T-0331): words is exactly one of the commands a qa/coder may run with HOME in the
-// scratchpad: factory init, factory project add, or bash systemd/install.sh --dry-run.
+// scratchpad: the real factory (not a script merely named so, not a path) init / project add, or bash running
+// systemd/install.sh --dry-run (no other shell).
 func (a *Analyzer) scratchForm(words, assigns []string) bool {
 	if len(words) == 0 {
 		return false
 	}
-	name := pyBasename(words[0])
-	if name == "factory" {
+	if words[0] == "factory" {
 		var nonopt []string
 		for _, x := range words[1:] {
 			if !strings.HasPrefix(x, "-") {
@@ -227,7 +240,7 @@ func (a *Analyzer) scratchForm(words, assigns []string) bool {
 		return (len(nonopt) >= 1 && nonopt[0] == "init" || len(nonopt) >= 2 && nonopt[0] == "project" && nonopt[1] == "add") &&
 			a.scratchHomes(assigns)
 	}
-	if in(Shells, name) {
+	if words[0] == "bash" {
 		return a.installDryRun(words[1:], assigns) // no shell option (-s runs stdin, the file is then an argument)
 	}
 	return false

@@ -66,7 +66,12 @@ existing rule (allowed only against a non-live `FACTORY_HOME`, blocked without o
 three commands above (an `export HOME=` stays blocked). `install.sh --dry-run` is run unparsed (its case arms and `"$@"`
 trip the glob and dynamic-word rules) only when the script is byte-for-byte the `systemd/install.sh` of a live checkout,
 which a worker cannot write; an edited copy is inspected as before and refused. Only the exact argument `--dry-run` counts.
-Go: `factory.go` `scratchHomes`, `installDryRun`, `scratchForm`.
+Tight form: the whole command line is the lone command (`lone_command`): only `HOME=`/`FACTORY_HOME=` assignments
+(inline, or as `export HOME=v FACTORY_HOME=v;` statements before it), the literal word `factory` (never a path or a script
+merely named so) or `bash` (never `zsh`, `sh`, `/bin/bash`), printable ASCII only. `unset`, `env -u`, `env`, a subshell, `PATH=`,
+`BASH_ENV=`, `ENV=` or any other assignment keep the command blocked. The corpus fixtures `@SCRATCH@/esc` (symlink out) and
+`@INSTALL@` (a live install.sh copy) live in `ci/guard_diff.py`.
+Go: `factory.go` `scratchHomes`, `loneCommand`, `installDryRun`, `scratchForm`.
 
 ## Mutating systemd commands (T-0102 part D, owner M2108)
 

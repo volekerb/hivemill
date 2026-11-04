@@ -94,6 +94,39 @@ class Blocked(unittest.TestCase):
         self.blocked([f"{H} factory init --live-home @S@/x", f"{H} factory init --live",
                       "HOME=@S@/h factory up", "HOME=@S@/h factory spawn pm", "factory tick"])
 
+    def test_unset_env_u_and_subshell_forms(self):
+        """The guard reads HOME/FACTORY_HOME from the command text: nothing may change them between that and the command."""
+        self.blocked(["export HOME=@S@/h FACTORY_HOME=@S@/f; unset FACTORY_HOME; factory init",
+                      f"{H} env -u FACTORY_HOME factory init",
+                      f"{H} env -i factory init",
+                      "(export HOME=@S@/h FACTORY_HOME=@S@/f); factory init",
+                      "export HOME=@S@/h FACTORY_HOME=@S@/f; (unset FACTORY_HOME; factory init)",
+                      "export HOME=@S@/h FACTORY_HOME=@S@/f; unset FACTORY_HOME; factory project add demo @S@/repo",
+                      "export HOME=@S@/h FACTORY_HOME=@S@/f; unset FACTORY_HOME; bash systemd/install.sh --dry-run"])
+
+    def test_only_the_real_factory_cli(self):
+        self.blocked([f"{H} @S@/factory init", f"{H} ./factory init", f"{H} ../factory init", f"{H} /usr/bin/factory init",
+                      f"{H} python3 factory init", f"{H} env factory init", f"{H} command factory init",
+                      f"{H} @S@/factory project add demo @S@/repo"])
+
+    def test_install_sh_bash_only(self):
+        self.blocked([f"{H} {sh} systemd/install.sh --dry-run" for sh in ("zsh", "sh", "dash", "ksh", "/bin/bash", "./bash")])
+
+    def test_only_home_and_factory_home_assignments(self):
+        for c in ("factory init", "bash systemd/install.sh --dry-run"):
+            self.blocked([f"{H} PATH=@S@/bin {c}", f"PATH=@S@/bin {H} {c}", f"{H} BASH_ENV=@S@/e {c}", f"{H} ENV=@S@/e {c}",
+                          f"{H} GIT_CONFIG_GLOBAL=@S@/g {c}", f"export PATH=@S@/bin; {H} {c}",
+                          f"export BASH_ENV=@S@/e HOME=@S@/h FACTORY_HOME=@S@/f; {c}", f"FOO=1; {H} {c}"])
+
+    def test_non_ascii_text_is_refused(self):
+        # a non-ASCII char anywhere keeps the exemption off (Python \s/\w and Go RE2 classes differ on it)
+        self.blocked(["export\u00a0HOME=@S@/h FACTORY_HOME=@S@/f; factory init",
+                      "export HOME=@S@/h FACTORY_HOME=@S@/f\u00a0; factory init", f"{H} factory init \u00e9"])
+
+    def test_statement_form_stays_allowed(self):
+        for c in ("export HOME=@S@/h; export FACTORY_HOME=@S@/f; factory init", "HOME=@S@/h; FACTORY_HOME=@S@/f; factory init"):
+            self.assertEqual(run(c).returncode, 0, c)
+
     def test_install_sh_forms(self):
         self.blocked([f"{H} bash systemd/install.sh", f"{H} bash systemd/install.sh --dry-run --with-serve",
                       f"HOME=@S@/h bash systemd/install.sh --dry-run",
