@@ -5961,7 +5961,7 @@ def _red_main_kept_text(con, tid, slug):
     st = row["status"] if row else ""
     if st in ("done", "cancelled"):
         return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
-                f"(director: factory redmain fix {slug} {tid}). No task was filed automatically.")
+                f"(director: factory redmain fix {slug} NEW_TASK_ID). No task was filed automatically.")
     return f"Fix task {tid} is still open; no new task filed."
 
 
