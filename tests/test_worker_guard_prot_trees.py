@@ -34,13 +34,15 @@ def paths():
             "wt": os.path.join(root, "live", "worktrees", "G-000-T-0000")}
 
 
-def run(cmd=None, cwd="other", tool=None, role="coder"):
+def run(cmd=None, cwd="other", tool=None, role="coder", fixture_live=True):
     """Exit code of the hook for a Bash command (or a (tool name, file_path) call) from cwd other|live|wt."""
     p = paths()
     payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": p[cwd]}
     if tool:
         payload = {"tool_name": tool[0], "tool_input": {"file_path": tool[1]}, "cwd": p[cwd]}
     env = {**os.environ, "WORKER_GUARD_LIVE_HOME": p["live"]}
+    if not fixture_live:
+        env.pop("WORKER_GUARD_LIVE_HOME")
     return hook_run(json.dumps(payload), ["--role", role], env=env, cwd=p["other"])
 
 
@@ -233,7 +235,21 @@ class AttemptTwoFindings(ProtTreesCase):
 
     def test_b6_double_star_matches_any_depth(self):
         self.blocked(["echo x > ~/**/factory_cli.py", "echo x > @L@/**/factory_cli.py"])
-        self.allowed(["echo x > /opt/**/y"])
+        # AC16: a `**` target outside every protected tree stays allowed. Not /opt: on the CI runner ~/.local/go is a symlink
+        # to the setup-go GOROOT under /opt/hostedtoolcache, and the guard resolves trees, so /opt/**/y can really match it.
+        # The /tmp case runs with the real live homes: the temp fixture live home sits under /tmp, so /tmp/**/y really matches it.
+        self.allowed(["echo x > /nonexistent-root/**/y"])
+        for cwd in ("other", "live", "wt"):
+            r = run("echo x > /tmp/**/y", cwd, fixture_live=False)
+            self.assertEqual(r.returncode, 0, f"/tmp/**/y from {cwd}: {r.stderr}")
+
+    def test_b6_double_star_matches_resolved_symlinked_tree(self):
+        """The tree is matched by its resolved path too, so a ** pattern over the symlink target is blocked (the CI case)."""
+        real = os.path.realpath(os.path.join(PW, ".local", "go"))
+        if real == os.path.join(PW, ".local", "go"):
+            self.skipTest("~/.local/go is not a symlink here")
+        top = "/" + real.strip("/").split("/")[0]
+        self.assertEqual(run("echo x > %s/**/y" % top).returncode, 2)
 
     def test_local_bin_family_for_gaps_a_b_c(self):
         self.blocked(["echo x > ~/.local/b*/git", "curl -o ~/.local/bin/git URL", "go build -o ~/.local/bin/x ./cmd/x",
