@@ -267,6 +267,15 @@
    "doc": ""
   },
   {
+   "key": "judge_wait_main_run",
+   "kind": "flag",
+   "default": "0",
+   "summary": "judge merges wait while the tests.yml push run for the current main head is not completed+success",
+   "goal": "G-022",
+   "doc": "docs/stale-policy.md",
+   "state": "off"
+  },
+  {
    "key": "lead_less_dispatch",
    "kind": "flag",
    "default": "0",
