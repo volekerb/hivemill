@@ -52,6 +52,27 @@ Known gaps (documented and accepted; tracked in T-0021). The guard is aimed at a
 
 Known false positive (C9): any command text containing a dollar-paren sequence is blocked, even inside quotes (a PR body with command substitution text). Pass long PR or commit text with `--body-file <file>` / `git commit -F <file>`.
 
+## Scratch-home setup commands (T-0331)
+
+A `coder` or `qa` (never the evaluator or another role) may run `factory init`, `factory project add` and
+`bash systemd/install.sh --dry-run`, and only when BOTH `HOME` and `FACTORY_HOME` are static absolute paths whose
+realpath is inside the worker's own scratchpad. Each comes from the command's own assignments, else an earlier
+assignment/export in the same command line, else the hook's environment. Unset, relative, `~`, dynamic, `..` or symlink
+escapes, the live home and another agent's scratchpad all block, as does `factory init --live-home`. `factory init` and
+`factory project add` are refused for these two roles in every other form. `factory up|tick|spawn|relaunch` keep the
+existing rule (allowed only against a non-live `FACTORY_HOME`, blocked without one).
+
+`qa` is a no-push role and may not assign `HOME`; the one exception is a `HOME=<scratch>` prefix on exactly one of the
+three commands above (an `export HOME=` stays blocked). `install.sh --dry-run` is run unparsed (its case arms and `"$@"`
+trip the glob and dynamic-word rules) only when the script is byte-for-byte the `systemd/install.sh` of a live checkout,
+which a worker cannot write; an edited copy is inspected as before and refused. Only the exact argument `--dry-run` counts.
+Tight form: the whole command line is the lone command (`lone_command`): only `HOME=`/`FACTORY_HOME=` assignments
+(inline, or as `export HOME=v FACTORY_HOME=v;` statements before it), the literal word `factory` (never a path or a script
+merely named so) or `bash` (never `zsh`, `sh`, `/bin/bash`), printable ASCII only. `unset`, `env -u`, `env`, a subshell, `PATH=`,
+`BASH_ENV=`, `ENV=` or any other assignment keep the command blocked. The corpus fixtures `@SCRATCH@/esc` (symlink out) and
+`@INSTALL@` (a live install.sh copy) live in `ci/guard_diff.py`.
+Go: `factory.go` `scratchHomes`, `loneCommand`, `installDryRun`, `scratchForm`.
+
 ## Mutating systemd commands (T-0102 part D, owner M2108)
 
 No agent manages units: the owner installs them, and `factory up` runs from systemd, not via it.
