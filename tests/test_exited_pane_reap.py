@@ -108,7 +108,33 @@ class Never(Base):
         self.assertKept("p-1")
 
     def test_exited_row_with_other_pane_id_is_kept(self):
+        """Kept when a live row holds the HOST's pane id (the old name stays; a bare id mismatch no longer keeps it)."""
         self.agent("qa-t-9", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-1", ended=None)
+        self.host(("qa-t-9", "p-1"))
+        self.tick()
+        self.assertKept("p-1")
+
+    def test_exited_row_with_stale_pane_id_closes_the_host_pane_not_the_rows(self):
+        self.agent("qa-t-9", pane="p-old")
+        self.host(("qa-t-9", "p-1"), ("owner-shell", "p-old"))
+        self.tick()
+        self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
+        self.assertEqual(self.panes(), ["p-old"])
+        self.assertEqual(json.loads(self.events("exited-pane-closed")[0]["detail"])["pane"], "p-1")
+
+    def test_stale_pane_id_dry_run_logs_would_close_with_the_host_pane(self):
+        self.agent("qa-t-9", pane="p-old")
+        self.host(("qa-t-9", "p-1"))
+        self.tick(mode=None)
+        self.assertEqual(self.closes(), [])
+        self.assertEqual(self.panes(), ["p-1"])
+        ev = self.events("exited-pane-would-close")
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(json.loads(ev[0]["detail"])["pane"], "p-1")
+
+    def test_stale_pane_id_under_10_min_is_kept(self):
+        self.agent("qa-t-9", pane="p-old", ended=FUTURE)
         self.host(("qa-t-9", "p-1"))
         self.tick()
         self.assertKept("p-1")

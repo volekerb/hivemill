@@ -19,8 +19,10 @@ Tick hook `reap_exited_panes`, at most every 10 minutes (`throttle` key `exitedp
   `exited-pane-close-failed` per (agent, pane) and is retried on the next run without further events.
 - `off`: skips.
 
-A pane is closed only when the host lists it under the exact name and pane id of an agents row that, re-read in the same
-tick, is `exited` for more than 10 minutes, has role coder/qa/reviewer/pm/judge/cleaner, and whose pane id no
-live/starting/queued/stopped row holds. Panes with no agents row (the owner's), boss/director/lead rows and non-exited
+A pane is closed only when the host lists it under the exact name of an agents row that, re-read in the same
+tick, is `exited` for more than 10 minutes, has role coder/qa/reviewer/pm/judge/cleaner, and whose HOST pane id no
+live/starting/queued/stopped row holds. The row's own `pane_id` is not compared and never closed: it can differ from the
+host's (seen in production, T-1005: host `w7:pPQ`, row `w7:pPR`), so the pane id comes from the host listing of the
+same tick. Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and non-exited
 rows are never touched. Tests: `tests/test_exited_pane_reap.py`. Enable with `factory config exited_pane_reap_mode on`
 after reading the would-close events.

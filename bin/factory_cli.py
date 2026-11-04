@@ -6768,9 +6768,9 @@ def reap_exited_panes(con, agents):
     """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
     one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
     and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
-    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
-    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
-    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    silently on the next run. A pane qualifies only when the host lists it under the exact name of an agents row that,
+    re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
+    stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed). Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
         mode = cfg(con, "exited_pane_reap_mode")
@@ -6787,8 +6787,8 @@ def reap_exited_panes(con, agents):
             if not name or not pane:
                 continue
             r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
-            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
-                continue
+            if not r or r["status"] != "exited" or r["role"] not in EXITED_PANE_ROLES:
+                continue  # match on the exact name only: the row's pane_id can be stale, so act on the HOST's pane id
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
