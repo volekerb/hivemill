@@ -201,6 +201,14 @@
    "promoted_in": "baseline"
   },
   {
+   "key": "guard_impl",
+   "kind": "setting",
+   "default": "python",
+   "summary": "worker-guard implementation: python, go or shadow; mirrored to run/guard_impl (director only)",
+   "goal": "G-016",
+   "doc": "docs/worker-guard-go.md"
+  },
+  {
    "key": "herdr_socket",
    "kind": "setting",
    "default": "~/.config/herdr/herdr.sock",

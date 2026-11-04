@@ -219,3 +219,60 @@ is never logged. A timeout shows as `go: 124`. A logging failure never changes t
 before any default flip is no lines in this log.
 
 The shim locates the binary under `$HOME`; the guard protects the passwd home. They are equal for the factory user, and a worker cannot change the hook's environment.
+
+## Build and stamp
+
+No binary is in git. `factory up` and the tick call `build_guard_go()` (T-0354), which builds `go/cmd/worker-guard`
+into `~/.local/lib/factory/worker-guard`, **only when `guard_impl` is not `python`**. At the default no Go toolchain runs
+in the tick or in `factory up`; `write_guard_impl()` runs in every case. After a flip to `go` or `shadow` the next tick
+(or `factory up`) builds, and the shim stays on Python until the stamp matches. Rolling back to `python` also stops builds.
+
+1. The toolchain is `~/.local/go/bin/go` only, `nice` is `/usr/bin/nice`; neither is
+   looked up on `PATH`. A missing toolchain: one stderr line `guard go build: skipped (no go toolchain)`, no stamp, no error.
+2. `srchash` = `git -C <live home> rev-parse HEAD:go`. When `worker-guard.stamp` already equals it and the binary is
+   executable the call is a no-op (one git call, well under 50 ms).
+3. Otherwise, under `flock` on `~/.local/lib/factory/.build.lock` (a second builder just skips), it runs
+   `/usr/bin/nice -n 10 go build -buildvcs=false -trimpath -o worker-guard.new ./cmd/worker-guard` in `<live home>/go`
+   (timeout 300 s for `factory up`, 120 s for the tick; see the budget below), renames the result to `worker-guard`, and
+   only then writes the stamp (to a unique temp file, then rename).
+4. A failed or timed-out build deletes the stamp, leaves any old binary alone, logs `guard go build: failed (...)` and
+   never raises: the shim sees no matching stamp and runs Python.
+
+The tick skips the build (not the flag refresh) while load1 is above `gate_max_load_ratio` x CPUs.
+
+**Build environment.** The build gets exactly this environment and nothing from the caller (so a caller's `GOFLAGS`,
+`GOENV`, `GOROOT`, `GOEXPERIMENT`, `GODEBUG` or `~/.config/go/env` cannot reach the compiler): `PATH=/usr/bin:/bin`,
+`HOME=<real home>`, `GOTOOLCHAIN=local`, `GOENV=off`, `GOFLAGS=`, `GOWORK=off`, `GOPROXY=off`, `GOSUMDB=off`,
+`CGO_ENABLED=0`, and a private tree under the lib dir: `GOCACHE=<lib>/go/cache`, `GOMODCACHE=<lib>/go/mod`,
+`GOPATH=<lib>/go/path`, `GOTMPDIR=<lib>/go/tmp` (created before the build). `-buildvcs=false` keeps `go build` from running
+`git status` and `git log` in the checkout (measured: without it both run, with it none).
+
+**Cold-cache build time.** Measured with an empty private cache, the real `./cmd/worker-guard`, this environment and nice:
+4.2 s at load1 4.1. That is far under the 120 s tick budget, so the first build after a flip may run from the tick. If a
+future toolchain or tree makes a cold build exceed 120 s, the first build after a flip must run from `factory up` (300 s).
+
+**Toolchain tree.** `$GOROOT/go.env` still applies: a `GOFLAGS` value in it takes effect even with `GOFLAGS=` in the
+environment and `GOENV=off` (measured with a scratch GOROOT of symlinks plus its own `go.env`). The toolchain tree under
+`~/.local/go` is therefore a dependency for the T-0925 follow-up, not something this build can close.
+
+**Precondition for flipping `guard_impl` away from `python`.** T-0957 and T-0925 are merged, and either the coder role is
+in `sandbox_roles` or the director has explicitly accepted the same-uid risk (a worker that can write `~/.local/go` or the
+lib dir can influence the binary the shim runs).
+
+## guard_impl config
+
+`factory config guard_impl <python|go|shadow>` (director only; anything else exits 2). Default `python`. The key is
+mirrored to `$FACTORY_HOME/run/guard_impl` as `<impl> <srchash>` by `write_guard_impl()`, which runs after the key is
+set, after `factory up`'s build and once per tick, so the file always follows the DB. `srchash` is `HEAD:go` of the live
+home; with no `go/` tree or a git error the file holds `python -`. A pull that changes `go/` makes `srchash` differ from the
+stamp until the rebuild, and the shim uses Python meanwhile. `factory config` ends with `guard binary: ok|missing|stale`;
+setting `go` or `shadow` while it is not `ok` prints a warning (the key is still set). Rollback: `factory config guard_impl python`.
+
+### Tick budget, order and failure marker
+
+- **Live home only.** `build_guard_go()` without an explicit lib dir does nothing (`skipped`) unless `FACTORY_HOME` is a live home, so a tick in a test or scratch home never writes the real `~/.local/lib/factory`; it only refreshes `run/guard_impl`.
+- **Budget.** `factory up` builds with a 300 s timeout (`factory-up.service` allows 600 s). The tick builds with 120 s (`factory-tick.service` has `TimeoutStartSec=240`). The build is synchronous and runs in its own process group; on timeout the whole group is killed, so no compile child survives the tick.
+- **Order.** The tick writes `run/guard_impl` first, builds, then writes it again. After a pull that changes `go/` the flag already holds the new `srchash` during the build, so the shim uses Python even if the tick is killed mid-build.
+- **Failure marker.** A failed or timed-out build writes `~/.local/lib/factory/worker-guard.failed` holding the `srchash`. The tick does not rebuild while the marker holds the current `srchash` and is under 30 minutes old; a new `srchash` builds at once, `factory up` ignores the marker, and a successful build removes it.
+- The tick path stays silent when `go` is missing (it would log every minute); `factory up` logs the `skipped` line, and `factory config` shows `guard binary: missing`.
+- The flag and the stamp are written through a unique temp file in the same directory, never a fixed `.new` name, so a planted symlink is not followed.
