@@ -3781,13 +3781,24 @@ def combined_name(task, org=None, con=None):
 
 
 def verdict_start_head(con, task, agent):
-    """The full PR head the tick started `agent` on (review-autospawn event, T-1048), else None (a lead's spawn records none)."""
-    for e in con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='review-autospawn' ORDER BY id DESC", (task,)):
+    """The full PR head the tick started `agent` on (newest review-autospawn event for it, T-1048), else None. None too when the agent was
+    (re)started after that event (a lead's respawn of the same name records none): the event then describes an earlier worker."""
+    row = con.execute("SELECT started FROM agents WHERE name=?", (agent,)).fetchone()
+    try:
+        began = dt.datetime.fromisoformat(row["started"]) if row and row["started"] else None
+    except ValueError:
+        began = None
+    for e in con.execute("SELECT ts, detail FROM events WHERE entity='task' AND entity_id=? AND action='review-autospawn' ORDER BY id DESC", (task,)):
         try:
             d = json.loads(e["detail"])
         except (TypeError, ValueError):
             continue
         if isinstance(d, dict) and d.get("agent") == agent and re.fullmatch(r"[0-9a-f]{7,40}", str(d.get("sha", ""))):
+            try:
+                if began and dt.datetime.fromisoformat(e["ts"]) < began:
+                    return None
+            except ValueError:
+                return None
             return d["sha"].lower()
     return None
 
@@ -14406,9 +14417,15 @@ def review_rerun_candidates(con):
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
+def _rerun_name(con, tid, role, head):
+    """The stored agent name of the re-run <role> on head: spawn() keeps the org prefix (claude-qa-t-0001-1234abcd), so every lookup,
+    spawn, event and alert uses this one name (T-1048: unprefixed lookups never found the row)."""
+    return oname(con, org_for(con, None, tid), slug(f"{role}-{tid}-{head[:8]}"))
+
+
 def _rerun_agents(con, tid, head):
-    """The reviewer/qa agent rows the re-run pass started on head, by name (<role>-<task>-<sha8>)."""
-    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
+    """The reviewer/qa agent rows the re-run pass started on head, by stored name (<org>-<role>-<task>-<sha8>)."""
+    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (_rerun_name(con, tid, r, head),)).fetchone()]
 
 
 def _rerun_missing(con, tid, head):
@@ -14450,7 +14467,7 @@ def _review_verdict_fresh(con, tid, head, clock):
 def _review_alert_no_verdict(con, t, head, boss, clock):
     """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role."""
     for role in _rerun_agents(con, t["id"], head):
-        name = slug(f"{role}-{t['id']}-{head[:8]}")
+        name = _rerun_name(con, t["id"], role, head)
         row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
         if not row or row["status"] in ("queued", "starting", "live"):
             continue
@@ -14512,7 +14529,7 @@ def review_rerun_tick(con):
         started = []
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
-            name = slug(f"{role}-{tid}-{sha[:8]}")
+            name = _rerun_name(con, tid, role, sha)
             if not gate(con, role=role)[0]:
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
