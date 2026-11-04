@@ -9258,5 +9258,192 @@
 "FACTORY_HOME": "/tmp/tmp1ehsn5wt",
 "FACTORY_AGENT": "coder-t-9"
 }
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --junit-xml out/x.xml tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --log-file logs/x.log",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --log-file x.py",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --cov-config cfg/.coveragerc tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --cache-dir /tmp/c tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --junit-prefix a/b",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --unknown-plugin a/b tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest tests/*",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest tests/.",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest tests/../tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest $PWD/tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest ../tests",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest tests/sub",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest tests/test_*.py",
+"role": "coder",
+"hq": false,
+"exit": 2,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --lf tests/test_x.py",
+"role": "coder",
+"hq": false,
+"exit": 0,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest --unknown tests/test_x.py",
+"role": "coder",
+"hq": false,
+"exit": 0,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
+},
+{
+"module": "test_worker_guard_reads",
+"cmd": "pytest tests/test_x.py::t[1]",
+"role": "coder",
+"hq": false,
+"exit": 0,
+"env": {
+"FACTORY_HOME": "/tmp/tmp1ehsn5wt",
+"FACTORY_AGENT": "coder-t-9"
+}
 }
 ]

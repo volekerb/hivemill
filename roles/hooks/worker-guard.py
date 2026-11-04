@@ -3091,7 +3091,13 @@ class Analyzer:
     PYTEST_VALUED = frozenset(("-m", "-c", "-p", "-o", "-W", "-n", "--rootdir", "--maxfail", "--deselect", "--ignore",
                                "--ignore-glob", "--confcutdir", "--basetemp", "--junitxml", "--durations", "--tb",
                                "--log-level", "--cov", "--cov-report", "--import-mode", "--color", "--capture",
-                               "--override-ini", "--config-file"))
+                               "--override-ini", "--config-file", "--junit-xml", "--log-file"))
+
+    @staticmethod
+    def pytest_target(a):
+        """A token is a pytest target only if its part before the first `::` ends in .py and has no glob char."""
+        f = a.split("::", 1)[0]
+        return f.endswith(".py") and not any(c in f for c in "*?[")
 
     def pytest_full(self, name, rest):
         """T-0435: coder, qa and reviewer run no full pytest suite locally. Blocked: pytest with no path and no -k, or
@@ -3108,7 +3114,7 @@ class Analyzer:
                 return
         else:
             return
-        paths, skip = [], False
+        skip = False
         for a in args:
             if skip:
                 skip = False
@@ -3116,10 +3122,9 @@ class Analyzer:
                 return  # a -k filter is targeted ("--keep-duplicates" is not -k)
             elif a in self.PYTEST_VALUED:
                 skip = True
-            elif not a.startswith("-") and ("/" in a or "::" in a or a.endswith(".py")):
-                paths.append(a)  # B2: only a path-like token counts; the value of an unlisted option (-r A, 60) never does
-        if all(re.sub(r"^(\./)+|/+$", "", p) in ("", ".", "tests") for p in paths):
-            raise Block("pytest with no test file or -k runs the full suite" + FULL_SUITE_ADVICE)
+            elif not a.startswith("-") and self.pytest_target(a):
+                return  # a test file or node id; a directory or an option value is never a target
+        raise Block("pytest with no test file or -k runs the full suite" + FULL_SUITE_ADVICE)
 
     def kill(self, rest):
         """Worker mode (G-008 M1932): `kill` may only name the worker's own background job, `%<job>` or `$!`.

@@ -540,7 +540,14 @@ const fullSuiteAdvice = "; CI runs the full suite (sharded). Locally run `python
 var pytestValued = map[string]bool{"-m": true, "-c": true, "-p": true, "-o": true, "-W": true, "-n": true, "--rootdir": true,
 	"--maxfail": true, "--deselect": true, "--ignore": true, "--ignore-glob": true, "--confcutdir": true, "--basetemp": true,
 	"--junitxml": true, "--durations": true, "--tb": true, "--log-level": true, "--cov": true, "--cov-report": true,
-	"--import-mode": true, "--color": true, "--capture": true, "--override-ini": true, "--config-file": true}
+	"--import-mode": true, "--color": true, "--capture": true, "--override-ini": true, "--config-file": true,
+	"--junit-xml": true, "--log-file": true}
+
+// pytestTarget: the part before the first `::` ends in .py and has no glob char.
+func pytestTarget(x string) bool {
+	f, _, _ := strings.Cut(x, "::")
+	return strings.HasSuffix(f, ".py") && !strings.ContainsAny(f, "*?[")
+}
 
 // pytestFull is a port of Analyzer.pytest_full (T-0435).
 func (a *Analyzer) pytestFull(name string, rest []string) error {
@@ -563,7 +570,6 @@ func (a *Analyzer) pytestFull(name string, rest []string) error {
 	default:
 		return nil
 	}
-	var paths []string
 	skip := false
 	for _, x := range args {
 		switch {
@@ -573,17 +579,8 @@ func (a *Analyzer) pytestFull(name string, rest []string) error {
 			return nil // a -k filter is targeted
 		case pytestValued[x]:
 			skip = true
-		case !strings.HasPrefix(x, "-") && (strings.Contains(x, "/") || strings.Contains(x, "::") || strings.HasSuffix(x, ".py")):
-			paths = append(paths, x) // only a path-like token counts; an unlisted option's value never does
-		}
-	}
-	for _, p := range paths {
-		for strings.HasPrefix(p, "./") {
-			p = p[2:]
-		}
-		p = strings.TrimRight(p, "/")
-		if p != "" && p != "." && p != "tests" {
-			return nil
+		case !strings.HasPrefix(x, "-") && pytestTarget(x):
+			return nil // a test file or node id; a directory or an option value is never a target
 		}
 	}
 	return blockf("pytest with no test file or -k runs the full suite" + fullSuiteAdvice)

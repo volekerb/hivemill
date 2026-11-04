@@ -32,7 +32,7 @@ var casesPerModule = map[string]int{
 	"test_priv_guard":           572,
 	"test_worker_guard_heredoc": 101,
 	"test_worker_guard_units":   111,
-	"test_worker_guard_reads":   135,
+	"test_worker_guard_reads":   152,
 }
 
 func loadPyCases(t *testing.T) []pyCase {

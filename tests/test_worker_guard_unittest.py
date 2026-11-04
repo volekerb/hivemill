@@ -46,6 +46,20 @@ BLOCKED = (
     "pytest -r a",
     "pytest --lfnf all",
     "pytest --timeout 60 tests",
+    "pytest --junit-xml out/x.xml tests",
+    "pytest --log-file logs/x.log",
+    "pytest --log-file x.py",
+    "pytest --cov-config cfg/.coveragerc tests",
+    "pytest --cache-dir /tmp/c tests",
+    "pytest --junit-prefix a/b",
+    "pytest --unknown-plugin a/b tests",
+    "pytest tests/*",
+    "pytest tests/.",
+    "pytest tests/../tests",
+    "pytest $PWD/tests",
+    "pytest ../tests",
+    "pytest tests/sub",
+    "pytest tests/test_*.py",
 )
 ALLOWED = (
     "python3 -m unittest tests.test_x",
@@ -69,6 +83,9 @@ ALLOWED = (
     "FACTORY_HOME=$(mktemp -d) python3 bin/factory --help",
     "git log --grep='run pytest tests then python3 -m unittest discover'",
     "cat <<'EOF'\npytest tests\nEOF",
+    "pytest --lf tests/test_x.py",
+    "pytest --unknown tests/test_x.py",
+    "pytest tests/test_x.py::t[1]",
 )
 
 
