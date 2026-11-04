@@ -7585,7 +7585,6 @@ def prepare_worktree(con, task, role):
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
         if role == "coder" and t["branch"]:
-            # QA may have left the worktree on a detached PR head; a retry coder needs its branch (switch checks out)
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
