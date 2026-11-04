@@ -231,6 +231,80 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.merges(), [])
         self.assertEqual(self.status(), "in_review")
 
+    # -- QA live-run marker (roles/qa.md Q7) ------------------------------
+    def qa_verdict(self, summary, verdict="pass"):
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                     "VALUES('T-0001',?,?,'qa',?,?,'x','t')", (PR_URL, self.x, verdict, summary))
+
+    def live_events(self):
+        return [d for a in ("mech-blocked", "mech-would-block") for d in self.events(a) if "live-run pending" in d]
+
+    def assert_held(self, summary, mode="on"):
+        self.qa_verdict(summary)
+        p = self.mech(mode)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: blocked", p.stdout)
+        self.assertEqual(len(self.live_events()), 1)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+
+    def assert_not_held(self, summary, older=None):
+        if older:
+            self.qa_verdict(older)
+        self.qa_verdict(summary)
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.live_events(), [])
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_live_run_pending_on_latest_qa_pass_holds(self):
+        self.assert_held("ok\nlive-run: pending AC2 rerun of the scan against the live factory")
+
+    def test_live_run_pending_is_case_and_space_tolerant(self):
+        self.assert_held("ok\n  Live-Run:   PENDING AC3")
+
+    def test_live_run_pending_holds_in_shadow_as_would_block(self):
+        self.qa_verdict("ok\nlive-run: pending AC1 x")
+        self.assertIn("T-0001: blocked", self.mech("shadow").stdout)
+        self.assertEqual(len(self.events("mech-would-block")), 1)
+        self.assertEqual(self.events("mech-blocked"), [])
+
+    def test_live_run_done_without_pending_does_not_hold(self):
+        self.assert_not_held("ok\nlive-run: done AC2 exit=0 scan rerun live")
+
+    def test_live_run_older_pending_latest_without_does_not_hold(self):
+        self.assert_not_held("ok again", older="ok\nlive-run: pending AC2 rerun")
+
+    def test_live_run_pending_mid_line_does_not_hold(self):
+        self.assert_not_held("ok\nnotes: live-run: pending AC2")
+
+    def test_live_run_latest_fail_is_not_a_candidate(self):
+        self.qa_verdict("live-run: pending AC2 x", "pass")
+        self.qa_verdict("bug", "fail")
+        self.mech("on")
+        self.assertEqual(self.live_events(), [])
+        self.assertEqual(self.merges(), [])
+
+    def test_live_run_entry_point_blocks_before_any_gh_call(self):
+        self.qa_verdict("ok\nlive-run: pending AC2 rerun against the live factory")
+        self.ok("config", "mech_merge", "on")
+        self.jw_calls.write_text("")
+        p = self.env.run("mech-merge", "--task", "T-0001", agent="zz-test-director", inproc=False, extra_env={
+            "PATH": f"{self.gh_dir}{os.pathsep}{self.env.env()['PATH']}", "JW_STATE": str(self.jw_state), "JW_CALLS": str(self.jw_calls)})
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("T-0001: blocked", p.stdout)
+        self.assertEqual(self.status(), "in_review")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.jw_calls.read_text(), "")  # DB-only check: no gh call at all
+        self.assertIn("live-run pending (live-run: pending AC2 rerun", self.live_events()[0])
+
+    def test_live_run_marker_is_accepted_by_factory_verdict(self):
+        p = self.cli("verdict", "T-0001", "--pass", "--sha", self.x, "--summary",
+                     "ok\nlive-run: pending AC1 x\n" + gates_summary(), agent="zz-test-qa")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        got = self.env.sql("SELECT summary FROM verdicts WHERE task_id='T-0001' AND role='qa' ORDER BY id DESC LIMIT 1")
+        self.assertIn("live-run: pending AC1 x", got[0]["summary"])
+
     # -- refusals through the merger -------------------------------------
     def test_push_policy_freeze_refuses(self):
         self.ok("config", "frozen_repos", "zz-test/repo")
