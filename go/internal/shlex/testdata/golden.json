@@ -51031,6 +51031,42 @@
 "src": "corpus"
 },
 {
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"tar -xf a.tar -C @SCRATCH@/out"
+]
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"tar -xf a.tar -C @SCRATCH@/out"
+]
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"tar -xf a.tar -C @SCRATCH@/out"
+]
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'tar -xf a.tar -C @SCRATCH@/out'\"'\"''",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -73478,7 +73514,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1695,
+"corpus_commands": 1696,
 "edge_inputs": 123,
 "python": "3.13"
 }

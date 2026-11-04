@@ -63086,6 +63086,50 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -92628,7 +92672,7 @@
 ]
 }
 },
-"corpus_commands": 1695,
+"corpus_commands": 1696,
 "edge_inputs": 97,
 "python": "3.13"
 }
