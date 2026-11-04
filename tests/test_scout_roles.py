@@ -58,7 +58,7 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(d["env"]["FACTORY_ROLE"], r)
             self.assertTrue(d["env"]["HERDR_SOCKET_PATH"].startswith("/proc/nonexistent/"))
             cmd = d["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-            self.assertTrue(cmd.endswith(f"worker-guard.py --role {r}"), cmd)
+            self.assertRegex(cmd, rf"^sh \S+/roles/hooks/worker-guard --role {r}$")  # T-0356: the shim
 
     def test_scout_rules(self):
         d = settings("scout")["permissions"]
