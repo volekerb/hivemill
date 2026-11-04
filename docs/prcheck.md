@@ -39,3 +39,7 @@ head is accepted. An unpushed commit, a dirty tree, a body or public-text FAIL s
 for CI. `resume` and `fresh` behave the same today (the names are reserved for how a later red-CI fix round restarts the coder).
 With `off` the gate is byte-identical to before. The merge gate (`factory judge`, merger) is untouched: a red or pending head is
 still refused. First-round review waits for green: see [review-autospawn.md](review-autospawn.md).
+
+The handoff is active only when `review_autospawn=on` (otherwise nothing would start the review, so the old CI gate stays) and
+only for a task that is `in_review`: an `in_progress` task, e.g. after a judge reject, keeps the CI gate. The handoff line is added
+whenever the PR head is not green, including a PR that has no checks yet.

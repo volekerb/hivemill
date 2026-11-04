@@ -9256,9 +9256,23 @@ def ci_handoff_on(con):
     return cfg(con, "coder_ci_handoff") in CI_HANDOFF_MODES
 
 
+def ci_handoff_active(con):
+    """The handoff only works when the tick starts the review: coder_ci_handoff on AND review_autospawn=on.
+    With review_autospawn off nobody would start review, so the old gate stays."""
+    return ci_handoff_on(con) and cfg(con, "review_autospawn") == "on"
+
+
+def ci_not_green(pr_url):
+    """True unless the PR's checks are all done and green (empty rollup = pending); unreadable = True (fail safe)."""
+    try:
+        return ci_verdict(pr_state(pr_url).get("statusCheckRollup"))[0] != "green"
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError, AttributeError):
+        return True
+
+
 def coder_ci_handoff_kickoff(con, role, prompt):
     """Coder kickoff extra with coder_ci_handoff on: do not wait for CI; set in_review and run factory done."""
-    if role != "coder" or not ci_handoff_on(con):
+    if role != "coder" or not ci_handoff_active(con):
         return prompt
     line = ("coder_ci_handoff is on: do not wait for CI. After self-review set the task in_review and run "
             "factory done; the tick starts review at green CI.")
@@ -9345,7 +9359,8 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    handoff = ci_handoff_on(con)
+    st = con.execute("SELECT status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    handoff = ci_handoff_active(con) and bool(st and st["status"] == "in_review")  # an in_progress task (judge reject) keeps the CI gate
     ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"], handoff=handoff)
     if ok and handoff:
         print(f"factory: prcheck accepted via CI handoff on PR head {head[:9]} ({why})", file=sys.stderr)
@@ -9440,8 +9455,8 @@ def cmd_done(a):
             print("CI state unknown (gh failed)", file=sys.stderr)
         if ci and ci != "green":
             summary += f"\n\nCI at done: {ci}"
-            if ci_handoff_on(con) and t and t["status"] == "in_review" and t["pr_url"]:
-                summary += f"\n{CI_HANDOFF_LINE}"
+        if ci_handoff_active(con) and t and t["status"] == "in_review" and t["pr_url"] and ci_not_green(t["pr_url"]):
+            summary += f"\n\n{CI_HANDOFF_LINE}"  # also for an empty rollup, which checks_ok reads as green
     cur = con.execute("UPDATE agents SET status=?, summary=?, ended=?, stop_requested_at=NULL, stop_attempt_at=NULL, "
                       "stop_failed_kind=NULL WHERE name=? AND status='live'",
                       ("live" if r["role"] in PERSISTENT_ROLES else "done", summary, now(), me))

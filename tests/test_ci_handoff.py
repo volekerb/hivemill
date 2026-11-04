@@ -28,6 +28,7 @@ class DoneHandoff(tp.PrcheckTests):
 
     def start(self, mode="resume", checks=PENDING, status="in_review"):
         self.ok("config", "prcheck_required", "1")
+        self.ok("config", "review_autospawn", "on")
         if mode:
             self.ok("config", FLAG, mode)
         self.env.sql("UPDATE tasks SET status=?, pr_url=? WHERE id='T-0001'", (status, PR_URL))
@@ -104,6 +105,26 @@ class DoneHandoff(tp.PrcheckTests):
         body = self.env.sql("SELECT body FROM messages WHERE recipient='zz-test-lead' AND kind='report' ORDER BY id DESC")[0]["body"]
         self.assertIn("CI pending, tick starts review at green, do not spawn reviewer.", body)
 
+    def test_empty_rollup_gets_handoff_line(self):
+        self.start(checks=[])
+        self.assertEqual(self.done().returncode, 0)
+        body = self.env.sql("SELECT body FROM messages WHERE recipient='zz-test-lead' AND kind='report' ORDER BY id DESC")[0]["body"]
+        self.assertIn("do not spawn reviewer", body)
+
+    def test_in_progress_task_keeps_the_ci_gate(self):
+        self.start(status="in_progress")  # e.g. after a judge reject: no review would start for it
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("CI not all green", p.stderr)
+        self.assertEqual(self.agent_status(), "live")
+
+    def test_review_autospawn_off_keeps_the_ci_gate(self):
+        self.start()
+        self.ok("config", "review_autospawn", "off")
+        p = self.done()
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("CI not all green", p.stderr)
+
     def test_green_ci_summary_has_no_handoff_line(self):
         self.start(checks=[self.check("a"), self.check("b")])
         self.assertEqual(self.done().returncode, 0)
@@ -161,6 +182,8 @@ class Kickoff(FactoryTestCase):
     def test_coder_kickoff_flag_on_says_do_not_wait(self):
         self.assertEqual(self.kick(), "base")
         self.ok("config", FLAG, "fresh")
+        self.assertEqual(self.kick(), "base")  # review_autospawn still off: nobody would start the review
+        self.ok("config", "review_autospawn", "on")
         self.assertIn("do not wait for CI", self.kick())
         self.assertIn("factory done", self.kick())
         self.assertEqual(self.kick("reviewer"), "base")
