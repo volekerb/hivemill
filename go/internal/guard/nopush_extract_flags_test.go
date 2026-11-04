@@ -20,6 +20,14 @@ func TestNoPushExtractFlagsRefused(t *testing.T) {
 		"python3 --check-hash-based-pycs always -m zipfile -e "+z+" "+git,
 		"python3 --check-hash-based-pycs=always -m zipfile -e "+z+" "+git,
 		"python3 --some-unknown-opt -m zipfile -e "+z+" "+git,
+		// B1: an empty `--opt=` value carries its own (empty) value; it must not swallow the next argument
+		"python3 --check-hash-based-pycs= -m zipfile -e "+z+" "+git,
+		`python3 --check-hash-based-pycs= -c 'import zipfile; zipfile.ZipFile("a.zip").extractall(".")'`,
+		`python3 --check-hash-based-pycs= -c 'open("x","w")'; unzip `+z+" -d "+clean,
+		"python3 --check-hash-based-pycs= -c x; unzip "+z+" -d "+clean,
+		"python3 --check-hash-based-pycs= -Bc x; unzip "+z+" -d "+clean,
+		// B2: Python's unicode \s between `extract` and `(`; U+200B is not whitespace (benign test)
+		"python3 -c 'z.extract\u2028(1)'", "python3 -c 'z.extract\u001c(1)'", "python3 -c 'z.extract\u0085(1)'", "python3 -c 'z.extract\u00a0(1)'",
 		// F3: ar response file
 		"ar @optsfile a.a", "ar x @optsfile", "ar @opts", "ar --target @opts a.a", "ar --plugin @opts a.a", "ar --output @opts a.a",
 		// F4: python -c extraction code
@@ -51,6 +59,7 @@ func TestNoPushExtractFlagsBenignAllowed(t *testing.T) {
 	cmds := []string{
 		"python3 -Wonce -m json.tool", "python3 --check-hash-based-pycs=always -m json.tool", "python3 -m zipfile -l " + z,
 		"python3 -Wonce -m zipfile -e " + z + " " + clean, "python3 --check-hash-based-pycs always -m zipfile -l " + z,
+		"python3 -c 'z.extract\u200b(1)'", "python3 --check-hash-based-pycs= x.py ; unzip " + z + " -d " + clean,
 		"ar t a.a", "python3 -c 'print(1)'", "unzip " + z + " -d " + clean,
 	}
 	// T-0808 F5 neighbours: no inline writer, so the extraction after `;` stays allowed
@@ -70,6 +79,8 @@ func TestPyInlineCode(t *testing.T) {
 	}{
 		{[]string{"-c", "x"}, true}, {[]string{"-Bc", "x"}, true}, {[]string{"-c'x'"}, true}, {nil, true}, {[]string{"-"}, true},
 		{[]string{"-W", "once", "-c", "x"}, true}, {[]string{"--check-hash-based-pycs", "always", "-"}, true},
+		{[]string{"--check-hash-based-pycs=", "-c", "x"}, true}, {[]string{"--check-hash-based-pycs=", "-Bc", "x"}, true},
+		{[]string{"--check-hash-based-pycs=", "x.py"}, false}, {[]string{"--check-hash-based-pycs=", "-m", "json.tool"}, false},
 		{[]string{"-m", "json.tool"}, false}, {[]string{"-Wonce", "-m", "json.tool"}, false}, {[]string{"x.py"}, false},
 		{[]string{"--version"}, false}, {[]string{"-V"}, false}, {[]string{"-h"}, false}, {[]string{"--help-all"}, false},
 	} {

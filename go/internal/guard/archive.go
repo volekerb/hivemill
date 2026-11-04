@@ -212,10 +212,10 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 			cl := []rune(args[k])
 			k++
 			if strings.HasPrefix(args[k-1], "--") { // T-0808 F2: skip a known long option (and its value); an unknown one fails closed
-				base, eq, _ := strings.Cut(args[k-1], "=")
+				base, _, hasEq := strings.Cut(args[k-1], "=")
 				switch {
 				case in(pyLongValue, base):
-					if eq == "" {
+					if !hasEq {
 						k++ // `--opt value` takes the next argument; `--opt=value` carries its own
 					}
 				case !in(pyLongFlag, base):
@@ -363,7 +363,7 @@ func pyInlineCode(args []string) bool {
 			if in(pyLongFlag, cl) {
 				return false // --version/--help print and exit: no program runs
 			}
-			if base, eq, _ := strings.Cut(cl, "="); eq == "" && in(pyLongValue, base) {
+			if base, _, hasEq := strings.Cut(cl, "="); !hasEq && in(pyLongValue, base) {
 				k++
 			}
 			continue
