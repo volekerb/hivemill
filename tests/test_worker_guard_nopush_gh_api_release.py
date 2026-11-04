@@ -28,6 +28,7 @@ DENIED = [
     "gh release delete v1",
     "gh release upload v1 f",
     "gh release delete-asset v1 f",
+    "gh release create -R acme/new v1 --notes x",
     "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'",
     "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'",
     "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
@@ -49,7 +50,8 @@ ALLOWED = [
     "gh api -XGET x -f a=b",
     "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
 ]
-CODER_CMDS = ["gh api repos/o/r/issues -f title=x", "gh release create v1", "bash -c 'gh release create v1'",
+CODER_CMDS = ["gh api repos/o/r/issues -f title=x", "gh release create v1",
+              "gh release create -R acme/new v1 --notes x", "bash -c 'gh release create v1'",
               "python3 -c 'import os; os.system(\"gh release create v1\")'"]
 
 
