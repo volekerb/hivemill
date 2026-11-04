@@ -154,6 +154,8 @@ class StartTimeBeforeCloseTests(EscapeCase):
         closed = []
 
         def close(*argv, **kw):
+            if argv[:2] == ("agent", "list"):  # T-1007: the close is name-checked against the host's agent list
+                return {"agents": [{"name": "zz-c", "agent": "claude", "pane_id": "p-c"}]}
             closed.append(argv)
             shutil.rmtree(root)
 
