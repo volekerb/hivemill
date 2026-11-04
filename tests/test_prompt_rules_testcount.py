@@ -68,8 +68,12 @@ class PromptRulesTestCount(unittest.TestCase):
     def test_qa_and_judge_have_recipe_without_git_merge(self):
         for name in ("qa.md", "judge.md"):
             text = (ROLES / name).read_text()
-            pieces = [x if name == "judge.md" else x.replace("C=$(git commit-tree $T -p origin/main -p <pr-head> -m tmp)", "")
-                      .replace("factory src $C", "factory src $T") for x in RECIPE]  # qa exports the tree id itself (T-0918)
+            if name == "judge.md":  # T-0991: the judge runs merge-tree via git -C <task-worktree>; no commit-tree, no $(...)
+                pieces = ["do not run git merge", "git -C <task-worktree> merge-tree --write-tree origin/main <pr-head>",
+                          "factory src <tree-id> <scratchpad>/merged", "rm -rf <scratchpad>/merged"]
+            else:
+                pieces = [x.replace("C=$(git commit-tree $T -p origin/main -p <pr-head> -m tmp)", "")
+                          .replace("factory src $C", "factory src $T") for x in RECIPE]  # qa exports the tree id itself (T-0918)
             for piece in filter(None, pieces):
                 self.assertIn(piece, text, f"{name}: recipe piece missing: {piece!r}")
             self.assertNotIn("git worktree add", text, f"{name}: use factory src, not git worktree")
