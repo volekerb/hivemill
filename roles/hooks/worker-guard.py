@@ -1359,6 +1359,7 @@ class Analyzer:
         text, extras = preprocess(text, self.hq, nbodies)
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.call_assign(text, [b for _, b in nbodies[seen:]])
+            self.stdin_heredocs(nbodies[seen:])
         for kind, body in extras:
             if kind == "sh":
                 self.soft(self.script, body, depth + 1)
@@ -1446,6 +1447,8 @@ class Analyzer:
                     self.cfg_redirect(target)
                     self.prot_redirect(target)
                     self.persist_redirect(target)
+            prev = cmds[n - 1][0] if piped and n > 0 else []
+            self.pipe_src = " ".join(prev[1:]) if prev and os.path.basename(prev[0]) in ("echo", "printf") else None
             self.soft(self.cmd, words, depth, piped, False, hstrs)
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
                 self.fs_changed = True
@@ -1567,11 +1570,78 @@ class Analyzer:
         # attached code (`perl -e'CODE'`, `node --eval=CODE`) is not a separate word: scan option words that look like code
         texts += [a for a in rest if a.startswith("-") and re.search(r"[\s\"'();]", a)]
         for t in texts:
-            if all(p.search(t) for p in INLINE_GIT_PUSH):
-                raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
-                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
-                            "no-push roles never write to GitHub; ask your lead")
+            self.scan_inline_text(name, t, "inline code")
+
+    def scan_inline_text(self, name, t, what):
+        if all(p.search(t) for p in INLINE_GIT_PUSH):
+            raise Block(f"{name} {what} that runs `git push` (no-push roles never push; ask your lead)")
+        if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
+            raise Block(f"{name} {what} that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
+                        "no-push roles never write to GitHub; ask your lead")
+
+    def stdin_program(self, name, rest):
+        """T-0882: True when the interpreter command reads its program from stdin: no script file (or `-`) and no -c/-e code.
+        An option this hook does not model counts as stdin too (scanning only ever refuses a push/gh write)."""
+        if not INLINE_CODE_INTERPS.match(name):
+            return False
+        n = "node" if name.startswith("nodejs") else name
+        si, ci, unknown = interp_args(n, rest)
+        if unknown:
+            return True
+        if ci is not None:
+            return False
+        if re.match(r"^python[\d.]*$", name) and not py_inline_code(rest):
+            return False  # -m module, --version
+        return si is None or rest[si] == "-"
+
+    def stdin_scan(self, name, text):
+        """T-0882: scan code fed to an interpreter on stdin (heredoc body, here-string, echo/printf piped in) with the T-0789
+        scan, plus the T-0808 F4 fail-closed rule for archive extraction from python. NOT covered, by design: a piped
+        non-literal source (`cat file | python3`, `curl ... | python3`), uv run wrappers, obfuscated code. Defense in depth only;
+        the sandbox + worker PAT are the boundary (M15349)."""
+        self.scan_inline_text(name, text, "stdin code")
+        if re.match(r"^python[\d.]*$", name) and re.search(r"extractall|extract\s*\(|unpack_archive", text):
+            raise Block(f"`{name}` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); "
+                        "use unzip -d or tar -C")
+
+    def stdin_heredocs(self, bodies):
+        """T-0882: heredoc bodies (head, body) of a no-push role: scan those fed to an interpreter program on stdin, directly or
+        through `cat <<EOF |`."""
+        for head, body in bodies:
+            parts = re.split(r"(&&|\|\||[;&|(])", head)
+            idx = [k for k, p in enumerate(parts) if re.search(r"(?<!<)<<(?!<)", p)]
+            if not idx:
+                continue
+            k = idx[-1]
+            for cand in ([k] + ([k + 2] if k + 2 < len(parts) and parts[k + 1] == "|"
+                                and self.plain_words(parts[k])[:1] == ["cat"] else [])):
+                w = self.plain_words(parts[cand])
+                if w and INLINE_CODE_INTERPS.match(w[0]) and self.stdin_program(w[0], w[1:]):
+                    self.stdin_scan(w[0], body)
+
+    @staticmethod
+    def plain_words(seg):
+        """Command words of one simple-command text: assignments, env/exec/command wrappers and redirections dropped."""
+        seg = re.sub(r"(?<!<)<<-?\s*(?:'[^']*'|\"[^\"]*\"|[^\s;&|()<>]+)", " ", seg)
+        try:
+            ws = shlex.split(seg)
+        except ValueError:
+            return []
+        out, skip = [], False
+        for x in ws:
+            if skip:
+                skip = False
+            elif re.match(r"^\d*[<>]+&?$", x):
+                skip = True
+            elif re.match(r"^\d*[<>]", x):
+                pass
+            else:
+                out.append(x)
+        while out and (ASSIGN.match(out[0]) or out[0] in ("env", "exec", "command", "nohup", "time")):
+            out.pop(0)
+        if out:
+            out[0] = os.path.basename(out[0])
+        return out
 
     def git_priv(self, rest, depth):
         """git runs shell text from `-c alias.x=!cmd`, `-c core.pager=cmd` and `git config <key> <value>`."""
@@ -3247,6 +3317,9 @@ class Analyzer:
             self.interp_priv(name, rest)
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
+                if self.stdin_program(name, rest):  # T-0882: here-string / echo|printf piped in (heredocs: stdin_heredocs)
+                    for h in list(hstrs) + ([self.pipe_src] if piped and getattr(self, "pipe_src", None) else []):
+                        self.stdin_scan(name, h)
             self.unittest_full(name, rest)
             self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
