@@ -14478,36 +14478,9 @@ def _rerun_missing(con, tid, head):
 REVIEW_VERDICT_GRACE_S = 300  # a verdict this young may belong to a round whose other half the lead is about to start
 
 
-def _review_blocked(con, tid, head):
-    """Why review must not start on head yet (T-1048), else None: a coder agent of the task is queued, starting or live, or the
-    latest prcheck record for this head says not ok. No prcheck record is not a block (a CI-path `factory done` leaves none)."""
-    if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('queued','starting','live')", (tid,)).fetchone():
-        return "coder still queued, starting or live"
-    for e in con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='prcheck' ORDER BY id DESC", (tid,)):
-        try:
-            d = json.loads(e["detail"])
-        except (TypeError, ValueError):
-            continue
-        if isinstance(d, dict) and str(d.get("head", "")).lower() == head.lower():
-            return None if d.get("ok") else "latest prcheck on this head is not ok"
-    return None
-
-
 def _review_hold(con, t, head, clock):
-    """True when review must not start on head (_review_blocked). With no coder live and the latest prcheck not ok the hold is permanent
-    (a CI-path `factory done` can accept it), so raise one alert per task and head to the lead or director (T-1048)."""
-    why = _review_blocked(con, t["id"], head)
-    if why and why.startswith("latest prcheck"):
-        key = f"review-prcheck-held:{t['id']}:{head}"
-        if not _throttled(con, key, clock, float("inf")):
-            _throttle_set(con, key, clock)
-            to = f"lead:{t['team_id']}" if t["team_id"] else "director"
-            event(con, "task", t["id"], "review-prcheck-held", {"head": head[:8]})
-            send(con, to, f"review autospawn: {t['id']} @{head[:8]} held, prcheck not ok",
-                 f"{t['title']}\n\nNo coder is live and the latest prcheck on head {head} is not ok, so the tick starts no review. "
-                 "Fix and rerun prcheck, or start the review yourself.",
-                 kind="request", goal=t["goal_id"], task=t["id"], sender="tick")
-    return bool(why)
+    """True when review must not start yet (T-1048): a coder agent of the task is queued, starting or live. The prcheck result does not gate review."""
+    return bool(con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('queued','starting','live')", (t["id"],)).fetchone())
 
 
 def _review_verdict_fresh(con, tid, head, clock):

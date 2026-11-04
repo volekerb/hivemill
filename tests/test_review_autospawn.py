@@ -583,7 +583,7 @@ class ThrottleTests(SkipTests):
 
 
 class ReviewOrderingTests(Base):
-    """T-1048: no review while a coder is live/queued/starting or before a passing prcheck on the head; a head missing one role gets it;
+    """T-1048: no review while a coder is live/queued/starting (prcheck does not gate it); a head missing one role gets it;
     a rerun-round worker that ended with no verdict is alerted once per head; a verdict is bound to the head the worker was started on."""
 
     def setUp(self):
@@ -623,24 +623,18 @@ class ReviewOrderingTests(Base):
         self.verdict(H2, role="qa")
         self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
 
-    def test_prcheck_not_ok_on_head_blocks_until_a_passing_one(self):
+    def test_prcheck_not_ok_does_not_hold_review(self):
         self.prcheck(H1, False)
-        self.assertEqual(self.step(H1), [])
-        self.prcheck(H1, True)
         self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
 
-    def test_prcheck_not_ok_with_no_coder_alerts_once_per_head_and_starts_nothing(self):
-        # B4: a CI-path `factory done` leaves the failed prcheck as the newest record; the hold must not be silent
+    def test_prcheck_not_ok_with_no_coder_starts_review_once_and_sends_no_alert(self):
         self.prcheck(H1, False)
-        for _ in range(3):
-            self.assertEqual(self.step(H1), [])
-        mails = self.env.sql("SELECT recipient, subject FROM messages WHERE kind='request'")
-        self.assertEqual([m["recipient"] for m in mails], [LEAD])
-        self.assertIn("prcheck not ok", mails[0]["subject"])
-        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='review-prcheck-held'")), 1)
-        self.assertEqual(self.env.sql("SELECT 1 FROM agents WHERE role IN ('reviewer','qa')"), [])
+        self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
+        self.assertEqual([self.step(H1) for _ in range(2)], [[], []])
+        self.assertEqual(self.env.sql("SELECT 1 FROM messages WHERE kind='request'"), [])
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='review-prcheck-held'"), [])
 
-    def test_coder_live_with_prcheck_not_ok_sends_no_alert(self):
+    def test_coder_live_with_prcheck_not_ok_still_blocks_without_alert(self):
         self.prcheck(H1, False)
         self.coder("live")
         self.assertEqual(self.step(H1), [])
