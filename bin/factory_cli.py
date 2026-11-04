@@ -5954,14 +5954,14 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
-def _red_main_kept_text(con, tid):
+def _red_main_kept_text(con, tid, slug):
     """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
     may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
     row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
     st = row["status"] if row else ""
     if st in ("done", "cancelled"):
         return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
-                f"(director: factory redmain fix <repo> <task>). No task was filed automatically.")
+                f"(director: factory redmain fix {slug} {tid}). No task was filed automatically.")
     return f"Fix task {tid} is still open; no new task filed."
 
 
@@ -6007,7 +6007,7 @@ def red_main_check(con):
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else _red_main_kept_text(con, kept)
+                        if tid else _red_main_kept_text(con, kept, slug)
                         if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
