@@ -61,10 +61,10 @@ class NoPushGhApiMethodTests(unittest.TestCase):
 
     def test_coder_and_judge_unchanged(self):
         for role in OTHER:
-            for cmd in DENIED[:3] + ALLOWED[:2]:
+            for cmd in DENIED + ALLOWED:
                 with self.subTest(role=role, cmd=cmd):
                     p = self.run_hook(cmd, role)
-                    self.assertNotIn("no-push roles never write", p.stderr)
+                    self.assertEqual(p.returncode, 0, p.stderr)
 
 
 if __name__ == "__main__":
