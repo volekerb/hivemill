@@ -18,6 +18,8 @@ ROLES = ("coder", "reviewer", "qa", "pm")
 DENIED = [
     "git config --comment --get alias.x push",
     "git config --comm --get alias.x push",
+    "git config --co --get alias.x push",
+    "git config --c --get alias.x push",
     "git config --comment --get-all alias.x push",
     "git config --comment --list alias.x push",
     "git config set --value --get alias.y push",
@@ -28,6 +30,9 @@ DENIED = [
 CODER_ONLY_DENIED = [
     "echo alias.x push | xargs git config --comment --get",
     "echo alias.y push | xargs git config set --value --get",
+    "echo alias.x push | xargs git config --co --get",
+    "echo alias.x push | xargs git config --c --get",
+    "echo alias.y push | xargs git config set --va --get",
 ]
 ALLOWED = ["git config --get alias.x", "git config --get user.name", "git config --list", "git config --type bool --get core.bare",
            "git config --get-all --default x user.name", "git config --file f --get a.b"]
