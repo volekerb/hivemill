@@ -569,12 +569,12 @@ func (a *Analyzer) pytestFull(name string, rest []string) error {
 		switch {
 		case skip:
 			skip = false
-		case x == "-k" || (strings.HasPrefix(x, "-k") && !strings.HasPrefix(x, "--")) || strings.HasPrefix(x, "--k"):
+		case x == "-k" || (strings.HasPrefix(x, "-k") && !strings.HasPrefix(x, "--")):
 			return nil // a -k filter is targeted
 		case pytestValued[x]:
 			skip = true
-		case !strings.HasPrefix(x, "-"):
-			paths = append(paths, x)
+		case !strings.HasPrefix(x, "-") && (strings.Contains(x, "/") || strings.Contains(x, "::") || strings.HasSuffix(x, ".py")):
+			paths = append(paths, x) // only a path-like token counts; an unlisted option's value never does
 		}
 	}
 	for _, p := range paths {

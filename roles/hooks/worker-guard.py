@@ -3112,12 +3112,12 @@ class Analyzer:
         for a in args:
             if skip:
                 skip = False
-            elif a == "-k" or (a.startswith("-k") and not a.startswith("--")) or a.startswith("--k"):
-                return  # a -k filter is targeted
+            elif a == "-k" or (a.startswith("-k") and not a.startswith("--")):
+                return  # a -k filter is targeted ("--keep-duplicates" is not -k)
             elif a in self.PYTEST_VALUED:
                 skip = True
-            elif not a.startswith("-"):
-                paths.append(a)
+            elif not a.startswith("-") and ("/" in a or "::" in a or a.endswith(".py")):
+                paths.append(a)  # B2: only a path-like token counts; the value of an unlisted option (-r A, 60) never does
         if all(re.sub(r"^(\./)+|/+$", "", p) in ("", ".", "tests") for p in paths):
             raise Block("pytest with no test file or -k runs the full suite" + FULL_SUITE_ADVICE)
 

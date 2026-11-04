@@ -40,6 +40,12 @@ BLOCKED = (
     "python3 -m pytest --maxfail 1",
     "py.test",
     "timeout 600 pytest tests",
+    "pytest --keep-duplicates",
+    "pytest --keep-duplicates tests",
+    "pytest -r A tests",
+    "pytest -r a",
+    "pytest --lfnf all",
+    "pytest --timeout 60 tests",
 )
 ALLOWED = (
     "python3 -m unittest tests.test_x",
