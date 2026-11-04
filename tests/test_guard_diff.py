@@ -979,6 +979,43 @@ class SettingsFollowUpTests(GuardDiffCase):
                 self.assertNotIn("no change", p.stdout.lower())
                 git(self.repo, "checkout", "-q", "--", ".")
 
+    def test_hook_field_types_and_newline_event_fail_closed_on_one_line(self):
+        def hook_edit(field, value, where):
+            def edit(d):
+                grp = d["hooks"]["PreToolUse"][0]
+                (grp if where == "group" else grp["hooks"][0])[field] = value
+            return edit
+
+        def newline_event(d):
+            d["hooks"]["Pre\nTool"] = [{"hooks": None}]
+
+        cases = [("matcher", hook_edit("matcher", v, "group")) for v in (None, 5, ["a"])]
+        cases += [("type", hook_edit("type", v, "hook")) for v in (None, 5)]
+        cases += [("command", hook_edit("command", v, "hook")) for v in (None, 5, ["a"])]
+        cases.append(("Pre\\nTool", newline_event))
+        self.commit_base(self.seed)
+        for key, edit in cases:
+            with self.subTest(key=key, edit=edit):
+                self.edit_tree(edit)
+                p = self.settings()
+                self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertNotIn("Traceback", p.stdout + p.stderr)
+                self.assertIn("qa.json.in", p.stderr)
+                self.assertIn(key, p.stderr)
+                self.assertEqual(len(p.stderr.strip().splitlines()), 1, p.stderr)
+                self.assertNotIn("no change", p.stdout.lower())
+                git(self.repo, "checkout", "-q", "--", ".")
+
+    def test_missing_hook_matcher_type_command_still_work(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["hooks"]["Stop"] = [{"hooks": [{}]}]
+        self.edit_tree(edit)
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-TIGHTENED qa hook added: Stop|||", p.stdout)
+
     def test_malformed_base_settings_fail_closed(self):
         self.commit_base(lambda d: d["permissions"].__setitem__("ask", None))
         p = self.settings()

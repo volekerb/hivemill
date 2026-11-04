@@ -94,6 +94,8 @@ The coder procedure is the `guard-change` skill in `roles/plugins/coder/`.
 
 `--impl go` is the G-016 differential gate for the Go port of the hook (`go/cmd/worker-guard`). The reference is the Python hook in the working tree (`--hook`); the candidate is the Go binary, built once per run with `go build ./cmd/worker-guard` in `go/`, or taken from `--go-bin PATH`. The same corpus, tokens, environment and modes apply, and the candidate is invoked as `worker-guard --role <role>|--hq --py-hook <abs path of the reference hook>`.
 
+CI is the normal route: the `guard-diff` job runs this command. A local run needs a named authorization from the task, the owner or the boss, like the manual run above.
+
 ```
 python3 ci/guard_diff.py --impl go --roles all --mode both --strict
 ```
