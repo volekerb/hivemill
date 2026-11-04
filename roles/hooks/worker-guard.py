@@ -85,6 +85,10 @@ BROAD_READS = {"res": None, "agents": None, "scorecard": None, "digest": None, "
                "project": {"list"}, "lesson": {"list"}}
 PRIV_WORDS = {"sudo", "su", "doas", "pkexec", "docker"}
 FACTORY_BRANCH = re.compile(r"^factory/[A-Za-z0-9._/-]+$")
+GIT_PIN_FLAGS = {"-p", "--paginate", "-P", "--no-pager", "--no-replace-objects", "--bare", "--literal-pathspecs",
+                 "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--no-optional-locks",
+                 "--no-lazy-fetch", "--no-advice", "--html-path", "--man-path", "--info-path", "--version",
+                 "--help", "-v", "-h"}
 # wrappers whose options are modelled, so PRIV sees the command they run and not their option values:
 # name -> options that take a value (as a separate word)
 WRAP_VALUE_OPTS = {
@@ -2847,8 +2851,18 @@ class Analyzer:
         while i < len(rest) and rest[i].startswith("-"):
             if rest[i] != "-C" and "push" in rest[i + 1:]:
                 raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
-            if rest[i] == "-c" and i + 1 < len(rest) and re.match(r"(?i)alias\.[^=]*=.*push", rest[i + 1]):
-                raise Block("git -c alias.<x>=...push...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
+            cv = rest[i + 1] if rest[i] == "-c" and i + 1 < len(rest) else (rest[i][2:] if re.match(r"-c.", rest[i]) else None)
+            if cv is not None and re.match(r"(?i)alias\.[^=]*=.*(?:push|send-pack)", cv):
+                raise Block("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
+            ce = rest[i][len("--config-env="):] if rest[i].startswith("--config-env=") else (
+                rest[i + 1] if rest[i] == "--config-env" and i + 1 < len(rest) else None)
+            if ce is not None and re.match(r"(?i)alias\.", ce):
+                raise Block("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; "
+                            "coders push only `git push origin HEAD:factory/<task id>`")
+            o = rest[i]
+            if "=" not in o and not re.match(r"-c.", o) and o not in GIT_PIN_FLAGS \
+                    and o not in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"):
+                raise Block(f"git {o}: coders may use only known git options here; write the command without it")
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
@@ -3787,10 +3801,17 @@ class Analyzer:
         one, and the usual push pin and alias refusal apply to the words that are visible."""
         i = 0
         while i < len(gargs) and gargs[i].startswith("-"):
+            cv = gargs[i + 1] if gargs[i] == "-c" and i + 1 < len(gargs) else (gargs[i][2:] if re.match(r"-c.", gargs[i]) else None)
+            if cv is not None and re.match(r"(?i)alias\.", cv):
+                raise Block("xargs git -c alias.<x>=...: the alias could expand to config or push with arguments from stdin; "
+                            "run git directly")
             i += 2 if gargs[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
             raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
                         "`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+        if gargs[i] == "config" and not (any(a in GIT_CONFIG_READ_ONLY for a in gargs[i + 1:]) and not any(a in CONFIG_WRITE for a in gargs[i + 1:])):
+            raise Block("xargs git config: the key and value come from stdin, so this could write an alias; use a read flag "
+                        "(--get, --list) or run `git config` directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
