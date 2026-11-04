@@ -276,3 +276,23 @@ setting `go` or `shadow` while it is not `ok` prints a warning (the key is still
 - **Failure marker.** A failed or timed-out build writes `~/.local/lib/factory/worker-guard.failed` holding the `srchash`. The tick does not rebuild while the marker holds the current `srchash` and is under 30 minutes old; a new `srchash` builds at once, `factory up` ignores the marker, and a successful build removes it.
 - The tick path stays silent when `go` is missing (it would log every minute); `factory up` logs the `skipped` line, and `factory config` shows `guard binary: missing`.
 - The flag and the stamp are written through a unique temp file in the same directory, never a fixed `.new` name, so a planted symlink is not followed.
+
+## Latency
+
+Per-call latency of the shim `sh roles/hooks/worker-guard` through the real entry point (T-0355, SC4), python vs go. Command:
+`python3 ci/profile_baseline.py --runs 50 --hook-cmd 'sh roles/hooks/worker-guard'` run twice with the flag file `run/guard_impl` = `python <hash>`, then `go <hash>`; temp `HOME` (holding the built binary and its stamp) and temp `FACTORY_HOME`, on the factory box. Each row is 150 calls per implementation (50 runs of an allowed, a blocked and a heredoc command, exit codes as expected: 0, 2, 0; hq blocks nothing).
+
+| role | python min / median / p95 (ms) | go min / median / p95 (ms) | median ratio (python / go) |
+|---|---|---|---|
+| coder | 63.4 / 68.0 / 71.1 | 7.4 / 8.0 / 9.5 | 8.5x |
+| qa | 63.2 / 69.1 / 76.6 | 7.4 / 8.0 / 9.7 | 8.7x |
+| reviewer | 64.5 / 68.9 / 76.0 | 7.2 / 8.0 / 9.4 | 8.6x |
+| judge | 65.8 / 69.1 / 80.4 | 7.3 / 8.1 / 9.3 | 8.6x |
+| cleaner | 66.1 / 71.3 / 87.0 | 7.2 / 8.0 / 9.5 | 8.9x |
+| evaluator | 67.1 / 70.3 / 81.8 | 7.2 / 7.8 / 9.0 | 9.0x |
+| hq | 64.1 / 68.9 / 81.1 | 7.2 / 7.9 / 9.4 | 8.7x |
+
+meta (python run): git_sha=1a1111fc3 python=3.13.5 nproc=8 loadavg=[4.92, 2.6, 2.23] date=2026-11-04T01:34:17+01:00
+meta (go run): git_sha=1a1111fc3 python=3.13.5 nproc=8 loadavg=[3.17, 2.55, 2.24] date=2026-11-04T01:35:35+01:00
+
+Go is faster at the median for every role (about 8.5x to 9x): about 8 ms against about 69 ms, and the Go p95 (9.7 ms at most) is below the Python minimum (63 ms). The Go figure is close to the cost of `sh` plus one process start; Python pays for interpreter start and the hook module import. Python stays the default; this table is the measured gain for a later flip decision.

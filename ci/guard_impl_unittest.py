@@ -46,18 +46,33 @@ def diff_module_names():
     return names
 
 
-def unittest_modules():
+def routed_rest_names():
+    """Basenames of the other modules that route the hook through guard_impl (hook_run), minus the diff set.
+
+    Derived from the sources at call time, so a new routed module joins the guard-equiv job without a YAML edit.
+    """
+    cov = _load_coverage()
+    skip = set(DOC_DIFF_BASENAMES)
+    return [m + ".py" for m, src in sorted(cov.modules().items())
+            if m + ".py" not in skip and m != cov.SELF and cov.uses_helper(src) and not cov.python_only(src)]
+
+
+def module_names(routed_rest=False):
+    return routed_rest_names() if routed_rest else diff_module_names()
+
+
+def unittest_modules(routed_rest=False):
     """Import paths for `python -m unittest`, e.g. tests.test_worker_guard."""
-    return ["tests." + n[:-3] for n in diff_module_names()]
+    return ["tests." + n[:-3] for n in module_names(routed_rest)]
 
 
-def run_guard_diff_unittest(extra_env=None):
+def run_guard_diff_unittest(extra_env=None, routed_rest=False):
     env = dict(os.environ, GUARD_IMPL="diff", GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
     if extra_env:
         env.update(extra_env)
     # discover -s tests puts tests/ on sys.path so `from harness import …` matches the shard suite.
     last = subprocess.CompletedProcess(args=[], returncode=0)
-    for base in diff_module_names():
+    for base in module_names(routed_rest):
         cmd = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", base]
         last = subprocess.run(cmd, cwd=ROOT, env=env)
         if last.returncode != 0:
@@ -68,17 +83,20 @@ def run_guard_diff_unittest(extra_env=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list", help="module basenames, one per line")
-    sub.add_parser("modules", help="unittest module paths, one per line")
-    run = sub.add_parser("run", help="run GUARD_IMPL=diff over the module set; exit code from unittest")
+    rest = "--routed-rest"
+    rest_help = "the other hook_run-routed modules, not the guard-diff set (guard-equiv job)"
+    sub.add_parser("list", help="module basenames, one per line").add_argument(rest, action="store_true", help=rest_help)
+    sub.add_parser("modules", help="unittest module paths, one per line").add_argument(rest, action="store_true", help=rest_help)
+    sub.add_parser("run", help="run GUARD_IMPL=diff over the module set; exit code from unittest").add_argument(
+        rest, action="store_true", help=rest_help)
     a = ap.parse_args(argv)
     if a.cmd == "list":
-        print("\n".join(diff_module_names()))
+        print("\n".join(module_names(a.routed_rest)))
         return 0
     if a.cmd == "modules":
-        print("\n".join(unittest_modules()))
+        print("\n".join(unittest_modules(a.routed_rest)))
         return 0
-    return run_guard_diff_unittest().returncode
+    return run_guard_diff_unittest(routed_rest=a.routed_rest).returncode
 
 
 if __name__ == "__main__":

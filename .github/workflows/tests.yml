@@ -218,10 +218,75 @@ jobs:
           echo "guard_diff failing runs: $rc"
           exit $rc
 
+  # G-016 T-0355: the Go/Python equivalence gate. the strict Go-vs-Python guard_diff gate (corpus x every role x both modes)
+  # and the other hook_run-routed unittest modules under GUARD_IMPL=diff (listed at runtime, not named here).
+  # Real steps run on guard-path PRs and pushes to main; otherwise the job succeeds as skipped.
+  guard-equiv:
+    name: guard-equiv
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard paths changed?
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: running"; exit 0; fi
+          if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
+          changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
+          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/guard_impl_unittest\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.paths.outputs.run == 'true'
+        with:
+          python-version: "3.13"
+      - name: Install zsh
+        if: steps.paths.outputs.run == 'true'
+        run: sudo apt-get install -y zsh
+      - uses: actions/setup-go@v5
+        if: steps.paths.outputs.run == 'true'
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
+      - name: Build worker-guard once
+        if: steps.paths.outputs.run == 'true'
+        run: |
+          (cd go && go build -o "$RUNNER_TEMP/worker-guard" ./cmd/worker-guard)
+          echo "GUARD_GO_BIN=$RUNNER_TEMP/worker-guard" >> "$GITHUB_ENV"
+          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run
+          mkdir -p "$HOME/.local"
+          ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          ls -l "$HOME/.local/go/bin/go"
+      - name: guard_diff strict Go gate (corpus, all roles, both modes)
+        if: steps.paths.outputs.run == 'true'
+        run: python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --mode both --strict
+      - name: Routed unittest modules under GUARD_IMPL=diff (not in guard-diff)
+        if: steps.paths.outputs.run == 'true'
+        run: |
+          python3 ci/guard_impl_unittest.py list --routed-rest
+          GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --routed-rest
+      - name: REAL_GO build tests (tests/test_guard_build.py)
+        if: steps.paths.outputs.run == 'true'
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s tests -p test_guard_build.py -v 2>&1 | tee "$RUNNER_TEMP/real-go.txt"
+          echo "REAL_GO skipped: $(grep -c 'skipped' "$RUNNER_TEMP/real-go.txt" || true)"
+
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-diff]
+    needs: [unittest-shard, go, guard-diff, guard-equiv]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -231,6 +296,7 @@ jobs:
           SHARD_RESULT: ${{ needs.unittest-shard.result }}
           GO_RESULT: ${{ needs.go.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
+          GUARD_EQUIV_RESULT: ${{ needs.guard-equiv.result }}
         run: |
           fail=0
           if [ "$SHARD_RESULT" != "success" ]; then
@@ -243,6 +309,10 @@ jobs:
           fi
           if [ "$GUARD_DIFF_RESULT" != "success" ]; then
             echo "guard-diff result: $GUARD_DIFF_RESULT (GUARD_IMPL=diff must succeed)" >&2
+            fail=1
+          fi
+          if [ "$GUARD_EQUIV_RESULT" != "success" ]; then
+            echo "guard-equiv result: $GUARD_EQUIV_RESULT (Go/Python equivalence must succeed)" >&2
             fail=1
           fi
           exit $fail
