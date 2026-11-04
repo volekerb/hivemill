@@ -1212,6 +1212,7 @@ class Analyzer:
         self.role = role
         self.hq = hq
         self.skip_priv = False
+        self.shell_assigns = []  # env assignments of the shell command being analysed (T-0331)
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
         self.text = ""
         self.ran_factory = False
@@ -1273,6 +1274,79 @@ class Analyzer:
             return False
         return self.outside_live(v)
 
+    def scratch_homes(self, assigns):
+        """T-0331: True when BOTH HOME and FACTORY_HOME are static absolute paths whose realpath is inside the worker's own
+        scratchpad. Each comes from this command's assignments, else an earlier assignment/export in the same command
+        line, else the hook's environment; unset, relative, dynamic, `~`, a symlink or `..` out of the scratchpad, the
+        live home and another agent's scratchpad all fail. The command line must also be the lone form (lone_command):
+        nothing in it (unset, env -u, a subshell, another assignment) may change what is read here."""
+        if not self.lone_command():
+            return False
+        for name in ("HOME", "FACTORY_HOME"):
+            vals = [a.split("=", 1)[1] for a in assigns if a.startswith(name + "=")]
+            v = vals[-1] if vals else self.vars.get(name, os.environ.get(name))
+            if not v or any(c in v for c in "$`*?[{~\\\"'") or not os.path.isabs(v):
+                return False
+            if not in_scratchpad(os.path.realpath(v)):
+                return False
+        return True
+
+    def install_dry_run(self, args, assigns):
+        """T-0331: args (after the shell word and its options) is exactly `systemd/install.sh --dry-run`, run by a coder/qa
+        with both homes in the scratchpad, and the script is byte-for-byte the install.sh of a live checkout (which a worker
+        cannot write). Its body is then not parsed: `--dry-run` only echoes, and a parse of its case arms and `"$@"` trips
+        the glob and dynamic-word rules. Any edited copy goes through the normal script inspection (and is refused)."""
+        if self.role not in ("coder", "qa") or len(args) != 2 or args[1] != "--dry-run":
+            return False
+        if is_dynamic(args[0], strict=True) or not self.scratch_homes(assigns):
+            return False
+        p = os.path.expanduser(args[0])
+        p = os.path.realpath(p if os.path.isabs(p) else os.path.join(self.cwd, p))
+        if os.path.basename(p) != "install.sh" or os.path.basename(os.path.dirname(p)) != "systemd" or not os.path.isfile(p):
+            return False
+        override = os.environ.get("WORKER_GUARD_LIVE_HOME")
+        homes = {os.path.realpath(override)} if override else set(LIVE_HOMES)  # as prot_trees(): never the hook's own repo root
+        try:
+            with open(p, "rb") as f:
+                mine = f.read(1 << 20)
+            for h in sorted(homes):
+                live = os.path.join(h, "systemd", "install.sh")
+                if os.path.isfile(live) and not os.path.islink(live):
+                    with open(live, "rb") as f:
+                        if f.read(1 << 20) == mine:
+                            return True
+        except OSError:
+            return False
+        return False
+
+    def lone_command(self):
+        """T-0331: the whole command line is one command, optionally after plain `HOME=v` / `FACTORY_HOME=v` /
+        `export HOME=v FACTORY_HOME=v;` statements, and the command itself is the literal word `factory` or `bash` after
+        only HOME= / FACTORY_HOME= prefixes. Nothing before it can edit what it runs or what the guard read (no redirect,
+        pipe, chain, substitution, subshell, unset, env, other assignment such as PATH or BASH_ENV). Printable ASCII only,
+        so the regexes agree with the Go RE2 mirror."""
+        text = getattr(self, "text", "") or ""
+        if not all(" " <= c < "\x7f" or c == "\t" for c in text) or any(c in text for c in "|&<>`$(){}\"'\\"):
+            return False
+        *pre, last = text.split(";")
+        if not all(re.fullmatch(r"[ \t]*(export[ \t]+)?((HOME|FACTORY_HOME)=[^ \t]*[ \t]*)+", x) for x in pre):
+            return False
+        words = last.split()
+        while words and re.fullmatch(r"(HOME|FACTORY_HOME)=[^ \t]*", words[0]):
+            words = words[1:]
+        return bool(words) and words[0] in ("factory", "bash")
+
+    def scratch_form(self, words, assigns):
+        """T-0331: words is exactly one of the commands a qa/coder may run with HOME in the scratchpad: the real `factory`
+        (not a script merely named so, not a path) `init`, or `bash` (no other shell) running systemd/install.sh."""
+        if self.role not in ("coder", "qa") or not words:
+            return False
+        if words[0] == "factory":
+            return words[1:2] == ["init"] and self.scratch_homes(assigns)  # strict: a flag value must not shift the match
+        if words[0] == "bash":
+            return self.install_dry_run(words[1:], assigns)  # no shell option (-s runs stdin, the file is then an argument)
+        return False
+
     def check_identity(self, assigns):
         own = os.environ.get("FACTORY_AGENT") or ""
         for a in assigns:
@@ -1315,6 +1389,10 @@ class Analyzer:
         sub = nonopt[0] if nonopt else None
         if self.role == "evaluator":
             self.evaluator_factory(sub, nonopt, assigns)
+        if self.role in ("coder", "qa") and not self.hq and sub == "init" \
+                and not self.scratch_homes(assigns):
+            raise Block(f"workers may run `factory init` only with HOME and FACTORY_HOME both "
+                        "set (same command or exported earlier) to absolute paths inside your own scratchpad")
         if sub in BROAD_READS:
             self.broad_read(sub, rest, assigns)
         if sub not in FACTORY_UNIT_CMDS:
@@ -3214,9 +3292,11 @@ class Analyzer:
         if words and not self.listing_only(words):
             self.may_create = True
         if self.role in NO_PUSH_ROLES and not self.hq:
-            self.git_config_env(assigns, words)
-            self.builtin_assign(assigns, words, hstrs)
-            self.git_launch(assigns, words)
+            # T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
+            chk = [x for x in assigns if not (x.startswith("HOME=") and self.scratch_form(words, assigns))]
+            self.git_config_env(chk, words)
+            self.builtin_assign(chk, words, hstrs)
+            self.git_launch(chk, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":
                 self.vars[x.split("=", 1)[0]] = x.split("=", 1)[1]
@@ -3277,6 +3357,7 @@ class Analyzer:
                     raise Block(f"{name} on the herdr binary")
         if name in SHELLS:
             saved = (self.gcwd, self.gdyn, self.ccwd)  # a cd inside `sh -c` does not move the caller
+            self.shell_assigns = assigns
             try:
                 self.shell(rest, depth, piped, hstrs)
             finally:
@@ -3754,7 +3835,8 @@ class Analyzer:
         for h in hstrs:
             self.script(h, depth + 1)
         if i < len(rest):
-            self.file(rest[i], depth)
+            if i or not self.install_dry_run(rest, self.shell_assigns):  # T-0331: the one unparsed script (no shell options)
+                self.file(rest[i], depth)
         elif hstrs:
             return
         elif piped:

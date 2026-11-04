@@ -65600,6 +65600,2934 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "HOME=@SCRATCH@/h factory up",
+"mask_quotes_pre": "HOME=@SCRATCH@/h factory up",
+"mask_quotes_raw": "HOME=@SCRATCH@/h factory up",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h factory up"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h factory up"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"HOME=@SCRATCH@/h",
+"factory",
+"up"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"HOME=@SCRATCH@/h",
+"factory",
+"up"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h factory init"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"HOME=@SCRATCH@/h",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"HOME=@SCRATCH@/h",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory init",
+"mask_quotes_pre": "factory init",
+"mask_quotes_raw": "factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory init"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory init"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@LIVE_HOME@ FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"HOME=@LIVE_HOME@",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"HOME=@LIVE_HOME@",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=f factory init"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=./f factory init"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=./f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=./f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/../x factory init"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/../x",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/../x",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f/../../x factory init"
+},
+"segments_pre": [
+[
+0,
+62,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f/../../x",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+62,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f/../../x",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"mask_quotes_pre": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"mask_quotes_raw": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init"
+},
+"segments_pre": [
+[
+0,
+88,
+[
+"HOME=/tmp/other-agent/scratchpad",
+"FACTORY_HOME=/tmp/other-agent/scratchpad/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+88,
+[
+"HOME=/tmp/other-agent/scratchpad",
+"FACTORY_HOME=/tmp/other-agent/scratchpad/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live-home",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live-home",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live"
+},
+"segments_pre": [
+[
+0,
+61,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live"
+]
+]
+],
+"segments_raw": [
+[
+0,
+61,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init",
+"--live"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export HOME=@SCRATCH@/h; factory init",
+"mask_quotes_pre": "export HOME=@SCRATCH@/h; factory init",
+"mask_quotes_raw": "export HOME=@SCRATCH@/h; factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h; factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h; factory init"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"export",
+"HOME=@SCRATCH@/h"
+]
+],
+[
+24,
+37,
+[
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"export",
+"HOME=@SCRATCH@/h"
+]
+],
+[
+24,
+37,
+[
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=$X factory init"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=$X",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=$X",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ bash systemd/install.sh --dry-run"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h bash systemd/install.sh --dry-run"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"HOME=@SCRATCH@/h",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"HOME=@SCRATCH@/h",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh"
+},
+"segments_pre": [
+[
+0,
+65,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh"
+]
+]
+],
+"segments_raw": [
+[
+0,
+65,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run --with-serve"
+},
+"segments_pre": [
+[
+0,
+88,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run",
+"--with-serve"
+]
+]
+],
+"segments_raw": [
+[
+0,
+88,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run",
+"--with-serve"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sudo systemd/install.sh --dry-run"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sudo",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sudo",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"mask_quotes_pre": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"mask_quotes_raw": "HOME=@SCRATCH@/h factory project add demo /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h factory project add demo /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h factory project add demo /tmp/x"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"HOME=@SCRATCH@/h",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"HOME=@SCRATCH@/h",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+54,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+54,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory --x init"
+},
+"segments_pre": [
+[
+0,
+58,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"--x",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+58,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"--x",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project --gh add update demo"
+},
+"segments_pre": [
+[
+0,
+78,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"--gh",
+"add",
+"update",
+"demo"
+]
+]
+],
+"segments_raw": [
+[
+0,
+78,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"--gh",
+"add",
+"update",
+"demo"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash systemd/install.sh --dry-run"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"systemd/install.sh",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc factory init"
+},
+"segments_pre": [
+[
+0,
+56,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+56,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/esc FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+56,
+[
+"HOME=@SCRATCH@/esc",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+56,
+[
+"HOME=@SCRATCH@/esc",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc/f factory project add demo /tmp/x"
+},
+"segments_pre": [
+[
+0,
+77,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+77,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc/f",
+"factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/esc bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+68,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+68,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/esc",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"mask_quotes_pre": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"mask_quotes_raw": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f factory init"
+},
+"segments_pre": [
+[
+0,
+156,
+[
+"HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad",
+"FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+156,
+[
+"HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad",
+"FACTORY_HOME=/tmp/claude-1000/-home-other-project/other-session/scratchpad/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory up"
+},
+"segments_pre": [
+[
+0,
+52,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"up"
+]
+]
+],
+"segments_raw": [
+[
+0,
+52,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@LIVE_HOME@",
+"factory",
+"up"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"mask_quotes_pre": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"mask_quotes_raw": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; factory init"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+49,
+68,
+[
+"unset",
+"FACTORY_HOME"
+]
+],
+[
+69,
+82,
+[
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+49,
+68,
+[
+"unset",
+"FACTORY_HOME"
+]
+],
+[
+69,
+82,
+[
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f env -u FACTORY_HOME factory init"
+},
+"segments_pre": [
+[
+0,
+74,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"env",
+"-u",
+"FACTORY_HOME",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+74,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"env",
+"-u",
+"FACTORY_HOME",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"mask_quotes_pre": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"mask_quotes_raw": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "(export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f); factory init"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+49,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+51,
+64,
+[
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+49,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+51,
+64,
+[
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; unset FACTORY_HOME; bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+49,
+68,
+[
+"unset",
+"FACTORY_HOME"
+]
+],
+[
+69,
+94,
+[
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+49,
+68,
+[
+"unset",
+"FACTORY_HOME"
+]
+],
+[
+69,
+94,
+[
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f zsh @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+65,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"zsh",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+65,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"zsh",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f sh @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+64,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sh",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+64,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"sh",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f dash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"dash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"dash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f /bin/bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+71,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"/bin/bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+71,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"/bin/bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory init"
+},
+"segments_pre": [
+[
+0,
+64,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+64,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ./factory init"
+},
+"segments_pre": [
+[
+0,
+56,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"./factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+56,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"./factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f @SCRATCH@/factory project add demo /tmp/x"
+},
+"segments_pre": [
+[
+0,
+83,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+83,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"@SCRATCH@/factory",
+"project",
+"add",
+"demo",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin factory init"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e factory init"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e factory init"
+},
+"segments_pre": [
+[
+0,
+70,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+70,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_pre": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"mask_quotes_raw": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init"
+},
+"segments_pre": [
+[
+0,
+70,
+[
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+70,
+[
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f PATH=@SCRATCH@/bin bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+85,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+85,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"PATH=@SCRATCH@/bin",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "PATH=@SCRATCH@/bin HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+85,
+[
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+85,
+[
+"PATH=@SCRATCH@/bin",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f BASH_ENV=@SCRATCH@/e bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+87,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+87,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"BASH_ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "BASH_ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+87,
+[
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+87,
+[
+"BASH_ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+82,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+82,
+[
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"ENV=@SCRATCH@/e",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_pre": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"mask_quotes_raw": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run"
+},
+"segments_pre": [
+[
+0,
+82,
+[
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"segments_raw": [
+[
+0,
+82,
+[
+"ENV=@SCRATCH@/e",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f",
+"bash",
+"@INSTALL@",
+"--dry-run"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"mask_quotes_pre": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"mask_quotes_raw": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init"
+},
+"segments_pre": [
+[
+0,
+49,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+50,
+63,
+[
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+49,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+50,
+63,
+[
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -88346,6 +91274,66 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"mask_quotes_pre": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"mask_quotes_raw": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+49,
+62,
+[
+"factory",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"export",
+"HOME=@SCRATCH@/h",
+"FACTORY_HOME=@SCRATCH@/f"
+]
+],
+[
+49,
+62,
+[
+"factory",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -95458,7 +98446,7 @@
 ]
 }
 },
-"corpus_commands": 1753,
+"corpus_commands": 1813,
 "edge_inputs": 97,
 "python": "3.13"
 }
