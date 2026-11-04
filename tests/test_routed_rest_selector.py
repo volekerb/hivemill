@@ -202,6 +202,11 @@ class PathListTest(unittest.TestCase):
             shutil.copytree(os.path.join(ROOT, "tests"), os.path.join(d, "tests"),
                             ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copy(TOOL, os.path.join(d, "ci", "guard_impl_unittest.py"))
+            if tool_src is not None:
+                # committed in the BASE commit: the tool is not in the diff, so the only
+                # route to run=true is the fail-open branch (not the ci/guard_impl_unittest.py regex)
+                with open(os.path.join(d, "ci", "guard_impl_unittest.py"), "w") as f:
+                    f.write(tool_src)
             with open(os.path.join(d, "README.md"), "w") as f:
                 f.write("x\n")
             git("add", "-A")
@@ -212,9 +217,6 @@ class PathListTest(unittest.TestCase):
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, "a") as f:
                     f.write("# change\n")
-            if tool_src is not None:
-                with open(os.path.join(d, "ci", "guard_impl_unittest.py"), "w") as f:
-                    f.write(tool_src)
             git("add", "-A")
             git("commit", "-q", "-m", "pr", "--allow-empty")
             out = os.path.join(d, "gh_output")
