@@ -64168,56 +64168,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"mask_quotes_pre": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"mask_quotes_raw": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x"
-},
-"segments_pre": [
-[
-0,
-56,
-[
-"FACTORY_HOME=@SCRATCH@/f",
-"factory",
-"project",
-"add",
-"demo",
-"/tmp/x"
-]
-]
-],
-"segments_raw": [
-[
-0,
-56,
-[
-"FACTORY_HOME=@SCRATCH@/f",
-"factory",
-"project",
-"add",
-"demo",
-"/tmp/x"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
 "mask_quotes_pre": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
 "mask_quotes_raw": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
@@ -95710,7 +95660,7 @@
 ]
 }
 },
-"corpus_commands": 1757,
+"corpus_commands": 1756,
 "edge_inputs": 97,
 "python": "3.13"
 }

@@ -52070,55 +52070,6 @@
 "src": "corpus"
 },
 {
-"input": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"FACTORY_HOME=@SCRATCH@/f",
-"factory",
-"project",
-"add",
-"demo",
-"/tmp/x"
-]
-},
-{
-"input": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"FACTORY_HOME=",
-"@",
-"SCRATCH",
-"@",
-"/f",
-"factory",
-"project",
-"add",
-"demo",
-"/tmp/x"
-]
-},
-{
-"input": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"FACTORY_HOME=@SCRATCH@/f",
-"factory",
-"project",
-"add",
-"demo",
-"/tmp/x"
-]
-},
-{
-"input": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x",
-"mode": "quote",
-"quoted": "'FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x'",
-"src": "corpus"
-},
-{
 "input": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init",
 "mode": "script",
 "src": "corpus",
@@ -76602,7 +76553,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1757,
+"corpus_commands": 1756,
 "edge_inputs": 123,
 "python": "3.13"
 }

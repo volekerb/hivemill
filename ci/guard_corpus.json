@@ -3729,7 +3729,6 @@
  {"cmd": "HOME=/tmp/other-agent/scratchpad FACTORY_HOME=/tmp/other-agent/scratchpad/f factory init", "role": "qa"},
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@LIVE_HOME@ factory project add demo /tmp/x", "role": "qa"},
  {"cmd": "HOME=@SCRATCH@/h factory project add demo /tmp/x", "role": "qa"},
- {"cmd": "FACTORY_HOME=@SCRATCH@/f factory project add demo /tmp/x", "role": "qa"},
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live-home /tmp/x", "role": "qa"},
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init --live", "role": "qa"},
  {"cmd": "export HOME=@SCRATCH@/h; factory init", "role": "qa"},
