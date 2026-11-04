@@ -11897,8 +11897,40 @@ def judge_autospawn_candidates(con):
     return out
 
 
+def judge_verdicts_on_head(con, t):
+    """(ok, why) for the autospawn: the latest reviewer and QA verdicts are PASS on the PR's current head, by the judge
+    gate's own rule (_judge_gate_and_merge / train_ready): a verdict at another sha counts only when verdict_carries says
+    every commit between is a pure origin/main merge. Never looser than the gate. A head that cannot be read, or a carry
+    that cannot be verified, is not ok. `why` is stable text (no gh/git error), so it can key a once-only event."""
+    try:
+        pr = pr_state(t["pr_url"])
+        sha = pr["headRefOid"]
+    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+        return False, "head unknown: gh lookup failed"
+    git_repo = t["worktree"] if t["worktree"] and Path(t["worktree"]).is_dir() else HOME
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    repo_url, stale = None, []
+    for role in ("reviewer", "qa"):
+        last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                           (t["id"], role)).fetchone()
+        if not last or last["verdict"] != "pass":
+            stale.append(f"no {role} PASS")
+        elif last["head_sha"] != sha:
+            if repo_url is None:
+                try:
+                    repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+                except (SystemExit, ValueError, KeyError):
+                    repo_url = ""
+            if not repo_url or not verdict_carries(git_repo, last["head_sha"], sha, pr["number"], repo_url, owner_repo)[0]:
+                stale.append(f"{role} PASS is for {last['head_sha'][:8]}")
+    if stale:
+        return False, f"head={sha[:12]}: " + ", ".join(stale)
+    return True, ""
+
+
 def judge_autospawn_tick(con):
-    """Tick: after reviewer and QA PASS, start a judge when CI is ready unless the task is judge-held or mech will merge."""
+    """Tick: after reviewer and QA PASS on the PR's current head, start a judge when CI is ready unless the task is
+    judge-held or mech will merge. A stale verdict or an unreadable head waits, with one event per task and reason."""
     for t in judge_autospawn_candidates(con):
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
@@ -11906,6 +11938,13 @@ def judge_autospawn_tick(con):
             log_task_judge_hold(con, tid, jhr)
             continue
         if judge_hold(con, tid, behind_ok=True):
+            continue
+        ok, why = judge_verdicts_on_head(con, t)
+        if not ok:
+            last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='judge-autospawn-wait' "
+                               "ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+            if not last or last["detail"] != why:
+                event(con, "task", tid, "judge-autospawn-wait", why[:300])
             continue
         _o = org_for(con, t["goal_id"], tid)
         name = oname(con, _o, slug(f"judge-{tid}"))
