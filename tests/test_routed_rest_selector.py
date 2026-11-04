@@ -1,6 +1,7 @@
 """G-016 T-0355: ci/guard_impl_unittest.py --routed-rest lists the hook_run-routed modules the guard-diff set does not run."""
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -140,6 +141,62 @@ class PathListTest(unittest.TestCase):
         self.assertIn("list --routed-rest", step)
         self.assertIn("guard_impl_unittest.py list", step)
         self.assertIn("tests/test_guard_build.py", step)
+
+    def script(self):
+        step = self.step()
+        body = step.split("run: |\n", 1)[1]
+        return "\n".join(l[10:] for l in body.splitlines())
+
+    def decide(self, changed, tool_src=None):
+        """Execute the real "Guard paths changed?" script in a temp repo; return the run= output."""
+        with tempfile.TemporaryDirectory() as d:
+            def git(*a):
+                subprocess.run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                               check=True, capture_output=True, text=True)
+            git("init", "-q")
+            os.makedirs(os.path.join(d, "ci"))
+            shutil.copytree(os.path.join(ROOT, "tests"), os.path.join(d, "tests"),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copy(TOOL, os.path.join(d, "ci", "guard_impl_unittest.py"))
+            with open(os.path.join(d, "README.md"), "w") as f:
+                f.write("x\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            base = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+            for rel in changed:
+                path = os.path.join(d, rel)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "a") as f:
+                    f.write("# change\n")
+            if tool_src is not None:
+                with open(os.path.join(d, "ci", "guard_impl_unittest.py"), "w") as f:
+                    f.write(tool_src)
+            git("add", "-A")
+            git("commit", "-q", "-m", "pr", "--allow-empty")
+            out = os.path.join(d, "gh_output")
+            env = dict(os.environ, EVENT="pull_request", BASE_SHA=base, GITHUB_OUTPUT=out, RUNNER_TEMP=d)
+            r = subprocess.run(["bash", "-e", "-c", self.script()], cwd=d, env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out) as f:
+                return f.read().strip().splitlines()[-1]
+
+    def test_step_runs_for_guard_impl_only(self):
+        self.assertEqual(self.decide(["tests/guard_impl.py"]), "run=true")
+
+    def test_step_runs_for_one_routed_module_only(self):
+        name = run("list", "--routed-rest").stdout.split()[0]
+        self.assertEqual(self.decide(["tests/" + name]), "run=true")
+
+    def test_step_skips_for_readme_only(self):
+        self.assertEqual(self.decide(["README.md"]), "run=false")
+
+    def test_step_skips_for_empty_diff(self):
+        # an empty diff must not match a blank pattern (the empty-path bug)
+        self.assertEqual(self.decide([]), "run=false")
+
+    def test_step_fails_open_when_list_fails_or_is_empty(self):
+        self.assertEqual(self.decide(["README.md"], "import sys\nsys.exit(1)\n"), "run=true")
+        self.assertEqual(self.decide(["README.md"], "pass\n"), "run=true")
 
 
 if __name__ == "__main__":
