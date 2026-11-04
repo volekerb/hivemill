@@ -143,9 +143,9 @@ func optValues(args []string, letters string, longs ...string) []string {
 }
 
 // longOpt is long_opt (B5): GNU getopt accepts a unique prefix of a long option. True when opt (a `--word` without any
-// =value) is one of names or a prefix of one, at least two letters long; an ambiguous prefix counts too.
+// =value) is one of names or a prefix of one, at least one letter long after the dashes; an ambiguous prefix counts too.
 func longOpt(opt string, names ...string) bool {
-	if !strings.HasPrefix(opt, "--") || len(opt) < 4 {
+	if !strings.HasPrefix(opt, "--") || len(opt) < 3 {
 		return false
 	}
 	for _, n := range names {
@@ -189,6 +189,58 @@ func protDestIndexes(args []string) map[int]bool {
 		res[pre[len(pre)-1]] = true
 	}
 	return res
+}
+
+// targetDirValues is target_dir_values (N2): the -t/--target-directory values of cp/install/ln in every spelling.
+func targetDirValues(args []string) []string {
+	var out []string
+	k := 0
+	for k < len(args) {
+		a := args[k]
+		k++
+		if strings.HasPrefix(a, "--") {
+			opt, val, eq := strings.Cut(a, "=")
+			if longOpt(opt, "--target-directory") {
+				if eq {
+					out = append(out, val)
+				} else if k < len(args) {
+					out = append(out, args[k])
+					k++
+				}
+			}
+		} else if strings.HasPrefix(a, "-") && len(a) > 1 {
+		letters:
+			for i := 1; i < len(a); i++ {
+				switch {
+				case a[i] == 't':
+					if a[i+1:] != "" {
+						out = append(out, a[i+1:])
+					} else if k < len(args) {
+						out = append(out, args[k])
+						k++
+					}
+					break letters
+				case strings.IndexByte("gmoS", a[i]) >= 0:
+					break letters
+				}
+			}
+		}
+	}
+	return out
+}
+
+const tarValueLetters = "fCgTXFLbHVIKN" // tar --help: the short options that take a value
+
+// tarModeLetters is tar_mode_letters (N2): the letters of a bundle that can be modes.
+func tarModeLetters(word string, old bool) string {
+	letters := word[1:]
+	if old {
+		return letters
+	}
+	if i := strings.IndexAny(letters, tarValueLetters); i >= 0 {
+		return letters[:i+1]
+	}
+	return letters
 }
 
 func inStrs(xs []string, s string) bool {
@@ -252,7 +304,7 @@ var (
 	protCloneV  = set("-b", "--branch", "--depth", "-o", "--origin", "--template", "--reference", "--reference-if-able",
 		"-c", "--config", "-j", "--jobs", "--filter", "--separate-git-dir", "-u", "--upload-pack",
 		"--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri")
-	protGitOpt = set("-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix")
+	protGitOpt = set("-c", "--attr-source", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix")
 )
 
 // unzipListingOpts is unzip_listing: unzip reads options only before the zip name.
@@ -304,6 +356,16 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 				if longOpt(x, "--symbolic") || (reSymShort.MatchString(x) && strings.Contains(x, "s")) {
 					destOnly = true
 				}
+			}
+		}
+		if destOnly && (name == "cp" || name == "install" || name == "ln") {
+			if tvals := targetDirValues(args); len(tvals) > 0 { // N2: -t names the destination; the rest are sources
+				for _, v := range tvals {
+					if err := hitc(v); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
 		}
 		var dests map[int]bool
@@ -421,13 +483,18 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		}
 	case name == "tar" || name == "gtar" || name == "bsdtar":
 		targs := append([]string{}, args...)
-		if len(targs) > 0 && reTarOld.MatchString(targs[0]) {
+		old := len(targs) > 0 && reTarOld.MatchString(targs[0])
+		if old {
 			targs[0] = "-" + targs[0]
 		}
 		extract, writesArchive := false, false
 		var top []string
-		for _, x := range targs {
-			if strings.HasPrefix(x, "-") && !strings.HasPrefix(x, "--") && strings.Contains(x, "x") {
+		for i, x := range targs {
+			modes := ""
+			if strings.HasPrefix(x, "-") && !strings.HasPrefix(x, "--") {
+				modes = tarModeLetters(x, old && i == 0)
+			}
+			if strings.Contains(modes, "x") {
 				extract = true
 			}
 			opt, val, _ := strings.Cut(x, "=")
@@ -437,7 +504,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			if longOpt(opt, "--create", "--append", "--update", "--catenate", "--concatenate") {
 				writesArchive = true
 			}
-			if strings.HasPrefix(x, "-") && !strings.HasPrefix(x, "--") && strings.ContainsAny(x, "cruA") {
+			if strings.ContainsAny(modes, "cruA") {
 				writesArchive = true
 			}
 			if longOpt(opt, "--one-top-level") {
@@ -468,9 +535,28 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			return hit(base, false, base, true)
 		}
 		if writesArchive { // B3: create, append and update write the archive; list and diff only read it
-			for _, v := range optValues(targs, "f", "--file") {
+			fargs := targs
+			if old {
+				fargs = targs[1:]
+			}
+			for _, v := range optValues(fargs, "f", "--file") {
 				if err := hitc(v); err != nil {
 					return err
+				}
+			}
+			if old && strings.Contains(targs[0], "f") { // `tar cfb a.tar 20 x`: the value letters take the next words
+				n := 0
+				for _, ch := range targs[0] {
+					if strings.ContainsRune(tarValueLetters, ch) {
+						n++
+					}
+				}
+				for _, v := range targs[1:min(1+n, len(targs))] {
+					if !strings.HasPrefix(v, "-") {
+						if err := hitc(v); err != nil {
+							return err
+						}
+					}
 				}
 			}
 		}
@@ -538,6 +624,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		}
 		if k < len(args) && args[k] == "clone" {
 			var pos []string
+			unknown := false
 			j := k + 1
 			for j < len(args) {
 				x := args[j]
@@ -556,12 +643,21 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 					}
 				case !strings.HasPrefix(x, "-"):
 					pos = append(pos, x)
+				case strings.HasPrefix(x, "--") && !strings.Contains(x, "="):
+					unknown = true // N1: a `--word` we do not know may take a value word
 				}
 			}
-			if len(pos) >= 2 {
-				return hit(pos[1], false, base, known)
+			if len(pos) > 1 {
+				for _, d := range pos[1:] { // N1: pos[0] is the repository
+					if err := hit(d, false, base, known); err != nil {
+						return err
+					}
+				}
 			}
-			return cwdWrite(false, base, known)
+			if len(pos) < 2 || unknown {
+				return cwdWrite(false, base, known)
+			}
+			return nil
 		}
 	}
 	return nil

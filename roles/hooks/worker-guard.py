@@ -323,8 +323,55 @@ def prot_dest_indexes(args):
 
 def long_opt(opt, *names):
     """B5: GNU getopt accepts a unique prefix of a long option (`--dir=X` for --directory). True when `opt` (a `--word`,
-    without any =value) is one of `names` or a prefix of one, at least two letters long; an ambiguous prefix counts too."""
-    return opt.startswith("--") and len(opt) >= 4 and any(n.startswith(opt) for n in names)
+    without any =value) is one of `names` or a prefix of one, at least one letter long after the dashes; an ambiguous
+    prefix counts too."""
+    return opt.startswith("--") and len(opt) >= 3 and any(n.startswith(opt) for n in names)
+
+
+def target_dir_values(args):
+    """N2: the -t/--target-directory values of cp/install/ln, in every spelling: `-t V`, `-tV`, a cluster ending at t
+    (`-rt V`, `-rtV`), a long prefix (`--t V`, `--target-dir=V`). A cluster is walked left to right and stops at a
+    letter that takes a value (g m o S: `install -groot` has no target), so the letters after it are not options."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        if a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            if long_opt(opt, "--target-directory"):
+                if eq:
+                    out.append(val)
+                elif k < len(args):
+                    out.append(args[k])
+                    k += 1
+        elif a.startswith("-") and len(a) > 1:
+            for i, ch in enumerate(a[1:], 1):
+                if ch == "t":
+                    if a[i + 1:]:
+                        out.append(a[i + 1:])
+                    elif k < len(args):
+                        out.append(args[k])
+                        k += 1
+                    break
+                if ch in "gmoS":
+                    break
+    return out
+
+
+TAR_VALUE_LETTERS = "fCgTXFLbHVIKN"  # tar --help: the short options that take a value
+
+
+def tar_mode_letters(word, old):
+    """N2: the letters of a tar bundle that can be modes. `-czf~/x.tar`: up to and including the first value letter (the
+    rest is that option's value). The old style first word (`tar fc a.tar`) takes its values from the following words,
+    so the whole word is scanned."""
+    letters = word[1:]
+    if old:
+        return letters
+    for i, ch in enumerate(letters):
+        if ch in TAR_VALUE_LETTERS:
+            return letters[:i + 1]
+    return letters
 
 
 def prot_glob(p, ancestor=False):
@@ -1787,6 +1834,11 @@ class Analyzer:
         if name in CFG_WRITERS:
             dest_only = name in ("cp", "install", "rsync", "dd") or (
                 name == "ln" and any(long_opt(a, "--symbolic") or (re.match(r"^-[A-Za-z]+$", a) and "s" in a) for a in args))
+            tvals = target_dir_values(args) if name in ("cp", "install", "ln") and dest_only else []
+            if tvals:  # N2: -t names the destination; the words after it are sources (reads)
+                for v in tvals:
+                    hit(v)
+                return
             dests = prot_dest_indexes(args) if dest_only else None
             for j, a in enumerate(args):
                 if dest_only and not (j in dests or a.startswith("of=") or (j > 0 and args[j - 1] in ("-t", "--target-directory"))
@@ -1847,12 +1899,16 @@ class Analyzer:
                     hit(a[2:])
         elif name in ("tar", "gtar", "bsdtar"):
             targs = list(args)
-            if targs and re.fullmatch(r"[A-Za-z]+", targs[0]):
+            old = bool(targs) and re.fullmatch(r"[A-Za-z]+", targs[0]) is not None
+            if old:
                 targs[0] = "-" + targs[0]  # the old style `tar xf a.tar`
-            extract = any(a.startswith("-") and not a.startswith("--") and "x" in a for a in targs) or any(
+            extract = any(a.startswith("-") and not a.startswith("--") and "x" in tar_mode_letters(a, old and i == 0)
+                          for i, a in enumerate(targs)) or any(
                 long_opt(a.partition("=")[0], "--extract", "--get") for a in targs)
             # B3: only create, append and update (and --catenate) write the archive; list and diff only read it
-            writes_archive = any(a.startswith("-") and not a.startswith("--") and any(c in a for c in "cruA") for a in targs) or any(
+            writes_archive = any(
+                a.startswith("-") and not a.startswith("--") and any(c in tar_mode_letters(a, old and i == 0) for c in "cruA")
+                for i, a in enumerate(targs)) or any(
                 long_opt(a.partition("=")[0], "--create", "--append", "--update", "--catenate", "--concatenate") for a in targs)
             dirs = tar_dirs(targs)
             top = [a.partition("=")[2] for a in targs if long_opt(a.partition("=")[0], "--one-top-level")]
@@ -1868,8 +1924,13 @@ class Analyzer:
                     block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
                 hit(base)  # no -C: the cwd; with -C: where the last one leads
             elif writes_archive:
-                for v in opt_values(targs, "f", {"--file"}):  # create/append/update: the archive file is written
+                for v in opt_values(targs[1:] if old else targs, "f", {"--file"}):  # create/append/update: the archive is written
                     hit(v)
+                if old and "f" in targs[0]:  # `tar cfb a.tar 20 x`: the value letters take the next words
+                    n = sum(1 for ch in targs[0] if ch in TAR_VALUE_LETTERS)
+                    for v in targs[1:1 + n]:
+                        if not v.startswith("-"):
+                            hit(v)
         elif name == "unzip":
             dirs = unzip_dirs(args)
             if not unzip_listing(list(rest)):
@@ -1897,10 +1958,10 @@ class Analyzer:
                     base = None if base is None and not os.path.isabs(args[k]) else (
                         args[k] if os.path.isabs(args[k]) else os.path.join(base, args[k]))
                     k += 1
-                elif a in ("-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix") and "=" not in a:
+                elif a in ("-c", "--attr-source", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix") and "=" not in a:
                     k += 1
             if k < len(args) and args[k] == "clone":
-                pos, j = [], k + 1
+                pos, j, unknown = [], k + 1, False
                 valued = {"-b", "--branch", "--depth", "-o", "--origin", "--template", "--reference", "--reference-if-able",
                           "-c", "--config", "-j", "--jobs", "--filter", "--separate-git-dir", "-u", "--upload-pack",
                           "--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri"}
@@ -1915,9 +1976,11 @@ class Analyzer:
                         hit(a, base=base)
                     elif not a.startswith("-"):
                         pos.append(a)
-                if len(pos) >= 2:
-                    hit(pos[1], base=base)
-                else:
+                    elif a.startswith("--") and "=" not in a:
+                        unknown = True  # N1: a `--word` we do not know may take a value word
+                for d in pos[1:]:  # N1: pos[0] is the repository; a value word of an unknown option may precede it
+                    hit(d, base=base)
+                if len(pos) < 2 or unknown:
                     cwd_write(False, base)
 
     def persist_hit(self, word, ancestor=False, gitfile=False):
