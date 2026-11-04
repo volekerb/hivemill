@@ -234,7 +234,7 @@ jobs:
           if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
           tool="$RUNNER_TEMP/base-tool"
           mkdir -p "$tool"
-          if git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py | tar -x -C "$tool"; then
+          if git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py systemd/install.sh | tar -x -C "$tool"; then
             gd="$tool/ci/guard_diff.py"; echo "tool: ci/guard_diff.py from base $BASE_SHA"
           else
             gd=ci/guard_diff.py; echo "tool: base lacks ci/guard_diff.py, tests/_slot.py or systemd/install.sh (git archive fails if any one is missing), using the PR copy"
