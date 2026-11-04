@@ -17,7 +17,8 @@ class Base(FactoryTestCase):
 
     def agent(self, name, role="qa", status="exited", pane="p-1", ended=OLD):
         self.env.seed_agent(name, role, "G-9", None, "T-9", status=status, pane_id=pane)
-        self.env.sql("UPDATE agents SET spawn_args='{}', ended=?, session_id=? WHERE name=?", (ended, "s-" + name, name))
+        self.env.sql("UPDATE agents SET spawn_args='{}', ended=?, session_id=?, cwd=? WHERE name=?",
+                     (ended, "s-" + name, "/w/" + name, name))
 
     def host(self, *pairs):
         """The host lists these (name, pane id) agents and panes."""
@@ -138,33 +139,54 @@ class Never(Base):
         self.assertEqual(self.events("exited-pane-would-close"), [])
         self.assertEqual(self.closes(), [])
 
-    def _no_session_host(self):
+    def _no_session_host(self, status="idle", cwd="/w/qa-old"):
         self.env.set_herdr(
             workspaces=[{"workspace_id": "w1", "label": "x"}],
-            panes=[{"pane_id": "p-1", "tab_id": "t1", "workspace_id": "w1"}],
-            agents=[{"name": "qa-old", "agent": "claude", "pane_id": "p-1", "agent_status": "working"}])
+            panes=[{"pane_id": "p-1", "tab_id": "t1", "workspace_id": "w1", "cwd": cwd}],
+            agents=[{"name": "qa-old", "agent": "claude", "pane_id": "p-1", "agent_status": status}])
 
-    def test_no_host_session_with_unlisted_live_row_is_kept_in_both_modes(self):
-        """Host reports no session; live qa-new (stale row pane) is not listed by name: p-1 may be its pane."""
-        self.agent("qa-old", pane="p-old")
-        self.agent("qa-new", status="live", pane="p-stale", ended=None)
-        self._no_session_host()
+    def _kept_both_modes(self):
         self.tick()
         self.assertKept("p-1")
         self.tick(mode="dry-run")
         self.assertEqual(self.events("exited-pane-would-close"), [])
         self.assertEqual(self.closes(), [])
 
-    def test_no_host_session_with_old_lost_unlisted_row_is_kept_in_both_modes(self):
-        """A lost row far past 10 min still names a pane the host may show under another label: no time window."""
+    def test_no_host_session_with_unlisted_live_row_is_kept_in_both_modes(self):
+        """Idle pane in another agent's cwd (live qa-new, stale row pane): not this row's leftover, kept."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-stale", ended=None)
+        self._no_session_host(cwd="/w/qa-new")
+        self._kept_both_modes()
+
+    def test_no_host_session_with_old_lost_unlisted_row_would_close_in_own_cwd(self):
+        """Old lost rows exist (live reality): they no longer stop the reaper for an idle pane in the row's own cwd."""
         self.agent("qa-old", pane="p-old")
         self.agent("qa-lost", status="lost", pane="p-stale", ended=OLD)
         self._no_session_host()
-        self.tick()
-        self.assertKept("p-1")
         self.tick(mode="dry-run")
-        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual([e["entity_id"] for e in self.events("exited-pane-would-close")], ["qa-old"])
         self.assertEqual(self.closes(), [])
+        self.tick()
+        self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
+
+    def test_no_host_session_working_pane_is_kept_in_both_modes(self):
+        """The host calls the pane 'working' (mislabelled or not): never closed, even in the row's own cwd."""
+        self.agent("qa-old", pane="p-old")
+        self._no_session_host(status="working")
+        self._kept_both_modes()
+
+    def test_no_host_session_deleted_cwd_form_would_close(self):
+        self.agent("qa-old", pane="p-old")
+        self._no_session_host(status="done", cwd="/w/qa-old (deleted)")
+        self.tick(mode="dry-run")
+        self.assertEqual([e["entity_id"] for e in self.events("exited-pane-would-close")], ["qa-old"])
+
+    def test_no_host_session_row_without_cwd_is_kept_in_both_modes(self):
+        self.agent("qa-old", pane="p-old")
+        self.env.sql("UPDATE agents SET cwd=NULL WHERE name='qa-old'")
+        self._no_session_host()
+        self._kept_both_modes()
 
     def test_no_host_session_with_every_live_row_listed_still_closes(self):
         self.agent("qa-old", pane="p-old")

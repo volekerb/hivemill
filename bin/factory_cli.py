@@ -6820,6 +6820,22 @@ EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before 
 EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
 
 
+def _pane_idle_in_cwd(h, pane, row_cwd):
+    """True when host agent `h` is done or idle (never working) and its pane's cwd equals the row's recorded cwd
+    (a ' (deleted)' suffix ignored). Anything unknown (no row cwd, pane list unavailable) is False: keep the pane."""
+    if h.get("agent_status") not in ("done", "idle") or not row_cwd:
+        return False
+    r = herdr("pane", "list", check=False)
+    if not isinstance(r, dict) or not isinstance(r.get("panes"), list):
+        return False
+
+    def norm(c):
+        return os.path.normpath(c[:-len(" (deleted)")] if c.endswith(" (deleted)") else c)
+    want = norm(row_cwd)
+    return any(p.get("pane_id") == pane and isinstance(p.get(k), str) and p[k] and norm(p[k]) == want
+               for p in r["panes"] for k in ("cwd", "foreground_cwd"))
+
+
 def reap_exited_panes(con, agents):
     """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
     one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
@@ -6828,7 +6844,8 @@ def reap_exited_panes(con, agents):
     re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
     stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
     the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
-    names no session, the pane is kept while any live/starting (or lost, at any age) row is not listed by the host under its own name.
+    names no session, the pane closes only if its agent_status is done/idle (never working) and its cwd equals the row's
+    recorded cwd (' (deleted)' suffix ignored).
     Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
@@ -6841,7 +6858,6 @@ def reap_exited_panes(con, agents):
         if last and t - float(last["ts"]) < EXITED_PANE_THROTTLE_S:
             return
         con.execute("INSERT INTO throttle(key,ts) VALUES('exitedpanereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
-        host_names = {h.get("name") for h in agents}
         for h in agents:
             name, pane = h.get("name"), h.get("pane_id")
             if not name or not pane:
@@ -6852,9 +6868,8 @@ def reap_exited_panes(con, agents):
             sess = (h.get("agent_session") or {}).get("value")
             if sess and sess != r["session_id"]:
                 continue  # the pane runs another session (a newer agent under this name): never ours to close
-            if not sess and any(x["name"] not in host_names for x in con.execute(
-                    "SELECT name FROM agents WHERE name!=? AND status IN ('live','starting','lost')", (name,))):
-                continue  # session unknown: a live or lost row (any age) the host does not list by name may own this pane
+            if not sess and not _pane_idle_in_cwd(h, pane, r["cwd"]):
+                continue  # session unknown: only an idle/done pane sitting in this row's own cwd is provably its leftover
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue

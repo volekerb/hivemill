@@ -25,8 +25,9 @@ live/starting/queued/stopped row holds. The row's own `pane_id` is not compared 
 host's (seen in production, T-1005: host `w7:pPQ`, row `w7:pPR`), so the pane id comes from the host listing of the
 same tick. A host pane whose `agent_session` names a session other than the row's `session_id` is skipped (it runs
 a newer agent under this name; `relaunch_agent` makes the same check). When the host reports no session (most
-workers), the pane is kept while any live/starting/lost row (lost at any age, no time window) is not listed by the host under its
-own name: that row may own the pane under a stale label. Trade-off: while such a row exists the reaper closes nothing, so stuck panes wait.
+workers), the pane is closed only when the host `agent_status` is `done` or `idle` (never `working`) and the host pane's
+cwd equals the row's recorded `cwd` (a ` (deleted)` suffix is ignored); anything else is kept. Other rows, old `lost`
+ones included, do not block it.
 Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and
 non-exited rows are never touched. Tests: `tests/test_exited_pane_reap.py`. Enable with `factory config exited_pane_reap_mode on`
 after reading the would-close events.
