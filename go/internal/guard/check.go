@@ -172,6 +172,7 @@ func Check(cmd, cwd, role string, hq bool) error {
 	if err != nil {
 		return err
 	}
+	pt.nopush = in(noPushRoles, role) && !hq // T-0961
 	// PRIV pass (the whole of HQ mode): parse trouble allows
 	an, err := NewAnalyzer(cwd, role, true)
 	if err != nil {

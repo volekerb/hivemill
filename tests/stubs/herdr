@@ -56,6 +56,9 @@ def new_tab(ws, label):
 
 
 cmd = tuple(argv[:2])
+if " ".join(cmd) in st.get("fail_cmds", []):  # test hook: these two-word commands (e.g. "tab create") exit 1
+    print("herdr: " + " ".join(cmd) + " failed", file=sys.stderr)
+    sys.exit(1)
 if cmd == ("agent", "list"):
     out({"agents": st["agents"]})
 elif cmd == ("agent", "start") and opt("--timeout") is not None and not 3000 < int(opt("--timeout")) <= 300000:

@@ -164,5 +164,132 @@ class Failure(Base):
         self.assertEqual(len(self.events("exited-pane-close-failed")), 1)
 
 
+class StaleRelease(Base):
+    """T-0978: release_stale_pane keeps pane_id when the close is not confirmed; name reuse never overwrites it."""
+
+    def row(self, name="qa-t-9"):
+        return dict(self.env.sql("SELECT status, pane_id, ended FROM agents WHERE name=?", (name,))[0])
+
+    def spawn(self, name="qa-t-9"):
+        return self.env.run("spawn", "qa", "--name", name, "--goal", "G-9", "--task", "T-9", "--cwd", str(self.env.home))
+
+    def test_close_confirmed_releases_row_and_logs_reaped(self):
+        self.agent("qa-t-9", status="done")
+        self.host(("qa-t-9", "p-1"))
+        p = self.spawn()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(self.closes()), 1)
+        self.assertEqual([e["entity_id"] for e in self.events("reaped")], ["qa-t-9"])
+        self.assertEqual(self.events("stale-pane-close-failed"), [])
+
+    def test_failed_close_keeps_pane_id_logs_once_and_spawn_dies_naming_pane(self):
+        self.agent("qa-t-9", status="done", ended=None)
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(pane_close_fail=True)
+        p = self.spawn()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("p-1", p.stderr)
+        r = self.row()
+        self.assertEqual((r["status"], r["pane_id"]), ("exited", "p-1"))
+        self.assertIsNotNone(r["ended"])
+        ev = self.events("stale-pane-close-failed")
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(json.loads(ev[0]["detail"]), {"agent": "qa-t-9", "pane": "p-1"})
+        self.assertEqual(self.events("reaped"), [])
+        self.assertEqual(self.panes(), ["p-1"])
+
+    def test_kept_row_then_matches_the_exited_pane_reaper(self):
+        self.agent("qa-t-9", status="done", ended=None)
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(pane_close_fail=True)
+        self.spawn()
+        self.env.set_herdr(pane_close_fail=False)
+        self.env.sql("UPDATE agents SET ended=? WHERE name='qa-t-9'", (OLD,))  # past the 10 min age
+        self.tick()
+        self.assertEqual(self.panes(), [])
+        self.assertEqual(len(self.events("exited-pane-closed")), 1)
+
+    def test_exited_row_with_kept_pane_retries_close_and_spawns_on_success(self):
+        self.agent("qa-t-9", status="exited")
+        self.host(("qa-t-9", "p-1"))
+        p = self.spawn()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(self.closes()), 1)
+        self.assertEqual([e["entity_id"] for e in self.events("reaped")], ["qa-t-9"])
+        self.assertNotEqual(self.row()["pane_id"], "p-1")
+
+    def test_exited_row_with_kept_pane_retry_failing_dies_and_keeps_pane(self):
+        self.agent("qa-t-9", status="exited")
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(pane_close_fail=True)
+        p = self.spawn()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("p-1", p.stderr)
+        self.assertEqual(self.row()["pane_id"], "p-1")
+        self.assertEqual(len(self.events("stale-pane-close-failed")), 1)
+
+    def test_exited_row_whose_pane_is_not_listed_under_its_name_is_not_closed(self):
+        self.agent("qa-t-9", status="exited")
+        self.host(("someone-else", "p-1"))
+        p = self.spawn()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.closes(), [])
+        self.assertIn("p-1", self.panes())
+
+    def test_gate_closed_spawn_over_a_kept_pane_dies_before_queueing(self):
+        self.agent("qa-t-9", status="done", ended=None)
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='qa-t-9'", ('{"marker": "old"}',))
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(pane_close_fail=True)
+        self.env.run("config", "max_live_agents", "0")  # gate closed: this spawn would queue
+        p = self.spawn()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("p-1", p.stderr)
+        self.assertNotIn("queued spawn is retried", p.stderr)
+        r = self.row()
+        self.assertEqual((r["status"], r["pane_id"]), ("exited", "p-1"))
+        self.assertEqual(self.env.sql("SELECT spawn_args FROM agents WHERE name='qa-t-9'")[0][0], '{"marker": "old"}')
+
+    def test_queued_row_whose_spawn_exits_stays_queued_unclaimed_and_starts_on_a_later_tick(self):
+        n = "qa-t-9"
+        self.agent(n, status="queued", pane=None, ended=None)
+        args = {"role": "qa", "goal": "G-9", "team": None, "task": "T-9", "name": n, "cwd": str(self.env.home),
+                "prompt": None, "model": None, "resume": None, "fresh": False, "org": "claude"}
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name=?", (json.dumps(args), n))
+        self.host()
+        starts = lambda: [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
+        # a real SystemExit from the claimed from-queue spawn: placing the pane fails
+        self.env.set_herdr(fail_cmds=["tab create", "pane split"])
+        self.env.sql("DELETE FROM throttle")
+        t1 = self.env.run("tick")
+        self.assertIn("tab create failed", t1.stderr + t1.stdout, (t1.stdout[-500:], t1.stderr[-500:]))
+        r = dict(self.env.sql("SELECT status, json_extract(spawn_args,'$.claimed_at') AS c FROM agents WHERE name=?", (n,))[0])
+        self.assertEqual(r["status"], "queued")
+        self.assertIsNone(r["c"])
+        self.assertEqual(starts(), [])
+        self.env.set_herdr(fail_cmds=[])  # the cause is fixed: the next tick starts it
+        self.env.sql("DELETE FROM throttle")
+        t2 = self.env.run("tick")
+        self.assertGreaterEqual(len(starts()), 1, (t2.returncode, t2.stderr[-600:], self.row(n)))
+        self.assertNotEqual(self.row(n)["status"], "cancelled")
+
+    def test_on_demand_failed_release_claims_nothing_keeps_pane_and_commits(self):
+        self.env.seed_agent("claude-director", "director", "G-9")
+        self.env.seed_agent("staff-engineer", "staff-engineer", None, None, None, status="done", pane_id="p-1")
+        self.env.sql("UPDATE agents SET spawn_args='{}', ended=NULL WHERE name='staff-engineer'")
+        self.host(("staff-engineer", "p-1"))
+        self.env.set_herdr(pane_close_fail=True)
+        p = self.env.run("msg", "staff-engineer", "q", "ctx", "--kind", "request", agent="claude-director")
+        r = self.row("staff-engineer")
+        self.assertEqual((r["status"], r["pane_id"]), ("exited", "p-1"), p.stderr)
+        self.assertEqual(len(self.events("stale-pane-close-failed")), 1)
+        # no lock left held: a write from another connection succeeds at once
+        self.env.sql("UPDATE agents SET role='staff-engineer' WHERE name='staff-engineer'")
+        # the next routed message retries and, once the close works, claims the row
+        self.env.set_herdr(pane_close_fail=False)
+        self.env.run("msg", "staff-engineer", "q2", "ctx", "--kind", "request", agent="claude-director")
+        self.assertNotEqual(self.row("staff-engineer")["pane_id"], "p-1")
+
+
 if __name__ == "__main__":
     unittest.main()
