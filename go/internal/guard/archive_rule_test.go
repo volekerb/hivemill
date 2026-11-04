@@ -98,9 +98,9 @@ func FuzzParseTar(f *testing.F) {
 	f.Fuzz(func(t *testing.T, s string) {
 		args := strings.Fields(s)
 		within(t, s, func() {
-			extract, archives, dirs, problems := parseTar(args)
-			if !extract && len(dirs) > 0 && len(problems) == 0 {
-				_ = archives // listing with a -C is a legal spelling; only the absence of a panic is asserted here
+			_, archives, dirs, problems := parseTar(args)
+			if (len(archives) > 1 || len(dirs) > 1) && len(problems) == 0 {
+				t.Errorf("parseTar(%q): %d archives, %d dirs, no problem", args, len(archives), len(dirs))
 			}
 		})
 	})

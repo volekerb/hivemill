@@ -38,11 +38,9 @@ func archZip(t *testing.T, name string, extra []byte) []byte {
 	t.Helper()
 	var b bytes.Buffer
 	w := zip.NewWriter(&b)
-	f, err := w.CreateRaw(&zip.FileHeader{Name: name, Extra: extra, Method: zip.Store})
-	if err != nil {
+	if _, err := w.CreateRaw(&zip.FileHeader{Name: name, Extra: extra, Method: zip.Store}); err != nil {
 		t.Fatal(err)
 	}
-	_ = f
 	if err := w.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +103,7 @@ func TestArchiveMemberListMatchesPythonHook(t *testing.T) {
 		"tar -xf gone.tar -C " + out, "noglob cat ok.tar; tar -xf n.tar -C " + out, "cat ok.tar > n.tar; tar -xf n.tar -C " + out,
 		"bash -c 'tar -xf bad.tar -C " + out + "'", "bash -c 'tar -xf ok.tar -C " + out + "'",
 	}
-	env := append(withTerms(t), "WORKER_GUARD_SCRATCH="+scratch)
+	env := append(withTerms(t), "WORKER_GUARD_SCRATCH="+scratch, "FACTORY_HOME="+t.TempDir())
 	for _, role := range []string{"qa", "pm"} {
 		for _, c := range cmds {
 			payload := []byte(`{"tool_name":"Bash","tool_input":{"command":` + jsonString(c) + `},"cwd":` + jsonString(scratch) + `}`)
@@ -119,11 +117,15 @@ func TestArchiveMemberListMatchesPythonHook(t *testing.T) {
 			}
 		}
 	}
-	// the crafted ones must really be refused by Python (the test would be vacuous otherwise)
-	for _, c := range []string{"unzip nul.zip -d " + out, "unzip u7075.zip -d " + out, "tar -xf cut513.tar -C " + out} {
+	// the equality above would also hold if both sides refused everything: pin the reference's own answers
+	for c, want := range map[string]int{
+		"unzip nul.zip -d " + out: 2, "unzip u7075.zip -d " + out: 2, "tar -xf cut513.tar -C " + out: 2, "tar -xf bad.tar -C " + out: 2,
+		"tar -xjf bzbad1.tar.bz2 -C " + out: 2, "tar -xf ok.tar -C " + out: 0, "tar -xzf ok.tgz -C " + out: 0, "unzip clean.zip -d " + out: 0,
+		"unzip clean -d " + out: 0,
+	} {
 		payload := []byte(`{"tool_name":"Bash","tool_input":{"command":` + jsonString(c) + `},"cwd":` + jsonString(scratch) + `}`)
-		if code, _ := callPython(t, hook, payload, env, "--role", "qa"); code != 2 {
-			t.Errorf("python exit %d for %q, want 2", code, c)
+		if code, stderr := callPython(t, hook, payload, env, "--role", "qa"); code != want {
+			t.Errorf("python exit %d for %q, want %d (%s)", code, c, want, stderr)
 		}
 	}
 }
