@@ -15,7 +15,7 @@ import (
 var protLiveSubdirs = [][]string{{"go"}, {"roles", "hooks"}, {"roles", "settings"}, {"bin"}}
 
 var protMarkers = []string{".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-	"run/settings", "run/guard_impl", ".local/bin"}
+	"run/settings", "run/guard_impl"}
 
 const protWhy = "it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; " +
 	"~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, " +
@@ -104,7 +104,7 @@ func protEditPath(p string) bool {
 				return true
 			}
 		}
-		return false
+		return hasLocalBin(p)
 	}
 	return protPath(p, false)
 }
@@ -210,6 +210,9 @@ func (a *Analyzer) protHit(word string, ancestor bool, base string, baseKnown bo
 					if strings.Contains(e, m) {
 						return true
 					}
+				}
+				if hasLocalBin(e) {
+					return true
 				}
 				continue
 			}

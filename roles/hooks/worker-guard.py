@@ -273,7 +273,7 @@ EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, th
 # whole live checkout. Reads and runs stay allowed; worktrees are not under them.
 PROT_LIVE_SUBDIRS = ("go", "roles/hooks", "roles/settings", "bin")
 PROT_MARKERS = (".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-                "run/settings", "run/guard_impl", ".local/bin")  # an expansion we cannot resolve that spells one of these counts
+                "run/settings", "run/guard_impl")  # an expansion we cannot resolve that spells one of these counts
 PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; "
             "~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, "
             "<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner "
@@ -348,7 +348,7 @@ def prot_glob(p, ancestor=False):
 def prot_edit_path(p):
     """persist_edit side (T-0925 gap g): p is a file_path of Write/Edit/MultiEdit/NotebookEdit."""
     if any(c in p for c in "$`"):
-        return any(m in p for m in PROT_MARKERS)
+        return any(m in p for m in PROT_MARKERS) or bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", p))
     return prot_path(p)
 
 
@@ -1733,7 +1733,7 @@ class Analyzer:
             t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             for e in brace_expand(t):
                 if any(c in e for c in "$`"):
-                    if any(m in e for m in PROT_MARKERS):
+                    if any(m in e for m in PROT_MARKERS) or re.search(r"\.local/bin(?![A-Za-z0-9_])", e):
                         return True
                     continue
                 if not e or e == "-" or (not os.path.isabs(e) and base is None):
