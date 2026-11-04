@@ -612,6 +612,49 @@ class PrcheckTests(FactoryTestCase):
         p = self.body_result("`pytest tests/test_x.py` 2 failed\nNext line of text", 0)
         self.assertIn("PASS body:", p.stdout)
 
+    # -- T-0979: opener info string, closer length, "failed in <non-duration>"
+    def test_evidence_line_start_inline_triple_backticks_is_not_a_fence(self):  # acceptance 1
+        p = self.body_result("```x``` is inline text\n`python3 -m unittest tests.test_x` -> Ran 7, OK", 0)
+        self.assertNotIn("never closed", p.stdout)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_four_backtick_fence_with_inner_triple_passes(self):  # acceptance 2
+        p = self.body_result("````\n$ python3 -m unittest tests.test_x\n```\nRan 7 tests, OK\n````\nmore text", 0)
+        self.assertNotIn("never closed", p.stdout)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_four_backtick_fence_unclosed_by_shorter_run_fails_closed(self):  # acceptance 2
+        p = self.body_result("````\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_evidence_failed_in_a_row_is_not_output(self):  # acceptance 3
+        p = self.body_result("`pytest tests/test_x.py` 2 failed in a row", 1)
+        self.assertIn("no output line", p.stdout)
+
+    # -- T-0979 attempt 2: CRLF closer, no mixed fence characters, "failed in <duration>"
+    def test_evidence_crlf_body_with_closed_fence_passes(self):
+        body = evidence_body("```\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```").replace("\n", "\r\n")
+        self.env.seed_pr(url=PR_URL, body=body)
+        p = self.prcheck(0)
+        self.assertNotIn("never closed", p.stdout)
+        self.assertNotIn("missing section", p.stdout)
+
+    def test_evidence_mixed_character_closer_does_not_close_backtick_fence(self):
+        p = self.body_result("```\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```~~~", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_evidence_mixed_character_closer_does_not_close_tilde_fence(self):
+        p = self.body_result("~~~\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n~~~```", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_evidence_failed_in_attempts_is_not_output(self):
+        p = self.body_result("`pytest tests/test_x.py` 2 failed in 3 attempts", 1)
+        self.assertIn("no output line", p.stdout)
+
+    def test_evidence_failed_with_passed_and_duration_is_output(self):
+        p = self.body_result("`pytest tests/test_x.py` 2 failed, 3 passed in 1s", 0)
+        self.assertIn("PASS body:", p.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
