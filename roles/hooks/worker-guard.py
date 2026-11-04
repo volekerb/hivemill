@@ -628,21 +628,32 @@ def env_long(a):
 def env_options(words):
     """T-0964: yield (kind, value) for the GNU env options before the command word: ("clear", opt) for -i/-/--ignore-env*
     (an `i` anywhere in a short cluster counts), ("unset", name), ("unknown", opt) for a long option this guard does not
-    model. A value option (-a/-C/-P/-u, --argv0/--chdir/--unset and unique prefixes) takes the next word only when it
-    exists and does not start with `-`: every dash word stays an option. -S/--split-string re-parses its string."""
-    q = collections.deque(words)
+    model. Hard rule: a word starting with - is always parsed as an option, never consumed as a value. A -u/--unset
+    value that starts with - is still reported (peeked, not consumed) so a dynamic `-$X` stays denied as on main.
+    -a/-C/-P and --argv0/--chdir take the next word only when it exists and does not start with `-`. -S/--split-string
+    re-parses its string (also inside a cluster, where the rest of the cluster keeps being scanned, so a later `u` counts);
+    a non-dash word that came from an -S string does not end the scan (main kept scanning the outer words)."""
+    q = collections.deque((w, False) for w in words)  # (word, came from an -S string)
 
     def val():
-        return q.popleft() if q and not q[0].startswith("-") else ""
+        return q.popleft()[0] if q and not q[0][0].startswith("-") else ""
+
+    def uval():
+        if q and q[0][0].startswith("-"):
+            return q[0][0]
+        return q.popleft()[0] if q else ""
+
+    def push(sval):
+        q.extendleft((w, True) for w in reversed(sval.split()))
 
     while q:
-        a = q.popleft()
+        a, from_s = q.popleft()
         if a == "--" or ASSIGN.match(a):
             continue
         if a == "-":
             yield "clear", a
         elif a == "--split-string" or a.startswith("--split-string="):
-            q.extendleft(reversed((a.split("=", 1)[1] if "=" in a else q.popleft() if q else "").split()))
+            push(a.split("=", 1)[1] if "=" in a else q.popleft()[0] if q else "")
         elif a.startswith("--"):
             kind = env_long(a)
             if kind == "ignore":
@@ -650,25 +661,28 @@ def env_options(words):
             elif kind == "unknown":
                 yield "unknown", a
             elif kind == "unset":
-                yield "unset", a.split("=", 1)[1] if "=" in a else val()
+                yield "unset", a.split("=", 1)[1] if "=" in a else uval()
             elif "=" not in a and kind == "value":
                 val()
         elif a.startswith("-"):
             if "i" in a[1:]:
                 yield "clear", a
+            pending = []  # -S strings are pushed after the cluster, so a later `u` still takes the outer next word
             for k, c in enumerate(a[1:], 1):
                 if c == "u":
-                    yield "unset", a[k + 1:] or val()
+                    yield "unset", a[k + 1:] or uval()
                     break
                 if c in "aCP":  # as on main, a `u` later in the cluster still counts; a trailing one takes the next word
                     if k == len(a) - 1:
                         val()
                     continue
                 if c == "S":
-                    sval = a[k + 1:] or (q.popleft() if q else "")
-                    q.extendleft(reversed(sval.split()))
-                    break
-        else:
+                    pending.append(a[k + 1:] or (q.popleft()[0] if q else ""))
+                    if k == len(a) - 1:
+                        break
+            for sval in reversed(pending):
+                push(sval)
+        elif not from_s:
             return
 
 

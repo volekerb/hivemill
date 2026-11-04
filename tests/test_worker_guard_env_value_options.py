@@ -33,6 +33,17 @@ DENY = [
     ("coder", "env -S'-u FACTORY_ROLE' ls"), ("coder", "env -vS'-u FACTORY_ROLE' ls"),
     ("coder", "env --split-string='-u FACTORY_ROLE' ls"), ("coder", "env -P /bin -u FACTORY_ROLE ls"),
     ("coder", "env -P/bin -u FACTORY_ROLE ls"), ("coder", "env -P -i factory task show T-1"),
+    # reviewer/QA FAIL @544c3a02: an -S string must not end the scan, a `u` after S in a cluster counts, a dash-leading
+    # dynamic -u value is still denied
+    ("coder", "env -Senv -u FACTORY_ROLE ls"), ("coder", "env --split-string=env -u FACTORY_ROLE ls"),
+    ("coder", "env -Senv -i factory task show T-1"), ("coder", "env -Sfoo -u FACTORY_ROLE ls"),
+    ("coder", "env -vSfoo -u FACTORY_ROLE ls"), ("coder", "env -Sfoo --unset=FACTORY_ROLE ls"),
+    ("coder", "env --split-string=foo -u FACTORY_ROLE ls"), ("coder", "env -Sfoo -i factory task show T-1"),
+    ("coder", "env --split-string=foo -i factory task show T-1"), ("coder", "env -Sfoo - factory task show T-1"),
+    ("coder", "env -Sfoo --ignore-environment factory task show T-1"),
+    ("qa", "env -vSuGIT_DIR git status"), ("reviewer", "env -vSuGIT_DIR git status"),
+    ("qa", "env -vSu GIT_DIR git status"), ("qa", "env -aSuGIT_DIR git status"),
+    ("qa", "env -u -$X git status"), ("qa", "env --unset -$X git status"), ("qa", "env -xu -$X git status"),
 ]
 ALLOW = [
     ("qa", "env -a foo ls"), ("qa", "env -C /tmp ls"), ("coder", "env -a foo ls"), ("coder", "env -C /tmp ls"),
