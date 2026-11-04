@@ -653,13 +653,23 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	words = stripped
 	if a.noPush() {
-		if err := a.gitConfigEnv(assigns, words); err != nil {
+		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
+		chk := assigns
+		if a.scratchForm(words, assigns) {
+			chk = nil
+			for _, x := range assigns {
+				if !strings.HasPrefix(x, "HOME=") {
+					chk = append(chk, x)
+				}
+			}
+		}
+		if err := a.gitConfigEnv(chk, words); err != nil {
 			return err
 		}
-		if err := a.builtinAssign(assigns, words, hstrs); err != nil {
+		if err := a.builtinAssign(chk, words, hstrs); err != nil {
 			return err
 		}
-		if err := a.gitLaunch(assigns, words); err != nil {
+		if err := a.gitLaunch(chk, words); err != nil {
 			return err
 		}
 	}
@@ -794,6 +804,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	switch {
 	case in(Shells, name):
 		savedCwd, savedDyn, savedC, savedCK := a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown // a cd inside `sh -c` does not move the caller
+		a.shellAssigns = assigns
 		err := a.shell(rest, depth, piped, hstrs)
 		a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown = savedCwd, savedDyn, savedC, savedCK
 		if err != nil {
@@ -1152,6 +1163,9 @@ loop:
 	}
 	switch {
 	case i < len(rest):
+		if i == 0 && a.installDryRun(rest, a.shellAssigns) { // T-0331: the one unparsed script
+			return nil
+		}
 		return a.file(rest[i], depth)
 	case len(hstrs) > 0:
 		return nil
