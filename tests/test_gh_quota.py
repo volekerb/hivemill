@@ -93,8 +93,9 @@ class PrViewCacheTests(Base):
         self.env.seed_pr(sha=SHA1, checks=[{"name": "ok", "status": "COMPLETED", "conclusion": "SUCCESS"}])
         self.env.set_gh(pr_view_exit=1)
         self.env.seed_agent("zz-judge", "judge", goal="G-001", task="T-0001")
-        p = self.env.run("judge", "T-0001", "--merge", "--sha", SHA1, agent="zz-judge")
-        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        p = self.env.run("judge", "T-0001", "--merge", "--reason", "zz-test", agent="zz-judge")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)  # past argparse (exit 2), refused at the gh read
+        self.assertIn("gh: pr view failed", p.stdout + p.stderr)
         self.assertEqual([c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "merge"]], [])
         self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "in_review")
 
