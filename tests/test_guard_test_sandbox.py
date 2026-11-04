@@ -120,6 +120,8 @@ class TestSandboxRoutingExtra(unittest.TestCase):
         for cmd in self.DENY:
             if "unittest" in cmd and cmd.startswith("python3"):
                 continue  # unittest_full (T-0642) is independent of the flag
+            if "pytest" in cmd:
+                cmd += " tests/test_x.py"  # T-0435: bare pytest is refused with the flag off too; a path leaves only the flag under test
             self.assertEqual(self.run_hook(cmd).returncode, 0, cmd)
 
     def test_t0735_unrelated_allowed_when_flag_on(self):
