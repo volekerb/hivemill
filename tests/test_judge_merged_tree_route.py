@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
+from guard_impl import hook_run
 from test_worker_guard_git import GitGuardBase
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -50,6 +51,13 @@ class JudgeMergedTreeRoute(GitGuardBase):
             self.assertNotIn("commit-tree", c)
         self.assertTrue(steps[0].startswith("git -C ") and "merge-tree" in steps[0], cmds)
 
+    def test_hook_run_entry_point_allows_factory_src_of_a_tree_id(self):
+        import json
+        env = {**os.environ, "HOME": self.tmp, "FACTORY_HOME": self.home, "WORKER_GUARD_LIVE_HOME": self.home}
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": f"factory src {TREE} {self.tmp}/merged"},
+                              "cwd": self.home})
+        self.assertEqual(hook_run(payload, ["--role", "judge"], env=env).returncode, 0)
+
     def test_old_route_is_refused_in_the_shared_checkout(self):
         old = [f"git merge-tree --write-tree origin/main {SHA}", f"git commit-tree {TREE} -p origin/main -p {SHA} -m tmp",
                f"T=$(git merge-tree --write-tree origin/main {SHA})"]
@@ -67,7 +75,9 @@ class JudgeMergedTreeResidue(unittest.TestCase):
     """The documented git step leaves refs, HEAD and the working tree alone; its only residue is objects."""
 
     def git(self, *a, cwd):
-        return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, env=os.environ.copy())
+        env = {**os.environ, "GIT_AUTHOR_NAME": "zz", "GIT_AUTHOR_EMAIL": "zz@example.invalid",
+               "GIT_COMMITTER_NAME": "zz", "GIT_COMMITTER_EMAIL": "zz@example.invalid"}
+        return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, env=env)
 
     def test_no_ref_or_worktree_change(self):
         with tempfile.TemporaryDirectory() as td:
@@ -88,7 +98,7 @@ class JudgeMergedTreeResidue(unittest.TestCase):
             _line, cmds = route()
             mt = next(c for c in cmds if c.startswith("git -C ")).replace("<task-worktree>", r).replace("<pr-head>", head)
             mt = mt.replace("origin/main", "main")
-            p = subprocess.run(mt.split(), capture_output=True, text=True, env=os.environ.copy())
+            p = subprocess.run(mt.split(), capture_output=True, text=True)
             self.assertEqual(p.returncode, 0, p.stderr)
             tree = p.stdout.split()[0]
             self.assertEqual(len(tree), 40)
