@@ -20,7 +20,7 @@ Effects:
 
 - `factory judge --merge` no longer refuses with `STALE-ONLY`; every other check (verdict head-binding, CI/local gate,
   public-text guard, noreply author, push policy, `--match-head-commit`) is unchanged. The judge verdict reason gets
-  `merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base`.
+  `merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base and no file changed by both main and the PR`.
   The exception: when `.github/workflows/tests.yml` changed on main since the merge-base (T-1000), `behind_ok` does not
   apply: the judge refreshes first, the mechanical merger refuses with `STALE-ONLY`, and the reason carries no `behind_ok` text.
 - The reviewer, qa and judge spawn pre-check skips `refresh_branch` for such a PR.
