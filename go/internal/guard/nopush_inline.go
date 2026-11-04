@@ -194,7 +194,7 @@ func (a *Analyzer) interpInlinePush(name string, rest []string) error {
 			return blockf(name + " inline code that runs `git push` (no-push roles never push; ask your lead)")
 		}
 		if matchInlineGhWrite(t) {
-			return blockf(name + " inline code that runs a gh write (pr merge/create, repo, api with a write method); " +
+			return blockf(name + " inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); " +
 				"no-push roles never write to GitHub; ask your lead")
 		}
 	}
