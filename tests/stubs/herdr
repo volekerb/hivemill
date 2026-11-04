@@ -2,7 +2,7 @@
 """Fake `herdr` for the bin/factory tests.
 
 State lives in the JSON file named by $FAKE_HERDR_STATE, every call is appended to the
-JSONL file named by $FAKE_CALLS. Setting "slow_list": true makes `agent start` succeed without listing the agent. Setting "pane_close_fail": true makes `pane close` fail; "start_fail": true makes `agent start` exit 1; "wait_sleep": N makes `agent wait` sleep N s. Setting "fail": true in the state makes every call exit 1
+JSONL file named by $FAKE_CALLS. Setting "slow_list": true makes `agent start` succeed without listing the agent. Setting "pane_close_fail": true makes `pane close` fail; "start_fail": true makes `agent start` exit 1; "wait_sleep": N makes `agent wait` sleep N s; "pane_close_noop": true makes `pane close` exit 0 but leave the pane listed; "fail_cmds": ["tab create", ...] makes each listed two-word command exit 1. Setting "fail": true in the state makes every call exit 1
 (herdr unreachable)."""
 import json
 import os
@@ -118,6 +118,8 @@ elif cmd == ("pane", "process-info"):
 elif cmd == ("pane", "close") and st.get("pane_close_fail"):  # test hook: close exits 1, the pane stays
     print("herdr: pane close failed", file=sys.stderr)
     sys.exit(1)
+elif cmd == ("pane", "close") and st.get("pane_close_noop"):  # test hook: close exits 0 but the pane stays listed
+    out({})
 elif cmd == ("agent", "wait"):  # test hook: "wait_sleep" seconds, to hold a `factory stop` in its wait
     import time
     time.sleep(float(st.get("wait_sleep", 0)))
