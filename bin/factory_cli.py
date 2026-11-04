@@ -4676,6 +4676,9 @@ def cmd_judge(a):
         con.execute("UPDATE tasks SET status='in_progress', updated=? WHERE id=?", (now(), a.task))
         event(con, "task", a.task, "judge-reject", reason)
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
+        if t["assignee"]:
+            send(con, t["assignee"], f"judge reject: {a.task} in_progress",
+                 judge_reject_coder_notice(a.task, reason), "request", t["goal_id"], a.task, sender=actor())
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
     return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
@@ -4970,6 +4973,7 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
+LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t]*live-run:[ \t]*pending\b.*$")
 
 
 def mech_mode(con):
@@ -5051,20 +5055,11 @@ def mech_tier(con, t, sha, git_repo):
 def mech_try(con, t, mode, retry_s):
     """Evaluate one candidate: 'merged', 'blocked' (event written) or 'skipped' (not ready yet; nothing written)."""
     tid, url = t["id"], t["pr_url"]
-    ready, why = judge_pr_ready(con, url)
-    if not ready:
-        return "skipped"
-    try:
-        pr = pr_state(url)
-    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
-        return "skipped"  # gh failed: try again next run
-    sha = pr["headRefOid"]
-    wt = t["worktree"]
-    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    sha = None  # known after pr_state; the DB-only checks below run first
     block_kind = "mech-would-block" if mode == "shadow" else "mech-blocked"
 
     def block(msg):
-        detail = f"head={sha[:12]}: {msg}"[:900]
+        detail = (f"head={sha[:12]}: {msg}" if sha else msg)[:900]
         last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
                            "ORDER BY id DESC LIMIT 1", (tid, *MECH_EVENTS)).fetchone()
         if not last or last["detail"] != detail:  # a permanent block is recorded once, not every retry window
@@ -5075,6 +5070,21 @@ def mech_try(con, t, mode, retry_s):
     if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                    (tid,)).fetchone() or con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "in_review":
         return "skipped"  # a judge appeared (or the task moved) since the candidate list was built
+    qa = con.execute("SELECT summary FROM verdicts WHERE task_id=? AND role='qa' ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    pending = LIVE_RUN_PENDING.search((qa["summary"] or "") if qa else "")
+    if pending:  # QA's PASS rests on a live run it has not finished (roles/qa.md Q7): only the judge may merge
+        return block("QA live-run pending (%s); hold until QA records the result, or the judge decides" % pending.group(0).strip()[:120])
+
+    ready, why = judge_pr_ready(con, url)
+    if not ready:
+        return "skipped"
+    try:
+        pr = pr_state(url)
+    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+        return "skipped"  # gh failed: try again next run
+    sha = pr["headRefOid"]
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
 
     if not git_config_guard(con, git_repo, always_event=True):
         return block(f"git config in {git_repo} would run code")
@@ -7540,6 +7550,41 @@ def gated_reviewer_prompt(con, role, task, prompt):
     return f"{prompt} {GATED_PR_LINE}" if prompt else GATED_PR_LINE
 
 
+def judge_reject_coder_next_cmd(task_id):
+    return f"factory task update {task_id} --status in_review"
+
+
+def judge_reject_coder_notice(task_id, reason):
+    """Tell the assignee the DB status after judge --reject and the command to re-enter review."""
+    return (f"Task {task_id} status is in_progress after judge reject.\n\n{reason}\n\n"
+            f"After the fix is pushed: {judge_reject_coder_next_cmd(task_id)} (existing PR checks apply).")
+
+
+def task_in_progress_from_judge_reject(con, task_id):
+    """True while the task is in_progress because the judge rejected it (not a lead retry after QA fail)."""
+    if not task_id:
+        return False
+    t = con.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+    if not t or t["status"] != "in_progress":
+        return False
+    jr = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='judge-reject' "
+                     "ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    if not jr:
+        return False
+    upd = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                      "AND detail LIKE '%status=in_progress%' ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    return not upd or upd["ts"] <= jr["ts"]
+
+
+def coder_judge_reject_kickoff(con, role, task, prompt):
+    """Coder kickoff extra after a judge reject: same status word as the DB and the in_review update command."""
+    if role != "coder" or not task or not task_in_progress_from_judge_reject(con, task):
+        return prompt
+    line = (f"Task status is in_progress (same as the DB). After the fix is pushed: "
+            f"{judge_reject_coder_next_cmd(task)}.")
+    return f"{prompt} {line}" if prompt else line
+
+
 def kickoff_text(role, name, goal, team, task, extra):
     lines = [f"You are `{name}`, the factory {role}. Run `factory whoami` and `factory inbox` first."]
     if task:
@@ -8333,7 +8378,7 @@ def render_settings_early(role):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    prompt = gated_reviewer_prompt(con, role, task, prompt)
+    prompt = coder_judge_reject_kickoff(con, role, task, gated_reviewer_prompt(con, role, task, prompt))
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
@@ -8629,6 +8674,13 @@ def cmd_cursor_pilot(a):
     die(f"unknown cursor-pilot action {action!r}", 2)
 
 
+def qa_without_pr_or_worktree(con, task):
+    """True when task has no PR and no existing worktree: a qa agent spawned without --cwd would start in the shared
+    checkout (T-0956; dispatch_tick checks it too, T-0966)."""
+    tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(tw) and not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists())
+
+
 def cmd_spawn(a):
     refuse_worker("spawn")
     if a.role == "evaluator":  # only the skilleval harness calls spawn() for it, for everyone else the CLI says no
@@ -8653,8 +8705,7 @@ def cmd_spawn(a):
             die(f"{a.task} has no acceptance in the DB; write it with factory task update {a.task} --acceptance - "
                 "before spawning (scratch files are lost on reboot)", 2)
         if a.role == "qa" and not a.cwd:  # T-0956: no PR and no worktree = the shared checkout, where QA can do nothing
-            tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (a.task,)).fetchone()
-            if not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists()):
+            if qa_without_pr_or_worktree(con, a.task):
                 die(f"{a.task} has no PR and no worktree, so a qa agent would start in the shared checkout: create a worktree "
                     f"for it, or pass one: factory spawn qa --task {a.task} --cwd <worktree>", 2)
         why = staleness_precheck(con, a.role, a.task)
@@ -13617,6 +13668,20 @@ def dispatch_tick(con):
         if not gate(con, role=role)[0]:
             break
         name = f"{role}-{tid.lower()}"
+        if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            key = f"dispatch-refused:{tid}"
+            if not _throttled(con, key, clock, 10 * 365 * 86400):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
+                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                     f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
+                     f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
+                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+            continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
                  "Never call the advisor tool.")
