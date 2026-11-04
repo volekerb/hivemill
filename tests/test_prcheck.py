@@ -551,6 +551,17 @@ class PrcheckTests(FactoryTestCase):
         self.env.seed_pr(url=PR_URL, body=body)
         self.assertIn("no command in backticks", self.prcheck(1).stdout)
 
+    def test_fenced_heading_mention_with_valid_section_passes(self):  # acceptance 6
+        body = evidence_body("`python3 -m unittest tests.test_x` -> Ran 7, OK").replace(
+            "What changed.", "```\n## Test evidence\n```", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("PASS body:", self.prcheck(0).stdout)
+
+    def test_heading_only_inside_fence_is_missing(self):  # acceptance 6
+        body = evidence_body("").replace("## Test evidence", "```\n## Test evidence\n```", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("missing section heading", self.prcheck(1).stdout)
+
     def test_evidence_indented_fence_passes(self):  # acceptance 2
         p = self.body_result("- ran:\n  ```\n  $ python3 -m unittest tests.test_x\n  Ran 7 tests\n  ```", 0)
         self.assertIn("PASS body:", p.stdout)

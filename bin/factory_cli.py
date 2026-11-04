@@ -3345,7 +3345,11 @@ def pr_body_problems(body, headings):
     """Every way `body` departs from the PR template, as sentences; empty when it conforms."""
     problems = []
     outside = pr_outside_details(body)
-    lines = [ln.rstrip() for ln in outside.splitlines()]
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+    lines, off = [], 0
+    for raw in outside.splitlines(keepends=True):  # a heading inside a code fence is text, not a section
+        lines.append("" if any(x <= off < y for x, y in spans) else raw.rstrip())
+        off += len(raw)
     missing = [h for h in headings if h not in lines]
     if missing:
         problems.append("missing section heading(s): " + ", ".join(f"`{h}`" for h in missing))
