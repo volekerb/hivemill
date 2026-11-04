@@ -9,8 +9,16 @@ export const meta = {
 // Coder mode (args.mode === 'coder', also needs pr; optional task, acceptance): a coder's self-review of its own PR.
 // Angles security/spec/tests, all Sonnet, NO verifier agents (3 agents in total); the findings come back in
 // 'unverified' for the coder to check itself; 'confirmed' is always empty. The default path is unchanged.
-const { pr, base = 'origin/main', spec_task } = args
+// Validate args before any agent starts: a bare-string or partial args object must stop here, never run as a clean 0-finding review.
+const badArg = (field, why) => { throw new Error(`multi-angle-review: bad args.${field}: ${why}. Pass an object: {"pr": "<pr url>", "base": "origin/main", "spec_task": "<T-id>"} (coder mode: {"mode": "coder", "pr": "<pr url>", ...}).`) }
+if (args === null || typeof args !== 'object' || Array.isArray(args)) badArg('(args)', `expected an object, got ${args === null ? 'null' : Array.isArray(args) ? 'array' : typeof args}`)
 const coder = args.mode === 'coder'
+const isText = v => typeof v === 'string' && v.trim() !== ''
+if (!isText(args.pr)) badArg('pr', 'missing or not a non-empty string')
+if (args.base !== undefined && !isText(args.base)) badArg('base', 'must be a non-empty string when given (default origin/main)')
+if (!coder && !isText(args.spec_task)) badArg('spec_task', 'missing or not a non-empty string')
+if (args.spec_task !== undefined && !isText(args.spec_task)) badArg('spec_task', 'must be a non-empty string when given')
+const { pr, base = 'origin/main', spec_task } = args
 
 const RULES = `HARD RULES (read-only agent). You must not edit or write any file. You must not run git write commands (commit, push, checkout, reset, merge, rebase, stash, branch -D, worktree). You must not run gh pr merge, gh pr review or gh pr comment. You must not run any factory command (no 'factory ...' at all, not even task show). Read only: use 'gh pr diff ${pr}', 'gh pr view ${pr}', 'git diff ${base}...HEAD', 'git log', grep and file reads in the current working directory (the current worktree). If a command is denied, do not retry it in another form; report it.`
 
