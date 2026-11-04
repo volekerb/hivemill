@@ -267,7 +267,7 @@ class PathListTest(unittest.TestCase):
         body = step.split("run: |\n", 1)[1]
         return "\n".join(l[10:] for l in body.splitlines())
 
-    def decide(self, changed, tool_src=None, edit=None):
+    def decide(self, changed, tool_src=None, edit=None, broken_tar=False, stdout=None):
         """Execute the real "Guard paths changed?" script in a temp repo; return the run= output."""
         with tempfile.TemporaryDirectory() as d:
             def git(*a):
@@ -305,8 +305,17 @@ class PathListTest(unittest.TestCase):
             git("commit", "-q", "-m", "pr", "--allow-empty")
             out = os.path.join(d, "gh_output")
             env = dict(os.environ, EVENT="pull_request", BASE_SHA=base, GITHUB_OUTPUT=out, RUNNER_TEMP=d)
+            if broken_tar:
+                # only the BASE export fails: the HEAD lists are read by python, never through tar
+                shim = tempfile.mkdtemp(dir=d)
+                with open(os.path.join(shim, "tar"), "w") as f:
+                    f.write("#!/bin/sh\nexit 1\n")
+                os.chmod(os.path.join(shim, "tar"), 0o755)
+                env["PATH"] = shim + os.pathsep + env["PATH"]
             r = subprocess.run(["bash", "-e", "-c", self.script()], cwd=d, env=env, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
+            if stdout is not None:
+                stdout.append(r.stdout)
             with open(out) as f:
                 return f.read().strip().splitlines()[-1]
 
@@ -351,13 +360,10 @@ class PathListTest(unittest.TestCase):
         self.assertEqual(self.decide([], edit={m: strip}), "run=true")
 
     def test_step_runs_when_base_list_is_unreadable(self):
-        # BASE tool broken, HEAD tool fine: only the BASE read can fail. Use a tool that works at HEAD (copied
-        # after the base commit) by committing a broken tool at base and restoring the real one in the PR commit.
-        with open(TOOL, encoding="utf-8") as f:
-            real = f.read()
-        self.assertEqual(self.decide([], tool_src="import sys\nsys.exit(1)\n",
-                                     edit={"ci/guard_impl_unittest.py": lambda t: real}), "run=true")
-        self.assertEqual(self.decide([], tool_src="pass\n", edit={"ci/guard_impl_unittest.py": lambda t: real}), "run=true")
+        # README-only diff, HEAD tool intact and unchanged: nothing but the failed BASE read can give run=true
+        out = []
+        self.assertEqual(self.decide(["README.md"], broken_tar=True, stdout=out), "run=true")
+        self.assertIn("base test list unreadable or empty: running", out[0])
 
     def test_step_skips_for_readme_only_with_a_readable_base(self):
         self.assertEqual(self.decide(["README.md"]), "run=false")
