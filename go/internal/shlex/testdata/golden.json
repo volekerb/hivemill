@@ -35397,6 +35397,934 @@
 "src": "corpus"
 },
 {
+"input": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Wonce",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Wonce",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Wonce",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Xpycache_prefix=x",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Xpycache_prefix=x",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Xpycache_prefix=x",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"once",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"once",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"once",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-X",
+"dev",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-X",
+"dev",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-X",
+"dev",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"--check-hash-based-pycs",
+"always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"--check-hash-based-pycs",
+"always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"--check-hash-based-pycs",
+"always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"--check-hash-based-pycs=always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"--check-hash-based-pycs=always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"--check-hash-based-pycs=always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@",
+"SCRATCH",
+"@",
+"/r/.git"
+]
+},
+{
+"input": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+},
+{
+"input": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mode": "quote",
+"quoted": "'python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git'",
+"src": "corpus"
+},
+{
+"input": "ar @optsfile a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"@optsfile",
+"a.a"
+]
+},
+{
+"input": "ar @optsfile a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"@",
+"optsfile",
+"a.a"
+]
+},
+{
+"input": "ar @optsfile a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"@optsfile",
+"a.a"
+]
+},
+{
+"input": "ar @optsfile a.a",
+"mode": "quote",
+"quoted": "'ar @optsfile a.a'",
+"src": "corpus"
+},
+{
+"input": "ar x @optsfile",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"@optsfile"
+]
+},
+{
+"input": "ar x @optsfile",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"@",
+"optsfile"
+]
+},
+{
+"input": "ar x @optsfile",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"x",
+"@optsfile"
+]
+},
+{
+"input": "ar x @optsfile",
+"mode": "quote",
+"quoted": "'ar x @optsfile'",
+"src": "corpus"
+},
+{
+"input": "ar --target @opts a.a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"@opts",
+"a.a"
+]
+},
+{
+"input": "ar --target @opts a.a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"@",
+"opts",
+"a.a"
+]
+},
+{
+"input": "ar --target @opts a.a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ar",
+"--target",
+"@opts",
+"a.a"
+]
+},
+{
+"input": "ar --target @opts a.a",
+"mode": "quote",
+"quoted": "'ar --target @opts a.a'",
+"src": "corpus"
+},
+{
+"input": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')"
+]
+},
+{
+"input": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')"
+]
+},
+{
+"input": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')"
+]
+},
+{
+"input": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\"",
+"mode": "quote",
+"quoted": "'python3 -c \"import zipfile; zipfile.ZipFile('\"'\"'a.zip'\"'\"').extractall('\"'\"'@SCRATCH@/r/.git'\"'\"')\"'",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import tarfile; tarfile.open(\"a.tar\").extract(\"x\")"
+]
+},
+{
+"input": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import tarfile; tarfile.open(\"a.tar\").extract(\"x\")"
+]
+},
+{
+"input": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import tarfile; tarfile.open(\"a.tar\").extract(\"x\")"
+]
+},
+{
+"input": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")"
+]
+},
+{
+"input": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")"
+]
+},
+{
+"input": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")"
+]
+},
+{
+"input": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(\"x\", \"w\")",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(\"x\", \"w\")",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"open(\"x\", \"w\");",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'open(\"x\", \"w\")'\"'\"'; unzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-copen(\"x\", \"w\")",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-copen(\"x\", \"w\")",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-copen(\"x\", \"w\");",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -c'\"'\"'open(\"x\", \"w\")'\"'\"'; unzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Bc",
+"open(\"x\", \"w\")",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Bc",
+"open(\"x\", \"w\")",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-Bc",
+"open(\"x\", \"w\");",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 -Bc '\"'\"'open(\"x\", \"w\")'\"'\"'; unzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"python3",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"python3",
+";",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+"|",
+"python3;",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'echo x | python3; unzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "python3 - <<'E'\nopen('x', 'w')\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"E",
+"open",
+"(",
+"x,",
+"w",
+")",
+"E",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 - <<'E'\nopen('x', 'w')\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"E",
+"open",
+"(",
+"x",
+",",
+"w",
+")",
+"E",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "python3 - <<'E'\nopen('x', 'w')\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<E",
+"open(x,",
+"w)",
+"E",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "python3 - <<'E'\nopen('x', 'w')\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'python3 - <<'\"'\"'E'\"'\"'\nopen('\"'\"'x'\"'\"', '\"'\"'w'\"'\"')\nE\nunzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "node - <<'E'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"node",
+"-",
+"<<",
+"E",
+"1",
+"E",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "node - <<'E'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"node",
+"-",
+"<<",
+"E",
+"1",
+"E",
+"unzip",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "node - <<'E'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"node",
+"-",
+"<<E",
+"1",
+"E",
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "node - <<'E'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'node - <<'\"'\"'E'\"'\"'\n1\nE\nunzip a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
 "input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
 "mode": "script",
 "src": "corpus",
@@ -62022,7 +62950,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1412,
+"corpus_commands": 1431,
 "edge_inputs": 123,
 "python": "3.13"
 }
