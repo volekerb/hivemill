@@ -184,6 +184,14 @@
    "doc": ""
   },
   {
+   "key": "gh_quota_min",
+   "kind": "setting",
+   "default": "300",
+   "summary": "GraphQL points left below which optional tick probes are skipped and one alert per hour is raised; 0 = never read the quota",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md"
+  },
+  {
    "key": "gh_rw_roles",
    "kind": "setting",
    "default": "coder,judge,cleaner",
@@ -422,6 +430,14 @@
    "goal": "",
    "doc": "",
    "state": "shadow"
+  },
+  {
+   "key": "pr_view_ttl_s",
+   "kind": "setting",
+   "default": "120",
+   "summary": "seconds the tick's optional PR probes (CI wake, red PR alert, review autospawn) reuse one gh pr view per PR and head; 0 = off",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md"
   },
   {
    "key": "prcheck_required",
