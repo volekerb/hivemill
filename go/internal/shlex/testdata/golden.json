@@ -50512,6 +50512,561 @@
 "src": "corpus"
 },
 {
+"input": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar f -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"f",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar f -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"f",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf a.tar f -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"f",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar f -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf a.tar f -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -- -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"--",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -- -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"--",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf a.tar -- -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"--",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -- -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -- -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--strip-components=1"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"--strip-components=1"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--strip-components=1"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/out --strip-components=1'",
+"src": "corpus"
+},
+{
+"input": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"TAR_OPTIONS=x",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"TAR_OPTIONS=x",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"TAR_OPTIONS=x",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-f",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-f",
+"b.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-f",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -f b.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xfC a.tar @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xfC",
+"a.tar",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xfC a.tar @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xfC",
+"a.tar",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xfC a.tar @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xfC",
+"a.tar",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xfC a.tar @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xfC a.tar @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf/tmp/a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf/tmp/a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf/tmp/a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'tar -xf/tmp/a.tar -C @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "unzip -x a.zip -d @SCRATCH@/out",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-x",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "unzip -x a.zip -d @SCRATCH@/out",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-x",
+"a.zip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out"
+]
+},
+{
+"input": "unzip -x a.zip -d @SCRATCH@/out",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-x",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+},
+{
+"input": "unzip -x a.zip -d @SCRATCH@/out",
+"mode": "quote",
+"quoted": "'unzip -x a.zip -d @SCRATCH@/out'",
+"src": "corpus"
+},
+{
+"input": "unzip -d @SCRATCH@/out -- a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"@SCRATCH@/out",
+"--",
+"a.zip"
+]
+},
+{
+"input": "unzip -d @SCRATCH@/out -- a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"--",
+"a.zip"
+]
+},
+{
+"input": "unzip -d @SCRATCH@/out -- a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"@SCRATCH@/out",
+"--",
+"a.zip"
+]
+},
+{
+"input": "unzip -d @SCRATCH@/out -- a.zip",
+"mode": "quote",
+"quoted": "'unzip -d @SCRATCH@/out -- a.zip'",
+"src": "corpus"
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--exclude=x"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@",
+"SCRATCH",
+"@",
+"/out",
+"--exclude=x"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--exclude=x"
+]
+},
+{
+"input": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"mode": "quote",
+"quoted": "'tar -xf a.tar -C @SCRATCH@/out --exclude=x'",
+"src": "corpus"
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"tar -xf a.tar -C @SCRATCH@/out"
+]
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"tar -xf a.tar -C @SCRATCH@/out"
+]
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"tar -xf a.tar -C @SCRATCH@/out"
+]
+},
+{
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'tar -xf a.tar -C @SCRATCH@/out'\"'\"''",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -72959,7 +73514,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1684,
+"corpus_commands": 1696,
 "edge_inputs": 123,
 "python": "3.13"
 }

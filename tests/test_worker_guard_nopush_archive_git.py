@@ -19,8 +19,6 @@ guard_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(guard_mod)
 parse_tar = guard_mod.parse_tar
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 BAD = {
     "dotgit": ["x/.git/config", "x/f"],
