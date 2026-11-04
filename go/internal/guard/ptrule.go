@@ -43,6 +43,7 @@ type publicText struct {
 	frozen  map[string]struct{}
 	active  bool
 	terms   string // the scrub_terms_file config row
+	nopush  bool   // T-0961: a NO_PUSH_ROLES role: push refuses before any scan
 	bodies  []Heredoc
 	raw     string
 	scanner *scrubScanner
@@ -738,6 +739,9 @@ var reRefsPrefix = regexp.MustCompile(`^refs/(?:heads|tags)/`)
 
 // push is PublicText.push.
 func (pt *publicText) push(cwd string, cwdOK bool, remote string, rest []string) error {
+	if pt.nopush { // T-0961: refuse by role before the (slow) base..HEAD scan
+		return pubBlock("this role may not push (no-push roles only read; ask your lead). The push was refused before any public-text scan")
+	}
 	if !cwdOK || !isDir(cwd) {
 		return pubBlock("push from a directory known only at run time: cd to a static path first")
 	}
