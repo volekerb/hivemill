@@ -46,7 +46,8 @@ verdicts and green CI). With the flag `off` the first-round pass starts review a
 
 - **No review while the coder works or before prcheck is ok.** Both passes skip a task (retry next tick, nothing logged) while an agent of
   role `coder` for it is `queued`, `starting` or `live`, or while the latest `prcheck` event for the PR head says `ok: false`. No prcheck
-  record is not a block (a CI-path `factory done` leaves none).
+  record is not a block (a CI-path `factory done` leaves none). With no coder live and the prcheck not ok, the hold has no end of its own:
+  the tick sends one `request` to the lead (or director) and logs one `review-prcheck-held` event per task and head, and starts no review.
 - **A verdict of one role never closes the head.** The new-head pass starts the role that has neither an agent row `<role>-<task>-<sha8>`
   (the stored, org-prefixed name, e.g. `claude-qa-t-0001-1234abcd`) nor a verdict of that role on the head, even when the other role already has a verdict. A head whose only verdict is under
   `REVIEW_VERDICT_GRACE_S` (300 s) and that has no tick-started agent waits, so a lead who is about to start the other half is not doubled.

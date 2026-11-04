@@ -629,6 +629,23 @@ class ReviewOrderingTests(Base):
         self.prcheck(H1, True)
         self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
 
+    def test_prcheck_not_ok_with_no_coder_alerts_once_per_head_and_starts_nothing(self):
+        # B4: a CI-path `factory done` leaves the failed prcheck as the newest record; the hold must not be silent
+        self.prcheck(H1, False)
+        for _ in range(3):
+            self.assertEqual(self.step(H1), [])
+        mails = self.env.sql("SELECT recipient, subject FROM messages WHERE kind='request'")
+        self.assertEqual([m["recipient"] for m in mails], [LEAD])
+        self.assertIn("prcheck not ok", mails[0]["subject"])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='review-prcheck-held'")), 1)
+        self.assertEqual(self.env.sql("SELECT 1 FROM agents WHERE role IN ('reviewer','qa')"), [])
+
+    def test_coder_live_with_prcheck_not_ok_sends_no_alert(self):
+        self.prcheck(H1, False)
+        self.coder("live")
+        self.assertEqual(self.step(H1), [])
+        self.assertEqual(self.env.sql("SELECT 1 FROM messages WHERE kind='request'"), [])
+
     def test_prcheck_not_ok_on_another_head_does_not_block(self):
         self.prcheck(H1, False)
         self.assertEqual(len(self.step(H2)), 2)

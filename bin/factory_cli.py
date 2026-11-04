@@ -14455,6 +14455,23 @@ def _review_blocked(con, tid, head):
     return None
 
 
+def _review_hold(con, t, head, clock):
+    """True when review must not start on head (_review_blocked). With no coder live and the latest prcheck not ok the hold is permanent
+    (a CI-path `factory done` can accept it), so raise one alert per task and head to the lead or director (T-1048)."""
+    why = _review_blocked(con, t["id"], head)
+    if why and why.startswith("latest prcheck"):
+        key = f"review-prcheck-held:{t['id']}:{head}"
+        if not _throttled(con, key, clock, float("inf")):
+            _throttle_set(con, key, clock)
+            to = f"lead:{t['team_id']}" if t["team_id"] else "director"
+            event(con, "task", t["id"], "review-prcheck-held", {"head": head[:8]})
+            send(con, to, f"review autospawn: {t['id']} @{head[:8]} held, prcheck not ok",
+                 f"{t['title']}\n\nNo coder is live and the latest prcheck on head {head} is not ok, so the tick starts no review. "
+                 "Fix and rerun prcheck, or start the review yourself.",
+                 kind="request", goal=t["goal_id"], task=t["id"], sender="tick")
+    return bool(why)
+
+
 def _review_verdict_fresh(con, tid, head, clock):
     """True when the newest verdict on head is younger than REVIEW_VERDICT_GRACE_S (an unreadable stamp counts as old)."""
     row = con.execute("SELECT created FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) ORDER BY id DESC", (tid, head)).fetchone()
@@ -14512,7 +14529,7 @@ def review_rerun_tick(con):
         head = _ci_remote_head(t["branch"], batch)
         if head:
             _review_alert_no_verdict(con, t, head, f"lead:{team}" if team else "director", clock)
-        if head and (_review_head_done(con, tid, head, clock) or _review_blocked(con, tid, head)):
+        if head and (_review_head_done(con, tid, head, clock) or _review_hold(con, t, head, clock)):
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
@@ -14520,7 +14537,7 @@ def review_rerun_tick(con):
         sha = pr["headRefOid"]
         if _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             continue
-        if _review_blocked(con, tid, sha):
+        if _review_hold(con, t, sha, clock):
             continue
         if not _rerun_agents(con, tid, sha) and _review_verdict_fresh(con, tid, sha, clock):
             continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
@@ -14584,7 +14601,7 @@ def review_autospawn_tick(con):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
-        if _review_blocked(con, tid, pr["headRefOid"]):
+        if _review_hold(con, t, pr["headRefOid"], clock):
             continue  # T-1048: a coder is still live/queued, or the latest prcheck on this head is not ok: retry next tick
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
