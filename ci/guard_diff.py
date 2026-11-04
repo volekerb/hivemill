@@ -354,6 +354,14 @@ def _shape(name, key, value, want):
     return value
 
 
+def _text(name, key, obj, field):
+    """obj[field] as a string; a missing field is "" (today's default), null or a non-string raises SettingsShapeError."""
+    value = obj.get(field, "")
+    if not isinstance(value, str):
+        raise SettingsShapeError(f"settings {name}: {key} must be a JSON string, got {type(value).__name__}; fix the file")
+    return value
+
+
 def settings_rules(text, legacy=False, name="settings"):
     """{(kind, rule)} of one settings JSON text: the allow/deny lists, every hook as
     `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), each hook's timeout as its own
@@ -371,11 +379,15 @@ def settings_rules(text, legacy=False, name="settings"):
                 raise SettingsShapeError(f"settings {name}: permissions.{kind} entries must be strings; fix the file")
             out.add((kind, fix(rule)))
     for event, groups in _shape(name, "hooks", d.get("hooks", {}), "object").items():
-        for group in _shape(name, f"hooks.{event}", groups, "list"):
-            _shape(name, f"hooks.{event}[]", group, "object")
-            for h in _shape(name, f"hooks.{event}[].hooks", group.get("hooks", []), "list"):
-                _shape(name, f"hooks.{event}[].hooks[]", h, "object")
-                ident = "|".join((event, group.get("matcher", ""), h.get("type", ""), fix(h.get("command", ""))))
+        ev = f"hooks.{json.dumps(event)}"  # json.dumps keeps a newline in the event name off the error line
+        for group in _shape(name, ev, groups, "list"):
+            _shape(name, f"{ev}[]", group, "object")
+            matcher = _text(name, f"{ev}[].matcher", group, "matcher")
+            for h in _shape(name, f"{ev}[].hooks", group.get("hooks", []), "list"):
+                _shape(name, f"{ev}[].hooks[]", h, "object")
+                htype = _text(name, f"{ev}[].hooks[].type", h, "type")
+                command = _text(name, f"{ev}[].hooks[].command", h, "command")
+                ident = "|".join((event, matcher, htype, fix(command)))
                 out.add(("hook", ident))
                 timeout = h.get("timeout")
                 out.add(("hook-timeout", f"{ident}|timeout={'' if timeout is None else json.dumps(timeout)}"))
