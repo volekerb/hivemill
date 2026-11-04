@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 import harness
 from guard_impl import hook_run
@@ -65,9 +66,10 @@ class PublicTextTests(unittest.TestCase):
     def public(self, **kv):
         self.config(public_text_repos="acme/pub", **kv)
 
-    def run_hook(self, cmd, mode="judge", terms=True, cwd=None):  # not coder: T-0689 pins a coder push to its own branch
+    def run_hook(self, cmd, mode="judge", terms=True, cwd=None, env_extra=None):  # not coder: T-0689 pins a coder push
         env = {k: v for k, v in os.environ.items() if k not in ("SCRUB_TERMS_FILE", "FACTORY_AGENT")}
         env.update(FACTORY_HOME=self.home, **GIT_ENV)
+        env.update(env_extra or {})
         if terms:
             env["SCRUB_TERMS_FILE"] = self.terms
         argv = [sys.executable, HOOK, "--hq"] if mode == "hq" else [sys.executable, HOOK, "--role", mode]
@@ -90,6 +92,59 @@ class PublicTextTests(unittest.TestCase):
         with open(path, "w") as f:
             f.write(text)
         return path
+
+    # ── T-0961 role refusal before the scan, git timeout
+    def git_shim(self, body):
+        """A `git` first on PATH: logs every `log` call to <tmp>/log-calls and runs `body` for it; other calls go to real git."""
+        d = os.path.join(self.tmp, "shim")
+        os.makedirs(d, exist_ok=True)
+        real = shutil.which("git")
+        with open(os.path.join(d, "git"), "w") as f:
+            f.write(f'#!/bin/sh\nfor a in "$@"; do if [ "$a" = log ]; then echo x >> "{self.tmp}/log-calls"; {body}; fi; done\n'
+                    f'exec {real} "$@"\n')
+        os.chmod(os.path.join(d, "git"), 0o755)
+        return {"PATH": d + os.pathsep + os.environ["PATH"]}
+
+    def test_no_push_roles_refused_by_role_without_the_push_scan(self):
+        self.public()
+        self.commit("add rule", author="Alice <alice@realmail.test>")  # a scan would report this email
+        shim = self.git_shim("true")
+        for role in ("reviewer", "pm", "qa"):
+            for cmd in ("git push origin HEAD:factory/t-1", "git push", "git push origin HEAD"):
+                p = self.blocked(cmd, "may not push", mode=role, env_extra=shim)
+                self.assertNotIn("public text:", p.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "log-calls")), "check_push ran git log for a no-push role")
+
+    def test_coder_push_still_scanned(self):
+        self.public()
+        self.commit("add rule", author="Alice <alice@realmail.test>")
+        con = sqlite3.connect(os.path.join(self.home, "db", "factory.db"))
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES ('T-1', ?)", (self.repo,))
+        con.commit()
+        con.close()
+        shim = self.git_shim("true")
+        p = self.blocked("git push origin HEAD:factory/t-1", "public text:", "email", mode="coder",
+                         env_extra={**shim, "FACTORY_AGENT": "claude-coder-t-1"})
+        self.assertNotIn("may not push", p.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "log-calls")), "a coder push must be scanned")
+
+    def test_stalled_git_in_push_scan_is_denied_with_a_reason(self):
+        self.public()
+        shim = self.git_shim("exec sleep 30")
+        t0 = time.monotonic()
+        self.blocked("git push origin HEAD:factory/t-1", "did not finish in 1s", "tell your lead", "cannot check the push",
+                     env_extra={**shim, "FACTORY_PT_GIT_TIMEOUT": "1"})
+        self.assertLess(time.monotonic() - t0, 20)
+
+    def test_git_timeout_env_can_lower_but_not_raise_the_cap(self):
+        sys.path.insert(0, os.path.join(ROOT, "ci"))
+        self.addCleanup(sys.path.remove, os.path.join(ROOT, "ci"))
+        import public_text_guard as g
+        for val, want in (("1", 1.0), ("0.5", 0.5), ("9999", g.GIT_TIMEOUT), ("0", g.GIT_TIMEOUT),
+                          ("x", g.GIT_TIMEOUT), ("", g.GIT_TIMEOUT)):
+            with unittest.mock.patch.dict(os.environ, {"FACTORY_PT_GIT_TIMEOUT": val}):
+                self.assertEqual(g.git_timeout(), want, val)
 
     # ── 2 off by default
     def test_off_by_default_allows_everything(self):

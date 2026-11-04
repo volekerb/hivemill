@@ -3377,6 +3377,7 @@ class PublicText:
         self.public = self.slugs("public_text_repos")
         self.frozen = self.slugs("frozen_repos")
         self.active = bool(self.public or self.frozen)
+        self.nopush = False  # T-0961: set by check() for a NO_PUSH_ROLES role (not HQ): push() refuses before scanning
         self.bodies = []  # (head line, body) of every heredoc seen by preprocess
         self.raw = ""  # the command as the hook received it
         self._mod = self._terms = None
@@ -3700,6 +3701,9 @@ class PublicText:
         return pos, opts
 
     def push(self, cwd, remote, rest):
+        if self.nopush:  # T-0961: refuse by role before the (slow) base..HEAD scan; NO_PUSH_ROLES never push
+            raise PublicBlock("this role may not push (no-push roles only read; ask your lead). "
+                              "The push was refused before any public-text scan")
         if cwd is None or not os.path.isdir(cwd):
             raise PublicBlock("push from a directory known only at run time: cd to a static path first")
         pos, opts = self.push_args(rest)
@@ -3821,6 +3825,7 @@ class PublicText:
 def check(cmd, cwd=None, role=None, hq=False):
     pt = PublicText(cwd, Analyzer(cwd).db_path())
     pt.raw = cmd
+    pt.nopush = role in NO_PUSH_ROLES and not hq
     try:  # PRIV pass (the whole of HQ mode): parse trouble allows
         an = Analyzer(cwd, role, True)
         an.unit_rule = hq
