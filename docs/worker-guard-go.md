@@ -62,7 +62,8 @@ removals and chmods of it and Edit-class calls on it (realpath and symlink forms
    to): from it the rule reads `ci/scrub_allowlist.txt` for a push and checks that `ci/public_text_guard.py` and
    `ci/scrub_scan.py` exist (Python's "cannot be loaded" refusal). A push with no `--py-hook` is refused (the allowlist
    cannot be located); text checks do not need it. The delegation machinery (`Delegate`, `RunPython`) is still in the
-   package, now used by no rule, so a future DB read without an export row can use it.
+   package. One rule uses it today: the member list of a no-push `tar`/`unzip` extraction (T-1001, see below); a
+   future DB read without an export row can use it too.
 
    The checker port: the patterns of `scrub_scan.py` (GENERIC) and `public_text_guard.py` (EXTRA, image metadata readers,
    `check_push`) are RE2 expressions plus hand-written lookbehind/`\b` assertions (`scanRule`); owner terms are matched
@@ -309,3 +310,19 @@ meta (python run): git_sha=1a1111fc3 python=3.13.5 nproc=8 loadavg=[4.92, 2.6, 2
 meta (go run): git_sha=1a1111fc3 python=3.13.5 nproc=8 loadavg=[3.17, 2.55, 2.24] date=2026-11-04T01:35:35+01:00
 
 Go is faster at the median for every role (about 8.5x to 9x): about 8 ms against about 69 ms, and the Go p95 (9.7 ms at most) is below the Python minimum (63 ms). The Go figure is close to the cost of `sh` plus one process start; Python pays for interpreter start and the hook module import. Python stays the default; this table is the measured gain for a later flip decision.
+
+## No-push `tar` / `unzip` extraction (T-1001, mirror of T-0805)
+
+Go ports the `parse_tar` grammar and rule E1/E2: the option allowlist, the `TAR_OPTIONS`-style environment variables,
+the name-rewrite options, the `-C`/`-d` target checks and the stdin / glob / expansion archive names. An unclassifiable
+tar word counts as extract mode (fail closed), as in Python. The reason text is the Python text, byte for byte.
+
+Go does **not** read archives. Rule E3 (the member list has no `.git` member and no `config`+`HEAD` pair) needs
+`tarfile` and `zipfile` as the reference, so an extraction that passes every Go check is delegated: `archiveMembers`
+returns `Delegate`, before any `Lstat` or `Stat`, and the Python hook answers (missing file, FIFO, oversize and
+unreadable archive included). Go therefore cannot disagree with Python on a crafted archive (NUL names, the 0x7075
+Unicode path extra, truncated or padded tars, any bzip2 level).
+
+**Python stays required for this path after any flip to `impl=go`.** `RunPython` exits 2 when `--py-hook` is not
+given, the hook file is unreadable, `python3` is missing or the hook crashes: the extraction is refused, never
+allowed. Measuring how often a no-push extraction reaches the list step is T-0357.
