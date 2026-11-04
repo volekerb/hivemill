@@ -260,6 +260,35 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.merges(), [])
         self.assertEqual(self.status(), "in_review")
 
+    # -- judge hold on the task (G-022 T-1012) ----------------------------
+    def test_judge_hold_stops_the_mech_merge_and_clear_restores_it(self):
+        self.ok("task", "update", "T-0001", "--judge-hold", "owner wants to look")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.ok("task", "update", "T-0001", "--judge-hold-clear")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.status(), "done")
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_judge_hold_set_after_the_candidate_list_stops_the_merge(self):
+        hook = ('if argv[:2] == ["pr", "view"]:\n    if st.get("hold_db"):\n        import sqlite3\n'
+                '        c = sqlite3.connect(st["hold_db"])\n'
+                '        c.execute("UPDATE tasks SET judge_hold_reason=\'late hold\' WHERE id=\'T-0001\'")\n        c.commit()\n')
+        stub = GH_STUB.replace('if argv[:2] == ["pr", "view"]:\n', hook, 1)
+        self.assertNotEqual(stub, GH_STUB)
+        (self.gh_dir / "gh").write_text(stub)
+        st = json.loads(self.jw_state.read_text())
+        st["hold_db"] = str(self.env.db_path)
+        self.jw_state.write_text(json.dumps(st))
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertEqual(self.events("judge-hold"), ["late hold"])
+
     # -- QA live-run marker (roles/qa.md Q7) ------------------------------
     def qa_verdict(self, summary, verdict="pass"):
         self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
