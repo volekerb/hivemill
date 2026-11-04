@@ -18,6 +18,11 @@ Follow these steps in order.
 9. On a retry, list the variants you tested per class in the PR body, and say which of them the previous round missed.
 10. Merge origin/main and rerun the tests right before updating the PR and re-read the `guard-diff` job's real-corpus step log on the new head.
 
+11. Python-only guard changes run under `guard-equiv` (Go vs Python, strict, stderr included; details in docs/guard-diff.md). Pick the rule that fits:
+    - (a) Reason text of an existing rule changed in the Python guard: the same PR changes the Go string, text only.
+    - (b) New Python-only rule: its test module carries `GUARD_IMPL_PYTHON_ONLY`, its forms stay out of `ci/guard_corpus.json` until the Go mirror lands, and the Go mirror task is filed at merge (M21163: every Python-only rule needs its mirror merged before any `impl=go` or shadow flip).
+    - (c) A corpus line red only because of a different Python-only rule: tag it with the role where both guards agree (for example `"role": "coder"`), or leave it out, and hand the form to that rule's mirror task. Never allowlist, never drop `--strict`.
+
 Stop and tell your lead if a probe command is blocked by your own guard (do not rephrase around it), or if the spec asks for a loosening without naming it.
 
 Sources: T-0147 retro notes 1-4, L-026.

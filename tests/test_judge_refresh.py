@@ -157,6 +157,7 @@ class JudgeRefreshTests(FactoryTestCase):
 
     # -- helpers ---------------------------------------------------------
     def commit(self, cwd, name, text, msg):
+        (Path(cwd) / name).parent.mkdir(parents=True, exist_ok=True)
         (Path(cwd) / name).write_text(text)
         git(cwd, "add", name)
         git(cwd, "commit", "-q", "-m", msg)
@@ -290,6 +291,27 @@ class JudgeRefreshTests(FactoryTestCase):
         reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE task_id='T-0001' AND role='judge'")]
         self.assertTrue(any("merged behind main by stale_policy=behind_ok (strict=false on GitHub)" in d for d in reasons), reasons)
         self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "done")
+
+    def test_g5_behind_ok_refreshes_when_main_changed_tests_yml(self):
+        # T-1000: the head predates a CI workflow change on main: behind_ok does not apply, the judge refreshes first
+        self.main_commit(".github/workflows/tests.yml", "jobs: {guard-equiv: {}}\n")
+        self.write_state(strict=False)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.events("refreshed")), 1)
+        self.assertEqual(len(self.pushes()), 1)
+        self.assertMergedPinned(self.remote_ref(f"refs/heads/{BRANCH}"))
+        reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE role='judge'")]
+        self.assertFalse(any("behind_ok" in d for d in reasons), reasons)
+
+    def test_g6_behind_ok_still_merges_when_main_changed_other_workflow_file(self):
+        self.main_commit(".github/workflows/other.yml", "x: 1\n")
+        self.write_state(strict=False)
+        p = self.judge()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.pushes(), [])
+        reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE task_id='T-0001' AND role='judge'")]
+        self.assertTrue(any("tests.yml unchanged on main since the merge-base" in d for d in reasons), reasons)
 
     def _strict_refreshes(self, strict):
         self.main_commit()
