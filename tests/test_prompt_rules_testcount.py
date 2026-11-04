@@ -9,7 +9,7 @@ ROLES = Path(__file__).resolve().parent.parent / "roles"
 RULE = ("Test count: count `def test_` on the tree of `git merge-tree --write-tree origin/main HEAD` "
         "(the PR merged into current main) and on origin/main; the merged count must be >= the main count. "
         "Also confirm the PR removes or renames no `def test_` relative to its merge-base "
-        "(run `git merge-base origin/main HEAD`, then `git diff <sha>..HEAD` with the literal sha it printed).")
+        "(run `git merge-base origin/main HEAD`, then `git diff <sha>..HEAD` with the literal sha).")
 
 RULE_QA = RULE  # T-1054: every file uses the two-step literal form; the worker guard refuses expansions
 
