@@ -149,7 +149,9 @@ DEFAULT_CONFIG = {
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
     "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
-    "red_pr_owner_alert": "0",   # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
+    "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
+    "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
+    "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -3231,13 +3233,19 @@ def resolve_recipient(con, to, org=None):
         to = "boss"  # the boss is the owner's interface; it relays
     if to in orgs.SINGLETON_ROLES:
         cand = oname(con, org, to)
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (cand,)).fetchone():
+        live = ("live", "starting", "queued")
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN (?,?,?)", (cand, *live)).fetchone():
             return cand
-        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') "
-                        "ORDER BY started DESC", (to,)).fetchall()
+        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN (?,?,?) "
+                        "ORDER BY started DESC", (to, *live)).fetchall()
         for x in r:
             if agent_org(con, x["name"]) == org:
                 return x["name"]
+        if (org == orgs.DEFAULT_ORG and (cfg(con, "org_prefix_default") or "0").strip() == "1"
+                and not orgs.prefix_of(to)):
+            leg = con.execute("SELECT name FROM agents WHERE name=? AND status IN (?,?,?)", (to, *live)).fetchone()
+            if leg and agent_org(con, leg["name"]) == org:
+                return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
         r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
@@ -5948,6 +5956,17 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
+def _red_main_kept_text(con, tid):
+    """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
+    may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
+    row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
+    st = row["status"] if row else ""
+    if st in ("done", "cancelled"):
+        return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
+                f"(director: factory redmain fix <repo> <task>). No task was filed automatically.")
+    return f"Fix task {tid} is still open; no new task filed."
+
+
 def red_main_check(con):
     """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
     project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
@@ -5981,15 +6000,17 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or (old or {}).get("task") or "",
+                                          "task": tid or kept,
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else "No active goal for the project: file the revert task by hand.")
+                        if tid else _red_main_kept_text(con, kept)
+                        if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
                 mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
@@ -12500,8 +12521,8 @@ def tick_judge_ci_prune(con, now=None):
     open_urls = {r["pr_url"] for r in con.execute(
         "SELECT DISTINCT pr_url FROM tasks WHERE pr_url IS NOT NULL AND status NOT IN ('done','cancelled')")}
     dead = []
-    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:'").fetchall():  # LIKE ignores case
-        url = r["key"][len("judge_ci:"):]
+    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:' OR substr(key, 1, 7) = 'prview:'").fetchall():  # LIKE ignores case; prview: = tick PR probe cache (T-1014)
+        url = r["key"].split(":", 1)[1]
         try:
             at = float(json.loads(r["value"])["at"])
             stale = not math.isfinite(at) or now - at > JUDGE_CI_PRUNE_AGE_S
@@ -14266,7 +14287,15 @@ def _review_dead_recent(con, t, clock):
     return _throttled(con, _review_dead_key(t), clock, max(window, REVIEW_DEAD_RECHECK_MIN_S))
 
 
-def _review_probe(pr_url, timeout):
+def _review_probe(pr_url, timeout, con=None, clock=None, head=None):
+    """The review tick's PR probe: with `con`, through pr_probe (cached per pr_view_ttl_s, same head; never skipped for quota:
+    review start is not optional); else one gh call."""
+    if con is None:
+        return _review_fetch(pr_url, timeout)
+    return pr_probe(con, pr_url, timeout, clock, head=head, fetch=_review_fetch)
+
+
+def _review_fetch(pr_url, timeout):
     """_ci_wake_probe for the review tick. A gh failure that says the PR does not exist stays a SystemExit (dead PR); any other
     gh failure comes back as an OSError (transient: the caller logs a probe error, never a skip)."""
     err = io.StringIO()
@@ -14412,7 +14441,7 @@ def review_rerun_tick(con):
         head = _ci_remote_head(t["branch"], batch)
         if head and _review_head_done(con, tid, head, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
             continue
         sha = pr["headRefOid"]
@@ -14473,7 +14502,7 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
@@ -14670,6 +14699,96 @@ def _ci_wake_probe(pr_url, timeout):
         return e
 
 
+PR_VIEW_TTL_S = 120    # default of config pr_view_ttl_s
+PRVIEW_PREFIX = "prview:"  # config key of one PR's cached probe: {"at", "head", "pr"}
+GH_QUOTA_READ_S = 50   # the GraphQL quota is read at most this often: once per (60 s) tick
+GH_QUOTA_ALERT_S = 3600
+GH_QUOTA_QUERY = "query{rateLimit{remaining limit resetAt}}"
+
+
+def _pr_cache_get(con, pr_url, clock, head=None):
+    """The cached probe dict of pr_url when it is younger than pr_view_ttl_s and, if `head` (read from origin with git, no gh)
+    is for that head; else None (an unknown head, ls-remote failed, is a miss). An unreadable entry is a miss. Only optional tick probes call this: the merge
+    gate (pr_state, judge_pr_ready, mech merger) never reads this cache."""
+    ttl = _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S)
+    if ttl <= 0:
+        return None
+    row = con.execute("SELECT value FROM config WHERE key=?", (PRVIEW_PREFIX + pr_url,)).fetchone()
+    try:
+        c = json.loads(row["value"]) if row else None
+        if c and 0 <= clock - float(c["at"]) < ttl and isinstance(c["pr"], dict) and head is not None and c["head"] == head:
+            _pt_count("pr_view_cached")
+            return c["pr"]
+    except (ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _pr_cache_put(con, pr_url, pr, clock):
+    """Store a successful probe (never an error: a failed gh read is retried next tick, not remembered as an answer)."""
+    if _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S) <= 0 or not isinstance(pr, dict):
+        return
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (PRVIEW_PREFIX + pr_url, json.dumps({"at": clock, "head": pr.get("headRefOid"), "pr": pr})))
+
+
+def gh_quota_low(con, clock):
+    """True when the GraphQL quota is below config gh_quota_min. The rateLimit query runs at most once per GH_QUOTA_READ_S (one tick;
+    the answer is kept in config gh_quota) and only when an optional probe is about to call gh. A failed read is "not low"
+    (these probes are optional; the merge gate does not use it) unless gh says the rate limit is exceeded, which is 0 left.
+    Low: one gh-quota-low event and one director mail per GH_QUOTA_ALERT_S."""
+    floor = _int_cfg(con, "gh_quota_min", 300)
+    if floor <= 0:
+        return False
+    row = con.execute("SELECT value FROM config WHERE key='gh_quota'").fetchone()
+    left = reset = None
+    try:
+        c = json.loads(row["value"]) if row else None
+        fresh = bool(c) and 0 <= clock - float(c["at"]) < GH_QUOTA_READ_S
+        if fresh:
+            left, reset = c["remaining"], c.get("reset")
+    except (ValueError, KeyError, TypeError):
+        fresh = False
+    if not fresh:
+        _pt_count("gh_quota_read")
+        try:
+            p = subprocess.run(["gh", "api", "graphql", "-f", f"query={GH_QUOTA_QUERY}"], capture_output=True, text=True,
+                               timeout=CI_WAKE_GH_TIMEOUT_S)
+            if p.returncode == 0:
+                rl = json.loads(p.stdout)["data"]["rateLimit"]
+                left, reset = int(rl["remaining"]), rl.get("resetAt")
+            elif re.search(r"rate limit", p.stderr or "", re.I):
+                left = 0
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            left = None
+        con.execute("INSERT INTO config(key,value) VALUES('gh_quota',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (json.dumps({"at": clock, "remaining": left, "reset": reset}),))
+    if left is None or left >= floor:
+        return False
+    if not _throttled(con, "gh-quota-low", clock, GH_QUOTA_ALERT_S):
+        _throttle_set(con, "gh-quota-low", clock)
+        msg = (f"GitHub GraphQL quota {left} left (gh_quota_min={floor}), resets {reset or '?'}. Optional tick probes (CI wake, red PR alert) "
+               "are skipped until it recovers; merge-gate reads are not skipped and fail closed. See docs/gh-quota.md.")
+        event(con, "tick", "gh-quota", "gh-quota-low", msg[:300])
+        send(con, "director", f"gh quota low: {left} left", msg, "report", sender="tick")
+    return True
+
+
+def pr_probe(con, pr_url, timeout, clock, head=None, optional=False, fetch=None):
+    """One PR probe for a tick step: the cached answer when fresh (pr_view_ttl_s, same head), else one gh call (`fetch`, default
+    _ci_wake_probe; an exception instance comes back as the answer and is never cached). optional=True: a cache miss while the
+    GraphQL quota is low returns None (skip) instead of calling gh."""
+    hit = _pr_cache_get(con, pr_url, clock, head)
+    if hit is not None:
+        return hit
+    if optional and gh_quota_low(con, clock):
+        return None
+    _pt_count("ci_wake_gh")
+    pr = (fetch or _ci_wake_probe)(pr_url, timeout)
+    _pr_cache_put(con, pr_url, pr, clock)
+    return pr
+
+
 def tick_ci_wake(con):
     """Tick step 1c': message the lead of a parked team when an in_review PR of the team is CLEAN with all checks green
     (or all checks done and one failed), once per (task, head sha); tick_wake_leads then wakes it on the unread mail.
@@ -14700,8 +14819,8 @@ def tick_ci_wake(con):
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
-            _pt_count("ci_wake_gh")
-            todo.append((t, k))
+            # the probe cache is only valid for the head origin has now (git ls-remote, one per tick, no GraphQL)
+            todo.append((t, k, head if head is not None else _ci_remote_head(k["branch"], batch)))
     if not todo:
         return
     try:
@@ -14712,13 +14831,30 @@ def tick_ci_wake(con):
         workers = int(cfg(con, "ci_wake_workers"))
     except (TypeError, ValueError):
         workers = 1
-    urls = [k["pr_url"] for _, k in todo]
+    results = [None] * len(todo)  # None = skipped (quota low); else the cached or probed PR dict, or the error
+    miss = []
+    for i, (_t, k, head) in enumerate(todo):
+        hit = _pr_cache_get(con, k["pr_url"], clock, head)
+        if hit is not None:
+            results[i] = hit
+        else:
+            miss.append(i)
+    if miss and gh_quota_low(con, clock):
+        miss = []  # optional step: no gh call while the GraphQL quota is low
+    for _ in miss:
+        _pt_count("ci_wake_gh")
+    urls = [todo[i][1]["pr_url"] for i in miss]
     if workers < 2 or len(urls) < 2:
-        results = [_ci_wake_probe(u, timeout) for u in urls]
+        probed = [_ci_wake_probe(u, timeout) for u in urls]
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            results = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
-    for (t, k), pr in zip(todo, results):
+            probed = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
+    for i, pr in zip(miss, probed):
+        results[i] = pr
+        _pr_cache_put(con, todo[i][1]["pr_url"], pr, clock)
+    for (t, k, _head), pr in zip(todo, results):
+        if pr is None:
+            continue
         lead = t["lead_agent"]
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
@@ -14778,12 +14914,13 @@ def tick_red_pr_owner(con):
         probe_key = f"red-pr-probe:{k['id']}:{head or ''}"
         if _throttled(con, probe_key, clock, CI_WAKE_RECHECK_S):
             continue  # probed lately: a green/pending/closed head costs one gh call per window, not per tick
-        _pt_count("ci_wake_gh")
         try:
             timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
         except ValueError:
             timeout = float(CI_WAKE_GH_TIMEOUT_S)
-        pr = _ci_wake_probe(k["pr_url"], timeout)
+        pr = pr_probe(con, k["pr_url"], timeout, clock, head=head, optional=True)
+        if pr is None:
+            continue  # quota low: no probe, no throttle mark, so the next tick tries again
         _throttle_set(con, probe_key, clock)
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {pr}"[:300])

@@ -3,9 +3,10 @@
 // stdin, exit 0 = allow, exit 2 = block with the reason on stderr.
 //
 // Every rule is ported, the public-text rule (T-0887) included. The decisions that read the factory DB (own goal,
-// test_sandbox, public-text repos, the coder's task worktree) are made from the guard export. No rule re-runs a
-// payload through the Python hook any more (the delegation, --py-hook <path>, stays for a DB value the export has no
-// row for); --py-hook still names the checkout the hook belongs to (ci/scrub_allowlist.txt for a push check).
+// test_sandbox, public-text repos, the coder's task worktree) are made from the guard export. One rule still
+// re-runs a payload through the Python hook (--py-hook <path>): the archive member list of a no-push tar/unzip
+// extraction (T-1001); the delegation also stays for a DB value the export has no row for. --py-hook still names
+// the checkout the hook belongs to (ci/scrub_allowlist.txt for a push check).
 // A panic or any internal error exits 2.
 package main
 

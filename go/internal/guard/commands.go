@@ -776,6 +776,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	}
+	if a.noPush() && name == "gh" {
+		if err := a.noPushGhWrite(rest); err != nil {
+			return err
+		}
+	}
 	if in(Copiers, name) { // R3: no copying/encoding/reading the real herdr binary
 		for _, x := range rest {
 			if strings.HasPrefix(x, "if=") || strings.HasPrefix(x, "of=") {

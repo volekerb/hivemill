@@ -38353,6 +38353,852 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api repos/o/r/issues -f title=x",
+"mask_quotes_pre": "gh api repos/o/r/issues -f title=x",
+"mask_quotes_raw": "gh api repos/o/r/issues -f title=x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/o/r/issues -f title=x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/o/r/issues -f title=x"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"gh",
+"api",
+"repos/o/r/issues",
+"-f",
+"title=x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"gh",
+"api",
+"repos/o/r/issues",
+"-f",
+"title=x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"mask_quotes_pre": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"mask_quotes_raw": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/o/r/pulls/1/merge -F merge_method=squash"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/o/r/pulls/1/merge -F merge_method=squash"
+},
+"segments_pre": [
+[
+0,
+53,
+[
+"gh",
+"api",
+"repos/o/r/pulls/1/merge",
+"-F",
+"merge_method=squash"
+]
+]
+],
+"segments_raw": [
+[
+0,
+53,
+[
+"gh",
+"api",
+"repos/o/r/pulls/1/merge",
+"-F",
+"merge_method=squash"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api x --raw-field a=b",
+"mask_quotes_pre": "gh api x --raw-field a=b",
+"mask_quotes_raw": "gh api x --raw-field a=b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --raw-field a=b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --raw-field a=b"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"gh",
+"api",
+"x",
+"--raw-field",
+"a=b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"gh",
+"api",
+"x",
+"--raw-field",
+"a=b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api x --field a=b",
+"mask_quotes_pre": "gh api x --field a=b",
+"mask_quotes_raw": "gh api x --field a=b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --field a=b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --field a=b"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"gh",
+"api",
+"x",
+"--field",
+"a=b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"gh",
+"api",
+"x",
+"--field",
+"a=b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api x --input body.json",
+"mask_quotes_pre": "gh api x --input body.json",
+"mask_quotes_raw": "gh api x --input body.json",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --input body.json"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api x --input body.json"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"gh",
+"api",
+"x",
+"--input",
+"body.json"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"gh",
+"api",
+"x",
+"--input",
+"body.json"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create v1",
+"mask_quotes_pre": "gh release create v1",
+"mask_quotes_raw": "gh release create v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create v1"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"gh",
+"release",
+"create",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"gh",
+"release",
+"create",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release edit v1",
+"mask_quotes_pre": "gh release edit v1",
+"mask_quotes_raw": "gh release edit v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release edit v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release edit v1"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"gh",
+"release",
+"edit",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"gh",
+"release",
+"edit",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release delete v1",
+"mask_quotes_pre": "gh release delete v1",
+"mask_quotes_raw": "gh release delete v1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release delete v1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release delete v1"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"gh",
+"release",
+"delete",
+"v1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"gh",
+"release",
+"delete",
+"v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release upload v1 f",
+"mask_quotes_pre": "gh release upload v1 f",
+"mask_quotes_raw": "gh release upload v1 f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release upload v1 f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release upload v1 f"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"gh",
+"release",
+"upload",
+"v1",
+"f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"gh",
+"release",
+"upload",
+"v1",
+"f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release delete-asset v1 f",
+"mask_quotes_pre": "gh release delete-asset v1 f",
+"mask_quotes_raw": "gh release delete-asset v1 f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release delete-asset v1 f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release delete-asset v1 f"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"gh",
+"release",
+"delete-asset",
+"v1",
+"f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"gh",
+"release",
+"delete-asset",
+"v1",
+"f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_pre": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_raw": "gh release create -R acme/new v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'"
+},
+"segments_pre": [
+[
+0,
+78,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+78,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'"
+},
+"segments_pre": [
+[
+0,
+71,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+71,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'"
+},
+"segments_pre": [
+[
+0,
+63,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+63,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'gh release create v1'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'gh release create v1'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'gh release create v1'"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'gh api x -F a=b'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'gh api x -F a=b'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'gh api x -F a=b'"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'"
+},
+"segments_pre": [
+[
+0,
+93,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+93,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mask_quotes_pre": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"segments_pre": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "gh pr create -R acme/old --title t --body b",
 "mask_quotes_pre": "gh pr create -R acme/old --title t --body b",
 "mask_quotes_raw": "gh pr create -R acme/old --title t --body b",
@@ -64168,6 +65014,592 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar f -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf a.tar f -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf a.tar f -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar f -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar f -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"tar",
+"-xf",
+"a.tar",
+"f",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"tar",
+"-xf",
+"a.tar",
+"f",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -- -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf a.tar -- -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf a.tar -- -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -- -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -- -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"tar",
+"-xf",
+"a.tar",
+"--",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"tar",
+"-xf",
+"a.tar",
+"--",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out --strip-components=1"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--strip-components=1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--strip-components=1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "TAR_OPTIONS=x tar -xf a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"TAR_OPTIONS=x",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"TAR_OPTIONS=x",
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf a.tar -f b.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -f b.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -f b.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"tar",
+"-xf",
+"a.tar",
+"-f",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"tar",
+"-xf",
+"a.tar",
+"-f",
+"b.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xfC a.tar @SCRATCH@/out",
+"mask_quotes_pre": "tar -xfC a.tar @SCRATCH@/out",
+"mask_quotes_raw": "tar -xfC a.tar @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xfC a.tar @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xfC a.tar @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"tar",
+"-xfC",
+"a.tar",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"tar",
+"-xfC",
+"a.tar",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"mask_quotes_pre": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"mask_quotes_raw": "tar -xf/tmp/a.tar -C @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf/tmp/a.tar -C @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf/tmp/a.tar -C @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"tar",
+"-xf/tmp/a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"tar",
+"-xf/tmp/a.tar",
+"-C",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -x a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "unzip -x a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "unzip -x a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -x a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -x a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"unzip",
+"-x",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"unzip",
+"-x",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -d @SCRATCH@/out -- a.zip",
+"mask_quotes_pre": "unzip -d @SCRATCH@/out -- a.zip",
+"mask_quotes_raw": "unzip -d @SCRATCH@/out -- a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -d @SCRATCH@/out -- a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -d @SCRATCH@/out -- a.zip"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"unzip",
+"-d",
+"@SCRATCH@/out",
+"--",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"unzip",
+"-d",
+"@SCRATCH@/out",
+"--",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"mask_quotes_pre": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"mask_quotes_raw": "tar -xf a.tar -C @SCRATCH@/out --exclude=x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out --exclude=x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xf a.tar -C @SCRATCH@/out --exclude=x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--exclude=x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"tar",
+"-xf",
+"a.tar",
+"-C",
+"@SCRATCH@/out",
+"--exclude=x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'tar -xf a.tar -C @SCRATCH@/out'"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -80290,48 +81722,38 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "gh release create -R acme/new v1 --notes x",
-"mask_quotes_pre": "gh release create -R acme/new v1 --notes x",
-"mask_quotes_raw": "gh release create -R acme/new v1 --notes x",
+"input": "gh api repos/o/r/pulls/1",
+"mask_quotes_pre": "gh api repos/o/r/pulls/1",
+"mask_quotes_raw": "gh api repos/o/r/pulls/1",
 "preprocess": {
 "bodies": [],
 "extras": [],
-"text": "gh release create -R acme/new v1 --notes x"
+"text": "gh api repos/o/r/pulls/1"
 },
 "preprocess_fold": {
 "bodies": [],
 "extras": [],
-"text": "gh release create -R acme/new v1 --notes x"
+"text": "gh api repos/o/r/pulls/1"
 },
 "segments_pre": [
 [
 0,
-42,
+24,
 [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
+"api",
+"repos/o/r/pulls/1"
 ]
 ]
 ],
 "segments_raw": [
 [
 0,
-42,
+24,
 [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
+"api",
+"repos/o/r/pulls/1"
 ]
 ]
 ],
@@ -80344,48 +81766,420 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
-"mask_quotes_pre": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
-"mask_quotes_raw": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"input": "gh api -X GET search/issues -f q=x",
+"mask_quotes_pre": "gh api -X GET search/issues -f q=x",
+"mask_quotes_raw": "gh api -X GET search/issues -f q=x",
 "preprocess": {
 "bodies": [],
 "extras": [],
-"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+"text": "gh api -X GET search/issues -f q=x"
 },
 "preprocess_fold": {
 "bodies": [],
 "extras": [],
-"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+"text": "gh api -X GET search/issues -f q=x"
 },
 "segments_pre": [
 [
 0,
-76,
+34,
 [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+"api",
+"-X",
+"GET",
+"search/issues",
+"-f",
+"q=x"
 ]
 ]
 ],
 "segments_raw": [
 [
 0,
-76,
+34,
 [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+"api",
+"-X",
+"GET",
+"search/issues",
+"-f",
+"q=x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method GET x -F per_page=5",
+"mask_quotes_pre": "gh api --method GET x -F per_page=5",
+"mask_quotes_raw": "gh api --method GET x -F per_page=5",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method GET x -F per_page=5"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method GET x -F per_page=5"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"gh",
+"api",
+"--method",
+"GET",
+"x",
+"-F",
+"per_page=5"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"gh",
+"api",
+"--method",
+"GET",
+"x",
+"-F",
+"per_page=5"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh pr view 1",
+"mask_quotes_pre": "gh pr view 1",
+"mask_quotes_raw": "gh pr view 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh pr view 1"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"view",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"gh",
+"pr",
+"view",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import os; os.system(\"gh release list\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh release list\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh release list\")'"
+},
+"segments_pre": [
+[
+0,
+52,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+52,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'"
+},
+"segments_pre": [
+[
+0,
+71,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+71,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'gh release view v1'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'gh release view v1'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'gh release view v1'"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method=GET x -F a=b",
+"mask_quotes_pre": "gh api --method=GET x -F a=b",
+"mask_quotes_raw": "gh api --method=GET x -F a=b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=GET x -F a=b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=GET x -F a=b"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"gh",
+"api",
+"--method=GET",
+"x",
+"-F",
+"a=b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"gh",
+"api",
+"--method=GET",
+"x",
+"-F",
+"a=b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -XGET x -f a=b",
+"mask_quotes_pre": "gh api -XGET x -f a=b",
+"mask_quotes_raw": "gh api -XGET x -f a=b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XGET x -f a=b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XGET x -f a=b"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"gh",
+"api",
+"-XGET",
+"x",
+"-f",
+"a=b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"gh",
+"api",
+"-XGET",
+"x",
+"-f",
+"a=b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'"
+},
+"segments_pre": [
+[
+0,
+65,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+65,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
 ]
 ]
 ],
@@ -83794,52 +85588,6 @@
 "hello",
 "log",
 "-1"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
-"input": "gh pr view 1",
-"mask_quotes_pre": "gh pr view 1",
-"mask_quotes_raw": "gh pr view 1",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "gh pr view 1"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "gh pr view 1"
-},
-"segments_pre": [
-[
-0,
-12,
-[
-"gh",
-"pr",
-"view",
-"1"
-]
-]
-],
-"segments_raw": [
-[
-0,
-12,
-[
-"gh",
-"pr",
-"view",
-"1"
 ]
 ]
 ],
@@ -93710,7 +95458,7 @@
 ]
 }
 },
-"corpus_commands": 1716,
+"corpus_commands": 1753,
 "edge_inputs": 97,
 "python": "3.13"
 }
