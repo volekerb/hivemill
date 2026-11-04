@@ -427,6 +427,9 @@ func (a *Analyzer) script(text string, depth int) error {
 					if err := a.cfgRedirect(r.target); err != nil {
 						return err
 					}
+					if err := a.protRedirect(r.target); err != nil {
+						return err
+					}
 					if err := a.persistRedirect(r.target); err != nil {
 						return err
 					}
