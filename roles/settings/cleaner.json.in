@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role cleaner"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role cleaner"
           }
         ]
       },
@@ -109,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role cleaner"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role cleaner"
           }
         ]
       }

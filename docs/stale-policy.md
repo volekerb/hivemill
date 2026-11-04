@@ -20,11 +20,26 @@ Effects:
 
 - `factory judge --merge` no longer refuses with `STALE-ONLY`; every other check (verdict head-binding, CI/local gate,
   public-text guard, noreply author, push policy, `--match-head-commit`) is unchanged. The judge verdict reason gets
-  `merged behind main by stale_policy=behind_ok (strict=false on GitHub)`.
+  `merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base`.
+  The exception: when `.github/workflows/tests.yml` changed on main since the merge-base (T-1000), `behind_ok` does not
+  apply: the judge refreshes first, the mechanical merger refuses with `STALE-ONLY`, and the reason carries no `behind_ok` text.
 - The reviewer, qa and judge spawn pre-check skips `refresh_branch` for such a PR.
 - `judge_pr_ready` treats BEHIND as ready.
 
 Backstop: push CI on main, the red-main freeze (T-0623, not yet wired: TODO in `cmd_judge`) and the fix-or-revert task.
+
+## Wait for the main push run (T-1029, flag `judge_wait_main_run`, default `0`)
+
+`red_main_freeze` reads completed runs only, so merges landed while the push run for main's head was still running. With
+`judge_wait_main_run=1`, `factory judge --merge` (and `--train`) refuses, exit 4, event `judge-blocked`, unless the newest
+`tests.yml` push run on main whose `headSha` equals the current `commits/main` sha is completed+success:
+
+- run in progress, queued, or none yet for the head: refused (`main run is in_progress ...`);
+- run failed: refused, except the task named as the red-main fix (`factory redmain fix`), which may merge;
+- `gh` cannot answer: refused (`main run unknown`).
+
+Throughput: merges become serial at about one per main run, 25-30 min each, unless guard-equiv is cut (T-1009). Rollback:
+`factory config judge_wait_main_run 0`.
 
 ## Reviewer and qa spawn (T-0488)
 

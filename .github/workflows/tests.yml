@@ -133,12 +133,17 @@ jobs:
       - run: go build ./...
         if: steps.tier.outputs.go == 'true'
 
-  # GUARD_IMPL=diff: every guard hook unittest module runs Python and Go together (docs/guard-diff.md).
-  # Its own job (own 30 min cap) so a slow unittest run cannot eat the corpus step's time; the unittest aggregate needs both jobs.
-  guard-unittest:
-    name: guard-unittest
+  # GUARD_IMPL=diff: every guard hook unittest runs Python and Go together (docs/guard-diff.md).
+  # T-1039: one 30 min job hit its cap, so the test ids (not modules: one module holds ~21 min) are split round-robin over
+  # 3 shards (ci/guard_impl_unittest.py run --shard I --shards N). Keep the matrix equal to --shards below.
+  guard-unittest-shard:
+    name: guard-unittest-shard (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -157,7 +162,29 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
       - name: Guard hook unittests (GUARD_IMPL=diff)
-        run: GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run
+        run: |
+          start=$(date +%s)
+          rc=0
+          GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --shard "${{ matrix.shard }}" --shards 3 || rc=$?
+          echo "guard-unittest shard ${{ matrix.shard }}: job time $(( $(date +%s) - start ))s rc=$rc"
+          exit "$rc"
+
+  # Fan-in: the required check name stays exactly "guard-unittest"; any shard result but success (failed, cancelled, skipped) fails it.
+  guard-unittest:
+    name: guard-unittest
+    needs: [guard-unittest-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every guard-unittest shard succeeded
+        env:
+          SHARD_RESULT: ${{ needs.guard-unittest-shard.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "guard-unittest-shard result: $SHARD_RESULT (all 3 shards must succeed)" >&2
+            exit 1
+          fi
 
   # ci/guard_diff.py base-vs-PR on the real corpus for guard-path PRs (tool from the BASE commit), its own cap.
   # Steps skip when no guard path changed, so the job is green (not skipped) then.
@@ -242,9 +269,8 @@ jobs:
           echo "guard_diff failing runs: $rc"
           exit $rc
 
-  # G-016 T-0355: the Go/Python equivalence gate. the strict Go-vs-Python guard_diff gate (corpus x every role x both modes)
-  # and the other hook_run-routed unittest modules under GUARD_IMPL=diff (listed at runtime, not named here).
-  # Real steps run on guard-path PRs and pushes to main; otherwise the job succeeds as skipped.
+  # G-016 T-0355: the Go/Python equivalence gate, strict part: the strict Go-vs-Python guard_diff gate (corpus x every role x both modes).
+  # Real steps run on guard-path PRs and pushes to main; otherwise the job succeeds as skipped. The routed unittest modules run in guard-equiv-rest.
   guard-equiv:
     name: guard-equiv
     runs-on: ubuntu-latest
@@ -270,6 +296,21 @@ jobs:
           # A failing or empty list must not narrow the path set: fail open (run), never skip.
           if ! a=$(python3 ci/guard_impl_unittest.py list) || ! b=$(python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$a" ] || [ -z "$b" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "test list failed or empty: running"; exit 0
+          fi
+          # T-1008: coverage must not shrink unseen. Read the BASE routed lists from a plain export of BASE_SHA (git archive | tar:
+          # no checkout, no hooks, no PR file read; the job token is read-only). The tool run on the export is main's own copy at BASE_SHA; the PR's files are never executed for this read.
+          # A module routed at BASE but missing from the HEAD list (deleted, marked python-only, hook_run removed) runs the gate.
+          # An unreadable or empty BASE list fails safe: run=true.
+          basedir=$(mktemp -d)
+          if ! git archive "$BASE_SHA" ci tests | tar -x -C "$basedir" \
+             || ! ba=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list) \
+             || ! bb=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$ba" ] || [ -z "$bb" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "base test list unreadable or empty: running"; exit 0
+          fi
+          printf '%s\n' "$a" "$b" | sed '/^$/d' | sort -u > "$basedir/head.lst"
+          printf '%s\n' "$ba" "$bb" | sed '/^$/d' | sort -u > "$basedir/base.lst"
+          if [ -n "$(comm -23 "$basedir/base.lst" "$basedir/head.lst")" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "a routed module left the list since base: running"; exit 0
           fi
           pats=$(mktemp)
           { printf '%s\n' "$a" "$b" | sed -e '/^$/d' -e 's|^|tests/|'; printf '%s\n' tests/guard_impl.py tests/test_guard_build.py tests/test_guard_impl.py tests/test_guard_impl_coverage.py; } > "$pats"
@@ -305,6 +346,81 @@ jobs:
       - name: guard_diff strict Go gate (corpus, all roles, both modes)
         if: steps.paths.outputs.run == 'true'
         run: python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --mode both --strict
+
+  # G-016 T-1009: the other half of the equivalence gate, split out so each job stays under 15 min: the other hook_run-routed unittest
+  # modules under GUARD_IMPL=diff (listed at runtime, not named here) and the REAL_GO build tests. Same path gating as guard-equiv.
+  guard-equiv-rest:
+    name: guard-equiv-rest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard paths changed?
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: running"; exit 0; fi
+          if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
+          changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
+          # Test sources the real steps run (T-0989): the diff set + routed-rest modules, listed at runtime (no module named here).
+          # A failing or empty list must not narrow the path set: fail open (run), never skip.
+          if ! a=$(python3 ci/guard_impl_unittest.py list) || ! b=$(python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$a" ] || [ -z "$b" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "test list failed or empty: running"; exit 0
+          fi
+          # T-1008: coverage must not shrink unseen. Read the BASE routed lists from a plain export of BASE_SHA (git archive | tar:
+          # no checkout, no hooks, no PR file read; the job token is read-only). The tool run on the export is main's own copy at BASE_SHA; the PR's files are never executed for this read.
+          # A module routed at BASE but missing from the HEAD list (deleted, marked python-only, hook_run removed) runs the gate.
+          # An unreadable or empty BASE list fails safe: run=true.
+          basedir=$(mktemp -d)
+          if ! git archive "$BASE_SHA" ci tests | tar -x -C "$basedir" \
+             || ! ba=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list) \
+             || ! bb=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$ba" ] || [ -z "$bb" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "base test list unreadable or empty: running"; exit 0
+          fi
+          printf '%s\n' "$a" "$b" | sed '/^$/d' | sort -u > "$basedir/head.lst"
+          printf '%s\n' "$ba" "$bb" | sed '/^$/d' | sort -u > "$basedir/base.lst"
+          if [ -n "$(comm -23 "$basedir/base.lst" "$basedir/head.lst")" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "a routed module left the list since base: running"; exit 0
+          fi
+          pats=$(mktemp)
+          { printf '%s\n' "$a" "$b" | sed -e '/^$/d' -e 's|^|tests/|'; printf '%s\n' tests/guard_impl.py tests/test_guard_build.py tests/test_guard_impl.py tests/test_guard_impl_coverage.py; } > "$pats"
+          if printf '%s\n' "$changed" | grep -F -x -q -f "$pats"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "guard test source changed: running"; exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/guard_impl_unittest\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.paths.outputs.run == 'true'
+        with:
+          python-version: "3.13"
+      - name: Install zsh
+        if: steps.paths.outputs.run == 'true'
+        run: sudo apt-get install -y zsh
+      - uses: actions/setup-go@v5
+        if: steps.paths.outputs.run == 'true'
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
+      - name: Build worker-guard once
+        if: steps.paths.outputs.run == 'true'
+        run: |
+          (cd go && go build -o "$RUNNER_TEMP/worker-guard" ./cmd/worker-guard)
+          echo "GUARD_GO_BIN=$RUNNER_TEMP/worker-guard" >> "$GITHUB_ENV"
+          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run
+          mkdir -p "$HOME/.local"
+          ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          ls -l "$HOME/.local/go/bin/go"
       - name: Routed unittest modules under GUARD_IMPL=diff (not in guard-diff)
         if: steps.paths.outputs.run == 'true'
         run: |
@@ -321,7 +437,7 @@ jobs:
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv]
+    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -333,6 +449,7 @@ jobs:
           GUARD_UNITTEST_RESULT: ${{ needs.guard-unittest.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
           GUARD_EQUIV_RESULT: ${{ needs.guard-equiv.result }}
+          GUARD_EQUIV_REST_RESULT: ${{ needs.guard-equiv-rest.result }}
         run: |
           fail=0
           if [ "$SHARD_RESULT" != "success" ]; then
@@ -353,6 +470,10 @@ jobs:
           fi
           if [ "$GUARD_EQUIV_RESULT" != "success" ]; then
             echo "guard-equiv result: $GUARD_EQUIV_RESULT (Go/Python equivalence must succeed)" >&2
+            fail=1
+          fi
+          if [ "$GUARD_EQUIV_REST_RESULT" != "success" ]; then
+            echo "guard-equiv-rest result: $GUARD_EQUIV_REST_RESULT (routed modules and REAL_GO must succeed)" >&2
             fail=1
           fi
           exit $fail

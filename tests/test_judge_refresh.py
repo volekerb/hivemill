@@ -324,7 +324,7 @@ class JudgeRefreshTests(FactoryTestCase):
         self.ok_verdicts()
         self.write_state(strict=False)
 
-    def test_g7_behind_ok_refreshes_when_main_changed_a_file_the_pr_also_changes(self):
+    def test_g7b_behind_ok_refreshes_when_main_changed_a_file_the_pr_also_changes(self):
         self._pr_edits_base_main_edits_other_line()
         p = self.judge()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
@@ -344,6 +344,17 @@ class JudgeRefreshTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(len(self.events("refreshed")), 1)
         self.assertMergedPinned(self.remote_ref(f"refs/heads/{BRANCH}"))
+
+    def test_g7_stale_policy_doc_quotes_current_reason_and_tests_yml_exception(self):
+        # T-1010: docs/stale-policy.md must quote the reason text the judge writes and name the T-1000 exception
+        root = Path(__file__).resolve().parent.parent
+        reasons = [l for l in (root / "bin" / "factory_cli.py").read_text().splitlines() if l.startswith("BEHIND_OK_NOTE = ")]
+        self.assertEqual(len(reasons), 1)
+        note = reasons[0].split('"')[1]
+        doc = (root / "docs" / "stale-policy.md").read_text()
+        self.assertIn(note, doc)
+        self.assertIn(".github/workflows/tests.yml", doc)
+        self.assertIn("T-1000", doc)
 
     def _strict_refreshes(self, strict):
         self.main_commit()

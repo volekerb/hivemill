@@ -182,6 +182,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
+    "judge_wait_main_run": "0",  # 1 = judge merges wait while the tests.yml push run for the current main head is not completed+success (G-022 T-1029)
     "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
@@ -234,7 +235,9 @@ DEFAULT_CONFIG = {
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
-    "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
+    "idle_coder_reap": "off",    # off | dry-run | on: the tick stops a coder idle past idle_coder_reap_s with a clean tree, pushed PR head, no mail, no shell (T-1028, docs/lead-wake.md)
+    "idle_coder_reap_s": "900",  # seconds a coder must be idle/done before idle_coder_reap acts
+    "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
     "scout_max_minutes": "20",   # wall budget of one scout run; over it the tick force-stops the scout
@@ -729,9 +732,10 @@ def evaluator_settings(rdir):
         for group in groups:
             for hook in group.get("hooks", []):
                 cmd = hook.get("command", "")
-                tail = cmd.partition("worker-guard.py")[2]
-                if "worker-guard.py" not in cmd:
-                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                m = re.fullmatch(r"(?:python3|sh) \S*/worker-guard(?:\.py)?( .*)?", cmd)  # the python3 form or the sh shim
+                if not m:
+                    die(f"evaluator hook command {cmd!r} runs neither `python3 .../worker-guard.py` nor `sh .../worker-guard`; fix roles/settings/evaluator.json.in", 3)
+                tail = m.group(1) or ""
                 hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
                 n += 1
     if not n:
@@ -1815,6 +1819,13 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
         if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
             return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    if runtime == "cursor" and role:
+        from web import cursor_limits
+        slug = role_model(con, role, org="cursor")
+        ent = cursor_limits.load_state(con).get(slug) or {}
+        if ent.get("status") == "limited":
+            reset = ent.get("reset") or "unknown date"
+            return False, f"Cursor pane limit: {slug} limited until {reset}", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
@@ -3220,13 +3231,19 @@ def resolve_recipient(con, to, org=None):
         to = "boss"  # the boss is the owner's interface; it relays
     if to in orgs.SINGLETON_ROLES:
         cand = oname(con, org, to)
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (cand,)).fetchone():
+        live = ("live", "starting", "queued")
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN (?,?,?)", (cand, *live)).fetchone():
             return cand
-        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') "
-                        "ORDER BY started DESC", (to,)).fetchall()
+        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN (?,?,?) "
+                        "ORDER BY started DESC", (to, *live)).fetchall()
         for x in r:
             if agent_org(con, x["name"]) == org:
                 return x["name"]
+        if (org == orgs.DEFAULT_ORG and (cfg(con, "org_prefix_default") or "0").strip() == "1"
+                and not orgs.prefix_of(to)):
+            leg = con.execute("SELECT name FROM agents WHERE name=? AND status IN (?,?,?)", (to, *live)).fetchone()
+            if leg and agent_org(con, leg["name"]) == org:
+                return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
         r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
@@ -3250,7 +3267,8 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
-    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry.
+    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry
+    (matched on the row's pane_id; unlike reap_exited_panes it does not follow a renumbered host pane).
     Returns True when the pane is released or there was nothing to release. Returns False when the pane could not be
     confirmed gone: the row is then exited with pane_id KEPT (so reap_exited_panes can still match it), one
     "stale-pane-close-failed" event is logged per attempt (a caller that retries each tick logs one each
@@ -4445,7 +4463,7 @@ def train_merge(con, plan, upto, run, owner_repo):
                     return stop(f"origin/main moved during the gate ({plan['main'][:8]} -> {(m or '?')[:8]}{'; ' + why if why else ''})")
             slugs = _judge_slugs(con, t, owner_repo)
             problems = next(filter(None, (_push_policy(con, x) for x in slugs)), None) or red_main_refusal(con, slugs, tid) \
-                or merge_freeze_refusal(con)
+                or main_run_refusal(con, slugs, tid) or merge_freeze_refusal(con)
             if problems:
                 event(con, "task", tid, "judge-blocked", problems)
                 return stop(problems)
@@ -4491,7 +4509,8 @@ def judge_train_run(con, plan, proj):
     steps, n = plan["steps"], len(plan["steps"])
     t0 = con.execute("SELECT * FROM tasks WHERE id=?", (steps[0]["task"],)).fetchone()
     owner_repo = "/".join(t0["pr_url"].split("/")[3:5])
-    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo))
+    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo)) \
+        or main_run_refusal(con, _judge_slugs(con, t0, owner_repo))
     if frozen:  # the MAIN-RED hold and the freeze apply to a train like to any merge
         event(con, "task", steps[0]["task"], "judge-blocked", frozen)
         con.commit()
@@ -4995,7 +5014,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
-        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task) or main_run_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
         if red:
             event(con, "task", a.task, "judge-blocked", red)
             die(f"merge refused: {red}; nothing merged", 4)
@@ -5823,6 +5842,42 @@ def red_main_refusal(con, slugs, task_id=None):
     return None
 
 
+def main_head_run(slug):
+    """(head sha, newest tests.yml push run on main whose headSha is that head, or None) for `slug`. Raises OSError,
+    ValueError or subprocess.TimeoutExpired when gh cannot tell (the caller refuses: it cannot decide)."""
+    p = subprocess.run(["gh", "api", f"repos/{slug}/commits/main", "--jq", ".sha"], capture_output=True, text=True, timeout=30, env=gh_git_env())
+    head = p.stdout.strip()
+    if p.returncode != 0 or not head:
+        raise OSError(f"gh api commits/main exit {p.returncode}: {p.stderr.strip()}")
+    p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                        "--limit", "10", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                       capture_output=True, text=True, timeout=30, env=gh_git_env())
+    if p.returncode != 0:
+        raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
+    return head, next((r for r in json.loads(p.stdout) if r.get("headSha") == head), None)
+
+
+def main_run_refusal(con, slugs, task_id=None):
+    """Why a judge merge into one of `slugs` must wait (flag judge_wait_main_run, default off): the tests.yml push run for the
+    current main head is not completed+success. A run in progress or no run yet holds every merge; a failed run holds all but
+    the named red-main fix task (it is what lifts the freeze). A gh error refuses (cannot decide). None when the flag is off."""
+    if cfg(con, "judge_wait_main_run") != "1":
+        return None
+    for slug in slugs:
+        st = red_main_state(con, slug)
+        fix = bool(st and task_id and st.get("task") == task_id)
+        try:
+            head, run = main_head_run(slug)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+            return f"main run unknown on {slug}: {e}; merges wait until gh answers (judge_wait_main_run=1)"
+        if run is None or run.get("status") != "completed":
+            state = "has not started" if run is None else f"is {run.get('status') or 'unknown'}"
+            return f"main run {state} for {slug} head {head[:8]} ({(run or {}).get('url') or 'no url'}); merges wait for it to finish (judge_wait_main_run=1)"
+        if run.get("conclusion") != "success" and not fix:
+            return f"main run {run.get('databaseId')} on {slug} head {head[:8]} concluded {run.get('conclusion')} ({run.get('url') or 'no url'}); merges wait for a green run (judge_wait_main_run=1)"
+    return None
+
+
 def _red_main_set(con, slug, st):
     key = f"red_main:{slug}"
     if st is None:
@@ -5919,6 +5974,17 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
+def _red_main_kept_text(con, tid):
+    """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
+    may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
+    row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
+    st = row["status"] if row else ""
+    if st in ("done", "cancelled"):
+        return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
+                f"(director: factory redmain fix <repo> <task>). No task was filed automatically.")
+    return f"Fix task {tid} is still open; no new task filed."
+
+
 def red_main_check(con):
     """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
     project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
@@ -5952,15 +6018,17 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or (old or {}).get("task") or "",
+                                          "task": tid or kept,
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else "No active goal for the project: file the revert task by hand.")
+                        if tid else _red_main_kept_text(con, kept)
+                        if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
                 mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
@@ -6839,13 +6907,33 @@ EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before 
 EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
 
 
+def _pane_idle_in_cwd(h, pane, row_cwd):
+    """True when host agent `h` is done or idle (never working) and its pane's cwd equals the row's recorded cwd
+    (a ' (deleted)' suffix ignored). Anything unknown (no row cwd, pane list unavailable) is False: keep the pane."""
+    if h.get("agent_status") not in ("done", "idle") or not row_cwd:
+        return False
+    r = herdr("pane", "list", check=False)
+    if not isinstance(r, dict) or not isinstance(r.get("panes"), list):
+        return False
+
+    def norm(c):
+        return os.path.normpath(c[:-len(" (deleted)")] if c.endswith(" (deleted)") else c)
+    want = norm(row_cwd)
+    return any(p.get("pane_id") == pane and isinstance(p.get(k), str) and p[k] and norm(p[k]) == want
+               for p in r["panes"] for k in ("cwd", "foreground_cwd"))
+
+
 def reap_exited_panes(con, agents):
     """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
     one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
     and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
-    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
-    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
-    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    silently on the next run. A pane qualifies only when the host lists it under the exact name of an agents row that,
+    re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
+    stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
+    the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
+    names no session, the pane closes only if its agent_status is done/idle (never working) and its cwd equals the row's
+    recorded cwd (' (deleted)' suffix ignored).
+    Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
         mode = cfg(con, "exited_pane_reap_mode")
@@ -6862,8 +6950,13 @@ def reap_exited_panes(con, agents):
             if not name or not pane:
                 continue
             r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
-            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
-                continue
+            if not r or r["status"] != "exited" or r["role"] not in EXITED_PANE_ROLES:
+                continue  # match on the exact name only: the row's pane_id can be stale, so act on the HOST's pane id
+            sess = (h.get("agent_session") or {}).get("value")
+            if sess and sess != r["session_id"]:
+                continue  # the pane runs another session (a newer agent under this name): never ours to close
+            if not sess and not _pane_idle_in_cwd(h, pane, r["cwd"]):
+                continue  # session unknown: only an idle/done pane sitting in this row's own cwd is provably its leftover
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
@@ -6890,6 +6983,170 @@ def reap_exited_panes(con, agents):
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "exited-pane-reap", "exited-pane-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+IDLE_CODER_MAX_PER_TICK = 3
+IDLE_CODER_AGENT_PROCS = ("claude", "node")   # the agent itself; any other foreground process is a running command
+
+
+def _pane_busy(pane):
+    """True when the pane's foreground has a process other than the agent; unreadable = True (fail safe)."""
+    info = herdr("pane", "process-info", "--pane", pane, check=False) if pane else None
+    pi = info.get("process_info") if isinstance(info, dict) else None
+    fg = pi.get("foreground_processes") if isinstance(pi, dict) else None
+    if not isinstance(fg, list):
+        return True
+    for x in fg:
+        argv = x.get("argv") if isinstance(x, dict) else None
+        n = (x.get("name") if isinstance(x, dict) else str(x)) or (argv[0] if isinstance(argv, list) and argv else "")
+        parts = str(n).split()
+        if os.path.basename(parts[0] if parts else "") not in IDLE_CODER_AGENT_PROCS:
+            return True
+    return False
+
+
+IDLE_SHELLS = ("zsh", "bash", "sh", "dash", "fish")
+
+
+def _agent_shells_busy(name):
+    """True when any shell runs under agent `name`'s claude process (Bash-tool shells sit in their own session, so the pane
+    foreground misses them; a CI-watch shell protects too, it ends on its own). No claude process or /proc unreadable = True."""
+    root = _serve_proc_root()
+    try:
+        pids = [int(p.name) for p in root.iterdir() if p.name.isdigit()]
+    except OSError:
+        return True
+    kids, claude = {}, []
+    for pid in pids:
+        st = _orphan_stat(pid)
+        if st:
+            kids.setdefault(st[0], []).append(pid)
+        argv = _serve_argv(pid)
+        if argv and os.path.basename(argv[0]) == "claude" and (_orphan_env(pid) or {}).get("FACTORY_AGENT") == name:
+            claude.append(pid)
+    if not claude:
+        return True
+    todo, seen = list(claude), set()
+    while todo:
+        for c in kids.get(todo.pop(), []):
+            if c in seen:
+                continue
+            seen.add(c)
+            todo.append(c)
+            argv = _serve_argv(c)
+            if argv and os.path.basename(argv[0]).lstrip("-") in IDLE_SHELLS:
+                return True
+    return False
+
+
+def idle_coder_blocker(con, r, t):
+    """Why live coder row `r` (task row `t`) must not be stopped now, or None when it may be."""
+    if r["stop_requested_at"]:
+        return "already stopping"
+    if not t or t["status"] not in ("in_review", "in_progress") or not t["pr_url"]:
+        return "no PR on an in_review/in_progress task"
+    if con.execute("SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL", (r["name"],)).fetchone():
+        return "unread mail"
+    wt = t["worktree"]
+    if not wt or not Path(wt).is_dir():
+        return "worktree unreadable"
+    rc, dirty = _git_out(wt, "status", "--porcelain")
+    if rc != 0 or dirty:
+        return "dirty or unreadable working tree"
+    rc, head = _git_out(wt, "rev-parse", "HEAD")
+    if rc != 0 or not head:
+        return "HEAD unreadable"
+    ok, why = pr_pushed_head_ok(t["pr_url"], head)
+    if not ok:
+        return why
+    if _pane_busy(r["pane_id"]) or _agent_shells_busy(r["name"]):
+        return "a process runs in the pane"
+    return None
+
+
+def reap_idle_coders(con, agents):
+    """Tick hook (T-1028), per config idle_coder_reap off|dry-run|on (unknown = dry-run): a live coder the host reports
+    idle/done for more than idle_coder_reap_s (first-seen-idle clock kept in `throttle`, reset when it works), on an
+    in_review/in_progress task with a PR, free of unread mail, clean tree, local HEAD == the PR head, nothing running in
+    its pane, is stopped with a reason and a task note (the review autospawn / T-1004 paths bring the work back). dry-run
+    logs one "idle-coder-would-stop" per idle episode and stops nothing. At most 3 stops per tick. Coders only."""
+    try:
+        mode = cfg(con, "idle_coder_reap")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        rows = con.execute("SELECT * FROM agents WHERE status='live' AND role='coder'").fetchall()
+        if mode == "off" or not agents:
+            if mode == "off":  # flag off: forget the clocks so a later switch-on starts from zero
+                con.execute("DELETE FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'")
+            return
+        try:
+            limit = int(cfg(con, "idle_coder_reap_s"))
+        except ValueError:
+            return  # a bad threshold never stops anyone
+        try:
+            clock = digest_clock().timestamp()
+        except FactoryNowError:
+            clock = time.time()
+        by_name = {x.get("name"): x for x in agents if x.get("name")}
+        live_keys = {f"{p}{r['name']}" for r in rows for p in ("idlereap:", "idlereap-dry:")}
+        for k in con.execute("SELECT key FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'").fetchall():
+            if k["key"] not in live_keys:  # an exited/lost agent's clock must not carry over to a reused name
+                con.execute("DELETE FROM throttle WHERE key=?", (k["key"],))
+        due = []
+        for r in rows:
+            key = f"idlereap:{r['name']}"
+            h = by_name.get(r["name"])
+            if not h or h.get("agent_status") not in ("idle", "done"):
+                con.execute("DELETE FROM throttle WHERE key IN (?,?)", (key, f"idlereap-dry:{r['name']}"))
+                continue
+            since = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if since is None:
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(clock)))
+                continue
+            if clock - float(since["ts"]) > limit:
+                due.append((float(since["ts"]), r))
+        stopped = 0
+        for since, r in sorted(due, key=lambda x: x[0]):
+            if mode == "on" and stopped >= IDLE_CODER_MAX_PER_TICK:
+                break
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+            if idle_coder_blocker(con, r, t) is not None:
+                continue
+            name = r["name"]
+            idle_s = int(clock - since)
+            detail = {"agent": name, "task": r["task_id"], "idle_s": idle_s, "threshold_s": limit}
+            if mode == "dry-run":
+                dkey = f"idlereap-dry:{name}"
+                if con.execute("SELECT 1 FROM throttle WHERE key=?", (dkey,)).fetchone() is None:
+                    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (dkey, str(clock)))
+                    event_as(con, "tick", "agent", name, "idle-coder-would-stop", detail)
+                continue
+            reason = (f"idle_coder_reap: idle {idle_s}s (> {limit}s), working tree clean, PR head pushed, no mail: "
+                      "nothing left for you to do; the tick brings the task back when it needs a coder")
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
+                               "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (now(), name)).rowcount != 1:
+                    con.execute("ROLLBACK")
+                    continue
+                send(con, name, "STOP", reason + "\nStop work now. Push any work in progress to your branch (a WIP commit "
+                     "is fine), then run factory done '<stopped: pushed sha|nothing; state>'", "decision",
+                     r["goal_id"], r["task_id"], sender="tick")
+                event_as(con, "tick", "agent", name, "stop-requested", {"by": "tick", "reason": reason})
+                event_as(con, "tick", "agent", name, "idle-coder-stopped", detail)
+                event_as(con, "tick", "task", r["task_id"], "note", f"tick stopped idle coder {name}: {reason}")
+                con.execute("COMMIT")
+            except BaseException:
+                if con.in_transaction:
+                    con.execute("ROLLBACK")
+                raise
+            stopped += 1
+            esc_wait_nudge(con, name, "📬 STOP from tick: run factory inbox now and follow the STOP order.", "STOP order",
+                           defer=True)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "idle-coder-reap", "idle-coder-reap-failed", str(e)[:300])
         except Exception:  # noqa: BLE001
             pass
 
@@ -12738,6 +12995,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("reap_loop")
     reap_exited_panes(con, agents)
     _pt_lap("exited_panes")
+    reap_idle_coders(con, agents)
+    _pt_lap("idle_coders")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
     _pt_lap("drift")
 
