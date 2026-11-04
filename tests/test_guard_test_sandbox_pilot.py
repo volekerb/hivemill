@@ -8,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+import guard_impl
 from guard_impl import hook_run
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -112,10 +114,22 @@ class TestSandboxRoutingTests(unittest.TestCase):
         notable = os.path.join(self.tmp, "notable")
         os.makedirs(os.path.join(notable, "db"))
         sqlite3.connect(os.path.join(notable, "db", "factory.db")).close()  # valid DB, no config table
-        for home in (missing, garbage, notable):
+        for home in (missing, notable):
             for role in ("coder", "qa"):
                 for r in RUNNERS:
                     self.assert_allowed(r, role, home)
+        # M20992: a db/factory.db that is not SQLite gets no guard export seeded; Go fails closed (tighter than
+        # Python, which falls back). Python is asserted exactly as before, Go separately.
+        for role in ("coder", "qa"):
+            for r in RUNNERS:
+                with mock.patch.dict(os.environ, {"GUARD_IMPL": "python"}):
+                    self.assert_allowed(r, role, garbage)
+                if guard_impl.impl() in ("go", "diff"):
+                    with mock.patch.dict(os.environ, {"GUARD_IMPL": "go"}):
+                        p = self.run_hook(r, role, garbage)
+                    self.assertEqual(p.returncode, 2, f"go must fail closed ({role}): {r!r}\nstderr={p.stderr}")
+                    self.assertIn("failing closed", p.stderr)
+                    self.assertIn("guard-export.json", p.stderr)
 
     # item 4
     def test_item4_other_roles_not_newly_denied_when_enabled(self):
