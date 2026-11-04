@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import unittest
 
+import harness
 from guard_impl import hook_run
 from test_worker_guard_git import GitGuardBase
 
@@ -87,18 +88,15 @@ class JudgeMergedTreeResidue(unittest.TestCase):
     reads back from the main checkout, exports (git archive stands in for factory src, which needs the live DB), is
     removed; refs other than refs/remotes/origin/*, HEAD and the working trees are unchanged."""
 
-    def git(self, *a, cwd):
-        env = {**os.environ, "GIT_AUTHOR_NAME": "zz", "GIT_AUTHOR_EMAIL": "zz@example.invalid",
-               "GIT_COMMITTER_NAME": "zz", "GIT_COMMITTER_EMAIL": "zz@example.invalid"}
-        return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, env=env)
-
     def test_no_ref_or_worktree_change(self):
         with tempfile.TemporaryDirectory() as td:
             t = os.path.realpath(td)
             origin, main, wt, scratch = (os.path.join(t, n) for n in ("origin.git", "main", "wt", "scratch"))
             os.makedirs(scratch)
-            g = lambda *a, cwd=main: self.git(*a, cwd=cwd)
-            self.assertEqual(g("init", "-q", "--bare", "-b", "main", origin, cwd=t).returncode, 0)
+            ident = {"GIT_AUTHOR_NAME": "zz", "GIT_AUTHOR_EMAIL": "zz@example.invalid",
+                     "GIT_COMMITTER_NAME": "zz", "GIT_COMMITTER_EMAIL": "zz@example.invalid"}
+            g = lambda *a, cwd=main: harness.git(*a, cwd=cwd, env=ident)
+            g("init", "-q", "--bare", "-b", "main", origin, cwd=t)
             g("clone", "-q", origin, main, cwd=t)
             g("checkout", "-qb", "main")
             for name, text in (("a", "1\n"),):
@@ -107,7 +105,7 @@ class JudgeMergedTreeResidue(unittest.TestCase):
             g("worktree", "add", "-q", "-b", "pr", wt)
             open(os.path.join(wt, "b"), "w").write("2\n")
             g("add", ".", cwd=wt); g("commit", "-qm", "pr", cwd=wt)
-            head = g("rev-parse", "pr").stdout.strip()
+            head = g("rev-parse", "pr")
             # origin/main moves after the worktree was made: only the documented fetch makes it visible
             other = os.path.join(t, "other")
             g("clone", "-q", origin, other, cwd=t)
@@ -115,9 +113,9 @@ class JudgeMergedTreeResidue(unittest.TestCase):
             g("add", ".", cwd=other); g("commit", "-qm", "main moved", cwd=other); g("push", "-q", "origin", "main", cwd=other)
 
             def state():
-                refs = [l for l in g("for-each-ref").stdout.splitlines() if "refs/remotes/origin/" not in l]
-                return (refs, g("rev-parse", "HEAD").stdout, g("status", "--porcelain").stdout,
-                        g("rev-parse", "HEAD", cwd=wt).stdout, g("status", "--porcelain", cwd=wt).stdout)
+                refs = [l for l in g("for-each-ref").splitlines() if "refs/remotes/origin/" not in l]
+                return (refs, g("rev-parse", "HEAD"), g("status", "--porcelain"),
+                        g("rev-parse", "HEAD", cwd=wt), g("status", "--porcelain", cwd=wt))
             before = state()
             _line, cmds = route()
             gits = [c.replace("<task-worktree>", wt).replace("<pr-head>", head).split()
@@ -129,8 +127,8 @@ class JudgeMergedTreeResidue(unittest.TestCase):
             tree = p.stdout.split()[0]
             self.assertEqual(len(tree), 40)
             # read back from the main checkout, not from the worktree that wrote it
-            self.assertEqual(g("cat-file", "-t", tree).stdout.strip(), "tree")
-            self.assertEqual(sorted(g("ls-tree", "--name-only", tree).stdout.split()), ["a", "b", "c"])
+            self.assertEqual(g("cat-file", "-t", tree), "tree")
+            self.assertEqual(sorted(g("ls-tree", "--name-only", tree).split()), ["a", "b", "c"])
             dest = os.path.join(scratch, "merged")
             os.makedirs(dest)
             arc = subprocess.run(["git", "archive", tree], cwd=main, capture_output=True)
