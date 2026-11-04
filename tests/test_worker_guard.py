@@ -18,6 +18,7 @@ LIVE_HOME = os.path.join(HOME_DIR, "factory")  # what the hook and bin/factory d
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(ROOT, "roles", "hooks", "worker-guard.py")
 LIVE_HOOK = LIVE_HOME + "/roles/hooks/worker-guard.py"
+LIVE_SHIM = LIVE_HOME + "/roles/hooks/worker-guard"  # T-0356: worker templates call the sh shim
 WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer")
 NON_WORKERS = ("boss", "director", "lead")
 
@@ -372,8 +373,10 @@ class WorkerGuardTests(unittest.TestCase):
             cmds = [h["command"] for g in groups if g.get("matcher") == "Bash" for h in g["hooks"]
                     if h.get("type") == "command"]
             self.assertEqual(len(cmds), 1, role)
-            script = [t for t in shlex.split(cmds[0]) if t.endswith("worker-guard.py")]
-            self.assertEqual(script, [LIVE_HOOK], role)
+            # T-0356 (M22079): worker templates call `sh <live>/roles/hooks/worker-guard` (the shim)
+            script = [t for t in shlex.split(cmds[0]) if t.endswith("/worker-guard")]
+            self.assertEqual(script, [LIVE_SHIM], role)
+            self.assertEqual(shlex.split(cmds[0])[0], "sh", role)
             self.assertEqual(shlex.split(cmds[0])[-2:], ["--role", role])
             self.assertTrue(os.path.isabs(script[0]))
             # the live path ~/factory/roles/hooks/worker-guard.py mirrors this repo file
@@ -410,7 +413,7 @@ class WorkerGuardTests(unittest.TestCase):
                 for h in g["hooks"] if h.get("type") == "command"]
         self.assertEqual(len(cmds), 1)
         self.assertEqual(shlex.split(cmds[0])[-2:], ["--role", "pm"])
-        self.assertIn(LIVE_HOOK, shlex.split(cmds[0]))
+        self.assertIn(LIVE_SHIM, shlex.split(cmds[0]))
         self.assertTrue(s["env"]["HERDR_SOCKET_PATH"].startswith("/proc/nonexistent/"))
         self.assertEqual(s["env"]["FACTORY_ROLE"], "pm")
 
