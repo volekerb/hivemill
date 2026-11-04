@@ -5,6 +5,7 @@ dir named by WORKER_GUARD_SCRATCH and the live checkout a temp dir named by WORK
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -113,6 +114,29 @@ class Blocked(unittest.TestCase):
             self.assertEqual(r.returncode, 2, f"evaluator: {c}")
         for c in ("export HOME=@S@/h; factory init",):  # qa may not export HOME (the git-config rule)
             self.assertEqual(run(c, "qa").returncode, 2, c)
+
+
+class InstallDryRunWritesNothing(unittest.TestCase):
+    """The allowed `bash systemd/install.sh --dry-run` run for real (not through the hook), HOME and FACTORY_HOME in a temp
+    dir: the file listing of both is the same before and after, and the units are only echoed."""
+
+    def listing(self, *roots):
+        out = []
+        for r in roots:
+            for dp, dn, fn in os.walk(r):
+                out += [os.path.join(dp, x) for x in dn + fn]
+        return sorted(out)
+
+    def test_listing_unchanged(self):
+        home, fh = os.path.join(_tmp[0], "scratch", "h"), os.path.join(_tmp[0], "scratch", "f")
+        before = self.listing(home, fh)
+        env = {"PATH": os.environ["PATH"], "HOME": home, "FACTORY_HOME": fh, "USER": "tester"}
+        p = subprocess.run(["bash", INSTALL, "--dry-run"], env=env, capture_output=True, text=True, timeout=60, cwd=_tmp[0])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.listing(home, fh), before)
+        self.assertIn("[dry-run] mkdir -p " + os.path.join(home, ".config", "systemd", "user"), p.stdout)
+        self.assertIn("[dry-run] systemctl --user enable factory-tick.timer", p.stdout)
+        self.assertFalse(os.path.exists(os.path.join(home, ".config")))
 
 
 if __name__ == "__main__":
