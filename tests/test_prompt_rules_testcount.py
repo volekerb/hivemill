@@ -11,6 +11,11 @@ RULE = ("Test count: count `def test_` on the tree of `git merge-tree --write-tr
         "Also confirm the PR removes or renames no `def test_` relative to its merge-base "
         "(`git diff $(git merge-base origin/main HEAD)..HEAD`).")
 
+# qa.md alone carries the two-step form (T-0952): the worker guard refuses command substitution.
+RULE_QA = RULE.replace("(`git diff $(git merge-base origin/main HEAD)..HEAD`).",
+                       "(`git merge-base origin/main HEAD`, then `git diff <sha>..HEAD`).")
+assert RULE_QA != RULE
+
 RECIPE = [
     "do not run git merge",
     "T=$(git merge-tree --write-tree origin/main <pr-head>)",
@@ -38,13 +43,17 @@ ANY_MERGE = re.compile(r"(?<!do not run )\bgit merge\b(?!-)", re.I)
 class PromptRulesTestCount(unittest.TestCase):
     def test_required_files_carry_rule(self):
         for rel in MUST_STATE:
-            self.assertIn(RULE, (ROLES / rel).read_text(), f"{rel}: merge-tree test-count wording missing")
+            want = RULE_QA if rel == "qa.md" else RULE
+            text = (ROLES / rel).read_text()
+            self.assertIn(want, text, f"{rel}: merge-tree test-count wording missing")
+            if rel == "qa.md":
+                self.assertNotIn("$(git merge-base", text, "qa.md: Q1 must be the two-step form")
 
     def test_any_file_stating_rule_uses_merge_tree_wording(self):
         offenders = []
         for p in sorted(ROLES.rglob("*.md")):
             text = p.read_text()
-            if STATES_RULE.search(text) and RULE not in text:
+            if STATES_RULE.search(text) and RULE not in text and RULE_QA not in text:
                 # allowed: pointers that name the rule rather than restate it
                 for line in text.splitlines():
                     if STATES_RULE.search(line) and "merge-tree" not in line and "pre-pr-check" not in line \
