@@ -69,6 +69,8 @@ class Gh:
             raise GhError(f"gh api {what}: timed out after {self.timeout} s") from None
         except FileNotFoundError:
             raise GhError("gh not found on PATH: install the GitHub CLI") from None
+        except UnicodeDecodeError:  # never decode with errors=replace: a garbled file must not be scanned as readable
+            raise GhError(f"gh api {what}: non-UTF-8 output") from None
         if p.returncode != 0:
             line = (p.stderr.strip().splitlines() or ["no output"])[0][:160]
             raise GhError(f"gh api {what}: exit {p.returncode}: {line}")

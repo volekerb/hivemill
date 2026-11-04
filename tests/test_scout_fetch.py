@@ -50,7 +50,10 @@ class Fx:
             mode, content = spec if isinstance(spec, tuple) else ("100644", spec)
             bsha = sha1(full + path)
             entries.append({"path": path, "mode": mode, "type": "blob", "sha": bsha})
-            self.add(f"repos/{full}/git/blobs/{bsha}", content)
+            if isinstance(content, bytes):
+                self.add(f"repos/{full}/git/blobs/{bsha}", bytes_hex=content.hex())
+            else:
+                self.add(f"repos/{full}/git/blobs/{bsha}", content)
         self.add(f"repos/{full}/commits/{branch}", sha)
         self.add(f"repos/{full}/git/trees/{sha}", {"tree": entries, "truncated": False})
         item = {"full_name": full, "stargazers_count": stars, "pushed_at": pushed, "default_branch": branch,
@@ -372,6 +375,47 @@ class RobustnessTests(FetchBase):
         bar = self.cand("gh:anthropics/skills/skills/bar")
         self.assertEqual(bar["install_risk"], "unknown")  # unreadable markdown is not 'prompt-only'
         self.assertIn("unreadable", bar["risk_detail"])
+
+    BAD = b"\xff\xfe\x80 not utf-8 \xc3\x28"
+
+    def test_non_utf8_blob_fails_one_candidate_not_the_source(self):
+        sha = "1" * 40
+        fx = Fx()
+        fx.add(f"repos/{LIST1}/commits/HEAD", sha)
+        fx.add(f"repos/{LIST1}/readme?ref={sha}", file="awesome_readme_2.md")
+        fx.repo("zz-owner/alpha", {"SKILL.md": self.BAD})
+        fx.repo("zz-owner/beta", {"SKILL.md": SKILL_MD})
+        fx.repo("zz-owner/gamma", {"SKILL.md": SKILL_MD})
+        self.gh(fx)
+        out = self.fetch().stdout
+        keys = [r["key"] for r in self.rows()]
+        self.assertEqual(keys, ["gh:zz-owner/alpha", "gh:zz-owner/beta", "gh:zz-owner/gamma"])  # the next candidates were processed
+        self.assertNotIn("utf-8", " ".join(self.stats(out)[4]))
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM scout_cursors WHERE source=?", (f"awesome:{LIST1}",))[0]["c"], 1)
+
+    def test_non_utf8_blob_is_never_safer_than_a_readable_one(self):
+        cases = {"sniffed": ("tool.xyz", "unrecognised file type: tool.xyz"),
+                 "json": ("conf.json", "unreadable: conf.json"),
+                 "markdown": ("SKILL.md", "unreadable: SKILL.md")}
+        for name, (path, want) in cases.items():
+            with self.subTest(name):
+                fx = Fx()
+                fx.repo(SKILLS, {f"skills/foo/{path}": self.BAD, "skills/foo/SKILL.md": SKILL_MD} if path != "SKILL.md" else {f"skills/foo/{path}": self.BAD}, sha="3" * 40)
+                self.gh(fx)
+                self.env.sql("DELETE FROM scout_candidates"); self.env.sql("DELETE FROM scout_cursors")
+                self.fetch()
+                c = self.cand("gh:anthropics/skills/skills/foo")
+                self.assertIn("unknown", c["install_risk"].split(","))
+                self.assertNotEqual(c["install_risk"], "prompt-only")
+                self.assertIn(want, c["risk_detail"])
+                self.assertIn(path, c["risk_detail"])
+
+    def test_non_utf8_response_on_any_gh_call_is_a_gherror(self):
+        self.env.set_gh(api=[{"match": ["repos/zz-o/r/anything"], "bytes_hex": self.BAD.hex()}])
+        gh = sources.Gh()
+        with mock.patch.dict(os.environ, self.env.env("owner")):
+            with self.assertRaisesRegex(sources.GhError, "non-UTF-8 output"):
+                gh.api("repos/zz-o/r/anything")
 
     def test_dry_run_writes_nothing(self):
         fx = Fx()
