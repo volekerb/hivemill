@@ -4973,7 +4973,7 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
-LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t]*live-run:[ \t]*pending\b.*$")
+LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t>*`-]*live-run:[ \t]*pending\b.*$")  # optional leading bullet, quote or backtick
 
 
 def mech_mode(con):
@@ -5969,6 +5969,66 @@ def remote_url_alert(con):
     if (msg or "") != seen:
         con.execute("INSERT INTO config(key,value) VALUES('remote_url_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (msg or "",))
+
+
+LIVE_TREE_ALERT_MAX_PATHS = 20
+
+
+def live_tree_dirty_paths():
+    """[(XY, path)] for modified, deleted or staged tracked files of the live checkout, exports/ and state/ left out
+    (sync_pull restores those every tick). Untracked entries are not read. Raises RuntimeError when git cannot answer."""
+    p = git_run(HOME, "status", "--porcelain", "-z", "--untracked-files=no", "--", ".", ":(exclude)exports", ":(exclude)state",
+             text=False, timeout=30, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})  # read-only: no index refresh write
+    if p.returncode != 0:
+        raise RuntimeError(f"git status exited {p.returncode}: {p.stderr.decode('utf-8', 'replace').strip()[-200:]}")
+    fields = p.stdout.decode("utf-8", "replace").split("\0")
+    out, i = [], 0
+    while i < len(fields):
+        f = fields[i]
+        i += 1
+        if len(f) < 4:
+            continue
+        xy, path = f[:2], f[3:]
+        out.append((xy, path))
+        if "R" in xy or "C" in xy:  # a rename or copy entry carries the old path as the next field
+            if i < len(fields) and fields[i]:
+                out.append((xy, fields[i]))
+            i += 1
+    return out
+
+
+def live_tree_dirty_alert(con):
+    """Tick hook: one alert to the director per distinct sorted set of dirty tracked paths in the live checkout
+    (re-armed once it is clean again). Never repairs anything. A git failure records one event per new error text."""
+    if not git_config_guard(con, HOME):
+        return  # a planted git config has its own alert
+    try:
+        dirty = live_tree_dirty_paths()
+    except (OSError, subprocess.SubprocessError, RuntimeError) as e:
+        err = str(e)[:300]
+        old = con.execute("SELECT ts FROM throttle WHERE key='live-tree-failed'").fetchone()
+        if not old or old["ts"] != err:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('live-tree-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
+            event(con, "tick", "live-tree", "live-tree-check-failed", err)
+        return
+    con.execute("DELETE FROM throttle WHERE key='live-tree-failed'")
+    paths = sorted({p for _, p in dirty})
+    key = json.dumps(paths)
+    row = con.execute("SELECT value FROM config WHERE key='live_tree_alerted'").fetchone()
+    seen = row["value"] if row else json.dumps([])
+    if paths and key != seen:
+        st = {}
+        for xy, p in dirty:
+            st.setdefault(p, xy)
+        shown = paths[:LIVE_TREE_ALERT_MAX_PATHS]
+        lines = "\n".join(f"  {st[p]} {p}" for p in shown)
+        more = f"\n  ... and {len(paths) - len(shown)} more" if len(paths) > len(shown) else ""
+        send(con, "director", f"live checkout has {len(paths)} modified tracked file(s)",
+             f"`git status --porcelain --untracked-files=no` in {HOME} (exports/ and state/ excluded) lists {len(paths)} path(s):\n"
+             f"{lines}{more}\nThe tick does not repair this: restore or commit them by hand after finding who wrote there.",
+             "alert", sender="tick")
+    if key != seen:
+        _set_config(con, "live_tree_alerted", key)
 
 
 MAIN_PROTECTION_EVERY_S = 3600  # the check, and so the boss alert, runs at most this often (R-a)
@@ -12668,6 +12728,11 @@ def cmd_tick(a, locked=False):
     _pt_git(False)
     _pt_lap("export")
 
+    try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
+        live_tree_dirty_alert(con)
+    except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
+        event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
+
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
         if con.execute("DELETE FROM throttle WHERE key='fresh-failed'").rowcount:
@@ -13715,7 +13780,8 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
                   "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Two verdicts on the same head, then factory done. ")
+                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds). "
+                  "Two verdicts on the same head, then factory done. ")
 
 
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day

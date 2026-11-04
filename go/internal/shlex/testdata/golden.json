@@ -8610,6 +8610,1722 @@
 "src": "corpus"
 },
 {
+"input": "env --argv0 -i factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --argv0 -i factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --argv0 -i factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --argv0 -i factory task show T-1",
+"mode": "quote",
+"quoted": "'env --argv0 -i factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --chdir -i factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --chdir -i factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --chdir -i factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --chdir -i factory task show T-1",
+"mode": "quote",
+"quoted": "'env --chdir -i factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 - factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --argv0 - factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --argv0 - factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --argv0 - factory task show T-1",
+"mode": "quote",
+"quoted": "'env --argv0 - factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --chdir - factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --chdir - factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --chdir - factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --chdir - factory task show T-1",
+"mode": "quote",
+"quoted": "'env --chdir - factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --argv0 -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --argv0 -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --argv0 -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env --argv0 -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env --chdir -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --chdir -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --chdir -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --chdir -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env --chdir -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 --unset FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--unset",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --argv0 --unset FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--unset",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --argv0 --unset FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--unset",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --argv0 --unset FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env --argv0 --unset FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env --chdir --unset=FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"--unset=FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --chdir --unset=FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"--unset=FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --chdir --unset=FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--chdir",
+"--unset=FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --chdir --unset=FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env --chdir --unset=FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env -u -i factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -u -i factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -u -i factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -u -i factory task show T-1",
+"mode": "quote",
+"quoted": "'env -u -i factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -u - factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -u - factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -u - factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -u - factory task show T-1",
+"mode": "quote",
+"quoted": "'env -u - factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --unset -i factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --unset -i factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --unset -i factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --unset -i factory task show T-1",
+"mode": "quote",
+"quoted": "'env --unset -i factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --uns -i factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --uns -i factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --uns -i factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-i",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env --uns -i factory task show T-1",
+"mode": "quote",
+"quoted": "'env --uns -i factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --unset -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --unset -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --unset -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--unset",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env --unset -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env --unset -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env -u -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -u -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -u -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -u -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env -u -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env -ui factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-ui",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -ui factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-ui",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -ui factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-ui",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -ui factory task show T-1",
+"mode": "quote",
+"quoted": "'env -ui factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -uxi factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-uxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -uxi factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-uxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -uxi factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-uxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -uxi factory task show T-1",
+"mode": "quote",
+"quoted": "'env -uxi factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -vuxi factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-vuxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -vuxi factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-vuxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -vuxi factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-vuxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -vuxi factory task show T-1",
+"mode": "quote",
+"quoted": "'env -vuxi factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -Cui factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cui",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -Cui factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cui",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -Cui factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cui",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -Cui factory task show T-1",
+"mode": "quote",
+"quoted": "'env -Cui factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -Suxi factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-Suxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -Suxi factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-Suxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -Suxi factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-Suxi",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -Suxi factory task show T-1",
+"mode": "quote",
+"quoted": "'env -Suxi factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -aC -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-aC",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -aC -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-aC",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -aC -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-aC",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -aC -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env -aC -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env -Ca -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-Ca",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -Ca -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-Ca",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -Ca -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-Ca",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -Ca -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env -Ca -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env -Cdata -u FACTORY_ROLE ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cdata",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -Cdata -u FACTORY_ROLE ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cdata",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -Cdata -u FACTORY_ROLE ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cdata",
+"-u",
+"FACTORY_ROLE",
+"ls"
+]
+},
+{
+"input": "env -Cdata -u FACTORY_ROLE ls",
+"mode": "quote",
+"quoted": "'env -Cdata -u FACTORY_ROLE ls'",
+"src": "corpus"
+},
+{
+"input": "env -ia foo factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-ia",
+"foo",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -ia foo factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-ia",
+"foo",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -ia foo factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-ia",
+"foo",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -ia foo factory task show T-1",
+"mode": "quote",
+"quoted": "'env -ia foo factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env -iC /tmp factory task show T-1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-iC",
+"/tmp",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -iC /tmp factory task show T-1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-iC",
+"/tmp",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -iC /tmp factory task show T-1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-iC",
+"/tmp",
+"factory",
+"task",
+"show",
+"T-1"
+]
+},
+{
+"input": "env -iC /tmp factory task show T-1",
+"mode": "quote",
+"quoted": "'env -iC /tmp factory task show T-1'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 -i git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 -i git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 -i git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 -i git status",
+"mode": "quote",
+"quoted": "'env --argv0 -i git status'",
+"src": "corpus"
+},
+{
+"input": "env --arg -i git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--arg",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --arg -i git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--arg",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --arg -i git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--arg",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --arg -i git status",
+"mode": "quote",
+"quoted": "'env --arg -i git status'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 -u GIT_DIR git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 -u GIT_DIR git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 -u GIT_DIR git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 -u GIT_DIR git status",
+"mode": "quote",
+"quoted": "'env --argv0 -u GIT_DIR git status'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 --unset=GIT_DIR git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--unset=GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 --unset=GIT_DIR git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--unset=GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 --unset=GIT_DIR git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--unset=GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 --unset=GIT_DIR git status",
+"mode": "quote",
+"quoted": "'env --argv0 --unset=GIT_DIR git status'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 --ignore-environment git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--ignore-environment",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 --ignore-environment git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--ignore-environment",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 --ignore-environment git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"--ignore-environment",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 --ignore-environment git status",
+"mode": "quote",
+"quoted": "'env --argv0 --ignore-environment git status'",
+"src": "corpus"
+},
+{
+"input": "env --argv0 - git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 - git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 - git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--argv0",
+"-",
+"git",
+"status"
+]
+},
+{
+"input": "env --argv0 - git status",
+"mode": "quote",
+"quoted": "'env --argv0 - git status'",
+"src": "corpus"
+},
+{
+"input": "env --uns -i git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --uns -i git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --uns -i git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env --uns -i git status",
+"mode": "quote",
+"quoted": "'env --uns -i git status'",
+"src": "corpus"
+},
+{
+"input": "env --uns -u GIT_DIR git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --uns -u GIT_DIR git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --uns -u GIT_DIR git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--uns",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env --uns -u GIT_DIR git status",
+"mode": "quote",
+"quoted": "'env --uns -u GIT_DIR git status'",
+"src": "corpus"
+},
+{
+"input": "env -afooa -u HERDR_PANE_ID ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-afooa",
+"-u",
+"HERDR_PANE_ID",
+"ls"
+]
+},
+{
+"input": "env -afooa -u HERDR_PANE_ID ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-afooa",
+"-u",
+"HERDR_PANE_ID",
+"ls"
+]
+},
+{
+"input": "env -afooa -u HERDR_PANE_ID ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-afooa",
+"-u",
+"HERDR_PANE_ID",
+"ls"
+]
+},
+{
+"input": "env -afooa -u HERDR_PANE_ID ls",
+"mode": "quote",
+"quoted": "'env -afooa -u HERDR_PANE_ID ls'",
+"src": "corpus"
+},
+{
+"input": "env -aC -u FACTORY_ROLE git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-aC",
+"-u",
+"FACTORY_ROLE",
+"git",
+"status"
+]
+},
+{
+"input": "env -aC -u FACTORY_ROLE git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-aC",
+"-u",
+"FACTORY_ROLE",
+"git",
+"status"
+]
+},
+{
+"input": "env -aC -u FACTORY_ROLE git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-aC",
+"-u",
+"FACTORY_ROLE",
+"git",
+"status"
+]
+},
+{
+"input": "env -aC -u FACTORY_ROLE git status",
+"mode": "quote",
+"quoted": "'env -aC -u FACTORY_ROLE git status'",
+"src": "corpus"
+},
+{
+"input": "env -ai git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-ai",
+"git",
+"status"
+]
+},
+{
+"input": "env -ai git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-ai",
+"git",
+"status"
+]
+},
+{
+"input": "env -ai git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-ai",
+"git",
+"status"
+]
+},
+{
+"input": "env -ai git status",
+"mode": "quote",
+"quoted": "'env -ai git status'",
+"src": "corpus"
+},
+{
+"input": "env -Ci git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-Ci",
+"git",
+"status"
+]
+},
+{
+"input": "env -Ci git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-Ci",
+"git",
+"status"
+]
+},
+{
+"input": "env -Ci git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-Ci",
+"git",
+"status"
+]
+},
+{
+"input": "env -Ci git status",
+"mode": "quote",
+"quoted": "'env -Ci git status'",
+"src": "corpus"
+},
+{
+"input": "env -a -i git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-a",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env -a -i git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-a",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env -a -i git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-a",
+"-i",
+"git",
+"status"
+]
+},
+{
+"input": "env -a -i git status",
+"mode": "quote",
+"quoted": "'env -a -i git status'",
+"src": "corpus"
+},
+{
+"input": "env -a -u GIT_DIR git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-a",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env -a -u GIT_DIR git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-a",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env -a -u GIT_DIR git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-a",
+"-u",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env -a -u GIT_DIR git status",
+"mode": "quote",
+"quoted": "'env -a -u GIT_DIR git status'",
+"src": "corpus"
+},
+{
+"input": "env -Cu GIT_DIR git status",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cu",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env -Cu GIT_DIR git status",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cu",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env -Cu GIT_DIR git status",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-Cu",
+"GIT_DIR",
+"git",
+"status"
+]
+},
+{
+"input": "env -Cu GIT_DIR git status",
+"mode": "quote",
+"quoted": "'env -Cu GIT_DIR git status'",
+"src": "corpus"
+},
+{
 "input": "env -i PATH=/usr/bin ./bin/factory tick",
 "mode": "script",
 "src": "corpus",
@@ -62929,7 +64645,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1436,
+"corpus_commands": 1475,
 "edge_inputs": 123,
 "python": "3.13"
 }
