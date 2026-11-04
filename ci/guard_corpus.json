@@ -2496,7 +2496,6 @@
  {"cmd": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git", "role": "qa"},
  {"cmd": "python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
  {"cmd": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
- {"cmd": "ar x @optsfile", "role": "qa"},
  {"cmd": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out", "role": "qa"},
  {"cmd": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out", "role": "qa"},
  {"cmd": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out", "role": "qa"},

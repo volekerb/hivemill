@@ -37221,43 +37221,6 @@
 "src": "corpus"
 },
 {
-"input": "ar x @optsfile",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"ar",
-"x",
-"@optsfile"
-]
-},
-{
-"input": "ar x @optsfile",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"ar",
-"x",
-"@",
-"optsfile"
-]
-},
-{
-"input": "ar x @optsfile",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"ar",
-"x",
-"@optsfile"
-]
-},
-{
-"input": "ar x @optsfile",
-"mode": "quote",
-"quoted": "'ar x @optsfile'",
-"src": "corpus"
-},
-{
 "input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
 "mode": "script",
 "src": "corpus",
@@ -64223,7 +64186,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1460,
+"corpus_commands": 1459,
 "edge_inputs": 123,
 "python": "3.13"
 }

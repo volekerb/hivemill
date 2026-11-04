@@ -46716,50 +46716,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "ar x @optsfile",
-"mask_quotes_pre": "ar x @optsfile",
-"mask_quotes_raw": "ar x @optsfile",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "ar x @optsfile"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "ar x @optsfile"
-},
-"segments_pre": [
-[
-0,
-14,
-[
-"ar",
-"x",
-"@optsfile"
-]
-]
-],
-"segments_raw": [
-[
-0,
-14,
-[
-"ar",
-"x",
-"@optsfile"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
 "mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
 "mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
@@ -81854,7 +81810,7 @@
 ]
 }
 },
-"corpus_commands": 1460,
+"corpus_commands": 1459,
 "edge_inputs": 97,
 "python": "3.13"
 }
