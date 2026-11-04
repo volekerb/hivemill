@@ -93,6 +93,25 @@ class TierRuleTests(unittest.TestCase):
             self.assertEqual(self.tier(["bin/factory_cli.py"], 3, diff), "T3", name)
             self.assertEqual(rt.sensitive_defs(diff, self.rules), ["bin/factory_cli.py:" + name])
 
+    def test_go_guard_paths_are_sensitive(self):
+        for p in ("go/internal/guard/x.go", "go/internal/guard/sub/y_test.go", "go/cmd/worker-guard/main.go",
+                  "go/internal/shlex/x.go"):
+            self.assertEqual(self.tier([p], 5), "T3", p)
+            self.assertEqual(rt.reasons({}, [p], 5, self.rules), ["sensitive path " + p])
+
+    def test_other_go_paths_are_not_sensitive(self):
+        for p in ("go/internal/other/x.go", "go/cmd/other/main.go", "go/internal/guardian/x.go"):
+            self.assertEqual(rt.reasons({}, [p], 5, self.rules), [], p)
+            self.assertEqual(self.tier([p], 5), "T1", p)
+
+    def test_train_and_verdict_defs_in_cli_module_are_t3(self):
+        for name in ("train_merge", "train_ready", "train_lead_target", "record_merged", "cmd_verdict",
+                     "verify_merged_externally", "merge_freeze_refusal", "task_merge_lock", "ci_verdict", "clean_verdict"):
+            base = "def %s(a):\n    return 1\n\ndef cmd_other(a):\n    return 1\n" % name
+            diff = {"bin/factory_cli.py": (base, base.replace("return 1\n\ndef", "return 2\n\ndef"))}
+            self.assertEqual(self.tier(["bin/factory_cli.py"], 3, diff), "T3", name)
+            self.assertEqual(rt.sensitive_defs(diff, self.rules), ["bin/factory_cli.py:" + name])
+
     def test_nested_ci_guard_and_scrub_paths_stay_sensitive(self):
         for p in ("ci/guard_x/y.py", "ci/scrub_x/y.py", "ci/guard_x.py"):
             self.assertEqual(self.tier([p], 5), "T3", p)
