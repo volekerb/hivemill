@@ -28,6 +28,21 @@ DENIED = [
     "gh api -XDELETE repos/acme/x/issues/1",
     "gh api repos/acme/x/issues/1 -X delete",
     "gh -R acme/x api -X POST repos/acme/x/issues",
+    # T-1030: pinned current behaviour, only GET is a read
+    "gh api -X HEAD repos/acme/x",
+    "gh api -X OPTIONS repos/acme/x",
+    "gh api -X '' repos/acme/x",
+    "gh api -X $M repos/acme/x",
+    "gh api repos/acme/x -X",
+]
+OVERRIDE_DENIED = [
+    "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+    "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+    "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+    "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+    "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+    "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+    "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
 ]
 ALLOWED = [
     "gh api repos/acme/x",
@@ -35,6 +50,8 @@ ALLOWED = [
     "gh api --method GET repos/acme/x",
     "gh api --method=get repos/acme/x",
     "gh api -XGET repos/acme/x -f per_page=5",
+    "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+    "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
 ]
 
 
@@ -52,6 +69,21 @@ class NoPushGhApiMethodTests(unittest.TestCase):
                     self.assertEqual(p.returncode, 2, p.stderr)
                     self.assertIn("gh api -X/--method", p.stderr)
 
+    def test_method_override_header_denied(self):
+        for role in NO_PUSH:
+            for cmd in OVERRIDE_DENIED:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd, role)
+                    self.assertEqual(p.returncode, 2, p.stderr)
+                    self.assertIn("X-HTTP-Method-Override", p.stderr)
+
+    def test_refusal_does_not_call_head_options_a_write(self):
+        for cmd in ("gh api -X HEAD repos/acme/x", "gh api -X OPTIONS repos/acme/x"):
+            p = self.run_hook(cmd, "qa")
+            self.assertEqual(p.returncode, 2, p.stderr)
+            self.assertIn("is not GET", p.stderr)
+            self.assertNotIn("is a write", p.stderr)
+
     def test_get_stays_allowed(self):
         for role in NO_PUSH:
             for cmd in ALLOWED:
@@ -61,7 +93,7 @@ class NoPushGhApiMethodTests(unittest.TestCase):
 
     def test_coder_and_judge_unchanged(self):
         for role in OTHER:
-            for cmd in DENIED + ALLOWED:
+            for cmd in DENIED + OVERRIDE_DENIED + ALLOWED:
                 with self.subTest(role=role, cmd=cmd):
                     p = self.run_hook(cmd, role)
                     self.assertEqual(p.returncode, 0, p.stderr)
