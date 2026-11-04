@@ -990,7 +990,7 @@ class SettingsFollowUpTests(GuardDiffCase):
             d["hooks"]["Pre\nTool"] = [{"hooks": None}]
 
         cases = [("matcher", hook_edit("matcher", v, "group")) for v in (None, 5, ["a"])]
-        cases += [("matcher", hook_edit("matcher", 5, "group")), ("matcher", lambda d: d["hooks"]["PreToolUse"].append({"matcher": None}))]
+        cases += [("matcher", lambda d: d["hooks"]["PreToolUse"].append({"matcher": None}))]
         cases += [("type", hook_edit("type", v, "hook")) for v in (None, 5)]
         cases += [("command", hook_edit("command", v, "hook")) for v in (None, 5, ["a"])]
         cases.append(("Pre\\nTool", newline_event))
