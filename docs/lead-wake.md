@@ -35,10 +35,9 @@ only when all of these hold:
 - the task is `in_review` or `in_progress` and has a PR;
 - no unread mail for the coder;
 - the worktree is clean (`git status --porcelain` empty, untracked files count) and local HEAD is the head of the open PR (pushed);
-- no process other than the agent (`claude`/`node`) is in the pane's foreground, and no shell under the agent's `claude`
-  process (found by `FACTORY_AGENT` in `/proc`; Bash-tool shells run in their own session) does other work than waiting for CI.
-  A shell whose whole command is `gh run watch|list|view`, `gh pr checks|view` or a sleep/grep loop around those does not protect
-  the coder; any other shell, a bare shell, a command with `$(`, backticks or `>`, or no `claude` process found protects it
+- no process other than the agent (`claude`/`node`) is in the pane's foreground, and no shell at all under the agent's `claude`
+  process (found by `FACTORY_AGENT` in `/proc`; Bash-tool shells run in their own session). Every shell protects the coder,
+  a CI-watch shell included: it ends on its own and role guidance says slow checks. No `claude` process found = not stopped
   (unreadable = not stopped).
 
 The flag stays `off` until T-1004 (resume on red CI) has merged.

@@ -131,7 +131,7 @@ class Stops(Base):
 
 class Shells(Base):
     """B1: a Bash-tool shell runs in its own session, so the pane foreground misses it; the claude process tree is walked.
-    A shell that only waits for CI does not protect the coder; any other shell does."""
+    Every shell protects the coder, a CI-watch shell included (it ends on its own)."""
 
     def shell_run(self, cmd, via_child=False):
         self.fake_proc(101, 100, ["bash", "-c", cmd])
@@ -140,17 +140,14 @@ class Shells(Base):
         self.host(("zz-test-coder", "p-1", "idle"))
         self.two_ticks()
 
-    def test_ci_watch_shells_do_not_protect(self):
+    def test_ci_watch_shells_protect_too(self):
         for i, cmd in enumerate(("gh run watch 123 --exit-status", "gh pr checks 398 --watch --fail-fast",
                                  "until gh run list --branch b | grep -q completed; do sleep 30; done")):
             with self.subTest(cmd=cmd):
                 self.env.sql("DELETE FROM throttle")
-                self.env.sql("DELETE FROM events")
-                self.env.sql("DELETE FROM messages")
-                self.env.sql("UPDATE agents SET stop_requested_at=NULL WHERE name='zz-test-coder'")
                 self.fake_proc_reset()
                 self.shell_run(cmd, via_child=bool(i))
-                self.assertEqual(len(self.stop_orders()), 1)
+                self.assert_not_stopped()
 
     def test_other_shells_protect(self):
         for cmd in ("python3 -m unittest tests.test_x", "make build", "sleep 900",

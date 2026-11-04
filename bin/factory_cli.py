@@ -6897,39 +6897,11 @@ def _pane_busy(pane):
 
 
 IDLE_SHELLS = ("zsh", "bash", "sh", "dash", "fish")
-# a shell whose whole command is one of these only waits for CI (T-1028 ruling): it does not protect the coder
-IDLE_WATCH_WORDS = {"sleep", "true", ":", "echo", "grep", "head", "tail", "wc", "cut", "test", "[", "[[", "!", "while", "until",
-                    "do", "done", "then", "fi", "if", "else", "for", "in", "break"}
-IDLE_WATCH_GH = {("run", "watch"), ("run", "list"), ("run", "view"), ("pr", "checks"), ("pr", "view")}
-
-
-def _watch_only_command(text):
-    """True when shell command text is nothing but a CI wait: gh run watch|list|view, gh pr checks|view, sleep loops and
-    their test/grep glue. Command substitution, redirects to files and anything unrecognised are False (the shell protects)."""
-    if not text or "$(" in text or "`" in text or ">" in text:
-        return False
-    seen_gh = False
-    for seg in re.split(r"[;&|\n]+", text):
-        try:
-            w = shlex.split(seg)
-        except ValueError:
-            return False
-        while w and w[0] in ("while", "until", "do", "then", "else", "if", "!"):
-            w = w[1:]
-        if not w or w[0] in ("done", "fi"):
-            continue
-        if w[0] == "gh":
-            if len(w) < 3 or (w[1], w[2]) not in IDLE_WATCH_GH:
-                return False
-            seen_gh = True
-        elif w[0] not in IDLE_WATCH_WORDS:
-            return False
-    return seen_gh
 
 
 def _agent_shells_busy(name):
-    """True when a shell under agent `name`'s claude process does work other than a CI wait (Bash-tool shells sit in their
-    own session, so the pane foreground misses them). No claude process found or /proc unreadable = True (fail safe)."""
+    """True when any shell runs under agent `name`'s claude process (Bash-tool shells sit in their own session, so the pane
+    foreground misses them; a CI-watch shell protects too, it ends on its own). No claude process or /proc unreadable = True."""
     root = _serve_proc_root()
     try:
         pids = [int(p.name) for p in root.iterdir() if p.name.isdigit()]
@@ -6954,9 +6926,7 @@ def _agent_shells_busy(name):
             todo.append(c)
             argv = _serve_argv(c)
             if argv and os.path.basename(argv[0]).lstrip("-") in IDLE_SHELLS:
-                cmd = argv[argv.index("-c") + 1] if "-c" in argv[:-1] else None
-                if cmd is None or not _watch_only_command(cmd):
-                    return True
+                return True
     return False
 
 
