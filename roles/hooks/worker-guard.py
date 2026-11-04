@@ -161,7 +161,13 @@ REMOTE_WRITE = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-bra
 CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
                 "--name-only", "--all", "--global", "--local", "--system", "--worktree", "--null", "-z", "--bool", "--int",
                 "--bool-or-int", "--bool-or-str", "--path", "--expiry-date", "--includes", "--no-includes"}
-CONFIG_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
+CONFIG_PARSE_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
+# Mirrored by the Go port through go/internal/guard/testdata/frontend_golden.json (ci/guard_golden.py CONST_SETS); the
+# Python classifier no longer reads them. Values stay as they were until the Go mirror follow-up (G-016).
+CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
+CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
+               "--name-only"}
+CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section", "--remove-section"}
 CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
 CONFIG_WORD_WRITE = {"set", "unset", "edit", "rename-section", "remove-section"}
 
@@ -175,7 +181,7 @@ def config_parse(args):
         k += 1
         if a in CONFIG_FLAGS and not pos:
             flags.append(a)
-        elif a in CONFIG_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_VALUE_OPTS and "=" in a):
+        elif a in CONFIG_PARSE_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_PARSE_VALUE_OPTS and "=" in a):
             if "=" not in a:
                 if k >= len(args):
                     return None
