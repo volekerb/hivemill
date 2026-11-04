@@ -5898,15 +5898,17 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or (old or {}).get("task") or "",
+                                          "task": tid or kept,
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else "No active goal for the project: file the revert task by hand.")
+                        if tid else f"Fix task {kept} (filed for an earlier red run) is still open; no new task filed."
+                        if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
                 mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
