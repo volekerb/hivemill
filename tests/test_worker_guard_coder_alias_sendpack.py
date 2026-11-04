@@ -42,7 +42,7 @@ EXTRA_DENIED = [
     "git --config-env alias.x=X x origin main",
     "git --attr-source HEAD status",
 ]
-# corpus case, now `=`-form in ci/guard_corpus.json (python/go stderr parity); the space form stays refused for coder
+# corpus entry is now tagged role reviewer in ci/guard_corpus.json (python/go stderr parity); coder stays refused here
 ATTR_CLONE = ["git --attr-source HEAD clone URL ~/.local/" + "go/x"]
 ALLOWED = [
     "git -c alias.st=status st",
@@ -93,6 +93,11 @@ class CoderAliasSendPackTests(unittest.TestCase):
                     p = self.run_hook(cmd)
                     self.assertEqual(p.returncode, 2, p.stderr)
                     self.assertTrue(p.stderr.strip(), "refusal needs a message")
+
+    def test_attr_source_space_clone_refused_by_allowlist_message(self):
+        p = self.run_hook(ATTR_CLONE[0])
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("coders may use only known git options", p.stderr)
 
     def test_allowed_for_coder(self):
         for cmd in ALLOWED + EXTRA_ALLOWED:
