@@ -31,6 +31,7 @@
     "go",
     "guard-unittest",
     "guard-diff",
+    "guard-equiv",
     "unittest"
   ]
 }

@@ -182,6 +182,41 @@ class StaleRelease(Base):
         self.assertEqual([e["entity_id"] for e in self.events("reaped")], ["qa-t-9"])
         self.assertEqual(self.events("stale-pane-close-failed"), [])
 
+    def test_confirmed_close_then_spawn_failure_leaves_row_exited_with_pane_id_null(self):
+        self.agent("qa-t-9", status="done")
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(fail_cmds=["tab create", "pane split"])  # the spawn dies after the release
+        p = self.spawn()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertEqual(len(self.closes()), 1)
+        r = self.row()
+        self.assertEqual((r["status"], r["pane_id"]), ("exited", None))
+        self.assertEqual([e["entity_id"] for e in self.events("reaped")], ["qa-t-9"])
+
+    def assertNotReleased(self, p):
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("p-1", p.stderr)
+        r = self.row()
+        self.assertEqual((r["status"], r["pane_id"]), ("exited", "p-1"))
+        self.assertEqual(len(self.closes()), 1)
+        ev = self.events("stale-pane-close-failed")
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(json.loads(ev[0]["detail"]), {"agent": "qa-t-9", "pane": "p-1"})
+        self.assertEqual(self.events("reaped"), [])
+
+    def test_close_exit_0_but_pane_still_listed_is_not_released(self):
+        self.agent("qa-t-9", status="done", ended=None)
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(pane_close_noop=True)  # pane_gone is False
+        self.assertNotReleased(self.spawn())
+        self.assertEqual(self.panes(), ["p-1"])
+
+    def test_close_exit_0_but_host_unreachable_is_not_released(self):
+        self.agent("qa-t-9", status="done", ended=None)
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(fail_cmds=["pane list", "workspace list"])  # pane_gone is None
+        self.assertNotReleased(self.spawn())
+
     def test_failed_close_keeps_pane_id_logs_once_and_spawn_dies_naming_pane(self):
         self.agent("qa-t-9", status="done", ended=None)
         self.host(("qa-t-9", "p-1"))
