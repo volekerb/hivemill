@@ -7863,7 +7863,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         die(f"{name} is already live in {existing['pane_id']}")
     if not release_stale_pane(con, name):  # name reuse after `done` but before the tick reaped the old pane
         die(f"{name}: its old pane {existing['pane_id']} could not be confirmed closed; not reusing the name. The row keeps "
-            "the pane id (the exited-pane reaper retries it); retry the spawn later. A queued spawn is retried by the tick.")
+            "the pane id (the exited-pane reaper retries it); retry the spawn later.")
     if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task):
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,

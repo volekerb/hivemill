@@ -236,12 +236,42 @@ class StaleRelease(Base):
         self.assertEqual(self.closes(), [])
         self.assertIn("p-1", self.panes())
 
-    def test_queued_row_is_never_touched_by_release_and_stays_queued(self):
-        self.agent("qa-t-9", status="queued", pane=None, ended=None)
-        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='qa-t-9'", (json.dumps({"role": "qa", "claimed_at": 4e9}),))
-        self.tick()
-        self.assertEqual(self.row()["status"], "queued")
-        self.assertEqual(self.events("stale-pane-close-failed"), [])
+    def test_gate_closed_spawn_over_a_kept_pane_dies_before_queueing(self):
+        self.agent("qa-t-9", status="done", ended=None)
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='qa-t-9'", ('{"marker": "old"}',))
+        self.host(("qa-t-9", "p-1"))
+        self.env.set_herdr(pane_close_fail=True)
+        self.env.run("config", "max_live_agents", "0")  # gate closed: this spawn would queue
+        p = self.spawn()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("p-1", p.stderr)
+        self.assertNotIn("queued spawn is retried", p.stderr)
+        r = self.row()
+        self.assertEqual((r["status"], r["pane_id"]), ("exited", "p-1"))
+        self.assertEqual(self.env.sql("SELECT spawn_args FROM agents WHERE name='qa-t-9'")[0][0], '{"marker": "old"}')
+
+    def test_queued_row_whose_spawn_exits_stays_queued_unclaimed_and_starts_on_a_later_tick(self):
+        n = "qa-t-9"
+        self.agent(n, status="queued", pane=None, ended=None)
+        args = {"role": "qa", "goal": "G-9", "team": None, "task": "T-9", "name": n, "cwd": str(self.env.home),
+                "prompt": None, "model": None, "resume": None, "fresh": False, "org": "claude"}
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name=?", (json.dumps(args), n))
+        self.host()
+        starts = lambda: [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "start"]]
+        # a real SystemExit from the claimed from-queue spawn: placing the pane fails
+        self.env.set_herdr(fail_cmds=["tab create", "pane split"])
+        self.env.sql("DELETE FROM throttle")
+        t1 = self.env.run("tick")
+        self.assertIn("tab create failed", t1.stderr + t1.stdout, (t1.stdout[-500:], t1.stderr[-500:]))
+        r = dict(self.env.sql("SELECT status, json_extract(spawn_args,'$.claimed_at') AS c FROM agents WHERE name=?", (n,))[0])
+        self.assertEqual(r["status"], "queued")
+        self.assertIsNone(r["c"])
+        self.assertEqual(starts(), [])
+        self.env.set_herdr(fail_cmds=[])  # the cause is fixed: the next tick starts it
+        self.env.sql("DELETE FROM throttle")
+        t2 = self.env.run("tick")
+        self.assertGreaterEqual(len(starts()), 1, (t2.returncode, t2.stderr[-600:], self.row(n)))
+        self.assertNotEqual(self.row(n)["status"], "cancelled")
 
     def test_on_demand_failed_release_claims_nothing_keeps_pane_and_commits(self):
         self.env.seed_agent("claude-director", "director", "G-9")
