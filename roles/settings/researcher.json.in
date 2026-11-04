@@ -106,7 +106,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role researcher"
           }
         ]
       },
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role researcher"
           }
         ]
       },
@@ -124,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role researcher"
           }
         ]
       }

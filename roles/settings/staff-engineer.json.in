@@ -98,7 +98,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role staff-engineer"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role staff-engineer"
           }
         ]
       },
@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role staff-engineer"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role staff-engineer"
           }
         ]
       },
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role staff-engineer"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role staff-engineer"
           }
         ]
       }
