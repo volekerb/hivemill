@@ -2511,6 +2511,8 @@
  {"cmd": "python3 -m zipfile -e a.zip", "role": "qa"},
  {"cmd": "python3 -Im zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
  {"cmd": "python3 -Bm tarfile -e a.tar @SCRATCH@/r/.git", "role": "qa"},
+ {"cmd": "python3 -W once -m zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
+ {"cmd": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
  {"cmd": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
  {"cmd": "python3 -IBm zipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
  {"cmd": "python3 -Imzipfile -e a.zip @SCRATCH@/r/.git", "role": "qa"},
