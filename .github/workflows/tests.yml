@@ -266,6 +266,11 @@ jobs:
           if [ "$EVENT" = push ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "push: running"; exit 0; fi
           if [ "$EVENT" != pull_request ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "not a pull_request or push: skipped"; exit 0; fi
           changed=$(git diff --name-only --no-renames "$BASE_SHA" HEAD)
+          # Test sources the real steps run (T-0989): the diff set + routed-rest modules, listed at runtime (no module named here).
+          tests=$( { python3 ci/guard_impl_unittest.py list; python3 ci/guard_impl_unittest.py list --routed-rest; } | sed 's|^|tests/|' )
+          if printf '%s\n' "$changed" | grep -F -x -q -f <(printf '%s\n' "$tests" tests/guard_impl.py tests/test_guard_build.py tests/test_guard_impl.py tests/test_guard_impl_coverage.py); then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "guard test source changed: running"; exit 0
+          fi
           if printf '%s\n' "$changed" | grep -E -q '^(roles/hooks/|roles/settings/|ci/guard_corpus\.json$|ci/guard_diff\.py$|ci/guard_impl_unittest\.py$|ci/(public_text_guard|scrub_scan)\.py$|\.github/workflows/tests\.yml$|go/internal/guard/|go/cmd/worker-guard/|go/internal/shlex/)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else

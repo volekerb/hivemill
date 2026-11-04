@@ -99,9 +99,9 @@ class RoutedRestRunnerTest(unittest.TestCase):
     def test_failing_module_does_not_stop_later_ones(self):
         rc, out = self.go([("test_a.py", FAIL), ("test_b.py", PASS)])
         self.assertEqual(rc, 1)
-        self.assertIn("module test_a.py: ran=2 failures=1 errors=0 rc=1", out)
-        self.assertIn("module test_b.py: ran=1 failures=0 errors=0 rc=0", out)
-        self.assertIn("summary: modules_run=2 modules_failed=1 tests_run=3 tests_failed=1 failed=test_a.py", out)
+        self.assertIn("module test_a.py: ran=2 failures=1 errors=0 skipped=0 rc=1", out)
+        self.assertIn("module test_b.py: ran=1 failures=0 errors=0 skipped=0 rc=0", out)
+        self.assertIn("summary: modules_run=2 modules_failed=1 tests_run=3 tests_skipped=0 tests_failed=1 failed=test_a.py", out)
 
     def test_first_fails_last_passes_is_still_red(self):
         rc, _ = self.go([("test_a.py", FAIL), ("test_b.py", PASS), ("test_c.py", PASS)])
@@ -112,6 +112,34 @@ class RoutedRestRunnerTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("modules_failed=0", out)
         self.assertIn("failed=-", out)
+
+    def test_all_skipped_module_is_red_and_skip_count_is_logged(self):
+        skip = "    @unittest.skip('r')\n    def test_s(self):\n        pass\n"
+        mixed = skip + PASS
+        rc, out = self.go([("test_a.py", skip), ("test_b.py", mixed)])
+        self.assertEqual(rc, 1)
+        self.assertIn("module test_a.py: ALL 1 tests skipped", out)
+        self.assertIn("module test_a.py: ran=1 failures=0 errors=0 skipped=1 rc=0", out)
+        self.assertIn("module test_b.py: ran=2 failures=0 errors=0 skipped=1 rc=0", out)
+        self.assertIn("modules_failed=1 tests_run=3 tests_skipped=2 tests_failed=0 failed=test_a.py", out)
+
+    def test_partly_skipped_module_alone_is_green(self):
+        rc, _ = self.go([("test_b.py", "    @unittest.skip('r')\n    def test_s(self):\n        pass\n" + PASS)])
+        self.assertEqual(rc, 0)
+
+
+class PathListTest(unittest.TestCase):
+    def step(self):
+        with open(WF, encoding="utf-8") as f:
+            job = f.read().split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
+        return job.split("Guard paths changed?", 1)[1].split("- uses: actions/setup-python", 1)[0]
+
+    def test_path_step_covers_guard_impl_and_derives_routed_modules(self):
+        step = self.step()
+        self.assertIn("tests/guard_impl.py", step)
+        self.assertIn("list --routed-rest", step)
+        self.assertIn("guard_impl_unittest.py list", step)
+        self.assertIn("tests/test_guard_build.py", step)
 
 
 if __name__ == "__main__":

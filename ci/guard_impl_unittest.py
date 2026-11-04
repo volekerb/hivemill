@@ -83,6 +83,7 @@ def run_guard_diff_unittest(extra_env=None, routed_rest=False):
 
 _RAN = re.compile(r"^Ran (\d+) tests?", re.M)
 _FAILED = re.compile(r"^FAILED \((.*)\)", re.M)
+_SKIPPED = re.compile(r"^(?:OK|FAILED) \(.*?skipped=(\d+)", re.M)
 
 
 def _count(pattern_text, key):
@@ -99,7 +100,7 @@ def run_routed_rest(extra_env=None, out=None, names=None, tests_dir="tests"):
     env = dict(os.environ, GUARD_IMPL="diff", GOTOOLCHAIN="local", GOFLAGS="-mod=readonly", GOPROXY="off")
     if extra_env:
         env.update(extra_env)
-    failed_mods, tests_failed, total = [], 0, 0
+    failed_mods, tests_failed, total, skipped_total = [], 0, 0, 0
     names = module_names(True) if names is None else names
     for base in names:
         cmd = [sys.executable, "-m", "unittest", "discover", "-s", tests_dir, "-p", base]
@@ -111,14 +112,22 @@ def run_routed_rest(extra_env=None, out=None, names=None, tests_dir="tests"):
         ran_n = int(ran.group(1)) if ran else 0
         fm = _FAILED.search(text)
         fails, errs = (_count(fm.group(1), "failures"), _count(fm.group(1), "errors")) if fm else (0, 0)
-        if r.returncode != 0:
+        sm = _SKIPPED.search(text)
+        skipped = int(sm.group(1)) if sm else 0
+        # A module whose every test skipped proved nothing (T-0989): red, not green.
+        all_skipped = r.returncode == 0 and ran_n > 0 and skipped >= ran_n
+        if all_skipped:
+            out.write("module %s: ALL %d tests skipped: not counted green; fix the skip condition\n" % (base, ran_n))
+        if r.returncode != 0 or all_skipped:
             failed_mods.append(base)
             tests_failed += fails + errs
         total += ran_n
-        out.write("module %s: ran=%d failures=%d errors=%d rc=%d\n" % (base, ran_n, fails, errs, r.returncode))
+        skipped_total += skipped
+        out.write("module %s: ran=%d failures=%d errors=%d skipped=%d rc=%d\n" % (
+            base, ran_n, fails, errs, skipped, r.returncode))
         out.flush()
-    out.write("summary: modules_run=%d modules_failed=%d tests_run=%d tests_failed=%d failed=%s\n" % (
-        len(names), len(failed_mods), total, tests_failed, ",".join(failed_mods) or "-"))
+    out.write("summary: modules_run=%d modules_failed=%d tests_run=%d tests_skipped=%d tests_failed=%d failed=%s\n" % (
+        len(names), len(failed_mods), total, skipped_total, tests_failed, ",".join(failed_mods) or "-"))
     out.flush()
     return 1 if failed_mods else 0
 
