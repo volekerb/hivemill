@@ -4677,6 +4677,9 @@ def cmd_judge(a):
         con.execute("UPDATE tasks SET status='in_progress', updated=? WHERE id=?", (now(), a.task))
         event(con, "task", a.task, "judge-reject", reason)
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
+        if t["assignee"]:
+            send(con, t["assignee"], f"judge reject: {a.task} in_progress",
+                 judge_reject_coder_notice(a.task, reason), "request", t["goal_id"], a.task, sender=actor())
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
     return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
@@ -5967,6 +5970,66 @@ def remote_url_alert(con):
     if (msg or "") != seen:
         con.execute("INSERT INTO config(key,value) VALUES('remote_url_alerted',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (msg or "",))
+
+
+LIVE_TREE_ALERT_MAX_PATHS = 20
+
+
+def live_tree_dirty_paths():
+    """[(XY, path)] for modified, deleted or staged tracked files of the live checkout, exports/ and state/ left out
+    (sync_pull restores those every tick). Untracked entries are not read. Raises RuntimeError when git cannot answer."""
+    p = git_run(HOME, "status", "--porcelain", "-z", "--untracked-files=no", "--", ".", ":(exclude)exports", ":(exclude)state",
+             text=False, timeout=30, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})  # read-only: no index refresh write
+    if p.returncode != 0:
+        raise RuntimeError(f"git status exited {p.returncode}: {p.stderr.decode('utf-8', 'replace').strip()[-200:]}")
+    fields = p.stdout.decode("utf-8", "replace").split("\0")
+    out, i = [], 0
+    while i < len(fields):
+        f = fields[i]
+        i += 1
+        if len(f) < 4:
+            continue
+        xy, path = f[:2], f[3:]
+        out.append((xy, path))
+        if "R" in xy or "C" in xy:  # a rename or copy entry carries the old path as the next field
+            if i < len(fields) and fields[i]:
+                out.append((xy, fields[i]))
+            i += 1
+    return out
+
+
+def live_tree_dirty_alert(con):
+    """Tick hook: one alert to the director per distinct sorted set of dirty tracked paths in the live checkout
+    (re-armed once it is clean again). Never repairs anything. A git failure records one event per new error text."""
+    if not git_config_guard(con, HOME):
+        return  # a planted git config has its own alert
+    try:
+        dirty = live_tree_dirty_paths()
+    except (OSError, subprocess.SubprocessError, RuntimeError) as e:
+        err = str(e)[:300]
+        old = con.execute("SELECT ts FROM throttle WHERE key='live-tree-failed'").fetchone()
+        if not old or old["ts"] != err:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('live-tree-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
+            event(con, "tick", "live-tree", "live-tree-check-failed", err)
+        return
+    con.execute("DELETE FROM throttle WHERE key='live-tree-failed'")
+    paths = sorted({p for _, p in dirty})
+    key = json.dumps(paths)
+    row = con.execute("SELECT value FROM config WHERE key='live_tree_alerted'").fetchone()
+    seen = row["value"] if row else json.dumps([])
+    if paths and key != seen:
+        st = {}
+        for xy, p in dirty:
+            st.setdefault(p, xy)
+        shown = paths[:LIVE_TREE_ALERT_MAX_PATHS]
+        lines = "\n".join(f"  {st[p]} {p}" for p in shown)
+        more = f"\n  ... and {len(paths) - len(shown)} more" if len(paths) > len(shown) else ""
+        send(con, "director", f"live checkout has {len(paths)} modified tracked file(s)",
+             f"`git status --porcelain --untracked-files=no` in {HOME} (exports/ and state/ excluded) lists {len(paths)} path(s):\n"
+             f"{lines}{more}\nThe tick does not repair this: restore or commit them by hand after finding who wrote there.",
+             "alert", sender="tick")
+    if key != seen:
+        _set_config(con, "live_tree_alerted", key)
 
 
 MAIN_PROTECTION_EVERY_S = 3600  # the check, and so the boss alert, runs at most this often (R-a)
@@ -7608,6 +7671,41 @@ def gated_reviewer_prompt(con, role, task, prompt):
     return f"{prompt} {GATED_PR_LINE}" if prompt else GATED_PR_LINE
 
 
+def judge_reject_coder_next_cmd(task_id):
+    return f"factory task update {task_id} --status in_review"
+
+
+def judge_reject_coder_notice(task_id, reason):
+    """Tell the assignee the DB status after judge --reject and the command to re-enter review."""
+    return (f"Task {task_id} status is in_progress after judge reject.\n\n{reason}\n\n"
+            f"After the fix is pushed: {judge_reject_coder_next_cmd(task_id)} (existing PR checks apply).")
+
+
+def task_in_progress_from_judge_reject(con, task_id):
+    """True while the task is in_progress because the judge rejected it (not a lead retry after QA fail)."""
+    if not task_id:
+        return False
+    t = con.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+    if not t or t["status"] != "in_progress":
+        return False
+    jr = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='judge-reject' "
+                     "ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    if not jr:
+        return False
+    upd = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                      "AND detail LIKE '%status=in_progress%' ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    return not upd or upd["ts"] <= jr["ts"]
+
+
+def coder_judge_reject_kickoff(con, role, task, prompt):
+    """Coder kickoff extra after a judge reject: same status word as the DB and the in_review update command."""
+    if role != "coder" or not task or not task_in_progress_from_judge_reject(con, task):
+        return prompt
+    line = (f"Task status is in_progress (same as the DB). After the fix is pushed: "
+            f"{judge_reject_coder_next_cmd(task)}.")
+    return f"{prompt} {line}" if prompt else line
+
+
 def kickoff_text(role, name, goal, team, task, extra):
     lines = [f"You are `{name}`, the factory {role}. Run `factory whoami` and `factory inbox` first."]
     if task:
@@ -8401,7 +8499,7 @@ def render_settings_early(role):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    prompt = gated_reviewer_prompt(con, role, task, prompt)
+    prompt = coder_judge_reject_kickoff(con, role, task, gated_reviewer_prompt(con, role, task, prompt))
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
@@ -12692,6 +12790,11 @@ def cmd_tick(a, locked=False):
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
     _pt_lap("export")
+
+    try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
+        live_tree_dirty_alert(con)
+    except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
+        event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
