@@ -1054,7 +1054,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
     Returns (text, extras): extras are texts to analyze too (bodies of heredocs fed to a shell) and
     text blocks fed to other interpreters (only searched for the word herdr). When bodies is a list, every heredoc
     is appended to it as (the command line up to its newline, the body): the public-text rule reads `-F -` from it.
-    When slots is a list, one single-item list per `<<` in text order is appended; a resolved heredoc's slot holds its body.
+    When slots is a list, one [body, strip] list per `<<` in text order is appended; a resolved heredoc's slot holds its body and whether it is `<<-`.
     """
     out, extras = [], []
     i, n, q = 0, len(cmd), None
@@ -1104,7 +1104,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
             r = heredoc_delim(cmd, i)
             if r:
-                slot = [None]
+                slot = [None, r[0]]  # body, then whether this is a real `<<-`
                 if slots is not None:
                     slots.append(slot)
                 pending.append((r[0], r[1], r[3], slot))
@@ -1112,7 +1112,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
                 i = r[2]
             else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
                 if slots is not None:
-                    slots.append([None])
+                    slots.append([None, False])
                 out.append("<<")
                 i += 2
             continue
@@ -1564,10 +1564,11 @@ class Analyzer:
                         if tok == "<<<":
                             hs.append(nxt)
                         elif tok == "<<":
-                            b = slots.pop(0)[0] if slots else None
+                            slot = slots.pop(0) if slots else [None, False]
+                            b = slot[0]
                             if b is not None:
                                 hds.setdefault(len(cmds), []).append(b)
-                            if nxt == "-" and i + 2 < len(toks) and not is_punct(toks[i + 2]):
+                            if slot[1] and nxt == "-" and i + 2 < len(toks) and not is_punct(toks[i + 2]):
                                 i += 1  # `<<- EOF`
                         elif ">" in tok and ("&" not in tok or (re.match(r"^[0-9]*(&>>?|>&)$", tok)
                                                                  and not re.match(r"^([0-9]+|-)$", nxt))):

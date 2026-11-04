@@ -99,6 +99,17 @@ DENIED += [
     "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\n%s\nA\nok\nB" % PY,  # repeated line
     "FOO='a;b' python3 <<'EOF'\n%s\nEOF" % PY,
     "cat <<< '%s' | python3" % PY,
+    "python3 <<A <<'B'; cat <<C\nok\nA\n%s\nB\nok\nC" % PY,  # the literal LIST A form: code in B
+]
+
+# `<< - word` is a heredoc whose delimiter is `-`; `word` stays a command word (only a real `<<-` skips one).
+# Exit 2 for every role as on main, for the no-push roles and for coder alike.
+DASH_WORD = [
+    "git << - push origin main",
+    "git << - push",
+    "factory << - res",
+    "rm << - %s" % os.path.join(os.path.expanduser("~"), "factory", "run", "guard-export.json"),  # string only, never touched
+    "git <<- x push origin main\nbody\nx",  # a real <<- takes `x` as delimiter; `push` is still a word
 ]
 
 # LIST B: still exit 0
@@ -109,6 +120,8 @@ ALLOWED_B = [
 ]
 
 ALLOWED = [
+    "cat <<- EOF\n\thello\n\tEOF",
+    "cat <<-'EOF'\n\tgit push\n\tEOF",
     "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
     "timeout 5 python3 <<< 'print(1)'",
     "echo 'print(1)' | nice python3",
@@ -140,6 +153,15 @@ class InterpStdinTests(unittest.TestCase):
     def test_denied_for_every_no_push_role(self):
         for role in NO_PUSH:
             for cmd in DENIED:
+                with self.subTest(role=role, cmd=cmd):
+                    p = self.run_hook(cmd, role)
+                    self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_dash_word_is_not_a_strip_heredoc(self):
+        for role in NO_PUSH + ("coder",):
+            for cmd in DASH_WORD:
+                if role == "staff-engineer" and cmd == "factory << - res":
+                    continue  # `factory res` is allowed for staff-engineer on main too
                 with self.subTest(role=role, cmd=cmd):
                     p = self.run_hook(cmd, role)
                     self.assertEqual(p.returncode, 2, p.stderr)
