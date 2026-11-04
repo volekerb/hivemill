@@ -113,6 +113,10 @@ class AffectedTest(unittest.TestCase):
         lints = list(mod.TEST_TREE_LINTS)
         self.assertIn("test_guard_impl_coverage.py", lints)
         self.assertIn("test_git_env_hermetic.py", lints)
+        for m in ("test_no_duplicate_defs.py", "test_skilleval_vendor.py", "test_skilleval_tasks.py"):
+            self.assertIn(m, lints)
+        for m in lints:
+            self.assertTrue(os.path.exists(os.path.join(os.path.dirname(AFFECTED), "..", "tests", m)), m)
         for m in lints:
             self.write("tests/" + m, "# lint\n")
         self.git("add", "-A")

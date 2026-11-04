@@ -10,7 +10,7 @@ word FULL with the rule that triggered it. --run executes the selection (all mod
   1b a tests/test_*.py deleted at HEAD (a rename is delete + add) or any change to ci/shard_timings.json also selects
     test_shard.py (its stale-module check; T-0916, #260). Never FULL by itself.
   1c any path under tests/ also selects TEST_TREE_LINTS, the modules that scan every tests/*.py or every tracked file
-    (test_guard_impl_coverage, test_git_env_hermetic, test_repo_hygiene; T-1017: a bad new test module is otherwise only
+    (test_guard_impl_coverage, test_git_env_hermetic, test_repo_hygiene, test_no_duplicate_defs, test_skilleval_vendor, test_skilleval_tasks; T-1017: a bad new test module is otherwise only
     caught by main's full run). A diff touching no tests/ path does not add them. Never FULL by itself.
   2 ci/X.py -> modules mentioning "ci/X" or "X.py", plus tests/test_X.py.
   3 bin/factory -> top-level defs whose source changed (ast, base vs head). SCHEMA, DEFAULT_CONFIG, main, db, an
@@ -48,9 +48,12 @@ FULL_DEFS = {"SCHEMA", "DEFAULT_CONFIG", "main", "db"}
 BIN = "bin/factory_cli.py"
 SHARD_TEST = "test_shard.py"
 # Whole-tree test lints (T-1017): each walks every tests/*.py (guard_impl_coverage: os.listdir(HERE); git_env_hermetic:
-# TESTS.glob/rglob) or every tracked file incl. tests/ (repo_hygiene: git ls-files). Found by grepping tests/ for
-# listdir/glob/rglob/walk/ls-files over the tests dir. Any tests/ change selects them.
-TEST_TREE_LINTS = ("test_guard_impl_coverage.py", "test_git_env_hermetic.py", "test_repo_hygiene.py")
+# TESTS.glob/rglob) or every tracked file incl. tests/ (repo_hygiene, skilleval_vendor: git ls-files; no_duplicate_defs:
+# os.walk over SCAN_DIRS incl. tests; skilleval_tasks: unittest discover over tests/).
+# Not listed on purpose: test_shard (stale-module check is rule 1b; its balance tests run over unknown modules with a default
+# weight) and test_slots (only a lower bound on the module count; adding a module cannot fail it). Found by grepping tests/ for listdir/glob/rglob/walk/ls-files/discover over the tests dir. Any tests/ change selects them.
+TEST_TREE_LINTS = ("test_guard_impl_coverage.py", "test_git_env_hermetic.py", "test_repo_hygiene.py",
+                   "test_no_duplicate_defs.py", "test_skilleval_vendor.py", "test_skilleval_tasks.py")
 
 
 class AffectedError(Exception):
