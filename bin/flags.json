@@ -34,6 +34,15 @@
    "doc": ""
   },
   {
+   "key": "coder_ci_handoff",
+   "kind": "flag",
+   "default": "off",
+   "summary": "off | resume | fresh: a coder runs factory done at PR open while CI is pending; the tick starts review at green",
+   "goal": "G-018",
+   "doc": "docs/prcheck.md",
+   "state": "off"
+  },
+  {
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
