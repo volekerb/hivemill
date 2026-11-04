@@ -182,6 +182,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
+    "judge_wait_main_run": "0",  # 1 = judge merges wait while the tests.yml push run for the current main head is not completed+success (G-022 T-1029)
     "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
@@ -1816,6 +1817,13 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
         if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
             return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    if runtime == "cursor" and role:
+        from web import cursor_limits
+        slug = role_model(con, role, org="cursor")
+        ent = cursor_limits.load_state(con).get(slug) or {}
+        if ent.get("status") == "limited":
+            reset = ent.get("reset") or "unknown date"
+            return False, f"Cursor pane limit: {slug} limited until {reset}", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
@@ -3251,7 +3259,8 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
-    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry.
+    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry
+    (matched on the row's pane_id; unlike reap_exited_panes it does not follow a renumbered host pane).
     Returns True when the pane is released or there was nothing to release. Returns False when the pane could not be
     confirmed gone: the row is then exited with pane_id KEPT (so reap_exited_panes can still match it), one
     "stale-pane-close-failed" event is logged per attempt (a caller that retries each tick logs one each
@@ -4426,7 +4435,7 @@ def train_merge(con, plan, upto, run, owner_repo):
                     return stop(f"origin/main moved during the gate ({plan['main'][:8]} -> {(m or '?')[:8]}{'; ' + why if why else ''})")
             slugs = _judge_slugs(con, t, owner_repo)
             problems = next(filter(None, (_push_policy(con, x) for x in slugs)), None) or red_main_refusal(con, slugs, tid) \
-                or merge_freeze_refusal(con)
+                or main_run_refusal(con, slugs, tid) or merge_freeze_refusal(con)
             if problems:
                 event(con, "task", tid, "judge-blocked", problems)
                 return stop(problems)
@@ -4472,7 +4481,8 @@ def judge_train_run(con, plan, proj):
     steps, n = plan["steps"], len(plan["steps"])
     t0 = con.execute("SELECT * FROM tasks WHERE id=?", (steps[0]["task"],)).fetchone()
     owner_repo = "/".join(t0["pr_url"].split("/")[3:5])
-    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo))
+    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo)) \
+        or main_run_refusal(con, _judge_slugs(con, t0, owner_repo))
     if frozen:  # the MAIN-RED hold and the freeze apply to a train like to any merge
         event(con, "task", steps[0]["task"], "judge-blocked", frozen)
         con.commit()
@@ -4976,7 +4986,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
-        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task) or main_run_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
         if red:
             event(con, "task", a.task, "judge-blocked", red)
             die(f"merge refused: {red}; nothing merged", 4)
@@ -5801,6 +5811,42 @@ def red_main_refusal(con, slugs, task_id=None):
         st = red_main_state(con, slug)
         if st and not (task_id and st.get("task") == task_id):
             return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
+    return None
+
+
+def main_head_run(slug):
+    """(head sha, newest tests.yml push run on main whose headSha is that head, or None) for `slug`. Raises OSError,
+    ValueError or subprocess.TimeoutExpired when gh cannot tell (the caller refuses: it cannot decide)."""
+    p = subprocess.run(["gh", "api", f"repos/{slug}/commits/main", "--jq", ".sha"], capture_output=True, text=True, timeout=30, env=gh_git_env())
+    head = p.stdout.strip()
+    if p.returncode != 0 or not head:
+        raise OSError(f"gh api commits/main exit {p.returncode}: {p.stderr.strip()}")
+    p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                        "--limit", "10", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                       capture_output=True, text=True, timeout=30, env=gh_git_env())
+    if p.returncode != 0:
+        raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
+    return head, next((r for r in json.loads(p.stdout) if r.get("headSha") == head), None)
+
+
+def main_run_refusal(con, slugs, task_id=None):
+    """Why a judge merge into one of `slugs` must wait (flag judge_wait_main_run, default off): the tests.yml push run for the
+    current main head is not completed+success. A run in progress or no run yet holds every merge; a failed run holds all but
+    the named red-main fix task (it is what lifts the freeze). A gh error refuses (cannot decide). None when the flag is off."""
+    if cfg(con, "judge_wait_main_run") != "1":
+        return None
+    for slug in slugs:
+        st = red_main_state(con, slug)
+        fix = bool(st and task_id and st.get("task") == task_id)
+        try:
+            head, run = main_head_run(slug)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+            return f"main run unknown on {slug}: {e}; merges wait until gh answers (judge_wait_main_run=1)"
+        if run is None or run.get("status") != "completed":
+            state = "has not started" if run is None else f"is {run.get('status') or 'unknown'}"
+            return f"main run {state} for {slug} head {head[:8]} ({(run or {}).get('url') or 'no url'}); merges wait for it to finish (judge_wait_main_run=1)"
+        if run.get("conclusion") != "success" and not fix:
+            return f"main run {run.get('databaseId')} on {slug} head {head[:8]} concluded {run.get('conclusion')} ({run.get('url') or 'no url'}); merges wait for a green run (judge_wait_main_run=1)"
     return None
 
 
@@ -6820,13 +6866,33 @@ EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before 
 EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
 
 
+def _pane_idle_in_cwd(h, pane, row_cwd):
+    """True when host agent `h` is done or idle (never working) and its pane's cwd equals the row's recorded cwd
+    (a ' (deleted)' suffix ignored). Anything unknown (no row cwd, pane list unavailable) is False: keep the pane."""
+    if h.get("agent_status") not in ("done", "idle") or not row_cwd:
+        return False
+    r = herdr("pane", "list", check=False)
+    if not isinstance(r, dict) or not isinstance(r.get("panes"), list):
+        return False
+
+    def norm(c):
+        return os.path.normpath(c[:-len(" (deleted)")] if c.endswith(" (deleted)") else c)
+    want = norm(row_cwd)
+    return any(p.get("pane_id") == pane and isinstance(p.get(k), str) and p[k] and norm(p[k]) == want
+               for p in r["panes"] for k in ("cwd", "foreground_cwd"))
+
+
 def reap_exited_panes(con, agents):
     """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
     one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
     and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
-    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
-    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
-    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    silently on the next run. A pane qualifies only when the host lists it under the exact name of an agents row that,
+    re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
+    stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
+    the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
+    names no session, the pane closes only if its agent_status is done/idle (never working) and its cwd equals the row's
+    recorded cwd (' (deleted)' suffix ignored).
+    Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
         mode = cfg(con, "exited_pane_reap_mode")
@@ -6843,8 +6909,13 @@ def reap_exited_panes(con, agents):
             if not name or not pane:
                 continue
             r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
-            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
-                continue
+            if not r or r["status"] != "exited" or r["role"] not in EXITED_PANE_ROLES:
+                continue  # match on the exact name only: the row's pane_id can be stale, so act on the HOST's pane id
+            sess = (h.get("agent_session") or {}).get("value")
+            if sess and sess != r["session_id"]:
+                continue  # the pane runs another session (a newer agent under this name): never ours to close
+            if not sess and not _pane_idle_in_cwd(h, pane, r["cwd"]):
+                continue  # session unknown: only an idle/done pane sitting in this row's own cwd is provably its leftover
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
