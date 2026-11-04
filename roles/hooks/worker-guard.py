@@ -156,6 +156,23 @@ CFG_ENV_ASSIGN = re.compile(r"(?<![\w])(?:GIT_CONFIG\w*|HOME|XDG_CONFIG_HOME)=")
 PERSIST_EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 REMOTE_WRITE = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-branches"}
 CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
+# T-1035: every git-config option that consumes the next word; that word is a value, never a read flag
+# (`--comment --get alias.x push` writes alias.x with comment "--get")
+CONFIG_VALUE_OPTS_ALL = CONFIG_VALUE_OPTS | {"--value", "--file", "-f"}
+
+
+def config_read_args(args):
+    """args with every value-taking option's value removed (git also accepts unambiguous long-option prefixes)."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        out.append(a)
+        k += 1
+        if a.startswith("--") and "=" not in a and len(a) >= 5 and any(o.startswith(a) for o in CONFIG_VALUE_OPTS_ALL):
+            k += 1
+        elif a in CONFIG_VALUE_OPTS_ALL:
+            k += 1
+    return out
 PERSIST_WHY = ("it would persist config into the live box (git config keys like core.fsmonitor or diff.external, and "
                "shell init files, run later as the tick and other agents); only the owner changes ~/.gitconfig, "
                "~/.config/git and shell rc files")
@@ -2355,7 +2372,7 @@ class Analyzer:
         flags = [a for a in args if a.startswith("-")]
         if any(a in CONFIG_WRITE for a in flags):
             return True
-        if any(a in CONFIG_READ for a in flags) or pos[:1] in (["get"], ["list"]):
+        if any(a in CONFIG_READ for a in config_read_args(args)) or pos[:1] in (["get"], ["list"]):
             return False
         return pos[:1] in (["set"], ["unset"], ["edit"]) or len(pos) >= 2
 
@@ -2622,7 +2639,7 @@ class Analyzer:
     def config_mutates(args):
         if any(a in CONFIG_WRITE for a in args) or args[:1] in (["set"], ["unset"], ["edit"]):
             return True
-        if any(a in CONFIG_READ for a in args) or args[:1] in (["get"], ["list"]):
+        if any(a in CONFIG_READ for a in config_read_args(args)) or args[:1] in (["get"], ["list"]):
             return False
         return len([a for a in args if not a.startswith("-")]) >= 2
 
@@ -2922,7 +2939,7 @@ class Analyzer:
 
     @staticmethod
     def git_config_read(args):
-        if any(a in CONFIG_WRITE for a in args) or not any(a in GIT_CONFIG_READ_ONLY for a in args):
+        if any(a in CONFIG_WRITE for a in args) or not any(a in GIT_CONFIG_READ_ONLY for a in config_read_args(args)):
             return False
         return not Analyzer.config_mutates(args)
 
@@ -3677,6 +3694,11 @@ class Analyzer:
         if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
             raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
                         "`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+        if gargs[i] == "config":  # T-1035: stdin may add `key value`; a read flag eaten as an option value leaves a write
+            cargs = gargs[i + 1:]
+            if any(a in CONFIG_READ for a in cargs) and not any(a in CONFIG_READ for a in config_read_args(cargs)):
+                raise Block("xargs git config: a value-taking option (--comment, --value, ...) takes the read flag as its "
+                            "value, so the key and value from stdin would be written; run `git config` directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
