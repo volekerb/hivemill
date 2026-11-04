@@ -76834,60 +76834,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "gh release create -R acme/new v1 --notes x",
-"mask_quotes_pre": "gh release create -R acme/new v1 --notes x",
-"mask_quotes_raw": "gh release create -R acme/new v1 --notes x",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "gh release create -R acme/new v1 --notes x"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "gh release create -R acme/new v1 --notes x"
-},
-"segments_pre": [
-[
-0,
-42,
-[
-"gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
-]
-]
-],
-"segments_raw": [
-[
-0,
-42,
-[
-"gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "gh release list -R acme/old",
 "mask_quotes_pre": "gh release list -R acme/old",
 "mask_quotes_raw": "gh release list -R acme/old",
@@ -77134,60 +77080,6 @@
 "extract_subs_raw": {
 "subs": []
 },
-"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
-"mask_quotes_pre": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
-"mask_quotes_raw": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
-"preprocess": {
-"bodies": [],
-"extras": [],
-"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
-},
-"preprocess_fold": {
-"bodies": [],
-"extras": [],
-"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
-},
-"segments_pre": [
-[
-0,
-76,
-[
-"gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
-]
-]
-],
-"segments_raw": [
-[
-0,
-76,
-[
-"gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
-]
-]
-],
-"src": "corpus"
-},
-{
-"extract_subs_pre": {
-"subs": []
-},
-"extract_subs_raw": {
-"subs": []
-},
 "input": "gh release list",
 "mask_quotes_pre": "gh release list",
 "mask_quotes_raw": "gh release list",
@@ -77266,6 +77158,114 @@
 "release",
 "view",
 "v1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_pre": "gh release create -R acme/new v1 --notes x",
+"mask_quotes_raw": "gh release create -R acme/new v1 --notes x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v1 --notes x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mask_quotes_pre": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "gh release create -R acme/new v2 --notes 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'"
+},
+"segments_pre": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+76,
+[
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
 ]
 ]
 ],
