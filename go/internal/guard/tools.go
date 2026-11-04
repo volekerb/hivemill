@@ -79,6 +79,9 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 	if exportPath(p) || (strings.Contains(p, "$") && strings.Contains(p, "guard-export")) {
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + exportWhy + ". Tell your lead if this is wrong.\n"
 	}
+	if protEditPath(p) { // T-0925 gap g: the Edit tools were checked against the persist paths only
+		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + protWhy + ". Tell your lead if this is wrong.\n"
+	}
 	// T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
 	// a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
 	binHit := strings.Contains(p, "$") && hasLocalBin(p)

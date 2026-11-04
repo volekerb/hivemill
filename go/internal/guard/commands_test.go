@@ -32,7 +32,7 @@ var casesPerModule = map[string]int{
 	"test_priv_guard":           572,
 	"test_worker_guard_heredoc": 101,
 	"test_worker_guard_units":   111,
-	"test_worker_guard_reads":   135,
+	"test_worker_guard_reads":   152,
 }
 
 func loadPyCases(t *testing.T) []pyCase {
@@ -768,4 +768,22 @@ func TestUvxRunnerRouting(t *testing.T) {
 func tmpXExists() bool {
 	st, err := os.Stat("/tmp/x")
 	return err == nil && st.IsDir()
+}
+
+// T-0435 review B1/B2: the pytest full-suite rule. An option value is never a path and `--keep-duplicates` is not -k.
+func TestPytestFullSuiteRule(t *testing.T) {
+	clearTermsEnv(t)
+	t.Setenv("FACTORY_AGENT", "coder-t-9")
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	for _, c := range []string{"pytest --keep-duplicates", "pytest --keep-duplicates tests", "pytest -r A tests", "pytest -r a",
+		"pytest --lfnf all", "pytest --timeout 60 tests", "pytest", "python3 -m pytest tests/"} {
+		if err := checkRole(c, "coder"); err == nil {
+			t.Errorf("%q: allowed, want refused", c)
+		}
+	}
+	for _, c := range []string{"pytest tests/test_x.py", "pytest -k name", "pytest tests -k name", "pytest tests/test_x.py::C::test_one -q"} {
+		if err := checkRole(c, "coder"); err != nil {
+			t.Errorf("%q: %v, want allowed", c, err)
+		}
+	}
 }
