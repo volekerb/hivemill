@@ -21,7 +21,7 @@ FLAGS = {
     "test_cgroup", "test_sandbox_subuid", "gate_post_status", "sandbox_roles", "worker_gh_roles", "task_clones",
     "tick_async_start", "lead_wake_debounce_s", "tick_phase_timers", "orphan_reap_mode", "scout_enabled",
     "gate_fast_projects", "issue_intake_repos", "cursor_pilot_roles", "agent_runtimes",
-    "red_pr_owner_alert", "coder_ci_handoff",
+    "red_pr_owner_alert", "coder_ci_handoff", "idle_coder_reap", "judge_wait_main_run",
 }
 BASELINE_ON = {"git_push", "stale_policy", "scout_enabled", "gate_fast_projects"}
 
