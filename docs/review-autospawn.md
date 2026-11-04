@@ -34,3 +34,10 @@ A task that already had a review round on an older head is handled by the re-run
 The tick never classifies a PR: the tier is whatever `factory task tier` stored (G-022 #1). Merging is unchanged.
 
 Tests: `tests/test_review_autospawn.py`.
+
+## With `coder_ci_handoff` on (T-1003)
+
+When `coder_ci_handoff` is `resume` or `fresh`, the coder leaves at PR open while CI runs, so the first-round pass (`review_candidates`)
+starts the reviewer and QA only once `ci_verdict` of the PR head is green, as the new-head pass already does. A pending or red head
+starts no reviewer or QA row; the next tick retries. `judge_autospawn_candidates` and `mech_candidates` are unchanged (they still need
+verdicts and green CI). With the flag `off` the first-round pass starts review at PR open as before. See [prcheck.md](prcheck.md#ci-handoff-coder_ci_handoff-t-1003).
