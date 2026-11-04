@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "ci", "guard_impl_unittest.py")
 WF = os.path.join(ROOT, ".github", "workflows", "tests.yml")
 # stems, .py appended at runtime (the coverage test greps test sources for the hook path spelling)
-DIFF_SET = [s + ".py" for s in ("test_worker_guard", "test_priv_guard", "test_guard_diff")]
+DIFF_SET = [s + ".py" for s in ("test_worker_guard", "test_priv_guard", "test_guard_diff", "test_worker_guard_public_text")]
 
 
 def run(*args):
