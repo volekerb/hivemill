@@ -5964,7 +5964,7 @@ def live_tree_dirty_paths():
     """[(XY, path)] for modified, deleted or staged tracked files of the live checkout, exports/ and state/ left out
     (sync_pull restores those every tick). Untracked entries are not read. Raises RuntimeError when git cannot answer."""
     p = git_run(HOME, "status", "--porcelain", "-z", "--untracked-files=no", "--", ".", ":(exclude)exports", ":(exclude)state",
-             text=False)
+             text=False, timeout=30, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})  # read-only: no index refresh write
     if p.returncode != 0:
         raise RuntimeError(f"git status exited {p.returncode}: {p.stderr.decode('utf-8', 'replace').strip()[-200:]}")
     fields = p.stdout.decode("utf-8", "replace").split("\0")
@@ -12660,7 +12660,7 @@ def cmd_tick(a, locked=False):
 
     try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
         live_tree_dirty_alert(con)
-    except (OSError, sqlite3.Error, subprocess.SubprocessError) as e:
+    except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
         event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)

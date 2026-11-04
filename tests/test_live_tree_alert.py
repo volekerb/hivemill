@@ -85,6 +85,14 @@ class LiveTreeAlertTests(FactoryTestCase):
         self.hook()
         self.assertEqual(len(self.alerts()), 3)
 
+    def test_staged_rename_reports_both_paths(self):
+        git("mv", "a.txt", "c.txt", cwd=self.home)
+        self.hook()
+        body = self.alerts()[0]["body"]
+        self.assertIn("a.txt", body)
+        self.assertIn("c.txt", body)
+        self.assertIn("2 path(s)", body)
+
     def test_no_repair(self):
         (self.home / "a.txt").write_text("changed\n")
         (self.home / "b.txt").unlink()
