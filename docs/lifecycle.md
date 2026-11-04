@@ -25,7 +25,7 @@ The auto-activation only ever touches a goal in `proposed` or `planning`. A goal
 | todo -> in_progress | **automatic** (event `task-auto-start`) when `factory spawn <role> --task T` actually starts the worker. The tick does the same when it later starts a queued spawn. A QUEUED spawn leaves the task in `todo`. One shared helper (`task_auto_start`) serves both paths. |
 | in_progress -> in_review | coder: `factory task update --status in_review --pr` |
 | in_review -> done | the judge, via `factory judge --merge` |
-| in_review -> in_progress | the judge, via `factory judge --reject` |
+| in_review -> in_progress | the judge, via `factory judge --reject` (a reject that asks for no code change, `--reject --no-code-change`, keeps the task in_review: the verdict still counts as a reject, judge autospawn waits for a newer reviewer/QA verdict) |
 | blocked / cancelled | manual |
 
 A spawn never changes a task that is in `in_review`, `blocked`, `done` or `cancelled`: a reviewer, QA or judge spawned on an `in_review` task leaves it in `in_review`.

@@ -4750,6 +4750,9 @@ def judge_requeue(con, task, proj, pr_url, new_head):
           "The tick launches the run and a judge is spawned when it passes.")
 
 
+STATUS_ONLY_PREFIX = "status-only: "
+
+
 def cmd_judge(a):
     con = db()
     if getattr(a, "train", None):
@@ -4759,6 +4762,8 @@ def cmd_judge(a):
         return judge_train(con, a)
     if getattr(a, "dry_run", False):
         die("--dry-run is only for --train; nothing was merged or rejected", 2)
+    if getattr(a, "no_code_change", False) and not a.reject:
+        die("--no-code-change only goes with --reject; nothing was merged or rejected", 2)
     if not a.task or not a.reason:
         die("judge needs a task and --reason (or --train T-a T-b ... [--dry-run])", 2)
     if getattr(a, "record_merged", None) is not None:  # "" must reach the sha check, never fall to --merge
@@ -4781,6 +4786,15 @@ def cmd_judge(a):
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
         sha = pr["headRefOid"]
+    if a.reject and getattr(a, "no_code_change", False):
+        # T-1055: status-only reject (CI wait, missing verdict on head): no code change asked, so the task stays in_review.
+        # The verdict row still counts as a reject in the scorecard; judge autospawn skips the task until a newer
+        # reviewer/QA verdict lands (judge_status_only_hold), and the merge gate is untouched.
+        con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                    (a.task, t["pr_url"], sha, "judge", "reject", STATUS_ONLY_PREFIX + reason, actor(), now()))
+        event(con, "task", a.task, "judge-reject-status-only", reason)
+        print(f"{a.task} REJECTED (status-only, stays in_review) @ {sha[:8]}")
+        return
     if a.reject:
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                     (a.task, t["pr_url"], sha, "judge", "reject", reason, actor(), now()))
@@ -9705,7 +9719,7 @@ def prcheck_done_refusal(con, r, t):
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
-JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject")  # what cmd_judge records
+JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject", "judge-reject-status-only")  # what cmd_judge records
 
 
 def judge_done_refusal(con, r):
@@ -12504,8 +12518,22 @@ def judge_autospawn_candidates(con):
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
             continue
+        if judge_status_only_hold(con, t["id"]):
+            continue
         out.append(t)
     return out
+
+
+def judge_status_only_hold(con, task_id):
+    """True while the newest judge verdict is a status-only reject (T-1055) and no reviewer/QA verdict is newer: a judge
+    would only repeat it. A fresh verdict (new head or re-review) lifts the hold."""
+    jr = con.execute("SELECT id, summary FROM verdicts WHERE task_id=? AND role='judge' ORDER BY id DESC LIMIT 1",
+                     (task_id,)).fetchone()
+    if not jr or not (jr["summary"] or "").startswith(STATUS_ONLY_PREFIX):
+        return False
+    newer = con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') AND id>?",
+                        (task_id, jr["id"])).fetchone()
+    return not newer
 
 
 def judge_autospawn_tick(con):
@@ -15963,6 +15991,7 @@ def main():
     g.add_argument("--record-merged", metavar="SHA", help="record a PR whose squash already landed on origin/main (judge, director)")
     g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
+    x.add_argument("--no-code-change", action="store_true", help="with --reject: no code change is asked (CI wait, missing verdict on head); the task stays in_review")
     x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
     x.set_defaults(fn=cmd_refresh)

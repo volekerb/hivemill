@@ -104,6 +104,46 @@ class RejectNotifyTests(Base):
         self.assertEqual(calls[0]["task"], T)
 
 
+class StatusOnlyRejectTests(Base):
+    """T-1055: judge --reject --no-code-change keeps the task in_review; the default reject is unchanged."""
+
+    def status_only(self):
+        return self.env.run("judge", T, "--reject", "--no-code-change", "--reason", "CI still running", agent=JUDGE)
+
+    def test_status_only_reject_stays_in_review_and_merge_reaches_gate(self):
+        p = self.status_only()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("status-only", p.stdout)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id=?", (T,))[0]["status"], "in_review")
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action='judge-reject-status-only'")[0]["c"], 1)
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM messages WHERE recipient=?", (CODER,))[0]["c"], 0)
+        m = self.env.run("judge", T, "--merge", "--reason", "retry", agent=JUDGE)
+        self.assertNotIn("no longer in_review", m.stderr)
+
+    def test_status_only_reject_counts_as_reject_in_scorecard(self):
+        self.status_only()
+        v = self.env.sql("SELECT verdict, summary FROM verdicts WHERE role='judge'")
+        self.assertEqual([r["verdict"] for r in v], ["reject"])
+        self.assertTrue(v[0]["summary"].startswith("status-only: "))
+
+    def test_code_change_reject_still_in_progress(self):
+        self.reject()
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id=?", (T,))[0]["status"], "in_progress")
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM events WHERE action='judge-reject-status-only'")[0]["c"], 0)
+
+    def test_no_code_change_needs_reject(self):
+        p = self.env.run("judge", T, "--merge", "--no-code-change", "--reason", "x", agent=JUDGE)
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id=?", (T,))[0]["status"], "in_review")
+
+    def test_autospawn_holds_until_newer_verdict(self):
+        self.assertEqual(len(self.judge_autospawn_calls()), 1)
+        self.status_only()
+        self.assertEqual(self.judge_autospawn_calls(), [])
+        self.ok("verdict", T, "--pass", "--summary", gates_summary(), agent="zz-test-qa")
+        self.assertEqual(len(self.judge_autospawn_calls()), 1)
+
+
 class C4ScratchTest(unittest.TestCase):
     def test_removing_reject_message_fails(self):
         from harness import FACTORY_SRC, REPO
