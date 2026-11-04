@@ -2894,6 +2894,9 @@ class Analyzer:
         if pos[:1] == ["api"] and body and method != "GET":
             raise Block("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to "
                         "GitHub; use -X GET for a read with fields, or ask your lead")
+        if pos[:1] == ["api"] and method not in (None, "GET"):  # T-0987: a non-GET method is a write even without a body
+            raise Block(f"gh api -X/--method {method} is a write; no-push roles never write to GitHub; "
+                        "use GET for a read, or ask your lead")
         if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
             raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
 

@@ -98,6 +98,50 @@ class GuardCopyTests(SandboxBase):
             self.assertEqual((rdir / "ci" / name).read_bytes(), (REPO / "ci" / name).read_bytes())
             self.assertEqual(stat.S_IMODE((rdir / "ci" / name).stat().st_mode), 0o555)
 
+    def evaluator_with_hook_command(self, command):
+        """evaluator_settings on a copy of the repo whose evaluator template runs `command` in every hook."""
+        fake = Path(tempfile.mkdtemp(prefix="zz-test-fakerepo-")).resolve()
+        self.addCleanup(shutil.rmtree, fake, True)
+        shutil.copytree(REPO / "roles", fake / "roles", symlinks=True)
+        shutil.copytree(REPO / "ci", fake / "ci")
+        tpl = fake / "roles" / "settings" / "evaluator.json.in"
+        cfg = json.loads(tpl.read_text().replace("@FACTORY_LIVE_HOME@", "/live"))
+        for groups in cfg["hooks"].values():
+            for g in groups:
+                for h in g["hooks"]:
+                    h["command"] = command
+        tpl.write_text(json.dumps(cfg))
+        rdir = fake / "trial" / "role"
+        err = io.StringIO()
+        with self.env.load_factory() as f:
+            f.ROLES_DIR = fake / "roles"
+            with contextlib.redirect_stderr(err):
+                try:
+                    text, guard = f.evaluator_settings(rdir)
+                except SystemExit as e:
+                    return e.code, err.getvalue(), None, rdir
+        return 0, err.getvalue(), (json.loads(text), guard), rdir
+
+    def test_the_sh_shim_form_and_the_python_form_both_become_the_trial_copy(self):
+        """T-0356 C2: the template calls `sh <live>/roles/hooks/worker-guard --role evaluator`; the trial runs the python copy."""
+        for cmd in ("sh /live/roles/hooks/worker-guard --role evaluator", "python3 /live/roles/hooks/worker-guard.py --role evaluator"):
+            with self.subTest(cmd=cmd):
+                code, err, got, rdir = self.evaluator_with_hook_command(cmd)
+                self.assertEqual(code, 0, err)
+                cfg, guard = got
+                cmds = hook_commands(cfg)
+                self.assertGreaterEqual(len(cmds), 2)
+                self.assertEqual(set(cmds), {f"python3 {guard} --role evaluator"})
+                self.assertFalse((rdir / "roles" / "hooks" / "worker-guard").exists())  # the shim is not copied
+
+    def test_a_hook_command_running_neither_form_dies(self):
+        for cmd in ("sh /live/roles/hooks/other-hook --role evaluator", "python3 /live/roles/hooks/guard.py", "true"):
+            with self.subTest(cmd=cmd):
+                code, err, got, _ = self.evaluator_with_hook_command(cmd)
+                self.assertEqual(code, 3)
+                self.assertIn("runs neither", err)
+                self.assertIsNone(got)
+
     def test_missing_ci_source_dies_naming_the_file(self):
         for missing in CI_FILES:
             with self.subTest(missing=missing):
