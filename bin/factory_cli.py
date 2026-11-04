@@ -3224,12 +3224,33 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
 
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
-    overwrite pane_id and leak that pane, so close it now (same call as the tick reap) and mark the row exited."""
+    overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
+    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry.
+    Returns True when the pane is released or there was nothing to release. Returns False when the pane could not be
+    confirmed gone: the row is then exited with pane_id KEPT (so reap_exited_panes can still match it), one
+    "stale-pane-close-failed" event is logged, and the caller must not reuse the name."""
     r = con.execute("SELECT status, pane_id FROM agents WHERE name=?", (name,)).fetchone()
-    if r and r["status"] == "done" and r["pane_id"]:
-        herdr("pane", "close", r["pane_id"], check=False)
+    if not r or not r["pane_id"] or r["status"] not in ("done", "exited"):
+        return True
+    pane = r["pane_id"]
+    gone = False
+    if r["status"] == "done":
+        herdr("pane", "close", pane, check=False)
+        gone = pane_gone(pane) is True
+    else:
+        listed = herdr_agents()
+        if listed is not None and not any(h.get("name") == name and h.get("pane_id") == pane for h in listed):
+            return True  # the host does not list that pane under this name: nothing of ours to close (as before)
+        if listed is not None:  # never close a pane we cannot attribute to this name
+            herdr("pane", "close", pane, check=False)
+            gone = pane_gone(pane) is True
+    if gone:
         con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
-        event(con, "agent", name, "reaped", r["pane_id"])
+        event(con, "agent", name, "reaped", pane)
+        return True
+    con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), name))
+    event(con, "agent", name, "stale-pane-close-failed", json.dumps({"agent": name, "pane": pane}))
+    return False
 
 
 def spawn_on_demand(con, goal, org=None):
@@ -3245,7 +3266,9 @@ def spawn_on_demand(con, goal, org=None):
         if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (se,)).fetchone():
             con.execute("COMMIT")
             return
-        release_stale_pane(con, se)
+        if not release_stale_pane(con, se):
+            con.execute("COMMIT")  # old pane still there: keep its pane_id, claim nothing; the next routed message retries
+            return
         args = {"role": ON_DEMAND, "goal": goal, "team": None, "task": None, "name": se, "cwd": None,
                 "prompt": None, "model": None, "resume": None, "claimed_at": time.time(), "org": org}
         con.execute("INSERT INTO agents(name,role,goal_id,status,spawn_args,queued_at) VALUES(?,?,?,?,?,?) "
@@ -7839,7 +7862,9 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if existing and existing["status"] == "live" and not relaunch:
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
         die(f"{name} is already live in {existing['pane_id']}")
-    release_stale_pane(con, name)  # name reuse after `done` but before the tick reaped the old pane
+    if not release_stale_pane(con, name):  # name reuse after `done` but before the tick reaped the old pane
+        die(f"{name}: its old pane {existing['pane_id']} could not be confirmed closed; not reusing the name. The row keeps "
+            "the pane id (the exited-pane reaper retries it); retry the spawn later.")
     if role in workerbox.SANDBOXABLE and task_sandbox_required(con, task):
         sandbox_optin = True  # a sandbox_required task never starts unsandboxed, whoever spawns it (queue and relaunch keep it)
     args = {"role": role, "goal": goal, "team": team, "task": task, "name": name, "cwd": cwd,
