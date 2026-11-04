@@ -6,7 +6,11 @@
 
 The `guard-diff` job holds the real-corpus step in `.github/workflows/tests.yml` (its own 20 min cap; the hook unittests run in a separate `guard-unittest` job with its own 30 min cap, so the two no longer share one cap). The step runs both commands below on every PR that changes `roles/hooks/**`, `roles/settings/**`, `ci/guard_corpus.json`, `ci/guard_diff.py`, `ci/public_text_guard.py`, `ci/scrub_scan.py` (the hook loads them), `.github/workflows/tests.yml` (so a gate change proves itself) or `go/internal/guard/**`, `go/cmd/worker-guard/**` or `go/internal/shlex/**`, with `--base` set to the PR base sha. The `guard-unittest` and `guard-diff` jobs both feed the required `unittest` aggregate (any result but success in either, including cancelled or timed out, fails it; `unittest` stays the required check, and `guard-unittest` is added to `required_checks` in `ci/publish_metadata.json` for the public repo), so rc!=0 (a LOOSENED line) fails the PR. The tool (`ci/guard_diff.py`, `tests/_slot.py`) is extracted from the base commit, so a PR cannot weaken its own gate; a base without it falls back to the PR copy. The corpus is passed twice on both runs, `--corpus <base ci/guard_corpus.json> --corpus ci/guard_corpus.json`, so deleting a `must_block` entry in the PR still shows as LOOSENED. The job fails if `ci/guard_corpus.json` has 100 lines or fewer (not the real corpus). A PR that adds `ci/allow_loosen_*.json` has it merged into one `--allow-loosen` list and printed in the job log for the reviewer. Coders do not run the tool locally (load, M16816); they read this job's log.
 
-## Usage (local, for reviewers and the factory owner)
+Go-only PRs: a PR that changes only `go/internal/guard/**`, `go/cmd/worker-guard/**` or `go/internal/shlex/**` triggers this step, but the step runs the tool with its default `--impl python`, which compares the Python hooks only, so that run proves nothing about Go. Go is covered by the `GUARD_IMPL=diff` step in the separate `guard-unittest` job (no path condition).
+
+## Usage (manual run, needs a named authorization)
+
+CI is the normal route: the `guard-diff` job runs these commands and reviewers read its log. A local run is not allowed by default (the reviewer and coder rules permit only `ci/affected.py --quick` locally, and the tool is heavy); run it only when a task, the owner or the boss names the authorization to do so.
 
 ```
 git fetch origin
@@ -78,7 +82,7 @@ A removed `deny` or `ask` rule, an added `allow` rule, a removed hook, a removed
 
 ## How reviewers use it
 
-1. Run `git fetch origin`, then the command above on the PR head.
+1. Read the `guard-diff` job's real-corpus step log for the PR head (do not run the tool locally).
 2. Check that the PR body pastes the summary and every LOOSENED/TIGHTENED line.
 3. Reject an unplanned LOOSENED line. A planned loosening must be named in the spec and ships as its own task (L-026).
 4. Read the TIGHTENED lines for false positives: each should be a form the PR meant to block.
