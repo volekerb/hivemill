@@ -39097,42 +39097,6 @@
 "src": "corpus"
 },
 {
-"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"python3",
-"-c",
-"import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")"
-]
-},
-{
-"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"python3",
-"-c",
-"import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")"
-]
-},
-{
-"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"python3",
-"-c",
-"import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")"
-]
-},
-{
-"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
-"mode": "quote",
-"quoted": "'python3 -c '\"'\"'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'\"'\"''",
-"src": "corpus"
-},
-{
 "input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
 "mode": "script",
 "src": "corpus",
@@ -52442,6 +52406,42 @@
 "input": "echo x > ~/.config/gopher/y",
 "mode": "quote",
 "quoted": "'echo x > ~/.config/gopher/y'",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")"
+]
+},
+{
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")"
+]
+},
+{
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")"
+]
+},
+{
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'\"'\"''",
 "src": "corpus"
 },
 {
