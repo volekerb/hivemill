@@ -79,6 +79,9 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 	if exportPath(p) || (strings.Contains(p, "$") && strings.Contains(p, "guard-export")) {
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + exportWhy + ". Tell your lead if this is wrong.\n"
 	}
+	if protEditPath(p) { // T-0925 gap g: the Edit tools were checked against the persist paths only
+		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + protWhy + ". Tell your lead if this is wrong.\n"
+	}
 	noPush := in(noPushRoles, role) // T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
 	if persistPath(p, false, !noPush) || (noPush && (gitHooksPath(p, false) || gitfilePath(p))) || (strings.Contains(p, "$") && PersistCode(p)) {
 		why := persistWhy

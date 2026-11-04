@@ -262,6 +262,85 @@ def _ancestors(path):
 
 
 EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, the live home, ~, its parents, /
+# T-0925: protected trees for workers, one more layer over the cfg_* detector: ~/.local/go (the Go toolchain: its go.env
+# applies GOFLAGS even with GOENV=off) and ~/.config/go (go env -w), the guard trees above, and four trees INSIDE the live
+# checkout (go/, roles/hooks, roles/settings, bin/: the tick builds, runs and renders from them). Only these four, not the
+# whole live checkout. Reads and runs stay allowed; worktrees are not under them.
+PROT_LIVE_SUBDIRS = ("go", "roles/hooks", "roles/settings", "bin")
+PROT_MARKERS = (".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
+                "run/settings", "run/guard_impl")  # an expansion we cannot resolve that spells one of these counts
+PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; "
+            "~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, "
+            "<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner "
+            "and the tick change them. Work in your worktree")
+
+
+def prot_trees():
+    """Absolute paths of the protected trees, each spelled and resolved. The live homes are LIVE_HOMES, or the
+    WORKER_GUARD_LIVE_HOME override (tests only); never live_homes(): that adds the hook's own repo root (a CI checkout
+    or a coder's worktree copy), which a coder may write."""
+    override = os.environ.get("WORKER_GUARD_LIVE_HOME")
+    homes = {os.path.realpath(override)} if override else set(LIVE_HOMES)
+    base = [CFG_DIR, LIB_DIR, os.path.join(PW_DIR, ".config", "factory"), os.path.join(PW_DIR, ".local", "lib", "factory"),
+            os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go")]
+    for h in homes:
+        base += [os.path.join(h, "run", "settings"), os.path.join(h, "run", "guard_impl")]
+        base += [os.path.join(h, *sub.split("/")) for sub in PROT_LIVE_SUBDIRS]
+    return sorted({q for b in base for q in (os.path.normpath(b), os.path.realpath(b))})
+
+
+def prot_path(p, ancestor=False):
+    """True when absolute, glob-free path `p` (spelled or resolved) is a protected tree, inside one, or (ancestor) holds one."""
+    trees = prot_trees()
+    return any(c == d or under(c, d) or (ancestor and under(d, c)) for c in {os.path.normpath(p), os.path.realpath(p)}
+               for d in trees)
+
+
+def prot_glob(p, ancestor=False):
+    """True when glob pattern `p` (absolute) can match a protected tree, a path inside one or (ancestor) a path holding
+    one: each component is fnmatched against the tree's, so `~/.local/fact*/x` and `<live>/rol*/hooks/y` match."""
+    pat = os.path.normpath(p).strip("/").split("/")
+    for d in prot_trees():
+        parts = d.strip("/").split("/")
+        n = min(len(pat), len(parts))
+        if (len(pat) >= len(parts) or ancestor) and all(fnmatch.fnmatchcase(x, y) for x, y in zip(parts[:n], pat[:n])):
+            return True
+    return False
+
+
+def prot_edit_path(p):
+    """persist_edit side (T-0925 gap g): p is a file_path of Write/Edit/MultiEdit/NotebookEdit."""
+    if any(c in p for c in "$`"):
+        return any(m in p for m in PROT_MARKERS)
+    return prot_path(p)
+
+
+def opt_values(args, letters="", longs=()):
+    """Values of the options named in `longs` (exact word, as --output X, --output=X, -o X) and of the single-dash
+    letters in `letters` (curl -o X, -oX, -sSLo X: glued, or the next word), in the order they appear."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        opt, eq, val = a.partition("=")
+        if opt in longs:
+            if eq:
+                out.append(val)
+            elif k < len(args):
+                out.append(args[k])
+                k += 1
+        elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
+            for i, ch in enumerate(a[1:], 1):
+                if ch in letters:
+                    if a[i + 1:]:
+                        out.append(a[i + 1:])
+                    elif k < len(args):
+                        out.append(args[k])
+                        k += 1
+                    break
+    return out
+
+
 CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
@@ -1190,6 +1269,7 @@ class Analyzer:
             if not self.hq:
                 for _, target in [r for r in reds if r[0] == n]:
                     self.cfg_redirect(target)
+                    self.prot_redirect(target)
                     self.persist_redirect(target)
             self.soft(self.cmd, words, depth, piped, False, hstrs)
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
@@ -1511,6 +1591,188 @@ class Analyzer:
         elif INTERPRETERS.match(name) or name in EDITORS - {"less", "more", "man", "view"}:
             if any(self.cfg_hit(a) or self.cfg_code(a) for a in rest):
                 raise Block(f"`{name}` naming ~/.config/factory (code there cannot be inspected; read it with cat): {why}")
+
+    def prot_hit(self, word, ancestor=False, base="cwd"):
+        """T-0925: True when `word` (or the value of --opt=value / of=value) names a protected tree (prot_trees), something
+        inside one (a glob that can match one counts) or, with ancestor, a directory holding one. A relative word is
+        joined to `base` (default: the tracked cwd; unknown = not decidable = False, like cfg_hit). An expansion we cannot
+        resolve counts when it spells a protected tree name."""
+        base = self.ccwd if base == "cwd" else base
+        for w in {word, word.split("=", 1)[-1]}:
+            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+            for e in brace_expand(t):
+                if any(c in e for c in "$`"):
+                    if any(m in e for m in PROT_MARKERS):
+                        return True
+                    continue
+                if not e or e == "-" or (not os.path.isabs(e) and base is None):
+                    continue
+                full = e if os.path.isabs(e) else os.path.join(base, e)
+                if GLOB.search(e):
+                    if prot_glob(full, ancestor):
+                        return True
+                elif prot_path(full, ancestor):
+                    return True
+        return False
+
+    def prot_redirect(self, target):
+        if self.prot_hit(target):
+            raise Block(f"a redirect into a protected tree: {PROT_WHY}")
+
+    def prot_write(self, name, rest):
+        """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a
+        glob target and for the new trees), the writer flags curl/wget/go/cc/tar/unzip/7z/git clone have, and an extractor
+        or downloader whose target is the cwd after a `cd` into a tree. `go env -w|-u` writes ~/.config/go/env."""
+        args = [a for a in rest if a != "--"]
+
+        def block(w, what=None):
+            raise Block(f"`{name}` on {what or repr(w)}: {PROT_WHY}")
+
+        def hit(w, anc=False, base="cwd"):
+            if w and self.prot_hit(w, anc, base):
+                block(w, "a protected tree")
+
+        def cwd_write(strict, base="cwd"):  # the command writes into its working directory
+            b = self.ccwd if base == "cwd" else base
+            if b is None:
+                if strict:
+                    block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
+            elif prot_path(b):
+                block(b, "the working directory, which is in a protected tree")
+
+        if name in CFG_WRITERS:
+            dest_only = name in ("cp", "install", "rsync", "dd") or (
+                name == "ln" and any(a == "--symbolic" or (re.match(r"^-[A-Za-z]+$", a) and "s" in a) for a in args))
+            for j, a in enumerate(args):
+                if dest_only and not (j == len(args) - 1 or a.startswith("of=") or (j > 0 and args[j - 1] in ("-t", "--target-directory"))
+                                      or a.startswith("--target-directory=")):
+                    continue
+                hit(a, name in CFG_REMOVERS or (name == "mv" and j < len(args) - 1))
+        elif name in ("sed", "perl", "gawk") and any(re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") for a in args):
+            for a in args:
+                hit(a)
+        elif name == "curl":
+            for v in opt_values(args, "oDc", {"--output", "--dump-header", "--cookie-jar", "--trace", "--trace-ascii", "--stderr"}):
+                hit(v)
+            dirs = opt_values(args, "", {"--output-dir"})
+            for d in dirs:
+                hit(d)
+            if not dirs and (any(re.match(r"^-[A-Za-z]*[OJ]", a) for a in args) or any(
+                    a in ("--remote-name", "--remote-name-all", "--remote-header-name") for a in args)):
+                cwd_write(False)
+        elif name == "wget":
+            outs = opt_values(args, "O", {"--output-document"})
+            for v in outs + opt_values(args, "oa", {"--output-file", "--append-output", "--save-cookies"}):
+                hit(v)
+            prefix = opt_values(args, "P", {"--directory-prefix"})
+            for v in prefix:
+                hit(v)
+            if not outs and not prefix:
+                cwd_write(False)
+        elif name == "go":
+            sub, k = None, 0
+            while k < len(args):  # the first word that is not an option (or the value of -C)
+                if args[k] in ("-C", "--C"):
+                    k += 1
+                elif not args[k].startswith("-"):
+                    sub = args[k]
+                    break
+                k += 1
+            if sub == "env" and any(re.match(r"^--?[wu](=|$)", a) for a in args):
+                block(None, "`go env -w|-u` (it writes ~/.config/go/env)")
+            cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]
+            hit(cdir)
+            cdir = None if cdir is None else self.cfg_expand(cdir)
+            if cdir is None:
+                base = self.ccwd
+            elif os.path.isabs(cdir):
+                base = cdir
+            else:
+                base = None if self.ccwd is None else os.path.join(self.ccwd, cdir)
+            if sub in ("build", "test", "install"):
+                for v in opt_values(args, "", {"-o", "--o"}):
+                    hit(v, base=base)
+        elif name in ("gcc", "g++", "cc", "c++", "clang", "clang++", "ld", "as", "rustc"):
+            for k, a in enumerate(args):
+                if a in ("-o", "--output") and k + 1 < len(args):
+                    hit(args[k + 1])
+                elif a.startswith("--output="):
+                    hit(a)
+                elif a.startswith("-o") and len(a) > 2:
+                    hit(a[2:])
+        elif name in ("tar", "gtar", "bsdtar"):
+            targs = list(args)
+            if targs and re.fullmatch(r"[A-Za-z]+", targs[0]):
+                targs[0] = "-" + targs[0]  # the old style `tar xf a.tar`
+            extract = any(a.startswith("-") and not a.startswith("--") and "x" in a for a in targs) or any(
+                a.partition("=")[0] in ("--extract", "--get", "--ex", "--ext", "--extr", "--extra", "--extrac", "--ge") for a in targs)
+            dirs = opt_values(targs, "C", {"--directory"})
+            top = [a.partition("=")[2] for a in targs if a.startswith("--one-top-level=")]
+            if extract:
+                base = self.ccwd
+                for d in dirs:  # -C chains: each relative one is relative to the one before
+                    hit(d, base=base)
+                    d = self.cfg_expand(d)
+                    base = d if os.path.isabs(d) else (None if base is None else os.path.join(base, d))
+                for v in top:
+                    hit(v, base=base)
+                if base is None:
+                    block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
+                hit(base)  # no -C: the cwd; with -C: where the last one leads
+            else:
+                for v in opt_values(targs, "f", {"--file"}):  # create/append: the archive file is written
+                    hit(v)
+        elif name == "unzip":
+            dirs = []
+            for k, a in enumerate(args):
+                if a == "-d" and k + 1 < len(args):
+                    dirs.append(args[k + 1])
+                elif a.startswith("-d") and len(a) > 2:
+                    dirs.append(a[2:])
+            if not unzip_listing(list(rest)):
+                for d in dirs:
+                    hit(d)
+                if not dirs:
+                    cwd_write(True)
+        elif name in ("7z", "7za", "7zr"):
+            if args[:1] and args[0] in ("x", "e"):
+                outs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
+                for v in outs:
+                    hit(v)
+                if not outs:
+                    cwd_write(True)
+        elif name == "git":
+            base, k = self.ccwd, 0
+            while k < len(args) and args[k].startswith("-"):
+                a = args[k]
+                k += 1
+                if a == "-C" and k < len(args):
+                    args[k] = self.cfg_expand(args[k])
+                    base = None if base is None and not os.path.isabs(args[k]) else (
+                        args[k] if os.path.isabs(args[k]) else os.path.join(base, args[k]))
+                    k += 1
+                elif a in ("-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix") and "=" not in a:
+                    k += 1
+            if k < len(args) and args[k] == "clone":
+                pos, j = [], k + 1
+                valued = {"-b", "--branch", "--depth", "-o", "--origin", "--template", "--reference", "--reference-if-able",
+                          "-c", "--config", "-j", "--jobs", "--filter", "--separate-git-dir", "-u", "--upload-pack",
+                          "--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri"}
+                while j < len(args):
+                    a = args[j]
+                    j += 1
+                    if a in valued:
+                        if a == "--separate-git-dir" and j < len(args):
+                            hit(args[j], base=base)
+                        j += 1
+                    elif a.startswith("--separate-git-dir="):
+                        hit(a, base=base)
+                    elif not a.startswith("-"):
+                        pos.append(a)
+                if len(pos) >= 2:
+                    hit(pos[1], base=base)
+                else:
+                    cwd_write(False, base)
 
     def persist_hit(self, word, ancestor=False, gitfile=False):
         """True when `word` (or the value of --opt=value / of=value) names a protected persistence path (T-0334). A
@@ -2708,6 +2970,7 @@ class Analyzer:
         self.claude_launchers(name, rest)
         self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
+        self.prot_write(name, rest)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
             if self.archive_extract(name, rest) or name in FS_MUTATORS:
@@ -4201,6 +4464,9 @@ def persist_edit(data, role=None):
         p = os.path.join(cwd, p)
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    if prot_edit_path(p):  # T-0925 gap g: the Edit tools were checked against the persist paths only
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): {PROT_WHY}. Tell your lead if this is wrong.\n")
         return 2
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
     if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (
