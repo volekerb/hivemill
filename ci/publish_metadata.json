@@ -30,6 +30,7 @@
     "unittest-shard (10)",
     "go",
     "guard-diff",
+    "guard-equiv",
     "unittest"
   ]
 }
