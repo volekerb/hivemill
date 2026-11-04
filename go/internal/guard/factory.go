@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -134,7 +135,7 @@ func (a *Analyzer) installDryRun(args, assigns []string) bool {
 	if (a.Role != "coder" && a.Role != "qa") || len(args) != 2 || args[1] != "--dry-run" {
 		return false
 	}
-	if IsDynamic(args[0], true) || !a.scratchHomes(assigns) {
+	if IsDynamic(args[0], true) || !a.scratchHomes(assigns) || !a.loneCommand() {
 		return false
 	}
 	p := expandUser(args[0])
@@ -188,6 +189,27 @@ func readHead(path string, n int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, n))
 }
 
+// loneCommand is Analyzer.lone_command (T-0331): the whole command line is the one command, optionally after plain
+// NAME=value; / export NAME=value; statements, so nothing before it can edit the script it then runs unparsed.
+func (a *Analyzer) loneCommand() bool {
+	if strings.ContainsAny(a.text, "\n|&<>`$(){}\"'\\") {
+		return false
+	}
+	parts := strings.Split(a.text, ";")
+	last := parts[len(parts)-1]
+	if strings.TrimSpace(last) == "" {
+		return false
+	}
+	for _, x := range parts[:len(parts)-1] {
+		if !reLoneAssign.MatchString(x) {
+			return false
+		}
+	}
+	return true
+}
+
+var reLoneAssign = regexp.MustCompile(`^\s*(export\s+)?(\w+=\S*\s*)+$`)
+
 // scratchForm is Analyzer.scratch_form (T-0331): words is exactly one of the commands a qa/coder may run with HOME in the
 // scratchpad: factory init, factory project add, or bash systemd/install.sh --dry-run.
 func (a *Analyzer) scratchForm(words, assigns []string) bool {
@@ -206,11 +228,7 @@ func (a *Analyzer) scratchForm(words, assigns []string) bool {
 			a.scratchHomes(assigns)
 	}
 	if in(Shells, name) {
-		k := 1
-		for k < len(words) && strings.HasPrefix(words[k], "-") && len(words[k]) > 1 {
-			k++
-		}
-		return a.installDryRun(words[k:], assigns)
+		return a.installDryRun(words[1:], assigns) // no shell option (-s runs stdin, the file is then an argument)
 	}
 	return false
 }

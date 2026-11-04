@@ -1223,7 +1223,7 @@ class Analyzer:
         the glob and dynamic-word rules. Any edited copy goes through the normal script inspection (and is refused)."""
         if self.role not in ("coder", "qa") or len(args) != 2 or args[1] != "--dry-run":
             return False
-        if is_dynamic(args[0], strict=True) or not self.scratch_homes(assigns):
+        if is_dynamic(args[0], strict=True) or not self.scratch_homes(assigns) or not self.lone_command():
             return False
         p = os.path.expanduser(args[0])
         p = os.path.realpath(p if os.path.isabs(p) else os.path.join(self.cwd, p))
@@ -1244,6 +1244,15 @@ class Analyzer:
             return False
         return False
 
+    def lone_command(self):
+        """T-0331: the whole command line is the one command, optionally after plain `NAME=value;` / `export NAME=value;`
+        statements. Nothing before it can edit the script it then runs unparsed (no redirect, pipe, chain, substitution)."""
+        text = getattr(self, "text", "") or ""
+        if any(c in text for c in "\n|&<>`$(){}\"'\\"):
+            return False
+        *pre, last = text.split(";")
+        return bool(last.strip()) and all(re.fullmatch(r"\s*(export\s+)?(\w+=\S*\s*)+", x) for x in pre)
+
     def scratch_form(self, words, assigns):
         """T-0331: words is exactly one of the commands a qa/coder may run with HOME in the scratchpad."""
         if not words:
@@ -1253,10 +1262,7 @@ class Analyzer:
             nonopt = [a for a in words[1:] if not a.startswith("-")]
             return (nonopt[:1] == ["init"] or nonopt[:2] == ["project", "add"]) and self.scratch_homes(assigns)
         if name in SHELLS:
-            k = 1
-            while k < len(words) and words[k].startswith("-") and len(words[k]) > 1:
-                k += 1
-            return self.install_dry_run(words[k:], assigns)
+            return self.install_dry_run(words[1:], assigns)  # no shell option (-s runs stdin, the file is then an argument)
         return False
 
     def check_identity(self, assigns):
@@ -3765,7 +3771,7 @@ class Analyzer:
         for h in hstrs:
             self.script(h, depth + 1)
         if i < len(rest):
-            if not self.install_dry_run(rest[i:], self.shell_assigns):  # T-0331: the one unparsed script
+            if i or not self.install_dry_run(rest, self.shell_assigns):  # T-0331: the one unparsed script (no shell options)
                 self.file(rest[i], depth)
         elif hstrs:
             return

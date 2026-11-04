@@ -100,6 +100,13 @@ class Blocked(unittest.TestCase):
                       f"HOME=@S@/h FACTORY_HOME=@L@ bash systemd/install.sh --dry-run",
                       f"HOME=@S@/h FACTORY_HOME=@S@/esc bash systemd/install.sh --dry-run"])
 
+    def test_install_sh_bypasses(self):
+        self.blocked([f"echo x >> systemd/install.sh; {H} bash systemd/install.sh --dry-run",  # edited just before it runs
+                      f"printf x | tee -a systemd/install.sh; {H} bash systemd/install.sh --dry-run",
+                      f"true && {H} bash systemd/install.sh --dry-run",
+                      f"echo evil | {H} bash -s systemd/install.sh --dry-run",  # -s runs stdin
+                      f"{H} bash -x systemd/install.sh --dry-run"])
+
     def test_edited_install_sh_is_still_inspected(self):
         r = run(f"{H} bash systemd/install.sh --dry-run", "coder", cwd="wt2")
         self.assertEqual(r.returncode, 2, r.stderr)

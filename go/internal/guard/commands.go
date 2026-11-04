@@ -1153,7 +1153,7 @@ loop:
 	}
 	switch {
 	case i < len(rest):
-		if a.installDryRun(rest[i:], a.shellAssigns) { // T-0331: the one unparsed script
+		if i == 0 && a.installDryRun(rest, a.shellAssigns) { // T-0331: the one unparsed script
 			return nil
 		}
 		return a.file(rest[i], depth)
