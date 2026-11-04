@@ -3225,7 +3225,8 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
-    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry.
+    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry
+    (matched on the row's pane_id; unlike reap_exited_panes it does not follow a renumbered host pane).
     Returns True when the pane is released or there was nothing to release. Returns False when the pane could not be
     confirmed gone: the row is then exited with pane_id KEPT (so reap_exited_panes can still match it), one
     "stale-pane-close-failed" event is logged per attempt (a caller that retries each tick logs one each
@@ -6790,7 +6791,9 @@ def reap_exited_panes(con, agents):
     and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
     silently on the next run. A pane qualifies only when the host lists it under the exact name of an agents row that,
     re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
-    stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed). Panes without an agents row, HQ rows and every non-exited row are never touched.
+    stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
+    the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks).
+    Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
         mode = cfg(con, "exited_pane_reap_mode")
@@ -6809,6 +6812,9 @@ def reap_exited_panes(con, agents):
             r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
             if not r or r["status"] != "exited" or r["role"] not in EXITED_PANE_ROLES:
                 continue  # match on the exact name only: the row's pane_id can be stale, so act on the HOST's pane id
+            sess = (h.get("agent_session") or {}).get("value")
+            if sess and sess != r["session_id"]:
+                continue  # the pane runs another session (a newer agent under this name): never ours to close
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue

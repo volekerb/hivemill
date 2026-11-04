@@ -17,7 +17,7 @@ class Base(FactoryTestCase):
 
     def agent(self, name, role="qa", status="exited", pane="p-1", ended=OLD):
         self.env.seed_agent(name, role, "G-9", None, "T-9", status=status, pane_id=pane)
-        self.env.sql("UPDATE agents SET spawn_args='{}', ended=? WHERE name=?", (ended, name))
+        self.env.sql("UPDATE agents SET spawn_args='{}', ended=?, session_id=? WHERE name=?", (ended, "s-" + name, name))
 
     def host(self, *pairs):
         """The host lists these (name, pane id) agents and panes."""
@@ -122,6 +122,21 @@ class Never(Base):
         self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
         self.assertEqual(self.panes(), ["p-old"])
         self.assertEqual(json.loads(self.events("exited-pane-closed")[0]["detail"])["pane"], "p-1")
+
+    def test_host_pane_running_another_session_is_kept_in_both_modes(self):
+        """Exited qa-old; the host lists qa-old at p-1 but the pane runs qa-new's session: never closed."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-stale", ended=None)
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "x"}],
+            panes=[{"pane_id": "p-1", "tab_id": "t1", "workspace_id": "w1"}],
+            agents=[{"name": "qa-old", "agent": "claude", "pane_id": "p-1", "agent_status": "idle",
+                     "agent_session": {"value": "s-qa-new"}}])
+        self.tick()
+        self.assertKept("p-1")
+        self.tick(mode="dry-run")
+        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual(self.closes(), [])
 
     def test_stale_pane_id_dry_run_logs_would_close_with_the_host_pane(self):
         self.agent("qa-t-9", pane="p-old")

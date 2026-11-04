@@ -23,6 +23,7 @@ A pane is closed only when the host lists it under the exact name of an agents r
 tick, is `exited` for more than 10 minutes, has role coder/qa/reviewer/pm/judge/cleaner, and whose HOST pane id no
 live/starting/queued/stopped row holds. The row's own `pane_id` is not compared and never closed: it can differ from the
 host's (seen in production, T-1005: host `w7:pPQ`, row `w7:pPR`), so the pane id comes from the host listing of the
-same tick. Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and non-exited
+same tick. A host pane whose `agent_session` names a session other than the row's `session_id` is skipped (it runs
+a newer agent under this name; `relaunch_agent` makes the same check). Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and non-exited
 rows are never touched. Tests: `tests/test_exited_pane_reap.py`. Enable with `factory config exited_pane_reap_mode on`
 after reading the would-close events.
