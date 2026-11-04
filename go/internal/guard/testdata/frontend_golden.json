@@ -62544,6 +62544,1630 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "uv run git push origin main",
+"mask_quotes_pre": "uv run git push origin main",
+"mask_quotes_raw": "uv run git push origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run git push origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run git push origin main"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"uv",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"uv",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run -- git push",
+"mask_quotes_pre": "uv run -- git push",
+"mask_quotes_raw": "uv run -- git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run -- git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run -- git push"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"uv",
+"run",
+"--",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"uv",
+"run",
+"--",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "uv run --with requests python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "uv run --with requests python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+85,
+[
+"uv",
+"run",
+"--with",
+"requests",
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+85,
+[
+"uv",
+"run",
+"--with",
+"requests",
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx --from gh gh pr merge 1",
+"mask_quotes_pre": "uvx --from gh gh pr merge 1",
+"mask_quotes_raw": "uvx --from gh gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from gh gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx --from gh gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"uvx",
+"--from",
+"gh",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"uvx",
+"--from",
+"gh",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --python 3.12 --directory /x git push",
+"mask_quotes_pre": "uv run --python 3.12 --directory /x git push",
+"mask_quotes_raw": "uv run --python 3.12 --directory /x git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --python 3.12 --directory /x git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --python 3.12 --directory /x git push"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"uv",
+"run",
+"--python",
+"3.12",
+"--directory",
+"/x",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"uv",
+"run",
+"--python",
+"3.12",
+"--directory",
+"/x",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx git push",
+"mask_quotes_pre": "uvx git push",
+"mask_quotes_raw": "uvx git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx git push"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"uvx",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"uvx",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv tool run gh pr create --fill",
+"mask_quotes_pre": "uv tool run gh pr create --fill",
+"mask_quotes_raw": "uv tool run gh pr create --fill",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run gh pr create --fill"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv tool run gh pr create --fill"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"uv",
+"tool",
+"run",
+"gh",
+"pr",
+"create",
+"--fill"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"uv",
+"tool",
+"run",
+"gh",
+"pr",
+"create",
+"--fill"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv --directory /x run git push",
+"mask_quotes_pre": "uv --directory /x run git push",
+"mask_quotes_raw": "uv --directory /x run git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv --directory /x run git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv --directory /x run git push"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"uv",
+"--directory",
+"/x",
+"run",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"uv",
+"--directory",
+"/x",
+"run",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --env-file .env -p 3.12 gh pr merge 1",
+"mask_quotes_pre": "uv run --env-file .env -p 3.12 gh pr merge 1",
+"mask_quotes_raw": "uv run --env-file .env -p 3.12 gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --env-file .env -p 3.12 gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --env-file .env -p 3.12 gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"uv",
+"run",
+"--env-file",
+".env",
+"-p",
+"3.12",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"uv",
+"run",
+"--env-file",
+".env",
+"-p",
+"3.12",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --with=x git push",
+"mask_quotes_pre": "uv run --with=x git push",
+"mask_quotes_raw": "uv run --with=x git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --with=x git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --with=x git push"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"uv",
+"run",
+"--with=x",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"uv",
+"run",
+"--with=x",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --index-url http://x git push",
+"mask_quotes_pre": "uv run --index-url http://x git push",
+"mask_quotes_raw": "uv run --index-url http://x git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --index-url http://x git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --index-url http://x git push"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"uv",
+"run",
+"--index-url",
+"http://x",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"uv",
+"run",
+"--index-url",
+"http://x",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --color never git push",
+"mask_quotes_pre": "uv run --color never git push",
+"mask_quotes_raw": "uv run --color never git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --color never git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --color never git push"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"uv",
+"run",
+"--color",
+"never",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"uv",
+"run",
+"--color",
+"never",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv --color never run git push",
+"mask_quotes_pre": "uv --color never run git push",
+"mask_quotes_raw": "uv --color never run git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv --color never run git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv --color never run git push"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"uv",
+"--color",
+"never",
+"run",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"uv",
+"--color",
+"never",
+"run",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uvx --index-url http://x gh pr merge 1",
+"mask_quotes_pre": "uvx --index-url http://x gh pr merge 1",
+"mask_quotes_raw": "uvx --index-url http://x gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uvx --index-url http://x gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uvx --index-url http://x gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"uvx",
+"--index-url",
+"http://x",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"uvx",
+"--index-url",
+"http://x",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --python-preference only-system git push",
+"mask_quotes_pre": "uv run --python-preference only-system git push",
+"mask_quotes_raw": "uv run --python-preference only-system git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --python-preference only-system git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --python-preference only-system git push"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"uv",
+"run",
+"--python-preference",
+"only-system",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"uv",
+"run",
+"--python-preference",
+"only-system",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --index-url http://x python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "uv run --index-url http://x python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "uv run --index-url http://x python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --index-url http://x python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --index-url http://x python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+90,
+[
+"uv",
+"run",
+"--index-url",
+"http://x",
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+90,
+[
+"uv",
+"run",
+"--index-url",
+"http://x",
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --foo bar git push",
+"mask_quotes_pre": "uv run --foo bar git push",
+"mask_quotes_raw": "uv run --foo bar git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar git push"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --foo bar /usr/bin/git push",
+"mask_quotes_pre": "uv run --foo bar /usr/bin/git push",
+"mask_quotes_raw": "uv run --foo bar /usr/bin/git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar /usr/bin/git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar /usr/bin/git push"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"/usr/bin/git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"/usr/bin/git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --foo bar git -C /tmp push",
+"mask_quotes_pre": "uv run --foo bar git -C /tmp push",
+"mask_quotes_raw": "uv run --foo bar git -C /tmp push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar git -C /tmp push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar git -C /tmp push"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"git",
+"-C",
+"/tmp",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"git",
+"-C",
+"/tmp",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run --foo bar gh pr merge 1",
+"mask_quotes_pre": "uv run --foo bar gh pr merge 1",
+"mask_quotes_raw": "uv run --foo bar gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run --foo bar gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"uv",
+"run",
+"--foo",
+"bar",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && uv run git push origin main",
+"mask_quotes_pre": "cd /x && uv run git push origin main",
+"mask_quotes_raw": "cd /x && uv run git push origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && uv run git push origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && uv run git push origin main"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+36,
+[
+"uv",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+36,
+[
+"uv",
+"run",
+"git",
+"push",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && uvx --from gh gh pr merge 1",
+"mask_quotes_pre": "cd /x && uvx --from gh gh pr merge 1",
+"mask_quotes_raw": "cd /x && uvx --from gh gh pr merge 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && uvx --from gh gh pr merge 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && uvx --from gh gh pr merge 1"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+36,
+[
+"uvx",
+"--from",
+"gh",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+36,
+[
+"uvx",
+"--from",
+"gh",
+"gh",
+"pr",
+"merge",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'uv run git push origin main'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'uv run git push origin main'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'uv run git push origin main'"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c 'cd /x && uvx --from gh gh pr merge 1'",
+"mask_quotes_pre": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "bash -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'cd /x && uvx --from gh gh pr merge 1'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c 'cd /x && uvx --from gh gh pr merge 1'"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"bash",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"git\"Q\"push\"QQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"git\"Q\"push\"QQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'\""
+},
+"segments_pre": [
+[
+0,
+95,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"git\"Q\"push\"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+95,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"git\"Q\"push\"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run git config user.name x",
+"mask_quotes_pre": "uv run git config user.name x",
+"mask_quotes_raw": "uv run git config user.name x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run git config user.name x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run git config user.name x"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"uv",
+"run",
+"git",
+"config",
+"user.name",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"uv",
+"run",
+"git",
+"config",
+"user.name",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run herdr list",
+"mask_quotes_pre": "uv run herdr list",
+"mask_quotes_raw": "uv run herdr list",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run herdr list"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run herdr list"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"uv",
+"run",
+"herdr",
+"list"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"uv",
+"run",
+"herdr",
+"list"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run kill 1",
+"mask_quotes_pre": "uv run kill 1",
+"mask_quotes_raw": "uv run kill 1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run kill 1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run kill 1"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"uv",
+"run",
+"kill",
+"1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"uv",
+"run",
+"kill",
+"1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run sudo ls",
+"mask_quotes_pre": "uv run sudo ls",
+"mask_quotes_raw": "uv run sudo ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run sudo ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run sudo ls"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"uv",
+"run",
+"sudo",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"uv",
+"run",
+"sudo",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run python3 x.py git push",
+"mask_quotes_pre": "uv run python3 x.py git push",
+"mask_quotes_raw": "uv run python3 x.py git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run python3 x.py git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run python3 x.py git push"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"uv",
+"run",
+"python3",
+"x.py",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"uv",
+"run",
+"python3",
+"x.py",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run pytest -k git push",
+"mask_quotes_pre": "uv run pytest -k git push",
+"mask_quotes_raw": "uv run pytest -k git push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run pytest -k git push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run pytest -k git push"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"uv",
+"run",
+"pytest",
+"-k",
+"git",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"uv",
+"run",
+"pytest",
+"-k",
+"git",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "uv run git commit -m x",
+"mask_quotes_pre": "uv run git commit -m x",
+"mask_quotes_raw": "uv run git commit -m x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "uv run git commit -m x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "uv run git commit -m x"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"uv",
+"run",
+"git",
+"commit",
+"-m",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"uv",
+"run",
+"git",
+"commit",
+"-m",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -92086,7 +93710,7 @@
 ]
 }
 },
-"corpus_commands": 1684,
+"corpus_commands": 1716,
 "edge_inputs": 97,
 "python": "3.13"
 }

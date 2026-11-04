@@ -978,8 +978,11 @@ func coderTask(agent string) (string, bool) {
 	return "t-" + digits, true
 }
 
-// wholePush is re.fullmatch(r"git(?: -C ([\w./-]+))? push origin HEAD:factory/<task>", text).
+// wholePush is re.fullmatch(r"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push origin HEAD:factory/<task>", text) (T-0880).
 func wholePush(text, task string) (dir string, hasDir, ok bool) {
+	if r, found := strings.CutPrefix(text, "uv run "); found {
+		text = strings.TrimPrefix(r, "-- ")
+	}
 	rest, ok := strings.CutPrefix(text, "git")
 	if !ok {
 		return "", false, false
