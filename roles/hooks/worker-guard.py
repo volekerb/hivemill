@@ -816,11 +816,71 @@ AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 ENV_LONG_OK = ("--null", "--debug", "--block-signal", "--default-signal", "--ignore-signal",
                "--list-signal-handling", "--help", "--version", "--split-string")
-ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; no word is consumed (as on main)
+ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826/T-0964: classified "value" so unique prefixes are not "unknown"; env_options consumes the next word only when it exists and does not start with `-`
+ENV_SPLIT_WS = " \t\n\v\f\r"
+ENV_SPLIT_ESC = {"n": "\n", "t": "\t", "r": "\r", "f": "\f", "v": "\v"}
+
+
+def env_split(s):
+    """T-1037: split an `env -S` string the way GNU env does: whitespace separates words, single quotes are literal
+    (only backslash-backslash and backslash-quote escape), double quotes keep spaces and honour escapes, backslash-underscore
+    is a separator outside quotes and a space inside double quotes, backslash-c ends the string, backslash-n/t/r/f/v are
+    control characters, any other backslash-x is x. An unterminated quote takes the rest (env would refuse it; the guard
+    keeps the words). ${VAR} stays literal text. A `#` at the start of a word starts a comment."""
+    words, cur, have, q, i = [], [], False, None, 0
+
+    def end():
+        nonlocal cur, have
+        if have:
+            words.append("".join(cur))
+        cur, have = [], False
+
+    while i < len(s):
+        c = s[i]
+        i += 1
+        if q == "'":
+            if c == "'":
+                q = None
+            elif c == "\\" and i < len(s) and s[i] in "\\'":
+                cur.append(s[i])
+                i += 1
+            else:
+                cur.append(c)
+        elif c == "\\":
+            if i >= len(s):
+                break
+            e = s[i]
+            i += 1
+            if e == "c":
+                break
+            if e == "_" and q is None:
+                end()
+            elif e == "_":
+                cur.append(" ")
+                have = True
+            else:
+                cur.append(ENV_SPLIT_ESC.get(e, e))
+                have = True
+        elif q == '"':
+            if c == '"':
+                q = None
+            else:
+                cur.append(c)
+        elif c in "'\"":
+            q, have = c, True
+        elif c in ENV_SPLIT_WS:
+            end()
+        elif c == "#" and not have:
+            break
+        else:
+            cur.append(c)
+            have = True
+    end()
+    return words
 
 
 def env_long(a):
-    """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "ignore"
+    """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "split" (a prefix of --split-string), "ignore"
     (a prefix of --ignore-environment that is not an exact other long option), "value" (a prefix of --argv0/--chdir:
     its value is the next word unless `=value`), "ok" (an exact harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
     name = a.split("=", 1)[0]
@@ -828,6 +888,8 @@ def env_long(a):
         return "unknown"
     if "--unset".startswith(name):
         return "unset"
+    if "--split-string".startswith(name):
+        return "split"  # T-1037: any unique prefix of --split-string re-parses its string like the full name
     if any(v.startswith(name) for v in ENV_VALUE_LONG):
         return "value"
     if name in ENV_LONG_OK:
@@ -857,7 +919,7 @@ def env_options(words):
         return q.popleft()[0] if q else ""
 
     def push(sval):
-        q.extendleft((w, True) for w in reversed(sval.split()))
+        q.extendleft((w, True) for w in reversed(env_split(sval)))
 
     while q:
         a, from_s = q.popleft()
@@ -865,11 +927,11 @@ def env_options(words):
             continue
         if a == "-":
             yield "clear", a
-        elif a == "--split-string" or a.startswith("--split-string="):
-            push(a.split("=", 1)[1] if "=" in a else q.popleft()[0] if q else "")
         elif a.startswith("--"):
             kind = env_long(a)
-            if kind == "ignore":
+            if kind == "split":
+                push(a.split("=", 1)[1] if "=" in a else q.popleft()[0] if q else "")
+            elif kind == "ignore":
                 yield "clear", a
             elif kind == "unknown":
                 yield "unknown", a
