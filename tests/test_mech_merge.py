@@ -6,6 +6,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import unittest
 
 from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
@@ -177,6 +178,34 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(self.status(), "in_review")
         self.assertIn("STALE-ONLY", self.events("mech-blocked")[0])
         self.assertEqual(self.events("refreshed"), [])
+
+    def _behind_ok_main_moves(self, name):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",
+                     (json.dumps({"at": time.time(), "strict": False}),))
+        other = self.env.home / "other"
+        git(self.env.home, "clone", "-q", str(self.remote), str(other))
+        (other / name).parent.mkdir(parents=True, exist_ok=True)
+        (other / name).write_text("m\n")
+        git(other, "add", name)
+        git(other, "commit", "-q", "-m", "main moves")
+        git(other, "push", "-q", "origin", "HEAD:main")
+
+    def test_behind_ok_with_tests_yml_changed_on_main_is_refused_for_refresh(self):
+        # T-1000: behind_ok must not let a head that predates a CI change merge; the mech merger refuses, never refreshes
+        self._behind_ok_main_moves(".github/workflows/tests.yml")
+        self.mech("on")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("tests.yml changed on main since the merge-base", self.events("mech-blocked")[0])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def test_behind_ok_without_tests_yml_change_still_merges(self):
+        self._behind_ok_main_moves("main.txt")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+        self.assertIn("tests.yml unchanged on main since the merge-base", self.events("merged")[0])
 
     # -- who goes to the LLM judge ---------------------------------------
     def test_t3_goes_to_the_judge(self):
