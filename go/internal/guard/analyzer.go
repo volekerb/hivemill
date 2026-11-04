@@ -101,9 +101,6 @@ func PrivSubst(w string) (string, bool) {
 
 // PrivInCode is a port of worker-guard.py:priv_in_code: re.search(r"sudo|doas|pkexec|docker|su", m.group(0)).
 func PrivInCode(text string) (string, bool) {
-	if true { // TEMP flip for T-0355 acceptance 3: reverted next commit
-		return "", false
-	}
 	m, ok := FindPrivCode(text)
 	if !ok {
 		return "", false
