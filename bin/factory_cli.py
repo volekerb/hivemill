@@ -3228,7 +3228,8 @@ def release_stale_pane(con, name):
     the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry.
     Returns True when the pane is released or there was nothing to release. Returns False when the pane could not be
     confirmed gone: the row is then exited with pane_id KEPT (so reap_exited_panes can still match it), one
-    "stale-pane-close-failed" event is logged, and the caller must not reuse the name."""
+    "stale-pane-close-failed" event is logged per attempt (a caller that retries each tick logs one each
+    time), and the caller must not reuse the name."""
     r = con.execute("SELECT status, pane_id FROM agents WHERE name=?", (name,)).fetchone()
     if not r or not r["pane_id"] or r["status"] not in ("done", "exited"):
         return True
@@ -14569,6 +14570,9 @@ def _link_unmerged(con, lid):
 
 def _roles_affected(paths):
     out = set()
+    role_paths = [f for f in paths if f.startswith("roles/")]
+    if role_paths and all(f.startswith("roles/hooks/") for f in role_paths):
+        return out  # T-0992: hook-only PR: per-call scripts run from disk on every tool call; no pane needs a relaunch
     for f in paths:
         if f == "roles/_common.md" or f.startswith("roles/hooks/"):
             out |= {"boss", "director", "lead"}
