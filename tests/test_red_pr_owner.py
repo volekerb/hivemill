@@ -131,10 +131,49 @@ class RedPrOwnerTests(FactoryTestCase):
         self.env.sql("UPDATE agents SET status='exited' WHERE name=?", (LEAD,))
         self.pr([BAD])
         self.ok("tick")
-        n = self.env.sql("SELECT COUNT(*) AS n FROM messages WHERE recipient=? AND subject LIKE 'CI red%' OR subject LIKE 'red PR%'", (LEAD,))
+        n = self.env.sql("SELECT COUNT(*) AS n FROM messages WHERE recipient=? AND (subject LIKE 'CI red%' OR subject LIKE 'red PR%')", (LEAD,))
         self.assertEqual(n[0]["n"], 1)
 
+    def test_closed_team_task_mails_director_not_dead_lead(self):
+        self.env.sql("UPDATE teams SET status='closed' WHERE id=?", (TEAM,))
+        self.pr([BAD])
+        self.ok("tick")
+        self.assertEqual(len(self.mails("director")), 1)
+        self.assertEqual(self.mails(), [])
+
+    def test_green_head_probed_once_per_window(self):
+        self.pr([OK], merge="CLEAN")
+        self.ok("tick")
+        n = len(self.gh_views())
+        self.assertEqual(n, 1)
+        self.ok("tick")
+        self.ok("tick")
+        self.assertEqual(len(self.gh_views()), n)
+        self.env.sql("DELETE FROM throttle WHERE key LIKE 'red-pr-probe:%'")
+        self.ok("tick")
+        self.assertEqual(len(self.gh_views()), n + 1)
+
+    def test_green_head_with_readable_origin_probed_once_per_window(self):
+        sha = self.push_origin_head()
+        self.pr([OK], sha=sha, merge="CLEAN")
+        self.ok("tick")
+        self.assertEqual(len(self.gh_views()), 1)
+        self.ok("tick")
+        self.ok("tick")
+        self.assertEqual(len(self.gh_views()), 1)
+
     def test_mailed_head_makes_no_gh_call(self):
+        sha = self.push_origin_head()
+        self.pr([BAD], sha=sha)
+        self.ok("tick")
+        self.assertEqual(len(self.mails()), 1)
+        n = len(self.gh_views())
+        self.ok("tick")
+        self.ok("tick")
+        self.assertEqual(len(self.gh_views()), n)
+        self.assertEqual(len(self.mails()), 1)
+
+    def push_origin_head(self):
         e = self.env
         bare, wt = e.home / "rp-origin.git", e.home / "rp-wt"
         git("init", "-q", "--bare", "-b", "main", str(bare), cwd=e.home)
@@ -148,14 +187,7 @@ class RedPrOwnerTests(FactoryTestCase):
         git("push", "-q", "-f", "origin", "HEAD:refs/heads/factory/t-0001", cwd=wt)
         sha = git("rev-parse", "HEAD", cwd=wt)
         e.sql("UPDATE tasks SET branch='factory/t-0001' WHERE id='T-0001'")
-        self.pr([BAD], sha=sha)
-        self.ok("tick")
-        self.assertEqual(len(self.mails()), 1)
-        n = len(self.gh_views())
-        self.ok("tick")
-        self.ok("tick")
-        self.assertEqual(len(self.gh_views()), n)
-        self.assertEqual(len(self.mails()), 1)
+        return sha
 
 
 if __name__ == "__main__":

@@ -14391,7 +14391,8 @@ def tick_red_pr_owner(con):
     the task. Tasks in_progress, in_review or blocked (a blocked one's mail carries its waits value and recorded reason); independent of lead_parking; never spawns. A red head
     shares tick_ci_wake's `ci-red:<task>:<sha>` throttle row, so a parked team gets one mail; a conflict uses `red-pr:<task>:<sha>`.
     The gh call is skipped when origin's head (one batched ls-remote) is already mailed; an unreadable head is re-probed only
-    every CI_WAKE_RECHECK_S (throttle row `red-pr-probe:<task>`)."""
+    every CI_WAKE_RECHECK_S, as is any probed head that is not red/conflicted (throttle row `red-pr-probe:<task>:<head>`).
+    Only an active team's lead is mailed; a task of a closed team goes to the director."""
     if cfg(con, "red_pr_owner_alert") != "1":
         return
     try:
@@ -14399,7 +14400,7 @@ def tick_red_pr_owner(con):
     except FactoryNowError:
         clock = time.time()
     batch = []
-    for k in con.execute("SELECT t.id, t.goal_id, t.status, t.waits, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id "
+    for k in con.execute("SELECT t.id, t.goal_id, t.status, t.waits, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id AND tm.status='active' "
                          "WHERE t.status IN ('in_progress','in_review','blocked') AND t.pr_url IS NOT NULL AND t.pr_url != '' ORDER BY t.id").fetchall():
         if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('live','starting','queued')",
                        (k["id"],)).fetchone():
@@ -14408,16 +14409,16 @@ def tick_red_pr_owner(con):
         if head is not None and (_throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))
                                  or _throttled(con, f"red-pr:{k['id']}:{head}", clock, float("inf"))):
             continue  # this head was already mailed
-        if head is None and _throttled(con, f"red-pr-probe:{k['id']}", clock, CI_WAKE_RECHECK_S):
-            continue
+        probe_key = f"red-pr-probe:{k['id']}:{head or ''}"
+        if _throttled(con, probe_key, clock, CI_WAKE_RECHECK_S):
+            continue  # probed lately: a green/pending/closed head costs one gh call per window, not per tick
         _pt_count("ci_wake_gh")
         try:
             timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
         except ValueError:
             timeout = float(CI_WAKE_GH_TIMEOUT_S)
         pr = _ci_wake_probe(k["pr_url"], timeout)
-        if head is None:
-            _throttle_set(con, f"red-pr-probe:{k['id']}", clock)
+        _throttle_set(con, probe_key, clock)
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
             continue
