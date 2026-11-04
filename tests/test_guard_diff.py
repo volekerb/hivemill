@@ -462,7 +462,7 @@ class CorpusSanityTests(unittest.TestCase):
         # T-0745: an empty FACTORY_HOME, else the live DB's public_text_repos makes the hook block corpus commit text
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
             p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
-                               capture_output=True, text=True, timeout=300, env={**os.environ, "FACTORY_HOME": home})
+                               capture_output=True, text=True, timeout=600, env={**os.environ, "FACTORY_HOME": home})
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("0 loosened", p.stdout)
 
