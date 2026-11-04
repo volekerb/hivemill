@@ -578,6 +578,36 @@ class PrcheckTests(FactoryTestCase):
         p = self.body_result("`pytest tests/test_x.py` The earlier attempt failed to start.", 1)
         self.assertIn("no output line", p.stdout)
 
+    # -- T-0970: unclosed fence, heading prefix, "N failed" prose
+    def test_evidence_unclosed_fence_fails_closed(self):  # acceptance 1
+        p = self.body_result("```\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_unclosed_fence_hides_later_evidence_heading(self):  # acceptance 1
+        body = evidence_body("").replace("What changed.", "```\n## Test evidence\n`python3 -m unittest x` -> OK", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        p = self.prcheck(1)
+        self.assertIn("never closed", p.stdout)
+        self.assertIn("missing section heading", p.stdout)
+
+    def test_evidence_closed_fence_has_no_unclosed_problem(self):
+        p = self.body_result("```\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```", 0)
+        self.assertNotIn("never closed", p.stdout)
+
+    def test_evidence_heading_prefix_is_not_the_section(self):  # acceptance 2
+        body = evidence_body("").replace(
+            "What changed.", "\n## Test evidences\n`python3 -m unittest tests.test_x` -> Ran 7, OK\n", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("no command in backticks", self.prcheck(1).stdout)
+
+    def test_evidence_failed_attempts_prose_is_not_output(self):  # acceptance 3
+        p = self.body_result("`pytest tests/test_x.py` 2 failed attempts before the fix", 1)
+        self.assertIn("no output line", p.stdout)
+
+    def test_evidence_pytest_failed_in_summary_is_output(self):
+        p = self.body_result("`pytest tests/test_x.py` 2 failed in 0.5s", 0)
+        self.assertIn("PASS body:", p.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

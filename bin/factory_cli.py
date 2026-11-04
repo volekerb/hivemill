@@ -8931,8 +8931,9 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
-_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)^[ \t]*\1", re.M | re.S)
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?!\s+(?!in\b)[A-Za-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+# An unclosed fence runs to the end of the body (CommonMark), so a heading after it is text, not a section.
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)(?:(^[ \t]*\1)|\Z)", re.M | re.S)
 
 
 def _evidence_section(outside):
@@ -8943,7 +8944,7 @@ def _evidence_section(outside):
     def fenced(i):
         return any(a <= i < b for a, b in spans)
 
-    start = next((m.end() for m in re.finditer(r"^## Test evidence[^\n]*(?:\n|$)", outside, re.M)
+    start = next((m.end() for m in re.finditer(r"^## Test evidence[ \t\r]*(?:\n|$)", outside, re.M)
                   if not fenced(m.start())), None)
     if start is None:
         return ""
@@ -8967,7 +8968,7 @@ def prcheck_evidence_problem(sec):
     """T-0947: shape check of the `## Test evidence` section (outside <details>): a literal command line plus an output
     line. It proves text is present, not that it is true. Returns a problem string or None."""
     cands = [m.group(1) for m in re.finditer(r"`([^`\n]+)`", _EVIDENCE_FENCE.sub("", sec))]
-    for _, block in _EVIDENCE_FENCE.findall(sec):
+    for _, block, _ in _EVIDENCE_FENCE.findall(sec):
         cands += block.splitlines()
     if not any(_evidence_is_command(c) for c in cands):
         return ("`## Test evidence` has no command in backticks: a command line of 2+ words starting with a runner "
@@ -8994,6 +8995,9 @@ def prcheck_body(wt, base, pr_url):
         return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
     problems = pr_body_problems(body, pr_template_headings())
     outside = pr_outside_details(body)
+    if any(not m.group(3) for m in _EVIDENCE_FENCE.finditer(outside)):
+        problems.append("a code fence outside <details> is never closed, so everything after it is code, not sections: "
+                        "add the closing ``` (or ~~~) line")
     sec = _evidence_section(outside)
     ev = prcheck_evidence_problem(sec)
     if ev:
