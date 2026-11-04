@@ -133,6 +133,8 @@ class AutospawnTests(Base):
         calls = self.tick_step()
         self.assertEqual([(c["role"], c["name"]) for c in calls], [("reviewer", "combined-t-0001")])
         self.assertIn("--as qa", calls[0]["prompt"])
+        self.assertIn("live-run: pending AC<n>", calls[0]["prompt"])
+        self.assertIn("live-run: done AC<n>", calls[0]["prompt"])
 
     def test_low_tier_with_plain_reviewer_gets_qa_and_one_fyi(self):
         self.on(risk_tiers="on")
