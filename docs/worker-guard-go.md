@@ -201,6 +201,17 @@ binary cannot run, and signals such as SIGKILL = 137) becomes exit 2 with
 **Protected.** `<live home>/run/guard_impl` and the `~/.local/lib/factory` tree are write-protected from workers' Bash
 in both the Python and the Go guard (writers, redirects, `cd` + write); reads (`ls`, `cat` of the stamp) stay allowed.
 
+**Protected trees for workers (T-0925).** One list, in both guards (`prot_trees` / `protTrees`): `~/.local/lib/factory`,
+`~/.config/factory`, `<live>/run/settings`, `<live>/run/guard_impl`, `~/.local/go` (the Go toolchain: its `go.env` applies
+`GOFLAGS` even with `GOENV=off`), `~/.config/go` (`go env -w` writes it), and four trees inside the live checkout:
+`<live>/go`, `<live>/bin`, `<live>/roles/hooks`, `<live>/roles/settings`. Not the whole live checkout, and never the
+hook's own repo root (a worktree stays writable). A Bash command is refused when it is a redirect, a writer
+(`cp mv ln rm tee install touch dd ...`, `sed -i`), a writer flag (`curl -o/-O`, `wget -O/-P`, `go build -o`, `gcc -o`,
+`tar -C/-f/--one-top-level`, `unzip -d`, `7z -o`, `git clone <dir>`), `go env -w|-u`, or an extractor/downloader with no
+target after a `cd` into a tree, and the target is a tree, inside one, or a glob that can match one (`~/.local/fact*/x`).
+A `cd` target that is only known at run time followed by an extractor is refused too. Write/Edit/MultiEdit/NotebookEdit
+on a path in a tree are refused the same way. Reads, runs and look-alikes (`~/.local/gox`, `<live>/binx`) stay allowed.
+
 **Rollback.** Write `python` (or remove `run/guard_impl`): the next call uses Python, no relaunch.
 
 **Debugging.** `WORKER_GUARD_SHIM_TRACE=1` prints `impl=<python|go|shadow>` to stderr (used by tests/test_guard_shim.py).
