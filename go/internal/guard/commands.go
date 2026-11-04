@@ -653,7 +653,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	words = stripped
 	if a.noPush() {
-		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|project add|bash install.sh --dry-run`
+		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
 		chk := assigns
 		if a.scratchForm(words, assigns) {
 			chk = nil

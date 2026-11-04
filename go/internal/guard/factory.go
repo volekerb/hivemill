@@ -224,21 +224,14 @@ var (
 )
 
 // scratchForm is Analyzer.scratch_form (T-0331): words is exactly one of the commands a qa/coder may run with HOME in the
-// scratchpad: the real factory (not a script merely named so, not a path) init / project add, or bash running
+// scratchpad: the real factory (not a script merely named so, not a path) init, or bash running
 // systemd/install.sh --dry-run (no other shell).
 func (a *Analyzer) scratchForm(words, assigns []string) bool {
-	if len(words) == 0 {
+	if (a.Role != "coder" && a.Role != "qa") || len(words) == 0 {
 		return false
 	}
 	if words[0] == "factory" {
-		var nonopt []string
-		for _, x := range words[1:] {
-			if !strings.HasPrefix(x, "-") {
-				nonopt = append(nonopt, x)
-			}
-		}
-		return (len(nonopt) >= 1 && nonopt[0] == "init" || len(nonopt) >= 2 && nonopt[0] == "project" && nonopt[1] == "add") &&
-			a.scratchHomes(assigns)
+		return len(words) >= 2 && words[1] == "init" && a.scratchHomes(assigns) // strict: a flag value must not shift the match
 	}
 	if words[0] == "bash" {
 		return a.installDryRun(words[1:], assigns) // no shell option (-s runs stdin, the file is then an argument)
@@ -324,12 +317,8 @@ func (a *Analyzer) factoryUnit(name string, rest []string, assigns []string) err
 		}
 	}
 	if (a.Role == "coder" || a.Role == "qa") && !a.HQ && hasSub &&
-		(sub == "init" || len(nonopt) >= 2 && nonopt[0] == "project" && nonopt[1] == "add") && !a.scratchHomes(assigns) {
-		add := ""
-		if sub == "project" {
-			add = " add"
-		}
-		return blockf("workers may run `factory " + sub + add + "` only with HOME and FACTORY_HOME both set (same command or " +
+		sub == "init" && !a.scratchHomes(assigns) {
+		return blockf("workers may run `factory init` only with HOME and FACTORY_HOME both set (same command or " +
 			"exported earlier) to absolute paths inside your own scratchpad")
 	}
 	if hasSub {

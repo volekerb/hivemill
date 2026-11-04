@@ -1266,12 +1266,11 @@ class Analyzer:
 
     def scratch_form(self, words, assigns):
         """T-0331: words is exactly one of the commands a qa/coder may run with HOME in the scratchpad: the real `factory`
-        (not a script merely named so, not a path) or `bash` (no other shell) running systemd/install.sh."""
-        if not words:
+        (not a script merely named so, not a path) `init`, or `bash` (no other shell) running systemd/install.sh."""
+        if self.role not in ("coder", "qa") or not words:
             return False
         if words[0] == "factory":
-            nonopt = [a for a in words[1:] if not a.startswith("-")]
-            return (nonopt[:1] == ["init"] or nonopt[:2] == ["project", "add"]) and self.scratch_homes(assigns)
+            return words[1:2] == ["init"] and self.scratch_homes(assigns)  # strict: a flag value must not shift the match
         if words[0] == "bash":
             return self.install_dry_run(words[1:], assigns)  # no shell option (-s runs stdin, the file is then an argument)
         return False
@@ -1322,9 +1321,9 @@ class Analyzer:
         sub = nonopt[0] if nonopt else None
         if self.role == "evaluator":
             self.evaluator_factory(sub, nonopt, assigns)
-        if self.role in ("coder", "qa") and not self.hq and (sub == "init" or nonopt[:2] == ["project", "add"]) \
+        if self.role in ("coder", "qa") and not self.hq and sub == "init" \
                 and not self.scratch_homes(assigns):
-            raise Block(f"workers may run `factory {sub}{' add' if sub == 'project' else ''}` only with HOME and FACTORY_HOME both "
+            raise Block(f"workers may run `factory init` only with HOME and FACTORY_HOME both "
                         "set (same command or exported earlier) to absolute paths inside your own scratchpad")
         if sub in BROAD_READS:
             self.broad_read(sub, rest, assigns)
@@ -3246,7 +3245,7 @@ class Analyzer:
         if words and not self.listing_only(words):
             self.may_create = True
         if self.role in NO_PUSH_ROLES and not self.hq:
-            # T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|project add|bash install.sh --dry-run`
+            # T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
             chk = [x for x in assigns if not (x.startswith("HOME=") and self.scratch_form(words, assigns))]
             self.git_config_env(chk, words)
             self.builtin_assign(chk, words, hstrs)

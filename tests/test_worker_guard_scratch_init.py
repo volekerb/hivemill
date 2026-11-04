@@ -1,11 +1,13 @@
-"""T-0331: a coder or qa may run `factory init`, `factory project add` and `bash systemd/install.sh --dry-run` only when
+"""T-0331: a coder or qa may run `factory init` and `bash systemd/install.sh --dry-run` only when
 HOME and FACTORY_HOME both resolve (realpath) inside the worker's own scratchpad. Every case goes through the real entry
 point (guard_impl.hook_run: the hook as a subprocess, and with GUARD_IMPL=diff the Go binary too). The scratchpad is a temp
 dir named by WORKER_GUARD_SCRATCH and the live checkout a temp dir named by WORKER_GUARD_LIVE_HOME."""
 import json
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -44,11 +46,19 @@ def run(cmd, role="coder", cwd="wt", extra_env=None):
 
 
 H = "HOME=@S@/h FACTORY_HOME=@S@/f"
-ALLOWED = ("factory init", "factory project add demo @S@/repo", "bash systemd/install.sh --dry-run")
+ALLOWED = ("factory init", "bash systemd/install.sh --dry-run")
+PROJECT = ("factory project add demo /tmp/x", "factory project --gh add update demo")  # not exempt: as on main, never loosened
+
+
+def no_push_roles():
+    """NO_PUSH_ROLES as the hook defines it, so a role added there is covered here by default."""
+    with open(os.path.join(ROOT, "roles", "hooks", "worker-guard.py")) as f:
+        m = re.search(r"^NO_PUSH_ROLES = \{([^}]*)\}", f.read(), re.M)
+    return sorted(re.findall(r'"([a-z-]+)"', m.group(1)))
 
 
 class Allowed(unittest.TestCase):
-    def test_three_commands_in_scratch_for_coder_and_qa(self):
+    def test_two_commands_in_scratch_for_coder_and_qa(self):
         for role in ("coder", "qa"):
             for c in ALLOWED:
                 r = run(f"{H} {c}", role)
@@ -73,7 +83,7 @@ class Blocked(unittest.TestCase):
                 self.assertEqual(r.returncode, 2, f"{role}: expected a block for {c!r}, got {r.returncode}")
 
     def test_homes_not_both_in_scratch(self):
-        for c in ("factory init", "factory project add demo /tmp/x"):
+        for c in ("factory init",):
             self.blocked([
                 c,  # nothing set
                 f"HOME=@S@/h {c}",  # FACTORY_HOME unset
@@ -101,13 +111,15 @@ class Blocked(unittest.TestCase):
                       f"{H} env -i factory init",
                       "(export HOME=@S@/h FACTORY_HOME=@S@/f); factory init",
                       "export HOME=@S@/h FACTORY_HOME=@S@/f; (unset FACTORY_HOME; factory init)",
-                      "export HOME=@S@/h FACTORY_HOME=@S@/f; unset FACTORY_HOME; factory project add demo @S@/repo",
                       "export HOME=@S@/h FACTORY_HOME=@S@/f; unset FACTORY_HOME; bash systemd/install.sh --dry-run"])
 
     def test_only_the_real_factory_cli(self):
         self.blocked([f"{H} @S@/factory init", f"{H} ./factory init", f"{H} ../factory init", f"{H} /usr/bin/factory init",
-                      f"{H} python3 factory init", f"{H} env factory init", f"{H} command factory init",
-                      f"{H} @S@/factory project add demo @S@/repo"])
+                      f"{H} python3 factory init", f"{H} env factory init", f"{H} command factory init"])
+
+    def test_init_match_is_strict(self):
+        """words[1] must be `init`: a flag before it keeps qa on main's refusal of HOME= (coder stays as on main)."""
+        self.blocked([f"{H} factory --x init", f"{H} factory -C @S@ init"], roles=("qa",))
 
     def test_install_sh_bash_only(self):
         self.blocked([f"{H} {sh} systemd/install.sh --dry-run" for sh in ("zsh", "sh", "dash", "ksh", "/bin/bash", "./bash")])
@@ -149,11 +161,21 @@ class Blocked(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
 
     def test_evaluator_and_other_roles_stay_blocked(self):
-        for c in ALLOWED:
-            r = run(f"{H} {c}", "evaluator")
-            self.assertEqual(r.returncode, 2, f"evaluator: {c}")
+        roles = [r for r in no_push_roles() if r != "qa"]
+        self.assertIn("evaluator", roles)
+        for role in roles:  # every role but coder and qa
+            for c in ALLOWED:
+                r = run(f"{H} {c}", role)
+                self.assertEqual(r.returncode, 2, f"{role}: {c}")
         for c in ("export HOME=@S@/h; factory init",):  # qa may not export HOME (the git-config rule)
             self.assertEqual(run(c, "qa").returncode, 2, c)
+
+    def test_factory_project_is_not_exempt(self):
+        """As on main: qa is refused every project form (even in the scratch form); nothing here changes coder's."""
+        for c in PROJECT:
+            for pre in (H + " ", "HOME=@S@/h "):  # the forms main refuses for qa (a HOME= prefix)
+                self.assertEqual(run(pre + c, "qa").returncode, 2, pre + c)
+            self.assertEqual(run(f"{H} {c}", "evaluator").returncode, 2, c)
 
 
 class InstallDryRunWritesNothing(unittest.TestCase):
@@ -177,6 +199,18 @@ class InstallDryRunWritesNothing(unittest.TestCase):
         self.assertIn("[dry-run] mkdir -p " + os.path.join(home, ".config", "systemd", "user"), p.stdout)
         self.assertIn("[dry-run] systemctl --user enable factory-tick.timer", p.stdout)
         self.assertFalse(os.path.exists(os.path.join(home, ".config")))
+
+
+class RealFactoryInit(unittest.TestCase):
+    """AC8: the allowed form works for real: bin/factory init as a subprocess, temp HOME and FACTORY_HOME."""
+
+    def test_init_creates_the_db_under_the_temp_factory_home(self):
+        home, fh = os.path.join(_tmp[0], "scratch", "h"), os.path.join(_tmp[0], "scratch", "f")
+        env = {"PATH": os.environ["PATH"], "HOME": home, "FACTORY_HOME": fh, "USER": "tester"}
+        p = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "factory"), "init"], env=env, capture_output=True,
+                           text=True, timeout=120, cwd=_tmp[0])
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertTrue(os.path.isfile(os.path.join(fh, "db", "factory.db")), os.listdir(fh))
 
 
 if __name__ == "__main__":
