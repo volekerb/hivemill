@@ -3865,7 +3865,8 @@ def _judge_wait_limit(con):
 
 
 STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
-BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub)"
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base"
+CI_WORKFLOW = ".github/workflows/tests.yml"
 
 
 def stale_behind_ok(con, owner_repo):
@@ -3894,6 +3895,20 @@ def stale_behind_ok(con, owner_repo):
     con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, json.dumps({"at": t, "strict": out == "true"})))
     return out == "false"
+
+
+def behind_ok_ci_changed(repo, sha, main_sha):
+    """T-1000: True when behind_ok must NOT apply: the CI workflow changed on main since the merge-base of the PR head `sha`
+    and main (`main_sha`, the verified main commit). The head never ran the jobs main now requires (T-0355 guard-equiv), so
+    it has to refresh and run CI. One definition for the judge and the mechanical merger (both go through cmd_judge's gate).
+    Fail closed: any git error, or an unknown main_sha, reads as changed (the head is refreshed or refused)."""
+    if not main_sha:
+        return True
+    rc, base, _ = _git_rc([*HARDENED_GIT_FLAGS, "merge-base", main_sha, sha], repo=repo, env=_carry_env())
+    if rc != 0 or not base:
+        return True
+    rc, _, _ = _git_rc([*HARDENED_GIT_FLAGS, "diff", "--quiet", base, main_sha, "--", CI_WORKFLOW], repo=repo, env=_carry_env())
+    return rc != 0  # 0 = identical, 1 = changed, anything else = could not decide
 
 
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
@@ -4798,11 +4813,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
         behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+        ci_changed = behind_clean and behind_ok_ci_changed(git_repo, sha, stale[2])
+        if ci_changed:  # T-1000: the head predates a CI change on main: refresh (judge) or refuse (mech) instead of behind_ok
+            behind_clean = False
         if behind_clean:
             if BEHIND_OK_NOTE not in reason:
                 reason += "; " + BEHIND_OK_NOTE
         elif not stale[0]:
-            problems.insert(0, "STALE-ONLY: head does not contain origin/main" if stale[1] == "STALE"
+            problems.insert(0, ("STALE-ONLY: head does not contain origin/main"
+                                + (f" ({CI_WORKFLOW} changed on main since the merge-base: behind_ok does not apply, "
+                                   "refresh so CI runs the current jobs)" if ci_changed else "")) if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
             problems.append(f"PR is {pr['state']}")
@@ -14570,6 +14590,9 @@ def _link_unmerged(con, lid):
 
 def _roles_affected(paths):
     out = set()
+    role_paths = [f for f in paths if f.startswith("roles/")]
+    if role_paths and all(f.startswith("roles/hooks/") for f in role_paths):
+        return out  # T-0992: hook-only PR: per-call scripts run from disk on every tool call; no pane needs a relaunch
     for f in paths:
         if f == "roles/_common.md" or f.startswith("roles/hooks/"):
             out |= {"boss", "director", "lead"}
