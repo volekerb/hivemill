@@ -3596,9 +3596,18 @@
  "git clone URL @LIVE_HOME@/bin/x",
  "git clone --depth 1 URL ~/.local/go/x",
  "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
- "cd ~/.local/lib/factory && git clone URL"
+ "cd ~/.local/lib/factory && git clone URL",
+ "tar -xCf @LIVE_HOME@/go a.tar",
+ "tar xfC a.tar @LIVE_HOME@/go",
+ "unzip -qd @LIVE_HOME@/go a.zip",
+ "unzip -qod ~/.local/go a.zip",
+ "env -C @LIVE_HOME@/bin tar xf a",
+ "7z -y x a.7z -o@LIVE_HOME@/bin"
  ],
  "must_allow": [
+ "tar -xCf /tmp/x a.tar",
+ "unzip -qd /tmp/x a.zip",
+ "env -C /tmp/x ls",
  "curl -o /tmp/x URL",
  "go build -o ./bin/x ./cmd/x",
  "tar -C /tmp/x -xf a.tar",

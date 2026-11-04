@@ -58596,6 +58596,426 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mask_quotes_pre": "tar -xCf @LIVE_HOME@/go a.tar",
+"mask_quotes_raw": "tar -xCf @LIVE_HOME@/go a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xCf @LIVE_HOME@/go a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xCf @LIVE_HOME@/go a.tar"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"tar",
+"-xCf",
+"@LIVE_HOME@/go",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"tar",
+"-xCf",
+"@LIVE_HOME@/go",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mask_quotes_pre": "tar xfC a.tar @LIVE_HOME@/go",
+"mask_quotes_raw": "tar xfC a.tar @LIVE_HOME@/go",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar xfC a.tar @LIVE_HOME@/go"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar xfC a.tar @LIVE_HOME@/go"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"tar",
+"xfC",
+"a.tar",
+"@LIVE_HOME@/go"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"tar",
+"xfC",
+"a.tar",
+"@LIVE_HOME@/go"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mask_quotes_pre": "unzip -qd @LIVE_HOME@/go a.zip",
+"mask_quotes_raw": "unzip -qd @LIVE_HOME@/go a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -qd @LIVE_HOME@/go a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -qd @LIVE_HOME@/go a.zip"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"unzip",
+"-qd",
+"@LIVE_HOME@/go",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"unzip",
+"-qd",
+"@LIVE_HOME@/go",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -qod ~/.local/go a.zip",
+"mask_quotes_pre": "unzip -qod ~/.local/go a.zip",
+"mask_quotes_raw": "unzip -qod ~/.local/go a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -qod ~/.local/go a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -qod ~/.local/go a.zip"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mask_quotes_pre": "env -C @LIVE_HOME@/bin tar xf a",
+"mask_quotes_raw": "env -C @LIVE_HOME@/bin tar xf a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -C @LIVE_HOME@/bin tar xf a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -C @LIVE_HOME@/bin tar xf a"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"env",
+"-C",
+"@LIVE_HOME@/bin",
+"tar",
+"xf",
+"a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"env",
+"-C",
+"@LIVE_HOME@/bin",
+"tar",
+"xf",
+"a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mask_quotes_pre": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mask_quotes_raw": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "7z -y x a.7z -o@LIVE_HOME@/bin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "7z -y x a.7z -o@LIVE_HOME@/bin"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o@LIVE_HOME@/bin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o@LIVE_HOME@/bin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -xCf /tmp/x a.tar",
+"mask_quotes_pre": "tar -xCf /tmp/x a.tar",
+"mask_quotes_raw": "tar -xCf /tmp/x a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -xCf /tmp/x a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -xCf /tmp/x a.tar"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -qd /tmp/x a.zip",
+"mask_quotes_pre": "unzip -qd /tmp/x a.zip",
+"mask_quotes_raw": "unzip -qd /tmp/x a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -qd /tmp/x a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -qd /tmp/x a.zip"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -C /tmp/x ls",
+"mask_quotes_pre": "env -C /tmp/x ls",
+"mask_quotes_raw": "env -C /tmp/x ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -C /tmp/x ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -C /tmp/x ls"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "curl -o /tmp/x URL",
 "mask_quotes_pre": "curl -o /tmp/x URL",
 "mask_quotes_raw": "curl -o /tmp/x URL",
@@ -85920,7 +86340,7 @@
 ]
 }
 },
-"corpus_commands": 1551,
+"corpus_commands": 1560,
 "edge_inputs": 97,
 "python": "3.13"
 }

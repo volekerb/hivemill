@@ -93,13 +93,19 @@ class WriterFlags(ProtTreesCase):
             "tar -C @L@/go -xf a.tar", "tar -cf ~/.local/go/x.tar foo",
             "unzip -d ~/.config/factory a.zip", "unzip -d ~/.local/go a.zip",
             "rsync -a /tmp/x/ ~/.local/lib/factory/", "install -m 755 /tmp/x @L@/bin/factory_cli.py",
-            "go env -w GOFLAGS=-mod=mod", "go env -u GOFLAGS"])
+            "go env -w GOFLAGS=-mod=mod", "go env -u GOFLAGS",
+            # bundled short flags and neighbours (self-review)
+            "tar -xCf @L@/go a.tar", "tar xCf @L@/go a.tar", "tar xfC a.tar @L@/go", "tar -xzfC a.tgz @L@/go",
+            "unzip -qd @L@/go a.zip", "unzip -qod @L@/go a.zip", "unzip a.zip -qd @L@/go",
+            "env -C @L@/bin tar xf a", "7z -y x a.7z -o@L@/bin"])
 
     def test_writer_flags_into_scratch_allowed(self):
         self.allowed(["curl -o /tmp/x URL", "wget -qO- URL", "go build -o /tmp/x ./cmd/x", "tar -C /tmp/x -xf a.tar",
                       "tar --one-top-level=/tmp/x -xf a.tar", "gcc -o /tmp/x a.c", "go env", "go env GOFLAGS",
                       "go env GOROOT GOPATH", "go version", "tar -tf a.tar", "unzip -l a.zip",
-                      "tar -czf /tmp/x.tgz -C ~/.local/go ."], cwds=("other",))
+                      "tar -czf /tmp/x.tgz -C ~/.local/go .", "tar -xCf /tmp/x a.tar", "unzip -qd /tmp/x a.zip",
+                      "env -C /tmp/x ls"], cwds=("other",))
+        self.allowed(["go build -o bin/x ./cmd/x", "curl -O URL", "wget URL", "tar -xzf a.tgz", "unzip -qo a.zip"], cwds=("wt",))
 
 
 class CdThenWrite(ProtTreesCase):

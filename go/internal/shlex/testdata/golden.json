@@ -47139,6 +47139,382 @@
 "src": "corpus"
 },
 {
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"@LIVE_HOME@/go",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"@",
+"LIVE_HOME",
+"@",
+"/go",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"@LIVE_HOME@/go",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "quote",
+"quoted": "'tar -xCf @LIVE_HOME@/go a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"a.tar",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"a.tar",
+"@",
+"LIVE_HOME",
+"@",
+"/go"
+]
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"a.tar",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "quote",
+"quoted": "'tar xfC a.tar @LIVE_HOME@/go'",
+"src": "corpus"
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"@LIVE_HOME@/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"@",
+"LIVE_HOME",
+"@",
+"/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"@LIVE_HOME@/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "quote",
+"quoted": "'unzip -qd @LIVE_HOME@/go a.zip'",
+"src": "corpus"
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "quote",
+"quoted": "'unzip -qod ~/.local/go a.zip'",
+"src": "corpus"
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"@LIVE_HOME@/bin",
+"tar",
+"xf",
+"a"
+]
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"@",
+"LIVE_HOME",
+"@",
+"/bin",
+"tar",
+"xf",
+"a"
+]
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"@LIVE_HOME@/bin",
+"tar",
+"xf",
+"a"
+]
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "quote",
+"quoted": "'env -C @LIVE_HOME@/bin tar xf a'",
+"src": "corpus"
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o@LIVE_HOME@/bin"
+]
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o",
+"@",
+"LIVE_HOME",
+"@",
+"/bin"
+]
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o@LIVE_HOME@/bin"
+]
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "quote",
+"quoted": "'7z -y x a.7z -o@LIVE_HOME@/bin'",
+"src": "corpus"
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "quote",
+"quoted": "'tar -xCf /tmp/x a.tar'",
+"src": "corpus"
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "quote",
+"quoted": "'unzip -qd /tmp/x a.zip'",
+"src": "corpus"
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "quote",
+"quoted": "'env -C /tmp/x ls'",
+"src": "corpus"
+},
+{
 "input": "curl -o /tmp/x URL",
 "mode": "script",
 "src": "corpus",
@@ -67739,7 +68115,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1551,
+"corpus_commands": 1560,
 "edge_inputs": 123,
 "python": "3.13"
 }

@@ -386,7 +386,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		}
 		if extract {
 			base, known := a.ccwd, a.ccwdKnown
-			for _, d := range optValues(targs, "C", "--directory") {
+			for _, d := range tarDirs(targs) {
 				if err := hit(d, false, base, known); err != nil {
 					return err
 				}
@@ -413,14 +413,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			}
 		}
 	case name == "unzip":
-		var dirs []string
-		for k, x := range args {
-			if x == "-d" && k+1 < len(args) {
-				dirs = append(dirs, args[k+1])
-			} else if strings.HasPrefix(x, "-d") && len(x) > 2 {
-				dirs = append(dirs, x[2:])
-			}
-		}
+		dirs := unzipDirs(args)
 		if !unzipListingOpts(rest) {
 			for _, d := range dirs {
 				if err := hitc(d); err != nil {
@@ -431,8 +424,21 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 				return cwdWrite(true, a.ccwd, a.ccwdKnown)
 			}
 		}
+	case name == "env":
+		for _, v := range optValues(args, "C", "--chdir") {
+			if err := hitc(v); err != nil {
+				return err
+			}
+		}
 	case name == "7z" || name == "7za" || name == "7zr":
-		if len(args) > 0 && (args[0] == "x" || args[0] == "e") {
+		first := ""
+		for _, x := range args {
+			if !strings.HasPrefix(x, "-") {
+				first = x
+				break
+			}
+		}
+		if first == "x" || first == "e" {
 			var outs []string
 			for _, x := range args {
 				if strings.HasPrefix(x, "-o") && len(x) > 2 {
@@ -506,4 +512,59 @@ func protInPlace(args []string) bool {
 		}
 	}
 	return false
+}
+
+// tarDirs is tar_dirs: -C/--directory targets, also in a bundle; over-approximate.
+func tarDirs(args []string) []string {
+	var out []string
+	k := 0
+	for k < len(args) {
+		a := args[k]
+		k++
+		if strings.HasPrefix(a, "--") {
+			opt, val, eq := strings.Cut(a, "=")
+			if opt == "--directory" {
+				if eq {
+					out = append(out, val)
+				} else if k < len(args) {
+					out = append(out, args[k])
+					k++
+				}
+			}
+		} else if strings.HasPrefix(a, "-") && strings.Contains(a[1:], "C") {
+			letters := a[1:]
+			rem := letters[strings.Index(letters, "C")+1:]
+			if rem != "" {
+				out = append(out, rem)
+			}
+			n := 0
+			for _, ch := range letters {
+				if ch == 'C' || ch == 'f' {
+					n++
+				}
+			}
+			for _, w := range args[k:min(k+n, len(args))] {
+				if !strings.HasPrefix(w, "-") {
+					out = append(out, w)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// unzipDirs is unzip_dirs: -d targets, also bundled.
+func unzipDirs(args []string) []string {
+	var out []string
+	for k, a := range args {
+		if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a[1:], "d") {
+			rem := a[strings.Index(a, "d")+1:]
+			if rem != "" {
+				out = append(out, rem)
+			} else if k+1 < len(args) {
+				out = append(out, args[k+1])
+			}
+		}
+	}
+	return out
 }

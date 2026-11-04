@@ -315,6 +315,44 @@ def prot_edit_path(p):
     return prot_path(p)
 
 
+def tar_dirs(args):
+    """-C/--directory targets of tar, also in a bundle (`-xCf DIR a.tar`, `xfC a.tar DIR`): every letter C or f takes a
+    word, so the glued rest and the next words are all candidates (over-approximate; options are skipped)."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        if a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            if opt == "--directory":
+                if eq:
+                    out.append(val)
+                elif k < len(args):
+                    out.append(args[k])
+                    k += 1
+        elif a.startswith("-") and "C" in a[1:]:
+            letters = a[1:]
+            rem = letters[letters.index("C") + 1:]
+            if rem:
+                out.append(rem)
+            n = sum(1 for ch in letters if ch in "Cf")
+            out += [w for w in args[k:k + n] if not w.startswith("-")]
+    return out
+
+
+def unzip_dirs(args):
+    """-d targets of unzip, also bundled (`-qd DIR`, `-qodDIR`)."""
+    out = []
+    for k, a in enumerate(args):
+        if a.startswith("-") and not a.startswith("--") and "d" in a[1:]:
+            rem = a[a.index("d") + 1:]
+            if rem:
+                out.append(rem)
+            elif k + 1 < len(args):
+                out.append(args[k + 1])
+    return out
+
+
 def opt_values(args, letters="", longs=()):
     """Values of the options named in `longs` (exact word, as --output X, --output=X, -o X) and of the single-dash
     letters in `letters` (curl -o X, -oX, -sSLo X: glued, or the next word), in the order they appear."""
@@ -1706,7 +1744,7 @@ class Analyzer:
                 targs[0] = "-" + targs[0]  # the old style `tar xf a.tar`
             extract = any(a.startswith("-") and not a.startswith("--") and "x" in a for a in targs) or any(
                 a.partition("=")[0] in ("--extract", "--get", "--ex", "--ext", "--extr", "--extra", "--extrac", "--ge") for a in targs)
-            dirs = opt_values(targs, "C", {"--directory"})
+            dirs = tar_dirs(targs)
             top = [a.partition("=")[2] for a in targs if a.startswith("--one-top-level=")]
             if extract:
                 base = self.ccwd
@@ -1723,19 +1761,17 @@ class Analyzer:
                 for v in opt_values(targs, "f", {"--file"}):  # create/append: the archive file is written
                     hit(v)
         elif name == "unzip":
-            dirs = []
-            for k, a in enumerate(args):
-                if a == "-d" and k + 1 < len(args):
-                    dirs.append(args[k + 1])
-                elif a.startswith("-d") and len(a) > 2:
-                    dirs.append(a[2:])
+            dirs = unzip_dirs(args)
             if not unzip_listing(list(rest)):
                 for d in dirs:
                     hit(d)
                 if not dirs:
                     cwd_write(True)
+        elif name == "env":
+            for v in opt_values(args, "C", {"--chdir"}):
+                hit(v)
         elif name in ("7z", "7za", "7zr"):
-            if args[:1] and args[0] in ("x", "e"):
+            if [a for a in args if not a.startswith("-")][:1] in (["x"], ["e"]):
                 outs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
                 for v in outs:
                     hit(v)
