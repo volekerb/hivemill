@@ -3540,7 +3540,11 @@ def pr_body_problems(body, headings):
     """Every way `body` departs from the PR template, as sentences; empty when it conforms."""
     problems = []
     outside = pr_outside_details(body)
-    lines = [ln.rstrip() for ln in outside.splitlines()]
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+    lines, off = [], 0
+    for raw in outside.splitlines(keepends=True):  # a heading inside a code fence is text, not a section
+        lines.append("" if any(x <= off < y for x, y in spans) else raw.rstrip())
+        off += len(raw)
     missing = [h for h in headings if h not in lines]
     if missing:
         problems.append("missing section heading(s): " + ", ".join(f"`{h}`" for h in missing))
@@ -8685,6 +8689,13 @@ def cmd_cursor_pilot(a):
     die(f"unknown cursor-pilot action {action!r}", 2)
 
 
+def qa_without_pr_or_worktree(con, task):
+    """True when task has no PR and no existing worktree: a qa agent spawned without --cwd would start in the shared
+    checkout (T-0956; dispatch_tick checks it too, T-0966)."""
+    tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(tw) and not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists())
+
+
 def cmd_spawn(a):
     refuse_worker("spawn")
     if a.role == "evaluator":  # only the skilleval harness calls spawn() for it, for everyone else the CLI says no
@@ -8709,8 +8720,7 @@ def cmd_spawn(a):
             die(f"{a.task} has no acceptance in the DB; write it with factory task update {a.task} --acceptance - "
                 "before spawning (scratch files are lost on reboot)", 2)
         if a.role == "qa" and not a.cwd:  # T-0956: no PR and no worktree = the shared checkout, where QA can do nothing
-            tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (a.task,)).fetchone()
-            if not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists()):
+            if qa_without_pr_or_worktree(con, a.task):
                 die(f"{a.task} has no PR and no worktree, so a qa agent would start in the shared checkout: create a worktree "
                     f"for it, or pass one: factory spawn qa --task {a.task} --cwd <worktree>", 2)
         why = staleness_precheck(con, a.role, a.task)
@@ -8876,8 +8886,24 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
-_EVIDENCE_FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.M | re.S)
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)^[ \t]*\1", re.M | re.S)
+
+
+def _evidence_section(outside):
+    """Text of the `## Test evidence` section: the heading must start a line outside a fence; the section ends at
+    the next `## ` line outside a fence. "" when there is no such heading."""
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+
+    def fenced(i):
+        return any(a <= i < b for a, b in spans)
+
+    start = next((m.end() for m in re.finditer(r"^## Test evidence[^\n]*(?:\n|$)", outside, re.M)
+                  if not fenced(m.start())), None)
+    if start is None:
+        return ""
+    end = next((m.start() for m in _PR_SECTION.finditer(outside, start) if not fenced(m.start())), len(outside))
+    return outside[start:end]
 
 
 def _evidence_is_command(text):
@@ -8896,7 +8922,7 @@ def prcheck_evidence_problem(sec):
     """T-0947: shape check of the `## Test evidence` section (outside <details>): a literal command line plus an output
     line. It proves text is present, not that it is true. Returns a problem string or None."""
     cands = [m.group(1) for m in re.finditer(r"`([^`\n]+)`", _EVIDENCE_FENCE.sub("", sec))]
-    for block in _EVIDENCE_FENCE.findall(sec):
+    for _, block in _EVIDENCE_FENCE.findall(sec):
         cands += block.splitlines()
     if not any(_evidence_is_command(c) for c in cands):
         return ("`## Test evidence` has no command in backticks: a command line of 2+ words starting with a runner "
@@ -8904,7 +8930,7 @@ def prcheck_evidence_problem(sec):
                 "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK; a bare file or test name is not a command")
     if not _EVIDENCE_OUTPUT.search(sec):
         return ("`## Test evidence` has a command but no output line: add its key result, "
-                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, passed, rc=N, exit N, ->)")
+                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, N failed, passed, rc=N, exit N, ->)")
     return None
 
 
@@ -8923,8 +8949,7 @@ def prcheck_body(wt, base, pr_url):
         return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
     problems = pr_body_problems(body, pr_template_headings())
     outside = pr_outside_details(body)
-    sec = outside.split("## Test evidence", 1)[-1] if "## Test evidence" in outside else ""
-    sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
+    sec = _evidence_section(outside)
     ev = prcheck_evidence_problem(sec)
     if ev:
         problems.append(ev)
@@ -13663,6 +13688,20 @@ def dispatch_tick(con):
         if not gate(con, role=role)[0]:
             break
         name = f"{role}-{tid.lower()}"
+        if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            key = f"dispatch-refused:{tid}"
+            if not _throttled(con, key, clock, 10 * 365 * 86400):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
+                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                     f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
+                     f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
+                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+            continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
                  "Never call the advisor tool.")
