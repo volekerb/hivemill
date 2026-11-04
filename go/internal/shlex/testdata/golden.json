@@ -1,39 +1,6 @@
 {
 "cases": [
 {
-"input": "uvx pytest",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"uvx",
-"pytest"
-]
-},
-{
-"input": "uvx pytest",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"uvx",
-"pytest"
-]
-},
-{
-"input": "uvx pytest",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"uvx",
-"pytest"
-]
-},
-{
-"input": "uvx pytest",
-"mode": "quote",
-"quoted": "'uvx pytest'",
-"src": "corpus"
-},
-{
 "input": "uvx --from x pytest",
 "mode": "script",
 "src": "corpus",
@@ -103,45 +70,6 @@
 "input": "uvx pytest==8.0",
 "mode": "quote",
 "quoted": "'uvx pytest==8.0'",
-"src": "corpus"
-},
-{
-"input": "uv tool run pytest",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"uv",
-"tool",
-"run",
-"pytest"
-]
-},
-{
-"input": "uv tool run pytest",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"uv",
-"tool",
-"run",
-"pytest"
-]
-},
-{
-"input": "uv tool run pytest",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"uv",
-"tool",
-"run",
-"pytest"
-]
-},
-{
-"input": "uv tool run pytest",
-"mode": "quote",
-"quoted": "'uv tool run pytest'",
 "src": "corpus"
 },
 {
@@ -595,6 +523,78 @@
 "input": "uv run python -m pytest",
 "mode": "quote",
 "quoted": "'uv run python -m pytest'",
+"src": "corpus"
+},
+{
+"input": "uvx pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest"
+]
+},
+{
+"input": "uvx pytest",
+"mode": "quote",
+"quoted": "'uvx pytest'",
+"src": "corpus"
+},
+{
+"input": "uv tool run pytest",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest"
+]
+},
+{
+"input": "uv tool run pytest",
+"mode": "quote",
+"quoted": "'uv tool run pytest'",
 "src": "corpus"
 },
 {
@@ -62539,6 +62539,84 @@
 "src": "corpus"
 },
 {
+"input": "uvx pytest tests/test_x.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "uvx pytest tests/test_x.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "uvx pytest tests/test_x.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uvx",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "uvx pytest tests/test_x.py",
+"mode": "quote",
+"quoted": "'uvx pytest tests/test_x.py'",
+"src": "corpus"
+},
+{
+"input": "uv tool run pytest tests/test_x.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "uv tool run pytest tests/test_x.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "uv tool run pytest tests/test_x.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"uv",
+"tool",
+"run",
+"pytest",
+"tests/test_x.py"
+]
+},
+{
+"input": "uv tool run pytest tests/test_x.py",
+"mode": "quote",
+"quoted": "'uv tool run pytest tests/test_x.py'",
+"src": "corpus"
+},
+{
 "input": "gh api repos/acme/widgets/branches/main/protection",
 "mode": "script",
 "src": "corpus",
@@ -73874,7 +73952,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1707,
+"corpus_commands": 1709,
 "edge_inputs": 123,
 "python": "3.13"
 }
