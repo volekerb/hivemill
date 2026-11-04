@@ -340,6 +340,46 @@ GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VA
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(\+?=.*)?$")  # T-0788: zsh `path` is tied to PATH
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+# T-0808 F2: python long options that may precede -m (value-taking ones named separately); any other fails closed
+PY_LONG_FLAG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
+PY_LONG_VALUE = {"--check-hash-based-pycs"}
+# T-0808 F5: an inline interpreter program may write anything, so it counts as a filesystem change. Non-python: no program
+# argument at all or an explicit `-` (program on stdin); option forms (-e/-r ...) are not tightened (T-0953). Python: py_inline_code.
+
+
+def py_inline_code(args):
+    """T-0808 F5: True when a python command line carries its program inline: -c (bare or in a cluster such as -Bc, attached
+    code too), `-` / no program at all (heredoc or pipe on stdin). -m module and a script file are not inline."""
+    k = 0
+    while k < len(args) and args[k].startswith("-") and len(args[k]) > 1:
+        cl = args[k]
+        k += 1
+        if cl.startswith("--"):
+            if cl in PY_LONG_FLAG:
+                return False  # --version/--help print and exit: no program runs (as on origin/main)
+            if cl.partition("=")[0] in PY_LONG_VALUE and "=" not in cl:
+                k += 1
+            continue
+        for i, ch in enumerate(cl[1:], 1):
+            if ch == "c":
+                return True
+            if ch in "mVh?":
+                return False  # -m module, or -V/-h/-? print and exit
+            if ch in "WXQ":
+                k += 0 if cl[i + 1:] else 1
+                break
+    return k >= len(args) or args[k] == "-"
+
+
+def inline_interpreter(name, rest):
+    """T-0808 F5: an interpreter invocation whose program is inline (option, stdin heredoc/pipe)."""
+    if not INTERPRETERS.match(name):
+        return False
+    if re.match(r"^python[\d.]*$", name):
+        return py_inline_code(rest)
+    return not rest or rest[0] == "-"
+
+
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 # T-0805 rule E: the only options an extracting tar/bsdtar/unzip may carry, matched exactly (no prefix matching: GNU tar
 # accepts --xfo= for --xform=); anything else can rewrite, add or re-read member names so the listing no longer matches
@@ -1651,10 +1691,23 @@ class Analyzer:
             extract = bool(args[:1]) and args[0] in ("x", "e")
             dirs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
         elif re.match(r"^python[\d.]*$", name):
-            mod, k = None, 0
-            while k < len(args) and args[k].startswith("-") and not args[k].startswith("--") and len(args[k]) > 1:
-                cl = args[k]  # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile
+            mod, k, code = None, 0, None
+            while k < len(args) and args[k].startswith("-") and len(args[k]) > 1:
+                cl = args[k]
                 k += 1
+                if cl.startswith("--"):  # T-0808 F2: skip a known long option (and its value); an unknown one fails closed
+                    base, eq, _ = cl.partition("=")
+                    if base in PY_LONG_VALUE:
+                        k += 0 if eq else 1  # `--opt=value` carries its value; `--opt value` takes the next argument
+                    elif base not in PY_LONG_FLAG:
+                        # unknown arity: block only when a later -m names an archive module (`--bogus -m pytest` stays allowed)
+                        if any(a.endswith(("zipfile", "tarfile")) for a in args[k:]):
+                            raise Block(f"`{name}` with the unknown option {cl!r} before -m zipfile/tarfile: the target cannot "
+                                        "be bounded; drop the option or extract with unzip -d")
+                        break
+                    continue
+                # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile. T-0808 F1: walk it char by char; only a bare c/m ends
+                # the loop, and -W/-X (value-taking) consume the rest of the cluster or the next argument as their value
                 for i, ch in enumerate(cl[1:], 1):
                     tail = cl[i + 1:]
                     if ch == "m":
@@ -1662,12 +1715,16 @@ class Analyzer:
                         k += 0 if tail else 1
                         break
                     if ch == "c":
+                        code = tail or (args[k] if k < len(args) else "")
                         break
                     if ch in "WXQ":  # takes a value
                         k += 0 if tail else 1
                         break
-                if mod is not None or "c" in cl:
+                if mod is not None or code is not None:
                     break
+            if code is not None and re.search(r"extractall|extract\s*\(|unpack_archive", code):
+                raise Block(f"`{name} -c` code that extracts an archive cannot be bounded (it may write .git/config or hooks): "
+                            f"{why}; use unzip -d or tar -C")
             if mod in ("zipfile", "tarfile"):
                 for j, a in enumerate(args[k:], k):
                     if a in ("-e", "--extract"):
@@ -1675,6 +1732,9 @@ class Analyzer:
                         dirs += args[j + 2:j + 3]
         elif name == "ar":
             ops, k, outs, opseen = [], 0, [], False
+            for a in args:
+                if a.startswith("@"):  # T-0808 F3: a response file adds options the hook cannot see, even as an option value
+                    raise Block("`ar @file`: the response file's options cannot be inspected; pass the options on the command line")
             while k < len(args):
                 a = args[k]
                 k += 1
@@ -2734,7 +2794,7 @@ class Analyzer:
         self.cfg_write(name, rest)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
-            if self.archive_extract(name, rest) or name in FS_MUTATORS:
+            if self.archive_extract(name, rest) or name in FS_MUTATORS or inline_interpreter(name, rest):
                 self.fs_changed = True
         self.factory_unit(name, rest, assigns)
         if self.role == RESEARCHER and not self.hq:
@@ -3403,6 +3463,7 @@ class PublicText:
         self.public = self.slugs("public_text_repos")
         self.frozen = self.slugs("frozen_repos")
         self.active = bool(self.public or self.frozen)
+        self.nopush = False  # T-0961: set by check() for a NO_PUSH_ROLES role (not HQ): push() refuses before scanning
         self.bodies = []  # (head line, body) of every heredoc seen by preprocess
         self.raw = ""  # the command as the hook received it
         self._mod = self._terms = None
@@ -3726,6 +3787,9 @@ class PublicText:
         return pos, opts
 
     def push(self, cwd, remote, rest):
+        if self.nopush:  # T-0961: refuse by role before the (slow) base..HEAD scan; NO_PUSH_ROLES never push
+            raise PublicBlock("this role may not push (no-push roles only read; ask your lead). "
+                              "The push was refused before any public-text scan")
         if cwd is None or not os.path.isdir(cwd):
             raise PublicBlock("push from a directory known only at run time: cd to a static path first")
         pos, opts = self.push_args(rest)
@@ -3847,6 +3911,7 @@ class PublicText:
 def check(cmd, cwd=None, role=None, hq=False):
     pt = PublicText(cwd, Analyzer(cwd).db_path())
     pt.raw = cmd
+    pt.nopush = role in NO_PUSH_ROLES and not hq
     try:  # PRIV pass (the whole of HQ mode): parse trouble allows
         an = Analyzer(cwd, role, True)
         an.unit_rule = hq
