@@ -33,6 +33,10 @@ Order: goal priority, then task priority (lower first, unset last), then task id
 
 After each spawn the parked lead gets one message of kind `fyi`, subject `dispatch: <name> started on <task>`. `factory inbox` shows it like any other mail, but `tick_wake_leads` ignores `fyi` when looking for unread mail, so it does not wake the lead (that would defeat parking). Real mail (reports, requests) still wakes it, and the unread count in the wake kickoff still includes the fyi. `fyi` is a tick-only kind and is not accepted by `factory msg --kind`.
 
+## The dispatch-refused mail
+
+A `qa` task with no PR and no worktree is not dispatched (the same refusal as `factory spawn`: a qa agent would start in the shared checkout). Once per task the tick logs a `dispatch-refused` event and mails the parked lead `dispatch refused: <task> has no PR and no worktree`. Unlike the spawn `fyi`, this mail has kind `report`, so it **wakes** the parked lead: a refusal needs a decision (create a worktree and `factory spawn qa --task <T> --cwd <worktree>`, or cancel). The once-per-task throttle never expires, so a woken lead handles the first refusal and the tick does not mail again. `shadow` mode still records `dispatch-shadow` for such tasks and sends no mail.
+
 ## Turning it on and off
 
 The director runs `factory config lead_less_dispatch shadow`, checks the `dispatch-shadow` events and the `lead-less dispatch:` line in `factory res`, then `factory config lead_less_dispatch 1`. Setting it back to `0` stops dispatch at the next tick. `factory stop <name>` undoes a single dispatch.

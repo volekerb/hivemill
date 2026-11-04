@@ -91,6 +91,14 @@
    "doc": ""
   },
   {
+   "key": "exited_pane_reap_mode",
+   "kind": "setting",
+   "default": "dry-run",
+   "summary": "tick closes the pane of a worker row exited >10 min: dry-run | on | off",
+   "goal": "G-005",
+   "doc": "docs/exited-pane-reap.md"
+  },
+  {
    "key": "factory_remote_url",
    "kind": "setting",
    "default": "",

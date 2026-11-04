@@ -231,6 +231,7 @@ DEFAULT_CONFIG = {
     "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
+    "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -4973,7 +4974,8 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
-LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t]*live-run:[ \t]*pending\b.*$")
+LIVE_RUN_PENDING = re.compile(  # optional bullet/quote/backtick, "1." number, "[ ]" checkbox, bold/backtick around the key
+    r"(?im)^[ \t>*`_-]*(?:\d+[.)][ \t]+)?(?:\[[ xX]?\][ \t]*)?[ \t>*`_-]*live-run[*`_]*:[*`_]*[ \t]*pending\b.*$")
 
 
 def mech_mode(con):
@@ -5971,6 +5973,66 @@ def remote_url_alert(con):
                     (msg or "",))
 
 
+LIVE_TREE_ALERT_MAX_PATHS = 20
+
+
+def live_tree_dirty_paths():
+    """[(XY, path)] for modified, deleted or staged tracked files of the live checkout, exports/ and state/ left out
+    (sync_pull restores those every tick). Untracked entries are not read. Raises RuntimeError when git cannot answer."""
+    p = git_run(HOME, "status", "--porcelain", "-z", "--untracked-files=no", "--", ".", ":(exclude)exports", ":(exclude)state",
+             text=False, timeout=30, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})  # read-only: no index refresh write
+    if p.returncode != 0:
+        raise RuntimeError(f"git status exited {p.returncode}: {p.stderr.decode('utf-8', 'replace').strip()[-200:]}")
+    fields = p.stdout.decode("utf-8", "replace").split("\0")
+    out, i = [], 0
+    while i < len(fields):
+        f = fields[i]
+        i += 1
+        if len(f) < 4:
+            continue
+        xy, path = f[:2], f[3:]
+        out.append((xy, path))
+        if "R" in xy or "C" in xy:  # a rename or copy entry carries the old path as the next field
+            if i < len(fields) and fields[i]:
+                out.append((xy, fields[i]))
+            i += 1
+    return out
+
+
+def live_tree_dirty_alert(con):
+    """Tick hook: one alert to the director per distinct sorted set of dirty tracked paths in the live checkout
+    (re-armed once it is clean again). Never repairs anything. A git failure records one event per new error text."""
+    if not git_config_guard(con, HOME):
+        return  # a planted git config has its own alert
+    try:
+        dirty = live_tree_dirty_paths()
+    except (OSError, subprocess.SubprocessError, RuntimeError) as e:
+        err = str(e)[:300]
+        old = con.execute("SELECT ts FROM throttle WHERE key='live-tree-failed'").fetchone()
+        if not old or old["ts"] != err:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('live-tree-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
+            event(con, "tick", "live-tree", "live-tree-check-failed", err)
+        return
+    con.execute("DELETE FROM throttle WHERE key='live-tree-failed'")
+    paths = sorted({p for _, p in dirty})
+    key = json.dumps(paths)
+    row = con.execute("SELECT value FROM config WHERE key='live_tree_alerted'").fetchone()
+    seen = row["value"] if row else json.dumps([])
+    if paths and key != seen:
+        st = {}
+        for xy, p in dirty:
+            st.setdefault(p, xy)
+        shown = paths[:LIVE_TREE_ALERT_MAX_PATHS]
+        lines = "\n".join(f"  {st[p]} {p}" for p in shown)
+        more = f"\n  ... and {len(paths) - len(shown)} more" if len(paths) > len(shown) else ""
+        send(con, "director", f"live checkout has {len(paths)} modified tracked file(s)",
+             f"`git status --porcelain --untracked-files=no` in {HOME} (exports/ and state/ excluded) lists {len(paths)} path(s):\n"
+             f"{lines}{more}\nThe tick does not repair this: restore or commit them by hand after finding who wrote there.",
+             "alert", sender="tick")
+    if key != seen:
+        _set_config(con, "live_tree_alerted", key)
+
+
 MAIN_PROTECTION_EVERY_S = 3600  # the check, and so the boss alert, runs at most this often (R-a)
 
 
@@ -6668,6 +6730,66 @@ def reap_orphans(con):
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+EXITED_PANE_THROTTLE_S = 600   # same cadence as the orphan reaper
+EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before its pane is touched
+EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
+
+
+def reap_exited_panes(con, agents):
+    """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
+    one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
+    and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
+    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
+    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
+    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    `agents` is the tick's host agent list (None or empty = nothing to do)."""
+    try:
+        mode = cfg(con, "exited_pane_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off" or not agents:
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='exitedpanereap'").fetchone()
+        if last and t - float(last["ts"]) < EXITED_PANE_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('exitedpanereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        for h in agents:
+            name, pane = h.get("name"), h.get("pane_id")
+            if not name or not pane:
+                continue
+            r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
+            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
+                continue
+            ended = _ts(r["ended"])
+            if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
+                continue
+            if con.execute("SELECT 1 FROM agents WHERE pane_id=? AND name!=? AND status IN ('live','starting','queued','stopped')",
+                           (pane, name)).fetchone():
+                continue  # the pane id was handed to a newer live agent
+            if pane_gone(pane) is not False:
+                continue  # the tick's list is stale (e.g. its reap loop just closed it) or the host cannot be asked
+            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"]}
+            key = json.dumps({"agent": name, "pane": pane})[:-1] + ","
+
+            def seen(action):
+                return con.execute("SELECT 1 FROM events WHERE action=? AND substr(detail,1,?)=?",
+                                   (action, len(key), key)).fetchone()
+            if mode == "dry-run":
+                if not seen("exited-pane-would-close"):
+                    event_as(con, "tick", "agent", name, "exited-pane-would-close", detail)
+                continue
+            herdr("pane", "close", pane, check=False)
+            if pane_gone(pane) is True:
+                event_as(con, "tick", "agent", name, "exited-pane-closed", detail)
+            elif not seen("exited-pane-close-failed"):
+                event_as(con, "tick", "agent", name, "exited-pane-close-failed", detail)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "exited-pane-reap", "exited-pane-reap-failed", str(e))
         except Exception:  # noqa: BLE001
             pass
 
@@ -7463,7 +7585,6 @@ def prepare_worktree(con, task, role):
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
         if role == "coder" and t["branch"]:
-            # QA may have left the worktree on a detached PR head; a retry coder needs its branch (switch checks out)
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
@@ -8871,8 +8992,9 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
-_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)^[ \t]*\1", re.M | re.S)
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in\b)[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+# An unclosed fence runs to the end of the body (CommonMark), so a heading after it is text, not a section.
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)(?:(^[ \t]*\1)|\Z)", re.M | re.S)
 
 
 def _evidence_section(outside):
@@ -8883,7 +9005,7 @@ def _evidence_section(outside):
     def fenced(i):
         return any(a <= i < b for a, b in spans)
 
-    start = next((m.end() for m in re.finditer(r"^## Test evidence[^\n]*(?:\n|$)", outside, re.M)
+    start = next((m.end() for m in re.finditer(r"^## Test evidence[ \t\r]*(?:\n|$)", outside, re.M)
                   if not fenced(m.start())), None)
     if start is None:
         return ""
@@ -8907,7 +9029,7 @@ def prcheck_evidence_problem(sec):
     """T-0947: shape check of the `## Test evidence` section (outside <details>): a literal command line plus an output
     line. It proves text is present, not that it is true. Returns a problem string or None."""
     cands = [m.group(1) for m in re.finditer(r"`([^`\n]+)`", _EVIDENCE_FENCE.sub("", sec))]
-    for _, block in _EVIDENCE_FENCE.findall(sec):
+    for _, block, _ in _EVIDENCE_FENCE.findall(sec):
         cands += block.splitlines()
     if not any(_evidence_is_command(c) for c in cands):
         return ("`## Test evidence` has no command in backticks: a command line of 2+ words starting with a runner "
@@ -8934,6 +9056,9 @@ def prcheck_body(wt, base, pr_url):
         return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
     problems = pr_body_problems(body, pr_template_headings())
     outside = pr_outside_details(body)
+    if any(not m.group(3) for m in _EVIDENCE_FENCE.finditer(outside)):
+        problems.append("a code fence outside <details> is never closed, so everything after it is code, not sections: "
+                        "add the closing ``` (or ~~~) line")
     sec = _evidence_section(outside)
     ev = prcheck_evidence_problem(sec)
     if ev:
@@ -12435,6 +12560,8 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
 
     _pt_lap("reap_loop")
+    reap_exited_panes(con, agents)
+    _pt_lap("exited_panes")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
     _pt_lap("drift")
 
@@ -12667,6 +12794,11 @@ def cmd_tick(a, locked=False):
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
     _pt_lap("export")
+
+    try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
+        live_tree_dirty_alert(con)
+    except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
+        event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
@@ -13680,7 +13812,7 @@ def dispatch_tick(con):
                 send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
-                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+                     "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
             continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
@@ -13715,7 +13847,8 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
                   "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Two verdicts on the same head, then factory done. ")
+                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
+                  "Two verdicts on the same head, then factory done. ")
 
 
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day

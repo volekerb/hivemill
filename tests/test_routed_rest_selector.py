@@ -55,7 +55,7 @@ class RoutedRestSelectorTest(unittest.TestCase):
         self.assertIn("--routed-rest", job)
         self.assertEqual(text.count("--impl go"), 1)
         self.assertEqual(text.count("--strict"), 1)
-        self.assertIn("needs: [unittest-shard, go, guard-diff, guard-equiv]", text)
+        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv]", text)
         self.assertIn("needs.guard-equiv.result", text)
         self.assertIn("if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}", job)  # REAL_GO logs after a red step
 
