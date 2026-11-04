@@ -8993,7 +8993,7 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?!\s+(?!in\b)[A-Za-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in\b)[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
 # An unclosed fence runs to the end of the body (CommonMark), so a heading after it is text, not a section.
 _EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)(?:(^[ \t]*\1)|\Z)", re.M | re.S)
 

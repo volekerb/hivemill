@@ -608,6 +608,10 @@ class PrcheckTests(FactoryTestCase):
         p = self.body_result("`pytest tests/test_x.py` 2 failed in 0.5s", 0)
         self.assertIn("PASS body:", p.stdout)
 
+    def test_evidence_failed_then_text_line_is_output(self):  # N failed at line end, next line is text
+        p = self.body_result("`pytest tests/test_x.py` 2 failed\nNext line of text", 0)
+        self.assertIn("PASS body:", p.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
