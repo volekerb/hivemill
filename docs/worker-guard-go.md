@@ -194,6 +194,8 @@ stale or missing binary never runs old rules. The binary is called as `worker-gu
 
 **Modes.** `python`: `python3 worker-guard.py <args>`. `go`: the binary. Both get stdin as is.
 
+**Who calls the shim (T-0356, M22079).** The 10 worker templates call `sh <live home>/roles/hooks/worker-guard --role <role>` (27 hook lines; was `python3 <live home>/roles/hooks/worker-guard.py --role <role>`). The 3 HQ templates (boss, director, lead) stay on `python3 <live home>/roles/hooks/worker-guard.py --hq`. Why: HQ repairs a broken hook. A direct python3 crash exits non-2, which does not block, so HQ can still fix it. The shim maps every crash to exit 2, so a broken hook under the shim would lock boss, director and leads out of Bash with no agent able to repair it (M20449). Moving HQ onto the shim is decided at the Go flip, not before. The sandboxed evaluator rewrites whichever form its template has to `python3 <trial copy of worker-guard.py> <same args>` (the shim is not copied into the trial). `ci/guard_diff.py --roles all` reads both forms.
+
 **Fail closed.** The shim never `exec`s. Every exit status other than 0 and 2 (including 126/127 when python3 or the
 binary cannot run, and signals such as SIGKILL = 137) becomes exit 2 with
 `worker-guard shim: <impl> failed (<status>); blocking`. Exit 1 and 126/127 would otherwise be non-blocking for Claude Code.
