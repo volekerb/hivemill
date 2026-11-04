@@ -14405,7 +14405,7 @@ GH_QUOTA_QUERY = "query{rateLimit{remaining limit resetAt}}"
 
 def _pr_cache_get(con, pr_url, clock, head=None):
     """The cached probe dict of pr_url when it is younger than pr_view_ttl_s and, if `head` (read from origin with git, no gh)
-    is given, is for that head; else None. An unreadable entry is a miss. Only optional tick probes call this: the merge
+    is for that head; else None (an unknown head, ls-remote failed, is a miss). An unreadable entry is a miss. Only optional tick probes call this: the merge
     gate (pr_state, judge_pr_ready, mech merger) never reads this cache."""
     ttl = _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S)
     if ttl <= 0:
@@ -14413,7 +14413,7 @@ def _pr_cache_get(con, pr_url, clock, head=None):
     row = con.execute("SELECT value FROM config WHERE key=?", (PRVIEW_PREFIX + pr_url,)).fetchone()
     try:
         c = json.loads(row["value"]) if row else None
-        if c and 0 <= clock - float(c["at"]) < ttl and isinstance(c["pr"], dict) and (head is None or c["head"] == head):
+        if c and 0 <= clock - float(c["at"]) < ttl and isinstance(c["pr"], dict) and head is not None and c["head"] == head:
             _pt_count("pr_view_cached")
             return c["pr"]
     except (ValueError, KeyError, TypeError):

@@ -65,6 +65,13 @@ class PrViewCacheTests(Base):
         self.assertEqual(len(self.step(T0 + 30, head=SHA2, sha=SHA2)), 1)
         self.assertEqual(self.step(T0 + 60, head=SHA2, sha=SHA2), [])
 
+    def test_unknown_origin_head_is_a_miss(self):
+        self.assertEqual(len(self.step(T0)), 1)
+        with self.env.load_factory() as f:
+            con = f.db()
+            self.assertIsNone(f._pr_cache_get(con, PR_URL, T0 + 10, None))
+            self.assertIsNotNone(f._pr_cache_get(con, PR_URL, T0 + 10, SHA1))
+
     def test_ttl_zero_probes_every_pass(self):
         self.ok("config", "pr_view_ttl_s", "0")
         self.assertEqual(len(self.step(T0)), 1)
@@ -78,11 +85,11 @@ class PrViewCacheTests(Base):
 
     def test_merge_gate_never_reads_the_probe_cache(self):
         """A green PR cached by a tick probe does not let `factory judge --merge` pass when gh itself fails."""
-        self.step(T0)
         self.env.sql("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                     ("prview:" + PR_URL, json.dumps({"at": 9e9, "head": SHA1, "pr": {
+                     ("prview:" + PR_URL, json.dumps({"at": T0, "head": SHA1, "pr": {
                          "number": 1, "state": "OPEN", "headRefOid": SHA1, "mergeStateStatus": "CLEAN",
                          "statusCheckRollup": [{"name": "ok", "status": "COMPLETED", "conclusion": "SUCCESS"}]}})))
+        self.assertEqual(self.step(T0 + 60), [])  # the row is a valid hit for the tick probes (no gh call) ...
         self.env.seed_pr(sha=SHA1, checks=[{"name": "ok", "status": "COMPLETED", "conclusion": "SUCCESS"}])
         self.env.set_gh(pr_view_exit=1)
         self.env.seed_agent("zz-judge", "judge", goal="G-001", task="T-0001")
@@ -117,6 +124,21 @@ class QuotaTests(Base):
         self.env.sql("UPDATE tasks SET branch='factory/t-0002' WHERE id='T-0002'")
         self.step(T0)
         self.assertEqual(len(self.quota_calls()), 1)
+
+    def test_red_pr_alert_probe_skipped_without_throttle_mark(self):
+        self.quota_stub(out={"data": {"rateLimit": {"remaining": 1, "limit": 5000, "resetAt": "x"}}})
+        self.ok("config", "red_pr_owner_alert", "1")
+        probes = []
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.digest_clock = lambda: dt.datetime.fromtimestamp(T0, dt.timezone.utc)
+            f._ci_remote_heads = lambda: {BRANCH: SHA1}
+            f._ci_wake_probe = lambda url, timeout: probes.append(url) or {}
+            f.tick_red_pr_owner(con)
+            con.commit()
+        self.assertEqual(probes, [])
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM throttle WHERE key LIKE 'red-pr-probe:%'")[0]["c"], 0)
+        self.assertEqual(len(self.alerts()), 1)
 
     def test_enough_quota_probes_normally(self):
         self.quota_stub(out={"data": {"rateLimit": {"remaining": 4000, "limit": 5000, "resetAt": "x"}}})
