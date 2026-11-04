@@ -41,6 +41,8 @@ OVERRIDE_DENIED = [
     "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
     "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
     "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+    "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+    "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
 ]
 ALLOWED = [
     "gh api repos/acme/x",
