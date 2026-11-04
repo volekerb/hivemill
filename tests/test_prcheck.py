@@ -534,6 +534,50 @@ class PrcheckTests(FactoryTestCase):
             with self.subTest(cmd=cmd):
                 self.assertIn("PASS body:", self.body_result(cmd, 0).stdout)
 
+    # -- T-0954: heading match, fence forms, lowercase "failed"
+    def mention_body(self, section):
+        return evidence_body(section).replace("What changed.", "Adds the ## Test evidence rule.", 1)
+
+    def test_evidence_heading_mentioned_in_summary_passes(self):  # acceptance 1
+        self.env.seed_pr(url=PR_URL, body=self.mention_body("`python3 -m unittest tests.test_x` -> Ran 7, OK"))
+        self.assertIn("PASS body:", self.prcheck(0).stdout)
+
+    def test_evidence_heading_mentioned_in_summary_empty_real_section_fails(self):  # acceptance 1
+        self.env.seed_pr(url=PR_URL, body=self.mention_body(""))
+        self.assertIn("no command in backticks", self.prcheck(1).stdout)
+
+    def test_evidence_heading_inside_fence_is_not_the_section(self):
+        body = evidence_body("").replace("What changed.", "```\n## Test evidence\n`python3 -m unittest x` -> OK\n```", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("no command in backticks", self.prcheck(1).stdout)
+
+    def test_fenced_heading_mention_with_valid_section_passes(self):  # acceptance 6
+        body = evidence_body("`python3 -m unittest tests.test_x` -> Ran 7, OK").replace(
+            "What changed.", "```\n## Test evidence\n```", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("PASS body:", self.prcheck(0).stdout)
+
+    def test_heading_only_inside_fence_is_missing(self):  # acceptance 6
+        body = evidence_body("").replace("## Test evidence", "```\n## Test evidence\n```", 1)
+        self.env.seed_pr(url=PR_URL, body=body)
+        self.assertIn("missing section heading", self.prcheck(1).stdout)
+
+    def test_evidence_indented_fence_passes(self):  # acceptance 2
+        p = self.body_result("- ran:\n  ```\n  $ python3 -m unittest tests.test_x\n  Ran 7 tests\n  ```", 0)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_tilde_fence_passes(self):  # acceptance 2
+        p = self.body_result("~~~\n$ python3 -m unittest tests.test_x\nRan 7 tests\n~~~", 0)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_lowercase_failed_count_is_output(self):  # acceptance 3
+        p = self.body_result("`pytest tests/test_x.py`: 2 failed, 3 skipped", 0)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_failed_in_prose_is_not_output(self):
+        p = self.body_result("`pytest tests/test_x.py` The earlier attempt failed to start.", 1)
+        self.assertIn("no output line", p.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
