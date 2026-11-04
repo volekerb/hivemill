@@ -6,7 +6,7 @@
 
 The `guard-diff` job's real-corpus step in `.github/workflows/tests.yml` runs both commands below on every PR that changes `roles/hooks/**`, `roles/settings/**`, `ci/guard_corpus.json`, `ci/guard_diff.py`, `ci/public_text_guard.py`, `ci/scrub_scan.py` (the hook loads them), `.github/workflows/tests.yml` (so a gate change proves itself) or `go/internal/guard/**`, `go/cmd/worker-guard/**` or `go/internal/shlex/**`, with `--base` set to the PR base sha. The `guard-diff` job feeds the required `unittest` aggregate, so rc!=0 (a LOOSENED line) fails the PR. The tool (`ci/guard_diff.py`, `tests/_slot.py`) is extracted from the base commit, so a PR cannot weaken its own gate; a base without it falls back to the PR copy. The corpus is passed twice on both runs, `--corpus <base ci/guard_corpus.json> --corpus ci/guard_corpus.json`, so deleting a `must_block` entry in the PR still shows as LOOSENED. The job fails if `ci/guard_corpus.json` has 100 lines or fewer (not the real corpus). A PR that adds `ci/allow_loosen_*.json` has it merged into one `--allow-loosen` list and printed in the job log for the reviewer. Coders do not run the tool locally (load, M16816); they read this job's log.
 
-Go-only PRs: a PR that changes only `go/` paths triggers this step, but the default mode compares the Python hooks only, so that run proves nothing about Go. Go is covered by the `GUARD_IMPL=diff` step in the same job.
+Go-only PRs: a PR that changes only `go/internal/guard/**`, `go/cmd/worker-guard/**` or `go/internal/shlex/**` triggers this step, but the step runs the tool with its default `--impl python`, which compares the Python hooks only, so that run proves nothing about Go. Go is covered by the `GUARD_IMPL=diff` step in the same job.
 
 ## Usage (manual run, needs a named authorization)
 
@@ -82,7 +82,7 @@ A removed `deny` or `ask` rule, an added `allow` rule, a removed hook, a removed
 
 ## How reviewers use it
 
-1. Run `git fetch origin`, then the command above on the PR head.
+1. Read the `guard-diff` job's real-corpus step log for the PR head (do not run the tool locally).
 2. Check that the PR body pastes the summary and every LOOSENED/TIGHTENED line.
 3. Reject an unplanned LOOSENED line. A planned loosening must be named in the spec and ships as its own task (L-026).
 4. Read the TIGHTENED lines for false positives: each should be a form the PR meant to block.
