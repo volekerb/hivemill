@@ -49,7 +49,7 @@ DENIED = [
     "bash -c \"uv run --with requests python3 -c '%s'\"" % PY_PUSH,
 ]
 ALLOWED = [
-    "uv run pytest -q",
+    "uv run pytest tests/test_harness.py -q",
     "uv run python3 -m unittest x",
     "uvx ruff check .",
     "uv pip list",
@@ -68,7 +68,7 @@ ALLOWED = [
     # T-0880 item 11: the data word git is not a push
     "uv run pytest -k git -q",
     "uv run pytest -k git tests/test_harness.py",
-    "uv run --with git pytest -q",
+    "uv run --with git pytest tests/test_harness.py -q",
     "uv run pytest tests/git tests/test_harness.py",
     "uv run --color never git commit -m x",  # accepted, same as main (unknown option hides the command word)
     "python3 -m uv run git push",  # accepted, same as main (item 11): uv is not the command word
@@ -182,7 +182,7 @@ class CoderUvPushTests(unittest.TestCase):
         for cmd in BOTH_DENIED + FIRST_WORD_DENIED + PINNED_DENIED:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd).returncode, 2)
-        for cmd in ("uv run pytest -k git -q", "uv run pytest -k git tests/test_harness.py", "uv run --with git pytest -q",
+        for cmd in ("uv run pytest -k git -q", "uv run pytest -k git tests/test_harness.py", "uv run --with git pytest tests/test_harness.py -q",
                     "uv run pytest tests/git tests/test_harness.py", "uv run --color never git commit -m x",
                     "python3 -m uv run git push"):
             with self.subTest(cmd=cmd):
@@ -207,8 +207,14 @@ class CoderUvPushTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd).returncode, 0)
 
+    def test_bare_uv_wrapped_pytest_refused(self):
+        # T-0435 x T-0880: the uv wrapper is unwrapped, so a bare pytest (full suite) stays refused (exit 2)
+        for cmd in ("uv run pytest -q", "uv run --with git pytest -q", "uvx pytest", "uv tool run pytest"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd).returncode, 2)
+
     def test_other_uv_commands_allowed(self):
-        for cmd in ("uv run pytest -q", "uvx ruff check .", "uv pip list", "uv run python3 -m unittest x"):
+        for cmd in ("uv run pytest tests/test_harness.py -q", "uvx ruff check .", "uv pip list", "uv run python3 -m unittest x"):
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.run_hook(cmd).returncode, 0)
 
