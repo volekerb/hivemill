@@ -106,7 +106,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher"
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -115,7 +117,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher"
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -124,7 +128,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher"
+            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role researcher",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       }
