@@ -826,7 +826,7 @@ def env_split(s):
     (only backslash-backslash and backslash-quote escape), double quotes keep spaces and honour escapes, backslash-underscore
     is a separator outside quotes and a space inside double quotes, backslash-c ends the string, backslash-n/t/r/f/v are
     control characters, any other backslash-x is x. An unterminated quote takes the rest (env would refuse it; the guard
-    keeps the words). ${VAR} outside single quotes is expanded from the hook's environment (empty when unset), as env does. A `#` at the start of a word starts a comment."""
+    keeps the words). ${VAR} outside single quotes is kept as literal text (env expands it from the command's environment, which the guard cannot see); env_options treats it as dynamic. A `#` at the start of a word starts a comment."""
     words, cur, have, q, i = [], [], False, None, 0
 
     def end():
@@ -863,7 +863,7 @@ def env_split(s):
                 have = True
         elif c == "$" and s.startswith("{", i) and "}" in s[i:]:
             j = s.index("}", i)
-            cur.append(os.environ.get(s[i + 1:j], ""))
+            cur.append(s[i - 1:j + 1])  # kept literal: the guard cannot know env's value, so the word stays dynamic (fail closed)
             have = True
             i = j + 1
         elif q == '"':
@@ -929,6 +929,9 @@ def env_options(words):
     while q:
         a, from_s = q.popleft()
         if a == "--" or ASSIGN.match(a):
+            continue
+        if from_s and a.startswith("-") and "${" in a:
+            yield "unknown", a  # T-1037: an expansion in an -S option word is dynamic: fail closed
             continue
         if a == "-":
             yield "clear", a
@@ -1432,6 +1435,8 @@ class Analyzer:
         for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
             if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
+            if kind == "unset" and "${" in v:
+                raise Block("env -u with a ${...} expansion: the guard cannot tell whether it names FACTORY_ROLE/HERDR_PANE_ID")
             if kind in ("clear", "clear-attached"):
                 self.scrub_with_factory = "env -i"
 
