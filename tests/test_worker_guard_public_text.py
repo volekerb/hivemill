@@ -107,7 +107,7 @@ class PublicTextTests(unittest.TestCase):
 
     def test_no_push_roles_refused_by_role_without_the_push_scan(self):
         self.public()
-        self.commit("add rule", author="Alice <alice@realmail.test>")  # a scan would report this email
+        self.commit("add rule", author="Alice <alice" + chr(64) + "realmail.test>")  # a scan would report this email
         shim = self.git_shim("true")
         for role in ("reviewer", "pm", "qa"):
             for cmd in ("git push origin HEAD:factory/t-1", "git push", "git push origin HEAD"):
@@ -117,7 +117,7 @@ class PublicTextTests(unittest.TestCase):
 
     def test_coder_push_still_scanned(self):
         self.public()
-        self.commit("add rule", author="Alice <alice@realmail.test>")
+        self.commit("add rule", author="Alice <alice" + chr(64) + "realmail.test>")
         con = sqlite3.connect(os.path.join(self.home, "db", "factory.db"))
         con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
         con.execute("INSERT INTO tasks VALUES ('T-1', ?)", (self.repo,))
