@@ -37,6 +37,9 @@ var (
 		`python3 -c 'import os; os.system("gh api x -f a=b --no-method GET")'`, // (?<![\w-]) before --method
 		`python3 -c 'print("gh release  edit v1")'`,
 		`perl -e 'system("gh api x -F a=b; gh api y -X GET")'`,
+		`python3 -c 'import os; os.system("gh -R gh api x -f a=b")'`, // a gh word that is a flag value
+		`python3 -c 'print("gh api x -f")'`,                          // -f at the end of the text
+		`python3 -c 'print("  gh release delete-asset v1 f")'`,
 	}
 	ghAllowed = []string{
 		"gh api repos/o/r/pulls/1",
@@ -53,6 +56,9 @@ var (
 		`python3 -c 'import os; os.system("gh api x --method GET -F a=b")'`,
 		// beyond the Python list
 		"gh api x --method get -f a=b",
+		`python3 -c 'print("xgh api x -f a=b")'`, // not the gh word
+		`python3 -c 'print("gh_ api x -f a=b")'`,
+		`python3 -c 'print("gh api x é-f a=b")'`,      // é is \w: no lookbehind match
 		`python3 -c 'print("gh api x -fa=b")'`,        // -f needs a (?![\w-]) after
 		`python3 -c 'print("gh api x --force")'`,      // not a body flag
 		`python3 -c 'print("gh api x --not-f")'`,      // (?<![\w-]) before -f
