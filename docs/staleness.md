@@ -70,3 +70,16 @@ After the verified fetch of `refresh_branch` (the spawn pre-check reuses `refres
 proceed with one stderr line `staleness pre-check skipped: <reason>` and an event `precheck-skipped`. Only these error
 cases are allowed through; a verified conflict or in-flight refresh is never allowed. The pre-check writes no verdict and
 skips none: the merge gate (T-0152 STALE-ONLY, CI green, verdict carry-over) is unchanged.
+
+## stale_policy (G-022, T-1000)
+
+Config key `stale_policy` (`behind_ok` default, `strict` = rollback); details in [stale-policy.md](stale-policy.md). With
+`behind_ok` and GitHub's `required_status_checks.strict == false`, a clean BEHIND head is merged by `factory judge --merge`
+and the mechanical merger without a refresh, so the J4 "origin/main is an ancestor" rule above is waived for it. The
+verdict reason then says `merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on
+main since the merge-base`.
+
+Exception (T-1000): if `.github/workflows/tests.yml` differs between the merge-base of the head and origin/main, the head never
+ran the jobs main now requires (T-0355 guard-equiv, T-0968 guard-unittest), so `behind_ok` does not apply. The judge refreshes
+the head and waits for CI as under `strict`; the mechanical merger refuses (`STALE-ONLY: ... tests.yml changed on main since
+the merge-base`, task stays `in_review` for the judge). A git error while comparing counts as changed (fail closed).
