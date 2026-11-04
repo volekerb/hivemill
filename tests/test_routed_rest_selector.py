@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 
+import harness
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOL = os.path.join(ROOT, "ci", "guard_impl_unittest.py")
 WF = os.path.join(ROOT, ".github", "workflows", "tests.yml")
@@ -74,7 +76,14 @@ class RoutedRestSelectorTest(unittest.TestCase):
         self.assertNotEqual(run("list", "--bogus").returncode, 0)
 
 
+RAW = "#raw\n"  # body is a whole module, not a TestCase body
+
+
 def _mod(d, name, body):
+    if body.startswith(RAW):
+        with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+            f.write(body)
+        return
     with open(os.path.join(d, name), "w", encoding="utf-8") as f:
         f.write("import unittest\nclass T(unittest.TestCase):\n" + body + "\n")
 
@@ -124,6 +133,42 @@ class RoutedRestRunnerTest(unittest.TestCase):
         self.assertIn("module test_b.py: ran=2 failures=0 errors=0 skipped=1 rc=0", out)
         self.assertIn("modules_failed=1 tests_run=3 tests_skipped=2 tests_failed=0 failed=test_a.py", out)
 
+    def check(self, body, rc_want, **nums):
+        rc, out = self.go([("test_f.py", body)])
+        self.assertEqual(rc, rc_want, out)
+        for k, v in nums.items():
+            self.assertIn("%s=%d" % (k, v), out)
+        return out
+
+    def test_every_form_of_nothing_ran_is_red(self):
+        t = "class T(unittest.TestCase):\n"
+        for body in (
+            "    @unittest.skip('r')\n    def test_s(self):\n        pass\n",  # f_method
+            RAW + "import unittest\nraise unittest.SkipTest('r')\n",  # f_import
+            RAW + "import unittest\n" + t + "    @classmethod\n    def setUpClass(cls):\n        raise unittest.SkipTest('r')\n"
+            "    def test_s(self):\n        pass\n",  # f_class
+            RAW + "import unittest\ndef setUpModule():\n    raise unittest.SkipTest('r')\n" + t + "    def test_s(self):\n        pass\n",  # f_module
+            RAW + "import unittest\n",  # f_empty
+            "    def test_s(self):\n        for i in range(2):\n            with self.subTest(i=i):\n                self.skipTest('r')\n",  # f_subtest_all
+            RAW + "import os, unittest\n" + t + "    def test_s(self):\n        os._exit(0)\n",  # f_exit0
+        ):
+            with self.subTest(body=body):
+                self.check(body, 1)
+
+    def test_skips_beside_real_passes_are_green(self):
+        t = "class %s(unittest.TestCase):\n"
+        mix = (RAW + "import unittest\n" + t % "A" + "    @classmethod\n    def setUpClass(cls):\n        raise unittest.SkipTest('r')\n"
+               "    def test_a(self):\n        pass\n" + t % "B" + "    def test_b(self):\n        pass\n")
+        self.check(mix, 0, skipped=1)  # f_mix
+        sub = ("    def test_s(self):\n        for i in range(2):\n            with self.subTest(i=i):\n"
+               "                if i == 0:\n                    self.skipTest('r')\n")
+        self.check(sub, 0)  # f_subtest_mix
+
+    def test_fake_unittest_totals_on_stdout_are_not_counted(self):
+        noise = "    def test_ok(self):\n        print('Ran 7 tests')\n        print('OK (skipped=7)')\n"
+        out = self.check(noise, 0, tests_run=1, tests_skipped=0)  # f_stdoutnoise
+        self.assertIn("skipped=0 rc=0", out)
+
     def test_partly_skipped_module_alone_is_green(self):
         rc, _ = self.go([("test_b.py", "    @unittest.skip('r')\n    def test_s(self):\n        pass\n" + PASS)])
         self.assertEqual(rc, 0)
@@ -151,8 +196,7 @@ class PathListTest(unittest.TestCase):
         """Execute the real "Guard paths changed?" script in a temp repo; return the run= output."""
         with tempfile.TemporaryDirectory() as d:
             def git(*a):
-                subprocess.run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t", *a],
-                               check=True, capture_output=True, text=True)
+                return harness.git("-c", "user.name=t", "-c", "user.email=t@t", *a, cwd=d)
             git("init", "-q")
             os.makedirs(os.path.join(d, "ci"))
             shutil.copytree(os.path.join(ROOT, "tests"), os.path.join(d, "tests"),
@@ -162,7 +206,7 @@ class PathListTest(unittest.TestCase):
                 f.write("x\n")
             git("add", "-A")
             git("commit", "-q", "-m", "base")
-            base = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+            base = harness.git("rev-parse", "HEAD", cwd=d)
             for rel in changed:
                 path = os.path.join(d, rel)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -197,6 +241,11 @@ class PathListTest(unittest.TestCase):
     def test_step_fails_open_when_list_fails_or_is_empty(self):
         self.assertEqual(self.decide(["README.md"], "import sys\nsys.exit(1)\n"), "run=true")
         self.assertEqual(self.decide(["README.md"], "pass\n"), "run=true")
+        # only --routed-rest fails (plain `list` still works), and only it prints nothing
+        only_rest_fails = ("import sys\nif '--routed-rest' in sys.argv:\n    sys.exit(1)\nprint('test_x.py')\n")
+        self.assertEqual(self.decide(["README.md"], only_rest_fails), "run=true")
+        only_rest_empty = ("import sys\nif '--routed-rest' not in sys.argv:\n    print('test_x.py')\n")
+        self.assertEqual(self.decide(["README.md"], only_rest_empty), "run=true")
 
 
 if __name__ == "__main__":
