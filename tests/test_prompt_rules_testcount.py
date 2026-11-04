@@ -9,18 +9,14 @@ ROLES = Path(__file__).resolve().parent.parent / "roles"
 RULE = ("Test count: count `def test_` on the tree of `git merge-tree --write-tree origin/main HEAD` "
         "(the PR merged into current main) and on origin/main; the merged count must be >= the main count. "
         "Also confirm the PR removes or renames no `def test_` relative to its merge-base "
-        "(`git diff $(git merge-base origin/main HEAD)..HEAD`).")
+        "(run `git merge-base origin/main HEAD`, then `git diff <sha>..HEAD` with the literal sha).")
 
-# qa.md alone carries the two-step form (T-0952): the worker guard refuses command substitution.
-RULE_QA = RULE.replace("(`git diff $(git merge-base origin/main HEAD)..HEAD`).",
-                       "(`git merge-base origin/main HEAD`, then `git diff <sha>..HEAD`).")
-assert RULE_QA != RULE
+RULE_QA = RULE  # T-1054: every file uses the two-step literal form; the worker guard refuses expansions
 
 RECIPE = [
     "do not run git merge",
-    "T=$(git merge-tree --write-tree origin/main <pr-head>)",
-    "C=$(git commit-tree $T -p origin/main -p <pr-head> -m tmp)",
-    "factory src $C <scratchpad>/merged",
+    "git merge-tree --write-tree origin/main <pr-head>",
+    "factory src <tree-id> <scratchpad>/merged",
     "rm -rf <scratchpad>/merged",
 ]
 
@@ -46,8 +42,8 @@ class PromptRulesTestCount(unittest.TestCase):
             want = RULE_QA if rel == "qa.md" else RULE
             text = (ROLES / rel).read_text()
             self.assertIn(want, text, f"{rel}: merge-tree test-count wording missing")
-            if rel == "qa.md":
-                self.assertNotIn("$(git merge-base", text, "qa.md: Q1 must be the two-step form")
+            self.assertNotIn("$(git merge-base", text, f"{rel}: must be the two-step form")
+            self.assertNotIn("$(git merge-tree", text, f"{rel}: must be the two-step form")
 
     def test_any_file_stating_rule_uses_merge_tree_wording(self):
         offenders = []
@@ -72,8 +68,7 @@ class PromptRulesTestCount(unittest.TestCase):
                 pieces = ["do not run git merge", "git -C <task-worktree> merge-tree --write-tree origin/main <pr-head>",
                           "factory src <tree-id> <scratchpad>/merged", "rm -rf <scratchpad>/merged"]
             else:
-                pieces = [x.replace("C=$(git commit-tree $T -p origin/main -p <pr-head> -m tmp)", "")
-                          .replace("factory src $C", "factory src $T") for x in RECIPE]  # qa exports the tree id itself (T-0918)
+                pieces = RECIPE
             for piece in filter(None, pieces):
                 self.assertIn(piece, text, f"{name}: recipe piece missing: {piece!r}")
             self.assertNotIn("git worktree add", text, f"{name}: use factory src, not git worktree")
