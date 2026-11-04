@@ -79,6 +79,20 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 	if exportPath(p) || (strings.Contains(p, "$") && strings.Contains(p, "guard-export")) {
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + exportWhy + ". Tell your lead if this is wrong.\n"
 	}
+	// T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
+	// a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
+	binHit := strings.Contains(p, "$") && hasLocalBin(p)
+	for _, q := range []string{pyNormpath(p), pyRealpath(p)} {
+		for _, d := range mustHost().binDirs {
+			if q == d || Under(q, d) {
+				binHit = true
+			}
+		}
+	}
+	if binHit {
+		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): ~/.local/bin is first on the tick's PATH, so a file " +
+			"planted there runs with the tick's credentials; only the owner changes it. Tell your lead if this is wrong.\n"
+	}
 	noPush := in(noPushRoles, role) // T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
 	if persistPath(p, false, !noPush) || (noPush && (gitHooksPath(p, false) || gitfilePath(p))) || (strings.Contains(p, "$") && PersistCode(p)) {
 		why := persistWhy
