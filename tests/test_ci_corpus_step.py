@@ -64,7 +64,7 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn("fetch-depth: 0", block)
 
     def test_unittest_and_corpus_are_separate_jobs_both_gating(self):
-        ut, cd = job_block(WF, "guard-unittest"), job_block(WF, JOB)
+        ut, cd = job_block(WF, "guard-unittest-shard"), job_block(WF, JOB)
         self.assertIn("Guard hook unittests (GUARD_IMPL=diff)", ut)
         self.assertNotIn(STEP, ut)
         self.assertIn(STEP, cd)
