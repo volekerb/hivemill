@@ -3914,7 +3914,7 @@ def _judge_wait_limit(con):
 
 
 STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
-BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base"
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base and no file changed by both main and the PR"
 CI_WORKFLOW = ".github/workflows/tests.yml"
 
 
@@ -3946,18 +3946,38 @@ def stale_behind_ok(con, owner_repo):
     return out == "false"
 
 
-def behind_ok_ci_changed(repo, sha, main_sha):
-    """T-1000: True when behind_ok must NOT apply: the CI workflow changed on main since the merge-base of the PR head `sha`
-    and main (`main_sha`, the verified main commit). The head never ran the jobs main now requires (T-0355 guard-equiv), so
-    it has to refresh and run CI. One definition for the judge and the mechanical merger (both go through cmd_judge's gate).
-    Fail closed: any git error, or an unknown main_sha, reads as changed (the head is refreshed or refused)."""
+def behind_ok_blocker(repo, sha, main_sha):
+    """T-1000 + T-1025: why behind_ok must NOT apply to the PR head `sha`, or None when it may. One definition for the judge
+    and the mechanical merger (both go through cmd_judge's gate). Relative to the merge-base of the head and main
+    (`main_sha`, the verified main commit), two reasons:
+    - the CI workflow changed on main (the head never ran the jobs main now requires, T-0355 guard-equiv);
+    - any file changed on main since the merge-base is also changed by the PR: merge-tree is clean but no CI ever ran the
+      combined tree (T-0435 #369 vs T-0880 #361 on worker-guard.py turned main red).
+    The head must then refresh and run CI (judge) or is refused (mech merger). Fail closed: a git error or an unknown
+    main_sha reads as blocked."""
     if not main_sha:
-        return True
-    rc, base, _ = _git_rc([*HARDENED_GIT_FLAGS, "merge-base", main_sha, sha], repo=repo, env=_carry_env())
+        return "origin/main is unknown"
+
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, base, _ = git("merge-base", main_sha, sha)
     if rc != 0 or not base:
-        return True
-    rc, _, _ = _git_rc([*HARDENED_GIT_FLAGS, "diff", "--quiet", base, main_sha, "--", CI_WORKFLOW], repo=repo, env=_carry_env())
-    return rc != 0  # 0 = identical, 1 = changed, anything else = could not decide
+        return "the merge-base with main is unknown"
+    rc, _, _ = git("diff", "--quiet", base, main_sha, "--", CI_WORKFLOW)
+    if rc != 0:  # 0 = identical, 1 = changed, anything else = could not decide
+        return f"{CI_WORKFLOW} changed on main since the merge-base"
+    sides = []
+    for tip in (main_sha, sha):
+        rc, out, _ = git("diff", "--name-only", "-z", "--no-renames", base, tip)
+        if rc != 0:
+            return "the changed files since the merge-base could not be listed"
+        sides.append({f for f in out.split("\0") if f})
+    both = sorted(sides[0] & sides[1])
+    if both:
+        more = f" and {len(both) - 3} more" if len(both) > 3 else ""
+        return f"main and the PR both changed {', '.join(both[:3])}{more} since the merge-base"
+    return None
 
 
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
@@ -4863,16 +4883,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
         behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
-        ci_changed = behind_clean and behind_ok_ci_changed(git_repo, sha, stale[2])
-        if ci_changed:  # T-1000: the head predates a CI change on main: refresh (judge) or refuse (mech) instead of behind_ok
+        blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
+        if blocker:  # T-1000/T-1025: CI changed on main, or main touched a file the PR also changes: refresh (judge) or refuse (mech)
             behind_clean = False
         if behind_clean:
             if BEHIND_OK_NOTE not in reason:
                 reason += "; " + BEHIND_OK_NOTE
         elif not stale[0]:
             problems.insert(0, ("STALE-ONLY: head does not contain origin/main"
-                                + (f" ({CI_WORKFLOW} changed on main since the merge-base: behind_ok does not apply, "
-                                   "refresh so CI runs the current jobs)" if ci_changed else "")) if stale[1] == "STALE"
+                                + (f" ({blocker}: behind_ok does not apply, refresh so CI runs the combined tree)"
+                                   if blocker else "")) if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
             problems.append(f"PR is {pr['state']}")
@@ -5956,14 +5976,14 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
-def _red_main_kept_text(con, tid):
+def _red_main_kept_text(con, tid, slug):
     """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
     may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
     row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
     st = row["status"] if row else ""
     if st in ("done", "cancelled"):
         return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
-                f"(director: factory redmain fix <repo> <task>). No task was filed automatically.")
+                f"(director: factory redmain fix {slug} NEW_TASK_ID). No task was filed automatically.")
     return f"Fix task {tid} is still open; no new task filed."
 
 
@@ -6009,7 +6029,7 @@ def red_main_check(con):
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else _red_main_kept_text(con, kept)
+                        if tid else _red_main_kept_text(con, kept, slug)
                         if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
@@ -12459,9 +12479,17 @@ def log_task_judge_hold(con, task, reason):
     event(con, "task", task, "judge-hold", reason[:300])
 
 
+def mech_refused(con, task):
+    """True when the merger's latest verdict on the task is a block ("the judge decides"): the LLM judge owns it from then
+    on, however old the event, so the merger's retry window can never take it back from the judge (T-1025 B1)."""
+    last = con.execute("SELECT action FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                       "ORDER BY id DESC LIMIT 1", (task, *MECH_EVENTS)).fetchone()
+    return bool(last) and last["action"] == "mech-blocked"
+
+
 def judge_autospawn_candidates(con):
     """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
-    mech_ids = {t["id"] for t in mech_candidates(con)} if mech_mode(con) == "on" else set()
+    mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
             "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' "
