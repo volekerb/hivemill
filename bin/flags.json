@@ -465,6 +465,15 @@
    "doc": ""
   },
   {
+   "key": "red_pr_owner_alert",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = the tick mails the lead (director if no team) once per head of an open red or conflicted PR with no coder",
+   "goal": "G-022",
+   "doc": "docs/red-pr-owner-alert.md",
+   "state": "off"
+  },
+  {
    "key": "refresh_lane",
    "kind": "flag",
    "default": "off",
