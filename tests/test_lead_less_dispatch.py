@@ -515,6 +515,26 @@ class QaNoPrTests(Base):
         self.assertEqual(len(self.events("dispatch-refused")), 1)
         self.assertEqual(self.events("dispatch"), [])
 
+    def test_refusal_mail_wakes_parked_lead(self):
+        self.task("T-0001", role="qa")
+        self.mode("1")
+        self.assertEqual(self.dispatch(), [])
+        rows = self.env.sql("SELECT kind, sender FROM messages WHERE recipient=? AND subject LIKE 'dispatch refused%'", (LEAD,))
+        self.assertEqual([tuple(r) for r in rows], [("report", "tick")])
+        self.env.seed_agent("zz-director", "director")
+        self.ok("tick")
+        wakes = self.env.sql("SELECT detail FROM events WHERE action='lead-wake'")
+        self.assertEqual(len(wakes), 1)
+        self.assertRegex(json.loads(wakes[0]["detail"])["trigger"], r"^M\d+$")
+
+    def test_spawn_fyi_still_does_not_wake(self):
+        self.task("T-0001")
+        self.mode("1")
+        self.assertEqual([c["name"] for c in self.dispatch()], ["coder-t-0001"])
+        self.env.seed_agent("zz-director", "director")
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT detail FROM events WHERE action='lead-wake'"), [])
+
     def test_blocked_done_does_not_redispatch_after_repark(self):
         self.task("T-0001", role="qa", status="in_progress")
         self.env.seed_agent("zz-qa", "qa", goal="G-001", team=TEAM, task="T-0001")
