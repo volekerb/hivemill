@@ -492,8 +492,7 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 	if mod != "unittest" && mod != "unittest.__main__" {
 		return nil
 	}
-	const advice = "; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one " +
-		"module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)"
+	const advice = fullSuiteAdvice
 	if len(args) > 0 && args[0] == "discover" {
 		var pats []string
 		for i := 0; i+1 < len(args); i++ {
@@ -509,6 +508,9 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 		if len(pats) > 0 && allOf(pats, singleModulePattern) { // the last pattern wins, so all must be single-module
 			return nil
 		}
+		if anyOf(args[1:], func(x string) bool { return x == "-k" }) { // T-0435: a -k name filter is targeted
+			return nil
+		}
 		return blockf("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
 	}
 	skip, mods := false, 0
@@ -518,6 +520,9 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 			skip = false
 		case x == "-k" || x == "--start-directory" || x == "-s" || x == "-t" || x == "-p":
 			skip = true
+			if x == "-k" { // T-0435: -k name filters the run
+				mods++
+			}
 		case !strings.HasPrefix(x, "-"):
 			mods++
 		}
@@ -526,6 +531,62 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 		return blockf("`python3 -m unittest` with no test module runs the full suite" + advice)
 	}
 	return nil
+}
+
+const fullSuiteAdvice = "; CI runs the full suite (sharded). Locally run `python3 ci/affected.py --base origin/main --quick --run`, " +
+	"or one module: `python3 -m unittest tests.test_X` or `python3 -m unittest discover -s tests -p test_X.py`" +
+	" (T-0642). QA that needs a merged-tree full run asks its lead (T-0435)"
+
+var pytestValued = map[string]bool{"-m": true, "-c": true, "-p": true, "-o": true, "-W": true, "-n": true, "--rootdir": true,
+	"--maxfail": true, "--deselect": true, "--ignore": true, "--ignore-glob": true, "--confcutdir": true, "--basetemp": true,
+	"--junitxml": true, "--durations": true, "--tb": true, "--log-level": true, "--cov": true, "--cov-report": true,
+	"--import-mode": true, "--color": true, "--capture": true, "--override-ini": true, "--config-file": true}
+
+// pytestFull is a port of Analyzer.pytest_full (T-0435).
+func (a *Analyzer) pytestFull(name string, rest []string) error {
+	if a.Role != "coder" && a.Role != "qa" && a.Role != "reviewer" || a.HQ {
+		return nil
+	}
+	var args []string
+	switch {
+	case name == "pytest" || name == "py.test":
+		args = rest
+	case pythonName(name):
+		mod, as, _ := pythonMSplit(rest)
+		for mod == "?" {
+			mod, as, _ = pythonMSplit(as)
+		}
+		if mod != "pytest" && mod != "pytest.__main__" {
+			return nil
+		}
+		args = as
+	default:
+		return nil
+	}
+	var paths []string
+	skip := false
+	for _, x := range args {
+		switch {
+		case skip:
+			skip = false
+		case x == "-k" || (strings.HasPrefix(x, "-k") && !strings.HasPrefix(x, "--")) || strings.HasPrefix(x, "--k"):
+			return nil // a -k filter is targeted
+		case pytestValued[x]:
+			skip = true
+		case !strings.HasPrefix(x, "-"):
+			paths = append(paths, x)
+		}
+	}
+	for _, p := range paths {
+		for strings.HasPrefix(p, "./") {
+			p = p[2:]
+		}
+		p = strings.TrimRight(p, "/")
+		if p != "" && p != "." && p != "tests" {
+			return nil
+		}
+	}
+	return blockf("pytest with no test file or -k runs the full suite" + fullSuiteAdvice)
 }
 
 // singleModulePattern is re.fullmatch(r"test_[\w]+\.py", x).
@@ -762,10 +823,17 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		if err := a.unittestFull(name, rest); err != nil {
 			return err
 		}
+		if err := a.pytestFull(name, rest); err != nil {
+			return err
+		}
 		for j := 0; j+1 < len(rest); j++ {
 			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && strings.Contains(rest[j+1], "herdr") {
 				return blockf("herdr in inline interpreter code")
 			}
+		}
+	case name == "pytest" || name == "py.test":
+		if err := a.pytestFull(name, rest); err != nil {
+			return err
 		}
 	case in(Awks, name) || in(Editors, name):
 		if anyOf(rest, func(x string) bool { return strings.Contains(x, "herdr") }) {

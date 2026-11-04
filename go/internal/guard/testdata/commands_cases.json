@@ -8997,7 +8997,7 @@
 },
 {
 "module": "test_worker_guard_reads",
-"cmd": "pytest -q",
+"cmd": "pytest -q tests/test_x.py",
 "role": "coder",
 "hq": false,
 "exit": 0,

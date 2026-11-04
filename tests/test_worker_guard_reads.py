@@ -174,7 +174,7 @@ class NoFalsePositiveTests(ReadsBase):
         cmds = [
             "git status", "git diff", "git log --oneline -5", 'git commit -m "x"',
             "git push origin HEAD:factory/t-9", "gh pr create --fill", "gh pr view 5", "gh pr checks 5",
-            "python3 -m unittest discover -s tests -p test_x.py -v", "pytest -q", "ls -la", "cat README.md",
+            "python3 -m unittest discover -s tests -p test_x.py -v", "pytest -q tests/test_x.py", "ls -la", "cat README.md",
             "rg factory README.md", 'grep "factory res" README.md', 'git commit -m "factory task list fix"',
             "echo factory agents", 'gh pr create --title t --body "uses factory res and factory task list"',
             "factory task show T-1", "factory task show T-0041", "factory inbox", "factory inbox --all",

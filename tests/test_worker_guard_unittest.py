@@ -29,6 +29,17 @@ BLOCKED = (
     "python3 -m unittest discover -p test_x.py -p 'test_*.py'",
     "python3 -m unittest discover -p test_x.py --pattern='test_*'",
     "python3 -m unittest.__main__ discover",
+    "pytest",
+    "pytest -q",
+    "pytest tests",
+    "pytest tests/",
+    "pytest ./tests/ -x",
+    "pytest .",
+    "python3 -m pytest",
+    "python3 -m pytest -q tests/",
+    "python3 -m pytest --maxfail 1",
+    "py.test",
+    "timeout 600 pytest tests",
 )
 ALLOWED = (
     "python3 -m unittest tests.test_x",
@@ -40,6 +51,18 @@ ALLOWED = (
     "python3 -m py_compile bin/factory",
     "grep -rn 'unittest discover' docs",
     "echo python3 -m unittest discover",
+    "python3 -m unittest -k name",
+    "python3 -m unittest discover -s tests -k name",
+    "pytest tests/test_x.py",
+    "pytest tests/test_x.py::Case::test_one -q",
+    "pytest -k name",
+    "pytest tests -k name",
+    "python3 -m pytest tests/test_x.py tests/test_y.py",
+    "python3 -m pytest -k name tests",
+    "python3 -m pytest --maxfail 1 tests/test_x.py",
+    "FACTORY_HOME=$(mktemp -d) python3 bin/factory --help",
+    "git log --grep='run pytest tests then python3 -m unittest discover'",
+    "cat <<'EOF'\npytest tests\nEOF",
 )
 
 
@@ -58,6 +81,9 @@ class UnittestFullRunGuard(unittest.TestCase):
                     self.assertEqual(p.returncode, 2, p.stderr)
                     self.assertIn("ci/affected.py", p.stderr)
                     self.assertIn("--quick", p.stderr)
+                    self.assertIn("python3 -m unittest tests.test_X", p.stderr)
+                    self.assertIn("asks its lead", p.stderr)
+                    self.assertIn("sharded", p.stderr)
 
     def test_single_module_runs_are_allowed(self):
         for role in ROLES:
@@ -68,8 +94,15 @@ class UnittestFullRunGuard(unittest.TestCase):
 
     def test_other_roles_are_not_restricted(self):
         for role in ("judge", "cleaner", "pm", None):
-            with self.subTest(role=role):
-                self.assertEqual(run_hook("python3 -m unittest discover -s tests", role).returncode, 0)
+            for cmd in ("python3 -m unittest discover -s tests", "pytest tests", "python3 -m pytest"):
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(run_hook(cmd, role).returncode, 0)
+
+    def test_hq_mode_is_not_restricted(self):
+        for cmd in ("python3 -m unittest discover -s tests", "pytest tests"):
+            with self.subTest(cmd=cmd):
+                payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
+                self.assertEqual(hook_run(payload, ["--hq"]).returncode, 0)
 
 
 if __name__ == "__main__":
