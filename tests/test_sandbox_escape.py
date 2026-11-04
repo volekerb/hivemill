@@ -193,3 +193,46 @@ class StartTimeBeforeCloseTests(EscapeCase):
         self.assertEqual(closed, [("pane", "close", "p-c")])
         self.assertEqual(keys, ["sandbox-escaped:100:None"])
         self.assertEqual(len(self.alerts()), 1)
+
+
+class EscapeNotClosedTests(EscapeCase):
+    """T-1007: the alert and the return value follow what the name-checked close did, not what was attempted."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.env.seed_task()
+        self.ns(1, HOST)
+        self.agent("zz-c", "s1", 100, HOST)
+
+    def escape(self, **host):
+        self.env.set_herdr(**host)
+        with self.env.load_factory() as mod:
+            con = mod.db()
+            r = mod.sandbox_escape_close(con, "zz-c", "p-c", 100)
+            con.commit()
+        return r
+
+    def test_host_lists_other_name_on_the_pane_nothing_closed_alert_says_so(self):
+        r = self.escape(agents=[{"name": "owner-pane", "agent": "claude", "pane_id": "p-c"}])
+        self.assertFalse(r)
+        self.assertEqual(self.closes("p-c"), [])
+        (a,) = self.alerts()
+        self.assertIn("NOT closed", a["body"])
+        self.assertNotIn("Its pane was closed", a["body"])
+
+    def test_host_cannot_be_asked_nothing_closed_alert_says_so(self):
+        r = self.escape(fail_cmds=["agent list"])
+        self.assertFalse(r)
+        self.assertEqual(self.closes("p-c"), [])
+        (a,) = self.alerts()
+        self.assertIn("NOT closed", a["body"])
+        self.assertIn("could not be asked", a["body"])
+
+    def test_closed_pane_returns_true_and_alert_says_closed(self):
+        r = self.escape(agents=[{"name": "zz-c", "agent": "claude", "pane_id": "p-c"}])
+        self.assertTrue(r)
+        self.assertEqual(len(self.closes("p-c")), 1)
+        (a,) = self.alerts()
+        self.assertIn("Its pane was closed", a["body"])

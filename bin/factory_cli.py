@@ -1446,17 +1446,22 @@ def sandbox_escape_close(con, name, pane, pid):
     if mine is None or host is None or mine != host:
         return False
     start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
-    if pane:
-        close_named_pane(con, name, pane)
+    st = close_named_pane(con, name, pane)[0] if pane else "no-pane"
     key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
         send(con, "director", f"sandbox escaped: {name} closed",
              f"{name} is a sandboxed agent but its claude (pid {pid}) runs in the host user namespace, outside the "
-             "sandbox. Its pane was closed. Check its shell rc and multiplexer auto-resume, then relaunch.",
+             "sandbox. " + {"closed": "Its pane was closed.",
+                            "not-found": "Its pane was NOT closed: the host lists no pane under this name, so the "
+                                         "process may still run outside the sandbox. Find and stop it.",
+                            "unknown": "Its pane was NOT closed: the host could not be asked, so the process may still "
+                                       "run outside the sandbox. Close the pane by hand or retry."
+                            }.get(st, "It has no pane row to close; stop the process.") +
+             " Check its shell rc and multiplexer auto-resume, then relaunch.",
              "alert", sender="tick")
-    return True
+    return st == "closed"
 
 
 ESCAPE_ROW_TTL_S = 7 * 86400
@@ -9557,6 +9562,12 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
         note = _UNKNOWN_BEFORE
     else:
         gone = pane_gone(pane) if pane else True
+        if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
+            listed = herdr_agents()
+            if listed is None:
+                gone = None
+            elif any(x.get("name") == name and x.get("pane_id") for x in listed):
+                gone = False
         if gone is False:
             # the worker may have run `factory done` in the window: re-read right before the pane close
             cur = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (name,)).fetchone()

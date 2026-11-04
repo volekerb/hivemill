@@ -73,10 +73,16 @@ class DoneRow(Mixin, FactoryTestCase):
         self.assertEqual(self.row()["status"], "exited")
 
     def test_tick_host_unreachable_closes_nothing_and_does_not_crash(self):
-        self.env.set_herdr(fail=True)
+        # the tick's own agent list works, the helper's list (the second call) fails: the unknown branch
+        self.env.set_herdr(**host_state(("qa-t-9", "p-1")), agent_list_ok=1)
         self.tick()
         self.assertEqual(self.closes(), [])
-        self.assertEqual(self.row()["status"], "done")
+        self.assertEqual(self.panes(), ["p-1"])
+        # the tick got past its own agent list (it would exit before the reap loop otherwise): later asks were refused
+        self.assertGreater([c["argv"][:2] for c in self.env.calls("herdr")].count(["agent", "list"]), 1)
+        self.assertEqual(self.events("pane-close-skipped"), [])  # unknown is not not-found
+        self.assertEqual(self.row()["status"], "done")  # retried next tick
+        self.assertEqual(self.events("reaped"), [])
 
     # --- release_stale_pane (spawn reusing the name)
     def test_release_row_id_held_by_other_name_is_not_closed(self):
@@ -138,8 +144,15 @@ class StopHardFallback(Mixin, StopBase):
         self.assertEqual(self.closes(), ["p1"])
         self.assertEqual(self.row()["status"], "stopped")
 
+    def test_row_id_absent_name_on_other_id_is_closed_by_host_id(self):
+        self.env.set_herdr(**host_state(("zz-coder", "p9")))  # the row says p1, the host has no p1 at all
+        self.now()
+        self.assertEqual(self.closes(), ["p9"])
+        self.assertEqual(self.row()["status"], "stopped")
+
     def test_host_cannot_be_asked_closes_nothing(self):
-        self.env.set_herdr(fail=True)
+        # pane list works (the row id is listed), the helper's agent list fails: the unknown branch
+        self.env.set_herdr(fail_cmds=["agent list"])
         self.now(code=1)
         self.assertEqual(self.closes(), [])
         self.assertEqual(self.row()["status"], "live")
