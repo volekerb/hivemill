@@ -1,0 +1,91 @@
+"""T-0907 (follow-up of T-0799): the coder push pin also covers `git -c alias.x=send-pack`, `git --config-env alias.x=VAR`
+and `xargs git config` (key/value from stdin). Defense in depth only; the G-010 sandbox is the boundary."""
+import json
+import os
+import sqlite3
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from guard_impl import hook_run  # noqa: E402
+from harness import git  # noqa: E402
+
+GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
+TASK = "t-0907"
+
+DENIED = [
+    "git -c alias.x=send-pack x origin HEAD",
+    "git send-pack origin HEAD",
+    "X=push git --config-env=alias.x=X x origin main",
+    "X=push git --config-env alias.x=X x origin main",
+    "echo alias.x push | xargs git config",
+    "printf 'alias.x\\npush\\n' | xargs git config",
+]
+ALLOWED = [
+    "git -c alias.st=status st",
+    "git config --get user.name",
+    "echo user.name | xargs git config --get",
+    f"git push origin HEAD:factory/{TASK}",
+]
+
+
+class CoderAliasSendPackTests(unittest.TestCase):
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.tmp = os.path.realpath(td.name)
+        self.home = os.path.join(self.tmp, "factory")
+        self.wt = os.path.join(self.home, "worktrees", "G-010-T-0799")
+        os.makedirs(os.path.join(self.home, ".git"))
+        os.makedirs(os.path.join(self.home, "roles"))
+        os.makedirs(os.path.join(self.home, "db"))
+        os.makedirs(self.wt)
+        git("init", "-q", "-b", "main", self.wt, cwd=self.tmp)
+        con = sqlite3.connect(os.path.join(self.home, "db", "factory.db"))
+        con.execute("CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT)")
+        con.execute("INSERT INTO tasks VALUES (?, ?)", (TASK.upper(), self.wt))
+        con.commit()
+        con.close()
+
+    def run_hook(self, cmd, role="coder"):
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home,
+                   FACTORY_AGENT=f"coder-{TASK}" if role == "coder" else f"{role}-x")
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.wt})
+        return hook_run(payload, ["--role", role], env=env)
+
+    def test_denied_for_coder(self):
+        for base in DENIED:
+            for cmd in (base, f"cd /x && {base}", "bash -c " + json.dumps(base), "zsh -c " + json.dumps(base)):
+                with self.subTest(cmd=cmd):
+                    p = self.run_hook(cmd)
+                    self.assertEqual(p.returncode, 2, p.stderr)
+                    self.assertTrue(p.stderr.strip(), "refusal needs a message")
+
+    def test_allowed_for_coder(self):
+        for cmd in ALLOWED:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd)
+                self.assertEqual(p.returncode, 0, p.stderr)
+
+    # exit codes of origin/main for ALL_CMDS, in order (recorded before this change); other roles and HQ must match
+    ALL_CMDS = DENIED + ALLOWED
+    MAIN_RC = {
+        "qa": [2, 2, 2, 2, 2, 2, 2, 0, 2, 2],
+        "reviewer": [2, 2, 2, 2, 2, 2, 2, 0, 2, 2],
+        "pm": [2, 2, 2, 2, 2, 2, 2, 0, 2, 2],
+        "cleaner": [0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        "judge": [0] * 10,
+        "director": [0] * 10,
+    }
+
+    def test_other_roles_and_hq_unchanged(self):
+        for role, want in self.MAIN_RC.items():
+            for cmd, rc in zip(self.ALL_CMDS, want):
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(self.run_hook(cmd, role).returncode, rc)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -2308,9 +2308,14 @@ class Analyzer:
         while i < len(rest) and rest[i].startswith("-"):
             if rest[i] != "-C" and "push" in rest[i + 1:]:
                 raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
-            if rest[i] == "-c" and i + 1 < len(rest) and re.match(r"(?i)alias\.[^=]*=.*push", rest[i + 1]):
-                raise Block("git -c alias.<x>=...push...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
-            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+            if rest[i] == "-c" and i + 1 < len(rest) and re.match(r"(?i)alias\.[^=]*=.*(?:push|send-pack)", rest[i + 1]):
+                raise Block("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
+            ce = rest[i][len("--config-env="):] if rest[i].startswith("--config-env=") else (
+                rest[i + 1] if rest[i] == "--config-env" and i + 1 < len(rest) else None)
+            if ce is not None and re.match(r"(?i)alias\.", ce):
+                raise Block("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; "
+                            "coders push only `git push origin HEAD:factory/<task id>`")
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
         if i < len(rest) and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", rest[i]):
@@ -3185,6 +3190,9 @@ class Analyzer:
         if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
             raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
                         "`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+        if gargs[i] == "config" and not (any(a in GIT_CONFIG_READ_ONLY for a in gargs[i + 1:]) and not any(a in CONFIG_WRITE for a in gargs[i + 1:])):
+            raise Block("xargs git config: the key and value come from stdin, so this could write an alias; use a read flag "
+                        "(--get, --list) or run `git config` directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
