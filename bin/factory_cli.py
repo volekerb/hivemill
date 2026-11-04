@@ -149,6 +149,7 @@ DEFAULT_CONFIG = {
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
     "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
+    "red_pr_owner_alert": "0",   # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -9017,9 +9018,11 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in\b)[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in[ \t]+\d[\d.]*(?:s|m(?![a-z])))[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
 # An unclosed fence runs to the end of the body (CommonMark), so a heading after it is text, not a section.
-_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)(?:(^[ \t]*\1)|\Z)", re.M | re.S)
+# CommonMark: a backtick opener's info string has no backtick (so a line-start inline ```x``` is text); the closer is a run
+# of the opener's own character only (no mixing) at least as long as the opener, with nothing after it (a trailing \r is allowed).
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(`{3,}(?=[^`\n]*\n)|~{3,})[^\n]*\n(.*?)(?:(^[ \t]*\1(?:(?<=`)`*|(?<=~)~*)[ \t]*\r?$)|\Z)", re.M | re.S)
 
 
 def _evidence_section(outside):
@@ -12635,6 +12638,12 @@ def cmd_tick(a, locked=False):
         event(con, "tick", "ci-wake", "ci-wake-error", str(e)[:300])
     _pt_lap("ci_wake")
 
+    # 1c''. red/conflicted PR with no coder -> mail the lead (config red_pr_owner_alert), also before 1d
+    try:
+        tick_red_pr_owner(con)
+    except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
+        event(con, "tick", "red-pr-owner", "red-pr-error", str(e)[:300])
+
     # 1d. wake parked leads (unread mail), BEFORE the dequeue so a queued wake can start in this tick
     try:
         tick_wake_leads(con)
@@ -14376,6 +14385,69 @@ def tick_ci_wake(con):
                  f"head {sha}; all checks completed, failed: {', '.join(names)}.", "report", t["goal_id"], k["id"],
                  sender="tick")
         event(con, "task", k["id"], f"ci-{kind}", f"{sha[:8]} -> {lead}")
+
+
+def tick_red_pr_owner(con):
+    """Tick step 1c'': config red_pr_owner_alert=1 mails the task's lead (the director when the task has no team or the team
+    has no lead) once per (task, head sha) when its PR is open, red or conflicted, and no coder is live/starting/queued for
+    the task. Tasks in_progress, in_review or blocked (a blocked one's mail carries its waits value and recorded reason); independent of lead_parking; never spawns. A red head
+    shares tick_ci_wake's `ci-red:<task>:<sha>` throttle row, so a parked team gets one mail; a conflict uses `red-pr:<task>:<sha>`.
+    The gh call is skipped when origin's head (one batched ls-remote) is already mailed; an unreadable head is re-probed only
+    every CI_WAKE_RECHECK_S, as is any probed head that is not red/conflicted (throttle row `red-pr-probe:<task>:<head>`).
+    Only an active team's lead is mailed; a task of a closed team goes to the director."""
+    if cfg(con, "red_pr_owner_alert") != "1":
+        return
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    batch = []
+    for k in con.execute("SELECT t.id, t.goal_id, t.status, t.waits, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id AND tm.status='active' "
+                         "WHERE t.status IN ('in_progress','in_review','blocked') AND t.pr_url IS NOT NULL AND t.pr_url != '' ORDER BY t.id").fetchall():
+        if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('live','starting','queued')",
+                       (k["id"],)).fetchone():
+            continue
+        head = _ci_remote_head(k["branch"], batch)
+        if head is not None and (_throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))
+                                 or _throttled(con, f"red-pr:{k['id']}:{head}", clock, float("inf"))):
+            continue  # this head was already mailed
+        probe_key = f"red-pr-probe:{k['id']}:{head or ''}"
+        if _throttled(con, probe_key, clock, CI_WAKE_RECHECK_S):
+            continue  # probed lately: a green/pending/closed head costs one gh call per window, not per tick
+        _pt_count("ci_wake_gh")
+        try:
+            timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
+        except ValueError:
+            timeout = float(CI_WAKE_GH_TIMEOUT_S)
+        pr = _ci_wake_probe(k["pr_url"], timeout)
+        _throttle_set(con, probe_key, clock)
+        if isinstance(pr, BaseException):
+            event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
+            continue
+        if pr.get("state", "OPEN") != "OPEN":
+            continue
+        sha = pr["headRefOid"]
+        verdict, names = ci_verdict(pr.get("statusCheckRollup"))
+        if verdict == "red":
+            key, why = f"ci-red:{k['id']}:{sha}", f"checks failed: {', '.join(names)}"
+        elif (pr.get("mergeStateStatus") or "").upper() == "DIRTY":
+            key, why = f"red-pr:{k['id']}:{sha}", "merge conflict with main (mergeStateStatus DIRTY)"
+        else:
+            continue
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        to = k["lead_agent"] or "director"
+        label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
+        tail = "Decide: spawn a fix coder or block the task with a reason."
+        if k["status"] == "blocked":
+            ev = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                             "AND detail LIKE 'status=blocked%' ORDER BY id DESC LIMIT 1", (k["id"],)).fetchone()
+            tail = f"Task is blocked (waits {k['waits']}); reason: {(ev['detail'] if ev else None) or 'none recorded'}."
+        send(con, to, f"red PR, no coder: {label}",
+             f"head {sha}; {why}. No coder is live, starting or queued for {k['id']}. {tail}",
+             "report", k["goal_id"], k["id"], sender="tick")
+        event(con, "task", k["id"], "red-pr-unowned", f"{sha[:8]} -> {to}")
 
 
 def _stale_park_alert(con, t, clock):
