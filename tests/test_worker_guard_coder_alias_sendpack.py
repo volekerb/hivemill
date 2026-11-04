@@ -42,6 +42,8 @@ EXTRA_DENIED = [
     "git --config-env alias.x=X x origin main",
     "git --attr-source HEAD status",
 ]
+# corpus case, now `=`-form in ci/guard_corpus.json (python/go stderr parity); the space form stays refused for coder
+ATTR_CLONE = ["git --attr-source HEAD clone URL ~/.local/" + "go/x"]
 ALLOWED = [
     "git -c alias.st=status st",
     "git config --get user.name",
@@ -85,7 +87,7 @@ class CoderAliasSendPackTests(unittest.TestCase):
         return hook_run(payload, ["--role", role], env=env)
 
     def test_denied_for_coder(self):
-        for base in DENIED + EXTRA_DENIED:
+        for base in DENIED + EXTRA_DENIED + ATTR_CLONE:
             for cmd in (base, f"cd /x && {base}", "bash -c " + json.dumps(base), "zsh -c " + json.dumps(base)):
                 with self.subTest(cmd=cmd):
                     p = self.run_hook(cmd)

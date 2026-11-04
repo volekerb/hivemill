@@ -3657,7 +3657,7 @@
  "git clone --dep 1 URL ~/.local/go/x",
  "git clone --bra main URL ~/.config/factory/x",
  "git clone --ref-format files URL ~/.local/lib/factory/x",
- "git --attr-source HEAD clone URL ~/.local/go/x",
+ "git --attr-source=HEAD clone URL ~/.local/go/x",
  "cd ~/.local/go && git clone --dep 1 /tmp/r",
  "cp -rt ~/.local/go /tmp/x",
  "cp -t~/.local/go /tmp/x",
