@@ -4847,14 +4847,14 @@
  "cp -t/tmp/d ~/.local/go/go.env",
  "cp --target-dir /tmp/d ~/.local/go/go.env",
  "cp --target-directory=/tmp/d ~/.local/go/go.env",
- "tar -tf~/.local/go/pkg.tar",
- "tar -tzf~/.local/go/pkg.tar",
- "tar --list -f~/.local/go/pkg.tar",
- "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
+ {"cmd": "tar -tf~/.local/go/pkg.tar", "role": "coder"},
+ {"cmd": "tar -tzf~/.local/go/pkg.tar", "role": "coder"},
+ {"cmd": "tar --list -f~/.local/go/pkg.tar", "role": "coder"},
+ {"cmd": "tar -tC/tmp/c -f ~/.local/go/pkg.tar", "role": "coder"},
  "tar tf ~/.local/go/pkg.tar",
- "tar ft ~/.local/go/pkg.tar",
- "tar -fc ~/.local/go/pkg.tar",
- "tar -tf/tmp/box.tar -C ~/.local/go",
- "cd ~/.local/go && tar -tf/tmp/box.tar"
+ {"cmd": "tar ft ~/.local/go/pkg.tar", "role": "coder"},
+ {"cmd": "tar -fc ~/.local/go/pkg.tar", "role": "coder"},
+ {"cmd": "tar -tf/tmp/box.tar -C ~/.local/go", "role": "coder"},
+ {"cmd": "cd ~/.local/go && tar -tf/tmp/box.tar", "role": "coder"}
  ]
 }
