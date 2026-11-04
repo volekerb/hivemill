@@ -155,24 +155,57 @@ PERSIST_CODE = re.compile(r"(?<![\w-])\.(?:gitconfig|bashrc|zshrc|zshenv|profile
 CFG_ENV_ASSIGN = re.compile(r"(?<![\w])(?:GIT_CONFIG\w*|HOME|XDG_CONFIG_HOME)=")
 PERSIST_EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 REMOTE_WRITE = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-branches"}
-CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
-# T-1035: every git-config option that consumes the next word; that word is a value, never a read flag
-# (`--comment --get alias.x push` writes alias.x with comment "--get")
-CONFIG_VALUE_OPTS_ALL = CONFIG_VALUE_OPTS | {"--value", "--file", "-f"}
+# T-1035: `git config` read classifier. Git parses options with parse-options (unique abbreviations, value options that
+# eat the next word, `--`, short bundles); the guard does NOT mirror that. It proves a command is a read from an exact
+# table, and anything it cannot prove is a write (fail closed).
+CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
+                "--name-only", "--all", "--global", "--local", "--system", "--worktree", "--null", "-z", "--bool", "--int",
+                "--bool-or-int", "--bool-or-str", "--path", "--expiry-date", "--includes", "--no-includes"}
+CONFIG_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
+CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
+CONFIG_WORD_WRITE = {"set", "unset", "edit", "rename-section", "remove-section"}
 
 
-def config_read_args(args):
-    """args with every value-taking option's value removed (git also accepts unambiguous long-option prefixes)."""
-    out, k = [], 0
+def config_parse(args):
+    """(flags, positionals) of `git config <args>`, or None when a token is outside the exact table (an abbreviation,
+    `--`, a short bundle, an unknown option, a value option without its value) or a positional precedes a flag."""
+    flags, pos, k = [], [], 0
     while k < len(args):
         a = args[k]
-        out.append(a)
         k += 1
-        if a.startswith("--") and "=" not in a and len(a) >= 3 and any(o.startswith(a) for o in CONFIG_VALUE_OPTS_ALL):
-            k += 1
-        elif a in CONFIG_VALUE_OPTS_ALL:
-            k += 1
-    return out
+        if a in CONFIG_FLAGS and not pos:
+            flags.append(a)
+        elif a in CONFIG_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_VALUE_OPTS and "=" in a):
+            if "=" not in a:
+                if k >= len(args):
+                    return None
+                k += 1
+        elif a.startswith("-") and a != "-":
+            return None
+        else:
+            pos.append(a)
+    return flags, pos
+
+
+def config_is_read(args):
+    """True only when `git config <args>` is PROVEN a read: exact-table options only, no write flag, and either one
+    action flag, a leading get/list word, or no action with at most one positional."""
+    parsed = config_parse(args)
+    if parsed is None:
+        return False
+    flags, pos = parsed
+    actions = [f for f in flags if f in CONFIG_ACTION_FLAGS]
+    if len(actions) > 1:
+        return False
+    if actions:
+        return len(pos) <= 2
+    if pos[:1] == ["get"]:
+        return len(pos) <= 3
+    if pos[:1] == ["list"]:
+        return len(pos) == 1
+    return len(pos) <= 1 and pos[:1] != ["set"] and not (pos and pos[0] in CONFIG_WORD_WRITE)
+
+
 PERSIST_WHY = ("it would persist config into the live box (git config keys like core.fsmonitor or diff.external, and "
                "shell init files, run later as the tick and other agents); only the owner changes ~/.gitconfig, "
                "~/.config/git and shell rc files")
@@ -541,10 +574,6 @@ BRANCH_LIST_LONG = {"--list", "--all", "--remotes"}
 BRANCH_PLAIN_LONG = {"--show-current", "--verbose", "--ignore-case", "--color", "--no-color", "--column",
                      "--no-column", "--abbrev", "--no-abbrev", "--quiet"}
 BRANCH_VALUE_LONG = {"--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort", "--format"}
-CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin",
-               "--show-scope", "--name-only"}
-CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section",
-                "--remove-section"}
 # T-0755: read-only git allow-list for NO_PUSH_ROLES (git_allow); anything not listed fails closed
 GIT_OPTS_ALLOWED = {"-P", "--no-pager", "--no-optional-locks", "--version", "--help"}
 GIT_ALLOW_PLAIN = (GIT_READ_ONLY - {"fetch", "ls-remote"}) | {"merge-tree"}
@@ -2423,22 +2452,8 @@ class Analyzer:
 
     @staticmethod
     def config_args_write(args):
-        """True when `git config <args>` writes. Like config_mutates, but understands the `get`/`list` words and
-        options that take a value (`--type bool key` is a read)."""
-        pos, k = [], 0
-        while k < len(args):
-            a = args[k]
-            k += 1
-            if a in CONFIG_VALUE_OPTS:
-                k += 1
-            elif not a.startswith("-"):
-                pos.append(a)
-        flags = [a for a in args if a.startswith("-")]
-        if any(a in CONFIG_WRITE for a in flags):
-            return True
-        if any(a in CONFIG_READ for a in config_read_args(args)) or pos[:1] in (["get"], ["list"]):
-            return False
-        return pos[:1] in (["set"], ["unset"], ["edit"]) or len(pos) >= 2
+        """True when `git config <args>` writes: anything config_is_read cannot prove a read."""
+        return not config_is_read(args)
 
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
@@ -2701,11 +2716,7 @@ class Analyzer:
 
     @staticmethod
     def config_mutates(args):
-        if any(a in CONFIG_WRITE for a in args) or args[:1] in (["set"], ["unset"], ["edit"]):
-            return True
-        if any(a in CONFIG_READ for a in config_read_args(args)) or args[:1] in (["get"], ["list"]):
-            return False
-        return len([a for a in args if not a.startswith("-")]) >= 2
+        return not config_is_read(args)
 
     def git_mutates(self, sub, args):
         if sub in GIT_READ_ONLY:
@@ -3012,9 +3023,8 @@ class Analyzer:
 
     @staticmethod
     def git_config_read(args):
-        if any(a in CONFIG_WRITE for a in args) or not any(a in GIT_CONFIG_READ_ONLY for a in config_read_args(args)):
-            return False
-        return not Analyzer.config_mutates(args)
+        parsed = config_parse(args)
+        return bool(parsed) and any(f in GIT_CONFIG_READ_ONLY for f in parsed[0]) and config_is_read(args)
 
     def git_fetch_args(self, sub, args):
         ok_flags = GIT_FETCH_FLAGS | (GIT_LSREMOTE_FLAGS if sub == "ls-remote" else set())
@@ -3727,11 +3737,13 @@ class Analyzer:
         if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
             raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
                         "`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
-        if gargs[i] == "config":  # T-1035: stdin may add `key value`; a read flag eaten as an option value leaves a write
+        if gargs[i] == "config":  # T-1035: stdin may add `key value`; only a strict read with an explicit action is safe
             cargs = gargs[i + 1:]
-            if any(a in CONFIG_READ for a in cargs) and not any(a in CONFIG_READ for a in config_read_args(cargs)):
-                raise Block("xargs git config: a value-taking option (--comment, --value, ...) takes the read flag as its "
-                            "value, so the key and value from stdin would be written; run `git config` directly")
+            parsed = config_parse(cargs)
+            explicit = bool(parsed) and (any(f in CONFIG_ACTION_FLAGS for f in parsed[0]) or parsed[1][:1] in (["get"], ["list"]))
+            if not (explicit and config_is_read(cargs)):
+                raise Block("xargs git config: stdin adds arguments, so only a read with an explicit action (`--get`, "
+                            "`--list`, `get`, `list`) and exact options is allowed; run `git config` directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
