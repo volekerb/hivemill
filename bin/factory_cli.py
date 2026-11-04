@@ -160,6 +160,7 @@ DEFAULT_CONFIG = {
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
     "review_autospawn": "off",   # off | on: the tick starts reviewer + QA (or one combined agent for T0/T1) when a PR opens (G-022 #6, docs/review-autospawn.md)
+    "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -1079,6 +1080,25 @@ def herdr_agents():
     return (r or {}).get("agents", []) if r is not None else None
 
 
+def close_named_pane(con, name, pane):
+    """T-1007: the one way to close an agent's pane. Ask the host which pane carries the agent's exact name and close
+    THAT pane id (host ids can differ from the row's; a stale row id may now belong to another pane). Returns
+    (state, host_pane): "closed" (close issued on the host's id), "not-found" (the host lists no pane under this name,
+    so nothing of ours is closed; one "pane-close-skipped" event says whether the row's id is held by another name),
+    "unknown" (the host cannot be asked: nothing closed, the caller retries on its next run, no event)."""
+    listed = herdr_agents()
+    if listed is None:
+        return "unknown", None
+    h = next((x for x in listed if x.get("name") == name and x.get("pane_id")), None)
+    if h is None:
+        other = next((x.get("name") for x in listed if pane and x.get("pane_id") == pane), None)
+        event(con, "agent", name, "pane-close-skipped",
+              {"agent": name, "pane": pane, "reason": f"pane held by {other}" if other else "no host pane under this name"})
+        return "not-found", None
+    herdr("pane", "close", h["pane_id"], check=False)
+    return "closed", h["pane_id"]
+
+
 def herdr_workspaces():
     r = herdr("workspace", "list", check=False)
     return {w["workspace_id"]: w for w in (r or {}).get("workspaces", [])}
@@ -1427,17 +1447,22 @@ def sandbox_escape_close(con, name, pane, pid):
     if mine is None or host is None or mine != host:
         return False
     start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
-    if pane:
-        herdr("pane", "close", pane, check=False)
+    st = close_named_pane(con, name, pane)[0] if pane else "no-pane"
     key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
         send(con, "director", f"sandbox escaped: {name} closed",
              f"{name} is a sandboxed agent but its claude (pid {pid}) runs in the host user namespace, outside the "
-             "sandbox. Its pane was closed. Check its shell rc and multiplexer auto-resume, then relaunch.",
+             "sandbox. " + {"closed": "Its pane was closed.",
+                            "not-found": "Its pane was NOT closed: the host lists no pane under this name, so the "
+                                         "process may still run outside the sandbox. Find and stop it.",
+                            "unknown": "Its pane was NOT closed: the host could not be asked, so the process may still "
+                                       "run outside the sandbox. Close the pane by hand or retry."
+                            }.get(st, "It has no pane row to close; stop the process.") +
+             " Check its shell rc and multiplexer auto-resume, then relaunch.",
              "alert", sender="tick")
-    return True
+    return st == "closed"
 
 
 ESCAPE_ROW_TTL_S = 7 * 86400
@@ -3236,15 +3261,19 @@ def release_stale_pane(con, name):
     pane = r["pane_id"]
     gone = False
     if r["status"] == "done":
-        herdr("pane", "close", pane, check=False)
-        gone = pane_gone(pane) is True
+        st, hp = close_named_pane(con, name, pane)
+        if st == "not-found":  # the host has no pane under this name: nothing of ours to close
+            con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
+            event(con, "agent", name, "reaped", pane)
+            return True
+        gone = st == "closed" and pane_gone(hp) is True
     else:
         listed = herdr_agents()
         if listed is not None and not any(h.get("name") == name and h.get("pane_id") == pane for h in listed):
             return True  # the host does not list that pane under this name: nothing of ours to close (as before)
         if listed is not None:  # never close a pane we cannot attribute to this name
-            herdr("pane", "close", pane, check=False)
-            gone = pane_gone(pane) is True
+            st, hp = close_named_pane(con, name, pane)
+            gone = st == "closed" and pane_gone(hp) is True
     if gone:
         con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
         event(con, "agent", name, "reaped", pane)
@@ -3865,7 +3894,8 @@ def _judge_wait_limit(con):
 
 
 STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
-BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub)"
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base"
+CI_WORKFLOW = ".github/workflows/tests.yml"
 
 
 def stale_behind_ok(con, owner_repo):
@@ -3894,6 +3924,20 @@ def stale_behind_ok(con, owner_repo):
     con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, json.dumps({"at": t, "strict": out == "true"})))
     return out == "false"
+
+
+def behind_ok_ci_changed(repo, sha, main_sha):
+    """T-1000: True when behind_ok must NOT apply: the CI workflow changed on main since the merge-base of the PR head `sha`
+    and main (`main_sha`, the verified main commit). The head never ran the jobs main now requires (T-0355 guard-equiv), so
+    it has to refresh and run CI. One definition for the judge and the mechanical merger (both go through cmd_judge's gate).
+    Fail closed: any git error, or an unknown main_sha, reads as changed (the head is refreshed or refused)."""
+    if not main_sha:
+        return True
+    rc, base, _ = _git_rc([*HARDENED_GIT_FLAGS, "merge-base", main_sha, sha], repo=repo, env=_carry_env())
+    if rc != 0 or not base:
+        return True
+    rc, _, _ = _git_rc([*HARDENED_GIT_FLAGS, "diff", "--quiet", base, main_sha, "--", CI_WORKFLOW], repo=repo, env=_carry_env())
+    return rc != 0  # 0 = identical, 1 = changed, anything else = could not decide
 
 
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
@@ -4798,11 +4842,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
         behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
+        ci_changed = behind_clean and behind_ok_ci_changed(git_repo, sha, stale[2])
+        if ci_changed:  # T-1000: the head predates a CI change on main: refresh (judge) or refuse (mech) instead of behind_ok
+            behind_clean = False
         if behind_clean:
             if BEHIND_OK_NOTE not in reason:
                 reason += "; " + BEHIND_OK_NOTE
         elif not stale[0]:
-            problems.insert(0, "STALE-ONLY: head does not contain origin/main" if stale[1] == "STALE"
+            problems.insert(0, ("STALE-ONLY: head does not contain origin/main"
+                                + (f" ({CI_WORKFLOW} changed on main since the merge-base: behind_ok does not apply, "
+                                   "refresh so CI runs the current jobs)" if ci_changed else "")) if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
             problems.append(f"PR is {pr['state']}")
@@ -5039,6 +5088,8 @@ def mech_candidates(con, only=None):
             continue
         if mech_dispute(con, t["id"]):
             continue
+        if task_judge_hold_reason(con, t["id"]):  # a held task is not merged mechanically; judge_autospawn_tick logs the hold
+            continue
         if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                             (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
             continue
@@ -5120,6 +5171,10 @@ def mech_try(con, t, mode, retry_s):
         return block(f"{tier_why}; the judge decides")
     if tier > MECH_MAX_TIER:
         return block(f"tier {tier} ({tier_why}); the judge decides")
+    jhr = task_judge_hold_reason(con, tid)  # the hold may have arrived after the candidate list was built
+    if jhr:
+        log_task_judge_hold(con, tid, jhr)
+        return "skipped"
     reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
@@ -8527,6 +8582,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
     prompt = coder_judge_reject_kickoff(con, role, task, gated_reviewer_prompt(con, role, task, prompt))
+    prompt = coder_ci_handoff_kickoff(con, role, prompt)
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
@@ -9245,11 +9301,57 @@ def cmd_prcheck(a):
     sys.exit(0 if ok else 1)
 
 
-def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+CI_HANDOFF_MODES = ("resume", "fresh")
+CI_HANDOFF_LINE = "CI pending, tick starts review at green, do not spawn reviewer."
+
+
+def ci_handoff_on(con):
+    """True when config coder_ci_handoff is resume|fresh (default off: nothing below changes)."""
+    return cfg(con, "coder_ci_handoff") in CI_HANDOFF_MODES
+
+
+def ci_handoff_active(con):
+    """The handoff only works when the tick starts the review: coder_ci_handoff on AND review_autospawn=on.
+    With review_autospawn off nobody would start review, so the old gate stays."""
+    return ci_handoff_on(con) and cfg(con, "review_autospawn") == "on"
+
+
+def ci_not_green(pr_url):
+    """True unless the PR's checks are all done and green (empty rollup = pending); unreadable = True (fail safe)."""
+    try:
+        return ci_verdict(pr_state(pr_url).get("statusCheckRollup"))[0] != "green"
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError, AttributeError):
+        return True
+
+
+def coder_ci_handoff_kickoff(con, role, prompt):
+    """Coder kickoff extra with coder_ci_handoff on: do not wait for CI; set in_review and run factory done."""
+    if role != "coder" or not ci_handoff_active(con):
+        return prompt
+    line = ("coder_ci_handoff is on: do not wait for CI. After self-review set the task in_review and run "
+            "factory done; the tick starts review at green CI.")
+    return f"{prompt} {line}" if prompt else line
+
+
+def pr_pushed_head_ok(pr_url, head):
+    """(ok, reason): the PR is open and its head is `head` (pushed). CI state is not looked at."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push first"
+    return True, "PR open, head pushed"
+
+
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url, handoff=False):
     """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
     local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
     (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
-    ok, why = ci_green_on_head(con, head, pr_url)
+    # coder_ci_handoff: only the CI part is skipped; PR open + head pushed and the cheap parts below still must pass
+    ok, why = pr_pushed_head_ok(pr_url, head) if handoff else ci_green_on_head(con, head, pr_url)
     if not ok:
         return False, why
     t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
@@ -9261,7 +9363,7 @@ def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
         ok, note = fn()
         if not ok:
             return False, f"{name} FAIL: {note}"
-    return True, "all checks SUCCESS"
+    return True, "CI handoff: head pushed, CI not required" if handoff else "all checks SUCCESS"
 
 
 def ci_green_on_head(con, head, pr_url):
@@ -9311,7 +9413,12 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    st = con.execute("SELECT status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    handoff = ci_handoff_active(con) and bool(st and st["status"] == "in_review")  # an in_progress task (judge reject) keeps the CI gate
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"], handoff=handoff)
+    if ok and handoff:
+        print(f"factory: prcheck accepted via CI handoff on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
     if ok:
         print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
         return
@@ -9402,6 +9509,8 @@ def cmd_done(a):
             print("CI state unknown (gh failed)", file=sys.stderr)
         if ci and ci != "green":
             summary += f"\n\nCI at done: {ci}"
+        if ci_handoff_active(con) and t and t["status"] == "in_review" and t["pr_url"] and ci_not_green(t["pr_url"]):
+            summary += f"\n\n{CI_HANDOFF_LINE}"  # also for an empty rollup, which checks_ok reads as green
     cur = con.execute("UPDATE agents SET status=?, summary=?, ended=?, stop_requested_at=NULL, stop_attempt_at=NULL, "
                       "stop_failed_kind=NULL WHERE name=? AND status='live'",
                       ("live" if r["role"] in PERSISTENT_ROLES else "done", summary, now(), me))
@@ -9534,15 +9643,25 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
         note = _UNKNOWN_BEFORE
     else:
         gone = pane_gone(pane) if pane else True
+        if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
+            listed = herdr_agents()
+            if listed is None:
+                gone = None
+            elif any(x.get("name") == name and x.get("pane_id") for x in listed):
+                gone = False
         if gone is False:
             # the worker may have run `factory done` in the window: re-read right before the pane close
             cur = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (name,)).fetchone()
             if not cur or cur["status"] != "live" or cur["stop_requested_at"] is None:
                 return "skip", None
-            herdr("pane", "close", pane, check=False)
+            st, hp = close_named_pane(con, name, pane)
+            if st == "unknown":
+                gone = None  # the host cannot be asked: nothing closed, the stop is retried
+            elif st == "not-found":
+                gone = True  # no host pane under this name (today's no-pane path); the process check below decides
             end = time.time() + wait
-            while True:  # confirm: the host must stop listing the pane
-                gone = pane_gone(pane)
+            while st == "closed":  # confirm: the host must stop listing the pane it closed
+                gone = pane_gone(hp)
                 if gone or time.time() >= end:
                     break
                 time.sleep(min(1.0, max(0.05, end - time.time())))
@@ -12520,8 +12639,8 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if r["status"] == "done":
-            if r["pane_id"]:
-                herdr("pane", "close", r["pane_id"], check=False)
+            if r["pane_id"] and close_named_pane(con, r["name"], r["pane_id"])[0] == "unknown":
+                continue  # the host cannot be asked: nothing closed, the row stays 'done' and is retried next tick
             con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
             try:
                 reap_agent_tests(con, r["name"], "done")
@@ -14100,6 +14219,7 @@ def review_autospawn_tick(con):
     except Exception as e:  # noqa: BLE001 — the new-head pass must not stop the first-review pass
         event(con, "tick", "review-autospawn", "review-autospawn-error", f"rerun: {e}"[:300])
     combined_ok = cfg(con, "risk_tiers") == "on"
+    handoff = ci_handoff_on(con)
     try:
         clock = digest_clock().timestamp()
     except FactoryNowError:
@@ -14113,8 +14233,11 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        if _review_pr_problem(con, t, _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S), batch, clock):
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if _review_pr_problem(con, t, pr, batch, clock):
             continue
+        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
         # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
@@ -14570,6 +14693,9 @@ def _link_unmerged(con, lid):
 
 def _roles_affected(paths):
     out = set()
+    role_paths = [f for f in paths if f.startswith("roles/")]
+    if role_paths and all(f.startswith("roles/hooks/") for f in role_paths):
+        return out  # T-0992: hook-only PR: per-call scripts run from disk on every tool call; no pane needs a relaunch
     for f in paths:
         if f == "roles/_common.md" or f.startswith("roles/hooks/"):
             out |= {"boss", "director", "lead"}

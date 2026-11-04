@@ -240,6 +240,34 @@ class JudgeHookTests(FlowBase):
         self.assertEqual(self.msgs(), [])
         self.assertEqual(self.env.sql("SELECT * FROM events WHERE action='roles-changed'"), [])
 
+    def test_hook_only_merge_marks_nobody_stale(self):  # T-0992: hooks run from disk per call
+        self.merge_with_files("roles/hooks/worker-guard.py", "roles/hooks/boss-inbox.py", "tests/test_x.py")
+        self.assertEqual(self.msgs(), [])
+        self.assertEqual(self.env.sql("SELECT * FROM events WHERE action='roles-changed'"), [])
+
+    def test_hook_plus_prompt_still_notifies(self):
+        self.merge_with_files("roles/hooks/worker-guard.py", "roles/director.md")
+        d = self.msgs("role files changed: stale agents")
+        self.assertEqual(len(d), 1)
+        for who in ("boss", "director", "lead"):  # same as origin/main: the hook path itself notifies all three
+            self.assertIn(f"factory relaunch zz-test-{who} --when-idle", d[0]["body"])
+        self.assertTrue(self.env.sql("SELECT * FROM events WHERE action='roles-changed'"))
+
+    def test_hook_plus_coder_md_notifies_as_on_main(self):
+        self.merge_with_files("roles/hooks/worker-guard.py", "roles/coder.md")
+        d = self.msgs("role files changed: stale agents")
+        self.assertEqual(len(d), 1)
+        for who in ("boss", "director", "lead"):
+            self.assertIn(f"factory relaunch zz-test-{who} --when-idle", d[0]["body"])
+
+    def test_hook_plus_settings_or_plugins_still_notifies(self):
+        self.merge_with_files("roles/hooks/worker-guard.py", "roles/settings/lead.json.in", "roles/plugins/boss/x.md")
+        d = self.msgs("role files changed: stale agents")
+        self.assertEqual(len(d), 1)
+        for who in ("boss", "lead"):
+            self.assertIn(f"factory relaunch zz-test-{who} --when-idle", d[0]["body"])
+        self.assertTrue(self.env.sql("SELECT * FROM events WHERE action='roles-changed'"))
+
 
 class CollapseTests(FlowBase):
     PR2 = "https://github.com/zz-test/zz-test/pull/2"
