@@ -51,16 +51,41 @@ class RoutedRestSelectorTest(unittest.TestCase):
         with open(WF, encoding="utf-8") as f:
             text = f.read()
         self.assertEqual(text.count("test_worker_guard"), 0)
-        job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
-        self.assertIn("--impl go", job)
-        self.assertIn("--strict", job)
+        job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]  # both jobs
+        strict_job, rest_job = job.split("  guard-equiv-rest:\n", 1)
+        self.assertIn("--impl go", strict_job)
+        self.assertIn("--strict", strict_job)
+        self.assertNotIn("--routed-rest", strict_job.replace("list --routed-rest", ""))
+        self.assertNotIn("--strict", rest_job)
         self.assertNotIn("continue-on-error", job)
-        self.assertIn("--routed-rest", job)
+        self.assertIn("run --routed-rest", rest_job)
         self.assertEqual(text.count("--impl go"), 1)
         self.assertEqual(text.count("--strict"), 1)
-        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv]", text)
+        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest]", text)
         self.assertIn("needs.guard-equiv.result", text)
-        self.assertIn("if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}", job)  # REAL_GO logs after a red step
+        self.assertIn("needs.guard-equiv-rest.result", text)
+        self.assertIn("if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}", rest_job)  # REAL_GO logs after a red step
+
+    def test_unittest_job_fails_when_either_equiv_job_is_not_success(self):
+        """AC7: run the real `unittest` gate script with each result value; only success/success passes."""
+        with open(WF, encoding="utf-8") as f:
+            text = f.read()
+        gate = text.split("\n  unittest:\n", 1)[1].split("        run: |\n", 1)[1].split("      - uses:", 1)[0]
+        script = "\n".join(l[10:] for l in gate.splitlines())
+        base = {"SHARD_RESULT": "success", "GO_RESULT": "success", "GUARD_UNITTEST_RESULT": "success",
+                "GUARD_DIFF_RESULT": "success", "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success"}
+
+        def rc(**over):
+            env = dict(os.environ, **base)
+            env.update(over)
+            return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
+
+        self.assertEqual(rc().returncode, 0)
+        for key in ("GUARD_EQUIV_RESULT", "GUARD_EQUIV_REST_RESULT"):
+            for bad in ("failure", "skipped", "cancelled"):
+                r = rc(**{key: bad})
+                self.assertNotEqual(r.returncode, 0, (key, bad))
+                self.assertIn(bad, r.stderr)
 
     def test_guard_equiv_runs_on_every_pr(self):
         with open(WF, encoding="utf-8") as f:
@@ -68,8 +93,8 @@ class RoutedRestSelectorTest(unittest.TestCase):
         on = text.split("\non:\n", 1)[1].split("\n\n", 1)[0]
         self.assertNotIn("paths", on)
         job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
-        head = job.split("    steps:\n", 1)[0]
-        self.assertNotRegex(head, r"(?m)^    (if|needs):")
+        for part in job.split("  guard-equiv-rest:\n"):
+            self.assertNotRegex(part.split("    steps:\n", 1)[0], r"(?m)^    (if|needs):")
         self.assertIn('echo "run=false"', job)  # non-guard paths skip the steps, the job still succeeds
 
     def test_guard_equiv_keeps_name_timeout_and_shape(self):
@@ -77,7 +102,8 @@ class RoutedRestSelectorTest(unittest.TestCase):
             text = f.read()
         job = text.split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
         self.assertIn("    name: guard-equiv\n", job)
-        self.assertIn("    timeout-minutes: 30\n", job)  # T-1009: cut by running modules in parallel, never by a raise
+        self.assertIn("    name: guard-equiv-rest\n", job)
+        self.assertEqual(job.count("    timeout-minutes: 30\n"), 2)  # T-1009: split the job, never a raise
         self.assertIn("--roles all --mode both --strict", job)
         self.assertIn("run --routed-rest", job)
 

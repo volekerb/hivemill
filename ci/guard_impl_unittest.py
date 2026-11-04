@@ -133,7 +133,7 @@ def default_jobs():
 
 
 def _run_one(base, i, tmp, env, tests_dir):
-    """Run one module in its own child process; return (module output text, counts dict or None, returncode)."""
+    """Run one module in its own child process; return (module output text, counts dict or None, returncode, seconds)."""
     jpath = os.path.join(tmp, "%d.json" % i)
     cmd = [sys.executable, os.path.abspath(__file__), "_count", base, tests_dir, jpath]
     t0 = time.monotonic()
@@ -150,8 +150,8 @@ def _run_one(base, i, tmp, env, tests_dir):
 def run_routed_rest(extra_env=None, out=None, names=None, tests_dir="tests", jobs=None):
     """Run EVERY routed-rest module (never stop at the first failure), `jobs` at a time; then a summary.
 
-    Each module is its own child process with its own temp dirs (tests use TemporaryDirectory per test; nothing binds a
-    port or shares a cwd), so modules do not share state. Output is written per module in LIST order once that module
+    Each module is its own child process with its own temp dirs (tests use TemporaryDirectory per test; none shares a cwd,
+    and the one port bind, tests/test_db_layout.py, uses an ephemeral port 0 that cannot collide), so modules do not share state. Output is written per module in LIST order once that module
     finished (a red module's text is never interleaved with another's), one flushed line per module.
     Returns 0 only if every module passed (director M20747: stays red on any failure, not just the last).
     Green = child rc 0 AND its counts file exists AND at least one test really executed (T-0989).
