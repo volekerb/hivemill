@@ -28,3 +28,14 @@ Green-CI alternative (T-0873): with no passing event on HEAD, `factory done` sti
 skipped. Anything undecidable (gh error, no checks, head mismatch) refuses as before.
 
 Rollback: `factory config prcheck_required 0`.
+
+## CI handoff (`coder_ci_handoff`, T-1003)
+
+Config `coder_ci_handoff` is `off` (default), `resume` or `fresh`. With `resume` or `fresh` and `prcheck_required=1`, a coder's
+`factory done` on an `in_review` task with a PR no longer waits for CI: the PR must be open and its head must be the pushed local
+HEAD, and the cheap parts (fresh, identity, body, public text) must pass; the affected-tests/CI part is skipped, so a pending or red
+head is accepted. An unpushed commit, a dirty tree, a body or public-text FAIL still exit 3. The done summary to the lead gets the line
+`CI pending, tick starts review at green, do not spawn reviewer.` whenever CI was not green at done. The coder kickoff says not to wait
+for CI. `resume` and `fresh` behave the same today (the names are reserved for how a later red-CI fix round restarts the coder).
+With `off` the gate is byte-identical to before. The merge gate (`factory judge`, merger) is untouched: a red or pending head is
+still refused. First-round review waits for green: see [review-autospawn.md](review-autospawn.md).
