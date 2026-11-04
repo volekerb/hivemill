@@ -584,7 +584,7 @@ class ThrottleTests(SkipTests):
 
 class ReviewOrderingTests(Base):
     """T-1048: no review while a coder is live/queued/starting or before a passing prcheck on the head; a head missing one role gets it;
-    a worker that ended with no verdict is restarted once, then alerted once; a verdict is bound to the head the worker was started on."""
+    a head missing a role gets it; a rerun-round worker that ended with no verdict is alerted once per head; a verdict is bound to the head the worker was started on."""
 
     def setUp(self):
         Base.setUp(self)
