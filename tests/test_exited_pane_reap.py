@@ -155,6 +155,17 @@ class Never(Base):
         self.assertEqual(self.events("exited-pane-would-close"), [])
         self.assertEqual(self.closes(), [])
 
+    def test_no_host_session_with_old_lost_unlisted_row_is_kept_in_both_modes(self):
+        """A lost row far past 10 min still names a pane the host may show under another label: no time window."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-lost", status="lost", pane="p-stale", ended=OLD)
+        self._no_session_host()
+        self.tick()
+        self.assertKept("p-1")
+        self.tick(mode="dry-run")
+        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual(self.closes(), [])
+
     def test_no_host_session_with_every_live_row_listed_still_closes(self):
         self.agent("qa-old", pane="p-old")
         self._no_session_host()
