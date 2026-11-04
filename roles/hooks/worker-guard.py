@@ -85,6 +85,10 @@ BROAD_READS = {"res": None, "agents": None, "scorecard": None, "digest": None, "
                "project": {"list"}, "lesson": {"list"}}
 PRIV_WORDS = {"sudo", "su", "doas", "pkexec", "docker"}
 FACTORY_BRANCH = re.compile(r"^factory/[A-Za-z0-9._/-]+$")
+GIT_PIN_FLAGS = {"-p", "--paginate", "-P", "--no-pager", "--no-replace-objects", "--bare", "--literal-pathspecs",
+                 "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--no-optional-locks",
+                 "--no-lazy-fetch", "--no-advice", "--html-path", "--man-path", "--info-path", "--version",
+                 "--help", "-v", "-h"}
 # wrappers whose options are modelled, so PRIV sees the command they run and not their option values:
 # name -> options that take a value (as a separate word)
 WRAP_VALUE_OPTS = {
@@ -2713,6 +2717,10 @@ class Analyzer:
             if ce is not None and re.match(r"(?i)alias\.", ce):
                 raise Block("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; "
                             "coders push only `git push origin HEAD:factory/<task id>`")
+            o = rest[i]
+            if "=" not in o and not re.match(r"-c.", o) and o not in GIT_PIN_FLAGS \
+                    and o not in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"):
+                raise Block(f"git {o}: coders may use only known git options here; write the command without it")
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")

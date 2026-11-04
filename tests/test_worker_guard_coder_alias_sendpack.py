@@ -33,6 +33,14 @@ EXTRA_DENIED = [
     "git --config-env core.pager=X log",
     "git --config-env remote.origin.url=X fetch",
     "git --config-env user.name=X status",
+    "git --attr-source HEAD send-pack origin HEAD",
+    "git --attr-source HEAD -c alias.x=send-pack x origin HEAD",
+    "X=push git --attr-source HEAD --config-env=alias.x=X x origin main",
+    "echo alias.x push | xargs git --attr-source HEAD config",
+    "git --shallow-file x send-pack origin HEAD",
+    "echo alias.x push | xargs git --shallow-file x config",
+    "git --config-env alias.x=X x origin main",
+    "git --attr-source HEAD status",
 ]
 ALLOWED = [
     "git -c alias.st=status st",
@@ -45,6 +53,9 @@ EXTRA_ALLOWED = [
     "echo x | xargs git config --get-all",
     "git --config-env=user.name=X status",
     "git -cuser.name=x status",
+    "git --no-pager log -1",
+    "git -C . status",
+    "git --attr-source=HEAD status",
 ]
 
 
@@ -101,6 +112,15 @@ class CoderAliasSendPackTests(unittest.TestCase):
     def test_other_roles_and_hq_unchanged(self):
         for role, want in self.MAIN_RC.items():
             for cmd, rc in zip(self.ALL_CMDS, want):
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(self.run_hook(cmd, role).returncode, rc)
+
+    # T-0907 attempt 3: exit codes of origin/main for the unknown-git-option probes (EXTRA_DENIED[-8:]); only coder changes
+    ATTR_MAIN_RC = {"qa": 2, "reviewer": 2, "pm": 2, "cleaner": 0, "judge": 0, "director": 0}
+
+    def test_unknown_git_option_other_roles_unchanged(self):
+        for role, rc in self.ATTR_MAIN_RC.items():
+            for cmd in EXTRA_DENIED[-8:]:
                 with self.subTest(role=role, cmd=cmd):
                     self.assertEqual(self.run_hook(cmd, role).returncode, rc)
 
