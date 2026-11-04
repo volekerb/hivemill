@@ -26,6 +26,13 @@ EXTRA_DENIED = [
     "git -calias.x=send-pack x origin HEAD",
     "git -calias.x=push x origin main",
     "echo user.name | xargs git config --get --add",
+    "echo alias.y push | xargs git -c alias.x=config x",
+    "echo alias.y push | xargs git -calias.x=config x",
+    "git --config-env core.sshCommand=X fetch origin",
+    "git --config-env core.fsmonitor=X status",
+    "git --config-env core.pager=X log",
+    "git --config-env remote.origin.url=X fetch",
+    "git --config-env user.name=X status",
 ]
 ALLOWED = [
     "git -c alias.st=status st",

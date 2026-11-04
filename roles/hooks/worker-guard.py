@@ -2316,7 +2316,7 @@ class Analyzer:
             if ce is not None and re.match(r"(?i)alias\.", ce):
                 raise Block("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; "
                             "coders push only `git push origin HEAD:factory/<task id>`")
-            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env") else 1
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
         if i < len(rest) and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", rest[i]):
@@ -3187,6 +3187,10 @@ class Analyzer:
         one, and the usual push pin and alias refusal apply to the words that are visible."""
         i = 0
         while i < len(gargs) and gargs[i].startswith("-"):
+            cv = gargs[i + 1] if gargs[i] == "-c" and i + 1 < len(gargs) else (gargs[i][2:] if re.match(r"-c.", gargs[i]) else None)
+            if cv is not None and re.match(r"(?i)alias\.", cv):
+                raise Block("xargs git -c alias.<x>=...: the alias could expand to config or push with arguments from stdin; "
+                            "run git directly")
             i += 2 if gargs[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
             raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
