@@ -2847,9 +2847,12 @@ class Analyzer:
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
             self.unittest_full(name, rest)
+            self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
                 if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
                     raise Block("herdr in inline interpreter code")
+        elif name in ("pytest", "py.test"):
+            self.pytest_full(name, rest)
         elif name in AWKS or name in EDITORS:
             if any("herdr" in a for a in rest):
                 raise Block(f"herdr in {name} program text (can run shell commands)")
@@ -3109,12 +3112,13 @@ class Analyzer:
             mod, args = self.python_m_split(args)
         if mod not in ("unittest", "unittest.__main__"):
             return
-        advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
-                  "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
+        advice = FULL_SUITE_ADVICE
         if args[:1] == ["discover"]:
             pats = [args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--pattern")]
             pats += [a.split("=", 1)[1] for a in args if a.startswith("--pattern=")]
             if pats and all(re.fullmatch(r"test_[\w]+\.py", x) for x in pats):  # the last pattern wins, so all must be single-module
+                return
+            if "-k" in args[1:]:  # T-0435: a -k name filter is targeted
                 return
             raise Block("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
         mods = []
@@ -3124,10 +3128,50 @@ class Analyzer:
                 skip = False
             elif a in ("-k", "--start-directory", "-s", "-t", "-p"):
                 skip = True
+                if a == "-k":
+                    mods.append(a)  # T-0435: -k name filters the run
             elif not a.startswith("-"):
                 mods.append(a)
         if not mods:
             raise Block("`python3 -m unittest` with no test module runs the full suite" + advice)
+
+    PYTEST_VALUED = frozenset(("-m", "-c", "-p", "-o", "-W", "-n", "--rootdir", "--maxfail", "--deselect", "--ignore",
+                               "--ignore-glob", "--confcutdir", "--basetemp", "--junitxml", "--durations", "--tb",
+                               "--log-level", "--cov", "--cov-report", "--import-mode", "--color", "--capture",
+                               "--override-ini", "--config-file", "--junit-xml", "--log-file"))
+
+    @staticmethod
+    def pytest_target(a):
+        """A token is a pytest target only if its part before the first `::` ends in .py and has no glob char."""
+        f = a.split("::", 1)[0]
+        return f.endswith(".py") and not any(c in f for c in "*?[")
+
+    def pytest_full(self, name, rest):
+        """T-0435: coder, qa and reviewer run no full pytest suite locally. Blocked: pytest with no path and no -k, or
+        with tests/ (or .) as the only path. Allowed: a file or node path, a -k expression."""
+        if self.role not in ("coder", "qa", "reviewer") or self.hq:
+            return
+        if name in ("pytest", "py.test"):
+            args = rest
+        elif re.fullmatch(r"python[\d.]*", name):
+            mod, args = self.python_m_split(rest)
+            while mod == "?":
+                mod, args = self.python_m_split(args)
+            if mod not in ("pytest", "pytest.__main__"):
+                return
+        else:
+            return
+        skip = False
+        for a in args:
+            if skip:
+                skip = False
+            elif a == "-k" or (a.startswith("-k") and not a.startswith("--")):
+                return  # a -k filter is targeted ("--keep-duplicates" is not -k)
+            elif a in self.PYTEST_VALUED:
+                skip = True
+            elif not a.startswith("-") and self.pytest_target(a):
+                return  # a test file or node id; a directory or an option value is never a target
+        raise Block("pytest with no test file or -k runs the full suite" + FULL_SUITE_ADVICE)
 
     def kill(self, rest):
         """Worker mode (G-008 M1932): `kill` may only name the worker's own background job, `%<job>` or `$!`.
@@ -3305,6 +3349,11 @@ class Analyzer:
         for u in units:
             if re.match(r"^(factory|herdr)", u) or GLOB.search(u) or "$" in u or "`" in u:
                 raise Block(f"systemctl {verbs[0]} {u}")
+
+
+FULL_SUITE_ADVICE = ("; CI runs the full suite (sharded). Locally run `python3 ci/affected.py --base origin/main --quick --run`, "
+                     "or one module: `python3 -m unittest tests.test_X` or `python3 -m unittest discover -s tests -p test_X.py`"
+                     " (T-0642). QA that needs a merged-tree full run asks its lead (T-0435)")
 
 
 def mask_quotes(text):

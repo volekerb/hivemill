@@ -59,7 +59,15 @@ cmd = tuple(argv[:2])
 if " ".join(cmd) in st.get("fail_cmds", []):  # test hook: these two-word commands (e.g. "tab create") exit 1
     print("herdr: " + " ".join(cmd) + " failed", file=sys.stderr)
     sys.exit(1)
-if cmd == ("agent", "list"):
+if cmd == ("agent", "list") and "agent_list_ok" in st:  # test hook: the first N `agent list` calls work, later ones exit 1
+    st["agent_list_ok"] -= 1
+    if st["agent_list_ok"] < 0:
+        with open(STATE, "w") as f:
+            json.dump(st, f)
+        print("herdr: agent list failed", file=sys.stderr)
+        sys.exit(1)
+    out({"agents": st["agents"]})
+elif cmd == ("agent", "list"):
     out({"agents": st["agents"]})
 elif cmd == ("agent", "start") and opt("--timeout") is not None and not 3000 < int(opt("--timeout")) <= 300000:
     print("herdr: invalid_agent_timeout: timeout_ms must be greater than 3000 and at most 300000", file=sys.stderr)
