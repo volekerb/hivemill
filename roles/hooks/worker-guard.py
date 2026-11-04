@@ -620,6 +620,53 @@ def env_long(a):
     return "unknown"
 
 
+def env_options(words):
+    """T-0964: yield (kind, value) for the GNU env options before the command word: ("clear", opt) for -i/-/--ignore-env*
+    (an `i` anywhere in a short cluster counts), ("unset", name), ("unknown", opt) for a long option this guard does not
+    model. A value option (-a/-C/-P/-u, --argv0/--chdir/--unset and unique prefixes) takes the next word only when it
+    exists and does not start with `-`: every dash word stays an option. -S/--split-string re-parses its string."""
+    q = collections.deque(words)
+
+    def val():
+        return q.popleft() if q and not q[0].startswith("-") else ""
+
+    while q:
+        a = q.popleft()
+        if a == "--" or ASSIGN.match(a):
+            continue
+        if a == "-":
+            yield "clear", a
+        elif a == "--split-string" or a.startswith("--split-string="):
+            q.extendleft(reversed((a.split("=", 1)[1] if "=" in a else q.popleft() if q else "").split()))
+        elif a.startswith("--"):
+            kind = env_long(a)
+            if kind == "ignore":
+                yield "clear", a
+            elif kind == "unknown":
+                yield "unknown", a
+            elif kind == "unset":
+                yield "unset", a.split("=", 1)[1] if "=" in a else val()
+            elif "=" not in a and kind == "value":
+                val()
+        elif a.startswith("-"):
+            if "i" in a[1:]:
+                yield "clear", a
+            for k, c in enumerate(a[1:], 1):
+                if c == "u":
+                    yield "unset", a[k + 1:] or val()
+                    break
+                if c in "aCP":  # as on main, a `u` later in the cluster still counts; a trailing one takes the next word
+                    if k == len(a) - 1:
+                        val()
+                    continue
+                if c == "S":
+                    sval = a[k + 1:] or (q.popleft() if q else "")
+                    q.extendleft(reversed(sval.split()))
+                    break
+        else:
+            return
+
+
 def strip_prefix(words):
     """Drop env assignments, shell keywords, `time -p` options and `function NAME` before the command word."""
     words = list(words)
@@ -1006,14 +1053,10 @@ class Analyzer:
             raise Block("unset of FACTORY_ROLE/HERDR_PANE_ID")
         if name != "env":
             return
-        for j, a in enumerate(rest):
-            if not a.startswith("-") and not ASSIGN.match(a):
-                break
-            if a in ("-u", "--unset") and rest[j + 1:j + 2] and rest[j + 1] in SCRUB_VARS:
+        for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
+            if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a.startswith("-u") and a[2:] in SCRUB_VARS or a.startswith("--unset=") and a[8:] in SCRUB_VARS:
-                raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a == "-" or a == "--ignore-environment" or re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a):
+            if kind == "clear":
                 self.scrub_with_factory = "env -i"
 
     def factory_unit(self, name, rest, assigns):
@@ -2565,53 +2608,13 @@ class Analyzer:
         name, rest = os.path.basename(words[0]), words[1:]
         targets = []
         if name == "env":  # T-0788: removing a protected name (env -u, env -i) strips the pane's git isolation
-            q = collections.deque(rest)
-            it = iter(lambda: q.popleft() if q else None, None)  # -S pushes its words back onto q
-            for a in it:
-                if a in ("-C", "--chdir"):  # takes a directory argument: skip it, keep scanning for -u
-                    next(it, None)
-                    continue
-                if a in ("-S", "--split-string") or a.startswith("--split-string=") or (a.startswith("-S") and not a.startswith("--")):
-                    # re-parse the string as env options
-                    sval = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a[2:] if a.startswith("-S") and a != "-S" else next(it, "")
-                    q.extendleft(reversed(sval.split()))
-                    continue
-                if a in ("-i", "--ignore-environment", "-"):
-                    deny("env " + a, "the whole environment", "clear or unset")
-                if a in ("-u", "--unset"):
-                    names = [next(it, "")]
-                elif a.startswith("--unset="):
-                    names = [a[8:]]
-                elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
-                    names = []
-                    for k, c in enumerate(a[1:], 1):
-                        if c == "i":
-                            deny("env " + a, "the whole environment", "clear or unset")
-                        if c == "u":  # -uNAME, or the next word
-                            names = [a[k + 1:] or next(it, "")]
-                            break
-                elif a == "--" or ASSIGN.match(a):
-                    continue
-                elif a.startswith("--"):  # T-0826: GNU env takes any unique prefix of a long option; fail closed on the rest
-                    kind = env_long(a)
-                    if kind == "ignore":
-                        deny("env " + a, "the whole environment", "clear or unset")
-                    if kind == "unknown":
-                        deny("env " + a, "an env option this guard does not model", "run")
-                    if kind == "unset":  # --uns / --unse prefixes; the value word is never an option
-                        if "=" in a:
-                            names = [a.split("=", 1)[1]]
-                        elif q and not q[0].startswith("-"):
-                            names = [next(it, "")]
-                        else:
-                            continue
-                    else:
-                        continue  # "value" (--argv0/--chdir prefixes) and "ok": as on main, no word is consumed
-                else:
-                    break  # the command word
-                for n in names:
-                    if bad(n) or dyn(n):
-                        deny("env -u", n, "unset")
+            for kind, v in env_options(rest):  # T-0964: shared parser; a dash word is never a value
+                if kind == "clear":
+                    deny("env " + v, "the whole environment", "clear or unset")
+                if kind == "unknown":
+                    deny("env " + v, "an env option this guard does not model", "run")
+                if kind == "unset" and (bad(v) or dyn(v)):
+                    deny("env -u", v, "unset")
         elif name == "unset":
             for a in rest:
                 if not a.startswith("-") and (bad(a) or dyn(a)):
