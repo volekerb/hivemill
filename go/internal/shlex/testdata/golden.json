@@ -30457,6 +30457,735 @@
 "src": "corpus"
 },
 {
+"input": "gh api repos/o/r/issues -f title=x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/o/r/issues",
+"-f",
+"title=x"
+]
+},
+{
+"input": "gh api repos/o/r/issues -f title=x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/o/r/issues",
+"-f",
+"title=x"
+]
+},
+{
+"input": "gh api repos/o/r/issues -f title=x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/o/r/issues",
+"-f",
+"title=x"
+]
+},
+{
+"input": "gh api repos/o/r/issues -f title=x",
+"mode": "quote",
+"quoted": "'gh api repos/o/r/issues -f title=x'",
+"src": "corpus"
+},
+{
+"input": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/o/r/pulls/1/merge",
+"-F",
+"merge_method=squash"
+]
+},
+{
+"input": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/o/r/pulls/1/merge",
+"-F",
+"merge_method=squash"
+]
+},
+{
+"input": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/o/r/pulls/1/merge",
+"-F",
+"merge_method=squash"
+]
+},
+{
+"input": "gh api repos/o/r/pulls/1/merge -F merge_method=squash",
+"mode": "quote",
+"quoted": "'gh api repos/o/r/pulls/1/merge -F merge_method=squash'",
+"src": "corpus"
+},
+{
+"input": "gh api x --raw-field a=b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--raw-field",
+"a=b"
+]
+},
+{
+"input": "gh api x --raw-field a=b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--raw-field",
+"a=b"
+]
+},
+{
+"input": "gh api x --raw-field a=b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--raw-field",
+"a=b"
+]
+},
+{
+"input": "gh api x --raw-field a=b",
+"mode": "quote",
+"quoted": "'gh api x --raw-field a=b'",
+"src": "corpus"
+},
+{
+"input": "gh api x --field a=b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--field",
+"a=b"
+]
+},
+{
+"input": "gh api x --field a=b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--field",
+"a=b"
+]
+},
+{
+"input": "gh api x --field a=b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--field",
+"a=b"
+]
+},
+{
+"input": "gh api x --field a=b",
+"mode": "quote",
+"quoted": "'gh api x --field a=b'",
+"src": "corpus"
+},
+{
+"input": "gh api x --input body.json",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--input",
+"body.json"
+]
+},
+{
+"input": "gh api x --input body.json",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--input",
+"body.json"
+]
+},
+{
+"input": "gh api x --input body.json",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"x",
+"--input",
+"body.json"
+]
+},
+{
+"input": "gh api x --input body.json",
+"mode": "quote",
+"quoted": "'gh api x --input body.json'",
+"src": "corpus"
+},
+{
+"input": "gh release create v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"v1"
+]
+},
+{
+"input": "gh release create v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"v1"
+]
+},
+{
+"input": "gh release create v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"v1"
+]
+},
+{
+"input": "gh release create v1",
+"mode": "quote",
+"quoted": "'gh release create v1'",
+"src": "corpus"
+},
+{
+"input": "gh release edit v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"edit",
+"v1"
+]
+},
+{
+"input": "gh release edit v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"edit",
+"v1"
+]
+},
+{
+"input": "gh release edit v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"edit",
+"v1"
+]
+},
+{
+"input": "gh release edit v1",
+"mode": "quote",
+"quoted": "'gh release edit v1'",
+"src": "corpus"
+},
+{
+"input": "gh release delete v1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"delete",
+"v1"
+]
+},
+{
+"input": "gh release delete v1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"delete",
+"v1"
+]
+},
+{
+"input": "gh release delete v1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"delete",
+"v1"
+]
+},
+{
+"input": "gh release delete v1",
+"mode": "quote",
+"quoted": "'gh release delete v1'",
+"src": "corpus"
+},
+{
+"input": "gh release upload v1 f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"upload",
+"v1",
+"f"
+]
+},
+{
+"input": "gh release upload v1 f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"upload",
+"v1",
+"f"
+]
+},
+{
+"input": "gh release upload v1 f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"upload",
+"v1",
+"f"
+]
+},
+{
+"input": "gh release upload v1 f",
+"mode": "quote",
+"quoted": "'gh release upload v1 f'",
+"src": "corpus"
+},
+{
+"input": "gh release delete-asset v1 f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"delete-asset",
+"v1",
+"f"
+]
+},
+{
+"input": "gh release delete-asset v1 f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"delete-asset",
+"v1",
+"f"
+]
+},
+{
+"input": "gh release delete-asset v1 f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"delete-asset",
+"v1",
+"f"
+]
+},
+{
+"input": "gh release delete-asset v1 f",
+"mode": "quote",
+"quoted": "'gh release delete-asset v1 f'",
+"src": "corpus"
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v1",
+"--notes",
+"x"
+]
+},
+{
+"input": "gh release create -R acme/new v1 --notes x",
+"mode": "quote",
+"quoted": "'gh release create -R acme/new v1 --notes x'",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])"
+]
+},
+{
+"input": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])"
+]
+},
+{
+"input": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])"
+]
+},
+{
+"input": "python3 -c 'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import subprocess; subprocess.run([\"gh\",\"release\",\"create\",\"v1\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api repos/o/r/issues -f title=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api repos/o/r/issues -f title=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api repos/o/r/issues -f title=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import os; os.system(\"gh api repos/o/r/issues -f title=x\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api x --input body.json\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api x --input body.json\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api x --input body.json\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import os; os.system(\"gh api x --input body.json\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "bash -c 'gh release create v1'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh release create v1"
+]
+},
+{
+"input": "bash -c 'gh release create v1'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh release create v1"
+]
+},
+{
+"input": "bash -c 'gh release create v1'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh release create v1"
+]
+},
+{
+"input": "bash -c 'gh release create v1'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'gh release create v1'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "bash -c 'gh api x -F a=b'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh api x -F a=b"
+]
+},
+{
+"input": "bash -c 'gh api x -F a=b'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh api x -F a=b"
+]
+},
+{
+"input": "bash -c 'gh api x -F a=b'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh api x -F a=b"
+]
+},
+{
+"input": "bash -c 'gh api x -F a=b'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'gh api x -F a=b'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"frozen repos are listed in config"
+]
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"frozen repos are listed in config"
+]
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"release",
+"create",
+"-R",
+"acme/new",
+"v2",
+"--notes",
+"frozen repos are listed in config"
+]
+},
+{
+"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"mode": "quote",
+"quoted": "'gh release create -R acme/new v2 --notes '\"'\"'frozen repos are listed in config'\"'\"''",
+"src": "corpus"
+},
+{
 "input": "gh pr create -R acme/old --title t --body b",
 "mode": "script",
 "src": "corpus",
@@ -63626,105 +64355,408 @@
 "src": "corpus"
 },
 {
-"input": "gh release create -R acme/new v1 --notes x",
+"input": "gh api repos/o/r/pulls/1",
 "mode": "script",
 "src": "corpus",
 "tokens": [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
+"api",
+"repos/o/r/pulls/1"
 ]
 },
 {
-"input": "gh release create -R acme/new v1 --notes x",
+"input": "gh api repos/o/r/pulls/1",
 "mode": "default",
 "src": "corpus",
 "tokens": [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
+"api",
+"repos/o/r/pulls/1"
 ]
 },
 {
-"input": "gh release create -R acme/new v1 --notes x",
+"input": "gh api repos/o/r/pulls/1",
 "mode": "split",
 "src": "corpus",
 "tokens": [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v1",
-"--notes",
-"x"
+"api",
+"repos/o/r/pulls/1"
 ]
 },
 {
-"input": "gh release create -R acme/new v1 --notes x",
+"input": "gh api repos/o/r/pulls/1",
 "mode": "quote",
-"quoted": "'gh release create -R acme/new v1 --notes x'",
+"quoted": "'gh api repos/o/r/pulls/1'",
 "src": "corpus"
 },
 {
-"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"input": "gh api -X GET search/issues -f q=x",
 "mode": "script",
 "src": "corpus",
 "tokens": [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"frozen repos are listed in config"
+"api",
+"-X",
+"GET",
+"search/issues",
+"-f",
+"q=x"
 ]
 },
 {
-"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"input": "gh api -X GET search/issues -f q=x",
 "mode": "default",
 "src": "corpus",
 "tokens": [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"frozen repos are listed in config"
+"api",
+"-X",
+"GET",
+"search/issues",
+"-f",
+"q=x"
 ]
 },
 {
-"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"input": "gh api -X GET search/issues -f q=x",
 "mode": "split",
 "src": "corpus",
 "tokens": [
 "gh",
-"release",
-"create",
-"-R",
-"acme/new",
-"v2",
-"--notes",
-"frozen repos are listed in config"
+"api",
+"-X",
+"GET",
+"search/issues",
+"-f",
+"q=x"
 ]
 },
 {
-"input": "gh release create -R acme/new v2 --notes 'frozen repos are listed in config'",
+"input": "gh api -X GET search/issues -f q=x",
 "mode": "quote",
-"quoted": "'gh release create -R acme/new v2 --notes '\"'\"'frozen repos are listed in config'\"'\"''",
+"quoted": "'gh api -X GET search/issues -f q=x'",
+"src": "corpus"
+},
+{
+"input": "gh api --method GET x -F per_page=5",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"GET",
+"x",
+"-F",
+"per_page=5"
+]
+},
+{
+"input": "gh api --method GET x -F per_page=5",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"GET",
+"x",
+"-F",
+"per_page=5"
+]
+},
+{
+"input": "gh api --method GET x -F per_page=5",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"GET",
+"x",
+"-F",
+"per_page=5"
+]
+},
+{
+"input": "gh api --method GET x -F per_page=5",
+"mode": "quote",
+"quoted": "'gh api --method GET x -F per_page=5'",
+"src": "corpus"
+},
+{
+"input": "gh pr view 1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1"
+]
+},
+{
+"input": "gh pr view 1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1"
+]
+},
+{
+"input": "gh pr view 1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"pr",
+"view",
+"1"
+]
+},
+{
+"input": "gh pr view 1",
+"mode": "quote",
+"quoted": "'gh pr view 1'",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh release list\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh release list\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh release list\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh release list\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh release list\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh release list\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh release list\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import os; os.system(\"gh release list\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api -X GET search/issues -f q=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api -X GET search/issues -f q=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api -X GET search/issues -f q=x\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import os; os.system(\"gh api -X GET search/issues -f q=x\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "bash -c 'gh release view v1'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh release view v1"
+]
+},
+{
+"input": "bash -c 'gh release view v1'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh release view v1"
+]
+},
+{
+"input": "bash -c 'gh release view v1'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"gh release view v1"
+]
+},
+{
+"input": "bash -c 'gh release view v1'",
+"mode": "quote",
+"quoted": "'bash -c '\"'\"'gh release view v1'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "gh api --method=GET x -F a=b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=GET",
+"x",
+"-F",
+"a=b"
+]
+},
+{
+"input": "gh api --method=GET x -F a=b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=GET",
+"x",
+"-F",
+"a=b"
+]
+},
+{
+"input": "gh api --method=GET x -F a=b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=GET",
+"x",
+"-F",
+"a=b"
+]
+},
+{
+"input": "gh api --method=GET x -F a=b",
+"mode": "quote",
+"quoted": "'gh api --method=GET x -F a=b'",
+"src": "corpus"
+},
+{
+"input": "gh api -XGET x -f a=b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XGET",
+"x",
+"-f",
+"a=b"
+]
+},
+{
+"input": "gh api -XGET x -f a=b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XGET",
+"x",
+"-f",
+"a=b"
+]
+},
+{
+"input": "gh api -XGET x -f a=b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XGET",
+"x",
+"-f",
+"a=b"
+]
+},
+{
+"input": "gh api -XGET x -f a=b",
+"mode": "quote",
+"quoted": "'gh api -XGET x -f a=b'",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api x --method GET -F a=b\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api x --method GET -F a=b\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"import os; os.system(\"gh api x --method GET -F a=b\")"
+]
+},
+{
+"input": "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'import os; os.system(\"gh api x --method GET -F a=b\")'\"'\"''",
 "src": "corpus"
 },
 {
@@ -66573,45 +67605,6 @@
 "input": "git -C hello log -1",
 "mode": "quote",
 "quoted": "'git -C hello log -1'",
-"src": "corpus"
-},
-{
-"input": "gh pr view 1",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"gh",
-"pr",
-"view",
-"1"
-]
-},
-{
-"input": "gh pr view 1",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"gh",
-"pr",
-"view",
-"1"
-]
-},
-{
-"input": "gh pr view 1",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"gh",
-"pr",
-"view",
-"1"
-]
-},
-{
-"input": "gh pr view 1",
-"mode": "quote",
-"quoted": "'gh pr view 1'",
 "src": "corpus"
 },
 {
@@ -72881,7 +73874,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1682,
+"corpus_commands": 1707,
 "edge_inputs": 123,
 "python": "3.13"
 }

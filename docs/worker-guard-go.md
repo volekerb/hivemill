@@ -106,6 +106,17 @@ scratchpad; without it the scratchpad comes from the payload `session_id` (`guar
 Tests: `git_test.go` (`go test ./internal/guard -run Git`) ports `tests/test_worker_guard_git.py`; where the decision
 reads the DB and a DB file exists, the test accepts the delegation.
 
+## No-push gh writes (T-0881, T-0993)
+
+For the no-push roles (not HQ) `nopush.go:noPushGhWrite` mirrors `Analyzer.nopush_gh_write`: a direct `gh api` with a body
+flag (`-f -F --field --raw-field --input`) is refused unless the parsed method is GET (`ghParse`: `--method=GET`, `-XGET`,
+global flags such as `-R`), and so is `gh release create|edit|delete|upload|delete-asset`. Inline interpreter code and
+`bash -c` go through `nopush_inline.go`: `INLINE_GH_WRITE` gained the `release` alternative, and `inlineGhAPIBody` ports
+`inline_gh_api_body` (the text is cut at each `gh` word, so a `-X GET` on another gh call exempts nothing). RE2 has no
+lookbehind, so `(?<![\w-])` before the flag and `(?![\w-])` after it are hand-coded (`bodyFlagAt`, `matchInlineGhGet`).
+Messages keep Python's `gh api with -f/...` and `gh release <verb>` text. Tests: `nopush_gh_api_release_test.go`; corpus
+entries sit next to the gh release lines in `ci/guard_corpus.json`.
+
 ## Config, persist and factory rules (T-0351)
 
 - `host.go`: the module-level state that comes from the passwd entry: `derive_live_homes`, `LIVE_HOME(S)`, `PW_DIR`,
