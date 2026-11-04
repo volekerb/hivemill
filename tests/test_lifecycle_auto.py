@@ -1,6 +1,7 @@
 """T-0153: status transitions are mechanical: staffing a team or starting work activates the goal, and a worker that
 really starts moves its todo task to in_progress (never while QUEUED)."""
 import unittest
+import tempfile
 
 from harness import FactoryTestCase
 
@@ -133,7 +134,7 @@ class TaskAutoStartTests(LifecycleBase):
     def test_h_second_spawn_records_no_second_event(self):
         self.env.seed_task(status="todo", pr_url=None, team="g-001-a")
         self.spawn_coder()
-        self.ok("spawn", "qa", "--task", "T-0001", "--name", "zz-qa", agent="zz-lead")
+        self.ok("spawn", "qa", "--task", "T-0001", "--name", "zz-qa", "--cwd", tempfile.gettempdir(), agent="zz-lead")
         self.assertEqual(self.task_status(), "in_progress")
         self.assertEqual(len(self.events("task-auto-start")), 1)
 
