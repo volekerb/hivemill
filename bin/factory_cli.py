@@ -136,6 +136,7 @@ TASK_WAITS = ["owner", "internal"]
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
+    "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
@@ -1877,6 +1878,188 @@ def check_gh_roles(key, value):
     return ",".join(dict.fromkeys(names))
 
 
+GUARD_IMPLS = ("python", "go", "shadow")
+GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
+GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
+GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
+
+
+def guard_src_home():
+    """The checkout holding go/: the live home for a live FACTORY_HOME, else this run's own home (tests, dry installs)."""
+    return Path(LIVE_HOME) if home_is_live() else HOME
+
+
+def guard_lib_dir():
+    return Path.home() / ".local" / "lib" / "factory"
+
+
+def guard_srchash(src=None):
+    """`git rev-parse HEAD:go` of the checkout, or "" when there is no go/ tree or git fails."""
+    try:
+        p = git_run(src or guard_src_home(), "rev-parse", "HEAD:go", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
+def _read_line(path):
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
+def _write_atomic(path, text, mode=0o644):
+    """Write text to path through a temp file in the same dir + rename."""
+    path = Path(path)
+    fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)  # unique name: never follows a planted link
+    try:
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), mode)
+            f.write(text)
+        os.replace(name, path)
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
+
+
+def guard_binary_state(src=None, lib=None):
+    """ok | missing | stale: the Go guard binary against the stamp and the srchash of the checkout's go/."""
+    lib = Path(lib or guard_lib_dir())
+    stamp = _read_line(lib / "worker-guard.stamp")
+    if not os.access(lib / "worker-guard", os.X_OK) or not stamp:
+        return "missing"
+    return "ok" if stamp == guard_srchash(src) else "stale"
+
+
+def guard_go_path():
+    """The one Go toolchain the build may run: ~/.local/go/bin/go. No PATH lookup (a worker controls PATH)."""
+    return Path.home() / ".local" / "go" / "bin" / "go"
+
+
+def guard_build_env(lib):
+    """The exact environment of the Go build: nothing is inherited, so GOFLAGS, GOENV, GOROOT, GOEXPERIMENT, GODEBUG
+    and ~/.config/go/env of the caller cannot reach the compiler; cache, modules and temp live in the lib dir."""
+    gohome = Path(lib) / "go"
+    return {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), "GOTOOLCHAIN": "local", "GOENV": "off", "GOFLAGS": "",
+            "GOWORK": "off", "GOPROXY": "off", "GOSUMDB": "off", "CGO_ENABLED": "0",
+            "GOCACHE": str(gohome / "cache"), "GOMODCACHE": str(gohome / "mod"), "GOPATH": str(gohome / "path"),
+            "GOTMPDIR": str(gohome / "tmp")}
+
+
+def _run_build(cmd, cwd, timeout, env):
+    """Run cmd with exactly env, in its own process group; on timeout kill the whole group so no go compile child survives."""
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+    try:
+        _, err = p.communicate(timeout=timeout)
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(p.pid, signal.SIGKILL)
+        p.communicate()
+        raise
+    return p.returncode, err
+
+
+def build_guard_go(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
+
+    No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
+    runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
+    built | current | skipped | failed. tick=True (the tick path): 120 s budget, quiet when go is missing, and a
+    failed build for this srchash is not retried for 30 min (worker-guard.failed). A lib=None build outside a live
+    home is skipped: it would write the real ~/.local/lib/factory. go= is for tests; the default is ~/.local/go/bin/go
+    only. The caller decides whether to build at all (guard_tick builds only when guard_impl != python).
+    See docs/worker-guard-go.md."""
+    if lib is None and not home_is_live():
+        return "skipped"
+    src, lib = Path(src or guard_src_home()), Path(lib or guard_lib_dir())
+    go = str(go) if go else str(guard_go_path())
+    if not os.access(go, os.X_OK):
+        if not tick:
+            print("guard go build: skipped (no go toolchain)", file=sys.stderr)
+        return "skipped"
+    srchash = guard_srchash(src)
+    if not srchash:
+        return "skipped"
+    stamp, binary = lib / "worker-guard.stamp", lib / "worker-guard"
+    if _read_line(stamp) == srchash and os.access(binary, os.X_OK):
+        return "current"
+    failed = lib / "worker-guard.failed"
+    if tick and _read_line(failed) == srchash:
+        try:
+            if time.time() - failed.stat().st_mtime < GUARD_FAILED_BACKOFF_S:
+                return "skipped"
+        except OSError:
+            pass
+    try:
+        lib.mkdir(parents=True, exist_ok=True)
+        lock = open(lib / ".build.lock", "a+")
+    except OSError as e:
+        print(f"guard go build: skipped ({e})", file=sys.stderr)
+        return "skipped"
+    with lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return "skipped"  # another build is running
+        new = lib / "worker-guard.new"
+        try:
+            env = guard_build_env(lib)
+            Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
+            nice = ["/usr/bin/nice", "-n", "10"] if os.access("/usr/bin/nice", os.X_OK) else []
+            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+                                    src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S, env)
+            ok = rc == 0
+            first = (stderr or "").strip().splitlines()[:1]
+            err = first[0] if first else f"exit {rc}"
+        except (OSError, subprocess.SubprocessError) as e:
+            ok, err = False, str(e)[:200]
+        if not ok:
+            stamp.unlink(missing_ok=True)
+            new.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _write_atomic(failed, srchash + "\n")
+            print(f"guard go build: failed ({err}); the guard stays on Python", file=sys.stderr)
+            return "failed"
+        try:
+            os.chmod(new, 0o755)
+            os.replace(new, binary)
+            _write_atomic(stamp, srchash + "\n")
+            failed.unlink(missing_ok=True)
+        except OSError as e:
+            stamp.unlink(missing_ok=True)
+            new.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _write_atomic(failed, srchash + "\n")
+            print(f"guard go build: failed ({e}); the guard stays on Python", file=sys.stderr)
+            return "failed"
+    return "built"
+
+
+def write_guard_impl(con, src=None):
+    """Rewrite $FACTORY_HOME/run/guard_impl from the DB: "<impl> <srchash>", or "python -" when go/ has no tree."""
+    impl = cfg(con, "guard_impl")
+    srchash = guard_srchash(src)
+    line = f"{impl} {srchash}" if srchash and impl in GUARD_IMPLS else "python -"
+    RUN.mkdir(parents=True, exist_ok=True)
+    _write_atomic(RUN / "guard_impl", line + "\n")
+    return line
+
+
+def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
+    default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+    (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
+    try:
+        write_guard_impl(con, src)
+        cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
+        if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
+                and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
+            write_guard_impl(con, src)
+    except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
+        print(f"guard go build: tick step failed ({e})", file=sys.stderr)
+
+
 def cmd_config(a):
     con = db()
     if a.key and a.value is not None:
@@ -1894,6 +2077,11 @@ def cmd_config(a):
         if a.key == "model_cleaner":
             check_model_override(a.key, a.value)
             a.value = a.value.strip()
+        if a.key == "guard_impl":
+            a.value = a.value.strip()
+            if a.value not in GUARD_IMPLS:
+                die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
+                    f"fix it with `factory config guard_impl python`", 2)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -1927,6 +2115,12 @@ def cmd_config(a):
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (a.key, a.value))
         event(con, "config", a.key, "set", a.value)
+        if a.key == "guard_impl":
+            write_guard_impl(con)
+            state = guard_binary_state()
+            if a.value != "python" and state != "ok":
+                print(f"warning: guard binary is {state}; the shim uses python until `factory up` or the tick builds it",
+                      file=sys.stderr)
     elif a.key:
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}", 2)
@@ -1934,6 +2128,7 @@ def cmd_config(a):
         return
     for k in DEFAULT_CONFIG:
         print(f"{k} = {cfg(con, k)}")
+    print(f"guard binary: {guard_binary_state()}")
 
 
 def cmd_whoami(a):
@@ -3345,7 +3540,11 @@ def pr_body_problems(body, headings):
     """Every way `body` departs from the PR template, as sentences; empty when it conforms."""
     problems = []
     outside = pr_outside_details(body)
-    lines = [ln.rstrip() for ln in outside.splitlines()]
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+    lines, off = [], 0
+    for raw in outside.splitlines(keepends=True):  # a heading inside a code fence is text, not a section
+        lines.append("" if any(x <= off < y for x, y in spans) else raw.rstrip())
+        off += len(raw)
     missing = [h for h in headings if h not in lines]
     if missing:
         problems.append("missing section heading(s): " + ", ".join(f"`{h}`" for h in missing))
@@ -8659,8 +8858,24 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
-_EVIDENCE_FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.M | re.S)
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)^[ \t]*\1", re.M | re.S)
+
+
+def _evidence_section(outside):
+    """Text of the `## Test evidence` section: the heading must start a line outside a fence; the section ends at
+    the next `## ` line outside a fence. "" when there is no such heading."""
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+
+    def fenced(i):
+        return any(a <= i < b for a, b in spans)
+
+    start = next((m.end() for m in re.finditer(r"^## Test evidence[^\n]*(?:\n|$)", outside, re.M)
+                  if not fenced(m.start())), None)
+    if start is None:
+        return ""
+    end = next((m.start() for m in _PR_SECTION.finditer(outside, start) if not fenced(m.start())), len(outside))
+    return outside[start:end]
 
 
 def _evidence_is_command(text):
@@ -8679,7 +8894,7 @@ def prcheck_evidence_problem(sec):
     """T-0947: shape check of the `## Test evidence` section (outside <details>): a literal command line plus an output
     line. It proves text is present, not that it is true. Returns a problem string or None."""
     cands = [m.group(1) for m in re.finditer(r"`([^`\n]+)`", _EVIDENCE_FENCE.sub("", sec))]
-    for block in _EVIDENCE_FENCE.findall(sec):
+    for _, block in _EVIDENCE_FENCE.findall(sec):
         cands += block.splitlines()
     if not any(_evidence_is_command(c) for c in cands):
         return ("`## Test evidence` has no command in backticks: a command line of 2+ words starting with a runner "
@@ -8687,7 +8902,7 @@ def prcheck_evidence_problem(sec):
                 "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK; a bare file or test name is not a command")
     if not _EVIDENCE_OUTPUT.search(sec):
         return ("`## Test evidence` has a command but no output line: add its key result, "
-                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, passed, rc=N, exit N, ->)")
+                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, N failed, passed, rc=N, exit N, ->)")
     return None
 
 
@@ -8706,8 +8921,7 @@ def prcheck_body(wt, base, pr_url):
         return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
     problems = pr_body_problems(body, pr_template_headings())
     outside = pr_outside_details(body)
-    sec = outside.split("## Test evidence", 1)[-1] if "## Test evidence" in outside else ""
-    sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
+    sec = _evidence_section(outside)
     ev = prcheck_evidence_problem(sec)
     if ev:
         problems.append(ev)
@@ -12086,6 +12300,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("migrate_db")
     render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
     _pt_lap("render_settings")
+    guard_tick(con)
+    _pt_lap("guard_build")
     agents = herdr_agents()
     _pt_lap("herdr_list")
     morning_digest(con)
@@ -12969,6 +13185,7 @@ def cmd_up(a):
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
+    guard_tick(con, tick=False)
     agents = herdr_agents()
     if agents is None:  # let systemd show the failure instead of queueing everything against a dead server
         die("herdr is unreachable (is herdr-server running?); nothing started")
