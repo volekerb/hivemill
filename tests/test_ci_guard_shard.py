@@ -101,6 +101,22 @@ class ShardRunTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("no tests found", r.stdout)
 
+    def test_import_time_skiptest_fails_every_shard(self):
+        write(self.d, "test_good.py", GOOD)
+        write(self.d, "test_skipimp.py", "import unittest\nraise unittest.SkipTest('no dep')\n")
+        for i in (1, 2):
+            r = shard_run(self.d, "test_good.py,test_skipimp.py", i, 2)
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("skipped at import", r.stdout)
+            self.assertIn("test_skipimp.py", r.stdout)
+
+    def test_duplicate_test_id_fails_every_shard(self):
+        write(self.d, "test_good.py", GOOD)
+        for i in (1, 2):
+            r = shard_run(self.d, "test_good.py,test_good.py", i, 2)
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("duplicate test id test_good.A.test_a", r.stdout)
+
     def test_empty_id_list_fails(self):
         write(self.d, "test_one.py", "import unittest\nclass T(unittest.TestCase):\n    def test_x(self): pass\n")
         self.assertEqual(shard_run(self.d, "test_one.py", 1, 2).returncode, 0)

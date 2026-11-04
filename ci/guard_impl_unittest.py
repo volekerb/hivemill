@@ -130,7 +130,11 @@ def collect_ids(names, tests_dir=TESTS):
         problems += ["%s: loader error: %s" % (base, e.strip().splitlines()[-1] if e.strip() else e) for e in loader.errors]
         bad = [t.id() for t in found if type(t).__name__ == "_FailedTest"]
         problems += ["%s: failed to load: %s" % (base, i) for i in bad]
-        good = [t for t in found if type(t).__name__ != "_FailedTest"]
+        # A module raising SkipTest at import becomes one unittest.loader.ModuleSkipped placeholder: it would pass with
+        # the module's real ids missing, so it is a problem (T-1051).
+        skipped = [t.id() for t in found if type(t).__name__ == "ModuleSkipped"]
+        problems += ["%s: skipped at import (SkipTest): %s" % (base, i) for i in skipped]
+        good = [t for t in found if type(t).__name__ not in ("_FailedTest", "ModuleSkipped")]
         if not good:
             problems.append("%s: no tests found" % base)
         tests += good

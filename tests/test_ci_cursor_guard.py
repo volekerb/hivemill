@@ -54,7 +54,7 @@ def assert_workflow_guard_diff(text):
     """GUARD_IMPL=diff runs in guard-unittest; neither it nor guard-diff may use continue-on-error: true."""
     unit = workflow_job_block(text, "guard-unittest-shard")
     if "GUARD_IMPL=diff" not in unit:
-        raise AssertionError("tests.yml must set GUARD_IMPL=diff in the guard-unittest job")
+        raise AssertionError("tests.yml must set GUARD_IMPL=diff in the guard-unittest-shard job")
     for job, block in (("guard-unittest-shard", unit), ("guard-unittest", workflow_job_block(text, "guard-unittest")), ("guard-diff", workflow_guard_diff_job_block(text))):
         if re.search(r"(?m)^\s+continue-on-error:\s*true", block):
             raise AssertionError("%s job must not use continue-on-error: true" % job)

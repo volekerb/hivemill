@@ -77,7 +77,7 @@
  "test_goal_plugin_content.py": 0.0,
  "test_goal_plugins.py": 3.2,
  "test_guard_build.py": 3.7,
- "test_guard_diff.py": 627.1,
+ "test_guard_diff.py": 1058.4,
  "test_guard_factory_cli.py": 2.0,
  "test_guard_golden.py": 0.7,
  "test_guard_impl.py": 3.3,
