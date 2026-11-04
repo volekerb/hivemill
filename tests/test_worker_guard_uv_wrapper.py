@@ -38,6 +38,10 @@ DENIED = [
     "uvx --index-url http://x gh pr merge 1",
     "uv run --python-preference only-system git push",
     "uv run --index-url http://x python3 -c '%s'" % PY_PUSH,
+    "uv run --foo bar git push",
+    "uv run --foo bar /usr/bin/git push",
+    "uv run --foo bar git -C /tmp push",
+    "uv run --foo bar gh pr merge 1",
     "cd /x && uv run git push origin main",
     "cd /x && uvx --from gh gh pr merge 1",
     "bash -c 'uv run git push origin main'",
@@ -61,7 +65,20 @@ ALLOWED = [
     "uvx ruff check roles/hooks/worker-guard.py",
     "uv run mypy bin/factory",
     "uv run --with requests pytest tests/test_worker_guard_uv_wrapper.py -q",
+    # T-0880 item 11: the data word git is not a push
+    "uv run pytest -k git -q",
+    "uv run pytest -k git tests/test_harness.py",
+    "uv run --with git pytest -q",
+    "uv run pytest tests/git tests/test_harness.py",
+    "uv run --color never git commit -m x",  # accepted, same as main (unknown option hides the command word)
 ]
+# exit 2 for qa/reviewer/coder: the command word gets the bare command's rules
+FIRST_WORD_DENIED = ["uv run git config user.name x", "uv run herdr list", "uv run kill 1", "uv run su" + "do ls"]
+# pinned as accepted false positives (item 10)
+PINNED_DENIED = ["uv run python3 x.py git push", "uv run pytest -k git push"]
+# coder + no-push: later-word git push after unknown options
+BOTH_DENIED = ["uv run --foo bar git push", "uv run --foo bar /usr/bin/git push", "uv run --foo bar git -C /tmp push",
+               "uv run --index-url http://x git push", "uv run --color never git push", "uv --color never run git push"]
 DATA_WORDS = ["uv run python3 x.py herdr", "uv run python3 script.py kill 1", "uvx --from foo python3 x.py herdr"]
 
 
@@ -77,6 +94,12 @@ class UvWrapperTests(unittest.TestCase):
                 with self.subTest(role=role, cmd=cmd):
                     p = self.run_hook(cmd, role)
                     self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_first_word_rules_and_pinned(self):
+        for role in ("qa", "reviewer"):
+            for cmd in FIRST_WORD_DENIED + ["uv run git commit -m x"] + PINNED_DENIED:
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(self.run_hook(cmd, role).returncode, 2)
 
     def test_denied_reason_names_the_rule(self):
         self.assertIn("push", self.run_hook("uv run git push origin main", "qa").stderr)
@@ -153,6 +176,15 @@ class CoderUvPushTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 p = self.run_hook(cmd)
                 self.assertEqual(p.returncode, 2, p.stderr)
+
+    def test_item11_forms(self):
+        for cmd in BOTH_DENIED + FIRST_WORD_DENIED + PINNED_DENIED:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd).returncode, 2)
+        for cmd in ("uv run pytest -k git -q", "uv run pytest -k git tests/test_harness.py", "uv run --with git pytest -q",
+                    "uv run pytest tests/git tests/test_harness.py", "uv run --color never git commit -m x"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.run_hook(cmd).returncode, 0)
 
     def test_own_push_allowed(self):
         p = self.run_hook("uv run git push origin HEAD:factory/%s" % TASK)
