@@ -75,12 +75,13 @@ class TestSandboxRoutingExtra(unittest.TestCase):
             self.assertEqual(self.run_hook("python3 " + args).returncode, 0, args)
 
     def test_python_argv_walk_off_or_other_role_allowed(self):
+        # T-0435: a pytest path keeps these runs out of the full-suite refusal, so only the sandbox flag is under test
         self.seed("0")
         for args in self.BLOCK:
-            self.assertEqual(self.run_hook("python3 " + args).returncode, 0, args)
+            self.assertEqual(self.run_hook("python3 " + args + " tests/test_x.py").returncode, 0, args)
         self.seed("1")
         for args in self.BLOCK:
-            self.assertEqual(self.run_hook("python3 " + args, role="reviewer").returncode, 0, args)
+            self.assertEqual(self.run_hook("python3 " + args + " tests/test_x.py", role="reviewer").returncode, 0, args)
 
     def test_dash_m_after_script_is_script_arg(self):
         self.seed("1")
@@ -94,7 +95,7 @@ class TestSandboxRoutingExtra(unittest.TestCase):
     def test_flag_value_other_than_one_does_not_route(self):
         for v in ("2", "true", ""):
             self.seed(v)
-            self.assertEqual(self.run_hook("pytest -q").returncode, 0, v)
+            self.assertEqual(self.run_hook("pytest -q tests/test_x.py").returncode, 0, v)
 
     # T-0735
     DENY = ("python3 -W error -m unittest", "python3 -X dev -m unittest", "python3 -Im unittest",
