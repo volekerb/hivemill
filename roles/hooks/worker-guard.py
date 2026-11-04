@@ -1447,7 +1447,10 @@ class Analyzer:
                     self.cfg_redirect(target)
                     self.prot_redirect(target)
                     self.persist_redirect(target)
-            prev = cmds[n - 1][0] if piped and n > 0 else []
+            k = n - 1
+            while k > 0 and cmds[k][1] and cmds[k][0] and os.path.basename(cmds[k][0][0]) in ("tee", "cat"):
+                k -= 1  # pass-through stages (`echo ... | tee f | python3`) keep the literal
+            prev = cmds[k][0] if piped and k >= 0 else []
             self.pipe_src = " ".join(prev[1:]) if prev and os.path.basename(prev[0]) in ("echo", "printf") else None
             self.soft(self.cmd, words, depth, piped, False, hstrs)
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
@@ -1590,9 +1593,11 @@ class Analyzer:
             return True
         if ci is not None:
             return False
+        if si is not None and rest[si] == "/dev/stdin":
+            return True
         if re.match(r"^python[\d.]*$", name) and not py_inline_code(rest):
             return False  # -m module, --version
-        return si is None or rest[si] == "-"
+        return si is None or rest[si] in ("-", "/dev/stdin")
 
     def stdin_scan(self, name, text):
         """T-0882: scan code fed to an interpreter on stdin (heredoc body, here-string, echo/printf piped in) with the T-0789
@@ -1613,8 +1618,14 @@ class Analyzer:
             if not idx:
                 continue
             k = idx[-1]
-            for cand in ([k] + ([k + 2] if k + 2 < len(parts) and parts[k + 1] == "|"
-                                and self.plain_words(parts[k])[:1] == ["cat"] else [])):
+            cands, c = [k], k
+            if self.plain_words(parts[k])[:1] == ["cat"]:
+                while c + 2 < len(parts) and parts[c + 1] == "|":
+                    c += 2
+                    cands.append(c)
+                    if self.plain_words(parts[c])[:1] not in (["tee"], ["cat"]):
+                        break
+            for cand in cands:
                 w = self.plain_words(parts[cand])
                 if w and INLINE_CODE_INTERPS.match(w[0]) and self.stdin_program(w[0], w[1:]):
                     self.stdin_scan(w[0], body)

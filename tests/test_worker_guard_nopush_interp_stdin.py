@@ -48,14 +48,22 @@ DENIED = [
     heredoc("python3 - >/dev/null", PY),
     heredoc("python3 -W ignore -", PY),
 ]
-# each of the above also nested in bash -c and after cd /x &&
-DENIED += ["cd /x && " + c for c in DENIED[:10]]
+BASE = list(DENIED)
+DENIED += [
+    heredoc("python3 /dev/stdin", PY),
+    "echo '%s' | tee /dev/null | python3" % PY,
+    "echo '%s' | cat | python3 -" % PY,
+    "cat <<'EOF' | tee /dev/null | python3\n%s\nEOF" % PY,
+]
+
+
 def dq(c):
     return '"' + c.replace("\\", "\\\\").replace('"', '\\"') + '"'  # bash double quotes, newlines kept
 
 
-DENIED += ["bash -c %s" % dq(c) for c in (
-    "python3 <<< '%s'" % PY, "echo '%s' | python3" % PY, heredoc("python3 -", PY), heredoc("ruby", RUBY))]
+# every form also nested in bash -c and after cd /x &&
+DENIED += ["cd /x && " + c for c in BASE]
+DENIED += ["bash -c %s" % dq(c) for c in BASE]
 
 ALLOWED = [
     heredoc("python3 -", "print(1)"),
