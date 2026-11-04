@@ -247,9 +247,12 @@ class RoutedRestRunnerTest(unittest.TestCase):
 
 
 class PathListTest(unittest.TestCase):
+    job_index = 0  # 0 = guard-equiv, 1 = guard-equiv-rest
+
     def step(self):
         with open(WF, encoding="utf-8") as f:
             job = f.read().split("  guard-equiv:\n", 1)[1].split("\n  unittest:\n", 1)[0]
+        job = job.split("  guard-equiv-rest:\n")[self.job_index]
         return job.split("Guard paths changed?", 1)[1].split("- uses: actions/setup-python", 1)[0]
 
     def test_path_step_covers_guard_impl_and_derives_routed_modules(self):
@@ -264,7 +267,7 @@ class PathListTest(unittest.TestCase):
         body = step.split("run: |\n", 1)[1]
         return "\n".join(l[10:] for l in body.splitlines())
 
-    def decide(self, changed, tool_src=None):
+    def decide(self, changed, tool_src=None, edit=None):
         """Execute the real "Guard paths changed?" script in a temp repo; return the run= output."""
         with tempfile.TemporaryDirectory() as d:
             def git(*a):
@@ -284,6 +287,15 @@ class PathListTest(unittest.TestCase):
             git("add", "-A")
             git("commit", "-q", "-m", "base")
             base = harness.git("rev-parse", "HEAD", cwd=d)
+            for rel, fn in (edit or {}).items():
+                path = os.path.join(d, rel)
+                if fn is None:
+                    os.remove(path)
+                else:
+                    with open(path, encoding="utf-8") as f:
+                        src = f.read()
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(fn(src))
             for rel in changed:
                 path = os.path.join(d, rel)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -320,6 +332,39 @@ class PathListTest(unittest.TestCase):
         self.assertEqual(self.decide(["README.md"], only_rest_fails), "run=true")
         only_rest_empty = ("import sys\nif '--routed-rest' not in sys.argv:\n    print('test_x.py')\n")
         self.assertEqual(self.decide(["README.md"], only_rest_empty), "run=true")
+
+    # T-1008: a shrink of the routed list since BASE must run the gate, in both jobs
+    def routed_module(self):
+        return "tests/" + run("list", "--routed-rest").stdout.split()[0]
+
+    def test_step_runs_when_a_routed_module_is_deleted(self):
+        m = self.routed_module()
+        self.assertEqual(self.decide([], edit={m: None}), "run=true")
+
+    def test_step_runs_when_a_python_only_marker_is_added(self):
+        m = self.routed_module()
+        self.assertEqual(self.decide([], edit={m: lambda t: t + "\nGUARD_IMPL_PYTHON_ONLY = True\n"}), "run=true")
+
+    def test_step_runs_when_hook_run_is_removed(self):
+        m = self.routed_module()
+        strip = lambda t: t.replace("guard_impl", "guard_imp1")
+        self.assertEqual(self.decide([], edit={m: strip}), "run=true")
+
+    def test_step_runs_when_base_list_is_unreadable(self):
+        # BASE tool broken, HEAD tool fine: only the BASE read can fail. Use a tool that works at HEAD (copied
+        # after the base commit) by committing a broken tool at base and restoring the real one in the PR commit.
+        with open(TOOL, encoding="utf-8") as f:
+            real = f.read()
+        self.assertEqual(self.decide([], tool_src="import sys\nsys.exit(1)\n",
+                                     edit={"ci/guard_impl_unittest.py": lambda t: real}), "run=true")
+        self.assertEqual(self.decide([], tool_src="pass\n", edit={"ci/guard_impl_unittest.py": lambda t: real}), "run=true")
+
+    def test_step_skips_for_readme_only_with_a_readable_base(self):
+        self.assertEqual(self.decide(["README.md"]), "run=false")
+
+
+class PathListRestJobTest(PathListTest):
+    job_index = 1
 
 
 if __name__ == "__main__":

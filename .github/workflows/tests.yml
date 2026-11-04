@@ -270,6 +270,21 @@ jobs:
           if ! a=$(python3 ci/guard_impl_unittest.py list) || ! b=$(python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$a" ] || [ -z "$b" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "test list failed or empty: running"; exit 0
           fi
+          # T-1008: coverage must not shrink unseen. Read the BASE routed lists from a plain export of BASE_SHA (git archive | tar:
+          # no checkout, no hooks, no PR file read; the job token is read-only). Only main's own tool runs, never PR-controlled code.
+          # A module routed at BASE but missing from the HEAD list (deleted, marked python-only, hook_run removed) runs the gate.
+          # An unreadable or empty BASE list fails safe: run=true.
+          basedir=$(mktemp -d)
+          if ! git archive "$BASE_SHA" ci tests | tar -x -C "$basedir" \
+             || ! ba=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list) \
+             || ! bb=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$ba" ] || [ -z "$bb" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "base test list unreadable or empty: running"; exit 0
+          fi
+          printf '%s\n' "$a" "$b" | sed '/^$/d' | sort -u > "$basedir/head.lst"
+          printf '%s\n' "$ba" "$bb" | sed '/^$/d' | sort -u > "$basedir/base.lst"
+          if [ -n "$(comm -23 "$basedir/base.lst" "$basedir/head.lst")" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "a routed module left the list since base: running"; exit 0
+          fi
           pats=$(mktemp)
           { printf '%s\n' "$a" "$b" | sed -e '/^$/d' -e 's|^|tests/|'; printf '%s\n' tests/guard_impl.py tests/test_guard_build.py tests/test_guard_impl.py tests/test_guard_impl_coverage.py; } > "$pats"
           if printf '%s\n' "$changed" | grep -F -x -q -f "$pats"; then
@@ -332,6 +347,21 @@ jobs:
           # A failing or empty list must not narrow the path set: fail open (run), never skip.
           if ! a=$(python3 ci/guard_impl_unittest.py list) || ! b=$(python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$a" ] || [ -z "$b" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "test list failed or empty: running"; exit 0
+          fi
+          # T-1008: coverage must not shrink unseen. Read the BASE routed lists from a plain export of BASE_SHA (git archive | tar:
+          # no checkout, no hooks, no PR file read; the job token is read-only). Only main's own tool runs, never PR-controlled code.
+          # A module routed at BASE but missing from the HEAD list (deleted, marked python-only, hook_run removed) runs the gate.
+          # An unreadable or empty BASE list fails safe: run=true.
+          basedir=$(mktemp -d)
+          if ! git archive "$BASE_SHA" ci tests | tar -x -C "$basedir" \
+             || ! ba=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list) \
+             || ! bb=$(cd "$basedir" && python3 ci/guard_impl_unittest.py list --routed-rest) || [ -z "$ba" ] || [ -z "$bb" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "base test list unreadable or empty: running"; exit 0
+          fi
+          printf '%s\n' "$a" "$b" | sed '/^$/d' | sort -u > "$basedir/head.lst"
+          printf '%s\n' "$ba" "$bb" | sed '/^$/d' | sort -u > "$basedir/base.lst"
+          if [ -n "$(comm -23 "$basedir/base.lst" "$basedir/head.lst")" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "a routed module left the list since base: running"; exit 0
           fi
           pats=$(mktemp)
           { printf '%s\n' "$a" "$b" | sed -e '/^$/d' -e 's|^|tests/|'; printf '%s\n' tests/guard_impl.py tests/test_guard_build.py tests/test_guard_impl.py tests/test_guard_impl_coverage.py; } > "$pats"
