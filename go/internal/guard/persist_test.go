@@ -567,3 +567,25 @@ func TestPersistHelpers(t *testing.T) {
 		}
 	}
 }
+
+// T-0957: the Edit tools refuse ~/.local/bin (as written, resolved, relative to the cwd, unexpanded $) and allow look-alikes.
+func TestPersistEditLocalBinBlockedAndLookAlikesAllowed(t *testing.T) {
+	persistFix(t)
+	pw := pwHome(t)
+	for _, tk := range [][2]string{{"Edit", "file_path"}, {"Write", "file_path"}, {"MultiEdit", "file_path"}, {"NotebookEdit", "notebook_path"}} {
+		for _, spell := range []string{"~/.local/bin/git", "$HOME/.local/bin/git", pw + "/.local/bin/git", pw + "/.local/bin/factory",
+			pw + "/.local/bin/../bin/git", "/tmp/$X/.local/bin/git"} {
+			if code, msg := editCall(tk[0], tk[1], spell, "/tmp"); code != 2 {
+				t.Errorf("%s %s: exit %d %q, want 2", tk[0], spell, code, msg)
+			}
+		}
+		if code, _ := editCall(tk[0], tk[1], "git", pw+"/.local/bin"); code != 2 {
+			t.Errorf("%s relative git with cwd ~/.local/bin allowed", tk[0])
+		}
+		for _, ok := range []string{"~/.local/binx/foo", pw + "/.local/binx/foo", "/usr/local/bin/foo", "/tmp/x.txt"} {
+			if code, msg := editCall(tk[0], tk[1], ok, "/tmp"); code != 0 {
+				t.Errorf("%s %s: exit %d %q, want 0", tk[0], ok, code, msg)
+			}
+		}
+	}
+}

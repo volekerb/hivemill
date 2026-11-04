@@ -246,6 +246,11 @@ RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LI
 # RUN_SETTINGS and CFG_DIR (writers, redirects, cd + write); reads stay allowed.
 RUN_GUARD_IMPL = {os.path.realpath(os.path.join(h, "run", "guard_impl")) for h in LIVE_HOMES}
 LIB_DIR = os.path.realpath(os.path.join(PW_DIR, ".local", "lib", "factory"))
+# T-0957: ~/.local/bin is first on the tick's and factory-up's PATH, so a file a worker plants there (git, factory, go)
+# runs with their credentials. Protected like LIB_DIR, but matched on the path AS WRITTEN too: its entries are
+# symlinks (factory, claude) whose realpath is outside the tree. Reads and running stay allowed.
+BIN_DIR = os.path.join(PW_DIR, ".local", "bin")
+BIN_DIRS = {BIN_DIR, os.path.realpath(BIN_DIR)}
 # T-0883: run/guard-export.json (what the Go guard decides own goal, push pin, sandbox and terms file from) and its
 # atomic-rename temp sibling guard-export.json.tmp<pid>: a Bash write there forges the guard's own decisions
 RUN_EXPORT = {os.path.realpath(os.path.join(h, "run", "guard-export.json")) for h in LIVE_HOMES}
@@ -262,7 +267,7 @@ def _ancestors(path):
 
 
 EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, the live home, ~, its parents, /
-CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
+CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|\.local/bin(?![A-Za-z0-9_])|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
 INTERPRETERS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs|php|lua|deno|bun)$")
@@ -409,7 +414,20 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+# T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
+INLINE_GH_API_BODY = re.compile(
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
+INLINE_GH_GET = re.compile(r"(?<![\w-])(?:-X|--method)\W*(?i:GET)\b")
+
+
+def inline_gh_api_body(text):
+    """T-0881: True when some `gh ... api ... -f|-F|--field|--raw-field|--input` in the inline code has no GET method of
+    its own: each gh command is cut at the next `gh` word, so a `-X GET` on another gh call exempts nothing."""
+    parts = re.split(r"(?=\bgh\b)", text)
+    return any(INLINE_GH_API_BODY.search(c) and not INLINE_GH_GET.search(c) for c in parts if c.lstrip().startswith("gh"))
+
+
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
 
@@ -1354,8 +1372,8 @@ class Analyzer:
         for t in texts:
             if all(p.search(t) for p in INLINE_GIT_PUSH):
                 raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t):
-                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method); "
+            if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
+                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
                             "no-push roles never write to GitHub; ask your lead")
 
     def git_priv(self, rest, depth):
@@ -1447,17 +1465,22 @@ class Analyzer:
             t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             if any(c in t for c in "$`*?[{"):
                 if (".config/factory" in t or ".local/lib/factory" in t or "run/settings" in t
-                        or "run/guard_impl" in t or "guard-export" in t):
+                        or "run/guard_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
                     return True
                 if self.export_glob(t):
                     return True
                 continue
             if not t or (not os.path.isabs(t) and self.ccwd is None):
                 continue
-            p = os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+            full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+            p = os.path.realpath(full)
             for d in {CFG_DIR, LIB_DIR} | RUN_SETTINGS | RUN_GUARD_IMPL:
                 if p == d or under(p, d) or (ancestor and under(d, p)):
                     return True
+            for q in (p, os.path.normpath(full)):  # T-0957: the spelled path too (a symlink in ~/.local/bin)
+                for d in BIN_DIRS:
+                    if q == d or under(q, d) or (ancestor and under(d, q)):
+                        return True
             for d in RUN_EXPORT:  # the file itself and its temp sibling <file>.tmp<pid>
                 if p == d or p.startswith(d + ".") or (ancestor and under(d, p)):
                     return True
@@ -1468,7 +1491,7 @@ class Analyzer:
             raise Block("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live "
                         "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json "
                         "(the guard's own decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation "
-                        "flag and binary); only the owner and the tick change them")
+                        "flag and binary) or ~/.local/bin (first on the tick's PATH); only the owner and the tick change them")
 
     def cfg_path(self, w):
         """Realpath of a word for the export checks, None when it has an expansion we cannot resolve."""
@@ -1481,6 +1504,14 @@ class Analyzer:
         """Message only (the block fires on cfg_hit): w resolves to run/guard_impl or to LIB_DIR or a file under it."""
         p = self.cfg_path(w)
         return p is not None and (p in RUN_GUARD_IMPL or under(p, LIB_DIR))
+
+    def in_bin_dir(self, w):
+        """Message only (the block fires on cfg_hit): w, as spelled or resolved, is ~/.local/bin or under it."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+        if not t or any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            return bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", t))
+        full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+        return any(under(q, d) or q == d for q in (os.path.realpath(full), os.path.normpath(full)) for d in BIN_DIRS)
 
     def export_rule(self, name, args):
         """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
@@ -1543,6 +1574,9 @@ class Analyzer:
                     if "guard_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
                         raise Block(f"`{name}` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the "
                                     "guard implementation; only the owner and `factory` change them")
+                    if self.in_bin_dir(a):
+                        raise Block(f"`{name}` on ~/.local/bin: it is first on the tick's PATH, so a file there runs with "
+                                    "the tick's credentials; only the owner changes it")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):
@@ -2398,6 +2432,17 @@ class Analyzer:
             self.git_deny(f"`git {sub}` is not on the read-only list (aliases, push, send-pack, subtree, rebase --exec, "
                           "bisect run, submodule foreach, archive --remote ... are refused)")
 
+    def nopush_gh_write(self, rest):
+        """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
+        POST) unless the method is GET, nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
+        pos, method, body = gh_parse(rest)
+        if pos[:1] == ["api"] and body and method != "GET":
+            raise Block("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to "
+                        "GitHub; use -X GET for a read with fields, or ask your lead")
+        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
+            raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
+
     def researcher_cmd(self, name, rest):
         """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
         report, task show|note, goal show); merge, PR, judge, spawn and every other form is refused."""
@@ -2775,6 +2820,8 @@ class Analyzer:
         self.factory_unit(name, rest, assigns)
         if self.role == RESEARCHER and not self.hq:
             self.researcher_cmd(name, rest)
+        if self.role in NO_PUSH_ROLES and not self.hq and name == "gh":
+            self.nopush_gh_write(rest)
         if name in COPIERS:  # R3: no copying/encoding/reading the real herdr binary
             for a in rest:
                 a = a.split("=", 1)[1] if re.match(r"^(if|of)=", a) else a
@@ -4266,6 +4313,14 @@ def persist_edit(data, role=None):
         p = os.path.join(cwd, p)
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    # T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
+    # a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
+    if any(q == d or under(q, d) for q in (os.path.normpath(p), os.path.realpath(p)) for d in BIN_DIRS) or (
+            "$" in p and re.search(r"\.local/bin(?![A-Za-z0-9_])", p)):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): ~/.local/bin is first on the tick's PATH, so a file "
+                         "planted there runs with the tick's credentials; only the owner changes it. "
+                         "Tell your lead if this is wrong.\n")
         return 2
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
     if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (
