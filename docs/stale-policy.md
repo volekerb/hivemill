@@ -7,6 +7,8 @@ With `behind_ok`, a PR whose head does not contain `origin/main` ("BEHIND") is n
 - GitHub's branch protection of `main` reads `required_status_checks.strict == false`. It is read live with
   `gh api repos/<owner>/<repo>/branches/main/protection` and cached 10 minutes (config key `stale_strict:<owner/repo>`).
   `strict == true`, no protection or any read failure behaves as `strict`.
+- `.github/workflows/tests.yml` is unchanged on main since the merge-base of the head and main (T-1000). A head that predates a
+  CI job change must refresh and run CI: the judge refreshes, the mechanical merger refuses with `STALE-ONLY`. Undecidable = changed.
 - GitHub reports `mergeable == MERGEABLE` (no conflict). A conflicting or unknown PR is refreshed or sent back as before.
 
 Effects:
