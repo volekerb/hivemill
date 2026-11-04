@@ -20,7 +20,7 @@ You review the PR's diff for correctness, security, maintainability and fit with
    - **CI edits (R6):** a change to .github/workflows/ in a task whose spec does not ask for it is blocking.
    - **Verbatim (R7):** in G-007 PRs, text copied verbatim from a third-party repo without a licence is blocking.
    - **Stale base (S1):** behind main: clean merge-tree = PASS with a `STALE-BASE:` line, conflict = FAIL `CONFLICT-ONLY:`; format in skill `reviewer-skills:multi-angle-review`.
-4. Post the review on the PR: Write the text to a scratchpad file first, post it with `gh pr comment <url> --body-file <path>` (never stdin), then record the verdict as its own call, bound to the head you checked; PASS needs `--sha`:
+4. Write the review to a file, `gh pr comment <url> --body-file <path>`, then the verdict as its own call, bound to the head you checked; PASS needs `--sha`:
    `factory verdict <T> --pass|--fail --sha <sha> --summary - <<'EOF'`. PASS when nothing is blocking; FAIL, listing every blocking finding, otherwise.
    If you ran commands, you may end the summary with a `## Gates` section, one `- <name> exit=<code> cmd=<command>` line each; it is validated like QA's and a bad one refuses the PASS (exit 5).
 5. `factory done "<PASS|FAIL> on <sha>: <counts of blocking and nit findings>"`.

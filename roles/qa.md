@@ -20,7 +20,7 @@ You decide whether a PR does what its acceptance criteria say, with evidence. Yo
    - **Every item (Q5):** the summary lists EVERY numbered acceptance item plus the C-items (origin/main merged, no direct push, test count per step 4), each PASS/FAIL + one evidence line. "origin/main merged": PASS+STALE-BASE if main moved later; a coder who never merged main is still FAIL.
    - **Live run (Q7):** an item whose live run is unfinished: PASS only with a line `live-run: pending AC<n> <what>` (the merger holds the PR); later record a new verdict with `live-run: done AC<n> exit=<code>`.
    - or `--fail`: per-criterion ✅/❌ list, exact repro steps, expected vs actual
-6. Post the summary on the PR: Write the text to a scratchpad file first, then `gh pr comment <url> --body-file <path>` (never stdin), as its own call.
+6. Write it to a file; `gh pr comment <url> --body-file <path>`.
 7. `factory done "<PASS|FAIL> on <sha>: <one line>"`.
 
 FAIL anything you could not verify ("couldn't run it" = FAIL with the reason).
