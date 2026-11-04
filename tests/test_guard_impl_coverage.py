@@ -9,6 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SELF = "test_guard_impl_coverage"
 # modules that only mention the hook path as text (settings templates, docs/policy checks); module -> reason
 ALLOWLIST = {
+    "test_ci_corpus_step": "asserts the CI workflow guard-diff job paths; names the Go guard dir as a path fixture",
     "test_guard_build": "builds and stamps the Go binary and checks run/guard_impl; never runs the hook",
     "test_local_fast_policy": "checks that the coder role text mentions worker-guard",
     "test_risk_tier": "lists roles/hooks/worker-guard.py as a path in a risk-tier fixture",
@@ -18,7 +19,7 @@ ALLOWLIST = {
 # the guard test modules known at this PR; a new one must use hook_run (and be added here) or go on the allowlist
 KNOWN = {
     "test_guard_build",
-    "test_ci_cursor_guard", "test_ci_wait_guard", "test_clean_remote_branch", "test_cursor_mcp", "test_db_layout", "test_guard_diff", "test_guard_golden",
+    "test_ci_corpus_step", "test_ci_cursor_guard", "test_ci_wait_guard", "test_clean_remote_branch", "test_cursor_mcp", "test_db_layout", "test_guard_diff", "test_guard_golden",
     "test_guard_factory_cli", "test_guard_impl", "test_guard_probe", "test_guard_shim", "test_worker_guard_units",
     "test_guard_test_sandbox", "test_guard_test_sandbox_pilot", "test_live_home", "test_local_fast_policy",
     "test_priv_guard", "test_risk_tier", "test_scout_roles", "test_settings_templates", "test_skilleval_guard_copy",
