@@ -15,6 +15,7 @@ if (args === null || typeof args !== 'object' || Array.isArray(args)) badArg('(a
 const coder = args.mode === 'coder'
 const isText = v => typeof v === 'string' && v.trim() !== ''
 if (!isText(args.pr)) badArg('pr', 'missing or not a non-empty string')
+if (!/(?:^|\/)\d+(?:[\/?#].*)?$/.test(args.pr.trim())) badArg('pr', `${JSON.stringify(args.pr)} is not a PR number or a PR url ending in one`)
 if (args.base !== undefined && !isText(args.base)) badArg('base', 'must be a non-empty string when given (default origin/main)')
 if (!coder && !isText(args.spec_task)) badArg('spec_task', 'missing or not a non-empty string')
 if (args.spec_task !== undefined && !isText(args.spec_task)) badArg('spec_task', 'must be a non-empty string when given')

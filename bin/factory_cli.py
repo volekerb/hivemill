@@ -3231,13 +3231,19 @@ def resolve_recipient(con, to, org=None):
         to = "boss"  # the boss is the owner's interface; it relays
     if to in orgs.SINGLETON_ROLES:
         cand = oname(con, org, to)
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (cand,)).fetchone():
+        live = ("live", "starting", "queued")
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN (?,?,?)", (cand, *live)).fetchone():
             return cand
-        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') "
-                        "ORDER BY started DESC", (to,)).fetchall()
+        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN (?,?,?) "
+                        "ORDER BY started DESC", (to, *live)).fetchall()
         for x in r:
             if agent_org(con, x["name"]) == org:
                 return x["name"]
+        if (org == orgs.DEFAULT_ORG and (cfg(con, "org_prefix_default") or "0").strip() == "1"
+                and not orgs.prefix_of(to)):
+            leg = con.execute("SELECT name FROM agents WHERE name=? AND status IN (?,?,?)", (to, *live)).fetchone()
+            if leg and agent_org(con, leg["name"]) == org:
+                return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
         r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
@@ -5948,6 +5954,17 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
+def _red_main_kept_text(con, tid):
+    """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
+    may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
+    row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
+    st = row["status"] if row else ""
+    if st in ("done", "cancelled"):
+        return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
+                f"(director: factory redmain fix <repo> <task>). No task was filed automatically.")
+    return f"Fix task {tid} is still open; no new task filed."
+
+
 def red_main_check(con):
     """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
     project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
@@ -5981,15 +5998,17 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or (old or {}).get("task") or "",
+                                          "task": tid or kept,
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else "No active goal for the project: file the revert task by hand.")
+                        if tid else _red_main_kept_text(con, kept)
+                        if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
                 mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()

@@ -165,5 +165,43 @@ class RoutingTests(FactoryTestCase):
         self.assertIn("across orgs", p.stderr)
 
 
+class OrgPrefixDefaultRoutingTests(RoutingTests):
+    """Bare boss/director under org_prefix_default=1: legacy unprefixed HQ rows still receive mail."""
+
+    def setUp(self):
+        super().setUp()
+        self.ok("config", "org_prefix_default", "1")
+
+    def test_default_org_bare_hq_reaches_legacy_row(self):
+        e = self.env
+        e.sql("DELETE FROM agents WHERE name IN ('claude-director', 'claude-boss')")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+        self.ok("msg", "boss", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "boss")
+
+    def test_live_prefixed_hq_wins_over_legacy(self):
+        e = self.env
+        e.seed_agent("claude-director", "director")
+        e.seed_agent("claude-boss", "boss")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "claude-director")
+        self.assertNotEqual(self.last_rcpt(), "cursor-director")
+
+    def test_stopped_prefixed_row_falls_back_to_legacy(self):
+        e = self.env
+        e.seed_agent("claude-director", "director", status="stopped")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+
+    def test_cursor_hq_unchanged_under_org_prefix_default(self):
+        self.ok("msg", "director", "zz-test s", "b", agent="cursor-lead-g-002-a")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+        self.ok("msg", "cursor-director", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+        self.ok("msg", "cursor-boss", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-boss")
+
+
 if __name__ == "__main__":
     unittest.main()

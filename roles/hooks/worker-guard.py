@@ -2123,7 +2123,7 @@ class Analyzer:
                         k += 0 if eq else 1  # `--opt=value` carries its value; `--opt value` takes the next argument
                     elif base not in PY_LONG_FLAG:
                         # unknown arity: block only when a later -m names an archive module (`--bogus -m pytest` stays allowed)
-                        if any(a.endswith(("zipfile", "tarfile")) for a in args[k:]):
+                        if any(a.endswith(("zipfile", "tarfile", "zipfile.__main__", "tarfile.__main__")) for a in args[k:]):
                             raise Block(f"`{name}` with the unknown option {cl!r} before -m zipfile/tarfile: the target cannot "
                                         "be bounded; drop the option or extract with unzip -d")
                         break
@@ -2147,7 +2147,7 @@ class Analyzer:
             if code is not None and re.search(r"extractall|extract\s*\(|unpack_archive", code):
                 raise Block(f"`{name} -c` code that extracts an archive cannot be bounded (it may write .git/config or hooks): "
                             f"{why}; use unzip -d or tar -C")
-            if mod in ("zipfile", "tarfile"):
+            if mod in ("zipfile", "tarfile", "zipfile.__main__", "tarfile.__main__"):  # T-0945: `-m zipfile.__main__` runs the same CLI
                 for j, a in enumerate(args[k:], k):
                     if a in ("-e", "--extract"):
                         extract = True
