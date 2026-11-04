@@ -326,17 +326,28 @@ def normalise_rule(rule):
 
 def settings_rules(text, legacy=False):
     """{(kind, rule)} of one settings JSON text: the allow/deny lists, every hook as
-    `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field) and every env entry as `K=V`."""
+    `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), each hook's timeout as its own
+    `hook-timeout` entry `<that text>|timeout=<N>`, every permissions.ask rule, every autoMode entry as `<key>: <text>`
+    (a non-list value as `<key>=<json>`) and every env entry as `K=V`."""
     d = json.loads(text)
     fix = normalise_rule if legacy else (lambda x: x)
     out = set()
-    for kind in ("allow", "deny"):
+    for kind in ("allow", "deny", "ask"):
         for rule in d.get("permissions", {}).get(kind, []):
             out.add((kind, fix(rule)))
     for event, groups in d.get("hooks", {}).items():
         for group in groups:
             for h in group.get("hooks", []):
-                out.add(("hook", "|".join((event, group.get("matcher", ""), h.get("type", ""), fix(h.get("command", ""))))))
+                ident = "|".join((event, group.get("matcher", ""), h.get("type", ""), fix(h.get("command", ""))))
+                out.add(("hook", ident))
+                timeout = h.get("timeout")
+                out.add(("hook-timeout", f"{ident}|timeout={'' if timeout is None else json.dumps(timeout)}"))
+    for key, value in d.get("autoMode", {}).items():
+        if isinstance(value, list):
+            for item in value:
+                out.add(("autoMode", f"{key}: {fix(item) if isinstance(item, str) else json.dumps(item, sort_keys=True)}"))
+        else:
+            out.add(("autoMode", f"{key}={json.dumps(value, sort_keys=True)}"))
     for key, value in d.get("env", {}).items():
         out.add(("env", f"{key}={fix(str(value))}"))
     return out
@@ -344,9 +355,9 @@ def settings_rules(text, legacy=False):
 
 def base_settings_roles(repo, base):
     """Roles that have a roles/settings/<role>.json.in or legacy <role>.json on <base> (none if the dir is absent)."""
-    out = git(repo, "ls-tree", "--full-tree", "--name-only", "--end-of-options", base, SETTINGS_DIR + "/")
+    out = git(repo, "ls-tree", "-z", "--full-tree", "--name-only", "--end-of-options", base, SETTINGS_DIR + "/")
     roles = set()
-    for path in out.splitlines():
+    for path in out.split("\0"):
         name = os.path.basename(path)
         for suffix in (".json.in", ".json"):
             if name.endswith(suffix):
@@ -355,10 +366,17 @@ def base_settings_roles(repo, base):
     return roles
 
 
+def automode_key(rule):
+    """The autoMode key of an entry rendered `<key>: <text>` or `<key>=<json>`."""
+    return re.split(r"[:=]", rule, maxsplit=1)[0]
+
+
 def compare_settings(repo, top, base):
     """Diff the rules of every roles/settings/<role>.json.in against <base>, over the union of the roles on base and
-    in the tree. Returns (lines, loosened): a removed deny, hook or env entry, an added allow, or a removed template is
-    LOOSENED; a removed allow or an added deny or hook is TIGHTENED; an added env entry is SETTINGS-CHANGED."""
+    in the tree. Returns (lines, loosened): a removed deny, ask, hook, hook timeout, autoMode or env entry, an added allow,
+    or a removed template is LOOSENED; a removed allow or an added deny, ask or hook is TIGHTENED; an added env,
+    autoMode or hook-timeout entry is SETTINGS-CHANGED. A timeout line of a hook that exists on only one side is
+    dropped (the hook line itself reports the add or removal)."""
     sdir = os.path.join(top, SETTINGS_DIR)
     tree_roles = set()
     if os.path.isdir(sdir):
@@ -386,15 +404,21 @@ def compare_settings(repo, top, base):
                 continue
         except ValueError as e:
             raise UsageError(f"base {name} is not valid JSON: {e}")
-        for kind, rule in sorted(old - new):
-            lines.append(f"SETTINGS-{'LOOSENED' if kind in ('deny', 'hook', 'env') else 'TIGHTENED'} {role} {kind} removed: {rule}")
-            if kind in ("deny", "hook", "env"):
+        old_hooks = {r for k, r in old if k == "hook"}
+        new_hooks = {r for k, r in new if k == "hook"}
+
+        def paired(kind, rule):  # a timeout line only counts for a hook present on both sides
+            return kind != "hook-timeout" or rule.rsplit("|timeout=", 1)[0] in (old_hooks & new_hooks)
+        removed_automode_keys = {automode_key(r) for k, r in old - new if k == "autoMode"}
+        for kind, rule in sorted(x for x in old - new if paired(*x)):
+            lines.append(f"SETTINGS-{'TIGHTENED' if kind == 'allow' else 'LOOSENED'} {role} {kind} removed: {rule}")
+            if kind != "allow":
                 loosened.append(f"{role} {kind} removed: {rule}")
-        for kind, rule in sorted(new - old):
-            word = {"allow": "LOOSENED", "env": "CHANGED"}.get(kind, "TIGHTENED")
+        for kind, rule in sorted(x for x in new - old if paired(*x)):
+            word = {"allow": "LOOSENED", "env": "CHANGED", "autoMode": "CHANGED", "hook-timeout": "CHANGED"}.get(kind, "TIGHTENED")
             lines.append(f"SETTINGS-{word} {role} {kind} added: {rule}")
-            if kind == "allow":
-                loosened.append(f"{role} {kind} added: {rule}")
+            if kind == "allow" or (kind == "autoMode" and automode_key(rule) not in removed_automode_keys):
+                loosened.append(f"{role} {kind} added: {rule}")  # no removed entry under the same key: fail closed
     return lines, loosened
 
 
