@@ -119,6 +119,8 @@ class StatusOnlyRejectTests(Base):
         self.assertEqual(self.env.sql("SELECT count(*) c FROM messages WHERE recipient=?", (CODER,))[0]["c"], 0)
         m = self.env.run("judge", T, "--merge", "--reason", "retry", agent=JUDGE)
         self.assertNotIn("no longer in_review", m.stderr)
+        self.assertEqual(m.returncode, 0, m.stdout + m.stderr)
+        self.assertIn("MERGED", m.stdout)
 
     def test_status_only_reject_counts_as_reject_in_scorecard(self):
         self.status_only()
@@ -136,12 +138,35 @@ class StatusOnlyRejectTests(Base):
         self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
         self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id=?", (T,))[0]["status"], "in_review")
 
+    def drop_ci_cache(self):
+        self.env.sql("DELETE FROM config WHERE key LIKE 'judge_ci:%'")
+
     def test_autospawn_holds_until_newer_verdict(self):
+        """Reject while the PR is ready (verdict missing on head): no judge loop until a newer verdict."""
         self.assertEqual(len(self.judge_autospawn_calls()), 1)
         self.status_only()
+        self.drop_ci_cache()
         self.assertEqual(self.judge_autospawn_calls(), [])
         self.ok("verdict", T, "--pass", "--summary", gates_summary(), agent="zz-test-qa")
         self.assertEqual(len(self.judge_autospawn_calls()), 1)
+
+    def test_ci_wait_reject_respawns_judge_when_ci_turns_green(self):
+        """B1: reject while CI runs on an unchanged head; CI green later, exactly one judge spawns, no new verdict."""
+        self.env.seed_pr(body=VALID_PR_BODY, checks=[{"name": "unit", "status": "IN_PROGRESS", "conclusion": ""}])
+        self.drop_ci_cache()
+        p = self.status_only()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.drop_ci_cache()
+        self.assertEqual(self.judge_autospawn_calls(), [], "CI still running: judge_hold waits")
+        self.env.seed_pr(body=VALID_PR_BODY, checks=[{"name": "unit", "status": "COMPLETED", "conclusion": "SUCCESS"}])
+        self.drop_ci_cache()
+        self.assertEqual(len(self.judge_autospawn_calls()), 1)
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id=?", (T,))[0]["status"], "in_review")
+
+    def test_no_code_change_refused_with_train(self):
+        p = self.env.run("judge", "--train", T, "T-9999", "--dry-run", "--no-code-change", agent=JUDGE)
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertNotIn("TRAIN", p.stdout)
 
 
 class C4ScratchTest(unittest.TestCase):

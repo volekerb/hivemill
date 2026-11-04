@@ -4780,10 +4780,13 @@ def judge_requeue(con, task, proj, pr_url, new_head):
 
 
 STATUS_ONLY_PREFIX = "status-only: "
+STATUS_ONLY_HELD = STATUS_ONLY_PREFIX + "[head ready] "  # PR was ready when rejected: only a new verdict lifts the hold
 
 
 def cmd_judge(a):
     con = db()
+    if getattr(a, "no_code_change", False) and not a.reject:
+        die("--no-code-change only goes with --reject; nothing was merged or rejected", 2)
     if getattr(a, "train", None):
         if a.task or a.reason is not None:
             die("--train takes only task ids and --dry-run, no task argument or --reason", 2)
@@ -4791,8 +4794,6 @@ def cmd_judge(a):
         return judge_train(con, a)
     if getattr(a, "dry_run", False):
         die("--dry-run is only for --train; nothing was merged or rejected", 2)
-    if getattr(a, "no_code_change", False) and not a.reject:
-        die("--no-code-change only goes with --reject; nothing was merged or rejected", 2)
     if not a.task or not a.reason:
         die("judge needs a task and --reason (or --train T-a T-b ... [--dry-run])", 2)
     if getattr(a, "record_merged", None) is not None:  # "" must reach the sha check, never fall to --merge
@@ -4819,8 +4820,12 @@ def cmd_judge(a):
         # T-1055: status-only reject (CI wait, missing verdict on head): no code change asked, so the task stays in_review.
         # The verdict row still counts as a reject in the scorecard; judge autospawn skips the task until a newer
         # reviewer/QA verdict lands (judge_status_only_hold), and the merge gate is untouched.
+        # CI wait (PR not ready now): no hold; judge_hold keeps a judge queued and one spawns once CI is green.
+        # PR already ready (e.g. verdict missing on head): hold until a newer reviewer/QA verdict, or it would loop.
+        ready, _why = judge_pr_ready(con, t["pr_url"], True)
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
-                    (a.task, t["pr_url"], sha, "judge", "reject", STATUS_ONLY_PREFIX + reason, actor(), now()))
+                    (a.task, t["pr_url"], sha, "judge", "reject",
+                     (STATUS_ONLY_HELD if ready else STATUS_ONLY_PREFIX) + reason, actor(), now()))
         event(con, "task", a.task, "judge-reject-status-only", reason)
         print(f"{a.task} REJECTED (status-only, stays in_review) @ {sha[:8]}")
         return
@@ -12554,11 +12559,12 @@ def judge_autospawn_candidates(con):
 
 
 def judge_status_only_hold(con, task_id):
-    """True while the newest judge verdict is a status-only reject (T-1055) and no reviewer/QA verdict is newer: a judge
-    would only repeat it. A fresh verdict (new head or re-review) lifts the hold."""
+    """True while the newest judge verdict is a status-only reject made while the PR was ready (T-1055) and no
+    reviewer/QA verdict is newer: a judge would only repeat it. A fresh verdict lifts the hold. A CI-wait reject (PR not
+    ready then) never holds: judge_hold waits for CI and one judge spawns once it is green."""
     jr = con.execute("SELECT id, summary FROM verdicts WHERE task_id=? AND role='judge' ORDER BY id DESC LIMIT 1",
                      (task_id,)).fetchone()
-    if not jr or not (jr["summary"] or "").startswith(STATUS_ONLY_PREFIX):
+    if not jr or not (jr["summary"] or "").startswith(STATUS_ONLY_HELD):
         return False
     newer = con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') AND id>?",
                         (task_id, jr["id"])).fetchone()
