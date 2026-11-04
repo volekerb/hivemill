@@ -221,6 +221,25 @@ class RedMainTests(FactoryTestCase):
         self.assertNotIn("by hand", body)
         self.assertEqual(len(self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'")), 1)
 
+    def test_second_red_run_with_closed_stored_task_asks_for_new_one(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.ok("config", "red_main_interval_s", "0")
+        self.runs(RED)
+        self.tick()
+        first = self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'")
+        for st, rid in (("done", 904), ("cancelled", 905)):
+            self.env.sql("UPDATE tasks SET status=? WHERE id=?", (st, first[0]["id"]))
+            self.runs(dict(RED, databaseId=rid))
+            self.tick()
+            body = self.env.sql("SELECT body FROM messages WHERE subject LIKE 'RED MAIN%' ORDER BY id DESC LIMIT 1")[0]["body"]
+            self.assertIn(first[0]["id"], body)
+            self.assertIn(st, body)
+            self.assertIn("new fix task is needed", body)
+            self.assertIn("factory redmain fix", body)
+            self.assertNotIn("still open", body)
+            self.assertNotIn("earlier red run", body)
+        self.assertEqual(len(self.env.sql("SELECT id FROM tasks WHERE title LIKE 'Red main:%'")), 1)
+
     def test_director_names_fix_task_and_it_may_merge(self):
         self.hive_setup()
         self.env.sql("UPDATE tasks SET pr_url='https://github.com/acme/elsewhere/pull/1'")
