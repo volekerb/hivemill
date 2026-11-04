@@ -122,3 +122,11 @@ GUARD_IMPL=go python3 -m unittest tests.test_worker_guard_git
 ```
 
 `tests/test_guard_impl_coverage.py` scans `tests/test_*.py`: a module that names `worker-guard` must import `hook_run`, set a module-level `GUARD_IMPL_PYTHON_ONLY = "<reason>"` (it tests Python-only machinery, such as a pwd patch or the copied hook of a skill-eval trial), or be in the test's `ALLOWLIST` (it only mentions the path as text). It also pins the set of guard test modules: a new one fails until it uses the helper and is added to `KNOWN`.
+
+## Python-only guard PRs under guard-equiv
+
+Since T-0355 the `guard-equiv` job runs on PRs that touch `roles/hooks/` and compares Go with Python strictly, stderr included. A guard PR that changes only the Python hook goes red before merge, and a corpus line can go red because of a different Python-only rule. Pick the rule that fits your PR:
+
+- (a) You change the reason text of an existing rule in the Python guard: the same PR changes the Go string to match, text only.
+- (b) You add a new Python-only rule: its test module carries `GUARD_IMPL_PYTHON_ONLY = "<reason>"`, its forms stay out of `ci/guard_corpus.json` until the Go mirror lands, and the Go mirror task is filed at merge. Every Python-only rule needs its mirror merged before any `impl=go` or shadow flip (M21163).
+- (c) A corpus line is red only because of a different Python-only rule: tag the line with the role where both guards agree (for example `"role": "coder"`), or leave it out, and hand the form to that rule's mirror task. Never allowlist it, never drop `--strict`.
