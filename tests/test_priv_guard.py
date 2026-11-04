@@ -420,7 +420,7 @@ class SettingsTests(unittest.TestCase):
             with self.subTest(role=role):
                 cmds = self.hook_commands(self.load(role))
                 self.assertEqual(len(cmds), 1)
-                self.assertTrue(cmds[0].endswith(f"worker-guard.py --role {role}"), cmds[0])
+                self.assertEqual(cmds[0], f"sh {LIVE_HOME}/roles/hooks/worker-guard --role {role}")  # T-0356: the shim
                 self.assertNotIn("--hq", cmds[0])
 
     def test_cleaner_branch_delete_scope(self):
@@ -444,8 +444,11 @@ class SettingsTests(unittest.TestCase):
         for path in SETTINGS:
             with open(path) as f:
                 d = json.load(f)
+            role = os.path.basename(path)[:-5]
             for cmd in self.hook_commands(d):
-                self.assertTrue(cmd.startswith("python3 " + LIVE_HOME + "/roles/hooks/worker-guard.py"), cmd)
+                want = ("python3 " + LIVE_HOME + "/roles/hooks/worker-guard.py" if role in HQ_ROLES
+                        else "sh " + LIVE_HOME + "/roles/hooks/worker-guard ")
+                self.assertTrue(cmd.startswith(want), cmd)
 
 
 if __name__ == "__main__":

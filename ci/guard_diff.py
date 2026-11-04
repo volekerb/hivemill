@@ -476,7 +476,7 @@ def compare_settings(repo, top, base):
     return lines, loosened
 
 
-ROLE_CALL = re.compile(r"worker-guard\.py --role ([A-Za-z0-9_-]+)")
+ROLE_CALL = re.compile(r"worker-guard(?:\.py)? --role ([A-Za-z0-9_-]+)")  # `python3 ..worker-guard.py` (HQ) or `sh ..worker-guard` (shim)
 
 
 def template_roles(top):
@@ -492,7 +492,7 @@ def template_roles(top):
     except OSError as e:
         raise UsageError(f"cannot read settings templates in {sdir}: {e}; --roles all needs roles/settings/*.json.in")
     if not roles:
-        raise UsageError(f"no roles/settings/*.json.in under {top} calls worker-guard.py --role; cannot derive --roles all")
+        raise UsageError(f"no roles/settings/*.json.in under {top} calls worker-guard or worker-guard.py --role; cannot derive --roles all")
     return sorted(roles)
 
 
