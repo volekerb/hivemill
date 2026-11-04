@@ -16,6 +16,8 @@ def spawn_args(role):
     base = ["spawn", role, "--name", f"zz-test-{role}"]
     if role in ("coder", "qa", "reviewer"):
         base += ["--goal", "G-001", "--task", "T-0001"]
+        if role == "qa":  # T-0956: a no-PR qa task needs an explicit cwd
+            base += ["--cwd", tempfile.gettempdir()]
     return base
 
 
