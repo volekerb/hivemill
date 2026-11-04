@@ -1,6 +1,7 @@
 """G-016 T-0352: tests/guard_impl.py picks the hook implementation and, in diff mode, fails on a divergence."""
 import json
 import os
+import pathlib
 import stat
 import sys
 import tempfile
@@ -81,6 +82,15 @@ SCHEMA = ("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
           "CREATE TABLE tasks (id TEXT PRIMARY KEY, worktree TEXT);")
 
 
+shutil_which = __import__("shutil").which
+
+
+def go_unavailable(err):
+    """True only for "no go binary found" and "go.mod requires go >=" (toolchain older than go.mod, CI shard 8)."""
+    msg = str(err)
+    return msg.startswith("go not found on PATH") or "go.mod requires go >=" in msg
+
+
 def real_cli():
     """bin/factory_cli.py loaded from source under a throwaway FACTORY_HOME (it reads the env at import)."""
     import importlib.util
@@ -158,16 +168,60 @@ class SeedGuardExportTests(unittest.TestCase):
         self.assertEqual(doc["config"], guard_impl.EXPORT_DEFAULTS)
         self.assertEqual((doc["agent_goals"], doc["task_worktrees"]), ({}, {}))
 
+    def test_real_writer_and_seam_documents_have_the_same_top_level_keys(self):
+        import sqlite3
+        cli = real_cli()
+        con = sqlite3.connect(self.db)
+        con.row_factory = sqlite3.Row
+        try:
+            real_path = pathlib.Path(self.home) / "real" / "guard-export.json"
+            cli.write_guard_export(con, real_path)
+        finally:
+            con.close()
+        guard_impl.seed_guard_export()
+        real, seam = json.loads(real_path.read_text()), self.load()
+        self.assertEqual(set(seam), set(real))
+        self.assertEqual(seam["config"], real["config"])
+        self.assertEqual(seam["agent_goals"], real["agent_goals"])
+        self.assertEqual(seam["task_worktrees"], real["task_worktrees"])
+
     def test_go_binary_accepts_the_seeded_export(self):
         with mock.patch.dict(os.environ, {"GUARD_IMPL": "go"}):
             try:
                 guard_impl.go_bin()
             except RuntimeError as e:
-                self.skipTest(str(e))
+                if go_unavailable(e):
+                    self.skipTest(str(e))
+                raise
             r = hook_run(ALLOW, ["--role", "coder"], env=dict(os.environ, FACTORY_AGENT="a-1"))
         self.assertTrue(os.path.exists(self.export))
         self.assertNotIn("guard export", r.stderr)
         self.assertEqual(r.returncode, 0)
+
+    def go_bin_error(self, **patches):
+        with mock.patch.object(guard_impl, "_go_bin", []), mock.patch.dict(os.environ):
+            os.environ.pop("GUARD_GO_BIN", None)
+            os.environ.update(patches.pop("env", {}))
+            which = patches.pop("shutil", {}).get("which", shutil_which)
+            with mock.patch.object(guard_impl.shutil, "which", which), \
+                 mock.patch.object(guard_impl.subprocess, "run", **patches.pop("run", {})):
+                with self.assertRaises(RuntimeError) as cm:
+                    guard_impl.go_bin()
+        return cm.exception
+
+    def test_only_a_missing_go_or_an_old_toolchain_skips(self):
+        no_go = self.go_bin_error(shutil={"which": mock.Mock(return_value=None)}, env={"HOME": self.home})
+        self.assertTrue(go_unavailable(no_go), str(no_go))
+        build = mock.Mock(return_value=mock.Mock(returncode=1, stderr="go: go.mod requires go >= 1.27 (running go 1.26.10)"))
+        old = self.go_bin_error(shutil={"which": mock.Mock(return_value="/bin/true")}, run={"new": build})
+        self.assertTrue(go_unavailable(old), str(old))
+
+    def test_a_build_failure_or_a_bad_guard_go_bin_does_not_skip(self):
+        broken = mock.Mock(return_value=mock.Mock(returncode=1, stderr="cmd/worker-guard/main.go:3: syntax error"))
+        build = self.go_bin_error(shutil={"which": mock.Mock(return_value="/bin/true")}, run={"new": broken})
+        self.assertFalse(go_unavailable(build), str(build))
+        bad = self.go_bin_error(env={"GUARD_GO_BIN": os.path.join(self.home, "missing")})
+        self.assertFalse(go_unavailable(bad), str(bad))
 
     def test_no_write_without_factory_home(self):
         with mock.patch.dict(os.environ):
