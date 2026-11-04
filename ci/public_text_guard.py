@@ -112,11 +112,26 @@ def check_ref(name, terms):
     return check_text(name, terms)
 
 
+GIT_TIMEOUT = 60.0  # seconds per git call (T-0961)
+
+
+def git_timeout():
+    """GIT_TIMEOUT, or FACTORY_PT_GIT_TIMEOUT when it is a positive number below it (a test may lower it, never raise it)."""
+    try:
+        v = float(os.environ.get("FACTORY_PT_GIT_TIMEOUT", ""))
+    except ValueError:
+        return GIT_TIMEOUT
+    return v if 0 < v < GIT_TIMEOUT else GIT_TIMEOUT
+
+
 def _git(repo, *args):
     cmd = ["git", "-C", str(repo), "-c", "core.quotepath=off", "-c", "i18n.logOutputEncoding=UTF-8",
            "-c", "log.showSignature=false", *args]
     try:
-        return subprocess.run(cmd, capture_output=True, check=True, env=scrub.git_env()).stdout
+        return subprocess.run(cmd, capture_output=True, check=True, env=scrub.git_env(), timeout=git_timeout()).stdout
+    except subprocess.TimeoutExpired:  # T-0961: a stalled git fails closed (the hook turns UsageError into a deny)
+        raise UsageError(f"git {args[0]} in {str(repo)!r} did not finish in {git_timeout():g}s. "
+                         "Retry; if it keeps stalling, tell your lead (stale remote-tracking refs make the range huge).")
     except FileNotFoundError:
         raise UsageError("git not found on PATH")
     except subprocess.CalledProcessError as e:

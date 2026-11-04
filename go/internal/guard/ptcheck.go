@@ -3,6 +3,7 @@ package guard
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
@@ -14,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Port of the git-facing half of ci/public_text_guard.py (check_push and the image payload readers) and of the
@@ -29,16 +31,35 @@ func ptGitEnv() []string {
 	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_NO_REPLACE_OBJECTS=1")
 }
 
+// ptGitTimeoutMax is public_text_guard.GIT_TIMEOUT (T-0961).
+const ptGitTimeoutMax = 60 * time.Second
+
+// ptGitTimeout is public_text_guard.git_timeout: FACTORY_PT_GIT_TIMEOUT when a positive number of seconds below the max.
+func ptGitTimeout() time.Duration {
+	v, err := strconv.ParseFloat(strings.TrimSpace(os.Getenv("FACTORY_PT_GIT_TIMEOUT")), 64)
+	if err != nil || !(v > 0) || v*float64(time.Second) >= float64(ptGitTimeoutMax) {
+		return ptGitTimeoutMax
+	}
+	return time.Duration(v * float64(time.Second))
+}
+
 // ptGit is public_text_guard._git: git output, or a usageError that names the failure.
 func ptGit(repo string, args ...string) ([]byte, error) {
 	full := append([]string{"-C", repo, "-c", "core.quotepath=off", "-c", "i18n.logOutputEncoding=UTF-8", "-c", "log.showSignature=false"}, args...)
-	cmd := exec.Command("git", full...)
+	ctx, cancel := context.WithTimeout(context.Background(), ptGitTimeout())
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Env = ptGitEnv()
+	cmd.WaitDelay = 2 * time.Second // a grandchild holding the pipe open must not outlive the deadline
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err == nil {
 		return out, nil
+	}
+	if ctx.Err() == context.DeadlineExceeded { // T-0961: a stalled git fails closed
+		return nil, &usageError{"git " + args[0] + " in " + pyRepr(repo) + " did not finish in " + strconv.FormatFloat(ptGitTimeout().Seconds(), 'g', -1, 64) +
+			"s. Retry; if it keeps stalling, tell your lead (stale remote-tracking refs make the range huge)."}
 	}
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
