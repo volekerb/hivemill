@@ -313,6 +313,17 @@ class JudgeRefreshTests(FactoryTestCase):
         reasons = [r["summary"] for r in self.env.sql("SELECT summary FROM verdicts WHERE task_id='T-0001' AND role='judge'")]
         self.assertTrue(any("tests.yml unchanged on main since the merge-base" in d for d in reasons), reasons)
 
+    def test_g7_stale_policy_doc_quotes_current_reason_and_tests_yml_exception(self):
+        # T-1010: docs/stale-policy.md must quote the reason text the judge writes and name the T-1000 exception
+        root = Path(__file__).resolve().parent.parent
+        reasons = [l for l in (root / "bin" / "factory_cli.py").read_text().splitlines() if l.startswith("BEHIND_OK_NOTE = ")]
+        self.assertEqual(len(reasons), 1)
+        note = reasons[0].split('"')[1]
+        doc = (root / "docs" / "stale-policy.md").read_text()
+        self.assertIn(note, doc)
+        self.assertIn(".github/workflows/tests.yml", doc)
+        self.assertIn("T-1000", doc)
+
     def _strict_refreshes(self, strict):
         self.main_commit()
         self.write_state(strict=strict)
