@@ -160,6 +160,7 @@ DEFAULT_CONFIG = {
     "reserved_worker_slots": "10",  # agent slots kept free for workers when waking leads (G-014)
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
     "review_autospawn": "off",   # off | on: the tick starts reviewer + QA (or one combined agent for T0/T1) when a PR opens (G-022 #6, docs/review-autospawn.md)
+    "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -8547,6 +8548,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
     prompt = coder_judge_reject_kickoff(con, role, task, gated_reviewer_prompt(con, role, task, prompt))
+    prompt = coder_ci_handoff_kickoff(con, role, prompt)
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
@@ -9265,11 +9267,57 @@ def cmd_prcheck(a):
     sys.exit(0 if ok else 1)
 
 
-def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
+CI_HANDOFF_MODES = ("resume", "fresh")
+CI_HANDOFF_LINE = "CI pending, tick starts review at green, do not spawn reviewer."
+
+
+def ci_handoff_on(con):
+    """True when config coder_ci_handoff is resume|fresh (default off: nothing below changes)."""
+    return cfg(con, "coder_ci_handoff") in CI_HANDOFF_MODES
+
+
+def ci_handoff_active(con):
+    """The handoff only works when the tick starts the review: coder_ci_handoff on AND review_autospawn=on.
+    With review_autospawn off nobody would start review, so the old gate stays."""
+    return ci_handoff_on(con) and cfg(con, "review_autospawn") == "on"
+
+
+def ci_not_green(pr_url):
+    """True unless the PR's checks are all done and green (empty rollup = pending); unreadable = True (fail safe)."""
+    try:
+        return ci_verdict(pr_state(pr_url).get("statusCheckRollup"))[0] != "green"
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError, AttributeError):
+        return True
+
+
+def coder_ci_handoff_kickoff(con, role, prompt):
+    """Coder kickoff extra with coder_ci_handoff on: do not wait for CI; set in_review and run factory done."""
+    if role != "coder" or not ci_handoff_active(con):
+        return prompt
+    line = ("coder_ci_handoff is on: do not wait for CI. After self-review set the task in_review and run "
+            "factory done; the tick starts review at green CI.")
+    return f"{prompt} {line}" if prompt else line
+
+
+def pr_pushed_head_ok(pr_url, head):
+    """(ok, reason): the PR is open and its head is `head` (pushed). CI state is not looked at."""
+    try:
+        pr = pr_state(pr_url)
+    except (SystemExit, subprocess.SubprocessError, ValueError, OSError) as e:
+        return False, f"cannot read PR: {e}"
+    if pr.get("state") != "OPEN":
+        return False, f"PR is {pr.get('state')}, not OPEN"
+    if pr.get("headRefOid") != head:
+        return False, f"PR head {(pr.get('headRefOid') or '?')[:9]} != local HEAD {head[:9]}: push first"
+    return True, "PR open, head pushed"
+
+
+def prcheck_done_via_ci(con, task_id, wt, head, pr_url, handoff=False):
     """The affected-tests part of the `factory done` prcheck gate is met by green CI: the PR is open, its head is the
     local HEAD, and every check is green with the required ones present (the judge's helpers). The cheap prcheck parts
     (fresh, identity, body, public text) still run here. Returns (ok, reason); anything undecidable is not ok."""
-    ok, why = ci_green_on_head(con, head, pr_url)
+    # coder_ci_handoff: only the CI part is skipped; PR open + head pushed and the cheap parts below still must pass
+    ok, why = pr_pushed_head_ok(pr_url, head) if handoff else ci_green_on_head(con, head, pr_url)
     if not ok:
         return False, why
     t = con.execute("SELECT t.id, t.goal_id, t.worktree, p.base_branch FROM tasks t JOIN goals g ON g.id=t.goal_id "
@@ -9281,7 +9329,7 @@ def prcheck_done_via_ci(con, task_id, wt, head, pr_url):
         ok, note = fn()
         if not ok:
             return False, f"{name} FAIL: {note}"
-    return True, "all checks SUCCESS"
+    return True, "CI handoff: head pushed, CI not required" if handoff else "all checks SUCCESS"
 
 
 def ci_green_on_head(con, head, pr_url):
@@ -9331,7 +9379,12 @@ def prcheck_done_refusal(con, r, t):
             if d.get("ok"):
                 return
             break
-    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"])
+    st = con.execute("SELECT status FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+    handoff = ci_handoff_active(con) and bool(st and st["status"] == "in_review")  # an in_progress task (judge reject) keeps the CI gate
+    ok, why = prcheck_done_via_ci(con, r["task_id"], wt, head, t["pr_url"], handoff=handoff)
+    if ok and handoff:
+        print(f"factory: prcheck accepted via CI handoff on PR head {head[:9]} ({why})", file=sys.stderr)
+        return
     if ok:
         print(f"factory: prcheck accepted via green CI on PR head {head[:9]} ({why})", file=sys.stderr)
         return
@@ -9422,6 +9475,8 @@ def cmd_done(a):
             print("CI state unknown (gh failed)", file=sys.stderr)
         if ci and ci != "green":
             summary += f"\n\nCI at done: {ci}"
+        if ci_handoff_active(con) and t and t["status"] == "in_review" and t["pr_url"] and ci_not_green(t["pr_url"]):
+            summary += f"\n\n{CI_HANDOFF_LINE}"  # also for an empty rollup, which checks_ok reads as green
     cur = con.execute("UPDATE agents SET status=?, summary=?, ended=?, stop_requested_at=NULL, stop_attempt_at=NULL, "
                       "stop_failed_kind=NULL WHERE name=? AND status='live'",
                       ("live" if r["role"] in PERSISTENT_ROLES else "done", summary, now(), me))
@@ -14120,6 +14175,7 @@ def review_autospawn_tick(con):
     except Exception as e:  # noqa: BLE001 — the new-head pass must not stop the first-review pass
         event(con, "tick", "review-autospawn", "review-autospawn-error", f"rerun: {e}"[:300])
     combined_ok = cfg(con, "risk_tiers") == "on"
+    handoff = ci_handoff_on(con)
     try:
         clock = digest_clock().timestamp()
     except FactoryNowError:
@@ -14133,8 +14189,11 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        if _review_pr_problem(con, t, _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S), batch, clock):
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if _review_pr_problem(con, t, pr, batch, clock):
             continue
+        if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
         # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
