@@ -136,6 +136,7 @@ TASK_WAITS = ["owner", "internal"]
 GOAL_STATUSES = ["proposed", "planning", "active", "blocked", "done", "cancelled"]
 
 DEFAULT_CONFIG = {
+    "guard_impl": "python",      # G-016: python | go | shadow; run/guard_impl is rewritten from this (docs/worker-guard-go.md); director-only
     "model_cleaner": "",         # G-011 trial rollback: "" = the MODELS table (Haiku); else opus/sonnet/haiku 5.5 (docs/model-routing.md)
     # cap on factory agents: status='live' in the DB and listed by herdr (by name or pane id) or started <180 s ago.
     # Claude panes factory didn't start are not counted (shown as "other"); the MemAvailable floor guards RAM.
@@ -230,6 +231,7 @@ DEFAULT_CONFIG = {
     "test_orphan_alert_s": "1800",  # tick alert: a test runner older than this (s) with no live owner agent; 0 or non-integer = off
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
+    "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
     "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
@@ -1877,6 +1879,188 @@ def check_gh_roles(key, value):
     return ",".join(dict.fromkeys(names))
 
 
+GUARD_IMPLS = ("python", "go", "shadow")
+GUARD_BUILD_TIMEOUT_S = 300  # `factory up` (factory-up.service allows 600 s)
+GUARD_TICK_BUILD_TIMEOUT_S = 120  # the tick (factory-tick.service TimeoutStartSec=240): a build must not kill the tick
+GUARD_FAILED_BACKOFF_S = 30 * 60  # the tick skips a build that failed for this srchash for this long
+
+
+def guard_src_home():
+    """The checkout holding go/: the live home for a live FACTORY_HOME, else this run's own home (tests, dry installs)."""
+    return Path(LIVE_HOME) if home_is_live() else HOME
+
+
+def guard_lib_dir():
+    return Path.home() / ".local" / "lib" / "factory"
+
+
+def guard_srchash(src=None):
+    """`git rev-parse HEAD:go` of the checkout, or "" when there is no go/ tree or git fails."""
+    try:
+        p = git_run(src or guard_src_home(), "rev-parse", "HEAD:go", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
+def _read_line(path):
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
+def _write_atomic(path, text, mode=0o644):
+    """Write text to path through a temp file in the same dir + rename."""
+    path = Path(path)
+    fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)  # unique name: never follows a planted link
+    try:
+        with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), mode)
+            f.write(text)
+        os.replace(name, path)
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
+
+
+def guard_binary_state(src=None, lib=None):
+    """ok | missing | stale: the Go guard binary against the stamp and the srchash of the checkout's go/."""
+    lib = Path(lib or guard_lib_dir())
+    stamp = _read_line(lib / "worker-guard.stamp")
+    if not os.access(lib / "worker-guard", os.X_OK) or not stamp:
+        return "missing"
+    return "ok" if stamp == guard_srchash(src) else "stale"
+
+
+def guard_go_path():
+    """The one Go toolchain the build may run: ~/.local/go/bin/go. No PATH lookup (a worker controls PATH)."""
+    return Path.home() / ".local" / "go" / "bin" / "go"
+
+
+def guard_build_env(lib):
+    """The exact environment of the Go build: nothing is inherited, so GOFLAGS, GOENV, GOROOT, GOEXPERIMENT, GODEBUG
+    and ~/.config/go/env of the caller cannot reach the compiler; cache, modules and temp live in the lib dir."""
+    gohome = Path(lib) / "go"
+    return {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), "GOTOOLCHAIN": "local", "GOENV": "off", "GOFLAGS": "",
+            "GOWORK": "off", "GOPROXY": "off", "GOSUMDB": "off", "CGO_ENABLED": "0",
+            "GOCACHE": str(gohome / "cache"), "GOMODCACHE": str(gohome / "mod"), "GOPATH": str(gohome / "path"),
+            "GOTMPDIR": str(gohome / "tmp")}
+
+
+def _run_build(cmd, cwd, timeout, env):
+    """Run cmd with exactly env, in its own process group; on timeout kill the whole group so no go compile child survives."""
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, start_new_session=True)
+    try:
+        _, err = p.communicate(timeout=timeout)
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(p.pid, signal.SIGKILL)
+        p.communicate()
+        raise
+    return p.returncode, err
+
+
+def build_guard_go(src=None, lib=None, tick=False, go=None):
+    """Build go/cmd/worker-guard into <lib>/worker-guard and stamp it with the srchash. Never raises.
+
+    No-op when the stamp already equals HEAD:go and the binary exists. A failed build deletes the stamp (the shim then
+    runs Python) and leaves an old binary alone. The stamp is written last, after the rename. Returns
+    built | current | skipped | failed. tick=True (the tick path): 120 s budget, quiet when go is missing, and a
+    failed build for this srchash is not retried for 30 min (worker-guard.failed). A lib=None build outside a live
+    home is skipped: it would write the real ~/.local/lib/factory. go= is for tests; the default is ~/.local/go/bin/go
+    only. The caller decides whether to build at all (guard_tick builds only when guard_impl != python).
+    See docs/worker-guard-go.md."""
+    if lib is None and not home_is_live():
+        return "skipped"
+    src, lib = Path(src or guard_src_home()), Path(lib or guard_lib_dir())
+    go = str(go) if go else str(guard_go_path())
+    if not os.access(go, os.X_OK):
+        if not tick:
+            print("guard go build: skipped (no go toolchain)", file=sys.stderr)
+        return "skipped"
+    srchash = guard_srchash(src)
+    if not srchash:
+        return "skipped"
+    stamp, binary = lib / "worker-guard.stamp", lib / "worker-guard"
+    if _read_line(stamp) == srchash and os.access(binary, os.X_OK):
+        return "current"
+    failed = lib / "worker-guard.failed"
+    if tick and _read_line(failed) == srchash:
+        try:
+            if time.time() - failed.stat().st_mtime < GUARD_FAILED_BACKOFF_S:
+                return "skipped"
+        except OSError:
+            pass
+    try:
+        lib.mkdir(parents=True, exist_ok=True)
+        lock = open(lib / ".build.lock", "a+")
+    except OSError as e:
+        print(f"guard go build: skipped ({e})", file=sys.stderr)
+        return "skipped"
+    with lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return "skipped"  # another build is running
+        new = lib / "worker-guard.new"
+        try:
+            env = guard_build_env(lib)
+            Path(env["GOTMPDIR"]).mkdir(parents=True, exist_ok=True)  # go refuses a missing GOTMPDIR
+            nice = ["/usr/bin/nice", "-n", "10"] if os.access("/usr/bin/nice", os.X_OK) else []
+            rc, stderr = _run_build([*nice, go, "build", "-buildvcs=false", "-trimpath", "-o", str(new), "./cmd/worker-guard"],
+                                    src / "go", GUARD_TICK_BUILD_TIMEOUT_S if tick else GUARD_BUILD_TIMEOUT_S, env)
+            ok = rc == 0
+            first = (stderr or "").strip().splitlines()[:1]
+            err = first[0] if first else f"exit {rc}"
+        except (OSError, subprocess.SubprocessError) as e:
+            ok, err = False, str(e)[:200]
+        if not ok:
+            stamp.unlink(missing_ok=True)
+            new.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _write_atomic(failed, srchash + "\n")
+            print(f"guard go build: failed ({err}); the guard stays on Python", file=sys.stderr)
+            return "failed"
+        try:
+            os.chmod(new, 0o755)
+            os.replace(new, binary)
+            _write_atomic(stamp, srchash + "\n")
+            failed.unlink(missing_ok=True)
+        except OSError as e:
+            stamp.unlink(missing_ok=True)
+            new.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _write_atomic(failed, srchash + "\n")
+            print(f"guard go build: failed ({e}); the guard stays on Python", file=sys.stderr)
+            return "failed"
+    return "built"
+
+
+def write_guard_impl(con, src=None):
+    """Rewrite $FACTORY_HOME/run/guard_impl from the DB: "<impl> <srchash>", or "python -" when go/ has no tree."""
+    impl = cfg(con, "guard_impl")
+    srchash = guard_srchash(src)
+    line = f"{impl} {srchash}" if srchash and impl in GUARD_IMPLS else "python -"
+    RUN.mkdir(parents=True, exist_ok=True)
+    _write_atomic(RUN / "guard_impl", line + "\n")
+    return line
+
+
+def guard_tick(con, build=True, tick=True, src=None, lib=None, go=None):
+    """`factory up` (tick=False) and the tick: refresh run/guard_impl, build (only when guard_impl != python: at the
+    default no Go toolchain runs; cheap no-op when stamped; skipped under load), refresh it again. The flag is written first so a pull that changes go/ makes srchash differ from the stamp
+    (the shim uses Python) before a slow or killed build. Never raises: the guard falls back to Python on its own."""
+    try:
+        write_guard_impl(con, src)
+        cap = float(cfg(con, "gate_max_load_ratio")) * (os.cpu_count() or 1)
+        if build and cfg(con, "guard_impl") != "python" and load1() <= cap \
+                and build_guard_go(src, lib, tick=tick, go=go) in ("built", "failed"):
+            write_guard_impl(con, src)
+    except (OSError, ValueError, subprocess.SubprocessError, sqlite3.Error) as e:
+        print(f"guard go build: tick step failed ({e})", file=sys.stderr)
+
+
 def cmd_config(a):
     con = db()
     if a.key and a.value is not None:
@@ -1894,6 +2078,11 @@ def cmd_config(a):
         if a.key == "model_cleaner":
             check_model_override(a.key, a.value)
             a.value = a.value.strip()
+        if a.key == "guard_impl":
+            a.value = a.value.strip()
+            if a.value not in GUARD_IMPLS:
+                die(f"guard_impl must be one of {', '.join(GUARD_IMPLS)}, not {a.value!r}: "
+                    f"fix it with `factory config guard_impl python`", 2)
         if a.key == "sandbox_roles":
             a.value = check_sandbox_roles(a.value)
         if a.key in ("worker_gh_roles", "gh_rw_roles"):
@@ -1927,6 +2116,12 @@ def cmd_config(a):
         con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (a.key, a.value))
         event(con, "config", a.key, "set", a.value)
+        if a.key == "guard_impl":
+            write_guard_impl(con)
+            state = guard_binary_state()
+            if a.value != "python" and state != "ok":
+                print(f"warning: guard binary is {state}; the shim uses python until `factory up` or the tick builds it",
+                      file=sys.stderr)
     elif a.key:
         if a.key not in DEFAULT_CONFIG:
             die(f"unknown key {a.key}; known: {', '.join(DEFAULT_CONFIG)}", 2)
@@ -1934,6 +2129,7 @@ def cmd_config(a):
         return
     for k in DEFAULT_CONFIG:
         print(f"{k} = {cfg(con, k)}")
+    print(f"guard binary: {guard_binary_state()}")
 
 
 def cmd_whoami(a):
@@ -3345,7 +3541,11 @@ def pr_body_problems(body, headings):
     """Every way `body` departs from the PR template, as sentences; empty when it conforms."""
     problems = []
     outside = pr_outside_details(body)
-    lines = [ln.rstrip() for ln in outside.splitlines()]
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+    lines, off = [], 0
+    for raw in outside.splitlines(keepends=True):  # a heading inside a code fence is text, not a section
+        lines.append("" if any(x <= off < y for x, y in spans) else raw.rstrip())
+        off += len(raw)
     missing = [h for h in headings if h not in lines]
     if missing:
         problems.append("missing section heading(s): " + ", ".join(f"`{h}`" for h in missing))
@@ -4477,6 +4677,9 @@ def cmd_judge(a):
         con.execute("UPDATE tasks SET status='in_progress', updated=? WHERE id=?", (now(), a.task))
         event(con, "task", a.task, "judge-reject", reason)
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
+        if t["assignee"]:
+            send(con, t["assignee"], f"judge reject: {a.task} in_progress",
+                 judge_reject_coder_notice(a.task, reason), "request", t["goal_id"], a.task, sender=actor())
         print(f"{a.task} REJECTED @ {sha[:8]}")
         return
     return judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj)
@@ -4771,6 +4974,8 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
+LIVE_RUN_PENDING = re.compile(  # optional bullet/quote/backtick, "1." number, "[ ]" checkbox, bold/backtick around the key
+    r"(?im)^[ \t>*`_-]*(?:\d+[.)][ \t]+)?(?:\[[ xX]?\][ \t]*)?[ \t>*`_-]*live-run[*`_]*:[*`_]*[ \t]*pending\b.*$")
 
 
 def mech_mode(con):
@@ -4852,20 +5057,11 @@ def mech_tier(con, t, sha, git_repo):
 def mech_try(con, t, mode, retry_s):
     """Evaluate one candidate: 'merged', 'blocked' (event written) or 'skipped' (not ready yet; nothing written)."""
     tid, url = t["id"], t["pr_url"]
-    ready, why = judge_pr_ready(con, url)
-    if not ready:
-        return "skipped"
-    try:
-        pr = pr_state(url)
-    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
-        return "skipped"  # gh failed: try again next run
-    sha = pr["headRefOid"]
-    wt = t["worktree"]
-    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    sha = None  # known after pr_state; the DB-only checks below run first
     block_kind = "mech-would-block" if mode == "shadow" else "mech-blocked"
 
     def block(msg):
-        detail = f"head={sha[:12]}: {msg}"[:900]
+        detail = (f"head={sha[:12]}: {msg}" if sha else msg)[:900]
         last = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
                            "ORDER BY id DESC LIMIT 1", (tid, *MECH_EVENTS)).fetchone()
         if not last or last["detail"] != detail:  # a permanent block is recorded once, not every retry window
@@ -4876,6 +5072,21 @@ def mech_try(con, t, mode, retry_s):
     if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                    (tid,)).fetchone() or con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()["status"] != "in_review":
         return "skipped"  # a judge appeared (or the task moved) since the candidate list was built
+    qa = con.execute("SELECT summary FROM verdicts WHERE task_id=? AND role='qa' ORDER BY id DESC LIMIT 1", (tid,)).fetchone()
+    pending = LIVE_RUN_PENDING.search((qa["summary"] or "") if qa else "")
+    if pending:  # QA's PASS rests on a live run it has not finished (roles/qa.md Q7): only the judge may merge
+        return block("QA live-run pending (%s); hold until QA records the result, or the judge decides" % pending.group(0).strip()[:120])
+
+    ready, why = judge_pr_ready(con, url)
+    if not ready:
+        return "skipped"
+    try:
+        pr = pr_state(url)
+    except (SystemExit, ValueError, KeyError, subprocess.SubprocessError, OSError):
+        return "skipped"  # gh failed: try again next run
+    sha = pr["headRefOid"]
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
 
     if not git_config_guard(con, git_repo, always_event=True):
         return block(f"git config in {git_repo} would run code")
@@ -5762,6 +5973,66 @@ def remote_url_alert(con):
                     (msg or "",))
 
 
+LIVE_TREE_ALERT_MAX_PATHS = 20
+
+
+def live_tree_dirty_paths():
+    """[(XY, path)] for modified, deleted or staged tracked files of the live checkout, exports/ and state/ left out
+    (sync_pull restores those every tick). Untracked entries are not read. Raises RuntimeError when git cannot answer."""
+    p = git_run(HOME, "status", "--porcelain", "-z", "--untracked-files=no", "--", ".", ":(exclude)exports", ":(exclude)state",
+             text=False, timeout=30, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})  # read-only: no index refresh write
+    if p.returncode != 0:
+        raise RuntimeError(f"git status exited {p.returncode}: {p.stderr.decode('utf-8', 'replace').strip()[-200:]}")
+    fields = p.stdout.decode("utf-8", "replace").split("\0")
+    out, i = [], 0
+    while i < len(fields):
+        f = fields[i]
+        i += 1
+        if len(f) < 4:
+            continue
+        xy, path = f[:2], f[3:]
+        out.append((xy, path))
+        if "R" in xy or "C" in xy:  # a rename or copy entry carries the old path as the next field
+            if i < len(fields) and fields[i]:
+                out.append((xy, fields[i]))
+            i += 1
+    return out
+
+
+def live_tree_dirty_alert(con):
+    """Tick hook: one alert to the director per distinct sorted set of dirty tracked paths in the live checkout
+    (re-armed once it is clean again). Never repairs anything. A git failure records one event per new error text."""
+    if not git_config_guard(con, HOME):
+        return  # a planted git config has its own alert
+    try:
+        dirty = live_tree_dirty_paths()
+    except (OSError, subprocess.SubprocessError, RuntimeError) as e:
+        err = str(e)[:300]
+        old = con.execute("SELECT ts FROM throttle WHERE key='live-tree-failed'").fetchone()
+        if not old or old["ts"] != err:
+            con.execute("INSERT INTO throttle(key,ts) VALUES('live-tree-failed',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (err,))
+            event(con, "tick", "live-tree", "live-tree-check-failed", err)
+        return
+    con.execute("DELETE FROM throttle WHERE key='live-tree-failed'")
+    paths = sorted({p for _, p in dirty})
+    key = json.dumps(paths)
+    row = con.execute("SELECT value FROM config WHERE key='live_tree_alerted'").fetchone()
+    seen = row["value"] if row else json.dumps([])
+    if paths and key != seen:
+        st = {}
+        for xy, p in dirty:
+            st.setdefault(p, xy)
+        shown = paths[:LIVE_TREE_ALERT_MAX_PATHS]
+        lines = "\n".join(f"  {st[p]} {p}" for p in shown)
+        more = f"\n  ... and {len(paths) - len(shown)} more" if len(paths) > len(shown) else ""
+        send(con, "director", f"live checkout has {len(paths)} modified tracked file(s)",
+             f"`git status --porcelain --untracked-files=no` in {HOME} (exports/ and state/ excluded) lists {len(paths)} path(s):\n"
+             f"{lines}{more}\nThe tick does not repair this: restore or commit them by hand after finding who wrote there.",
+             "alert", sender="tick")
+    if key != seen:
+        _set_config(con, "live_tree_alerted", key)
+
+
 MAIN_PROTECTION_EVERY_S = 3600  # the check, and so the boss alert, runs at most this often (R-a)
 
 
@@ -6459,6 +6730,66 @@ def reap_orphans(con):
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "orphan-reap", "orphan-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+EXITED_PANE_THROTTLE_S = 600   # same cadence as the orphan reaper
+EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before its pane is touched
+EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
+
+
+def reap_exited_panes(con, agents):
+    """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
+    one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
+    and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
+    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
+    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
+    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    `agents` is the tick's host agent list (None or empty = nothing to do)."""
+    try:
+        mode = cfg(con, "exited_pane_reap_mode")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        if mode == "off" or not agents:
+            return
+        t = time.time()
+        last = con.execute("SELECT ts FROM throttle WHERE key='exitedpanereap'").fetchone()
+        if last and t - float(last["ts"]) < EXITED_PANE_THROTTLE_S:
+            return
+        con.execute("INSERT INTO throttle(key,ts) VALUES('exitedpanereap',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+        for h in agents:
+            name, pane = h.get("name"), h.get("pane_id")
+            if not name or not pane:
+                continue
+            r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
+            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
+                continue
+            ended = _ts(r["ended"])
+            if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
+                continue
+            if con.execute("SELECT 1 FROM agents WHERE pane_id=? AND name!=? AND status IN ('live','starting','queued','stopped')",
+                           (pane, name)).fetchone():
+                continue  # the pane id was handed to a newer live agent
+            if pane_gone(pane) is not False:
+                continue  # the tick's list is stale (e.g. its reap loop just closed it) or the host cannot be asked
+            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"]}
+            key = json.dumps({"agent": name, "pane": pane})[:-1] + ","
+
+            def seen(action):
+                return con.execute("SELECT 1 FROM events WHERE action=? AND substr(detail,1,?)=?",
+                                   (action, len(key), key)).fetchone()
+            if mode == "dry-run":
+                if not seen("exited-pane-would-close"):
+                    event_as(con, "tick", "agent", name, "exited-pane-would-close", detail)
+                continue
+            herdr("pane", "close", pane, check=False)
+            if pane_gone(pane) is True:
+                event_as(con, "tick", "agent", name, "exited-pane-closed", detail)
+            elif not seen("exited-pane-close-failed"):
+                event_as(con, "tick", "agent", name, "exited-pane-close-failed", detail)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "exited-pane-reap", "exited-pane-reap-failed", str(e))
         except Exception:  # noqa: BLE001
             pass
 
@@ -7254,7 +7585,6 @@ def prepare_worktree(con, task, role):
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
         if role == "coder" and t["branch"]:
-            # QA may have left the worktree on a detached PR head; a retry coder needs its branch (switch checks out)
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
@@ -7339,6 +7669,41 @@ def gated_reviewer_prompt(con, role, task, prompt):
     if not review_gate(files, changed):
         return prompt
     return f"{prompt} {GATED_PR_LINE}" if prompt else GATED_PR_LINE
+
+
+def judge_reject_coder_next_cmd(task_id):
+    return f"factory task update {task_id} --status in_review"
+
+
+def judge_reject_coder_notice(task_id, reason):
+    """Tell the assignee the DB status after judge --reject and the command to re-enter review."""
+    return (f"Task {task_id} status is in_progress after judge reject.\n\n{reason}\n\n"
+            f"After the fix is pushed: {judge_reject_coder_next_cmd(task_id)} (existing PR checks apply).")
+
+
+def task_in_progress_from_judge_reject(con, task_id):
+    """True while the task is in_progress because the judge rejected it (not a lead retry after QA fail)."""
+    if not task_id:
+        return False
+    t = con.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+    if not t or t["status"] != "in_progress":
+        return False
+    jr = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='judge-reject' "
+                     "ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    if not jr:
+        return False
+    upd = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                      "AND detail LIKE '%status=in_progress%' ORDER BY id DESC LIMIT 1", (task_id,)).fetchone()
+    return not upd or upd["ts"] <= jr["ts"]
+
+
+def coder_judge_reject_kickoff(con, role, task, prompt):
+    """Coder kickoff extra after a judge reject: same status word as the DB and the in_review update command."""
+    if role != "coder" or not task or not task_in_progress_from_judge_reject(con, task):
+        return prompt
+    line = (f"Task status is in_progress (same as the DB). After the fix is pushed: "
+            f"{judge_reject_coder_next_cmd(task)}.")
+    return f"{prompt} {line}" if prompt else line
 
 
 def kickoff_text(role, name, goal, team, task, extra):
@@ -8134,7 +8499,7 @@ def render_settings_early(role):
 def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats,
                  env_extra=None, plugin_dirs=None, fresh=False):
     evaluator = role == "evaluator"
-    prompt = gated_reviewer_prompt(con, role, task, prompt)
+    prompt = coder_judge_reject_kickoff(con, role, task, gated_reviewer_prompt(con, role, task, prompt))
     org = args.get("org") or orgs.DEFAULT_ORG
     model = model or role_model(con, role, org)
     effort = effort_args(con, model)  # validate before any worktree/workspace/pane side effect
@@ -8430,6 +8795,13 @@ def cmd_cursor_pilot(a):
     die(f"unknown cursor-pilot action {action!r}", 2)
 
 
+def qa_without_pr_or_worktree(con, task):
+    """True when task has no PR and no existing worktree: a qa agent spawned without --cwd would start in the shared
+    checkout (T-0956; dispatch_tick checks it too, T-0966)."""
+    tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (task,)).fetchone()
+    return bool(tw) and not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists())
+
+
 def cmd_spawn(a):
     refuse_worker("spawn")
     if a.role == "evaluator":  # only the skilleval harness calls spawn() for it, for everyone else the CLI says no
@@ -8454,8 +8826,7 @@ def cmd_spawn(a):
             die(f"{a.task} has no acceptance in the DB; write it with factory task update {a.task} --acceptance - "
                 "before spawning (scratch files are lost on reboot)", 2)
         if a.role == "qa" and not a.cwd:  # T-0956: no PR and no worktree = the shared checkout, where QA can do nothing
-            tw = con.execute("SELECT worktree, pr_url FROM tasks WHERE id=?", (a.task,)).fetchone()
-            if not (tw["pr_url"] or "").strip() and not (tw["worktree"] and Path(tw["worktree"]).exists()):
+            if qa_without_pr_or_worktree(con, a.task):
                 die(f"{a.task} has no PR and no worktree, so a qa agent would start in the shared checkout: create a worktree "
                     f"for it, or pass one: factory spawn qa --task {a.task} --cwd <worktree>", 2)
         why = staleness_precheck(con, a.role, a.task)
@@ -8621,8 +8992,25 @@ def prcheck_test_count(wt, ref):
 
 
 _EVIDENCE_RUNNERS = {"python3", "python", "pytest", "go", "bash", "sh", "zsh", "make", "git", "gh", "grep", "factory"}
-_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
-_EVIDENCE_FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.M | re.S)
+_EVIDENCE_OUTPUT = re.compile(r"\bRan \d+|\bOK\b|\bFAILED\b|\b\d+ failed\b(?![ \t]+(?!in\b)[a-z])|\bpass(?:ed|es)?\b|\brc=\d+|\bexit \d+|->|→")
+# An unclosed fence runs to the end of the body (CommonMark), so a heading after it is text, not a section.
+_EVIDENCE_FENCE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n(.*?)(?:(^[ \t]*\1)|\Z)", re.M | re.S)
+
+
+def _evidence_section(outside):
+    """Text of the `## Test evidence` section: the heading must start a line outside a fence; the section ends at
+    the next `## ` line outside a fence. "" when there is no such heading."""
+    spans = [m.span() for m in _EVIDENCE_FENCE.finditer(outside)]
+
+    def fenced(i):
+        return any(a <= i < b for a, b in spans)
+
+    start = next((m.end() for m in re.finditer(r"^## Test evidence[ \t\r]*(?:\n|$)", outside, re.M)
+                  if not fenced(m.start())), None)
+    if start is None:
+        return ""
+    end = next((m.start() for m in _PR_SECTION.finditer(outside, start) if not fenced(m.start())), len(outside))
+    return outside[start:end]
 
 
 def _evidence_is_command(text):
@@ -8641,7 +9029,7 @@ def prcheck_evidence_problem(sec):
     """T-0947: shape check of the `## Test evidence` section (outside <details>): a literal command line plus an output
     line. It proves text is present, not that it is true. Returns a problem string or None."""
     cands = [m.group(1) for m in re.finditer(r"`([^`\n]+)`", _EVIDENCE_FENCE.sub("", sec))]
-    for block in _EVIDENCE_FENCE.findall(sec):
+    for _, block, _ in _EVIDENCE_FENCE.findall(sec):
         cands += block.splitlines()
     if not any(_evidence_is_command(c) for c in cands):
         return ("`## Test evidence` has no command in backticks: a command line of 2+ words starting with a runner "
@@ -8649,7 +9037,7 @@ def prcheck_evidence_problem(sec):
                 "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK; a bare file or test name is not a command")
     if not _EVIDENCE_OUTPUT.search(sec):
         return ("`## Test evidence` has a command but no output line: add its key result, "
-                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, passed, rc=N, exit N, ->)")
+                "e.g. `python3 -m unittest tests.test_x` -> Ran 7, OK (markers: Ran N, OK, FAILED, N failed, passed, rc=N, exit N, ->)")
     return None
 
 
@@ -8668,8 +9056,10 @@ def prcheck_body(wt, base, pr_url):
         return False, f"cannot read the body of {pr_url} ({err or 'no body returned'}); retry in a minute"
     problems = pr_body_problems(body, pr_template_headings())
     outside = pr_outside_details(body)
-    sec = outside.split("## Test evidence", 1)[-1] if "## Test evidence" in outside else ""
-    sec = _PR_SECTION.split(sec.split("\n", 1)[-1], 1)[0]
+    if any(not m.group(3) for m in _EVIDENCE_FENCE.finditer(outside)):
+        problems.append("a code fence outside <details> is never closed, so everything after it is code, not sections: "
+                        "add the closing ``` (or ~~~) line")
+    sec = _evidence_section(outside)
     ev = prcheck_evidence_problem(sec)
     if ev:
         problems.append(ev)
@@ -12048,6 +12438,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("migrate_db")
     render_legacy_settings()  # compat: legacy --settings path (G-012 T-B2)
     _pt_lap("render_settings")
+    guard_tick(con)
+    _pt_lap("guard_build")
     agents = herdr_agents()
     _pt_lap("herdr_list")
     morning_digest(con)
@@ -12168,6 +12560,8 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE agents SET blocked_since=NULL, blocked_alerted=0 WHERE name=?", (r["name"],))
 
     _pt_lap("reap_loop")
+    reap_exited_panes(con, agents)
+    _pt_lap("exited_panes")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
     _pt_lap("drift")
 
@@ -12400,6 +12794,11 @@ def cmd_tick(a, locked=False):
     export(con)  # the main checkout now holds the merged role files
     _pt_git(False)
     _pt_lap("export")
+
+    try:  # 4a. a modified or deleted tracked file in the live checkout (alert only, no repair)
+        live_tree_dirty_alert(con)
+    except Exception as e:  # noqa: BLE001 — the alert must never stop the tick
+        event(con, "tick", "live-tree", "live-tree-alert-failed", str(e)[:300])
 
     try:  # 4b. live agents vs the role files, settings, plugins and CLI of main (every tick, no throttle)
         tick_freshness(con)
@@ -12931,6 +13330,7 @@ def cmd_up(a):
     con = db()
     require_role(con, "boss")
     render_all_settings()  # every role's rendered settings are rewritten before anything is (re)started
+    guard_tick(con, tick=False)
     agents = herdr_agents()
     if agents is None:  # let systemd show the failure instead of queueing everything against a dead server
         die("herdr is unreachable (is herdr-server running?); nothing started")
@@ -13400,6 +13800,20 @@ def dispatch_tick(con):
         if not gate(con, role=role)[0]:
             break
         name = f"{role}-{tid.lower()}"
+        if role == "qa" and qa_without_pr_or_worktree(con, tid):  # T-0966: same refusal as cmd_spawn; surfaced once, never retried
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            key = f"dispatch-refused:{tid}"
+            if not _throttled(con, key, clock, 10 * 365 * 86400):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
+                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                     f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
+                     f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
+                     "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
+            continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
                  "Never call the advisor tool.")
@@ -13433,7 +13847,8 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
                   "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Two verdicts on the same head, then factory done. ")
+                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
+                  "Two verdicts on the same head, then factory done. ")
 
 
 REVIEW_SKIP_EVERY_S = 86400  # one review-autospawn-skip event per task per day

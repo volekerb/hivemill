@@ -28,7 +28,7 @@ class WorkflowWiring(unittest.TestCase):
     def test_job_runs_on_each_guard_path(self):
         block = job_block(WF, JOB)
         pattern = re.search(r"grep -E -q '([^']+)'", block).group(1)
-        for path in ("go/cmd/worker" + "-guard/main.go", "go/internal/shlex/shlex.go",
+        for path in ("go/cmd/worker-guard/main.go", "go/internal/shlex/shlex.go",
                      "roles/hooks/some-hook.py", "roles/settings/coder.json.in", "ci/guard_corpus.json",
                      "ci/guard_diff.py", "ci/public_text_guard.py", "ci/scrub_scan.py", ".github/workflows/tests.yml", "go/internal/guard/guard.go"):
             self.assertRegex(path, pattern, path)
@@ -62,6 +62,23 @@ class WorkflowWiring(unittest.TestCase):
         self.assertIn("- name: " + STEP, block)
         self.assertNotRegex(block, r"continue-on-error:\s*true")
         self.assertIn("fetch-depth: 0", block)
+
+    def test_unittest_and_corpus_are_separate_jobs_both_gating(self):
+        ut, cd = job_block(WF, "guard-unittest"), job_block(WF, JOB)
+        self.assertIn("Guard hook unittests (GUARD_IMPL=diff)", ut)
+        self.assertNotIn(STEP, ut)
+        self.assertIn(STEP, cd)
+        self.assertNotIn("Guard hook unittests", cd)
+        for block in (ut, cd):
+            self.assertLessEqual(int(re.search(r"timeout-minutes: (\d+)", block).group(1)), 30)
+            self.assertNotRegex(block, r"(?m)^\s+continue-on-error:\s*true")
+        agg = job_block(WF, "unittest")
+        self.assertRegex(agg, r"needs:\s*\[[^\]]*\bguard-unittest\b[^\]]*\bguard-diff\b[^\]]*\]")
+        self.assertIn("if: always()", agg)
+        # any result other than success (failure, cancelled, skipped) fails the aggregate, for each job
+        for var in ("GUARD_UNITTEST_RESULT", "GUARD_DIFF_RESULT"):
+            self.assertRegex(agg, r'"\$%s" != "success"' % var)
+        self.assertIn("needs.guard-unittest.result", agg)
 
     def test_skill_no_longer_tells_coders_to_run_guard_diff(self):
         for line in SKILL.splitlines():

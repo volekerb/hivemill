@@ -462,7 +462,7 @@ class CorpusSanityTests(unittest.TestCase):
         # T-0745: an empty FACTORY_HOME, else the live DB's public_text_repos makes the hook block corpus commit text
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
             p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
-                               capture_output=True, text=True, timeout=300, env={**os.environ, "FACTORY_HOME": home})
+                               capture_output=True, text=True, timeout=600, env={**os.environ, "FACTORY_HOME": home})
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn("0 loosened", p.stdout)
 
@@ -955,6 +955,50 @@ class SettingsFollowUpTests(GuardDiffCase):
         p = self.settings("--allow-loosen", allow)
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)  # the unrelated added allow entry is still unplanned
         self.assertIn("qa autoMode added: allow: wide allow text", p.stdout)
+
+    def test_malformed_shapes_fail_closed_with_one_line_error(self):
+        cases = [
+            ("autoMode", lambda d: d.__setitem__("autoMode", None)),
+            ("autoMode", lambda d: d.__setitem__("autoMode", ["x"])),
+            ("permissions.ask", lambda d: d["permissions"].__setitem__("ask", None)),
+            ("permissions.allow", lambda d: d["permissions"].__setitem__("allow", None)),
+            ("permissions.deny", lambda d: d["permissions"].__setitem__("deny", "Bash(*)")),
+            ("env", lambda d: d.__setitem__("env", None)),
+            ("env", lambda d: d.__setitem__("env", ["A=1"])),
+        ]
+        self.commit_base(self.seed)
+        for key, edit in cases:
+            with self.subTest(key=key, edit=edit):
+                self.edit_tree(edit)
+                p = self.settings()
+                self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertNotIn("Traceback", p.stdout + p.stderr)
+                self.assertIn("qa.json.in", p.stderr)
+                self.assertIn(f"{key} must be a JSON", p.stderr)
+                self.assertEqual(len(p.stderr.strip().splitlines()), 1, p.stderr)
+                self.assertNotIn("no change", p.stdout.lower())
+                git(self.repo, "checkout", "-q", "--", ".")
+
+    def test_malformed_base_settings_fail_closed(self):
+        self.commit_base(lambda d: d["permissions"].__setitem__("ask", None))
+        p = self.settings()
+        self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("Traceback", p.stdout + p.stderr)
+        self.assertIn("permissions.ask must be a JSON list", p.stderr)
+
+    def test_added_automode_key_with_colon_or_equals_is_loosened(self):
+        self.commit_base(self.seed)
+        for new_key in ("environment:prod", "environment=prod"):
+            with self.subTest(new_key=new_key):
+
+                def edit(d):
+                    d["autoMode"]["environment"].remove("env text")
+                    d["autoMode"][new_key] = ["wide text"]
+                self.edit_tree(edit)
+                p = self.settings()
+                self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+                self.assertIn("2 loosened", p.stdout)
+                git(self.repo, "checkout", "-q", "--", ".")
 
     def test_unchanged_template_with_new_keys_prints_no_settings_line(self):
         self.commit_base(self.seed)

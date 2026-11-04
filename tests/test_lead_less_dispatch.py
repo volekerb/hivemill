@@ -499,5 +499,81 @@ class SpecFillTests(Base):
         self.assertTrue(r["acceptance"].startswith("1. Each listed task"))
 
 
+class QaNoPrTests(Base):
+    """T-0966: dispatch_tick applies the cmd_spawn qa refusal (no PR, no worktree) and never loops on it."""
+
+    def lead_mail(self):
+        return self.env.sql("SELECT subject FROM messages WHERE recipient=? AND subject LIKE 'dispatch refused%'", (LEAD,))
+
+    def test_no_pr_no_worktree_starts_nothing_and_surfaces_once(self):
+        self.task("T-0001", role="qa")
+        self.mode("1")
+        for i in range(3):
+            self.assertEqual(self.dispatch(at=_later(i * 10)), [])
+        self.assertEqual(self.env.sql("SELECT count(*) c FROM agents WHERE role='qa'")[0]["c"], 0)
+        self.assertEqual(len(self.lead_mail()), 1)
+        self.assertEqual(len(self.events("dispatch-refused")), 1)
+        self.assertEqual(self.events("dispatch"), [])
+
+    def test_refusal_mail_wakes_parked_lead(self):
+        self.task("T-0001", role="qa")
+        self.mode("1")
+        self.assertEqual(self.dispatch(), [])
+        rows = self.env.sql("SELECT kind, sender FROM messages WHERE recipient=? AND subject LIKE 'dispatch refused%'", (LEAD,))
+        self.assertEqual([tuple(r) for r in rows], [("report", "tick")])
+        self.env.seed_agent("zz-director", "director")
+        self.ok("tick")
+        wakes = self.env.sql("SELECT detail FROM events WHERE action='lead-wake'")
+        self.assertEqual(len(wakes), 1)
+        self.assertRegex(json.loads(wakes[0]["detail"])["trigger"], r"^M\d+$")
+
+    def test_spawn_fyi_still_does_not_wake(self):
+        self.task("T-0001")
+        self.mode("1")
+        self.assertEqual([c["name"] for c in self.dispatch()], ["coder-t-0001"])
+        self.env.seed_agent("zz-director", "director")
+        self.ok("tick")
+        self.assertEqual(self.env.sql("SELECT detail FROM events WHERE action='lead-wake'"), [])
+
+    def test_blocked_done_does_not_redispatch_after_repark(self):
+        self.task("T-0001", role="qa", status="in_progress")
+        self.env.seed_agent("zz-qa", "qa", goal="G-001", team=TEAM, task="T-0001")
+        self.ok("done", "BLOCKED: guard denied checkout", agent="zz-qa")
+        self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0]["status"], "todo")
+        self.env.sql("UPDATE teams SET parked_at=? WHERE id=?", (PARKED, TEAM))  # re-park
+        self.mode("1")
+        self.assertEqual(self.dispatch(), [])
+        self.env.sql("UPDATE teams SET parked_at=NULL WHERE id=?", (TEAM,))
+        self.env.sql("UPDATE teams SET parked_at=? WHERE id=?", (PARKED, TEAM))
+        self.assertEqual(self.dispatch(at=_later(500)), [])
+        self.assertEqual(len(self.lead_mail()), 1)
+
+    def test_qa_with_pr_dispatches(self):
+        self.task("T-0001", role="qa", pr_url="https://github.com/o/r/pull/1")
+        self.mode("1")
+        self.assertEqual([c["name"] for c in self.dispatch()], ["qa-t-0001"])
+        self.assertEqual(self.lead_mail(), [])
+
+    def test_qa_no_pr_with_worktree_dispatches(self):
+        self.task("T-0001", role="qa")
+        self.env.sql("UPDATE tasks SET worktree=? WHERE id='T-0001'", (str(self.env.home),))
+        self.mode("1")
+        self.assertEqual([c["name"] for c in self.dispatch()], ["qa-t-0001"])
+
+    def test_off_and_shadow_unchanged(self):
+        self.task("T-0001", role="qa")
+        self.mode("0")
+        self.assertEqual(self.dispatch(), [])
+        self.mode("shadow")
+        self.assertEqual(self.dispatch(), [])
+        self.assertEqual(self.lead_mail(), [])
+        self.assertEqual(len(self.events("dispatch-shadow")), 1)
+
+    def test_other_roles_without_pr_still_dispatch(self):
+        self.task("T-0001")
+        self.mode("1")
+        self.assertEqual([c["name"] for c in self.dispatch()], ["coder-t-0001"])
+
+
 if __name__ == "__main__":
     unittest.main()

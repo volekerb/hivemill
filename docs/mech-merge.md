@@ -26,4 +26,9 @@ The merger never refreshes a stale head (`STALE-ONLY` block); refresh stays with
 waits on gh). Merges are serial: a second run exits 4 while `run/mech-merge.lock` is held. Manual run (owner/director):
 `factory mech-merge [--task T-0001]`.
 
+**Live-run hold (roles/qa.md Q7)**: if the latest QA verdict summary has a line starting `live-run: pending AC<n> <what>`
+(case-insensitive), `mech_try` blocks before any gh or git call (event `mech-blocked`, detail `QA live-run pending (...)`).
+QA records the result as a new verdict with `live-run: done AC<n> exit=<code>`; until then only the judge may merge
+(the lead routes it).
+
 Rollback: `factory config mech_merge off`. Tests: `tests/test_mech_merge.py`.

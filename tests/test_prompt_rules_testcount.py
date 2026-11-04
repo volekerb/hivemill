@@ -11,6 +11,11 @@ RULE = ("Test count: count `def test_` on the tree of `git merge-tree --write-tr
         "Also confirm the PR removes or renames no `def test_` relative to its merge-base "
         "(`git diff $(git merge-base origin/main HEAD)..HEAD`).")
 
+# qa.md alone carries the two-step form (T-0952): the worker guard refuses command substitution.
+RULE_QA = RULE.replace("(`git diff $(git merge-base origin/main HEAD)..HEAD`).",
+                       "(`git merge-base origin/main HEAD`, then `git diff <sha>..HEAD`).")
+assert RULE_QA != RULE
+
 RECIPE = [
     "do not run git merge",
     "T=$(git merge-tree --write-tree origin/main <pr-head>)",
@@ -38,13 +43,17 @@ ANY_MERGE = re.compile(r"(?<!do not run )\bgit merge\b(?!-)", re.I)
 class PromptRulesTestCount(unittest.TestCase):
     def test_required_files_carry_rule(self):
         for rel in MUST_STATE:
-            self.assertIn(RULE, (ROLES / rel).read_text(), f"{rel}: merge-tree test-count wording missing")
+            want = RULE_QA if rel == "qa.md" else RULE
+            text = (ROLES / rel).read_text()
+            self.assertIn(want, text, f"{rel}: merge-tree test-count wording missing")
+            if rel == "qa.md":
+                self.assertNotIn("$(git merge-base", text, "qa.md: Q1 must be the two-step form")
 
     def test_any_file_stating_rule_uses_merge_tree_wording(self):
         offenders = []
         for p in sorted(ROLES.rglob("*.md")):
             text = p.read_text()
-            if STATES_RULE.search(text) and RULE not in text:
+            if STATES_RULE.search(text) and RULE not in text and RULE_QA not in text:
                 # allowed: pointers that name the rule rather than restate it
                 for line in text.splitlines():
                     if STATES_RULE.search(line) and "merge-tree" not in line and "pre-pr-check" not in line \
@@ -59,7 +68,9 @@ class PromptRulesTestCount(unittest.TestCase):
     def test_qa_and_judge_have_recipe_without_git_merge(self):
         for name in ("qa.md", "judge.md"):
             text = (ROLES / name).read_text()
-            for piece in RECIPE:
+            pieces = [x if name == "judge.md" else x.replace("C=$(git commit-tree $T -p origin/main -p <pr-head> -m tmp)", "")
+                      .replace("factory src $C", "factory src $T") for x in RECIPE]  # qa exports the tree id itself (T-0918)
+            for piece in filter(None, pieces):
                 self.assertIn(piece, text, f"{name}: recipe piece missing: {piece!r}")
             self.assertNotIn("git worktree add", text, f"{name}: use factory src, not git worktree")
             self.assertIsNone(ANY_MERGE.search(text), f"{name}: mentions git merge beyond the do-not-run phrasing")

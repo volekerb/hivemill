@@ -91,6 +91,14 @@
    "doc": ""
   },
   {
+   "key": "exited_pane_reap_mode",
+   "kind": "setting",
+   "default": "dry-run",
+   "summary": "tick closes the pane of a worker row exited >10 min: dry-run | on | off",
+   "goal": "G-005",
+   "doc": "docs/exited-pane-reap.md"
+  },
+  {
    "key": "factory_remote_url",
    "kind": "setting",
    "default": "",
@@ -199,6 +207,14 @@
    "doc": "",
    "state": "on",
    "promoted_in": "baseline"
+  },
+  {
+   "key": "guard_impl",
+   "kind": "setting",
+   "default": "python",
+   "summary": "worker-guard implementation: python, go or shadow; mirrored to run/guard_impl (director only)",
+   "goal": "G-016",
+   "doc": "docs/worker-guard-go.md"
   },
   {
    "key": "herdr_socket",

@@ -5,7 +5,7 @@ State lives in the JSON file named by $FAKE_GH_STATE: {"prs": {<url>: {...pr jso
 "merge_exit": 0, "merge_stderr": "", "merge_sets_state": null, "merge_removes_pr": false, "merge_lands_msg": null, "merge_lands_after_views": null, "close_exit": 0, "pr_view_sleep": 0}. `pr close` sets the PR CLOSED. A merge call lands a squash on repo_url main (subject merge_lands_msg, the PR head's tree) when merge_lands_msg is set, and the PR reads MERGED from its Nth later `pr view` on (merge_lands_after_views). A merge call sets the PR's state to
 merge_sets_state when given (a merge that lands even though gh exits non-zero). Every call is appended to the JSONL file named by
 $FAKE_CALLS. `repo_url` is a git remote path: `repo view` returns it and `api .../commits/main` answers with its main sha. `pr list --head X` answers from st['pr_list'] (pr_list_exit / pr_list_raw force a failure or raw output). `pr view`, `pr merge` and `repo view` are supported, and `gh api` answers from st["api"]: a list of rules
-{"match": [substr, ...], "out": <str or JSON value>, "file": <path under tests/fixtures/scout>, "exit": 0, "err": ""}; the
+{"match": [substr, ...], "out": <str or JSON value>, "file": <path under tests/fixtures/scout>, "bytes_hex": <hex of raw stdout bytes>, "exit": 0, "err": ""}; the
 first rule whose substrings all occur in the space-joined argv wins (a substring ending in $ must end it); with no rule, `.../commits/main` falls back to repo_url's main sha, else exit 1. Anything else exits 1."""
 import json
 import os
@@ -108,6 +108,11 @@ elif argv[:1] == ["api"]:
             if rule.get("exit"):
                 print(rule.get("err", "gh: api error"), file=sys.stderr)
                 sys.exit(rule["exit"])
+            if "bytes_hex" in rule:  # raw stdout bytes (non-UTF-8 tests)
+                sys.stdout.flush()
+                sys.stdout.buffer.write(bytes.fromhex(rule["bytes_hex"]))
+                sys.stdout.buffer.flush()
+                sys.exit(0)
             if "file" in rule:
                 out = open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "fixtures", "scout", rule["file"])).read()
             else:
