@@ -5,6 +5,7 @@ The commands are read from the "Merged-tree check" line of roles/judge.md, so do
 GIT_READ_ONLY, and the git directory is the shared checkout)."""
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -32,7 +33,8 @@ class JudgeMergedTreeRoute(GitGuardBase):
     def route_cmds(self):
         line, cmds = route()
         steps = [c for c in cmds if c.startswith(("git -C ", "factory src ", "rm -rf "))]
-        self.assertEqual([c.split()[0] for c in steps], ["git", "factory", "rm"], line)
+        self.assertEqual([c.split()[0] for c in steps], ["git", "git", "factory", "rm"], line)
+        self.assertIn(" fetch origin", steps[0], line)
         return steps
 
     def test_every_documented_command_is_allowed_for_judge_from_the_shared_checkout(self):
@@ -45,11 +47,20 @@ class JudgeMergedTreeRoute(GitGuardBase):
     def test_doc_names_no_command_substitution_or_commit_tree(self):
         line, cmds = route()
         steps = [c for c in cmds if c.startswith(("git -C ", "factory src ", "rm -rf "))]
-        self.assertEqual(len(steps), 3, cmds)
+        self.assertEqual(len(steps), 4, cmds)
         for c in steps:
             self.assertNotIn("$(", c)
             self.assertNotIn("commit-tree", c)
-        self.assertTrue(steps[0].startswith("git -C ") and "merge-tree" in steps[0], cmds)
+        self.assertTrue(steps[0].startswith("git -C ") and steps[0].endswith("fetch origin"), cmds)
+        self.assertTrue(steps[1].startswith("git -C ") and "merge-tree" in steps[1], cmds)
+
+    def test_doc_states_precondition_and_exit_1_defers_to_j4(self):
+        line, _ = route()
+        self.assertIn("task_clones=1", line)
+        self.assertIn("insufficient evidence:", line)
+        self.assertIn("J4 decides", line)
+        self.assertNotIn("reject as CONFLICT-ONLY", line)
+        self.assertNotIn("command substitution is refused", line)
 
     def test_hook_run_entry_point_allows_factory_src_of_a_tree_id(self):
         import json
@@ -59,7 +70,7 @@ class JudgeMergedTreeRoute(GitGuardBase):
         self.assertEqual(hook_run(payload, ["--role", "judge"], env=env).returncode, 0)
 
     def test_old_route_is_refused_in_the_shared_checkout(self):
-        old = [f"git merge-tree --write-tree origin/main {SHA}", f"git commit-tree {TREE} -p origin/main -p {SHA} -m tmp",
+        old = [f"git commit-tree {TREE} -p origin/main -p {SHA} -m tmp",
                f"T=$(git merge-tree --write-tree origin/main {SHA})"]
         for cmd in old:
             with self.subTest(cmd=cmd):
@@ -72,7 +83,9 @@ class JudgeMergedTreeRoute(GitGuardBase):
 
 
 class JudgeMergedTreeResidue(unittest.TestCase):
-    """The documented git step leaves refs, HEAD and the working tree alone; its only residue is objects."""
+    """The documented route, run through a real linked worktree of a temp repo: the tree written with git -C <worktree>
+    reads back from the main checkout, exports (git archive stands in for factory src, which needs the live DB), is
+    removed; refs other than refs/remotes/origin/*, HEAD and the working trees are unchanged."""
 
     def git(self, *a, cwd):
         env = {**os.environ, "GIT_AUTHOR_NAME": "zz", "GIT_AUTHOR_EMAIL": "zz@example.invalid",
@@ -81,32 +94,52 @@ class JudgeMergedTreeResidue(unittest.TestCase):
 
     def test_no_ref_or_worktree_change(self):
         with tempfile.TemporaryDirectory() as td:
-            r = os.path.realpath(td)
-            g = lambda *a: self.git(*a, cwd=r)
-            g("init", "-q", "-b", "main")
+            t = os.path.realpath(td)
+            origin, main, wt, scratch = (os.path.join(t, n) for n in ("origin.git", "main", "wt", "scratch"))
+            os.makedirs(scratch)
+            g = lambda *a, cwd=main: self.git(*a, cwd=cwd)
+            self.assertEqual(g("init", "-q", "--bare", "-b", "main", origin, cwd=t).returncode, 0)
+            g("clone", "-q", origin, main, cwd=t)
+            g("checkout", "-qb", "main")
             for name, text in (("a", "1\n"),):
-                open(os.path.join(r, name), "w").write(text)
-            g("add", "."); g("commit", "-qm", "base")
-            g("checkout", "-qb", "pr")
-            open(os.path.join(r, "b"), "w").write("2\n")
-            g("add", "."); g("commit", "-qm", "pr")
-            g("checkout", "-q", "main")
-            open(os.path.join(r, "c"), "w").write("3\n")
-            g("add", "."); g("commit", "-qm", "main moved")
+                open(os.path.join(main, name), "w").write(text)
+            g("add", "."); g("commit", "-qm", "base"); g("push", "-q", "origin", "main")
+            g("worktree", "add", "-q", "-b", "pr", wt)
+            open(os.path.join(wt, "b"), "w").write("2\n")
+            g("add", ".", cwd=wt); g("commit", "-qm", "pr", cwd=wt)
             head = g("rev-parse", "pr").stdout.strip()
-            before = (g("for-each-ref").stdout, g("rev-parse", "HEAD").stdout, g("status", "--porcelain").stdout)
+            # origin/main moves after the worktree was made: only the documented fetch makes it visible
+            other = os.path.join(t, "other")
+            g("clone", "-q", origin, other, cwd=t)
+            open(os.path.join(other, "c"), "w").write("3\n")
+            g("add", ".", cwd=other); g("commit", "-qm", "main moved", cwd=other); g("push", "-q", "origin", "main", cwd=other)
+
+            def state():
+                refs = [l for l in g("for-each-ref").stdout.splitlines() if "refs/remotes/origin/" not in l]
+                return (refs, g("rev-parse", "HEAD").stdout, g("status", "--porcelain").stdout,
+                        g("rev-parse", "HEAD", cwd=wt).stdout, g("status", "--porcelain", cwd=wt).stdout)
+            before = state()
             _line, cmds = route()
-            mt = next(c for c in cmds if c.startswith("git -C ")).replace("<task-worktree>", r).replace("<pr-head>", head)
-            mt = mt.replace("origin/main", "main")
-            p = subprocess.run(mt.split(), capture_output=True, text=True)
+            gits = [c.replace("<task-worktree>", wt).replace("<pr-head>", head).split()
+                    for c in cmds if c.startswith("git -C ")]
+            fetch = subprocess.run(gits[0], capture_output=True, text=True)
+            self.assertEqual(fetch.returncode, 0, fetch.stderr)
+            p = subprocess.run(gits[1], capture_output=True, text=True)
             self.assertEqual(p.returncode, 0, p.stderr)
             tree = p.stdout.split()[0]
             self.assertEqual(len(tree), 40)
+            # read back from the main checkout, not from the worktree that wrote it
             self.assertEqual(g("cat-file", "-t", tree).stdout.strip(), "tree")
-            names = g("ls-tree", "--name-only", tree).stdout.split()
-            self.assertEqual(sorted(names), ["a", "b", "c"])
-            after = (g("for-each-ref").stdout, g("rev-parse", "HEAD").stdout, g("status", "--porcelain").stdout)
-            self.assertEqual(before, after)
+            self.assertEqual(sorted(g("ls-tree", "--name-only", tree).stdout.split()), ["a", "b", "c"])
+            dest = os.path.join(scratch, "merged")
+            os.makedirs(dest)
+            arc = subprocess.run(["git", "archive", tree], cwd=main, capture_output=True)
+            self.assertEqual(arc.returncode, 0, arc.stderr)
+            subprocess.run(["tar", "-x", "-C", dest], input=arc.stdout, check=True)
+            self.assertEqual(sorted(os.listdir(dest)), ["a", "b", "c"])
+            shutil.rmtree(dest)
+            self.assertFalse(os.path.exists(dest))
+            self.assertEqual(before, state())
 
 
 if __name__ == "__main__":
