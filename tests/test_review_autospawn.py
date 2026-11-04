@@ -299,6 +299,7 @@ class NewHeadTests(Base):
 
     def test_verdict_on_current_head_no_spawn_and_no_gh_call(self):
         self.reviewed_on_h1()
+        self.verdict(H1, role="qa")  # both roles have a verdict on H1 (a reviewer verdict alone no longer closes the head, T-1048)
         self.assertEqual([self.step(H1) for _ in range(3)], [[], [], []])
         self.assertEqual(self.probes, 0)
 
@@ -579,3 +580,121 @@ class ThrottleTests(SkipTests):
         self.assertEqual(self.tick_at(60), [])
         self.assertEqual(len(self.skip_events()), 1)
         self.assertEqual(len(self.events("review-autospawn-probe-error")), 1)
+
+
+class ReviewOrderingTests(Base):
+    """T-1048: no review while a coder is live/queued/starting or before a passing prcheck on the head; a head missing one role gets it;
+    a worker that ended with no verdict is restarted once, then alerted once; a verdict is bound to the head the worker was started on."""
+
+    def setUp(self):
+        Base.setUp(self)
+        self.on()
+        self.task()
+        self.env.sql("UPDATE tasks SET branch='factory/t-0001' WHERE id='T-0001'")
+        self.probes = 0
+
+    step, verdict, reviewed_on_h1 = NewHeadTests.step, NewHeadTests.verdict, NewHeadTests.reviewed_on_h1
+
+    def coder(self, status):
+        self.env.seed_agent("coder-t-0001", "coder", goal="G-001", team=TEAM, task="T-0001", status=status)
+
+    def prcheck(self, head, ok):
+        import json
+        self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES('t','x','task','T-0001','prcheck',?)",
+                     (json.dumps({"head": head, "ok": ok, "failed": [] if ok else ["fresh"]}),))
+
+    def test_coder_live_starting_or_queued_blocks_first_review(self):
+        for status in ("live", "starting", "queued"):
+            with self.subTest(status=status):
+                self.env.sql("DELETE FROM agents")
+                self.coder(status)
+                self.assertEqual([self.step(H1) for _ in range(2)], [[], []])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
+
+    def test_coder_live_blocks_new_head_round_then_both_start_once(self):
+        self.reviewed_on_h1()
+        self.coder("live")
+        self.assertEqual(self.step(H2), [])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual(self.step(H2), [("reviewer", "reviewer-t-0001-22222222"), ("qa", "qa-t-0001-22222222")])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.verdict(H2)
+        self.verdict(H2, role="qa")
+        self.assertEqual([self.step(H2) for _ in range(3)], [[], [], []])
+
+    def test_prcheck_not_ok_on_head_blocks_until_a_passing_one(self):
+        self.prcheck(H1, False)
+        self.assertEqual(self.step(H1), [])
+        self.prcheck(H1, True)
+        self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
+
+    def test_prcheck_not_ok_on_another_head_does_not_block(self):
+        self.prcheck(H1, False)
+        self.assertEqual(len(self.step(H2)), 2)
+
+    def test_closed_gate_retries_next_tick_without_duplicates(self):
+        calls = []
+        with self.env.load_factory() as f:
+            con = f.db()
+            f.gate = lambda con, **k: (False, "closed", {})
+            f.spawn = lambda *a, **k: calls.append(k)
+            f._ci_remote_heads = lambda: {"factory/t-0001": H1}
+            f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": H1, "statusCheckRollup": GREEN}
+            f.review_autospawn_tick(con)
+        self.assertEqual(calls, [])
+        self.assertEqual(self.step(H1), [("reviewer", "reviewer-t-0001"), ("qa", "qa-t-0001")])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.verdict(H1)
+        self.verdict(H1, role="qa")
+        self.assertEqual(self.step(H1), [])
+
+    def test_head_with_reviewer_verdict_and_no_qa_gets_the_qa(self):
+        # case (b)/(c): reviewer verdict on the head, the qa row ended with no verdict: the old pass called the head done
+        self.reviewed_on_h1()
+        self.verdict(H2)
+        self.assertEqual(self.step(H2), [("qa", "qa-t-0001-22222222")])
+        self.env.sql("UPDATE agents SET status='exited'")
+        self.assertEqual(self.step(H2), [])
+
+    def test_qa_ended_without_verdict_on_head_one_alert_per_head(self):
+        self.reviewed_on_h1()
+        self.verdict(H2)
+        self.step(H2)
+        self.env.sql("UPDATE agents SET status='exited'")
+        for _ in range(3):
+            self.assertEqual(self.step(H2), [])
+        mails = self.env.sql("SELECT recipient, subject FROM messages WHERE kind='request'")
+        self.assertEqual([(m["recipient"]) for m in mails], [LEAD])
+        self.assertIn("qa ended with no verdict", mails[0]["subject"])
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='review-no-verdict'")), 1)
+        self.assertEqual(self.step(H1.replace("1", "3")), [("reviewer", "reviewer-t-0001-33333333"), ("qa", "qa-t-0001-33333333")])
+
+    def test_fresh_verdict_of_a_lead_run_round_waits_for_its_other_half(self):
+        import datetime as dt
+        self.reviewed_on_h1()
+        self.env.sql("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) "
+                     "VALUES('T-0001','u',?,'reviewer','pass','s','a',?)", (H2, dt.datetime.now(dt.timezone.utc).isoformat()))
+        self.assertEqual(self.step(H2), [])
+
+    def spawned_verdict_env(self, spawn_head, now_head):
+        self.env.seed_pr(sha=now_head)
+        self.env.sql("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES('t','tick','task','T-0001','review-autospawn',?)",
+                     ('{"agent": "qa-t-0001", "role": "qa", "sha": "%s"}' % spawn_head,))
+        self.env.seed_agent("qa-t-0001", "qa", goal="G-001", team=TEAM, task="T-0001", status="live")
+
+    def run_verdict(self, *args):
+        return self.env.run("verdict", "T-0001", *args, "--summary", GOOD, agent="qa-t-0001")
+
+    def test_pass_naming_a_head_other_than_the_one_started_on_is_refused(self):
+        self.spawned_verdict_env(SHA_A, "b" * 40)
+        r = self.run_verdict("--pass", "--sha", "b" * 40)
+        self.assertEqual(r.returncode, 5, r.stderr)
+        self.assertIn("started you on head", r.stderr)
+        self.assertEqual(self.env.sql("SELECT 1 FROM verdicts"), [])
+
+    def test_fail_without_sha_is_recorded_on_the_head_the_worker_started_on(self):
+        self.spawned_verdict_env(SHA_A, "b" * 40)
+        r = self.run_verdict("--fail")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([v["head_sha"] for v in self.env.sql("SELECT head_sha FROM verdicts")], [SHA_A])
