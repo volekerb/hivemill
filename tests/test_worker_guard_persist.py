@@ -270,7 +270,8 @@ class PersistEditToolTests(unittest.TestCase):
             groups = settings_groups(role)
             edit = [g for g in groups if set(g.get("matcher", "").split("|")) == PERSIST_TOOLS]
             self.assertEqual(len(edit), 1, role)
-            self.assertTrue(edit[0]["hooks"][0]["command"].endswith(f"worker-guard.py --role {role}"), role)
+            # T-0356 (M22079): worker templates call the sh shim (no .py suffix)
+            self.assertTrue(edit[0]["hooks"][0]["command"].endswith(f"/roles/hooks/worker-guard --role {role}"), role)
         for role in ("boss", "director", "lead"):
             self.assertFalse([g for g in settings_groups(role) if "Edit" in g.get("matcher", "")], role)
 
