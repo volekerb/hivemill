@@ -4974,7 +4974,8 @@ MECH_EVENTS = ("mech-would-merge", "mech-would-block", "mech-blocked")
 MECH_MAX_EVAL = 5  # PRs the merger evaluates per run; at most one of them is merged
 MECH_MAX_TIER = "T2"
 DISPUTE_REQUEST = re.compile(r"(?im)^[ \t]*judge:")
-LIVE_RUN_PENDING = re.compile(r"(?im)^[ \t>*`-]*live-run:[ \t]*pending\b.*$")  # optional leading bullet, quote or backtick
+LIVE_RUN_PENDING = re.compile(  # optional bullet/quote/backtick, "1." number, "[ ]" checkbox, bold/backtick around the key
+    r"(?im)^[ \t>*`_-]*(?:\d+[.)][ \t]+)?(?:\[[ xX]?\][ \t]*)?[ \t>*`_-]*live-run[*`_]*:[*`_]*[ \t]*pending\b.*$")
 
 
 def mech_mode(con):
@@ -7584,7 +7585,6 @@ def prepare_worktree(con, task, role):
         return None
     if t["worktree"] and Path(t["worktree"]).exists():
         if role == "coder" and t["branch"]:
-            # QA may have left the worktree on a detached PR head; a retry coder needs its branch (switch checks out)
             if not git_config_guard(con, t["worktree"]):
                 con.commit()
                 die(f"spawn refused: git config in {t['worktree']} would run code: {', '.join(git_config_refusal(t['worktree']))}", 4)
@@ -13808,7 +13808,7 @@ def dispatch_tick(con):
                 send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
-                     "or cancel the task. The tick will not retry it.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+                     "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
             continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
@@ -13843,7 +13843,7 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
                   "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds). "
+                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
                   "Two verdicts on the same head, then factory done. ")
 
 
