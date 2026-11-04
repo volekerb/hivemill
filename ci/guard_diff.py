@@ -324,31 +324,68 @@ def normalise_rule(rule):
     return OWNER_HOME_DIR.sub(lambda m: ("/" if m.group(1) else "") + "@FACTORY_HOME_DIR@", rule)
 
 
-def settings_rules(text, legacy=False):
+class SettingsShapeError(UsageError):
+    """A settings file whose JSON has the wrong shape; never treated as "no rules" (fail closed)."""
+
+
+class AutoRule(str):
+    """An autoMode entry rendered `<key>: <text>` or `<key>=<json>`; carries the full key so a key containing a colon
+    or equals is never cut short. Equality and hash include the key."""
+
+    def __new__(cls, key, text):
+        self = super().__new__(cls, text)
+        self.key = key
+        return self
+
+    def __eq__(self, other):
+        return str.__eq__(self, other) and getattr(other, "key", self.key) == self.key
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash((self.key, str(self)))
+
+
+def _shape(name, key, value, want):
+    kinds = {"object": dict, "list": list}
+    if not isinstance(value, kinds[want]):
+        raise SettingsShapeError(f"settings {name}: {key} must be a JSON {want}, got {type(value).__name__}; fix the file")
+    return value
+
+
+def settings_rules(text, legacy=False, name="settings"):
     """{(kind, rule)} of one settings JSON text: the allow/deny lists, every hook as
     `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), each hook's timeout as its own
     `hook-timeout` entry `<that text>|timeout=<N>`, every permissions.ask rule, every autoMode entry as `<key>: <text>`
-    (a non-list value as `<key>=<json>`) and every env entry as `K=V`."""
+    (a non-list value as `<key>=<json>`) and every env entry as `K=V`. A wrong shape raises SettingsShapeError
+    (a UsageError naming <name> and the key). A missing key is fine; null is not."""
     d = json.loads(text)
+    _shape(name, "top level", d, "object")
     fix = normalise_rule if legacy else (lambda x: x)
     out = set()
+    perms = _shape(name, "permissions", d.get("permissions", {}), "object")
     for kind in ("allow", "deny", "ask"):
-        for rule in d.get("permissions", {}).get(kind, []):
+        for rule in _shape(name, f"permissions.{kind}", perms.get(kind, []), "list"):
+            if not isinstance(rule, str):
+                raise SettingsShapeError(f"settings {name}: permissions.{kind} entries must be strings; fix the file")
             out.add((kind, fix(rule)))
-    for event, groups in d.get("hooks", {}).items():
-        for group in groups:
-            for h in group.get("hooks", []):
+    for event, groups in _shape(name, "hooks", d.get("hooks", {}), "object").items():
+        for group in _shape(name, f"hooks.{event}", groups, "list"):
+            _shape(name, f"hooks.{event}[]", group, "object")
+            for h in _shape(name, f"hooks.{event}[].hooks", group.get("hooks", []), "list"):
+                _shape(name, f"hooks.{event}[].hooks[]", h, "object")
                 ident = "|".join((event, group.get("matcher", ""), h.get("type", ""), fix(h.get("command", ""))))
                 out.add(("hook", ident))
                 timeout = h.get("timeout")
                 out.add(("hook-timeout", f"{ident}|timeout={'' if timeout is None else json.dumps(timeout)}"))
-    for key, value in d.get("autoMode", {}).items():
+    for key, value in _shape(name, "autoMode", d.get("autoMode", {}), "object").items():
         if isinstance(value, list):
             for item in value:
-                out.add(("autoMode", f"{key}: {fix(item) if isinstance(item, str) else json.dumps(item, sort_keys=True)}"))
+                out.add(("autoMode", AutoRule(key, f"{key}: {fix(item) if isinstance(item, str) else json.dumps(item, sort_keys=True)}")))
         else:
-            out.add(("autoMode", f"{key}={json.dumps(value, sort_keys=True)}"))
-    for key, value in d.get("env", {}).items():
+            out.add(("autoMode", AutoRule(key, f"{key}={json.dumps(value, sort_keys=True)}")))
+    for key, value in _shape(name, "env", d.get("env", {}), "object").items():
         out.add(("env", f"{key}={fix(str(value))}"))
     return out
 
@@ -367,8 +404,8 @@ def base_settings_roles(repo, base):
 
 
 def automode_key(rule):
-    """The autoMode key of an entry rendered `<key>: <text>` or `<key>=<json>`."""
-    return re.split(r"[:=]", rule, maxsplit=1)[0]
+    """The full autoMode key of an AutoRule entry."""
+    return rule.key
 
 
 def compare_settings(repo, top, base):
@@ -390,15 +427,20 @@ def compare_settings(repo, top, base):
             continue
         try:
             with open(os.path.join(sdir, name), encoding="utf-8") as f:
-                new = settings_rules(f.read())
+                new = settings_rules(f.read(), name=name)
         except (OSError, ValueError) as e:
             raise UsageError(f"cannot read settings template {name}: {e}")
         try:
-            old, legacy = settings_rules(git(repo, "show", "--end-of-options", f"{base}:{SETTINGS_DIR}/{name}")), False
+            old, legacy = settings_rules(git(repo, "show", "--end-of-options", f"{base}:{SETTINGS_DIR}/{name}"),
+                                         name=f"{base}:{name}"), False
+        except SettingsShapeError:
+            raise
         except UsageError:
             try:  # the base predates the templates: its role file holds the owner's absolute paths
                 old, legacy = settings_rules(git(repo, "show", "--end-of-options", f"{base}:{SETTINGS_DIR}/{role}.json"),
-                                             True), True
+                                             True, name=f"{base}:{role}.json"), True
+            except SettingsShapeError:
+                raise
             except (UsageError, ValueError):
                 lines.append(f"SETTINGS-NEW {role} (no {SETTINGS_DIR}/{role}.json[.in] on {base})")
                 continue
