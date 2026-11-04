@@ -659,10 +659,11 @@ GH_GRAPHQL_SETTINGS = re.compile(r"(?:update|create|delete)(?:BranchProtectionRu
 GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
 
 
-def gh_parse(args):
+def gh_parse(args, headers=None):
     """(positionals, method or None, body flag) of `gh <args>` as gh's pflag reads it: long options (--method=POST),
     short clusters (-iX DELETE, -XPUT, -X=PUT), the last -X/--method wins; -f/-F/--field/--raw-field/--input set body
-    (gh api then uses POST). Shared by gh_repo_change and the researcher gh api rule (T-0874)."""
+    (gh api then uses POST). With a `headers` list, every -H/--header value is appended to it (T-1030). Shared by
+    gh_repo_change and the researcher gh api rule (T-0874)."""
     pos, method, body, j = [], None, False, 0
 
     def note(opt, val):
@@ -671,6 +672,8 @@ def gh_parse(args):
             method = val.upper()
         elif opt in ("-f", "--raw-field", "-F", "--field", "--input"):
             body = True
+        elif opt in ("-H", "--header") and headers is not None:
+            headers.append(val)
 
     while j < len(args):
         x = args[j]
@@ -2831,15 +2834,24 @@ class Analyzer:
 
     def nopush_gh_write(self, rest):
         """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
-        POST) unless the method is GET, nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        POST) unless the method is GET, nor `gh api` with any -X/--method other than GET (T-0987; HEAD, OPTIONS and an
+        empty method are refused too, only GET is a read), nor `gh api -H 'X-HTTP-Method-Override: POST|PUT|PATCH|DELETE'`
+        (T-1030), nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
         no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
-        pos, method, body = gh_parse(rest)
+        headers = []
+        pos, method, body = gh_parse(rest, headers)
         if pos[:1] == ["api"] and body and method != "GET":
             raise Block("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to "
                         "GitHub; use -X GET for a read with fields, or ask your lead")
         if pos[:1] == ["api"] and method not in (None, "GET"):  # T-0987: a non-GET method is a write even without a body
-            raise Block(f"gh api -X/--method {method} is a write; no-push roles never write to GitHub; "
-                        "use GET for a read, or ask your lead")
+            raise Block(f"gh api -X/--method {method!r} is not GET; no-push roles only read GitHub through gh api "
+                        "(GET); use GET, or ask your lead")
+        if pos[:1] == ["api"]:  # T-1030: a method-override header turns a POST into a write on the server side
+            for h in headers:
+                name, _, val = h.partition(":")
+                if name.strip().lower() == "x-http-method-override" and val.strip().upper() in GH_MUTATING:
+                    raise Block(f"gh api -H X-HTTP-Method-Override: {val.strip()} is a write; no-push roles never write "
+                                "to GitHub; drop the header, or ask your lead")
         if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
             raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
 
