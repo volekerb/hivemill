@@ -15,9 +15,9 @@ import (
 var protLiveSubdirs = [][]string{{"go"}, {"roles", "hooks"}, {"roles", "settings"}, {"bin"}}
 
 var protMarkers = []string{".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-	"run/settings", "run/guard_impl"}
+	"run/settings", "run/guard_impl", ".local/bin"}
 
-const protWhy = "it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; " +
+const protWhy = "it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; " +
 	"~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, " +
 	"<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner " +
 	"and the tick change them. Work in your worktree"
@@ -33,6 +33,7 @@ func protTrees() []string {
 	base := []string{h.cfgDir, h.libDir, pyJoin(pyJoin(h.pwDir, ".config"), "factory"),
 		pyJoin(pyJoin(pyJoin(h.pwDir, ".local"), "lib"), "factory"), pyJoin(pyJoin(h.pwDir, ".local"), "go"),
 		pyJoin(pyJoin(h.pwDir, ".config"), "go")}
+	base = append(base, h.binDirs...) // T-0957 family
 	for _, home := range homes {
 		base = append(base, pyJoin(pyJoin(home, "run"), "settings"), pyJoin(pyJoin(home, "run"), "guard_impl"))
 		for _, sub := range protLiveSubdirs {
@@ -74,23 +75,21 @@ func protPath(p string, ancestor bool) bool {
 // path holding one.
 func protGlob(p string, ancestor bool) bool {
 	pat := strings.Split(strings.Trim(pyNormpath(p), "/"), "/")
+	var m func(i, j int, parts []string) bool
+	m = func(i, j int, parts []string) bool {
+		if j == len(parts) {
+			return true // the whole tree is matched: the pattern names it or something inside it
+		}
+		if i == len(pat) {
+			return ancestor
+		}
+		if pat[i] == "**" { // B6: any number of components, zero included
+			return m(i+1, j, parts) || m(i, j+1, parts)
+		}
+		return fnmatchCase(parts[j], pat[i]) && m(i+1, j+1, parts)
+	}
 	for _, d := range protTrees() {
-		parts := strings.Split(strings.Trim(d, "/"), "/")
-		n := len(pat)
-		if len(parts) < n {
-			n = len(parts)
-		}
-		if !(len(pat) >= len(parts) || ancestor) {
-			continue
-		}
-		ok := true
-		for i := 0; i < n; i++ {
-			if !fnmatchCase(parts[i], pat[i]) {
-				ok = false
-				break
-			}
-		}
-		if ok {
+		if m(0, 0, strings.Split(strings.Trim(d, "/"), "/")) {
 			return true
 		}
 	}
@@ -119,7 +118,7 @@ func optValues(args []string, letters string, longs ...string) []string {
 		a := args[k]
 		k++
 		opt, val, eq := strings.Cut(a, "=")
-		if inStrs(longs, opt) {
+		if inStrs(longs, opt) || longOpt(opt, longs...) {
 			if eq {
 				out = append(out, val)
 			} else if k < len(args) {
@@ -141,6 +140,55 @@ func optValues(args []string, letters string, longs ...string) []string {
 		}
 	}
 	return out
+}
+
+// longOpt is long_opt (B5): GNU getopt accepts a unique prefix of a long option. True when opt (a `--word` without any
+// =value) is one of names or a prefix of one, at least two letters long; an ambiguous prefix counts too.
+func longOpt(opt string, names ...string) bool {
+	if !strings.HasPrefix(opt, "--") || len(opt) < 4 {
+		return false
+	}
+	for _, n := range names {
+		if strings.HasPrefix(n, opt) {
+			return true
+		}
+	}
+	return false
+}
+
+// protDestIndexes is prot_dest_indexes (B1): the words that can be the destination of cp/install/ln -s/rsync/dd when
+// options may trail it.
+func protDestIndexes(args []string) map[int]bool {
+	n := len(args)
+	isopt := make([]bool, n)
+	var nonopt []int
+	for i, a := range args {
+		isopt[i] = strings.HasPrefix(a, "-") && len(a) > 1
+		if !isopt[i] {
+			nonopt = append(nonopt, i)
+		}
+	}
+	res := map[int]bool{}
+	if n > 0 {
+		res[n-1] = true
+	}
+	if len(nonopt) > 0 {
+		res[nonopt[len(nonopt)-1]] = true
+	}
+	t := n
+	for t > 0 && (isopt[t-1] || (t > 1 && isopt[t-2])) {
+		t--
+	}
+	var pre []int
+	for _, j := range nonopt {
+		if j < t {
+			pre = append(pre, j)
+		}
+	}
+	if len(pre) >= 2 {
+		res[pre[len(pre)-1]] = true
+	}
+	return res
 }
 
 func inStrs(xs []string, s string) bool {
@@ -198,7 +246,6 @@ var (
 	reSymShort  = regexp.MustCompile(`^-[A-Za-z]+$`)
 	reTarOld    = regexp.MustCompile(`^[A-Za-z]+$`)
 	protCCNames = set("gcc", "g++", "cc", "c++", "clang", "clang++", "ld", "as", "rustc")
-	protTarLong = []string{"--extract", "--get", "--ex", "--ext", "--extr", "--extra", "--extrac", "--ge"}
 	protCloneV  = set("-b", "--branch", "--depth", "-o", "--origin", "--template", "--reference", "--reference-if-able",
 		"-c", "--config", "-j", "--jobs", "--filter", "--separate-git-dir", "-u", "--upload-pack",
 		"--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri")
@@ -251,13 +298,17 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		destOnly := name == "cp" || name == "install" || name == "rsync" || name == "dd"
 		if !destOnly && name == "ln" {
 			for _, x := range args {
-				if x == "--symbolic" || (reSymShort.MatchString(x) && strings.Contains(x, "s")) {
+				if longOpt(x, "--symbolic") || (reSymShort.MatchString(x) && strings.Contains(x, "s")) {
 					destOnly = true
 				}
 			}
 		}
+		var dests map[int]bool
+		if destOnly {
+			dests = protDestIndexes(args)
+		}
 		for j, x := range args {
-			if destOnly && !isDestArg(args, j) {
+			if destOnly && !(dests[j] || isDestArg(args, j) || (longOpt(strings.SplitN(x, "=", 2)[0], "--target-directory") && strings.Contains(x, "="))) {
 				continue
 			}
 			if err := hit(x, in(CfgRemovers, name) || (name == "mv" && j < len(args)-1), a.ccwd, a.ccwdKnown); err != nil {
@@ -351,11 +402,11 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 	case in(protCCNames, name):
 		for k, x := range args {
 			switch {
-			case (x == "-o" || x == "--output") && k+1 < len(args):
+			case (x == "-o" || longOpt(x, "--output")) && k+1 < len(args):
 				if err := hitc(args[k+1]); err != nil {
 					return err
 				}
-			case strings.HasPrefix(x, "--output="):
+			case strings.Contains(x, "=") && longOpt(strings.SplitN(x, "=", 2)[0], "--output"):
 				if err := hitc(x); err != nil {
 					return err
 				}
@@ -370,17 +421,23 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		if len(targs) > 0 && reTarOld.MatchString(targs[0]) {
 			targs[0] = "-" + targs[0]
 		}
-		extract := false
+		extract, writesArchive := false, false
 		var top []string
 		for _, x := range targs {
 			if strings.HasPrefix(x, "-") && !strings.HasPrefix(x, "--") && strings.Contains(x, "x") {
 				extract = true
 			}
 			opt, val, _ := strings.Cut(x, "=")
-			if inStrs(protTarLong, opt) {
+			if longOpt(opt, "--extract", "--get") {
 				extract = true
 			}
-			if strings.HasPrefix(x, "--one-top-level=") {
+			if longOpt(opt, "--create", "--append", "--update", "--catenate", "--concatenate") {
+				writesArchive = true
+			}
+			if strings.HasPrefix(x, "-") && !strings.HasPrefix(x, "--") && strings.ContainsAny(x, "cruA") {
+				writesArchive = true
+			}
+			if longOpt(opt, "--one-top-level") {
 				top = append(top, val)
 			}
 		}
@@ -407,9 +464,11 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			}
 			return hit(base, false, base, true)
 		}
-		for _, v := range optValues(targs, "f", "--file") {
-			if err := hitc(v); err != nil {
-				return err
+		if writesArchive { // B3: create, append and update write the archive; list and diff only read it
+			for _, v := range optValues(targs, "f", "--file") {
+				if err := hitc(v); err != nil {
+					return err
+				}
 			}
 		}
 	case name == "unzip":
@@ -481,14 +540,14 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 				x := args[j]
 				j++
 				switch {
-				case in(protCloneV, x):
-					if x == "--separate-git-dir" && j < len(args) {
+				case in(protCloneV, x) || longOpt(x, "--separate-git-dir"):
+					if longOpt(x, "--separate-git-dir") && j < len(args) {
 						if err := hit(args[j], false, base, known); err != nil {
 							return err
 						}
 					}
 					j++
-				case strings.HasPrefix(x, "--separate-git-dir="):
+				case strings.Contains(x, "=") && longOpt(strings.SplitN(x, "=", 2)[0], "--separate-git-dir"):
 					if err := hit(x, false, base, known); err != nil {
 						return err
 					}
@@ -523,7 +582,7 @@ func tarDirs(args []string) []string {
 		k++
 		if strings.HasPrefix(a, "--") {
 			opt, val, eq := strings.Cut(a, "=")
-			if opt == "--directory" {
+			if longOpt(opt, "--directory") {
 				if eq {
 					out = append(out, val)
 				} else if k < len(args) {

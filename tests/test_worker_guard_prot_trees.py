@@ -210,5 +210,36 @@ class EditTools(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, f"{tool} {path}: {r.stderr}")
 
 
+class AttemptTwoFindings(ProtTreesCase):
+    """Review of 8bf50627: B1 trailing option, B3 archive reads, B5 abbreviated long options, B6 recursive glob, and the
+    ~/.local/bin family (T-0957) for gaps a, b, c."""
+
+    def test_b1_trailing_option_does_not_hide_the_destination(self):
+        self.blocked(["cp /tmp/x ~/.local/go/go.env -f", "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
+                      "install /tmp/x ~/.local/go/x -m755", "install /tmp/x ~/.local/go/x -m 755",
+                      "ln -s /tmp/x ~/.local/go/go.env -f", "rsync /tmp/x ~/.local/go/go.env -a",
+                      "cp /tmp/x @L@/bin/factory_cli.py -f"])
+        self.allowed(["cp /tmp/x /tmp/y -f", "cp ~/.local/go/go.env /tmp/x -f"])
+
+    def test_b3_archive_list_and_diff_are_reads(self):
+        self.allowed(["tar -tf ~/.local/go/pkg.tar", "tar --list -f ~/.local/go/pkg.tar", "tar -df ~/.local/go/pkg.tar"])
+        self.blocked(["tar -cf ~/.local/go/pkg.tar x", "tar -rf ~/.local/go/pkg.tar x", "tar -uf ~/.local/go/pkg.tar x",
+                      "tar --create --file=~/.local/go/pkg.tar x"])
+
+    def test_b5_abbreviated_long_options(self):
+        self.blocked(["tar --dir=~/.local/go -xf a.tar", "wget --output-doc=~/.local/go/x URL",
+                      "tar --one-top=~/.local/go -xf a.tar"])
+        self.allowed(["wget --output-doc=/tmp/x URL", "tar --dir=/tmp/x -xf a.tar"])
+
+    def test_b6_double_star_matches_any_depth(self):
+        self.blocked(["echo x > ~/**/factory_cli.py", "echo x > @L@/**/factory_cli.py"])
+        self.allowed(["echo x > /opt/**/y"])
+
+    def test_local_bin_family_for_gaps_a_b_c(self):
+        self.blocked(["echo x > ~/.local/b*/git", "curl -o ~/.local/bin/git URL", "go build -o ~/.local/bin/x ./cmd/x",
+                      "tar -C ~/.local/bin -xf a.tar", "cd ~/.local/bin && tar -xf a.tar", "unzip -d ~/.local/bin a.zip"])
+        self.allowed(["ls ~/.local/bin", "echo x > ~/.local/binx/y", "tar -tf ~/.local/bin/a.tar"])
+
+
 if __name__ == "__main__":
     unittest.main()

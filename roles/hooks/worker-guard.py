@@ -246,6 +246,11 @@ RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LI
 # RUN_SETTINGS and CFG_DIR (writers, redirects, cd + write); reads stay allowed.
 RUN_GUARD_IMPL = {os.path.realpath(os.path.join(h, "run", "guard_impl")) for h in LIVE_HOMES}
 LIB_DIR = os.path.realpath(os.path.join(PW_DIR, ".local", "lib", "factory"))
+# T-0957: ~/.local/bin is first on the tick's and factory-up's PATH, so a file a worker plants there (git, factory, go)
+# runs with their credentials. Protected like LIB_DIR, but matched on the path AS WRITTEN too: its entries are
+# symlinks (factory, claude) whose realpath is outside the tree. Reads and running stay allowed.
+BIN_DIR = os.path.join(PW_DIR, ".local", "bin")
+BIN_DIRS = {BIN_DIR, os.path.realpath(BIN_DIR)}
 # T-0883: run/guard-export.json (what the Go guard decides own goal, push pin, sandbox and terms file from) and its
 # atomic-rename temp sibling guard-export.json.tmp<pid>: a Bash write there forges the guard's own decisions
 RUN_EXPORT = {os.path.realpath(os.path.join(h, "run", "guard-export.json")) for h in LIVE_HOMES}
@@ -268,8 +273,8 @@ EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, th
 # whole live checkout. Reads and runs stay allowed; worktrees are not under them.
 PROT_LIVE_SUBDIRS = ("go", "roles/hooks", "roles/settings", "bin")
 PROT_MARKERS = (".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
-                "run/settings", "run/guard_impl")  # an expansion we cannot resolve that spells one of these counts
-PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; "
+                "run/settings", "run/guard_impl", ".local/bin")  # an expansion we cannot resolve that spells one of these counts
+PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; "
             "~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, "
             "<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner "
             "and the tick change them. Work in your worktree")
@@ -282,7 +287,7 @@ def prot_trees():
     override = os.environ.get("WORKER_GUARD_LIVE_HOME")
     homes = {os.path.realpath(override)} if override else set(LIVE_HOMES)
     base = [CFG_DIR, LIB_DIR, os.path.join(PW_DIR, ".config", "factory"), os.path.join(PW_DIR, ".local", "lib", "factory"),
-            os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go")]
+            os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go")] + sorted(BIN_DIRS)  # T-0957 family
     for h in homes:
         base += [os.path.join(h, "run", "settings"), os.path.join(h, "run", "guard_impl")]
         base += [os.path.join(h, *sub.split("/")) for sub in PROT_LIVE_SUBDIRS]
@@ -296,16 +301,48 @@ def prot_path(p, ancestor=False):
                for d in trees)
 
 
+def prot_dest_indexes(args):
+    """B1: indexes of the words that can be the destination of cp/install/ln -s/rsync/dd. Options may trail the
+    destination (`cp a dest -f`, `install a dest -m 755`), so the last word is not enough: the last non-option word
+    counts, and so does the last non-option word before the trailing run of options and their values, when at least
+    two non-option words precede that run (a source and a destination)."""
+    n = len(args)
+    isopt = [a.startswith("-") and len(a) > 1 for a in args]
+    nonopt = [j for j in range(n) if not isopt[j]]
+    res = {n - 1} if n else set()
+    if nonopt:
+        res.add(nonopt[-1])
+    t = n
+    while t > 0 and (isopt[t - 1] or (t > 1 and isopt[t - 2])):  # the trailing run: options, each with one value word
+        t -= 1
+    pre = [j for j in nonopt if j < t]
+    if len(pre) >= 2:
+        res.add(pre[-1])
+    return res
+
+
+def long_opt(opt, *names):
+    """B5: GNU getopt accepts a unique prefix of a long option (`--dir=X` for --directory). True when `opt` (a `--word`,
+    without any =value) is one of `names` or a prefix of one, at least two letters long; an ambiguous prefix counts too."""
+    return opt.startswith("--") and len(opt) >= 4 and any(n.startswith(opt) for n in names)
+
+
 def prot_glob(p, ancestor=False):
     """True when glob pattern `p` (absolute) can match a protected tree, a path inside one or (ancestor) a path holding
-    one: each component is fnmatched against the tree's, so `~/.local/fact*/x` and `<live>/rol*/hooks/y` match."""
+    one: each component is fnmatched against the tree's, so `~/.local/fact*/x` and `<live>/rol*/hooks/y` match. B6: a
+    `**` component stands for any number of components (zero included)."""
     pat = os.path.normpath(p).strip("/").split("/")
-    for d in prot_trees():
-        parts = d.strip("/").split("/")
-        n = min(len(pat), len(parts))
-        if (len(pat) >= len(parts) or ancestor) and all(fnmatch.fnmatchcase(x, y) for x, y in zip(parts[:n], pat[:n])):
-            return True
-    return False
+
+    def m(i, j, parts):
+        if j == len(parts):
+            return True  # the whole tree is matched: the pattern names it or something inside it
+        if i == len(pat):
+            return ancestor
+        if pat[i] == "**":
+            return m(i + 1, j, parts) or m(i, j + 1, parts)
+        return fnmatch.fnmatchcase(parts[j], pat[i]) and m(i + 1, j + 1, parts)
+
+    return any(m(0, 0, d.strip("/").split("/")) for d in prot_trees())
 
 
 def prot_edit_path(p):
@@ -324,7 +361,7 @@ def tar_dirs(args):
         k += 1
         if a.startswith("--"):
             opt, eq, val = a.partition("=")
-            if opt == "--directory":
+            if long_opt(opt, "--directory"):
                 if eq:
                     out.append(val)
                 elif k < len(args):
@@ -361,7 +398,7 @@ def opt_values(args, letters="", longs=()):
         a = args[k]
         k += 1
         opt, eq, val = a.partition("=")
-        if opt in longs:
+        if opt in longs or long_opt(opt, *longs):
             if eq:
                 out.append(val)
             elif k < len(args):
@@ -379,7 +416,7 @@ def opt_values(args, letters="", longs=()):
     return out
 
 
-CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
+CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|\.local/bin(?![A-Za-z0-9_])|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
 INTERPRETERS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs|php|lua|deno|bun)$")
@@ -1565,17 +1602,22 @@ class Analyzer:
             t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             if any(c in t for c in "$`*?[{"):
                 if (".config/factory" in t or ".local/lib/factory" in t or "run/settings" in t
-                        or "run/guard_impl" in t or "guard-export" in t):
+                        or "run/guard_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
                     return True
                 if self.export_glob(t):
                     return True
                 continue
             if not t or (not os.path.isabs(t) and self.ccwd is None):
                 continue
-            p = os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+            full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+            p = os.path.realpath(full)
             for d in {CFG_DIR, LIB_DIR} | RUN_SETTINGS | RUN_GUARD_IMPL:
                 if p == d or under(p, d) or (ancestor and under(d, p)):
                     return True
+            for q in (p, os.path.normpath(full)):  # T-0957: the spelled path too (a symlink in ~/.local/bin)
+                for d in BIN_DIRS:
+                    if q == d or under(q, d) or (ancestor and under(d, q)):
+                        return True
             for d in RUN_EXPORT:  # the file itself and its temp sibling <file>.tmp<pid>
                 if p == d or p.startswith(d + ".") or (ancestor and under(d, p)):
                     return True
@@ -1586,7 +1628,7 @@ class Analyzer:
             raise Block("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live "
                         "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json "
                         "(the guard's own decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation "
-                        "flag and binary); only the owner and the tick change them")
+                        "flag and binary) or ~/.local/bin (first on the tick's PATH); only the owner and the tick change them")
 
     def cfg_path(self, w):
         """Realpath of a word for the export checks, None when it has an expansion we cannot resolve."""
@@ -1599,6 +1641,14 @@ class Analyzer:
         """Message only (the block fires on cfg_hit): w resolves to run/guard_impl or to LIB_DIR or a file under it."""
         p = self.cfg_path(w)
         return p is not None and (p in RUN_GUARD_IMPL or under(p, LIB_DIR))
+
+    def in_bin_dir(self, w):
+        """Message only (the block fires on cfg_hit): w, as spelled or resolved, is ~/.local/bin or under it."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+        if not t or any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            return bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", t))
+        full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+        return any(under(q, d) or q == d for q in (os.path.realpath(full), os.path.normpath(full)) for d in BIN_DIRS)
 
     def export_rule(self, name, args):
         """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
@@ -1661,6 +1711,9 @@ class Analyzer:
                     if "guard_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
                         raise Block(f"`{name}` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the "
                                     "guard implementation; only the owner and `factory` change them")
+                    if self.in_bin_dir(a):
+                        raise Block(f"`{name}` on ~/.local/bin: it is first on the tick's PATH, so a file there runs with "
+                                    "the tick's credentials; only the owner changes it")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):
@@ -1720,10 +1773,11 @@ class Analyzer:
 
         if name in CFG_WRITERS:
             dest_only = name in ("cp", "install", "rsync", "dd") or (
-                name == "ln" and any(a == "--symbolic" or (re.match(r"^-[A-Za-z]+$", a) and "s" in a) for a in args))
+                name == "ln" and any(long_opt(a, "--symbolic") or (re.match(r"^-[A-Za-z]+$", a) and "s" in a) for a in args))
+            dests = prot_dest_indexes(args) if dest_only else None
             for j, a in enumerate(args):
-                if dest_only and not (j == len(args) - 1 or a.startswith("of=") or (j > 0 and args[j - 1] in ("-t", "--target-directory"))
-                                      or a.startswith("--target-directory=")):
+                if dest_only and not (j in dests or a.startswith("of=") or (j > 0 and args[j - 1] in ("-t", "--target-directory"))
+                                      or (long_opt(a.partition("=")[0], "--target-directory") and "=" in a)):
                     continue
                 hit(a, name in CFG_REMOVERS or (name == "mv" and j < len(args) - 1))
         elif name in ("sed", "perl", "gawk") and any(re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") for a in args):
@@ -1772,9 +1826,9 @@ class Analyzer:
                     hit(v, base=base)
         elif name in ("gcc", "g++", "cc", "c++", "clang", "clang++", "ld", "as", "rustc"):
             for k, a in enumerate(args):
-                if a in ("-o", "--output") and k + 1 < len(args):
+                if (a == "-o" or long_opt(a, "--output")) and k + 1 < len(args):
                     hit(args[k + 1])
-                elif a.startswith("--output="):
+                elif long_opt(a.partition("=")[0], "--output") and "=" in a:
                     hit(a)
                 elif a.startswith("-o") and len(a) > 2:
                     hit(a[2:])
@@ -1783,9 +1837,12 @@ class Analyzer:
             if targs and re.fullmatch(r"[A-Za-z]+", targs[0]):
                 targs[0] = "-" + targs[0]  # the old style `tar xf a.tar`
             extract = any(a.startswith("-") and not a.startswith("--") and "x" in a for a in targs) or any(
-                a.partition("=")[0] in ("--extract", "--get", "--ex", "--ext", "--extr", "--extra", "--extrac", "--ge") for a in targs)
+                long_opt(a.partition("=")[0], "--extract", "--get") for a in targs)
+            # B3: only create, append and update (and --catenate) write the archive; list and diff only read it
+            writes_archive = any(a.startswith("-") and not a.startswith("--") and any(c in a for c in "cruA") for a in targs) or any(
+                long_opt(a.partition("=")[0], "--create", "--append", "--update", "--catenate", "--concatenate") for a in targs)
             dirs = tar_dirs(targs)
-            top = [a.partition("=")[2] for a in targs if a.startswith("--one-top-level=")]
+            top = [a.partition("=")[2] for a in targs if long_opt(a.partition("=")[0], "--one-top-level")]
             if extract:
                 base = self.ccwd
                 for d in dirs:  # -C chains: each relative one is relative to the one before
@@ -1797,8 +1854,8 @@ class Analyzer:
                 if base is None:
                     block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
                 hit(base)  # no -C: the cwd; with -C: where the last one leads
-            else:
-                for v in opt_values(targs, "f", {"--file"}):  # create/append: the archive file is written
+            elif writes_archive:
+                for v in opt_values(targs, "f", {"--file"}):  # create/append/update: the archive file is written
                     hit(v)
         elif name == "unzip":
             dirs = unzip_dirs(args)
@@ -1837,11 +1894,11 @@ class Analyzer:
                 while j < len(args):
                     a = args[j]
                     j += 1
-                    if a in valued:
-                        if a == "--separate-git-dir" and j < len(args):
+                    if a in valued or long_opt(a, "--separate-git-dir"):
+                        if long_opt(a, "--separate-git-dir") and j < len(args):
                             hit(args[j], base=base)
                         j += 1
-                    elif a.startswith("--separate-git-dir="):
+                    elif long_opt(a.partition("=")[0], "--separate-git-dir") and "=" in a:
                         hit(a, base=base)
                     elif not a.startswith("-"):
                         pos.append(a)
@@ -4568,6 +4625,14 @@ def persist_edit(data, role=None):
         return 2
     if prot_edit_path(p):  # T-0925 gap g: the Edit tools were checked against the persist paths only
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {PROT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    # T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
+    # a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
+    if any(q == d or under(q, d) for q in (os.path.normpath(p), os.path.realpath(p)) for d in BIN_DIRS) or (
+            "$" in p and re.search(r"\.local/bin(?![A-Za-z0-9_])", p)):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): ~/.local/bin is first on the tick's PATH, so a file "
+                         "planted there runs with the tick's credentials; only the owner changes it. "
+                         "Tell your lead if this is wrong.\n")
         return 2
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
     if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (
