@@ -15,12 +15,16 @@ DENY = [
     ("coder", "env --split-s '-u FACTORY_ROLE' ls"), ("coder", "env --split='-u FACTORY_ROLE' ls"),
     ("coder", "env --sp='-u FACTORY_ROLE' ls"), ("coder", "env -S '\"-u\" FACTORY_ROLE' ls"),
     ("coder", "env -S'-u\\_FACTORY_ROLE' ls"), ("coder", "env -S\"-u 'FACTORY_ROLE'\" ls"),
+    ("coder", "env -S '-u ${NOPE_T1037}FACTORY_ROLE' ls"), ("qa", "env -S '-u ${NOPE_T1037}GIT_DIR' git status"),
+    ("coder", "env -S '-u FACTORY_ROLE\\c ls' ls"),
+    ("coder", "env -S '\"-u FACTORY_ROLE' ls"),
     ("qa", "env -S '\"-u\" GIT_DIR' git status"), ("qa", "env -S'-u\\_GIT_DIR' git status"),
     ("qa", "env --split-s '-u GIT_DIR' git status"), ("coder", "env -S '\"-i\"' factory task show T-1"),
 ]
 ALLOW = [
     ("qa", "git status"), ("coder", "env -S 'ls -l'"), ("qa", "env -S 'git status'"),
-    ("coder", "env -S '\"ls\" -l'"),
+    ("coder", "env -S '\"ls\" -l'"), ("coder", "env --sp='ls -l'"), ("coder", "env -S \"'-u FACTORY_ROLE'\" ls"),
+    ("coder", "env -S '# -u FACTORY_ROLE' ls"),
 ]
 
 

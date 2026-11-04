@@ -826,7 +826,7 @@ def env_split(s):
     (only backslash-backslash and backslash-quote escape), double quotes keep spaces and honour escapes, backslash-underscore
     is a separator outside quotes and a space inside double quotes, backslash-c ends the string, backslash-n/t/r/f/v are
     control characters, any other backslash-x is x. An unterminated quote takes the rest (env would refuse it; the guard
-    keeps the words). ${VAR} stays literal text. A `#` at the start of a word starts a comment."""
+    keeps the words). ${VAR} outside single quotes is expanded from the hook's environment (empty when unset), as env does. A `#` at the start of a word starts a comment."""
     words, cur, have, q, i = [], [], False, None, 0
 
     def end():
@@ -861,6 +861,11 @@ def env_split(s):
             else:
                 cur.append(ENV_SPLIT_ESC.get(e, e))
                 have = True
+        elif c == "$" and s.startswith("{", i) and "}" in s[i:]:
+            j = s.index("}", i)
+            cur.append(os.environ.get(s[i + 1:j], ""))
+            have = True
+            i = j + 1
         elif q == '"':
             if c == '"':
                 q = None
