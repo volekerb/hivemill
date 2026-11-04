@@ -250,6 +250,7 @@ func TestUvRunnersWithSeededTestSandbox(t *testing.T) {
 	allowed := []string{"uvx ruff", "uv tool run black", "uvx pytest-cov", "uvx 'ruff >=0.5'"}
 	for _, role := range []string{"coder"} { // qa runs the same code: internal/guard/uvseed_test.go covers both roles
 		for _, c := range blocked {
+			c = withTestPath(c)
 			for _, w := range []struct {
 				home string
 				want int
@@ -323,4 +324,13 @@ func TestTermsFileKnownOnlyToTheDB(t *testing.T) {
 			t.Errorf("%s as %s: exit %d %q, want %d", c.payload, c.role, code, stderr, c.code)
 		}
 	}
+}
+
+// withTestPath names a test file on a pytest form: T-0435 refuses bare pytest (full suite) with or without test_sandbox,
+// and the Go guard does not carry that rule, so only the test_sandbox decision is under test here.
+func withTestPath(c string) string {
+	if strings.Contains(c, "pytest") || strings.Contains(c, "py.test") {
+		return c + " tests/test_x.py"
+	}
+	return c
 }
