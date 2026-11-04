@@ -3231,13 +3231,19 @@ def resolve_recipient(con, to, org=None):
         to = "boss"  # the boss is the owner's interface; it relays
     if to in orgs.SINGLETON_ROLES:
         cand = oname(con, org, to)
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (cand,)).fetchone():
+        live = ("live", "starting", "queued")
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN (?,?,?)", (cand, *live)).fetchone():
             return cand
-        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') "
-                        "ORDER BY started DESC", (to,)).fetchall()
+        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN (?,?,?) "
+                        "ORDER BY started DESC", (to, *live)).fetchall()
         for x in r:
             if agent_org(con, x["name"]) == org:
                 return x["name"]
+        if (org == orgs.DEFAULT_ORG and (cfg(con, "org_prefix_default") or "0").strip() == "1"
+                and not orgs.prefix_of(to)):
+            leg = con.execute("SELECT name FROM agents WHERE name=? AND status IN (?,?,?)", (to, *live)).fetchone()
+            if leg and agent_org(con, leg["name"]) == org:
+                return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
         r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
