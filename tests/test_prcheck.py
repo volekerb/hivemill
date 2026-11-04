@@ -612,6 +612,25 @@ class PrcheckTests(FactoryTestCase):
         p = self.body_result("`pytest tests/test_x.py` 2 failed\nNext line of text", 0)
         self.assertIn("PASS body:", p.stdout)
 
+    # -- T-0979: opener info string, closer length, "failed in <non-duration>"
+    def test_evidence_line_start_inline_triple_backticks_is_not_a_fence(self):  # acceptance 1
+        p = self.body_result("```x``` is inline text\n`python3 -m unittest tests.test_x` -> Ran 7, OK", 0)
+        self.assertNotIn("never closed", p.stdout)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_four_backtick_fence_with_inner_triple_passes(self):  # acceptance 2
+        p = self.body_result("````\n$ python3 -m unittest tests.test_x\n```\nRan 7 tests, OK\n````\nmore text", 0)
+        self.assertNotIn("never closed", p.stdout)
+        self.assertIn("PASS body:", p.stdout)
+
+    def test_evidence_four_backtick_fence_unclosed_by_shorter_run_fails_closed(self):  # acceptance 2
+        p = self.body_result("````\n$ python3 -m unittest tests.test_x\nRan 7 tests, OK\n```", 1)
+        self.assertIn("never closed", p.stdout)
+
+    def test_evidence_failed_in_a_row_is_not_output(self):  # acceptance 3
+        p = self.body_result("`pytest tests/test_x.py` 2 failed in a row", 1)
+        self.assertIn("no output line", p.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
