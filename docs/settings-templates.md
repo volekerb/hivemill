@@ -27,3 +27,5 @@ Panes started before this change run `claude --settings <live>/roles/settings/<r
 ## Reviewing a settings change
 
 Edit the `.json.in` file. The PR CI `guard-diff` job's real-corpus step runs `ci/guard_diff.py` against the base and prints `SETTINGS-LOOSENED <role> deny removed: <rule>` for a removed deny rule, an added allow rule or a removed hook, and `SETTINGS-TIGHTENED` for the reverse (see `docs/guard-diff.md`). Tests that need real settings use `harness.rendered_settings(role)`; `tests/test_settings_templates.py` covers the templates.
+
+Every worker-guard hook entry in the ten worker templates (all but boss, director, lead) sets `"timeout": 120` and `"onFailure": "block"`, so a hook that hangs or crashes denies the tool call instead of letting it through (Claude Code >= 2.1.295). The guard-diff compare reports that change as `SETTINGS-LOOSENED ... hook-timeout removed` (the timeout line goes from empty to 120), so the PR lists those lines in `ci/allow_loosen_t0960.json`.
