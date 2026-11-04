@@ -10,8 +10,6 @@ import zipfile
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 
 
