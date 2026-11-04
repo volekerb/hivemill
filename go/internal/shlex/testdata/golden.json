@@ -45082,6 +45082,6735 @@
 "src": "corpus"
 },
 {
+"input": "echo x > ~/.local/lib/fact*/worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/fact*/worker-guard.stamp"
+]
+},
+{
+"input": "echo x > ~/.local/lib/fact*/worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/fact*/worker-guard.stamp"
+]
+},
+{
+"input": "echo x > ~/.local/lib/fact*/worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/fact*/worker-guard.stamp"
+]
+},
+{
+"input": "echo x > ~/.local/lib/fact*/worker-guard.stamp",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/lib/fact*/worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/lib/fact?ry/worker-guard.stamp",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/fact?ry/worker-guard.stamp"
+]
+},
+{
+"input": "echo x > ~/.local/lib/fact?ry/worker-guard.stamp",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/fact?ry/worker-guard.stamp"
+]
+},
+{
+"input": "echo x > ~/.local/lib/fact?ry/worker-guard.stamp",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/lib/fact?ry/worker-guard.stamp"
+]
+},
+{
+"input": "echo x > ~/.local/lib/fact?ry/worker-guard.stamp",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/lib/fact?ry/worker-guard.stamp'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/run/settin?s/coder.json",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/run/settin?s/coder.json"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/run/settin?s/coder.json",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/run/settin?s/coder.json"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/run/settin?s/coder.json",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/run/settin?s/coder.json"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/run/settin?s/coder.json",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/run/settin?s/coder.json'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.config/fact*/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/fact*/x"
+]
+},
+{
+"input": "echo x > ~/.config/fact*/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/fact*/x"
+]
+},
+{
+"input": "echo x > ~/.config/fact*/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/fact*/x"
+]
+},
+{
+"input": "echo x > ~/.config/fact*/x",
+"mode": "quote",
+"quoted": "'echo x > ~/.config/fact*/x'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/run/guard_imp?",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/run/guard_imp?"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/run/guard_imp?",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/run/guard_imp?"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/run/guard_imp?",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/run/guard_imp?"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/run/guard_imp?",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/run/guard_imp?'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/lib/fact*/worker-guard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/fact*/worker-guard"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/fact*/worker-guard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/fact*/worker-guard"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/fact*/worker-guard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/fact*/worker-guard"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/fact*/worker-guard",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/lib/fact*/worker-guard'",
+"src": "corpus"
+},
+{
+"input": "tee ~/.config/f[a]ctory/live_home",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tee",
+"~/.config/f[a]ctory/live_home"
+]
+},
+{
+"input": "tee ~/.config/f[a]ctory/live_home",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tee",
+"~/.config/f",
+"[",
+"a",
+"]",
+"ctory/live_home"
+]
+},
+{
+"input": "tee ~/.config/f[a]ctory/live_home",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tee",
+"~/.config/f[a]ctory/live_home"
+]
+},
+{
+"input": "tee ~/.config/f[a]ctory/live_home",
+"mode": "quote",
+"quoted": "'tee ~/.config/f[a]ctory/live_home'",
+"src": "corpus"
+},
+{
+"input": "curl -o ~/.local/lib/factory/worker-guard URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/lib/factory/worker-guard URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/lib/factory/worker-guard URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/lib/factory/worker-guard URL",
+"mode": "quote",
+"quoted": "'curl -o ~/.local/lib/factory/worker-guard URL'",
+"src": "corpus"
+},
+{
+"input": "curl -sSLo ~/.local/lib/factory/worker-guard URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-sSLo",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "curl -sSLo ~/.local/lib/factory/worker-guard URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-sSLo",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "curl -sSLo ~/.local/lib/factory/worker-guard URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-sSLo",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "curl -sSLo ~/.local/lib/factory/worker-guard URL",
+"mode": "quote",
+"quoted": "'curl -sSLo ~/.local/lib/factory/worker-guard URL'",
+"src": "corpus"
+},
+{
+"input": "curl --output ~/.config/factory/x URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"--output",
+"~/.config/factory/x",
+"URL"
+]
+},
+{
+"input": "curl --output ~/.config/factory/x URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"--output",
+"~/.config/factory/x",
+"URL"
+]
+},
+{
+"input": "curl --output ~/.config/factory/x URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"--output",
+"~/.config/factory/x",
+"URL"
+]
+},
+{
+"input": "curl --output ~/.config/factory/x URL",
+"mode": "quote",
+"quoted": "'curl --output ~/.config/factory/x URL'",
+"src": "corpus"
+},
+{
+"input": "wget -O ~/.local/lib/factory/worker-guard URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"-O",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "wget -O ~/.local/lib/factory/worker-guard URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"-O",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "wget -O ~/.local/lib/factory/worker-guard URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"-O",
+"~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "wget -O ~/.local/lib/factory/worker-guard URL",
+"mode": "quote",
+"quoted": "'wget -O ~/.local/lib/factory/worker-guard URL'",
+"src": "corpus"
+},
+{
+"input": "wget --output-document=~/.local/lib/factory/worker-guard URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-document=~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "wget --output-document=~/.local/lib/factory/worker-guard URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-document=~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "wget --output-document=~/.local/lib/factory/worker-guard URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-document=~/.local/lib/factory/worker-guard",
+"URL"
+]
+},
+{
+"input": "wget --output-document=~/.local/lib/factory/worker-guard URL",
+"mode": "quote",
+"quoted": "'wget --output-document=~/.local/lib/factory/worker-guard URL'",
+"src": "corpus"
+},
+{
+"input": "go build -o ~/.local/lib/factory/worker-guard ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/lib/factory/worker-guard ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/lib/factory/worker-guard ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/lib/factory/worker-guard ./cmd/x",
+"mode": "quote",
+"quoted": "'go build -o ~/.local/lib/factory/worker-guard ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "gcc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "gcc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "gcc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "gcc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "quote",
+"quoted": "'gcc -o ~/.local/lib/factory/worker-guard a.c'",
+"src": "corpus"
+},
+{
+"input": "cc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cc",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "cc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cc",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "cc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cc",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "cc -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "quote",
+"quoted": "'cc -o ~/.local/lib/factory/worker-guard a.c'",
+"src": "corpus"
+},
+{
+"input": "clang -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"clang",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "clang -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"clang",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "clang -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"clang",
+"-o",
+"~/.local/lib/factory/worker-guard",
+"a.c"
+]
+},
+{
+"input": "clang -o ~/.local/lib/factory/worker-guard a.c",
+"mode": "quote",
+"quoted": "'clang -o ~/.local/lib/factory/worker-guard a.c'",
+"src": "corpus"
+},
+{
+"input": "tar -C ~/.local/lib/factory -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/lib/factory",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/lib/factory -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/lib/factory",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/lib/factory -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/lib/factory",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/lib/factory -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C ~/.local/lib/factory -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar xf a.tar --directory ~/.config/factory",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"--directory",
+"~/.config/factory"
+]
+},
+{
+"input": "tar xf a.tar --directory ~/.config/factory",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"--directory",
+"~/.config/factory"
+]
+},
+{
+"input": "tar xf a.tar --directory ~/.config/factory",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xf",
+"a.tar",
+"--directory",
+"~/.config/factory"
+]
+},
+{
+"input": "tar xf a.tar --directory ~/.config/factory",
+"mode": "quote",
+"quoted": "'tar xf a.tar --directory ~/.config/factory'",
+"src": "corpus"
+},
+{
+"input": "unzip -d ~/.config/factory a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.config/factory",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.config/factory a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.config/factory",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.config/factory a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.config/factory",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.config/factory a.zip",
+"mode": "quote",
+"quoted": "'unzip -d ~/.config/factory a.zip'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/lib/factory/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/lib/factory/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/lib/factory/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/lib/factory/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/lib/factory/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/lib/factory/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/lib/factory/",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/x/ ~/.local/lib/factory/'",
+"src": "corpus"
+},
+{
+"input": "install -m 755 /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"-m",
+"755",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "install -m 755 /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"-m",
+"755",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "install -m 755 /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"-m",
+"755",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard"
+]
+},
+{
+"input": "install -m 755 /tmp/x ~/.local/lib/factory/worker-guard",
+"mode": "quote",
+"quoted": "'install -m 755 /tmp/x ~/.local/lib/factory/worker-guard'",
+"src": "corpus"
+},
+{
+"input": "tar --one-top-level=$HOME/.local/lib/factory -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top-level=$HOME/.local/lib/factory",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top-level=$HOME/.local/lib/factory -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top-level=",
+"$",
+"HOME/.local/lib/factory",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top-level=$HOME/.local/lib/factory -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top-level=$HOME/.local/lib/factory",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top-level=$HOME/.local/lib/factory -xf a.tar",
+"mode": "quote",
+"quoted": "'tar --one-top-level=$HOME/.local/lib/factory -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/lib/factory && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd ~/.local/lib/factory && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.config/factory && unzip a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.config/factory",
+"&&",
+"unzip",
+"a.zip"
+]
+},
+{
+"input": "cd ~/.config/factory && unzip a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.config/factory",
+"&&",
+"unzip",
+"a.zip"
+]
+},
+{
+"input": "cd ~/.config/factory && unzip a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.config/factory",
+"&&",
+"unzip",
+"a.zip"
+]
+},
+{
+"input": "cd ~/.config/factory && unzip a.zip",
+"mode": "quote",
+"quoted": "'cd ~/.config/factory && unzip a.zip'",
+"src": "corpus"
+},
+{
+"input": "cd $X && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"$X",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd $X && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"$",
+"X",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd $X && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"$X",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd $X && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd $X && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/lib/factory && curl -O URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"curl",
+"-O",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && curl -O URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"curl",
+"-O",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && curl -O URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"curl",
+"-O",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && curl -O URL",
+"mode": "quote",
+"quoted": "'cd ~/.local/lib/factory && curl -O URL'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "echo x > ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "echo x > ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "echo x > ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "echo x >> $HOME/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"$HOME/.local/go/go.env"
+]
+},
+{
+"input": "echo x >> $HOME/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"$",
+"HOME/.local/go/go.env"
+]
+},
+{
+"input": "echo x >> $HOME/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"$HOME/.local/go/go.env"
+]
+},
+{
+"input": "echo x >> $HOME/.local/go/go.env",
+"mode": "quote",
+"quoted": "'echo x >> $HOME/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "rm -r ~/.local/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"~/.local/go"
+]
+},
+{
+"input": "rm -r ~/.local/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"~/.local/go"
+]
+},
+{
+"input": "rm -r ~/.local/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"~/.local/go"
+]
+},
+{
+"input": "rm -r ~/.local/go",
+"mode": "quote",
+"quoted": "'rm -r ~/.local/go'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/g?/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/g?/go.env"
+]
+},
+{
+"input": "echo x > ~/.local/g?/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/g?/go.env"
+]
+},
+{
+"input": "echo x > ~/.local/g?/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/g?/go.env"
+]
+},
+{
+"input": "echo x > ~/.local/g?/go.env",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/g?/go.env'",
+"src": "corpus"
+},
+{
+"input": "curl -o ~/.local/go/bin/go URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/go/bin/go",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/go/bin/go URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/go/bin/go",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/go/bin/go URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/go/bin/go",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/go/bin/go URL",
+"mode": "quote",
+"quoted": "'curl -o ~/.local/go/bin/go URL'",
+"src": "corpus"
+},
+{
+"input": "tar -C ~/.local/go -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/go -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/go -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/go -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C ~/.local/go -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/go && echo x > go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"echo",
+"x",
+">",
+"go.env"
+]
+},
+{
+"input": "cd ~/.local/go && echo x > go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"echo",
+"x",
+">",
+"go.env"
+]
+},
+{
+"input": "cd ~/.local/go && echo x > go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"echo",
+"x",
+">",
+"go.env"
+]
+},
+{
+"input": "cd ~/.local/go && echo x > go.env",
+"mode": "quote",
+"quoted": "'cd ~/.local/go && echo x > go.env'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.config/go/env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/go/env"
+]
+},
+{
+"input": "echo x > ~/.config/go/env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/go/env"
+]
+},
+{
+"input": "echo x > ~/.config/go/env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/go/env"
+]
+},
+{
+"input": "echo x > ~/.config/go/env",
+"mode": "quote",
+"quoted": "'echo x > ~/.config/go/env'",
+"src": "corpus"
+},
+{
+"input": "go env -w GOFLAGS=-mod=mod",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"-w",
+"GOFLAGS=-mod=mod"
+]
+},
+{
+"input": "go env -w GOFLAGS=-mod=mod",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"-w",
+"GOFLAGS=-mod=mod"
+]
+},
+{
+"input": "go env -w GOFLAGS=-mod=mod",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"-w",
+"GOFLAGS=-mod=mod"
+]
+},
+{
+"input": "go env -w GOFLAGS=-mod=mod",
+"mode": "quote",
+"quoted": "'go env -w GOFLAGS=-mod=mod'",
+"src": "corpus"
+},
+{
+"input": "go env -u GOFLAGS",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"-u",
+"GOFLAGS"
+]
+},
+{
+"input": "go env -u GOFLAGS",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"-u",
+"GOFLAGS"
+]
+},
+{
+"input": "go env -u GOFLAGS",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"-u",
+"GOFLAGS"
+]
+},
+{
+"input": "go env -u GOFLAGS",
+"mode": "quote",
+"quoted": "'go env -u GOFLAGS'",
+"src": "corpus"
+},
+{
+"input": "mv /tmp/x ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'mv /tmp/x ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "ln -sf /tmp/x ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "ln -sf /tmp/x ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "ln -sf /tmp/x ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "ln -sf /tmp/x ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'ln -sf /tmp/x ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "tee ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tee",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "tee ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tee",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "tee ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tee",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "tee ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'tee ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "go build -o ~/.local/go/bin/go ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/go/bin/go",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/go/bin/go ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/go/bin/go",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/go/bin/go ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/go/bin/go",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/go/bin/go ./cmd/x",
+"mode": "quote",
+"quoted": "'go build -o ~/.local/go/bin/go ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "wget -P ~/.local/go URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"-P",
+"~/.local/go",
+"URL"
+]
+},
+{
+"input": "wget -P ~/.local/go URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"-P",
+"~/.local/go",
+"URL"
+]
+},
+{
+"input": "wget -P ~/.local/go URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"-P",
+"~/.local/go",
+"URL"
+]
+},
+{
+"input": "wget -P ~/.local/go URL",
+"mode": "quote",
+"quoted": "'wget -P ~/.local/go URL'",
+"src": "corpus"
+},
+{
+"input": "unzip -d ~/.local/go a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local/go a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local/go a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local/go a.zip",
+"mode": "quote",
+"quoted": "'unzip -d ~/.local/go a.zip'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "echo x >> @LIVE_HOME@/bin/factory",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@LIVE_HOME@/bin/factory"
+]
+},
+{
+"input": "echo x >> @LIVE_HOME@/bin/factory",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory"
+]
+},
+{
+"input": "echo x >> @LIVE_HOME@/bin/factory",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">>",
+"@LIVE_HOME@/bin/factory"
+]
+},
+{
+"input": "echo x >> @LIVE_HOME@/bin/factory",
+"mode": "quote",
+"quoted": "'echo x >> @LIVE_HOME@/bin/factory'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'cp /tmp/x @LIVE_HOME@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "mv /tmp/x @LIVE_HOME@/go/x.go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"@LIVE_HOME@/go/x.go"
+]
+},
+{
+"input": "mv /tmp/x @LIVE_HOME@/go/x.go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"@",
+"LIVE_HOME",
+"@",
+"/go/x.go"
+]
+},
+{
+"input": "mv /tmp/x @LIVE_HOME@/go/x.go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"@LIVE_HOME@/go/x.go"
+]
+},
+{
+"input": "mv /tmp/x @LIVE_HOME@/go/x.go",
+"mode": "quote",
+"quoted": "'mv /tmp/x @LIVE_HOME@/go/x.go'",
+"src": "corpus"
+},
+{
+"input": "ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-sf",
+"/tmp/x",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "rm @LIVE_HOME@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "rm @LIVE_HOME@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "rm @LIVE_HOME@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "rm @LIVE_HOME@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'rm @LIVE_HOME@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "rm -r @LIVE_HOME@/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "rm -r @LIVE_HOME@/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"@",
+"LIVE_HOME",
+"@",
+"/go"
+]
+},
+{
+"input": "rm -r @LIVE_HOME@/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "rm -r @LIVE_HOME@/go",
+"mode": "quote",
+"quoted": "'rm -r @LIVE_HOME@/go'",
+"src": "corpus"
+},
+{
+"input": "tee @LIVE_HOME@/roles/hooks/worker-guard.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tee",
+"@LIVE_HOME@/roles/hooks/worker-guard.py"
+]
+},
+{
+"input": "tee @LIVE_HOME@/roles/hooks/worker-guard.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tee",
+"@",
+"LIVE_HOME",
+"@",
+"/roles/hooks/worker-guard.py"
+]
+},
+{
+"input": "tee @LIVE_HOME@/roles/hooks/worker-guard.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tee",
+"@LIVE_HOME@/roles/hooks/worker-guard.py"
+]
+},
+{
+"input": "tee @LIVE_HOME@/roles/hooks/worker-guard.py",
+"mode": "quote",
+"quoted": "'tee @LIVE_HOME@/roles/hooks/worker-guard.py'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/roles/settings/coder.json",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/roles/settings/coder.json"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/roles/settings/coder.json",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/roles/settings/coder.json"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/roles/settings/coder.json",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/roles/settings/coder.json"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/roles/settings/coder.json",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/roles/settings/coder.json'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/rol*/hooks/worker-guard.py"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/rol*/hooks/worker-guard.py"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/rol*/hooks/worker-guard.py"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py'",
+"src": "corpus"
+},
+{
+"input": "curl -o @LIVE_HOME@/bin/factory_cli.py URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"@LIVE_HOME@/bin/factory_cli.py",
+"URL"
+]
+},
+{
+"input": "curl -o @LIVE_HOME@/bin/factory_cli.py URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py",
+"URL"
+]
+},
+{
+"input": "curl -o @LIVE_HOME@/bin/factory_cli.py URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"@LIVE_HOME@/bin/factory_cli.py",
+"URL"
+]
+},
+{
+"input": "curl -o @LIVE_HOME@/bin/factory_cli.py URL",
+"mode": "quote",
+"quoted": "'curl -o @LIVE_HOME@/bin/factory_cli.py URL'",
+"src": "corpus"
+},
+{
+"input": "go build -o @LIVE_HOME@/bin/x ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"@LIVE_HOME@/bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o @LIVE_HOME@/bin/x ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o @LIVE_HOME@/bin/x ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"@LIVE_HOME@/bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o @LIVE_HOME@/bin/x ./cmd/x",
+"mode": "quote",
+"quoted": "'go build -o @LIVE_HOME@/bin/x ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "tar -C @LIVE_HOME@/go -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@LIVE_HOME@/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @LIVE_HOME@/go -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@",
+"LIVE_HOME",
+"@",
+"/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @LIVE_HOME@/go -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@LIVE_HOME@/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @LIVE_HOME@/go -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C @LIVE_HOME@/go -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd @LIVE_HOME@/bin && echo x > factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@LIVE_HOME@/bin",
+"&&",
+"echo",
+"x",
+">",
+"factory_cli.py"
+]
+},
+{
+"input": "cd @LIVE_HOME@/bin && echo x > factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"LIVE_HOME",
+"@",
+"/bin",
+"&&",
+"echo",
+"x",
+">",
+"factory_cli.py"
+]
+},
+{
+"input": "cd @LIVE_HOME@/bin && echo x > factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@LIVE_HOME@/bin",
+"&&",
+"echo",
+"x",
+">",
+"factory_cli.py"
+]
+},
+{
+"input": "cd @LIVE_HOME@/bin && echo x > factory_cli.py",
+"mode": "quote",
+"quoted": "'cd @LIVE_HOME@/bin && echo x > factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "cd @LIVE_HOME@/go && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@LIVE_HOME@/go",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd @LIVE_HOME@/go && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"LIVE_HOME",
+"@",
+"/go",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd @LIVE_HOME@/go && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@LIVE_HOME@/go",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd @LIVE_HOME@/go && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd @LIVE_HOME@/go && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@LIVE_HOME@/roles/hooks",
+"&&",
+"cp",
+"/tmp/x",
+"worker-guard.py"
+]
+},
+{
+"input": "cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"LIVE_HOME",
+"@",
+"/roles/hooks",
+"&&",
+"cp",
+"/tmp/x",
+"worker-guard.py"
+]
+},
+{
+"input": "cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@LIVE_HOME@/roles/hooks",
+"&&",
+"cp",
+"/tmp/x",
+"worker-guard.py"
+]
+},
+{
+"input": "cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py",
+"mode": "quote",
+"quoted": "'cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py'",
+"src": "corpus"
+},
+{
+"input": "sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"sed",
+"-i",
+"s/a/b/",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SHARED@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SHARED@/bin/factory_cli.py"
+]
+},
+{
+"input": "echo x > @SHARED@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SHARED",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "echo x > @SHARED@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SHARED@/bin/factory_cli.py"
+]
+},
+{
+"input": "echo x > @SHARED@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'echo x > @SHARED@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "cd @SHARED@/go && echo x > x.go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/go",
+"&&",
+"echo",
+"x",
+">",
+"x.go"
+]
+},
+{
+"input": "cd @SHARED@/go && echo x > x.go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SHARED",
+"@",
+"/go",
+"&&",
+"echo",
+"x",
+">",
+"x.go"
+]
+},
+{
+"input": "cd @SHARED@/go && echo x > x.go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/go",
+"&&",
+"echo",
+"x",
+">",
+"x.go"
+]
+},
+{
+"input": "cd @SHARED@/go && echo x > x.go",
+"mode": "quote",
+"quoted": "'cd @SHARED@/go && echo x > x.go'",
+"src": "corpus"
+},
+{
+"input": "rm -r @SHARED@/roles/hooks",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"@SHARED@/roles/hooks"
+]
+},
+{
+"input": "rm -r @SHARED@/roles/hooks",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"@",
+"SHARED",
+"@",
+"/roles/hooks"
+]
+},
+{
+"input": "rm -r @SHARED@/roles/hooks",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"-r",
+"@SHARED@/roles/hooks"
+]
+},
+{
+"input": "rm -r @SHARED@/roles/hooks",
+"mode": "quote",
+"quoted": "'rm -r @SHARED@/roles/hooks'",
+"src": "corpus"
+},
+{
+"input": "git clone URL ~/.local/lib/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git clone URL ~/.local/lib/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git clone URL ~/.local/lib/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git clone URL ~/.local/lib/factory/x",
+"mode": "quote",
+"quoted": "'git clone URL ~/.local/lib/factory/x'",
+"src": "corpus"
+},
+{
+"input": "git clone URL ~/.config/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git clone URL ~/.config/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git clone URL ~/.config/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git clone URL ~/.config/factory/x",
+"mode": "quote",
+"quoted": "'git clone URL ~/.config/factory/x'",
+"src": "corpus"
+},
+{
+"input": "git clone URL @LIVE_HOME@/bin/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"@LIVE_HOME@/bin/x"
+]
+},
+{
+"input": "git clone URL @LIVE_HOME@/bin/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/x"
+]
+},
+{
+"input": "git clone URL @LIVE_HOME@/bin/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"@LIVE_HOME@/bin/x"
+]
+},
+{
+"input": "git clone URL @LIVE_HOME@/bin/x",
+"mode": "quote",
+"quoted": "'git clone URL @LIVE_HOME@/bin/x'",
+"src": "corpus"
+},
+{
+"input": "git clone --depth 1 URL ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--depth",
+"1",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git clone --depth 1 URL ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--depth",
+"1",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git clone --depth 1 URL ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--depth",
+"1",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git clone --depth 1 URL ~/.local/go/x",
+"mode": "quote",
+"quoted": "'git clone --depth 1 URL ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--separate-git-dir",
+"~/.local/go/g",
+"URL",
+"/tmp/z"
+]
+},
+{
+"input": "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--separate-git-dir",
+"~/.local/go/g",
+"URL",
+"/tmp/z"
+]
+},
+{
+"input": "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--separate-git-dir",
+"~/.local/go/g",
+"URL",
+"/tmp/z"
+]
+},
+{
+"input": "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
+"mode": "quote",
+"quoted": "'git clone --separate-git-dir ~/.local/go/g URL /tmp/z'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/lib/factory && git clone URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"git",
+"clone",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && git clone URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"git",
+"clone",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && git clone URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"git",
+"clone",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && git clone URL",
+"mode": "quote",
+"quoted": "'cd ~/.local/lib/factory && git clone URL'",
+"src": "corpus"
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"@LIVE_HOME@/go",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"@",
+"LIVE_HOME",
+"@",
+"/go",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"@LIVE_HOME@/go",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf @LIVE_HOME@/go a.tar",
+"mode": "quote",
+"quoted": "'tar -xCf @LIVE_HOME@/go a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"a.tar",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"a.tar",
+"@",
+"LIVE_HOME",
+"@",
+"/go"
+]
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"a.tar",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "tar xfC a.tar @LIVE_HOME@/go",
+"mode": "quote",
+"quoted": "'tar xfC a.tar @LIVE_HOME@/go'",
+"src": "corpus"
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"@LIVE_HOME@/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"@",
+"LIVE_HOME",
+"@",
+"/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"@LIVE_HOME@/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd @LIVE_HOME@/go a.zip",
+"mode": "quote",
+"quoted": "'unzip -qd @LIVE_HOME@/go a.zip'",
+"src": "corpus"
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qod",
+"~/.local/go",
+"a.zip"
+]
+},
+{
+"input": "unzip -qod ~/.local/go a.zip",
+"mode": "quote",
+"quoted": "'unzip -qod ~/.local/go a.zip'",
+"src": "corpus"
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"@LIVE_HOME@/bin",
+"tar",
+"xf",
+"a"
+]
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"@",
+"LIVE_HOME",
+"@",
+"/bin",
+"tar",
+"xf",
+"a"
+]
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"@LIVE_HOME@/bin",
+"tar",
+"xf",
+"a"
+]
+},
+{
+"input": "env -C @LIVE_HOME@/bin tar xf a",
+"mode": "quote",
+"quoted": "'env -C @LIVE_HOME@/bin tar xf a'",
+"src": "corpus"
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o@LIVE_HOME@/bin"
+]
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o",
+"@",
+"LIVE_HOME",
+"@",
+"/bin"
+]
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"7z",
+"-y",
+"x",
+"a.7z",
+"-o@LIVE_HOME@/bin"
+]
+},
+{
+"input": "7z -y x a.7z -o@LIVE_HOME@/bin",
+"mode": "quote",
+"quoted": "'7z -y x a.7z -o@LIVE_HOME@/bin'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/go.env",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/go.env",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/go/go.env",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/go/go.env -f",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/go/go.env -f'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/factory/worker-guard",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/lib/factory/worker-guard -f'",
+"src": "corpus"
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m755",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m755"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m755",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m755"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m755",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m755"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m755",
+"mode": "quote",
+"quoted": "'install /tmp/x ~/.local/go/x -m755'",
+"src": "corpus"
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m",
+"755"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m",
+"755"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m",
+"755"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755",
+"mode": "quote",
+"quoted": "'install /tmp/x ~/.local/go/x -m 755'",
+"src": "corpus"
+},
+{
+"input": "ln -s /tmp/x ~/.local/go/go.env -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/tmp/x",
+"~/.local/go/go.env",
+"-f"
+]
+},
+{
+"input": "ln -s /tmp/x ~/.local/go/go.env -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/tmp/x",
+"~/.local/go/go.env",
+"-f"
+]
+},
+{
+"input": "ln -s /tmp/x ~/.local/go/go.env -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/tmp/x",
+"~/.local/go/go.env",
+"-f"
+]
+},
+{
+"input": "ln -s /tmp/x ~/.local/go/go.env -f",
+"mode": "quote",
+"quoted": "'ln -s /tmp/x ~/.local/go/go.env -f'",
+"src": "corpus"
+},
+{
+"input": "rsync /tmp/x ~/.local/go/go.env -a",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"/tmp/x",
+"~/.local/go/go.env",
+"-a"
+]
+},
+{
+"input": "rsync /tmp/x ~/.local/go/go.env -a",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"/tmp/x",
+"~/.local/go/go.env",
+"-a"
+]
+},
+{
+"input": "rsync /tmp/x ~/.local/go/go.env -a",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"/tmp/x",
+"~/.local/go/go.env",
+"-a"
+]
+},
+{
+"input": "rsync /tmp/x ~/.local/go/go.env -a",
+"mode": "quote",
+"quoted": "'rsync /tmp/x ~/.local/go/go.env -a'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/bin/git -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/bin/git",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/bin/git -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/bin/git",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/bin/git -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/bin/git",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/bin/git -f",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/bin/git -f'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x @SHARED@/bin/factory_cli.py -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@SHARED@/bin/factory_cli.py",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x @SHARED@/bin/factory_cli.py -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@",
+"SHARED",
+"@",
+"/bin/factory_cli.py",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x @SHARED@/bin/factory_cli.py -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@SHARED@/bin/factory_cli.py",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x @SHARED@/bin/factory_cli.py -f",
+"mode": "quote",
+"quoted": "'cp /tmp/x @SHARED@/bin/factory_cli.py -f'",
+"src": "corpus"
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755 -o root",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m",
+"755",
+"-o",
+"root"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755 -o root",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m",
+"755",
+"-o",
+"root"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755 -o root",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/x",
+"~/.local/go/x",
+"-m",
+"755",
+"-o",
+"root"
+]
+},
+{
+"input": "install /tmp/x ~/.local/go/x -m 755 -o root",
+"mode": "quote",
+"quoted": "'install /tmp/x ~/.local/go/x -m 755 -o root'",
+"src": "corpus"
+},
+{
+"input": "tar -cf ~/.local/go/pkg.tar x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-cf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -cf ~/.local/go/pkg.tar x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-cf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -cf ~/.local/go/pkg.tar x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-cf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -cf ~/.local/go/pkg.tar x",
+"mode": "quote",
+"quoted": "'tar -cf ~/.local/go/pkg.tar x'",
+"src": "corpus"
+},
+{
+"input": "tar -rf ~/.local/go/pkg.tar x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-rf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -rf ~/.local/go/pkg.tar x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-rf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -rf ~/.local/go/pkg.tar x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-rf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -rf ~/.local/go/pkg.tar x",
+"mode": "quote",
+"quoted": "'tar -rf ~/.local/go/pkg.tar x'",
+"src": "corpus"
+},
+{
+"input": "tar -uf ~/.local/go/pkg.tar x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-uf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -uf ~/.local/go/pkg.tar x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-uf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -uf ~/.local/go/pkg.tar x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-uf",
+"~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar -uf ~/.local/go/pkg.tar x",
+"mode": "quote",
+"quoted": "'tar -uf ~/.local/go/pkg.tar x'",
+"src": "corpus"
+},
+{
+"input": "tar --create --file=~/.local/go/pkg.tar x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--create",
+"--file=~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar --create --file=~/.local/go/pkg.tar x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--create",
+"--file=~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar --create --file=~/.local/go/pkg.tar x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--create",
+"--file=~/.local/go/pkg.tar",
+"x"
+]
+},
+{
+"input": "tar --create --file=~/.local/go/pkg.tar x",
+"mode": "quote",
+"quoted": "'tar --create --file=~/.local/go/pkg.tar x'",
+"src": "corpus"
+},
+{
+"input": "tar --dir=~/.local/go -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--dir=~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --dir=~/.local/go -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--dir=~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --dir=~/.local/go -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--dir=~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --dir=~/.local/go -xf a.tar",
+"mode": "quote",
+"quoted": "'tar --dir=~/.local/go -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar --direc ~/.local/go -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--direc",
+"~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --direc ~/.local/go -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--direc",
+"~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --direc ~/.local/go -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--direc",
+"~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --direc ~/.local/go -xf a.tar",
+"mode": "quote",
+"quoted": "'tar --direc ~/.local/go -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "wget --output-doc=~/.local/go/x URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-doc=~/.local/go/x",
+"URL"
+]
+},
+{
+"input": "wget --output-doc=~/.local/go/x URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-doc=~/.local/go/x",
+"URL"
+]
+},
+{
+"input": "wget --output-doc=~/.local/go/x URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-doc=~/.local/go/x",
+"URL"
+]
+},
+{
+"input": "wget --output-doc=~/.local/go/x URL",
+"mode": "quote",
+"quoted": "'wget --output-doc=~/.local/go/x URL'",
+"src": "corpus"
+},
+{
+"input": "wget --output-d=~/.local/go/x URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-d=~/.local/go/x",
+"URL"
+]
+},
+{
+"input": "wget --output-d=~/.local/go/x URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-d=~/.local/go/x",
+"URL"
+]
+},
+{
+"input": "wget --output-d=~/.local/go/x URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-d=~/.local/go/x",
+"URL"
+]
+},
+{
+"input": "wget --output-d=~/.local/go/x URL",
+"mode": "quote",
+"quoted": "'wget --output-d=~/.local/go/x URL'",
+"src": "corpus"
+},
+{
+"input": "tar --one-top=~/.local/go -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top=~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top=~/.local/go -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top=~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top=~/.local/go -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top=~/.local/go",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top=~/.local/go -xf a.tar",
+"mode": "quote",
+"quoted": "'tar --one-top=~/.local/go -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "gcc --outp ~/.local/go/x a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gcc",
+"--outp",
+"~/.local/go/x",
+"a.c"
+]
+},
+{
+"input": "gcc --outp ~/.local/go/x a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gcc",
+"--outp",
+"~/.local/go/x",
+"a.c"
+]
+},
+{
+"input": "gcc --outp ~/.local/go/x a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gcc",
+"--outp",
+"~/.local/go/x",
+"a.c"
+]
+},
+{
+"input": "gcc --outp ~/.local/go/x a.c",
+"mode": "quote",
+"quoted": "'gcc --outp ~/.local/go/x a.c'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/**/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/**/factory_cli.py"
+]
+},
+{
+"input": "echo x > ~/**/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/**/factory_cli.py"
+]
+},
+{
+"input": "echo x > ~/**/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/**/factory_cli.py"
+]
+},
+{
+"input": "echo x > ~/**/factory_cli.py",
+"mode": "quote",
+"quoted": "'echo x > ~/**/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/**/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/**/go.env"
+]
+},
+{
+"input": "echo x > ~/**/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/**/go.env"
+]
+},
+{
+"input": "echo x > ~/**/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/**/go.env"
+]
+},
+{
+"input": "echo x > ~/**/go.env",
+"mode": "quote",
+"quoted": "'echo x > ~/**/go.env'",
+"src": "corpus"
+},
+{
+"input": "echo x > @SHARED@/**/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SHARED@/**/factory_cli.py"
+]
+},
+{
+"input": "echo x > @SHARED@/**/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"SHARED",
+"@",
+"/**/factory_cli.py"
+]
+},
+{
+"input": "echo x > @SHARED@/**/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@SHARED@/**/factory_cli.py"
+]
+},
+{
+"input": "echo x > @SHARED@/**/factory_cli.py",
+"mode": "quote",
+"quoted": "'echo x > @SHARED@/**/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "curl -o ~/.local/bin/git URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/bin/git",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/bin/git URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/bin/git",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/bin/git URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"~/.local/bin/git",
+"URL"
+]
+},
+{
+"input": "curl -o ~/.local/bin/git URL",
+"mode": "quote",
+"quoted": "'curl -o ~/.local/bin/git URL'",
+"src": "corpus"
+},
+{
+"input": "tar -C ~/.local/bin -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/bin",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/bin -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/bin",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/bin -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local/bin",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local/bin -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C ~/.local/bin -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local/bin && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local/bin && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local/bin && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/b*/git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/b*/git"
+]
+},
+{
+"input": "echo x > ~/.local/b*/git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/b*/git"
+]
+},
+{
+"input": "echo x > ~/.local/b*/git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/b*/git"
+]
+},
+{
+"input": "echo x > ~/.local/b*/git",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/b*/git'",
+"src": "corpus"
+},
+{
+"input": "go build -o ~/.local/bin/x ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/bin/x ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/bin/x ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"~/.local/bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ~/.local/bin/x ./cmd/x",
+"mode": "quote",
+"quoted": "'go build -o ~/.local/bin/x ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "unzip -d ~/.local/bin a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local/bin",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local/bin a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local/bin",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local/bin a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local/bin",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local/bin a.zip",
+"mode": "quote",
+"quoted": "'unzip -d ~/.local/bin a.zip'",
+"src": "corpus"
+},
+{
+"input": "git clone URL ~/.local/bin/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.local/bin/x"
+]
+},
+{
+"input": "git clone URL ~/.local/bin/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.local/bin/x"
+]
+},
+{
+"input": "git clone URL ~/.local/bin/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"~/.local/bin/x"
+]
+},
+{
+"input": "git clone URL ~/.local/bin/x",
+"mode": "quote",
+"quoted": "'git clone URL ~/.local/bin/x'",
+"src": "corpus"
+},
+{
+"input": "git clone --dep 1 URL ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--dep",
+"1",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git clone --dep 1 URL ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--dep",
+"1",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git clone --dep 1 URL ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--dep",
+"1",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git clone --dep 1 URL ~/.local/go/x",
+"mode": "quote",
+"quoted": "'git clone --dep 1 URL ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "git clone --bra main URL ~/.config/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--bra",
+"main",
+"URL",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git clone --bra main URL ~/.config/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--bra",
+"main",
+"URL",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git clone --bra main URL ~/.config/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--bra",
+"main",
+"URL",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git clone --bra main URL ~/.config/factory/x",
+"mode": "quote",
+"quoted": "'git clone --bra main URL ~/.config/factory/x'",
+"src": "corpus"
+},
+{
+"input": "git clone --ref-format files URL ~/.local/lib/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--ref-format",
+"files",
+"URL",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git clone --ref-format files URL ~/.local/lib/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--ref-format",
+"files",
+"URL",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git clone --ref-format files URL ~/.local/lib/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--ref-format",
+"files",
+"URL",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git clone --ref-format files URL ~/.local/lib/factory/x",
+"mode": "quote",
+"quoted": "'git clone --ref-format files URL ~/.local/lib/factory/x'",
+"src": "corpus"
+},
+{
+"input": "git --attr-source HEAD clone URL ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"clone",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git --attr-source HEAD clone URL ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"clone",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git --attr-source HEAD clone URL ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"--attr-source",
+"HEAD",
+"clone",
+"URL",
+"~/.local/go/x"
+]
+},
+{
+"input": "git --attr-source HEAD clone URL ~/.local/go/x",
+"mode": "quote",
+"quoted": "'git --attr-source HEAD clone URL ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/go && git clone --dep 1 /tmp/r",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"git",
+"clone",
+"--dep",
+"1",
+"/tmp/r"
+]
+},
+{
+"input": "cd ~/.local/go && git clone --dep 1 /tmp/r",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"git",
+"clone",
+"--dep",
+"1",
+"/tmp/r"
+]
+},
+{
+"input": "cd ~/.local/go && git clone --dep 1 /tmp/r",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"git",
+"clone",
+"--dep",
+"1",
+"/tmp/r"
+]
+},
+{
+"input": "cd ~/.local/go && git clone --dep 1 /tmp/r",
+"mode": "quote",
+"quoted": "'cd ~/.local/go && git clone --dep 1 /tmp/r'",
+"src": "corpus"
+},
+{
+"input": "cp -rt ~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -rt ~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -rt ~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -rt ~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'cp -rt ~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "cp -t~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -t~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -t~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -t~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'cp -t~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "cp -rt~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -rt~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -rt~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp -rt~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'cp -rt~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "ln -st ~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-st",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "ln -st ~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-st",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "ln -st ~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-st",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "ln -st ~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'ln -st ~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "cp --target-dir ~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-dir",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --target-dir ~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-dir",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --target-dir ~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-dir",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --target-dir ~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'cp --target-dir ~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "cp --t ~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"--t",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --t ~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"--t",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --t ~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"--t",
+"~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --t ~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'cp --t ~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "cp --t=~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"--t=~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --t=~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"--t=~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --t=~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"--t=~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "cp --t=~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'cp --t=~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "install --t=~/.local/go /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"--t=~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "install --t=~/.local/go /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"--t=~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "install --t=~/.local/go /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"--t=~/.local/go",
+"/tmp/x"
+]
+},
+{
+"input": "install --t=~/.local/go /tmp/x",
+"mode": "quote",
+"quoted": "'install --t=~/.local/go /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "rsync -t /tmp/a ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-t",
+"/tmp/a",
+"~/.local/go/x"
+]
+},
+{
+"input": "rsync -t /tmp/a ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-t",
+"/tmp/a",
+"~/.local/go/x"
+]
+},
+{
+"input": "rsync -t /tmp/a ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-t",
+"/tmp/a",
+"~/.local/go/x"
+]
+},
+{
+"input": "rsync -t /tmp/a ~/.local/go/x",
+"mode": "quote",
+"quoted": "'rsync -t /tmp/a ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "rsync -rt /tmp/a ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-rt",
+"/tmp/a",
+"~/.local/go/x"
+]
+},
+{
+"input": "rsync -rt /tmp/a ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-rt",
+"/tmp/a",
+"~/.local/go/x"
+]
+},
+{
+"input": "rsync -rt /tmp/a ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-rt",
+"/tmp/a",
+"~/.local/go/x"
+]
+},
+{
+"input": "rsync -rt /tmp/a ~/.local/go/x",
+"mode": "quote",
+"quoted": "'rsync -rt /tmp/a ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "install -groot /tmp/x ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"-groot",
+"/tmp/x",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -groot /tmp/x ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"-groot",
+"/tmp/x",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -groot /tmp/x ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"-groot",
+"/tmp/x",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -groot /tmp/x ~/.local/go/x",
+"mode": "quote",
+"quoted": "'install -groot /tmp/x ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "install -otom /tmp/x ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"-otom",
+"/tmp/x",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -otom /tmp/x ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"-otom",
+"/tmp/x",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -otom /tmp/x ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"-otom",
+"/tmp/x",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -otom /tmp/x ~/.local/go/x",
+"mode": "quote",
+"quoted": "'install -otom /tmp/x ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "cp -t /tmp/d ~/.config/factory/live_home",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t",
+"/tmp/d",
+"~/.config/factory/live_home"
+]
+},
+{
+"input": "cp -t /tmp/d ~/.config/factory/live_home",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t",
+"/tmp/d",
+"~/.config/factory/live_home"
+]
+},
+{
+"input": "cp -t /tmp/d ~/.config/factory/live_home",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t",
+"/tmp/d",
+"~/.config/factory/live_home"
+]
+},
+{
+"input": "cp -t /tmp/d ~/.config/factory/live_home",
+"mode": "quote",
+"quoted": "'cp -t /tmp/d ~/.config/factory/live_home'",
+"src": "corpus"
+},
+{
+"input": "tar -cf~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-cf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -cf~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-cf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -cf~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-cf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -cf~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar -cf~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar -czf~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-czf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -czf~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-czf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -czf~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-czf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -czf~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar -czf~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar -rf~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-rf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -rf~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-rf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -rf~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-rf~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar -rf~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar -rf~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar -f~/.local/go/pkg.tar -c /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-f~/.local/go/pkg.tar",
+"-c",
+"/tmp/x"
+]
+},
+{
+"input": "tar -f~/.local/go/pkg.tar -c /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-f~/.local/go/pkg.tar",
+"-c",
+"/tmp/x"
+]
+},
+{
+"input": "tar -f~/.local/go/pkg.tar -c /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-f~/.local/go/pkg.tar",
+"-c",
+"/tmp/x"
+]
+},
+{
+"input": "tar -f~/.local/go/pkg.tar -c /tmp/x",
+"mode": "quote",
+"quoted": "'tar -f~/.local/go/pkg.tar -c /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar cf ~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"cf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar cf ~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"cf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar cf ~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"cf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar cf ~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar cf ~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar rf ~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"rf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar rf ~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"rf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar rf ~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"rf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar rf ~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar rf ~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar uvf ~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"uvf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar uvf ~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"uvf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar uvf ~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"uvf",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar uvf ~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar uvf ~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar fc ~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"fc",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar fc ~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"fc",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar fc ~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"fc",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar fc ~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar fc ~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar cfb ~/.local/go/pkg.tar 20 /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"cfb",
+"~/.local/go/pkg.tar",
+"20",
+"/tmp/x"
+]
+},
+{
+"input": "tar cfb ~/.local/go/pkg.tar 20 /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"cfb",
+"~/.local/go/pkg.tar",
+"20",
+"/tmp/x"
+]
+},
+{
+"input": "tar cfb ~/.local/go/pkg.tar 20 /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"cfb",
+"~/.local/go/pkg.tar",
+"20",
+"/tmp/x"
+]
+},
+{
+"input": "tar cfb ~/.local/go/pkg.tar 20 /tmp/x",
+"mode": "quote",
+"quoted": "'tar cfb ~/.local/go/pkg.tar 20 /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar bcf 20 ~/.local/go/pkg.tar /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"bcf",
+"20",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar bcf 20 ~/.local/go/pkg.tar /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"bcf",
+"20",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar bcf 20 ~/.local/go/pkg.tar /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"bcf",
+"20",
+"~/.local/go/pkg.tar",
+"/tmp/x"
+]
+},
+{
+"input": "tar bcf 20 ~/.local/go/pkg.tar /tmp/x",
+"mode": "quote",
+"quoted": "'tar bcf 20 ~/.local/go/pkg.tar /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "tar xfC /tmp/a.tar ~/.local/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"/tmp/a.tar",
+"~/.local/go"
+]
+},
+{
+"input": "tar xfC /tmp/a.tar ~/.local/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"/tmp/a.tar",
+"~/.local/go"
+]
+},
+{
+"input": "tar xfC /tmp/a.tar ~/.local/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xfC",
+"/tmp/a.tar",
+"~/.local/go"
+]
+},
+{
+"input": "tar xfC /tmp/a.tar ~/.local/go",
+"mode": "quote",
+"quoted": "'tar xfC /tmp/a.tar ~/.local/go'",
+"src": "corpus"
+},
+{
+"input": "tar xCf ~/.local/go /tmp/a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"xCf",
+"~/.local/go",
+"/tmp/a.tar"
+]
+},
+{
+"input": "tar xCf ~/.local/go /tmp/a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"xCf",
+"~/.local/go",
+"/tmp/a.tar"
+]
+},
+{
+"input": "tar xCf ~/.local/go /tmp/a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"xCf",
+"~/.local/go",
+"/tmp/a.tar"
+]
+},
+{
+"input": "tar xCf ~/.local/go /tmp/a.tar",
+"mode": "quote",
+"quoted": "'tar xCf ~/.local/go /tmp/a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-xCf",
+"/tmp/x",
+"a.tar"
+]
+},
+{
+"input": "tar -xCf /tmp/x a.tar",
+"mode": "quote",
+"quoted": "'tar -xCf /tmp/x a.tar'",
+"src": "corpus"
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-qd",
+"/tmp/x",
+"a.zip"
+]
+},
+{
+"input": "unzip -qd /tmp/x a.zip",
+"mode": "quote",
+"quoted": "'unzip -qd /tmp/x a.zip'",
+"src": "corpus"
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp/x",
+"ls"
+]
+},
+{
+"input": "env -C /tmp/x ls",
+"mode": "quote",
+"quoted": "'env -C /tmp/x ls'",
+"src": "corpus"
+},
+{
+"input": "curl -o /tmp/x URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"/tmp/x",
+"URL"
+]
+},
+{
+"input": "curl -o /tmp/x URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"/tmp/x",
+"URL"
+]
+},
+{
+"input": "curl -o /tmp/x URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-o",
+"/tmp/x",
+"URL"
+]
+},
+{
+"input": "curl -o /tmp/x URL",
+"mode": "quote",
+"quoted": "'curl -o /tmp/x URL'",
+"src": "corpus"
+},
+{
+"input": "go build -o ./bin/x ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"./bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ./bin/x ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"./bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ./bin/x ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"-o",
+"./bin/x",
+"./cmd/x"
+]
+},
+{
+"input": "go build -o ./bin/x ./cmd/x",
+"mode": "quote",
+"quoted": "'go build -o ./bin/x ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "tar -C /tmp/x -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C /tmp/x -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C /tmp/x -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C /tmp/x -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C /tmp/x -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "ls ~/.config/fact*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.config/fact*"
+]
+},
+{
+"input": "ls ~/.config/fact*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.config/fact*"
+]
+},
+{
+"input": "ls ~/.config/fact*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.config/fact*"
+]
+},
+{
+"input": "ls ~/.config/fact*",
+"mode": "quote",
+"quoted": "'ls ~/.config/fact*'",
+"src": "corpus"
+},
+{
+"input": "cd /tmp/x && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp/x",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd /tmp/x && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp/x",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd /tmp/x && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp/x",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd /tmp/x && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd /tmp/x && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar --one-top-level=/tmp/x -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top-level=/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top-level=/tmp/x -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top-level=/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top-level=/tmp/x -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--one-top-level=/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --one-top-level=/tmp/x -xf a.tar",
+"mode": "quote",
+"quoted": "'tar --one-top-level=/tmp/x -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "~/.local/go/bin/go version",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"version"
+]
+},
+{
+"input": "~/.local/go/bin/go version",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"version"
+]
+},
+{
+"input": "~/.local/go/bin/go version",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"~/.local/go/bin/go",
+"version"
+]
+},
+{
+"input": "~/.local/go/bin/go version",
+"mode": "quote",
+"quoted": "'~/.local/go/bin/go version'",
+"src": "corpus"
+},
+{
+"input": "cat ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cat ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cat ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cat ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cat ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "ls ~/.config/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.config/go"
+]
+},
+{
+"input": "ls ~/.config/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.config/go"
+]
+},
+{
+"input": "ls ~/.config/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"~/.config/go"
+]
+},
+{
+"input": "ls ~/.config/go",
+"mode": "quote",
+"quoted": "'ls ~/.config/go'",
+"src": "corpus"
+},
+{
+"input": "go env GOFLAGS",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"GOFLAGS"
+]
+},
+{
+"input": "go env GOFLAGS",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"GOFLAGS"
+]
+},
+{
+"input": "go env GOFLAGS",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"env",
+"GOFLAGS"
+]
+},
+{
+"input": "go env GOFLAGS",
+"mode": "quote",
+"quoted": "'go env GOFLAGS'",
+"src": "corpus"
+},
+{
+"input": "go env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"env"
+]
+},
+{
+"input": "go env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"env"
+]
+},
+{
+"input": "go env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"env"
+]
+},
+{
+"input": "go env",
+"mode": "quote",
+"quoted": "'go env'",
+"src": "corpus"
+},
+{
+"input": "go build ./...",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"./..."
+]
+},
+{
+"input": "go build ./...",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"./..."
+]
+},
+{
+"input": "go build ./...",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"go",
+"build",
+"./..."
+]
+},
+{
+"input": "go build ./...",
+"mode": "quote",
+"quoted": "'go build ./...'",
+"src": "corpus"
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"~/.local/go/go.env",
+"/tmp/x"
+]
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"~/.local/go/go.env",
+"/tmp/x"
+]
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"~/.local/go/go.env",
+"/tmp/x"
+]
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x",
+"mode": "quote",
+"quoted": "'cp ~/.local/go/go.env /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/gox/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/gox/y"
+]
+},
+{
+"input": "echo x > ~/.local/gox/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/gox/y"
+]
+},
+{
+"input": "echo x > ~/.local/gox/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/gox/y"
+]
+},
+{
+"input": "echo x > ~/.local/gox/y",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/gox/y'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.config/gopher/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/gopher/y"
+]
+},
+{
+"input": "echo x > ~/.config/gopher/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/gopher/y"
+]
+},
+{
+"input": "echo x > ~/.config/gopher/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.config/gopher/y"
+]
+},
+{
+"input": "echo x > ~/.config/gopher/y",
+"mode": "quote",
+"quoted": "'echo x > ~/.config/gopher/y'",
+"src": "corpus"
+},
+{
+"input": "tar -czf /tmp/x.tgz -C ~/.local/go .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-czf",
+"/tmp/x.tgz",
+"-C",
+"~/.local/go",
+"."
+]
+},
+{
+"input": "tar -czf /tmp/x.tgz -C ~/.local/go .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-czf",
+"/tmp/x.tgz",
+"-C",
+"~/.local/go",
+"."
+]
+},
+{
+"input": "tar -czf /tmp/x.tgz -C ~/.local/go .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-czf",
+"/tmp/x.tgz",
+"-C",
+"~/.local/go",
+"."
+]
+},
+{
+"input": "tar -czf /tmp/x.tgz -C ~/.local/go .",
+"mode": "quote",
+"quoted": "'tar -czf /tmp/x.tgz -C ~/.local/go .'",
+"src": "corpus"
+},
+{
+"input": "wget -qO- URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"-qO-",
+"URL"
+]
+},
+{
+"input": "wget -qO- URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"-qO-",
+"URL"
+]
+},
+{
+"input": "wget -qO- URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"-qO-",
+"URL"
+]
+},
+{
+"input": "wget -qO- URL",
+"mode": "quote",
+"quoted": "'wget -qO- URL'",
+"src": "corpus"
+},
+{
+"input": "curl -O URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"curl",
+"-O",
+"URL"
+]
+},
+{
+"input": "curl -O URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"curl",
+"-O",
+"URL"
+]
+},
+{
+"input": "curl -O URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"curl",
+"-O",
+"URL"
+]
+},
+{
+"input": "curl -O URL",
+"mode": "quote",
+"quoted": "'curl -O URL'",
+"src": "corpus"
+},
+{
+"input": "cat @LIVE_HOME@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "cat @LIVE_HOME@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "cat @LIVE_HOME@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"@LIVE_HOME@/bin/factory_cli.py"
+]
+},
+{
+"input": "cat @LIVE_HOME@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'cat @LIVE_HOME@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "ls @LIVE_HOME@/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "ls @LIVE_HOME@/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"@",
+"LIVE_HOME",
+"@",
+"/go"
+]
+},
+{
+"input": "ls @LIVE_HOME@/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"@LIVE_HOME@/go"
+]
+},
+{
+"input": "ls @LIVE_HOME@/go",
+"mode": "quote",
+"quoted": "'ls @LIVE_HOME@/go'",
+"src": "corpus"
+},
+{
+"input": "grep -rn foo @LIVE_HOME@/roles/hooks",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"grep",
+"-rn",
+"foo",
+"@LIVE_HOME@/roles/hooks"
+]
+},
+{
+"input": "grep -rn foo @LIVE_HOME@/roles/hooks",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"grep",
+"-rn",
+"foo",
+"@",
+"LIVE_HOME",
+"@",
+"/roles/hooks"
+]
+},
+{
+"input": "grep -rn foo @LIVE_HOME@/roles/hooks",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"grep",
+"-rn",
+"foo",
+"@LIVE_HOME@/roles/hooks"
+]
+},
+{
+"input": "grep -rn foo @LIVE_HOME@/roles/hooks",
+"mode": "quote",
+"quoted": "'grep -rn foo @LIVE_HOME@/roles/hooks'",
+"src": "corpus"
+},
+{
+"input": "cp @LIVE_HOME@/roles/settings/coder.json /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"@LIVE_HOME@/roles/settings/coder.json",
+"/tmp/x"
+]
+},
+{
+"input": "cp @LIVE_HOME@/roles/settings/coder.json /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"@",
+"LIVE_HOME",
+"@",
+"/roles/settings/coder.json",
+"/tmp/x"
+]
+},
+{
+"input": "cp @LIVE_HOME@/roles/settings/coder.json /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"@LIVE_HOME@/roles/settings/coder.json",
+"/tmp/x"
+]
+},
+{
+"input": "cp @LIVE_HOME@/roles/settings/coder.json /tmp/x",
+"mode": "quote",
+"quoted": "'cp @LIVE_HOME@/roles/settings/coder.json /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "@LIVE_HOME@/bin/factory whoami",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"@LIVE_HOME@/bin/factory",
+"whoami"
+]
+},
+{
+"input": "@LIVE_HOME@/bin/factory whoami",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"@",
+"LIVE_HOME",
+"@",
+"/bin/factory",
+"whoami"
+]
+},
+{
+"input": "@LIVE_HOME@/bin/factory whoami",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"@LIVE_HOME@/bin/factory",
+"whoami"
+]
+},
+{
+"input": "@LIVE_HOME@/bin/factory whoami",
+"mode": "quote",
+"quoted": "'@LIVE_HOME@/bin/factory whoami'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/binx/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/binx/y"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/binx/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/binx/y"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/binx/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/binx/y"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/binx/y",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/binx/y'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/gox/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/gox/y"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/gox/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/gox/y"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/gox/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/gox/y"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/gox/y",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/gox/y'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/README.md",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/README.md"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/README.md",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/README.md"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/README.md",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/README.md"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/README.md",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/README.md'",
+"src": "corpus"
+},
+{
+"input": "echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/worktrees/G-000-T-0000/bin/x"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@",
+"LIVE_HOME",
+"@",
+"/worktrees/G-000-T-0000/bin/x"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"@LIVE_HOME@/worktrees/G-000-T-0000/bin/x"
+]
+},
+{
+"input": "echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x",
+"mode": "quote",
+"quoted": "'echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/worktrees/G-000-T-0000/go/x.go"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@",
+"LIVE_HOME",
+"@",
+"/worktrees/G-000-T-0000/go/x.go"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"@LIVE_HOME@/worktrees/G-000-T-0000/go/x.go"
+]
+},
+{
+"input": "cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go",
+"mode": "quote",
+"quoted": "'cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go'",
+"src": "corpus"
+},
+{
+"input": "cat @SHARED@/bin/factory_cli.py",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SHARED@/bin/factory_cli.py"
+]
+},
+{
+"input": "cat @SHARED@/bin/factory_cli.py",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"@",
+"SHARED",
+"@",
+"/bin/factory_cli.py"
+]
+},
+{
+"input": "cat @SHARED@/bin/factory_cli.py",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"@SHARED@/bin/factory_cli.py"
+]
+},
+{
+"input": "cat @SHARED@/bin/factory_cli.py",
+"mode": "quote",
+"quoted": "'cat @SHARED@/bin/factory_cli.py'",
+"src": "corpus"
+},
+{
+"input": "git clone URL /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"/tmp/x"
+]
+},
+{
+"input": "git clone URL /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"/tmp/x"
+]
+},
+{
+"input": "git clone URL /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL",
+"/tmp/x"
+]
+},
+{
+"input": "git clone URL /tmp/x",
+"mode": "quote",
+"quoted": "'git clone URL /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "git clone URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL"
+]
+},
+{
+"input": "git clone URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL"
+]
+},
+{
+"input": "git clone URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"URL"
+]
+},
+{
+"input": "git clone URL",
+"mode": "quote",
+"quoted": "'git clone URL'",
+"src": "corpus"
+},
+{
 "input": "ls ~/.local/lib/factory",
 "mode": "script",
 "src": "corpus",
@@ -60990,6 +67719,1137 @@
 "src": "corpus"
 },
 {
+"input": "cp /tmp/x /tmp/y -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"/tmp/y",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x /tmp/y -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"/tmp/y",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x /tmp/y -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"/tmp/y",
+"-f"
+]
+},
+{
+"input": "cp /tmp/x /tmp/y -f",
+"mode": "quote",
+"quoted": "'cp /tmp/x /tmp/y -f'",
+"src": "corpus"
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"~/.local/go/go.env",
+"/tmp/x",
+"-f"
+]
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"~/.local/go/go.env",
+"/tmp/x",
+"-f"
+]
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"~/.local/go/go.env",
+"/tmp/x",
+"-f"
+]
+},
+{
+"input": "cp ~/.local/go/go.env /tmp/x -f",
+"mode": "quote",
+"quoted": "'cp ~/.local/go/go.env /tmp/x -f'",
+"src": "corpus"
+},
+{
+"input": "tar -tf ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tf ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tf ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tf ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar -tf ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar --list -f ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--list",
+"-f",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --list -f ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--list",
+"-f",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --list -f ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--list",
+"-f",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --list -f ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar --list -f ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -df ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-df",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -df ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-df",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -df ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-df",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -df ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar -df ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar --diff --file=~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--diff",
+"--file=~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --diff --file=~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--diff",
+"--file=~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --diff --file=~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--diff",
+"--file=~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --diff --file=~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar --diff --file=~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "wget --output-doc=/tmp/x URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-doc=/tmp/x",
+"URL"
+]
+},
+{
+"input": "wget --output-doc=/tmp/x URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-doc=/tmp/x",
+"URL"
+]
+},
+{
+"input": "wget --output-doc=/tmp/x URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"wget",
+"--output-doc=/tmp/x",
+"URL"
+]
+},
+{
+"input": "wget --output-doc=/tmp/x URL",
+"mode": "quote",
+"quoted": "'wget --output-doc=/tmp/x URL'",
+"src": "corpus"
+},
+{
+"input": "tar --dir=/tmp/x -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--dir=/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --dir=/tmp/x -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--dir=/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --dir=/tmp/x -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--dir=/tmp/x",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar --dir=/tmp/x -xf a.tar",
+"mode": "quote",
+"quoted": "'tar --dir=/tmp/x -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "echo x > /tmp/**/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"/tmp/**/y"
+]
+},
+{
+"input": "echo x > /tmp/**/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"/tmp/**/y"
+]
+},
+{
+"input": "echo x > /tmp/**/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"/tmp/**/y"
+]
+},
+{
+"input": "echo x > /tmp/**/y",
+"mode": "quote",
+"quoted": "'echo x > /tmp/**/y'",
+"src": "corpus"
+},
+{
+"input": "cat ~/.local/bin/git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/bin/git"
+]
+},
+{
+"input": "cat ~/.local/bin/git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/bin/git"
+]
+},
+{
+"input": "cat ~/.local/bin/git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"~/.local/bin/git"
+]
+},
+{
+"input": "cat ~/.local/bin/git",
+"mode": "quote",
+"quoted": "'cat ~/.local/bin/git'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~/.local/binx/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/binx/y"
+]
+},
+{
+"input": "echo x > ~/.local/binx/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/binx/y"
+]
+},
+{
+"input": "echo x > ~/.local/binx/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~/.local/binx/y"
+]
+},
+{
+"input": "echo x > ~/.local/binx/y",
+"mode": "quote",
+"quoted": "'echo x > ~/.local/binx/y'",
+"src": "corpus"
+},
+{
+"input": "tar -tf ~/.local/bin/a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"~/.local/bin/a.tar"
+]
+},
+{
+"input": "tar -tf ~/.local/bin/a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"~/.local/bin/a.tar"
+]
+},
+{
+"input": "tar -tf ~/.local/bin/a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf",
+"~/.local/bin/a.tar"
+]
+},
+{
+"input": "tar -tf ~/.local/bin/a.tar",
+"mode": "quote",
+"quoted": "'tar -tf ~/.local/bin/a.tar'",
+"src": "corpus"
+},
+{
+"input": "git clone --depth 1 URL /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--depth",
+"1",
+"URL",
+"/tmp/x"
+]
+},
+{
+"input": "git clone --depth 1 URL /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--depth",
+"1",
+"URL",
+"/tmp/x"
+]
+},
+{
+"input": "git clone --depth 1 URL /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"clone",
+"--depth",
+"1",
+"URL",
+"/tmp/x"
+]
+},
+{
+"input": "git clone --depth 1 URL /tmp/x",
+"mode": "quote",
+"quoted": "'git clone --depth 1 URL /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "cp -t /tmp/d ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -t /tmp/d ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -t /tmp/d ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -t /tmp/d ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cp -t /tmp/d ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "install -t /tmp/d ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"-t",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -t /tmp/d ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"-t",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -t /tmp/d ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"-t",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "install -t /tmp/d ~/.local/go/x",
+"mode": "quote",
+"quoted": "'install -t /tmp/d ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "ln -s -t /tmp/d ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"-t",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "ln -s -t /tmp/d ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"-t",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "ln -s -t /tmp/d ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"-t",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "ln -s -t /tmp/d ~/.local/go/x",
+"mode": "quote",
+"quoted": "'ln -s -t /tmp/d ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "ln -st /tmp/d ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-st",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "ln -st /tmp/d ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-st",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "ln -st /tmp/d ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-st",
+"/tmp/d",
+"~/.local/go/x"
+]
+},
+{
+"input": "ln -st /tmp/d ~/.local/go/x",
+"mode": "quote",
+"quoted": "'ln -st /tmp/d ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "cp -rt /tmp/d ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -rt /tmp/d ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -rt /tmp/d ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rt",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -rt /tmp/d ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cp -rt /tmp/d ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "cp -t/tmp/d ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -t/tmp/d ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -t/tmp/d ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-t/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp -t/tmp/d ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cp -t/tmp/d ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "cp --target-dir /tmp/d ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-dir",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp --target-dir /tmp/d ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-dir",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp --target-dir /tmp/d ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-dir",
+"/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp --target-dir /tmp/d ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cp --target-dir /tmp/d ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "cp --target-directory=/tmp/d ~/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-directory=/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp --target-directory=/tmp/d ~/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-directory=/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp --target-directory=/tmp/d ~/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"--target-directory=/tmp/d",
+"~/.local/go/go.env"
+]
+},
+{
+"input": "cp --target-directory=/tmp/d ~/.local/go/go.env",
+"mode": "quote",
+"quoted": "'cp --target-directory=/tmp/d ~/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "tar -tf~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tf~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tf~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tf~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar -tf~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -tzf~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tzf~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tzf~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tzf~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tzf~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tzf~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tzf~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar -tzf~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar --list -f~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"--list",
+"-f~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --list -f~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"--list",
+"-f~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --list -f~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"--list",
+"-f~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar --list -f~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar --list -f~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tC/tmp/c",
+"-f",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tC/tmp/c",
+"-f",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tC/tmp/c",
+"-f",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar -tC/tmp/c -f ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar tf ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"tf",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar tf ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"tf",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar tf ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"tf",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar tf ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar tf ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar ft ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"ft",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar ft ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"ft",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar ft ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"ft",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar ft ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar ft ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -fc ~/.local/go/pkg.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-fc",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -fc ~/.local/go/pkg.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-fc",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -fc ~/.local/go/pkg.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-fc",
+"~/.local/go/pkg.tar"
+]
+},
+{
+"input": "tar -fc ~/.local/go/pkg.tar",
+"mode": "quote",
+"quoted": "'tar -fc ~/.local/go/pkg.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -tf/tmp/box.tar -C ~/.local/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf/tmp/box.tar",
+"-C",
+"~/.local/go"
+]
+},
+{
+"input": "tar -tf/tmp/box.tar -C ~/.local/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf/tmp/box.tar",
+"-C",
+"~/.local/go"
+]
+},
+{
+"input": "tar -tf/tmp/box.tar -C ~/.local/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-tf/tmp/box.tar",
+"-C",
+"~/.local/go"
+]
+},
+{
+"input": "tar -tf/tmp/box.tar -C ~/.local/go",
+"mode": "quote",
+"quoted": "'tar -tf/tmp/box.tar -C ~/.local/go'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/go && tar -tf/tmp/box.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"tar",
+"-tf/tmp/box.tar"
+]
+},
+{
+"input": "cd ~/.local/go && tar -tf/tmp/box.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"tar",
+"-tf/tmp/box.tar"
+]
+},
+{
+"input": "cd ~/.local/go && tar -tf/tmp/box.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"tar",
+"-tf/tmp/box.tar"
+]
+},
+{
+"input": "cd ~/.local/go && tar -tf/tmp/box.tar",
+"mode": "quote",
+"quoted": "'cd ~/.local/go && tar -tf/tmp/box.tar'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -65021,7 +72881,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1484,
+"corpus_commands": 1682,
 "edge_inputs": 123,
 "python": "3.13"
 }
