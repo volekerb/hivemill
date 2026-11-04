@@ -1,7 +1,7 @@
 # worker-guard in Go (G-016 SC4)
 
 `go/cmd/worker-guard` is the Go port of `roles/hooks/worker-guard.py`. It was built in four section tasks and is
-**not wired anywhere**: no settings file, shim or flag calls it, and Python stays the default (`guard_impl=python`).
+wired only behind the shim: the 10 worker settings templates call `roles/hooks/worker-guard` (T-0356), which picks Go or Python from the `guard_impl` flag; Python stays the default (`guard_impl=python`). HQ (boss, director, lead) calls the Python hook directly.
 The Python hook on `origin/main` is the behaviour contract.
 
 ## Status
@@ -204,6 +204,8 @@ the stamp equals `<srchash>` (a string compare; the shim runs no extra process f
 stale or missing binary never runs old rules. The binary is called as `worker-guard --py-hook <dir>/worker-guard.py <args>`.
 
 **Modes.** `python`: `python3 worker-guard.py <args>`. `go`: the binary. Both get stdin as is.
+
+**Who calls the shim (T-0356, M22079).** The 10 worker templates call `sh <live home>/roles/hooks/worker-guard --role <role>` (27 hook lines; was `python3 <live home>/roles/hooks/worker-guard.py --role <role>`). The 3 HQ templates (boss, director, lead) stay on `python3 <live home>/roles/hooks/worker-guard.py --hq`. Why: HQ repairs a broken hook. A direct python3 crash exits non-2, which does not block, so HQ can still fix it. The shim maps every crash to exit 2, so a broken hook under the shim would lock boss, director and leads out of Bash with no agent able to repair it (M20449). Moving HQ onto the shim is decided at the Go flip, not before. The sandboxed evaluator rewrites whichever form its template has to `python3 <trial copy of worker-guard.py> <same args>` (the shim is not copied into the trial). `ci/guard_diff.py --roles all` reads both forms.
 
 **Fail closed.** The shim never `exec`s. Every exit status other than 0 and 2 (including 126/127 when python3 or the
 binary cannot run, and signals such as SIGKILL = 137) becomes exit 2 with
