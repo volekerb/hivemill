@@ -17,7 +17,8 @@ class Base(FactoryTestCase):
 
     def agent(self, name, role="qa", status="exited", pane="p-1", ended=OLD):
         self.env.seed_agent(name, role, "G-9", None, "T-9", status=status, pane_id=pane)
-        self.env.sql("UPDATE agents SET spawn_args='{}', ended=? WHERE name=?", (ended, name))
+        self.env.sql("UPDATE agents SET spawn_args='{}', ended=?, session_id=?, cwd=? WHERE name=?",
+                     (ended, "s-" + name, "/w/" + name, name))
 
     def host(self, *pairs):
         """The host lists these (name, pane id) agents and panes."""
@@ -108,7 +109,103 @@ class Never(Base):
         self.assertKept("p-1")
 
     def test_exited_row_with_other_pane_id_is_kept(self):
+        """Kept when a live row holds the HOST's pane id (the old name stays; a bare id mismatch no longer keeps it)."""
         self.agent("qa-t-9", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-1", ended=None)
+        self.host(("qa-t-9", "p-1"))
+        self.tick()
+        self.assertKept("p-1")
+
+    def test_exited_row_with_stale_pane_id_closes_the_host_pane_not_the_rows(self):
+        self.agent("qa-t-9", pane="p-old")
+        self.host(("qa-t-9", "p-1"), ("owner-shell", "p-old"))
+        self.tick()
+        self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
+        self.assertEqual(self.panes(), ["p-old"])
+        self.assertEqual(json.loads(self.events("exited-pane-closed")[0]["detail"])["pane"], "p-1")
+
+    def test_host_pane_running_another_session_is_kept_in_both_modes(self):
+        """Exited qa-old; the host lists qa-old at p-1 but the pane runs qa-new's session: never closed."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-stale", ended=None)
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "x"}],
+            panes=[{"pane_id": "p-1", "tab_id": "t1", "workspace_id": "w1"}],
+            agents=[{"name": "qa-old", "agent": "claude", "pane_id": "p-1", "agent_status": "idle",
+                     "agent_session": {"value": "s-qa-new"}}])
+        self.tick()
+        self.assertKept("p-1")
+        self.tick(mode="dry-run")
+        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual(self.closes(), [])
+
+    def _no_session_host(self, status="idle", cwd="/w/qa-old"):
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "x"}],
+            panes=[{"pane_id": "p-1", "tab_id": "t1", "workspace_id": "w1", "cwd": cwd}],
+            agents=[{"name": "qa-old", "agent": "claude", "pane_id": "p-1", "agent_status": status}])
+
+    def _kept_both_modes(self):
+        self.tick()
+        self.assertKept("p-1")
+        self.tick(mode="dry-run")
+        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual(self.closes(), [])
+
+    def test_no_host_session_with_unlisted_live_row_is_kept_in_both_modes(self):
+        """Idle pane in another agent's cwd (live qa-new, stale row pane): not this row's leftover, kept."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-new", status="live", pane="p-stale", ended=None)
+        self._no_session_host(cwd="/w/qa-new")
+        self._kept_both_modes()
+
+    def test_no_host_session_with_old_lost_unlisted_row_would_close_in_own_cwd(self):
+        """Old lost rows exist (live reality): they no longer stop the reaper for an idle pane in the row's own cwd."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("qa-lost", status="lost", pane="p-stale", ended=OLD)
+        self._no_session_host()
+        self.tick(mode="dry-run")
+        self.assertEqual([e["entity_id"] for e in self.events("exited-pane-would-close")], ["qa-old"])
+        self.assertEqual(self.closes(), [])
+        self.tick()
+        self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
+
+    def test_no_host_session_working_pane_is_kept_in_both_modes(self):
+        """The host calls the pane 'working' (mislabelled or not): never closed, even in the row's own cwd."""
+        self.agent("qa-old", pane="p-old")
+        self._no_session_host(status="working")
+        self._kept_both_modes()
+
+    def test_no_host_session_deleted_cwd_form_would_close(self):
+        self.agent("qa-old", pane="p-old")
+        self._no_session_host(status="done", cwd="/w/qa-old (deleted)")
+        self.tick(mode="dry-run")
+        self.assertEqual([e["entity_id"] for e in self.events("exited-pane-would-close")], ["qa-old"])
+
+    def test_no_host_session_row_without_cwd_is_kept_in_both_modes(self):
+        self.agent("qa-old", pane="p-old")
+        self.env.sql("UPDATE agents SET cwd=NULL WHERE name='qa-old'")
+        self._no_session_host()
+        self._kept_both_modes()
+
+    def test_no_host_session_with_every_live_row_listed_still_closes(self):
+        self.agent("qa-old", pane="p-old")
+        self._no_session_host()
+        self.tick()
+        self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
+
+    def test_stale_pane_id_dry_run_logs_would_close_with_the_host_pane(self):
+        self.agent("qa-t-9", pane="p-old")
+        self.host(("qa-t-9", "p-1"))
+        self.tick(mode=None)
+        self.assertEqual(self.closes(), [])
+        self.assertEqual(self.panes(), ["p-1"])
+        ev = self.events("exited-pane-would-close")
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(json.loads(ev[0]["detail"])["pane"], "p-1")
+
+    def test_stale_pane_id_under_10_min_is_kept(self):
+        self.agent("qa-t-9", pane="p-old", ended=FUTURE)
         self.host(("qa-t-9", "p-1"))
         self.tick()
         self.assertKept("p-1")
