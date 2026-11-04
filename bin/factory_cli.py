@@ -14363,7 +14363,7 @@ def tick_ci_wake(con):
 def tick_red_pr_owner(con):
     """Tick step 1c'': config red_pr_owner_alert=1 mails the task's lead (the director when the task has no team or the team
     has no lead) once per (task, head sha) when its PR is open, red or conflicted, and no coder is live/starting/queued for
-    the task. Tasks in_progress or in_review; blocked ones are skipped; independent of lead_parking; never spawns. A red head
+    the task. Tasks in_progress, in_review or blocked (a blocked one's mail carries its waits value and recorded reason); independent of lead_parking; never spawns. A red head
     shares tick_ci_wake's `ci-red:<task>:<sha>` throttle row, so a parked team gets one mail; a conflict uses `red-pr:<task>:<sha>`.
     The gh call is skipped when origin's head (one batched ls-remote) is already mailed; an unreadable head is re-probed only
     every CI_WAKE_RECHECK_S (throttle row `red-pr-probe:<task>`)."""
@@ -14374,8 +14374,8 @@ def tick_red_pr_owner(con):
     except FactoryNowError:
         clock = time.time()
     batch = []
-    for k in con.execute("SELECT t.id, t.goal_id, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id "
-                         "WHERE t.status IN ('in_progress','in_review') AND t.pr_url IS NOT NULL AND t.pr_url != '' ORDER BY t.id").fetchall():
+    for k in con.execute("SELECT t.id, t.goal_id, t.status, t.waits, t.pr_url, t.branch, tm.lead_agent FROM tasks t LEFT JOIN teams tm ON tm.id=t.team_id "
+                         "WHERE t.status IN ('in_progress','in_review','blocked') AND t.pr_url IS NOT NULL AND t.pr_url != '' ORDER BY t.id").fetchall():
         if con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('live','starting','queued')",
                        (k["id"],)).fetchone():
             continue
@@ -14411,8 +14411,13 @@ def tick_red_pr_owner(con):
         _throttle_set(con, key, clock)
         to = k["lead_agent"] or "director"
         label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
+        tail = "Decide: spawn a fix coder or block the task with a reason."
+        if k["status"] == "blocked":
+            ev = con.execute("SELECT detail FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                             "AND detail LIKE 'status=blocked%' ORDER BY id DESC LIMIT 1", (k["id"],)).fetchone()
+            tail = f"Task is blocked (waits {k['waits']}); reason: {(ev['detail'] if ev else None) or 'none recorded'}."
         send(con, to, f"red PR, no coder: {label}",
-             f"head {sha}; {why}. No coder is live, starting or queued for {k['id']}. Decide: spawn a fix coder or block the task with a reason.",
+             f"head {sha}; {why}. No coder is live, starting or queued for {k['id']}. {tail}",
              "report", k["goal_id"], k["id"], sender="tick")
         event(con, "task", k["id"], "red-pr-unowned", f"{sha[:8]} -> {to}")
 

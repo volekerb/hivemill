@@ -73,8 +73,20 @@ class RedPrOwnerTests(FactoryTestCase):
         self.assertEqual(len(m), 2)
         self.assertIn("@" + SHA2[:8], m[1]["subject"])
 
-    def test_blocked_task_no_mail(self):
+    def test_blocked_task_mails_with_reason_and_waits_once(self):
+        self.ok("task", "update", "T-0001", "--status", "blocked", "--waits", "owner", "--note", "waiting on owner decision X")
+        self.pr([BAD])
+        self.ok("tick")
+        self.ok("tick")
+        m = self.mails()
+        self.assertEqual(len(m), 1)
+        self.assertIn("blocked (waits owner)", m[0]["body"])
+        self.assertIn("waiting on owner decision X", m[0]["body"])
+
+    def test_blocked_task_with_live_coder_no_mail(self):
         self.env.sql("UPDATE tasks SET status='blocked' WHERE id='T-0001'")
+        self.env.seed_agent("zz-coder-b", "coder", goal="G-001", task="T-0001", status="live", pane_id="p-b")
+        self.env.set_herdr(agents=[{"name": "zz-coder-b", "agent": "claude", "pane_id": "p-b", "agent_status": "working"}])
         self.pr([BAD])
         self.ok("tick")
         self.assertEqual(self.mails(), [])
