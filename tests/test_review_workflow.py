@@ -141,6 +141,16 @@ class ArgsValidationTests(unittest.TestCase):
         self.assert_rejected({"pr": "", "spec_task": "T-1"}, "pr")
         self.assert_rejected({"pr": 12, "spec_task": "T-1"}, "pr")
 
+    def test_non_numeric_pr_rejected(self):
+        for bad in ("undefined", "T-1031", "https://github.com/o/r/pull/abc"):
+            self.assert_rejected({"pr": bad, "spec_task": "T-1"}, "pr")
+
+    def test_pr_number_or_url_accepted(self):
+        for ok in ("392", "https://github.com/o/r/pull/392", "https://github.com/o/r/pull/392/files"):
+            out = self.run_args({"pr": ok, "spec_task": "T-1"})
+            self.assertTrue(out["ok"], out)
+            self.assertEqual(out["calls"], 3)
+
     def test_missing_or_bad_spec_task_rejected(self):
         self.assert_rejected({"pr": "http://x/1"}, "spec_task")
         self.assert_rejected({"pr": "http://x/1", "spec_task": 5}, "spec_task")
