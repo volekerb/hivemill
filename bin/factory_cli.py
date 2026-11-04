@@ -5060,6 +5060,8 @@ def mech_candidates(con, only=None):
             continue
         if mech_dispute(con, t["id"]):
             continue
+        if task_judge_hold_reason(con, t["id"]):  # a held task is not merged mechanically; judge_autospawn_tick logs the hold
+            continue
         if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                             (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
             continue
@@ -5141,6 +5143,10 @@ def mech_try(con, t, mode, retry_s):
         return block(f"{tier_why}; the judge decides")
     if tier > MECH_MAX_TIER:
         return block(f"tier {tier} ({tier_why}); the judge decides")
+    jhr = task_judge_hold_reason(con, tid)  # the hold may have arrived after the candidate list was built
+    if jhr:
+        log_task_judge_hold(con, tid, jhr)
+        return "skipped"
     reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
