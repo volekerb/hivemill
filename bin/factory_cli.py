@@ -235,7 +235,9 @@ DEFAULT_CONFIG = {
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
-    "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
+    "idle_coder_reap": "off",    # off | dry-run | on: the tick stops a coder idle past idle_coder_reap_s with a clean tree, pushed PR head, no mail, no shell (T-1028, docs/lead-wake.md)
+    "idle_coder_reap_s": "900",  # seconds a coder must be idle/done before idle_coder_reap acts
+    "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
     "scout_max_minutes": "20",   # wall budget of one scout run; over it the tick force-stops the scout
@@ -6952,6 +6954,170 @@ def reap_exited_panes(con, agents):
             pass
 
 
+IDLE_CODER_MAX_PER_TICK = 3
+IDLE_CODER_AGENT_PROCS = ("claude", "node")   # the agent itself; any other foreground process is a running command
+
+
+def _pane_busy(pane):
+    """True when the pane's foreground has a process other than the agent; unreadable = True (fail safe)."""
+    info = herdr("pane", "process-info", "--pane", pane, check=False) if pane else None
+    pi = info.get("process_info") if isinstance(info, dict) else None
+    fg = pi.get("foreground_processes") if isinstance(pi, dict) else None
+    if not isinstance(fg, list):
+        return True
+    for x in fg:
+        argv = x.get("argv") if isinstance(x, dict) else None
+        n = (x.get("name") if isinstance(x, dict) else str(x)) or (argv[0] if isinstance(argv, list) and argv else "")
+        parts = str(n).split()
+        if os.path.basename(parts[0] if parts else "") not in IDLE_CODER_AGENT_PROCS:
+            return True
+    return False
+
+
+IDLE_SHELLS = ("zsh", "bash", "sh", "dash", "fish")
+
+
+def _agent_shells_busy(name):
+    """True when any shell runs under agent `name`'s claude process (Bash-tool shells sit in their own session, so the pane
+    foreground misses them; a CI-watch shell protects too, it ends on its own). No claude process or /proc unreadable = True."""
+    root = _serve_proc_root()
+    try:
+        pids = [int(p.name) for p in root.iterdir() if p.name.isdigit()]
+    except OSError:
+        return True
+    kids, claude = {}, []
+    for pid in pids:
+        st = _orphan_stat(pid)
+        if st:
+            kids.setdefault(st[0], []).append(pid)
+        argv = _serve_argv(pid)
+        if argv and os.path.basename(argv[0]) == "claude" and (_orphan_env(pid) or {}).get("FACTORY_AGENT") == name:
+            claude.append(pid)
+    if not claude:
+        return True
+    todo, seen = list(claude), set()
+    while todo:
+        for c in kids.get(todo.pop(), []):
+            if c in seen:
+                continue
+            seen.add(c)
+            todo.append(c)
+            argv = _serve_argv(c)
+            if argv and os.path.basename(argv[0]).lstrip("-") in IDLE_SHELLS:
+                return True
+    return False
+
+
+def idle_coder_blocker(con, r, t):
+    """Why live coder row `r` (task row `t`) must not be stopped now, or None when it may be."""
+    if r["stop_requested_at"]:
+        return "already stopping"
+    if not t or t["status"] not in ("in_review", "in_progress") or not t["pr_url"]:
+        return "no PR on an in_review/in_progress task"
+    if con.execute("SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL", (r["name"],)).fetchone():
+        return "unread mail"
+    wt = t["worktree"]
+    if not wt or not Path(wt).is_dir():
+        return "worktree unreadable"
+    rc, dirty = _git_out(wt, "status", "--porcelain")
+    if rc != 0 or dirty:
+        return "dirty or unreadable working tree"
+    rc, head = _git_out(wt, "rev-parse", "HEAD")
+    if rc != 0 or not head:
+        return "HEAD unreadable"
+    ok, why = pr_pushed_head_ok(t["pr_url"], head)
+    if not ok:
+        return why
+    if _pane_busy(r["pane_id"]) or _agent_shells_busy(r["name"]):
+        return "a process runs in the pane"
+    return None
+
+
+def reap_idle_coders(con, agents):
+    """Tick hook (T-1028), per config idle_coder_reap off|dry-run|on (unknown = dry-run): a live coder the host reports
+    idle/done for more than idle_coder_reap_s (first-seen-idle clock kept in `throttle`, reset when it works), on an
+    in_review/in_progress task with a PR, free of unread mail, clean tree, local HEAD == the PR head, nothing running in
+    its pane, is stopped with a reason and a task note (the review autospawn / T-1004 paths bring the work back). dry-run
+    logs one "idle-coder-would-stop" per idle episode and stops nothing. At most 3 stops per tick. Coders only."""
+    try:
+        mode = cfg(con, "idle_coder_reap")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        rows = con.execute("SELECT * FROM agents WHERE status='live' AND role='coder'").fetchall()
+        if mode == "off" or not agents:
+            if mode == "off":  # flag off: forget the clocks so a later switch-on starts from zero
+                con.execute("DELETE FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'")
+            return
+        try:
+            limit = int(cfg(con, "idle_coder_reap_s"))
+        except ValueError:
+            return  # a bad threshold never stops anyone
+        try:
+            clock = digest_clock().timestamp()
+        except FactoryNowError:
+            clock = time.time()
+        by_name = {x.get("name"): x for x in agents if x.get("name")}
+        live_keys = {f"{p}{r['name']}" for r in rows for p in ("idlereap:", "idlereap-dry:")}
+        for k in con.execute("SELECT key FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'").fetchall():
+            if k["key"] not in live_keys:  # an exited/lost agent's clock must not carry over to a reused name
+                con.execute("DELETE FROM throttle WHERE key=?", (k["key"],))
+        due = []
+        for r in rows:
+            key = f"idlereap:{r['name']}"
+            h = by_name.get(r["name"])
+            if not h or h.get("agent_status") not in ("idle", "done"):
+                con.execute("DELETE FROM throttle WHERE key IN (?,?)", (key, f"idlereap-dry:{r['name']}"))
+                continue
+            since = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if since is None:
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(clock)))
+                continue
+            if clock - float(since["ts"]) > limit:
+                due.append((float(since["ts"]), r))
+        stopped = 0
+        for since, r in sorted(due, key=lambda x: x[0]):
+            if mode == "on" and stopped >= IDLE_CODER_MAX_PER_TICK:
+                break
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+            if idle_coder_blocker(con, r, t) is not None:
+                continue
+            name = r["name"]
+            idle_s = int(clock - since)
+            detail = {"agent": name, "task": r["task_id"], "idle_s": idle_s, "threshold_s": limit}
+            if mode == "dry-run":
+                dkey = f"idlereap-dry:{name}"
+                if con.execute("SELECT 1 FROM throttle WHERE key=?", (dkey,)).fetchone() is None:
+                    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (dkey, str(clock)))
+                    event_as(con, "tick", "agent", name, "idle-coder-would-stop", detail)
+                continue
+            reason = (f"idle_coder_reap: idle {idle_s}s (> {limit}s), working tree clean, PR head pushed, no mail: "
+                      "nothing left for you to do; the tick brings the task back when it needs a coder")
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
+                               "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (now(), name)).rowcount != 1:
+                    con.execute("ROLLBACK")
+                    continue
+                send(con, name, "STOP", reason + "\nStop work now. Push any work in progress to your branch (a WIP commit "
+                     "is fine), then run factory done '<stopped: pushed sha|nothing; state>'", "decision",
+                     r["goal_id"], r["task_id"], sender="tick")
+                event_as(con, "tick", "agent", name, "stop-requested", {"by": "tick", "reason": reason})
+                event_as(con, "tick", "agent", name, "idle-coder-stopped", detail)
+                event_as(con, "tick", "task", r["task_id"], "note", f"tick stopped idle coder {name}: {reason}")
+                con.execute("COMMIT")
+            except BaseException:
+                if con.in_transaction:
+                    con.execute("ROLLBACK")
+                raise
+            stopped += 1
+            esc_wait_nudge(con, name, "📬 STOP from tick: run factory inbox now and follow the STOP order.", "STOP order",
+                           defer=True)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "idle-coder-reap", "idle-coder-reap-failed", str(e)[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _is_test_runner(argv):
     """True only for a local test run: python3 ci/affected.py, -m unittest, -m pytest, `factory test`, pytest/py.test."""
     if not argv:
@@ -12788,6 +12954,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("reap_loop")
     reap_exited_panes(con, agents)
     _pt_lap("exited_panes")
+    reap_idle_coders(con, agents)
+    _pt_lap("idle_coders")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
     _pt_lap("drift")
 

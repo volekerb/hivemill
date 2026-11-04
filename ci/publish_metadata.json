@@ -32,6 +32,7 @@
     "guard-unittest",
     "guard-diff",
     "guard-equiv",
+    "guard-equiv-rest",
     "unittest"
   ]
 }

@@ -29,5 +29,9 @@ workers), the pane is closed only when the host `agent_status` is `done` or `idl
 cwd equals the row's recorded `cwd` (a ` (deleted)` suffix is ignored); anything else is kept. Other rows, old `lost`
 ones included, do not block it.
 Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and
-non-exited rows are never touched. Tests: `tests/test_exited_pane_reap.py`. Enable with `factory config exited_pane_reap_mode on`
-after reading the would-close events.
+non-exited rows are never touched. Tests: `tests/test_exited_pane_reap.py`.
+
+Do not enable `on` yet. `factory config exited_pane_reap_mode on` is not cleared until T-1033 is done and the director
+approves. Known limit (B6): when the host reports no session, an idle pane in a worktree shared with another agent can
+be misjudged as the exited agent's pane and closed. Dry-run cannot reveal this: the `exited-pane-would-close` events
+look the same for a correct and a misjudged pane, so reading them is not enough to clear `on`.
