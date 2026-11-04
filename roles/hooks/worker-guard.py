@@ -374,6 +374,15 @@ INLINE_GH_WRITE = re.compile(
 INLINE_GH_API_BODY = re.compile(
     r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
 INLINE_GH_GET = re.compile(r"(?<![\w-])(?:-X|--method)\W*(?i:GET)\b")
+
+
+def inline_gh_api_body(text):
+    """T-0881: True when some `gh ... api ... -f|-F|--field|--raw-field|--input` in the inline code has no GET method of
+    its own: each gh command is cut at the next `gh` word, so a `-X GET` on another gh call exempts nothing."""
+    parts = re.split(r"(?=\bgh\b)", text)
+    return any(INLINE_GH_API_BODY.search(c) and not INLINE_GH_GET.search(c) for c in parts if c.lstrip().startswith("gh"))
+
+
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
 
@@ -1318,7 +1327,7 @@ class Analyzer:
         for t in texts:
             if all(p.search(t) for p in INLINE_GIT_PUSH):
                 raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t) or (INLINE_GH_API_BODY.search(t) and not INLINE_GH_GET.search(t)):
+            if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
                 raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
                             "no-push roles never write to GitHub; ask your lead")
 

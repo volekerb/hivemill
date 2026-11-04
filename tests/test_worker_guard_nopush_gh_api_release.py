@@ -33,6 +33,7 @@ DENIED = [
     "python3 -c 'import os; os.system(\"gh api x --input body.json\")'",
     "bash -c 'gh release create v1'",
     "bash -c 'gh api x -F a=b'",
+    "python3 -c 'import os; os.system(\"gh api search -X GET; gh api repos/o/r/issues -f title=x\")'",  # GET on another call
 ]
 ALLOWED = [
     "gh api repos/o/r/pulls/1",
@@ -44,6 +45,9 @@ ALLOWED = [
     "python3 -c 'import os; os.system(\"gh release list\")'",
     "python3 -c 'import os; os.system(\"gh api -X GET search/issues -f q=x\")'",
     "bash -c 'gh release view v1'",
+    "gh api --method=GET x -F a=b",
+    "gh api -XGET x -f a=b",
+    "python3 -c 'import os; os.system(\"gh api x --method GET -F a=b\")'",
 ]
 CODER_CMDS = ["gh api repos/o/r/issues -f title=x", "gh release create v1", "bash -c 'gh release create v1'",
               "python3 -c 'import os; os.system(\"gh release create v1\")'"]
