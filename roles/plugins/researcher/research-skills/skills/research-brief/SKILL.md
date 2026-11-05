@@ -13,7 +13,7 @@ Follow these steps in order.
 4. Write scope and non-goals: what you will cover and what you will not touch.
 5. Write the source plan: which kinds of sources per sub-question (official docs, source repos, papers, our own repo), and in what order.
 6. Pick one method: desk research, comparison (skill tool-comparison), benchmark (skill benchmark-protocol) or plugin evaluation (skill plugin-evaluation).
-7. Write exit criteria: the evidence that lets you answer each sub-question, and what counts as "not found".
+7. Write one falsifiable hypothesis per sub-question (H1 for Q1, ...): the answer you expect and the observation that would prove it wrong. Write exit criteria: the evidence that confirms or refutes each hypothesis, and what counts as "not found".
 8. Write a time box (for example 45 minutes, at most 12 sources). When it is spent, stop searching and say so in Limits.
 9. Record the brief first: `factory task note <own task> -` with the full brief as the heredoc body.
 10. Research against the brief. Rate every source with skill source-evaluation; write the result with skill report-writing.
