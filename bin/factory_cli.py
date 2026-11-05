@@ -14757,6 +14757,15 @@ def coder_ci_resume_kickoff(sha, failed, resumed, fresh_wt, branch):
     return text
 
 
+def _resume_dropped(con, prior, org):
+    """True when spawn() will drop prior's session id: it was recorded on another runtime than the coder's runtime in `org` (spawn's own rule)."""
+    try:
+        prior_rt = json.loads(prior["spawn_args"] or "{}").get("runtime") or "claude"
+    except ValueError:
+        prior_rt = "claude"
+    return prior_rt != org_runtime(con, "coder", org)
+
+
 def coder_ci_resume_tick(con):
     """Tick step 2c': with coder_ci_handoff on (resume|fresh) an in_review task whose PR head is red and has no coder live/starting/queued gets
     its coder started again, once per (task, head sha; throttle row `coder-resume:<task>:<sha>`). resume mode resumes the recorded session in the
@@ -14777,7 +14786,7 @@ def coder_ci_resume_tick(con):
         cap = 2
     batch, starts = [], 0
     for t in con.execute(
-            "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
+            "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.role='coder' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
             "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role='coder' "
             "AND a.status NOT IN ('done','exited','lost','cancelled')) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
         if starts >= CODER_RESUME_MAX_STARTS:
@@ -14793,12 +14802,14 @@ def coder_ci_resume_tick(con):
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
         if isinstance(pr, BaseException) or pr.get("state", "OPEN") != "OPEN":
+            _throttle_set(con, probe_key, clock)  # no gh call per tick for an unreadable or closed PR; a new head is a new key
             continue  # the review tick logs dead or unreadable PRs
         sha = pr["headRefOid"]
         to = goal_alert_to(con, t["goal_id"], team=team)
         label = f"{tid} PR #{pr.get('number', '?')} @{sha[:8]}"
         rollup = pr.get("statusCheckRollup")
         if (pr.get("mergeStateStatus") or "").upper() == "DIRTY":
+            _throttle_set(con, probe_key, clock)
             if not _throttled(con, f"coder-resume-dirty:{tid}:{sha}", clock, float("inf")):
                 _throttle_set(con, f"coder-resume-dirty:{tid}:{sha}", clock)
                 send(con, to, f"coder not resumed, PR conflicted: {label}",
@@ -14806,6 +14817,7 @@ def coder_ci_resume_tick(con):
                      "report", t["goal_id"], tid, sender="tick")
             continue
         if not latest_checks(rollup):
+            _throttle_set(con, probe_key, clock)
             nk = f"coder-resume-nochecks:{tid}:{sha}"
             if not _throttled(con, nk, clock, float("inf")):
                 _throttle_set(con, nk, clock)  # first seen without checks
@@ -14839,7 +14851,9 @@ def coder_ci_resume_tick(con):
         wt_ok = bool(t["worktree"]) and Path(t["worktree"]).exists()
         resume = (prior["session_id"] if prior and prior["session_id"] and wt_ok and cfg(con, "coder_ci_handoff") == "resume"
                   and org_runtime(con, "coder", org) == "claude" else None)
-        kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), bool(resume), not wt_ok, t["branch"] or f"factory/{tid.lower()}")
+        dropped = bool(resume) and _resume_dropped(con, prior, org)  # spawn drops a session recorded on another runtime and starts fresh
+        resumed = bool(resume) and not dropped
+        kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), resumed, not wt_ok, t["branch"] or f"factory/{tid.lower()}")
         if not gate(con, role="coder")[0]:
             return
         try:
@@ -14857,10 +14871,10 @@ def coder_ci_resume_tick(con):
                          "The tick stops retrying this head. Fix the cause or start a fix coder by hand.", "report", t["goal_id"], tid, sender="tick")
             continue
         _throttle_set(con, mark, clock)
-        if resume:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
+        if resumed:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
             send(con, name, f"CI red: {label}", kick, "request", t["goal_id"], tid, sender="tick")
-        event(con, "task", tid, "coder-ci-resume", {"agent": name, "mode": "resume" if resume else "fresh", "head": sha[:8], "failed": names})
-        send(con, to, f"coder restarted on red CI: {label}", f"{name} started ({'resume' if resume else 'fresh'}) for failed {', '.join(names)}. "
+        event(con, "task", tid, "coder-ci-resume", {"agent": name, "mode": "resume" if resumed else "fresh", "head": sha[:8], "failed": names})
+        send(con, to, f"coder restarted on red CI: {label}", f"{name} started ({'resume' if resumed else 'fresh'}) for failed {', '.join(names)}. "
              "This mail does not wake you.", "fyi", t["goal_id"], tid, sender="tick")
         starts += 1
 
