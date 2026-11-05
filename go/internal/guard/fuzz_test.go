@@ -36,7 +36,7 @@ func FuzzPreprocess(f *testing.F) {
 		within(t, s, func() {
 			for _, fold := range []bool{false, true} {
 				var bodies []Heredoc
-				if text, _, err := Preprocess(s, fold, &bodies); err == nil {
+				if text, _, err := Preprocess(s, fold, &bodies, nil); err == nil {
 					_, _ = ExtractSubs(text)
 				}
 			}

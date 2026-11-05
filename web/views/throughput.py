@@ -18,6 +18,7 @@ SLOWEST = 10
 HQ_ROLES = ("boss", "director", "staff-engineer")
 SORTS = {"total": "desc", "task": "asc", "merged": "desc"}   # sortable column of the slowest table -> first-click direction
 GETTERS = {"total": lambda s: s["total_s"], "task": lambda s: s["task_id"], "merged": lambda s: s["merged"]}
+LIMITS = "Counted from factory records only. It cannot see a push the owner makes by hand, or an owner wait set on a task that was already blocked."
 STAGES = (("coding_s", "Coding"), ("review_s", "Review / QA wait"), ("judge_s", "Judge"), ("rework_s", "Rework"))
 
 
@@ -93,7 +94,8 @@ def data(ctx, **params):
     agents = {"running": len(live), "leads": sum(1 for r in live if r == "lead"),
               "hq": sum(1 for r in live if r in HQ_ROLES)}
     agents["workers"] = agents["running"] - agents["leads"] - agents["hq"]
-    return {"org": org, "days": days, "merges": len(items), "agents": agents, "median_s": _median(totals), "p90_s": _p90(totals),
+    attended = queries.attended_tasks(ctx.db, [i["task_id"] for i in items])
+    return {"org": org, "days": days, "merges": len(items), "unattended": len(items) - len(attended), "agents": agents, "median_s": _median(totals), "p90_s": _p90(totals),
             "timed": len(totals), "open_tasks": open_tasks,
             "live_workers": live_workers, "merges_per_day": t["merges_per_day"],
             "stages": stages, "goals": goals_rows, "slowest": slowest}
@@ -116,6 +118,15 @@ def _tiles(d):
                    delta=f"{a['workers']} workers · {a['leads']} leads · {a['hq']} HQ",
                    definition="Agents with a live pane right now: workers, team leads and HQ (boss, director, staff engineer)."),
               class_="tiles tiles--4")
+
+
+def _unattended(d):
+    value = f"{d['unattended']} of {d['merges']}" if d["merges"] else "-"
+    row = el("div", tile("Unattended share", value,
+                         definition="Merged tasks in the selected period with no owner involvement: no owner wait, "
+                                    "no auto-merge block, no boss decision about the task."),
+             class_="tiles tiles--4")
+    return el("div", row, el("p", LIMITS, class_="muted"))
 
 
 def _per_day(d):
@@ -170,4 +181,4 @@ def _slowest(ctx, d):
 def render(ctx, d):
     open_note = el("p", f"{d['open_tasks']} tasks open now (in progress or in review), {d['live_workers']} agents working on a task.",
                    class_="muted")
-    return el("div", _range(d), _tiles(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))
+    return el("div", _range(d), _tiles(d), _unattended(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))

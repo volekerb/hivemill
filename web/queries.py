@@ -3,7 +3,7 @@
 Pure functions f(con, ...) -> list[dict] | dict on a connection from web.db.connect.
 No HTML, no writes. Results are plain JSON-serialisable dicts.
 
-Never selected: agents.spawn_args, messages.body, plans.body, tasks.spec, tasks.acceptance.
+Never selected: agents.spawn_args, messages.body (one exception: attended_tasks reads boss decision bodies to match task ids), plans.body, tasks.spec, tasks.acceptance.
 goals.intent is returned truncated to 600 characters (goal_detail only).
 Timestamps are the DB's ISO strings.
 """
@@ -527,6 +527,29 @@ def throughput(con, days=14, now=None, *, goals=None):
         per_goal = [r for r in per_goal if r["goal_id"] in goals]
     return {"days": days, "merges_per_day": [{"day": d.isoformat(), "merges": n} for d, n in per_day.items()],
             "tasks_per_goal": per_goal, "tasks": items}
+
+
+def attended_tasks(con, ids):
+    """The subset of task ids `ids` that had the owner involved, read from factory records (one call per page load).
+
+    Attended = an `update` event whose detail holds waits=owner, OR a judge-blocked event whose detail holds
+    auto_merge=0, OR a `--kind decision` message from a boss (boss, claude-boss, cursor-boss) whose task_id is the task
+    or whose subject/body names the task id as a whole word (T-11 does not name T-111). Blind spots: a push the owner
+    makes by hand, and `--waits owner` on an already blocked task (it logs an empty detail).
+    """
+    ids = set(ids)
+    out = set()
+    for r in _in(con, "SELECT entity_id, action, detail FROM events WHERE entity='task' AND entity_id IN ({in}) "
+                      "AND action IN ('update','judge-blocked')", ids):
+        d = r["detail"] or ""
+        if (r["action"] == "update" and "waits=owner" in d) or (r["action"] == "judge-blocked" and "auto_merge=0" in d):
+            out.add(r["entity_id"])
+    bosses = ("boss", *(f"{o}-boss" for o in ORGS))
+    for r in con.execute("SELECT task_id, subject, body FROM messages WHERE kind='decision' AND sender IN (%s)"
+                         % ",".join("?" * len(bosses)), bosses):
+        out.add(r["task_id"])
+        out.update(re.findall(r"(?<![\w-])T-\d+(?!\w)", f"{r['subject'] or ''} {r['body'] or ''}"))
+    return out & ids
 
 
 # ───────────────────────────── quality / changelog ─────────────────────────────
