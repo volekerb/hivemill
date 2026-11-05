@@ -81,6 +81,31 @@ class LeadTeamGoalShowTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertIn("broad factory reads", p.stderr)
 
+    def _write_factory_script(self, wd, body="factory goal show G-001\n"):
+        script = os.path.join(wd, "factory")
+        with open(script, "w", encoding="utf-8") as f:
+            f.write("#!/bin/sh\n")
+            f.write(body)
+        os.chmod(script, 0o755)
+        return script
+
+    def test_lead_relative_factory_script_inspected_before_argv_goal(self):
+        """A ./factory script whose body shows G-001 must not pass on argv G-028 (basename factory bypass)."""
+        with tempfile.TemporaryDirectory() as wd:
+            self._write_factory_script(wd)
+            cases = (
+                ("./factory goal show G-028", 2),
+                ("factory goal show G-028", 0),
+                ("./factory", 2),
+                ("./factory goal show G-001", 2),
+            )
+            for cmd, want in cases:
+                with self.subTest(cmd=cmd):
+                    p = self.run_hook(cmd, self._lead_shell_argv(), cwd=wd if cmd.startswith("./") else None)
+                    self.assertEqual(p.returncode, want, p.stderr)
+                    if want == 2:
+                        self.assertIn("broad factory reads", p.stderr)
+
     def test_lead_refused_unowned_goal_prefixed_or_wrapped(self):
         blocked = (
             "A=1 factory goal show G-001",

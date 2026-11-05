@@ -4853,6 +4853,8 @@ def lead_hq_goal_show_guard(an, cmd):
                 an.xargs(rest)
             an.loose(rest, depth, assigns, stdin)
             return
+        if "/" in w and not in_loose:
+            an.exec_path(w, depth)
         if an._lead_factory_goal_show_words(words):
             rest_cmd = an._factory_rest_cmd(words)
             show_i = an._lead_goal_show_index(rest_cmd)
@@ -4864,8 +4866,6 @@ def lead_hq_goal_show_guard(an, cmd):
                 return
             real_cmd(orig_words, depth, piped, in_loose, hstrs, env_assigns, stdin)
             return
-        if "/" in w and not in_loose:
-            an.exec_path(w, depth)
 
     an.soft = soft
     an.cmd = cmd_goal_only
