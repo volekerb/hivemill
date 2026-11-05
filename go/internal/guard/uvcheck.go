@@ -64,7 +64,9 @@ func (a *Analyzer) uvCheck(name string, rest []string, depth int, piped, inLoose
 		}
 	}
 	if i < len(words) {
-		ch := a.activeStdin(stdin, piped, hstrs)
+		// Match worker-guard.py uv_check: inner cmd does not get the wrapper stdin= tuple (no heredoc bodies).
+		// Use piped/hstrs/pipe_src only — same as cmd(..., stdin=None) before loose forwards an effective tuple.
+		ch := a.activeStdin(nil, piped, hstrs)
 		return a.cmd(words[i:], depth+1, piped, inLoose, hstrs, assigns, &ch)
 	}
 	return nil

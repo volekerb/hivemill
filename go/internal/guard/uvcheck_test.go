@@ -111,6 +111,14 @@ func TestWholePushAcceptsUvPrefix(t *testing.T) {
 	}
 }
 
+func TestUvRunWrapperHeredocNotForwarded(t *testing.T) {
+	body := "import subprocess; subprocess.run([\"git\",\"push\"])"
+	c := "uv run python3 <<'EOF'\n" + body + "\nEOF"
+	if msg, blocked := uvBlockMsg(t, c, "qa"); blocked {
+		t.Errorf("qa heredoc %q: blocked (%s), want allowed (Python uv_check does not forward heredoc stdin)", c, msg)
+	}
+}
+
 func TestUvRunWrapperStdinScan(t *testing.T) {
 	echoPipe := "echo 'import subprocess; subprocess.run([\"git\",\"push\"])'"
 	prog := "'import subprocess; subprocess.run([\"git\",\"push\"])'"
