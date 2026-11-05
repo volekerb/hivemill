@@ -893,6 +893,36 @@ func firstPos(pos []string, want ...string) bool {
 	return false
 }
 
+// gitPinFlags is worker-guard.py:GIT_PIN_FLAGS (options allowed on any coder git invocation).
+var gitPinFlags = set("-p", "--paginate", "-P", "--no-pager", "--no-replace-objects", "--bare", "--literal-pathspecs",
+	"--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--no-optional-locks",
+	"--no-lazy-fetch", "--no-advice", "--html-path", "--man-path", "--info-path", "--version",
+	"--help", "-v", "-h")
+
+func gitPinConfigValue(tok string, rest []string, i int) string {
+	if tok == "-c" && i+1 < len(rest) {
+		return rest[i+1]
+	}
+	if len(tok) > 2 && strings.HasPrefix(tok, "-c") && !strings.HasPrefix(tok, "--") {
+		return tok[2:]
+	}
+	return ""
+}
+
+func gitPinConfigEnvKey(tok string, rest []string, i int) string {
+	if strings.HasPrefix(tok, "--config-env=") {
+		return tok[len("--config-env="):]
+	}
+	if tok == "--config-env" && i+1 < len(rest) {
+		return rest[i+1]
+	}
+	return ""
+}
+
+func gitPinAttachedC(o string) bool {
+	return len(o) > 2 && strings.HasPrefix(o, "-c") && !strings.HasPrefix(o, "--")
+}
+
 // gitPushPin is a port of Analyzer.git_push_pin (T-0689, T-0743): a coder's only allowed push is `git push origin
 // HEAD:factory/<own task id>`; the task id comes from FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec,
 // force/--all/--mirror/--tags/--delete or option; no -c / --git-dir overrides; an unknown own task id refuses. The
@@ -907,10 +937,23 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 		if rest[i] != "-C" && containsStr(rest[i+1:], "push") {
 			return blockf("git " + rest[i] + " before push: coder pushes take no git option except -C")
 		}
-		switch rest[i] {
-		case "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path":
+		if cv := gitPinConfigValue(rest[i], rest, i); cv != "" && reGitAliasPushPin.MatchString(cv) {
+			return blockf("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only " +
+				"`git push origin HEAD:factory/<task id>`")
+		}
+		if ce := gitPinConfigEnvKey(rest[i], rest, i); ce != "" && reGitAliasAssign.MatchString(ce) {
+			return blockf("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; " +
+				"coders push only `git push origin HEAD:factory/<task id>`")
+		}
+		o := rest[i]
+		if !strings.Contains(o, "=") && !gitPinAttachedC(o) && !in(gitPinFlags, o) &&
+			o != "-C" && o != "-c" && o != "--git-dir" && o != "--work-tree" && o != "--namespace" && o != "--exec-path" {
+			return blockf("git " + o + ": coders may use only known git options here; write the command without it")
+		}
+		if rest[i] == "-C" || rest[i] == "-c" || rest[i] == "--git-dir" || rest[i] == "--work-tree" ||
+			rest[i] == "--namespace" || rest[i] == "--exec-path" {
 			i += 2
-		default:
+		} else {
 			i++
 		}
 	}

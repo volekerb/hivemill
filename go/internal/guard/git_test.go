@@ -719,6 +719,29 @@ func TestPushPinAttemptSuffix(t *testing.T) {
 	}
 }
 
+// T-1083: git -c alias.<x>=push|send-pack must refuse for coders even when the subcommand is the alias name.
+func TestGitPushPinAliasHide(t *testing.T) {
+	f := newGitFix(t)
+	want := "an alias can hide a push"
+	for _, cmd := range []string{
+		"git -c alias.x=push x origin main",
+		"git -c alias.x='!git push' x",
+		"git -c alias.s=send-pack s origin main",
+	} {
+		err := f.check(cmd, f.wt, "coder")
+		if err == nil || IsDelegate(err) {
+			t.Fatalf("%q: allowed, want block", cmd)
+		}
+		if !strings.Contains(Explain(err), want) {
+			t.Fatalf("%q: %q, want %q in message", cmd, Explain(err), want)
+		}
+	}
+	err := f.check("git -c alias.x=status x", f.wt, "coder")
+	if err != nil {
+		t.Fatalf("safe alias status: %v, want allow", err)
+	}
+}
+
 // T-1035 / T-1083: xargs git config must match Python xargs_git (stdin adds args; only explicit exact reads).
 func TestXargsGitConfig(t *testing.T) {
 	f := newGitFix(t)
