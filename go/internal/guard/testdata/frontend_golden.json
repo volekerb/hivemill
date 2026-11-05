@@ -68214,6 +68214,10908 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+19,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+18,
+35,
+[
+"import",
+"subprocess"
+]
+],
+[
+36,
+51,
+[
+"subprocess.run"
+]
+],
+[
+52,
+66,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+68,
+71,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 <<'QQQ' ; ",
+"mask_quotes_raw": "python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+17,
+18,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+16,
+33,
+[
+"import",
+"subprocess"
+]
+],
+[
+34,
+49,
+[
+"subprocess.run"
+]
+],
+[
+50,
+64,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+66,
+69,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+63,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+63,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+66,
+[
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+66,
+[
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mask_quotes_pre": "printf 'QQQQ' 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3 -",
+"mask_quotes_raw": "printf 'QQQQ' 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3 -",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"printf",
+"'QQQQ'",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+67,
+77,
+[
+"python3",
+"-"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"printf",
+"'QQQQ'",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+67,
+77,
+[
+"python3",
+"-"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+22,
+[
+"python3"
+]
+],
+[
+23,
+24,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+21,
+[
+"python3"
+]
+],
+[
+22,
+39,
+[
+"import",
+"subprocess"
+]
+],
+[
+40,
+55,
+[
+"subprocess.run"
+]
+],
+[
+56,
+70,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+72,
+75,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mask_quotes_pre": "perl - <<'QQQ' ; ",
+"mask_quotes_raw": "perl - <<'QQQ'\nsystem(\"QQQQQQQQ\");\nEOF",
+"preprocess": {
+"bodies": [
+[
+"perl - <<'EOF'",
+"system(\"git push\");"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\");"
+],
+[
+"icode",
+"system(\"git push\");"
+]
+],
+"text": "perl - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"perl - <<'EOF'",
+"system(\"git push\");"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\");"
+],
+[
+"icode",
+"system(\"git push\");"
+]
+],
+"text": "perl - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"perl",
+"-",
+"<<'QQQ'"
+]
+],
+[
+16,
+17,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"perl",
+"-",
+"<<'QQQ'"
+]
+],
+[
+15,
+21,
+[
+"system"
+]
+],
+[
+22,
+32,
+[
+"\"QQQQQQQQ\""
+]
+],
+[
+35,
+38,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mask_quotes_pre": "node <<'QQQ' ; ",
+"mask_quotes_raw": "node <<'QQQ'\nrequire(\"QQQQQQQQQQQQQ\").execSync(\"QQQQQQQQQQQQQ\")\nEOF",
+"preprocess": {
+"bodies": [
+[
+"node <<'EOF'",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"extras": [
+[
+"code",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+],
+[
+"icode",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"text": "node <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"node <<'EOF'",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"extras": [
+[
+"code",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+],
+[
+"icode",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"text": "node <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"node",
+"<<'QQQ'"
+]
+],
+[
+14,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"node",
+"<<'QQQ'"
+]
+],
+[
+13,
+20,
+[
+"require"
+]
+],
+[
+21,
+36,
+[
+"\"QQQQQQQQQQQQQ\""
+]
+],
+[
+37,
+46,
+[
+".execSync"
+]
+],
+[
+47,
+62,
+[
+"\"QQQQQQQQQQQQQ\""
+]
+],
+[
+64,
+67,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mask_quotes_pre": "ruby <<'QQQ' ; ",
+"mask_quotes_raw": "ruby <<'QQQ'\nsystem(\"QQQQQQQQ\")\nEOF",
+"preprocess": {
+"bodies": [
+[
+"ruby <<'EOF'",
+"system(\"git push\")"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\")"
+],
+[
+"icode",
+"system(\"git push\")"
+]
+],
+"text": "ruby <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"ruby <<'EOF'",
+"system(\"git push\")"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\")"
+],
+[
+"icode",
+"system(\"git push\")"
+]
+],
+"text": "ruby <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"ruby",
+"<<'QQQ'"
+]
+],
+[
+14,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"ruby",
+"<<'QQQ'"
+]
+],
+[
+13,
+19,
+[
+"system"
+]
+],
+[
+20,
+30,
+[
+"\"QQQQQQQQ\""
+]
+],
+[
+32,
+35,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "perl <<< 'system(\"git push\");'",
+"mask_quotes_pre": "perl <<< 'QQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "perl <<< 'QQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "perl <<< 'system(\"git push\");'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "perl <<< 'system(\"git push\");'"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"perl",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"perl",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | node",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | node",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+},
+"segments_pre": [
+[
+0,
+58,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+59,
+64,
+[
+"node"
+]
+]
+],
+"segments_raw": [
+[
+0,
+58,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+59,
+64,
+[
+"node"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'system(\"git push\")' | ruby",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQ' | ruby",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQ' | ruby",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'system(\"git push\")' | ruby"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'system(\"git push\")' | ruby"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+27,
+32,
+[
+"ruby"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+27,
+32,
+[
+"ruby"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mask_quotes_pre": "python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQ\",\"QQ\",\"QQQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+19,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+18,
+35,
+[
+"import",
+"subprocess"
+]
+],
+[
+36,
+51,
+[
+"subprocess.run"
+]
+],
+[
+52,
+71,
+[
+"[\"QQ\",\"QQ\",\"QQQQQ\"]"
+]
+],
+[
+73,
+76,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mask_quotes_pre": "python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "python3 - <<'QQQ'\nimport tarfile; tarfile.open(\"QQQQQ\").extractall(\"Q\")\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"extras": [
+[
+"code",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+],
+[
+"icode",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"extras": [
+[
+"code",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+],
+[
+"icode",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+19,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+18,
+32,
+[
+"import",
+"tarfile"
+]
+],
+[
+33,
+46,
+[
+"tarfile.open"
+]
+],
+[
+47,
+54,
+[
+"\"QQQQQ\""
+]
+],
+[
+55,
+66,
+[
+".extractall"
+]
+],
+[
+67,
+70,
+[
+"\"Q\""
+]
+],
+[
+72,
+75,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mask_quotes_pre": "python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+67,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+67,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "env python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "env python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"env python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"env python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"env",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+23,
+24,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"env",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+22,
+39,
+[
+"import",
+"subprocess"
+]
+],
+[
+40,
+55,
+[
+"subprocess.run"
+]
+],
+[
+56,
+70,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+72,
+75,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 - >/dev/null <<'QQQ' ; ",
+"mask_quotes_raw": "python3 - >/dev/null <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 - >/dev/null <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 - >/dev/null <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - >/dev/null <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 - >/dev/null <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"python3",
+"-",
+">/dev/null",
+"<<'QQQ'"
+]
+],
+[
+30,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"python3",
+"-",
+">/dev/null",
+"<<'QQQ'"
+]
+],
+[
+29,
+46,
+[
+"import",
+"subprocess"
+]
+],
+[
+47,
+62,
+[
+"subprocess.run"
+]
+],
+[
+63,
+77,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+79,
+82,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 -W ignore - <<'QQQ' ; ",
+"mask_quotes_raw": "python3 -W ignore - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 -W ignore - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 -W ignore - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 -W ignore - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 -W ignore - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"python3",
+"-W",
+"ignore",
+"-",
+"<<'QQQ'"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"python3",
+"-W",
+"ignore",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 /dev/stdin <<'QQQ' ; ",
+"mask_quotes_raw": "python3 /dev/stdin <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 /dev/stdin <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 /dev/stdin <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 /dev/stdin <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 /dev/stdin <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"/dev/stdin",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"python3",
+"/dev/stdin",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | tee /dev/null | python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | tee /dev/null | python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+73,
+[
+"tee",
+"/dev/null"
+]
+],
+[
+74,
+82,
+[
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+73,
+[
+"tee",
+"/dev/null"
+]
+],
+[
+74,
+82,
+[
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | cat | python3 -",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | cat | python3 -",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+63,
+[
+"cat"
+]
+],
+[
+64,
+74,
+[
+"python3",
+"-"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+63,
+[
+"cat"
+]
+],
+[
+64,
+74,
+[
+"python3",
+"-"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | tee /dev/null | python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | tee /dev/null | python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | tee /dev/null | python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | tee /dev/null | python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | tee /dev/null | python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+28,
+[
+"tee",
+"/dev/null"
+]
+],
+[
+29,
+38,
+[
+"python3"
+]
+],
+[
+39,
+40,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+28,
+[
+"tee",
+"/dev/null"
+]
+],
+[
+29,
+37,
+[
+"python3"
+]
+],
+[
+38,
+55,
+[
+"import",
+"subprocess"
+]
+],
+[
+56,
+71,
+[
+"subprocess.run"
+]
+],
+[
+72,
+86,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+88,
+91,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cd /x && python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+27,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+26,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cd /x && python3 <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+25,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+26,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+24,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+25,
+42,
+[
+"import",
+"subprocess"
+]
+],
+[
+43,
+58,
+[
+"subprocess.run"
+]
+],
+[
+59,
+73,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+75,
+78,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "cd /x && python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "cd /x && python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+72,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+72,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mask_quotes_pre": "cd /x && echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3",
+"mask_quotes_raw": "cd /x && echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+66,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+67,
+75,
+[
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+66,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+67,
+75,
+[
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mask_quotes_pre": "cd /x && printf 'QQQQ' 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3 -",
+"mask_quotes_raw": "cd /x && printf 'QQQQ' 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3 -",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+75,
+[
+"printf",
+"'QQQQ'",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+76,
+86,
+[
+"python3",
+"-"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+75,
+[
+"printf",
+"'QQQQ'",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+76,
+86,
+[
+"python3",
+"-"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cd /x && cat <<'QQQ' | python3 ; ",
+"mask_quotes_raw": "cd /x && cat <<'QQQ' | python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && cat <<'EOF' | python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && cat <<'EOF' | python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && cat <<'EOF' | python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && cat <<'EOF' | python3 ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+21,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+22,
+31,
+[
+"python3"
+]
+],
+[
+32,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+21,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+22,
+30,
+[
+"python3"
+]
+],
+[
+31,
+48,
+[
+"import",
+"subprocess"
+]
+],
+[
+49,
+64,
+[
+"subprocess.run"
+]
+],
+[
+65,
+79,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+81,
+84,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mask_quotes_pre": "cd /x && perl - <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && perl - <<'QQQ'\nsystem(\"QQQQQQQQ\");\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && perl - <<'EOF'",
+"system(\"git push\");"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\");"
+],
+[
+"icode",
+"system(\"git push\");"
+]
+],
+"text": "cd /x && perl - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && perl - <<'EOF'",
+"system(\"git push\");"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\");"
+],
+[
+"icode",
+"system(\"git push\");"
+]
+],
+"text": "cd /x && perl - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+24,
+[
+"perl",
+"-",
+"<<'QQQ'"
+]
+],
+[
+25,
+26,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+23,
+[
+"perl",
+"-",
+"<<'QQQ'"
+]
+],
+[
+24,
+30,
+[
+"system"
+]
+],
+[
+31,
+41,
+[
+"\"QQQQQQQQ\""
+]
+],
+[
+44,
+47,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mask_quotes_pre": "cd /x && node <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && node <<'QQQ'\nrequire(\"QQQQQQQQQQQQQ\").execSync(\"QQQQQQQQQQQQQ\")\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && node <<'EOF'",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"extras": [
+[
+"code",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+],
+[
+"icode",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"text": "cd /x && node <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && node <<'EOF'",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"extras": [
+[
+"code",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+],
+[
+"icode",
+"require(\"child_process\").execSync(\"gh pr merge 1\")"
+]
+],
+"text": "cd /x && node <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+22,
+[
+"node",
+"<<'QQQ'"
+]
+],
+[
+23,
+24,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+21,
+[
+"node",
+"<<'QQQ'"
+]
+],
+[
+22,
+29,
+[
+"require"
+]
+],
+[
+30,
+45,
+[
+"\"QQQQQQQQQQQQQ\""
+]
+],
+[
+46,
+55,
+[
+".execSync"
+]
+],
+[
+56,
+71,
+[
+"\"QQQQQQQQQQQQQ\""
+]
+],
+[
+73,
+76,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mask_quotes_pre": "cd /x && ruby <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && ruby <<'QQQ'\nsystem(\"QQQQQQQQ\")\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && ruby <<'EOF'",
+"system(\"git push\")"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\")"
+],
+[
+"icode",
+"system(\"git push\")"
+]
+],
+"text": "cd /x && ruby <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && ruby <<'EOF'",
+"system(\"git push\")"
+]
+],
+"extras": [
+[
+"code",
+"system(\"git push\")"
+],
+[
+"icode",
+"system(\"git push\")"
+]
+],
+"text": "cd /x && ruby <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+22,
+[
+"ruby",
+"<<'QQQ'"
+]
+],
+[
+23,
+24,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+21,
+[
+"ruby",
+"<<'QQQ'"
+]
+],
+[
+22,
+28,
+[
+"system"
+]
+],
+[
+29,
+39,
+[
+"\"QQQQQQQQ\""
+]
+],
+[
+41,
+44,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && perl <<< 'system(\"git push\");'",
+"mask_quotes_pre": "cd /x && perl <<< 'QQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "cd /x && perl <<< 'QQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && perl <<< 'system(\"git push\");'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && perl <<< 'system(\"git push\");'"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+39,
+[
+"perl",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+39,
+[
+"perl",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mask_quotes_pre": "cd /x && echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | node",
+"mask_quotes_raw": "cd /x && echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | node",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+67,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+68,
+73,
+[
+"node"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+67,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+68,
+73,
+[
+"node"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && echo 'system(\"git push\")' | ruby",
+"mask_quotes_pre": "cd /x && echo 'QQQQQQQQQQQQQQQQQQ' | ruby",
+"mask_quotes_raw": "cd /x && echo 'QQQQQQQQQQQQQQQQQQ' | ruby",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && echo 'system(\"git push\")' | ruby"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && echo 'system(\"git push\")' | ruby"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+35,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+36,
+41,
+[
+"ruby"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+35,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+36,
+41,
+[
+"ruby"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mask_quotes_pre": "cd /x && python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQ\",\"QQ\",\"QQQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"text": "cd /x && python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])"
+]
+],
+"text": "cd /x && python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+27,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+26,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+80,
+[
+"[\"QQ\",\"QQ\",\"QQQQQ\"]"
+]
+],
+[
+82,
+85,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mask_quotes_pre": "cd /x && python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && python3 - <<'QQQ'\nimport tarfile; tarfile.open(\"QQQQQ\").extractall(\"Q\")\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && python3 - <<'EOF'",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"extras": [
+[
+"code",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+],
+[
+"icode",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"text": "cd /x && python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && python3 - <<'EOF'",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"extras": [
+[
+"code",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+],
+[
+"icode",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+],
+"text": "cd /x && python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+27,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+26,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+27,
+41,
+[
+"import",
+"tarfile"
+]
+],
+[
+42,
+55,
+[
+"tarfile.open"
+]
+],
+[
+56,
+63,
+[
+"\"QQQQQ\""
+]
+],
+[
+64,
+75,
+[
+".extractall"
+]
+],
+[
+76,
+79,
+[
+"\"Q\""
+]
+],
+[
+81,
+84,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mask_quotes_pre": "cd /x && python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "cd /x && python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+76,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+76,
+[
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cd /x && env python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && env python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && env python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && env python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && env python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && env python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+31,
+[
+"env",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+32,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+30,
+[
+"env",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+31,
+48,
+[
+"import",
+"subprocess"
+]
+],
+[
+49,
+64,
+[
+"subprocess.run"
+]
+],
+[
+65,
+79,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+81,
+84,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cd /x && python3 - >/dev/null <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && python3 - >/dev/null <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && python3 - >/dev/null <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 - >/dev/null <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && python3 - >/dev/null <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 - >/dev/null <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+38,
+[
+"python3",
+"-",
+">/dev/null",
+"<<'QQQ'"
+]
+],
+[
+39,
+40,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+37,
+[
+"python3",
+"-",
+">/dev/null",
+"<<'QQQ'"
+]
+],
+[
+38,
+55,
+[
+"import",
+"subprocess"
+]
+],
+[
+56,
+71,
+[
+"subprocess.run"
+]
+],
+[
+72,
+86,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+88,
+91,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cd /x && python3 -W ignore - <<'QQQ' ; ",
+"mask_quotes_raw": "cd /x && python3 -W ignore - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cd /x && python3 -W ignore - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 -W ignore - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cd /x && python3 -W ignore - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cd /x && python3 -W ignore - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+37,
+[
+"python3",
+"-W",
+"ignore",
+"-",
+"<<'QQQ'"
+]
+],
+[
+38,
+39,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"cd",
+"/x"
+]
+],
+[
+8,
+36,
+[
+"python3",
+"-W",
+"ignore",
+"-",
+"<<'QQQ'"
+]
+],
+[
+37,
+54,
+[
+"import",
+"subprocess"
+]
+],
+[
+55,
+70,
+[
+"subprocess.run"
+]
+],
+[
+71,
+85,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+87,
+90,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQ"
+]
+],
+[
+27,
+80,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+81,
+85,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQ"
+]
+],
+[
+27,
+80,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+81,
+85,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQ"
+]
+],
+[
+25,
+78,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+79,
+83,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQ"
+]
+],
+[
+25,
+78,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+79,
+83,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\""
+},
+"segments_pre": [
+[
+0,
+77,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+77,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\""
+},
+"segments_pre": [
+[
+0,
+80,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+80,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\""
+},
+"segments_pre": [
+[
+0,
+92,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+92,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+31,
+84,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+85,
+89,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+31,
+84,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+85,
+89,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\""
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQ"
+]
+],
+[
+24,
+45,
+[
+"QQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+46,
+50,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQ"
+]
+],
+[
+24,
+45,
+[
+"QQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+46,
+50,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\""
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQ"
+]
+],
+[
+22,
+76,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+77,
+81,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQ"
+]
+],
+[
+22,
+76,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+77,
+81,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\""
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQ"
+]
+],
+[
+22,
+42,
+[
+"QQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+43,
+47,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQ"
+]
+],
+[
+22,
+42,
+[
+"QQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+43,
+47,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"perl <<< 'system(\\\"git push\\\");'\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"perl <<< 'system(\\\"git push\\\");'\""
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\""
+},
+"segments_pre": [
+[
+0,
+78,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+78,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\""
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQ"
+]
+],
+[
+27,
+87,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+88,
+92,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQ"
+]
+],
+[
+27,
+87,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+88,
+92,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\""
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQ"
+]
+],
+[
+27,
+84,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+85,
+89,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQ"
+]
+],
+[
+27,
+84,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+85,
+89,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\""
+},
+"segments_pre": [
+[
+0,
+81,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+81,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+31,
+84,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+85,
+89,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+31,
+84,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+85,
+89,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+38,
+91,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+92,
+96,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+38,
+91,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+92,
+96,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mask_quotes_pre": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"mask_quotes_raw": "bash -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\nQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\""
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+37,
+90,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+91,
+95,
+[
+"QQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"bash",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+37,
+90,
+[
+"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ"
+]
+],
+[
+91,
+95,
+[
+"QQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "if true; then python3 <<'QQQ' ; ",
+"mask_quotes_raw": "if true; then python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"if true; then python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; then python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"if true; then python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; then python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+30,
+[
+"then",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+31,
+32,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+29,
+[
+"then",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+30,
+47,
+[
+"import",
+"subprocess"
+]
+],
+[
+48,
+63,
+[
+"subprocess.run"
+]
+],
+[
+64,
+78,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+80,
+83,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "if true; do python3 <<'QQQ' ; ",
+"mask_quotes_raw": "if true; do python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"if true; do python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; do python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"if true; do python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; do python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+28,
+[
+"do",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+27,
+[
+"do",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "if true; else python3 <<'QQQ' ; ",
+"mask_quotes_raw": "if true; else python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"if true; else python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; else python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"if true; else python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; else python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+30,
+[
+"else",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+31,
+32,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+29,
+[
+"else",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+30,
+47,
+[
+"import",
+"subprocess"
+]
+],
+[
+48,
+63,
+[
+"subprocess.run"
+]
+],
+[
+64,
+78,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+80,
+83,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "if true; { python3 <<'QQQ' ; ",
+"mask_quotes_raw": "if true; { python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"if true; { python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; { python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"if true; { python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; { python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+9,
+[]
+],
+[
+10,
+27,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+9,
+[]
+],
+[
+10,
+26,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "if true; ! python3 <<'QQQ' ; ",
+"mask_quotes_raw": "if true; ! python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"if true; ! python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; ! python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"if true; ! python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "if true; ! python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+27,
+[
+"!",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+26,
+[
+"!",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "timeout 5 python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "timeout 5 python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"timeout 5 python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "timeout 5 python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"timeout 5 python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "timeout 5 python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"timeout",
+"5",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"timeout",
+"5",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "timeout 5 python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "timeout 5 python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"timeout",
+"5",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"timeout",
+"5",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | timeout 5 python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | timeout 5 python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+76,
+[
+"timeout",
+"5",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+76,
+[
+"timeout",
+"5",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | timeout 5 python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | timeout 5 python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | timeout 5 python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | timeout 5 python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | timeout 5 python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | timeout 5 python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+32,
+[
+"timeout",
+"5",
+"python3"
+]
+],
+[
+33,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+31,
+[
+"timeout",
+"5",
+"python3"
+]
+],
+[
+32,
+49,
+[
+"import",
+"subprocess"
+]
+],
+[
+50,
+65,
+[
+"subprocess.run"
+]
+],
+[
+66,
+80,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+82,
+85,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "nice python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "nice python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"nice python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nice python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"nice python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nice python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"nice",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+24,
+25,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"nice",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+23,
+40,
+[
+"import",
+"subprocess"
+]
+],
+[
+41,
+56,
+[
+"subprocess.run"
+]
+],
+[
+57,
+71,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+73,
+76,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "nice python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "nice python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+68,
+[
+"nice",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+68,
+[
+"nice",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | nice python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | nice python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+71,
+[
+"nice",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+71,
+[
+"nice",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | nice python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | nice python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | nice python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | nice python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | nice python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | nice python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+27,
+[
+"nice",
+"python3"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+26,
+[
+"nice",
+"python3"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "nice -n 5 python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "nice -n 5 python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"nice -n 5 python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nice -n 5 python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"nice -n 5 python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nice -n 5 python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"nice",
+"-n",
+"5",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"nice",
+"-n",
+"5",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "nice -n 5 python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "nice -n 5 python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"nice",
+"-n",
+"5",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"nice",
+"-n",
+"5",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | nice -n 5 python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | nice -n 5 python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+76,
+[
+"nice",
+"-n",
+"5",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+76,
+[
+"nice",
+"-n",
+"5",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | nice -n 5 python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | nice -n 5 python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | nice -n 5 python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | nice -n 5 python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | nice -n 5 python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | nice -n 5 python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+32,
+[
+"nice",
+"-n",
+"5",
+"python3"
+]
+],
+[
+33,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+31,
+[
+"nice",
+"-n",
+"5",
+"python3"
+]
+],
+[
+32,
+49,
+[
+"import",
+"subprocess"
+]
+],
+[
+50,
+65,
+[
+"subprocess.run"
+]
+],
+[
+66,
+80,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+82,
+85,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "stdbuf -oL python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "stdbuf -oL python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"stdbuf -oL python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "stdbuf -oL python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"stdbuf -oL python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "stdbuf -oL python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"stdbuf",
+"-oL",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+30,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"stdbuf",
+"-oL",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+29,
+46,
+[
+"import",
+"subprocess"
+]
+],
+[
+47,
+62,
+[
+"subprocess.run"
+]
+],
+[
+63,
+77,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+79,
+82,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "stdbuf -oL python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "stdbuf -oL python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+74,
+[
+"stdbuf",
+"-oL",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+74,
+[
+"stdbuf",
+"-oL",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | stdbuf -oL python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | stdbuf -oL python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+77,
+[
+"stdbuf",
+"-oL",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+77,
+[
+"stdbuf",
+"-oL",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | stdbuf -oL python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | stdbuf -oL python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | stdbuf -oL python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | stdbuf -oL python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | stdbuf -oL python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+33,
+[
+"stdbuf",
+"-oL",
+"python3"
+]
+],
+[
+34,
+35,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+32,
+[
+"stdbuf",
+"-oL",
+"python3"
+]
+],
+[
+33,
+50,
+[
+"import",
+"subprocess"
+]
+],
+[
+51,
+66,
+[
+"subprocess.run"
+]
+],
+[
+67,
+81,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+83,
+86,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "env python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "env python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+67,
+[
+"env",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+67,
+[
+"env",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | env python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | env python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+70,
+[
+"env",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+70,
+[
+"env",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | env python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | env python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | env python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | env python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | env python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | env python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+26,
+[
+"env",
+"python3"
+]
+],
+[
+27,
+28,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+25,
+[
+"env",
+"python3"
+]
+],
+[
+26,
+43,
+[
+"import",
+"subprocess"
+]
+],
+[
+44,
+59,
+[
+"subprocess.run"
+]
+],
+[
+60,
+74,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+76,
+79,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "nohup python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "nohup python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"nohup python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nohup python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"nohup python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nohup python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"nohup",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+25,
+26,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"nohup",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+24,
+41,
+[
+"import",
+"subprocess"
+]
+],
+[
+42,
+57,
+[
+"subprocess.run"
+]
+],
+[
+58,
+72,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+74,
+77,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "nohup python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "nohup python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+69,
+[
+"nohup",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+69,
+[
+"nohup",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | nohup python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | nohup python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+72,
+[
+"nohup",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+72,
+[
+"nohup",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | nohup python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | nohup python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | nohup python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | nohup python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | nohup python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | nohup python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+28,
+[
+"nohup",
+"python3"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+27,
+[
+"nohup",
+"python3"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "env FOO=1 python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "env FOO=1 python3 - <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"env FOO=1 python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env FOO=1 python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"env FOO=1 python3 - <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env FOO=1 python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"env",
+"FOO=1",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"env",
+"FOO=1",
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "env FOO=1 python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "env FOO=1 python3 <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+73,
+[
+"env",
+"FOO=1",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+73,
+[
+"env",
+"FOO=1",
+"python3",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | env FOO=1 python3",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | env FOO=1 python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+76,
+[
+"env",
+"FOO=1",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+76,
+[
+"env",
+"FOO=1",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' | env FOO=1 python3 ; ",
+"mask_quotes_raw": "cat <<'QQQ' | env FOO=1 python3\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF' | env FOO=1 python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | env FOO=1 python3 ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF' | env FOO=1 python3",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'EOF' | env FOO=1 python3 ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+32,
+[
+"env",
+"FOO=1",
+"python3"
+]
+],
+[
+33,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+31,
+[
+"env",
+"FOO=1",
+"python3"
+]
+],
+[
+32,
+49,
+[
+"import",
+"subprocess"
+]
+],
+[
+50,
+65,
+[
+"subprocess.run"
+]
+],
+[
+66,
+80,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+82,
+85,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mask_quotes_pre": "python3 <<'Q'; cat <<'Q' ; ",
+"mask_quotes_raw": "python3 <<'Q'; cat <<'Q'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nA\nok\nB",
+"preprocess": {
+"bodies": [
+[
+"python3 <<'A'; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "python3 <<'A'; cat <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<'A'; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "python3 <<'A'; cat <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+14,
+25,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+26,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+14,
+24,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+25,
+42,
+[
+"import",
+"subprocess"
+]
+],
+[
+43,
+58,
+[
+"subprocess.run"
+]
+],
+[
+59,
+73,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+75,
+76,
+[
+"A"
+]
+],
+[
+77,
+79,
+[
+"ok"
+]
+],
+[
+80,
+81,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mask_quotes_pre": "cat <<'Q' | python3; cat <<'Q' ; ",
+"mask_quotes_raw": "cat <<'Q' | python3; cat <<'Q'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nA\nok\nB",
+"preprocess": {
+"bodies": [
+[
+"cat <<'A' | python3; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"cat <<'A' | python3; cat <<'B'",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "cat <<'A' | python3; cat <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'A' | python3; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"cat <<'A' | python3; cat <<'B'",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "cat <<'A' | python3; cat <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+11,
+19,
+[
+"python3"
+]
+],
+[
+20,
+31,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+32,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+11,
+19,
+[
+"python3"
+]
+],
+[
+20,
+30,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+31,
+48,
+[
+"import",
+"subprocess"
+]
+],
+[
+49,
+64,
+[
+"subprocess.run"
+]
+],
+[
+65,
+79,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+81,
+82,
+[
+"A"
+]
+],
+[
+83,
+85,
+[
+"ok"
+]
+],
+[
+86,
+87,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mask_quotes_pre": "cat <<'Q'; python3 <<'Q' ; ",
+"mask_quotes_raw": "cat <<'Q'; python3 <<'Q'\nok\nA\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nB",
+"preprocess": {
+"bodies": [
+[
+"cat <<'A'; python3 <<'B'",
+"ok"
+],
+[
+"cat <<'A'; python3 <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'A'; python3 <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'A'; python3 <<'B'",
+"ok"
+],
+[
+"cat <<'A'; python3 <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'A'; python3 <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+10,
+25,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+26,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+10,
+24,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+25,
+27,
+[
+"ok"
+]
+],
+[
+28,
+29,
+[
+"A"
+]
+],
+[
+30,
+47,
+[
+"import",
+"subprocess"
+]
+],
+[
+48,
+63,
+[
+"subprocess.run"
+]
+],
+[
+64,
+78,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+80,
+81,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 0<<'QQQ' ; ",
+"mask_quotes_raw": "python3 0<<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 0<<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 0<<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 0<<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 0<<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"python3",
+"0<<'QQQ'"
+]
+],
+[
+18,
+19,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"python3",
+"0<<'QQQ'"
+]
+],
+[
+17,
+34,
+[
+"import",
+"subprocess"
+]
+],
+[
+35,
+50,
+[
+"subprocess.run"
+]
+],
+[
+51,
+65,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+67,
+70,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 /dev/fd/0 <<'QQQ' ; ",
+"mask_quotes_raw": "python3 /dev/fd/0 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 /dev/fd/0 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 /dev/fd/0 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 /dev/fd/0 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 /dev/fd/0 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"python3",
+"/dev/fd/0",
+"<<'QQQ'"
+]
+],
+[
+27,
+28,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"python3",
+"/dev/fd/0",
+"<<'QQQ'"
+]
+],
+[
+26,
+43,
+[
+"import",
+"subprocess"
+]
+],
+[
+44,
+59,
+[
+"subprocess.run"
+]
+],
+[
+60,
+74,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+76,
+79,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "env -u FOO python3 <<'QQQ' ; ",
+"mask_quotes_raw": "env -u FOO python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"env -u FOO python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env -u FOO python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"env -u FOO python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env -u FOO python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"env",
+"-u",
+"FOO",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"env",
+"-u",
+"FOO",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "env -- python3 <<'QQQ' ; ",
+"mask_quotes_raw": "env -- python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"env -- python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env -- python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"env -- python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env -- python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"env",
+"--",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+24,
+25,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"env",
+"--",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+23,
+40,
+[
+"import",
+"subprocess"
+]
+],
+[
+41,
+56,
+[
+"subprocess.run"
+]
+],
+[
+57,
+71,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+73,
+76,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "env -C /tmp python3 <<'QQQ' ; ",
+"mask_quotes_raw": "env -C /tmp python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"env -C /tmp python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env -C /tmp python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"env -C /tmp python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "env -C /tmp python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"env",
+"-C",
+"/tmp",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+29,
+30,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"env",
+"-C",
+"/tmp",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+28,
+45,
+[
+"import",
+"subprocess"
+]
+],
+[
+46,
+61,
+[
+"subprocess.run"
+]
+],
+[
+62,
+76,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+78,
+81,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "command -p python3 <<'QQQ' ; ",
+"mask_quotes_raw": "command -p python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"command -p python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "command -p python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"command -p python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "command -p python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"command",
+"-p",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"command",
+"-p",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "exec -a x python3 <<'QQQ' ; ",
+"mask_quotes_raw": "exec -a x python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"exec -a x python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "exec -a x python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"exec -a x python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "exec -a x python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"exec",
+"-a",
+"x",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+27,
+28,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"exec",
+"-a",
+"x",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+26,
+43,
+[
+"import",
+"subprocess"
+]
+],
+[
+44,
+59,
+[
+"subprocess.run"
+]
+],
+[
+60,
+74,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+76,
+79,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "nohup -- python3 <<'QQQ' ; ",
+"mask_quotes_raw": "nohup -- python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"nohup -- python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nohup -- python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"nohup -- python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "nohup -- python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"nohup",
+"--",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+26,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"nohup",
+"--",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+25,
+42,
+[
+"import",
+"subprocess"
+]
+],
+[
+43,
+58,
+[
+"subprocess.run"
+]
+],
+[
+59,
+73,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+75,
+78,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "(python3 <<'QQQ') ; ",
+"mask_quotes_raw": "(python3 <<'QQQ')\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"(python3 <<'EOF')",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "(python3 <<'EOF') ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"(python3 <<'EOF')",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "(python3 <<'EOF') ; "
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+16,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+17,
+18,
+[]
+],
+[
+19,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+16,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+18,
+35,
+[
+"import",
+"subprocess"
+]
+],
+[
+36,
+51,
+[
+"subprocess.run"
+]
+],
+[
+52,
+66,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+68,
+71,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 -m code <<'QQQ' ; ",
+"mask_quotes_raw": "python3 -m code <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 -m code <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 -m code <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 -m code <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 -m code <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"python3",
+"-m",
+"code",
+"<<'QQQ'"
+]
+],
+[
+25,
+26,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"python3",
+"-m",
+"code",
+"<<'QQQ'"
+]
+],
+[
+24,
+41,
+[
+"import",
+"subprocess"
+]
+],
+[
+42,
+57,
+[
+"subprocess.run"
+]
+],
+[
+58,
+72,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+74,
+77,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "python3 -m asyncio <<'QQQ' ; ",
+"mask_quotes_raw": "python3 -m asyncio <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 -m asyncio <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 -m asyncio <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 -m asyncio <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 -m asyncio <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"-m",
+"asyncio",
+"<<'QQQ'"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"python3",
+"-m",
+"asyncio",
+"<<'QQQ'"
+]
+],
+[
+27,
+44,
+[
+"import",
+"subprocess"
+]
+],
+[
+45,
+60,
+[
+"subprocess.run"
+]
+],
+[
+61,
+75,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+77,
+80,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mask_quotes_pre": "python3 -m code <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -m code <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+},
+"segments_pre": [
+[
+0,
+71,
+[
+"python3",
+"-m",
+"code",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+71,
+[
+"python3",
+"-m",
+"code",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code",
+"mask_quotes_pre": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3 -m code",
+"mask_quotes_raw": "echo 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3 -m code",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code"
+},
+"segments_pre": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+74,
+[
+"python3",
+"-m",
+"code"
+]
+]
+],
+"segments_raw": [
+[
+0,
+57,
+[
+"echo",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+58,
+74,
+[
+"python3",
+"-m",
+"code"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "echo 'QQQQQQ'; python3 <<'QQQ' ; ",
+"mask_quotes_raw": "echo 'QQQQQQ'; python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"echo 'a << b'; python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "echo 'a << b'; python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"echo 'a << b'; python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "echo 'a << b'; python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"echo",
+"'QQQQQQ'"
+]
+],
+[
+14,
+31,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+32,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"echo",
+"'QQQQQQ'"
+]
+],
+[
+14,
+30,
+[
+"python3",
+"<<'QQQ'"
+]
+],
+[
+31,
+48,
+[
+"import",
+"subprocess"
+]
+],
+[
+49,
+64,
+[
+"subprocess.run"
+]
+],
+[
+65,
+79,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+81,
+84,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF",
+"mask_quotes_pre": "python3 <<EOF ; ",
+"mask_quotes_raw": "python3 <<EOF\nimport subprocess; subprocess.run(['QQQ','QQQQ'])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 <<EOF",
+"import subprocess; subprocess.run(['git','push'])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run(['git','push'])"
+],
+[
+"icode",
+"import subprocess; subprocess.run(['git','push'])"
+]
+],
+"text": "python3 <<EOF ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<EOF",
+"import subprocess; subprocess.run(['git','push'])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run(['git','push'])"
+],
+[
+"icode",
+"import subprocess; subprocess.run(['git','push'])"
+]
+],
+"text": "python3 <<EOF ; "
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"python3",
+"<<EOF"
+]
+],
+[
+15,
+16,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"python3",
+"<<EOF"
+]
+],
+[
+14,
+31,
+[
+"import",
+"subprocess"
+]
+],
+[
+32,
+47,
+[
+"subprocess.run"
+]
+],
+[
+48,
+62,
+[
+"['QQQ','QQQQ']"
+]
+],
+[
+64,
+67,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mask_quotes_pre": "python3 <<'Q' <<'Q' ; ",
+"mask_quotes_raw": "python3 <<'Q' <<'Q'\nok\nA\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nB",
+"preprocess": {
+"bodies": [
+[
+"python3 <<'A' <<'B'",
+"ok"
+],
+[
+"python3 <<'A' <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 <<'A' <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<'A' <<'B'",
+"ok"
+],
+[
+"python3 <<'A' <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 <<'A' <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"python3",
+"<<'Q'",
+"<<'Q'"
+]
+],
+[
+21,
+22,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"python3",
+"<<'Q'",
+"<<'Q'"
+]
+],
+[
+20,
+22,
+[
+"ok"
+]
+],
+[
+23,
+24,
+[
+"A"
+]
+],
+[
+25,
+42,
+[
+"import",
+"subprocess"
+]
+],
+[
+43,
+58,
+[
+"subprocess.run"
+]
+],
+[
+59,
+73,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+75,
+76,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mask_quotes_pre": "cat <<'Q'; python3 <<'Q' <<'Q' ; ",
+"mask_quotes_raw": "cat <<'Q'; python3 <<'Q' <<'Q'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nB",
+"preprocess": {
+"bodies": [
+[
+"cat <<'C'; python3 <<'A' <<'B'",
+"ok"
+],
+[
+"cat <<'C'; python3 <<'A' <<'B'",
+"ok"
+],
+[
+"cat <<'C'; python3 <<'A' <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'C'; python3 <<'A' <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'C'; python3 <<'A' <<'B'",
+"ok"
+],
+[
+"cat <<'C'; python3 <<'A' <<'B'",
+"ok"
+],
+[
+"cat <<'C'; python3 <<'A' <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"ok"
+],
+[
+"icode",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "cat <<'C'; python3 <<'A' <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+10,
+31,
+[
+"python3",
+"<<'Q'",
+"<<'Q'"
+]
+],
+[
+32,
+33,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+10,
+30,
+[
+"python3",
+"<<'Q'",
+"<<'Q'"
+]
+],
+[
+31,
+33,
+[
+"ok"
+]
+],
+[
+34,
+35,
+[
+"C"
+]
+],
+[
+36,
+38,
+[
+"ok"
+]
+],
+[
+39,
+40,
+[
+"A"
+]
+],
+[
+41,
+58,
+[
+"import",
+"subprocess"
+]
+],
+[
+59,
+74,
+[
+"subprocess.run"
+]
+],
+[
+75,
+89,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+91,
+92,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mask_quotes_pre": "python3 <<'Q'; cat <<'Q' ; python3 <<'Q'; cat <<'Q' ; ",
+"mask_quotes_raw": "python3 <<'Q'; cat <<'Q'\nok\nA\nok\nB\npython3 <<'Q'; cat <<'Q'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nA\nok\nB",
+"preprocess": {
+"bodies": [
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"code",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "python3 <<'A'; cat <<'B' ; python3 <<'A'; cat <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"code",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "python3 <<'A'; cat <<'B' ; python3 <<'A'; cat <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+14,
+25,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+26,
+40,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+41,
+52,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+53,
+54,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+14,
+24,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+25,
+27,
+[
+"ok"
+]
+],
+[
+28,
+29,
+[
+"A"
+]
+],
+[
+30,
+32,
+[
+"ok"
+]
+],
+[
+33,
+34,
+[
+"B"
+]
+],
+[
+35,
+48,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+49,
+59,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+60,
+77,
+[
+"import",
+"subprocess"
+]
+],
+[
+78,
+93,
+[
+"subprocess.run"
+]
+],
+[
+94,
+108,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+110,
+111,
+[
+"A"
+]
+],
+[
+112,
+114,
+[
+"ok"
+]
+],
+[
+115,
+116,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mask_quotes_pre": "FOO='QQQ' python3 <<'QQQ' ; ",
+"mask_quotes_raw": "FOO='QQQ' python3 <<'QQQ'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nEOF",
+"preprocess": {
+"bodies": [
+[
+"FOO='a;b' python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "FOO='a;b' python3 <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"FOO='a;b' python3 <<'EOF'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "FOO='a;b' python3 <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"FOO='QQQ'",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+27,
+28,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"FOO='QQQ'",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+26,
+43,
+[
+"import",
+"subprocess"
+]
+],
+[
+44,
+59,
+[
+"subprocess.run"
+]
+],
+[
+60,
+74,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+76,
+79,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mask_quotes_pre": "cat <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3",
+"mask_quotes_raw": "cat <<< 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' | python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"cat",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+61,
+69,
+[
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"cat",
+"<<<",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+],
+[
+61,
+69,
+[
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC",
+"mask_quotes_pre": "python3 <<A <<'Q'; cat <<C ; ",
+"mask_quotes_raw": "python3 <<A <<'Q'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nB\nok\nC",
+"preprocess": {
+"bodies": [
+[
+"python3 <<A <<'B'; cat <<C",
+"ok"
+],
+[
+"python3 <<A <<'B'; cat <<C",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"python3 <<A <<'B'; cat <<C",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "python3 <<A <<'B'; cat <<C ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<A <<'B'; cat <<C",
+"ok"
+],
+[
+"python3 <<A <<'B'; cat <<C",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"python3 <<A <<'B'; cat <<C",
+"ok"
+]
+],
+"extras": [
+[
+"code",
+"ok"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"ok"
+]
+],
+"text": "python3 <<A <<'B'; cat <<C ; "
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"python3",
+"<<A",
+"<<'Q'"
+]
+],
+[
+18,
+27,
+[
+"cat",
+"<<C"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"<<A",
+"<<'Q'"
+]
+],
+[
+18,
+26,
+[
+"cat",
+"<<C"
+]
+],
+[
+27,
+29,
+[
+"ok"
+]
+],
+[
+30,
+31,
+[
+"A"
+]
+],
+[
+32,
+49,
+[
+"import",
+"subprocess"
+]
+],
+[
+50,
+65,
+[
+"subprocess.run"
+]
+],
+[
+66,
+80,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+82,
+83,
+[
+"B"
+]
+],
+[
+84,
+86,
+[
+"ok"
+]
+],
+[
+87,
+88,
+[
+"C"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git << - push origin main",
+"mask_quotes_pre": "git << - push origin main",
+"mask_quotes_raw": "git << - push origin main",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git << - push origin main"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git << - push origin main"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"<<",
+"-",
+"push",
+"origin",
+"main"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"<<",
+"-",
+"push",
+"origin",
+"main"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git << - push",
+"mask_quotes_pre": "git << - push",
+"mask_quotes_raw": "git << - push",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git << - push"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git << - push"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"<<",
+"-",
+"push"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"git",
+"<<",
+"-",
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory << - res",
+"mask_quotes_pre": "factory << - res",
+"mask_quotes_raw": "factory << - res",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "factory << - res"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "factory << - res"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"factory",
+"<<",
+"-",
+"res"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"factory",
+"<<",
+"-",
+"res"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rm << - @LIVE_HOME@/run/guard-export.json",
+"mask_quotes_pre": "rm << - @LIVE_HOME@/run/guard-export.json",
+"mask_quotes_raw": "rm << - @LIVE_HOME@/run/guard-export.json",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rm << - @LIVE_HOME@/run/guard-export.json"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rm << - @LIVE_HOME@/run/guard-export.json"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"rm",
+"<<",
+"-",
+"@LIVE_HOME@/run/guard-export.json"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"rm",
+"<<",
+"-",
+"@LIVE_HOME@/run/guard-export.json"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git <<- x push origin main\nbody\nx",
+"mask_quotes_pre": "git <<- x push origin main ; ",
+"mask_quotes_raw": "git <<- x push origin main\nbody\nx",
+"preprocess": {
+"bodies": [
+[
+"git <<- x push origin main",
+"body"
+]
+],
+"extras": [],
+"text": "git <<- x push origin main ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"git <<- x push origin main",
+"body"
+]
+],
+"extras": [],
+"text": "git <<- x push origin main ; "
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"<<-",
+"x",
+"push",
+"origin",
+"main"
+]
+],
+[
+28,
+29,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"git",
+"<<-",
+"x",
+"push",
+"origin",
+"main"
+]
+],
+[
+27,
+31,
+[
+"body"
+]
+],
+[
+32,
+33,
+[
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "env --split-s '-u FACTORY_ROLE' ls",
 "mask_quotes_pre": "env --split-s 'QQQQQQQQQQQQQQQ' ls",
 "mask_quotes_raw": "env --split-s 'QQQQQQQQQQQQQQQ' ls",
@@ -95794,6 +106696,1927 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "cat <<- EOF\n\thello\n\tEOF",
+"mask_quotes_pre": "cat <<- EOF ; ",
+"mask_quotes_raw": "cat <<- EOF\n\thello\n\tEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<- EOF",
+"\thello"
+]
+],
+"extras": [],
+"text": "cat <<- EOF ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<- EOF",
+"\thello"
+]
+],
+"extras": [],
+"text": "cat <<- EOF ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<-",
+"EOF"
+]
+],
+[
+13,
+14,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"cat",
+"<<-",
+"EOF"
+]
+],
+[
+12,
+18,
+[
+"hello"
+]
+],
+[
+19,
+23,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<-'EOF'\n\tgit push\n\tEOF",
+"mask_quotes_pre": "cat <<-'QQQ' ; ",
+"mask_quotes_raw": "cat <<-'QQQ'\n\tgit push\n\tEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<-'EOF'",
+"\tgit push"
+]
+],
+"extras": [],
+"text": "cat <<-'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<-'EOF'",
+"\tgit push"
+]
+],
+"extras": [],
+"text": "cat <<-'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"cat",
+"<<-'QQQ'"
+]
+],
+[
+14,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cat",
+"<<-'QQQ'"
+]
+],
+[
+13,
+22,
+[
+"git",
+"push"
+]
+],
+[
+23,
+27,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+"mask_quotes_pre": "if true; then python3 <<'QQQ' ; fi",
+"mask_quotes_raw": "if true; then python3 <<'QQQ'\nprint(1)\nEOF\nfi",
+"preprocess": {
+"bodies": [
+[
+"if true; then python3 <<'EOF'",
+"print(1)"
+]
+],
+"extras": [
+[
+"code",
+"print(1)"
+],
+[
+"icode",
+"print(1)"
+]
+],
+"text": "if true; then python3 <<'EOF' ; fi"
+},
+"preprocess_fold": {
+"bodies": [
+[
+"if true; then python3 <<'EOF'",
+"print(1)"
+]
+],
+"extras": [
+[
+"code",
+"print(1)"
+],
+[
+"icode",
+"print(1)"
+]
+],
+"text": "if true; then python3 <<'EOF' ; fi"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+30,
+[
+"then",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+31,
+34,
+[
+"fi"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"if",
+"true"
+]
+],
+[
+8,
+29,
+[
+"then",
+"python3",
+"<<'QQQ'"
+]
+],
+[
+30,
+35,
+[
+"print"
+]
+],
+[
+36,
+37,
+[
+"1"
+]
+],
+[
+39,
+42,
+[
+"EOF"
+]
+],
+[
+43,
+45,
+[
+"fi"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "timeout 5 python3 <<< 'print(1)'",
+"mask_quotes_pre": "timeout 5 python3 <<< 'QQQQQQQQ'",
+"mask_quotes_raw": "timeout 5 python3 <<< 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 python3 <<< 'print(1)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 python3 <<< 'print(1)'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"timeout",
+"5",
+"python3",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"timeout",
+"5",
+"python3",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'print(1)' | nice python3",
+"mask_quotes_pre": "echo 'QQQQQQQQ' | nice python3",
+"mask_quotes_raw": "echo 'QQQQQQQQ' | nice python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'print(1)' | nice python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'print(1)' | nice python3"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+],
+[
+17,
+30,
+[
+"nice",
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+],
+[
+17,
+30,
+[
+"nice",
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<'A'; cat <<'B'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mask_quotes_pre": "python3 <<'Q'; cat <<'Q' ; ",
+"mask_quotes_raw": "python3 <<'Q'; cat <<'Q'\nprint(1)\nA\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nB",
+"preprocess": {
+"bodies": [
+[
+"python3 <<'A'; cat <<'B'",
+"print(1)"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"print(1)"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 <<'A'; cat <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 <<'A'; cat <<'B'",
+"print(1)"
+],
+[
+"python3 <<'A'; cat <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"extras": [
+[
+"code",
+"print(1)"
+],
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+],
+"text": "python3 <<'A'; cat <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+14,
+25,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+26,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+14,
+24,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+25,
+30,
+[
+"print"
+]
+],
+[
+31,
+32,
+[
+"1"
+]
+],
+[
+34,
+35,
+[
+"A"
+]
+],
+[
+36,
+53,
+[
+"import",
+"subprocess"
+]
+],
+[
+54,
+69,
+[
+"subprocess.run"
+]
+],
+[
+70,
+84,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+86,
+87,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "timeout 5 python3 script.py <<< 'git push'",
+"mask_quotes_pre": "timeout 5 python3 script.py <<< 'QQQQQQQQ'",
+"mask_quotes_raw": "timeout 5 python3 script.py <<< 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 python3 script.py <<< 'git push'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "timeout 5 python3 script.py <<< 'git push'"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"timeout",
+"5",
+"python3",
+"script.py",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"timeout",
+"5",
+"python3",
+"script.py",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 - <<'EOF'\nprint(1)\nEOF",
+"mask_quotes_pre": "python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "python3 - <<'QQQ'\nprint(1)\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"print(1)"
+]
+],
+"extras": [
+[
+"code",
+"print(1)"
+],
+[
+"icode",
+"print(1)"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"print(1)"
+]
+],
+"extras": [
+[
+"code",
+"print(1)"
+],
+[
+"icode",
+"print(1)"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+19,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+18,
+23,
+[
+"print"
+]
+],
+[
+24,
+25,
+[
+"1"
+]
+],
+[
+27,
+30,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'print(1)' | python3",
+"mask_quotes_pre": "echo 'QQQQQQQQ' | python3",
+"mask_quotes_raw": "echo 'QQQQQQQQ' | python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'print(1)' | python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'print(1)' | python3"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+],
+[
+17,
+25,
+[
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+],
+[
+17,
+25,
+[
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 script.py <<< input",
+"mask_quotes_pre": "python3 script.py <<< input",
+"mask_quotes_raw": "python3 script.py <<< input",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 script.py <<< input"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 script.py <<< input"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"script.py",
+"<<<",
+"input"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"python3",
+"script.py",
+"<<<",
+"input"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 script.py <<< 'git push'",
+"mask_quotes_pre": "python3 script.py <<< 'QQQQQQQQ'",
+"mask_quotes_raw": "python3 script.py <<< 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 script.py <<< 'git push'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 script.py <<< 'git push'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"python3",
+"script.py",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"python3",
+"script.py",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat file | python3",
+"mask_quotes_pre": "cat file | python3",
+"mask_quotes_raw": "cat file | python3",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cat file | python3"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cat file | python3"
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"cat",
+"file"
+]
+],
+[
+10,
+18,
+[
+"python3"
+]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"cat",
+"file"
+]
+],
+[
+10,
+18,
+[
+"python3"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 <<< 'print(1)'",
+"mask_quotes_pre": "python3 <<< 'QQQQQQQQ'",
+"mask_quotes_raw": "python3 <<< 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 <<< 'print(1)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 <<< 'print(1)'"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"python3",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"python3",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "perl - <<'EOF'\nprint 1\nEOF",
+"mask_quotes_pre": "perl - <<'QQQ' ; ",
+"mask_quotes_raw": "perl - <<'QQQ'\nprint 1\nEOF",
+"preprocess": {
+"bodies": [
+[
+"perl - <<'EOF'",
+"print 1"
+]
+],
+"extras": [
+[
+"code",
+"print 1"
+],
+[
+"icode",
+"print 1"
+]
+],
+"text": "perl - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"perl - <<'EOF'",
+"print 1"
+]
+],
+"extras": [
+[
+"code",
+"print 1"
+],
+[
+"icode",
+"print 1"
+]
+],
+"text": "perl - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"perl",
+"-",
+"<<'QQQ'"
+]
+],
+[
+16,
+17,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"perl",
+"-",
+"<<'QQQ'"
+]
+],
+[
+15,
+22,
+[
+"print",
+"1"
+]
+],
+[
+23,
+26,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "node <<'EOF'\nconsole.log(1)\nEOF",
+"mask_quotes_pre": "node <<'QQQ' ; ",
+"mask_quotes_raw": "node <<'QQQ'\nconsole.log(1)\nEOF",
+"preprocess": {
+"bodies": [
+[
+"node <<'EOF'",
+"console.log(1)"
+]
+],
+"extras": [
+[
+"code",
+"console.log(1)"
+],
+[
+"icode",
+"console.log(1)"
+]
+],
+"text": "node <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"node <<'EOF'",
+"console.log(1)"
+]
+],
+"extras": [
+[
+"code",
+"console.log(1)"
+],
+[
+"icode",
+"console.log(1)"
+]
+],
+"text": "node <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"node",
+"<<'QQQ'"
+]
+],
+[
+14,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"node",
+"<<'QQQ'"
+]
+],
+[
+13,
+24,
+[
+"console.log"
+]
+],
+[
+25,
+26,
+[
+"1"
+]
+],
+[
+28,
+31,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'EOF'\ngit push\nEOF",
+"mask_quotes_pre": "cat <<'QQQ' ; ",
+"mask_quotes_raw": "cat <<'QQQ'\ngit push\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat <<'EOF'",
+"git push"
+]
+],
+"extras": [],
+"text": "cat <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'EOF'",
+"git push"
+]
+],
+"extras": [],
+"text": "cat <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+13,
+14,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"cat",
+"<<'QQQ'"
+]
+],
+[
+12,
+20,
+[
+"git",
+"push"
+]
+],
+[
+21,
+24,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'git push' | cat",
+"mask_quotes_pre": "echo 'QQQQQQQQ' | cat",
+"mask_quotes_raw": "echo 'QQQQQQQQ' | cat",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'git push' | cat"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'git push' | cat"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+],
+[
+17,
+21,
+[
+"cat"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+],
+[
+17,
+21,
+[
+"cat"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo 'git push'",
+"mask_quotes_pre": "echo 'QQQQQQQQ'",
+"mask_quotes_raw": "echo 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo 'git push'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo 'git push'"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"echo",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'print(1)' <<< 'git push'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQ' <<< 'QQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQ' <<< 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'print(1)' <<< 'git push'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'print(1)' <<< 'git push'"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"python3",
+"-c",
+"'QQQQQQQQ'",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"python3",
+"-c",
+"'QQQQQQQQ'",
+"<<<",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open('a.tar').getnames()\nEOF",
+"mask_quotes_pre": "python3 - <<'QQQ' ; ",
+"mask_quotes_raw": "python3 - <<'QQQ'\nimport tarfile; tarfile.open('QQQQQ').getnames()\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import tarfile; tarfile.open('a.tar').getnames()"
+]
+],
+"extras": [
+[
+"code",
+"import tarfile; tarfile.open('a.tar').getnames()"
+],
+[
+"icode",
+"import tarfile; tarfile.open('a.tar').getnames()"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - <<'EOF'",
+"import tarfile; tarfile.open('a.tar').getnames()"
+]
+],
+"extras": [
+[
+"code",
+"import tarfile; tarfile.open('a.tar').getnames()"
+],
+[
+"icode",
+"import tarfile; tarfile.open('a.tar').getnames()"
+]
+],
+"text": "python3 - <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+19,
+20,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"python3",
+"-",
+"<<'QQQ'"
+]
+],
+[
+18,
+32,
+[
+"import",
+"tarfile"
+]
+],
+[
+33,
+46,
+[
+"tarfile.open"
+]
+],
+[
+47,
+54,
+[
+"'QQQQQ'"
+]
+],
+[
+55,
+64,
+[
+".getnames"
+]
+],
+[
+67,
+70,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -m json.tool <<'EOF'\n{\"a\": 1}\nEOF",
+"mask_quotes_pre": "python3 -m json.tool <<'QQQ' ; ",
+"mask_quotes_raw": "python3 -m json.tool <<'QQQ'\n{\"Q\": 1}\nEOF",
+"preprocess": {
+"bodies": [
+[
+"python3 -m json.tool <<'EOF'",
+"{\"a\": 1}"
+]
+],
+"extras": [
+[
+"code",
+"{\"a\": 1}"
+],
+[
+"icode",
+"{\"a\": 1}"
+]
+],
+"text": "python3 -m json.tool <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 -m json.tool <<'EOF'",
+"{\"a\": 1}"
+]
+],
+"extras": [
+[
+"code",
+"{\"a\": 1}"
+],
+[
+"icode",
+"{\"a\": 1}"
+]
+],
+"text": "python3 -m json.tool <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"python3",
+"-m",
+"json.tool",
+"<<'QQQ'"
+]
+],
+[
+30,
+31,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"python3",
+"-m",
+"json.tool",
+"<<'QQQ'"
+]
+],
+[
+30,
+36,
+[
+"\"Q\":",
+"1"
+]
+],
+[
+38,
+41,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<'A'; python3 <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB",
+"mask_quotes_pre": "cat <<'Q'; python3 <<'Q' ; ",
+"mask_quotes_raw": "cat <<'Q'; python3 <<'Q'\nimport subprocess; subprocess.run([\"QQQ\",\"QQQQ\"])\nA\nprint(1)\nB",
+"preprocess": {
+"bodies": [
+[
+"cat <<'A'; python3 <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"cat <<'A'; python3 <<'B'",
+"print(1)"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"print(1)"
+],
+[
+"icode",
+"print(1)"
+]
+],
+"text": "cat <<'A'; python3 <<'B' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<'A'; python3 <<'B'",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"cat <<'A'; python3 <<'B'",
+"print(1)"
+]
+],
+"extras": [
+[
+"code",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"icode",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+],
+[
+"code",
+"print(1)"
+],
+[
+"icode",
+"print(1)"
+]
+],
+"text": "cat <<'A'; python3 <<'B' ; "
+},
+"segments_pre": [
+[
+0,
+9,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+10,
+25,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+26,
+27,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"cat",
+"<<'Q'"
+]
+],
+[
+10,
+24,
+[
+"python3",
+"<<'Q'"
+]
+],
+[
+25,
+42,
+[
+"import",
+"subprocess"
+]
+],
+[
+43,
+58,
+[
+"subprocess.run"
+]
+],
+[
+59,
+73,
+[
+"[\"QQQ\",\"QQQQ\"]"
+]
+],
+[
+75,
+76,
+[
+"A"
+]
+],
+[
+77,
+82,
+[
+"print"
+]
+],
+[
+83,
+84,
+[
+"1"
+]
+],
+[
+86,
+87,
+[
+"B"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+"mask_quotes_pre": "cat > note.md <<'QQQ' ; ",
+"mask_quotes_raw": "cat > note.md <<'QQQ'\ngit push origin main\nEOF",
+"preprocess": {
+"bodies": [
+[
+"cat > note.md <<'EOF'",
+"git push origin main"
+]
+],
+"extras": [],
+"text": "cat > note.md <<'EOF' ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat > note.md <<'EOF'",
+"git push origin main"
+]
+],
+"extras": [],
+"text": "cat > note.md <<'EOF' ; "
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"cat",
+">",
+"note.md",
+"<<'QQQ'"
+]
+],
+[
+23,
+24,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"cat",
+">",
+"note.md",
+"<<'QQQ'"
+]
+],
+[
+22,
+42,
+[
+"git",
+"push",
+"origin",
+"main"
+]
+],
+[
+43,
+46,
+[
+"EOF"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git <<- push\nbody\npush",
+"mask_quotes_pre": "git <<- push ; ",
+"mask_quotes_raw": "git <<- push\nbody\npush",
+"preprocess": {
+"bodies": [
+[
+"git <<- push",
+"body"
+]
+],
+"extras": [],
+"text": "git <<- push ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"git <<- push",
+"body"
+]
+],
+"extras": [],
+"text": "git <<- push ; "
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"<<-",
+"push"
+]
+],
+[
+14,
+15,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"git",
+"<<-",
+"push"
+]
+],
+[
+13,
+17,
+[
+"body"
+]
+],
+[
+18,
+22,
+[
+"push"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "factory <<- res\nbody\nres",
+"mask_quotes_pre": "factory <<- res ; ",
+"mask_quotes_raw": "factory <<- res\nbody\nres",
+"preprocess": {
+"bodies": [
+[
+"factory <<- res",
+"body"
+]
+],
+"extras": [],
+"text": "factory <<- res ; "
+},
+"preprocess_fold": {
+"bodies": [
+[
+"factory <<- res",
+"body"
+]
+],
+"extras": [],
+"text": "factory <<- res ; "
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"factory",
+"<<-",
+"res"
+]
+],
+[
+17,
+18,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"factory",
+"<<-",
+"res"
+]
+],
+[
+16,
+20,
+[
+"body"
+]
+],
+[
+21,
+24,
+[
+"res"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "env ls",
 "mask_quotes_pre": "env ls",
 "mask_quotes_raw": "env ls",
@@ -103216,7 +116039,7 @@
 ]
 }
 },
-"corpus_commands": 1916,
+"corpus_commands": 2060,
 "edge_inputs": 97,
 "python": "3.13"
 }

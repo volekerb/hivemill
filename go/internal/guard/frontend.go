@@ -407,6 +407,14 @@ func trimRunDots(s string) string {
 // heredoc's newline and the body.
 type Heredoc struct{ Head, Body string }
 
+// HeredocSlot is one slot list entry of worker-guard.py:preprocess when slots is passed: the resolved body and
+// whether the opener was a real `<<-` (strip tabs).
+type HeredocSlot struct {
+	Body    string
+	HasBody bool
+	Strip   bool
+}
+
 // Extra is one (kind, body) pair of worker-guard.py:preprocess's extras.
 type Extra struct{ Kind, Body string }
 
@@ -476,16 +484,18 @@ func HeredocDelim(cmd string, i int) (strip bool, delim string, end int, quoted 
 }
 
 // Preprocess is a port of worker-guard.py:preprocess: make newlines separators, drop comments and non-shell
-// heredoc bodies. When bodies is non-nil every heredoc is appended to it. An unbalanced quote is a *Block error.
-func Preprocess(cmd string, foldTicks bool, bodies *[]Heredoc) (string, []Extra, error) {
+// heredoc bodies. When bodies is non-nil every heredoc is appended to it. When slots is non-nil one HeredocSlot
+// per `<<` in source order is appended. An unbalanced quote is a *Block error.
+func Preprocess(cmd string, foldTicks bool, bodies *[]Heredoc, slots *[]HeredocSlot) (string, []Extra, error) {
 	var out []string
 	var extras []Extra
 	i, n := 0, len(cmd)
 	var q byte
 	type pend struct {
-		strip  bool
-		delim  string
-		quoted bool
+		strip   bool
+		delim   string
+		quoted  bool
+		slotIdx int
 	}
 	var pending []pend
 	lineStart := 0
@@ -557,10 +567,18 @@ func Preprocess(cmd string, foldTicks bool, bodies *[]Heredoc) (string, []Extra,
 		}
 		if c == '<' && strings.HasPrefix(cmd[i:], "<<") && !strings.HasPrefix(cmd[i:], "<<<") {
 			if strip, delim, end, quoted, ok := HeredocDelim(cmd, i); ok {
-				pending = append(pending, pend{strip, delim, quoted})
+				slotIdx := -1
+				if slots != nil {
+					*slots = append(*slots, HeredocSlot{Strip: strip})
+					slotIdx = len(*slots) - 1
+				}
+				pending = append(pending, pend{strip, delim, quoted, slotIdx})
 				out = append(out, cmd[i:end])
 				i = end
 			} else {
+				if slots != nil {
+					*slots = append(*slots, HeredocSlot{})
+				}
 				out = append(out, "<<")
 				i += 2
 			}
@@ -606,6 +624,10 @@ func Preprocess(cmd string, foldTicks bool, bodies *[]Heredoc) (string, []Extra,
 					}
 				}
 				b := strings.Join(body, "\n")
+				if p.slotIdx >= 0 && slots != nil {
+					(*slots)[p.slotIdx].Body = b
+					(*slots)[p.slotIdx].HasBody = true
+				}
 				if bodies != nil {
 					*bodies = append(*bodies, Heredoc{Head: head, Body: b})
 				}
