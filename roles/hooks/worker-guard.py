@@ -2610,6 +2610,17 @@ class Analyzer:
         """True when `git config <args>` writes: anything config_is_read cannot prove a read."""
         return not config_is_read(args)
 
+    def config_expansion_refuse(self, toks):
+        """T-1063: a raw `git config` token built by an expansion (dollar forms, backtick, brace list, or a glob before
+        any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
+        read = False
+        for n, t in enumerate(toks):
+            if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
+                raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
+                            "write the arguments literally (T-1063)")
+            if t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list")):
+                read = True
+
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
         alias. Read-only forms (`--global --get`, `--global --list`) and repo-local writes stay allowed."""
@@ -2652,6 +2663,8 @@ class Analyzer:
         if i >= len(rest) or rest[i] != "config":
             return
         args, scope, files, k = [], None, [], i + 1
+        if not self.hq:
+            self.config_expansion_refuse(rest[k:])
         rest = rest[:]
         # T-1064 v3: git's legacy form (bare key, no action flag, no leading subcommand word) takes every token after the
         # key as the VALUE, so scope/file options are only stripped while they are real options; a value option's value
