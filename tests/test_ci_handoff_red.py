@@ -46,7 +46,7 @@ class Base(FactoryTestCase):
             self.env.sql("UPDATE agents SET session_id=? WHERE name=?", (session, f"coder-{tid.lower()}"))
         return tid
 
-    def tick(self, prs, gate_open=True, real_spawn=False, now=NOW, refuse=(), pin_gate=False):
+    def tick(self, prs, gate_open=True, real_spawn=False, now=NOW, refuse=()):
         """prs: {pr url: (head sha, rollup, mergeStateStatus)}. Returns the fake spawn calls (empty with real_spawn)."""
         calls = []
         self.probed = getattr(self, "probed", [])
@@ -65,9 +65,6 @@ class Base(FactoryTestCase):
                     con.execute("UPDATE agents SET status='live' WHERE name=?", (name,))
                 f.spawn = fake_spawn
                 f.gate = lambda con, **k: (gate_open, "" if gate_open else "closed", {})
-            elif pin_gate:  # the real spawn must not queue on the runner's load or a runtime's capacity
-                real_gate = f.gate
-                f.gate = lambda con, **k: (True, "", real_gate(con, **k)[2])
             f.coder_ci_resume_tick(con)
             con.commit()
         return calls
@@ -294,10 +291,13 @@ class FollowUpTests(Base):
         # tick must decide with that org too: no --resume on the start, event and mail say fresh (the kickoff is sent).
         self.task()
         self.env.sql("UPDATE agents SET spawn_args=? WHERE name='coder-t-0001'", (json.dumps({"org": "cursor", "runtime": "cursor"}),))
-        self.tick({pr_url(1): (SHA, RED)}, real_spawn=True, pin_gate=True)
-        argv = self.starts()
-        self.assertEqual(len(argv), 1, self.env.calls("herdr"))
-        self.assertNotIn("--resume", argv[0])
+        calls = self.tick({pr_url(1): (SHA, RED)})  # fake spawn: a cursor-runtime start needs the cursor binary, absent on CI runners
+        self.assertEqual(len(calls), 1)
+        self.assertIsNone(calls[0]["resume"])  # a resume kept alongside a fresh kickoff is the bug: spawn would resume with no instructions
+        self.assertIn("fresh session", calls[0]["prompt"])
+        with self.env.load_factory() as f:  # spawn's own org for this row is the stored one
+            prior = f.db().execute("SELECT * FROM agents WHERE name='coder-t-0001'").fetchone()
+            self.assertEqual(f.spawn_org(f.db(), prior, "coder-t-0001", "G-001", "T-0001"), "cursor")
         ev = self.env.sql("SELECT detail FROM events WHERE action='coder-ci-resume' AND entity_id='T-0001'")
         self.assertEqual(json.loads(ev[0][0])["mode"], "fresh")
         self.assertIn("(fresh)", self.mails("coder restarted on red CI%", to=LEAD)[0]["body"])
