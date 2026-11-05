@@ -1,5 +1,6 @@
 """T-1135: a queued non-evaluator row whose start dies (die(3), missing binary) must not end the tick: later phases run,
 one event and one alert per row; at the retry cap the row stays queued, retried every 10 minutes (M26136). Real cmd_tick in-process, temp FACTORY_HOME."""
+import json
 import os
 import unittest
 from unittest import mock
@@ -167,6 +168,89 @@ class TickStartFailure(FactoryTestCase):
         self.assertEqual(self.count("spawn-start-failed"), 0)
         self.assertEqual(self.alerts(), [])
         self.assertEqual(self.later, 6)
+
+    def real_tick(self, start_ok=False, gate_refuses_coder=False, at="2026-11-05T12:00:00"):
+        """Like tick(), but spawn() always runs for real; only the start (_spawn_start) and, optionally, the gate are stubbed.
+        The gate refuses only role=="coder": the tick's own gate(con) has role None and passes, spawn()'s gate refuses (B3)."""
+        self.attempts = getattr(self, "attempts", 0)
+
+        def start(con, role, goal, team, task, name, cwd, prompt, model, resume, pane, existing, args, stats, *a, **k):
+            self.attempts += 1
+            if not start_ok:
+                raise SystemExit(3)
+            # what the real start writes: the row goes live with the args it was handed
+            con.execute("UPDATE agents SET status='live', pane_id='p-1', spawn_args=? WHERE name=?", (json.dumps(args), name))
+
+        def gate(con, *a, role=None, **k):
+            return (False, "review reserve", {}) if gate_refuses_coder and role == "coder" else (True, "", {"live": 0})
+
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": at}), self.env.load_factory() as m, \
+                mock.patch.object(m, "tick_lock", return_value=None), mock.patch.object(m, "dispatch_tick", lambda con: None), \
+                mock.patch.object(m, "_spawn_start", start), mock.patch.object(m, "gate", gate):
+            m.cmd_tick(mock.Mock(), locked=True)
+
+    def spawn_args(self):
+        return json.loads(self.env.sql("SELECT spawn_args FROM agents WHERE name=?", (self.name,))[0]["spawn_args"])
+
+    def test_gate_requeue_in_spawn_keeps_the_failure_count(self):  # B3, acceptance 11
+        for i in range(5):
+            self.real_tick(at=self.at(i))
+        self.assertEqual(self.attempts, 5)
+        self.assertEqual(len(self.alerts()), 2)
+        events = self.count("spawn-start-failed")
+        for m in (14, 25, 40):  # window passed each time: the tick attempts, spawn()'s gate refuses and requeues
+            self.real_tick(gate_refuses_coder=True, at=self.at(m))
+        self.assertEqual(self.attempts, 5)
+        self.assertEqual(self.status(), "queued")
+        self.assertEqual(self.spawn_args()["spawn_failures"], 5)
+        self.assertIn("spawn_failed_at", self.spawn_args())
+        self.real_tick(at=self.at(55))  # gate open again: the failure is attempt 6, still no new alert or event
+        self.assertEqual(self.attempts, 6)
+        self.assertEqual(len(self.alerts()), 2)
+        self.assertEqual(self.count("spawn-start-failed"), events)
+
+    def test_gate_refusal_after_a_failure_does_not_restart_the_episode(self):  # B3
+        self.real_tick(at=self.at(0))
+        self.real_tick(gate_refuses_coder=True, at=self.at(1))
+        self.assertEqual(self.spawn_args()["spawn_failures"], 1)
+        self.real_tick(at=self.at(2))
+        self.assertEqual(self.spawn_args()["spawn_failures"], 2)
+        self.assertEqual(len(self.alerts()), 1)
+
+    def test_start_ok_after_fail_and_gate_refusal_clears_the_keys(self):  # B3, acceptance 12
+        self.real_tick(at=self.at(0))
+        self.real_tick(gate_refuses_coder=True, at=self.at(1))
+        self.real_tick(start_ok=True, at=self.at(2))
+        self.assertEqual(self.status(), "live")
+        got = self.spawn_args()
+        self.assertNotIn("spawn_failures", got)
+        self.assertNotIn("spawn_failed_at", got)
+
+    def test_cancelled_row_with_the_keys_respawned_counts_from_zero(self):  # B3, acceptance 12
+        self.real_tick(at=self.at(0))
+        self.env.sql("UPDATE agents SET status='cancelled' WHERE name=?", (self.name,))
+        self.assertIn("spawn_failures", self.spawn_args())
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": self.at(3)}), self.env.load_factory() as m, \
+                mock.patch.object(m, "gate", lambda con, *a, **k: (False, "load", {})):
+            con = m.db()
+            m.spawn(con, "coder", "G-001", "g-001-a", "T-0001", self.name, None, None, None, None, org="claude")
+            con.commit()
+            con.close()
+        self.assertEqual(self.status(), "queued")
+        self.assertNotIn("spawn_failures", self.spawn_args())
+
+    def test_goalless_cursor_rows_alert_their_own_org(self):  # B4, acceptance 13
+        for role, want in (("director", "cursor-boss"), ("staff-engineer", "cursor-director")):
+            name = f"cursor-{role}"
+            self.env.sql("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at,org) "
+                         "VALUES(?,?,NULL,NULL,NULL,'queued',?,?,'cursor')",
+                         (name, role, json.dumps({"role": role, "goal": None, "team": None, "task": None, "name": name,
+                                                  "cwd": None, "prompt": None, "model": None, "resume": None,
+                                                  "org": "cursor"}), "2026-11-05T11:00:00"))
+        self.real_tick()
+        got = {r["recipient"] for r in self.env.sql("SELECT recipient FROM messages WHERE subject LIKE '%queued director%' "
+                                                    "OR subject LIKE '%queued staff-engineer%'")}
+        self.assertEqual(got, {"cursor-boss", "cursor-director"})
 
 
 if __name__ == "__main__":
