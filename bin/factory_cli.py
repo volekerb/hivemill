@@ -3364,6 +3364,14 @@ def warn_spec_by_msg(con, mid, sender_role, rcpt, kind, subject, body):
     event(con, "task", r["task_id"], "spec-by-msg", f"M{mid} {actor()}->{rcpt}")
 
 
+def sender_org_for(con, role, to, goal=None, task=None):
+    """The org a message is resolved in: a lead or worker (not CROSS_ORG_ROLES) addressing a bare singleton (director,
+    boss, owner, staff-engineer) reaches its OWN org's HQ whatever --goal/--task says; everyone else: goal, task, sender."""
+    if role not in CROSS_ORG_ROLES and (to == "owner" or to in orgs.SINGLETON_ROLES):
+        return agent_org(con, actor()) or orgs.DEFAULT_ORG
+    return org_for(con, goal, task, actor())
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
@@ -3372,7 +3380,8 @@ def cmd_msg(a):
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
-    mid, rcpt = send(con, a.to, a.subject, body, a.kind, a.goal, a.task)
+    mid, rcpt = send(con, a.to, a.subject, body, a.kind, a.goal, a.task,
+                     org=sender_org_for(con, role, a.to, a.goal, a.task))
     print(f"M{mid} → {rcpt}")
     warn_spec_by_msg(con, mid, role, rcpt, a.kind, a.subject, body)
     if orgs.strip_prefix(rcpt) == ON_DEMAND and a.kind == "request":
@@ -3390,7 +3399,7 @@ def refuse_cross_org(con, role, to, goal=None, task=None):
     if role in CROSS_ORG_ROLES:
         return
     mine = agent_org(con, actor()) or orgs.DEFAULT_ORG
-    rcpt = resolve_recipient(con, to, org_for(con, goal, task, actor()))
+    rcpt = resolve_recipient(con, to, sender_org_for(con, role, to, goal, task))
     theirs = agent_org(con, rcpt) or orgs.prefix_of(rcpt)
     if theirs and theirs != mine:
         die(f"{actor()} ({mine} org) may not message {rcpt} ({theirs} org); only the boss and director talk across "
@@ -3482,7 +3491,8 @@ def cmd_report(a):
                     print(f"note: team {team} has no lead; report sent to director", file=sys.stderr)
     else:
         refuse_on_demand(con, to, role)
-    mid, rcpt = send(con, to, f"status: {a.goal or ''} {a.headline}".strip(), read_text(a.body), "report", a.goal)
+    mid, rcpt = send(con, to, f"status: {a.goal or ''} {a.headline}".strip(), read_text(a.body), "report", a.goal,
+                     org=sender_org_for(con, role, to, a.goal))
     print(f"M{mid} report → {rcpt}")
 
 
@@ -7516,8 +7526,8 @@ def drift_pr_states(con):
 
 
 def tick_drift(con):
-    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live lead, else
-    the director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
+    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live (else parked) lead of the goal's org, else
+    the goal org's director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
     (DRIFT_GH_BUDGET_S, env FACTORY_DRIFT_GH_BUDGET_S) running out, leaves D2 unchecked; nothing here stops the tick."""
     try:
         t = time.time()
@@ -7561,9 +7571,11 @@ def tick_drift(con):
                       if _ts(e["ts"]) and (now_dt - _ts(e["ts"])).total_seconds() < DRIFT_DEDUPE_S]
             if key in recent:
                 continue
-            team = con.execute("SELECT t.id FROM teams t JOIN agents a ON a.name=t.lead_agent "
-                               "WHERE t.goal_id=? AND t.status='active' AND (a.status='live' OR t.parked_at IS NOT NULL) "
-                               "ORDER BY a.status='live' DESC, t.id", (g["id"],)).fetchone()
+            gorg = goal_org(con, g["id"]) or orgs.DEFAULT_ORG  # a lead of another org gets no drift mail and no wake
+            team = next((r for r in con.execute(
+                "SELECT t.id, t.lead_agent FROM teams t JOIN agents a ON a.name=t.lead_agent "
+                "WHERE t.goal_id=? AND t.status='active' AND (a.status='live' OR t.parked_at IS NOT NULL) "
+                "ORDER BY a.status='live' DESC, t.id", (g["id"],)) if agent_org(con, r["lead_agent"]) == gorg), None)
             body = "\n".join(items + [f"D2 unchecked {u}" for u in unchecked.get(g["id"], [])])
             send(con, f"lead:{team['id']}" if team else "director", f"drift {g['id']}: {len(items)} items", body,
                  "alert", g["id"], sender="tick")
