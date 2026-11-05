@@ -167,7 +167,7 @@ class TestNeedsYou(Base):
         _, page = self.page()   # the seeded "boss one" escalation has neither
         self.assertRegex(section(page, "needs-you"), r"boss one.*?Message #5")
 
-    def test_more_than_three_items_link_the_rest(self):
+    def test_more_than_four_items_link_the_rest(self):   # name kept; the strip now shows 3 (R2) and links the rest
         d, page = self.page()
         self.assertEqual(len(d["needs_you"]), 5)
         self.assertIn("2 more", section(page, "needs-you"))
