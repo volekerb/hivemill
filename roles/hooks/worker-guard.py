@@ -1512,10 +1512,31 @@ class Analyzer:
             return None
         return row[0] if row and row[0] else None
 
+    def lead_team_goals(self):
+        """Goal ids for teams whose lead_agent is $FACTORY_AGENT; None when not lead or the DB is unreadable."""
+        if self.role != "lead":
+            return None
+        agent = os.environ.get("FACTORY_AGENT")
+        if not agent:
+            return None
+        db = self.db_path()
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+            try:
+                rows = con.execute(
+                    "SELECT DISTINCT goal_id FROM teams WHERE lead_agent = ? AND goal_id IS NOT NULL",
+                    (agent,),
+                ).fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return None
+        return {r[0] for r in rows if r[0]}
+
     def broad_read(self, sub, rest, assigns):
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
-        --role cleaner, `goal show <own goal>`, a temp FACTORY_HOME.
+        --role cleaner, `goal show <own goal>`, lead `goal show` for goals their teams own, a temp FACTORY_HOME.
         Fail closed on options: we do not model which argparse flags take a value (--goal X, --note x) versus
         flags that do not (--all), so any option token (`-x`, `--x`, `--x=v`, `--`) before the action word (or
         before the id of `goal show`) blocks the command; `factory goal --goal G-005 show G-005` is blocked too."""
@@ -1535,8 +1556,13 @@ class Analyzer:
             elif sub == "goal" and action == "show":
                 gid = after[1] if len(after) > 1 else None
                 own = self.own_goal()
-                if gid is not None and not gid.startswith("-") and own is not None and gid == own:
-                    return
+                if gid is not None and not gid.startswith("-"):
+                    if own is not None and gid == own:
+                        return
+                    if self.role == "lead":
+                        team_goals = self.lead_team_goals()
+                        if team_goals is not None and gid in team_goals:
+                            return
                 shown += " show"
             elif action in seconds:
                 shown += " " + action
