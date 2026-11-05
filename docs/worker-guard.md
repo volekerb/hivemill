@@ -163,3 +163,15 @@ These exit 0 on origin/main too, so they are no worse than before; no check was 
 2. git called by a full path: `/usr/bin/git bisect run ...`.
 3. Other git paths that run commands: `git filter-branch --tree-filter ...`, and git config or aliases that run a program.
 4. An expansion as a plain argument: `git rebase "$X"`, `git difftool "$X"`. Its value could be an option.
+
+## No-push roles: gh issue, workflow and pr writes (T-0995)
+
+For qa, reviewer, pm, staff-engineer, scout and evaluator (researcher already refuses them), `gh` writes through these subcommands exit 2: `gh issue create|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop`, `gh workflow run|enable|disable`, `gh pr create|edit|close|reopen|ready|review|merge|lock|unlock|update-branch|revert`, also after `gh -R a/b`, `bash -c`, inline interpreter code and `xargs`. `gh pr comment` stays allowed for reviewer and qa only (their contract posts the summary with it) and exits 2 for the other four. Read forms (list, view, status, diff, checks, `gh api` GET) stay exit 0. Coder, judge, cleaner, HQ and researcher behave as on origin/main. Tests: `tests/test_worker_guard_nopush_gh_writes.py`. Go mirror follow-up in G-016.
+
+## Declared limits: no-push gh writes (T-0995)
+
+These still exit 0 and are no worse than origin/main; the hook is defense in depth, the sandbox and worker PAT are the boundary.
+
+1. gh subcommand groups outside issue, workflow and pr: run, label, secret, variable, gist, cache, alias and others.
+2. A verb only known at run time: `gh issue $X`, `echo create | xargs gh issue`.
+3. `gh pr comment` inside inline interpreter code for pm, staff-engineer, scout and evaluator (it is kept out of the inline scan so reviewer and qa can use it).
