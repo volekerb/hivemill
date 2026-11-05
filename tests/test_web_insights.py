@@ -369,6 +369,16 @@ class TestCostPerMergedPR(TestUnattendedShare):
         self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (10.0, 1, 2))
         self.assertIn("2 left out", html)
 
+    def test_part_priced_task_is_left_out(self):
+        rows = []
+        self.merged("T-1")
+        self.attach("T-1", "s1", rows)
+        self.merged("T-2")
+        self.attach("T-2", "s2", rows)
+        rows.append(self.row("s2", model="unpriced-model"))     # T-2 has one priced and one unpriced row
+        d, _ = self.cost_page(self.snap(rows))
+        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (10.0, 1, 1))
+
     def test_cursor_org_task_adds_nothing_and_org_cursor_shows_hours_only(self):
         rows = []
         self.merged("T-1")

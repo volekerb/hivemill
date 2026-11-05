@@ -77,7 +77,8 @@ def _cost(ctx, items, org, days):
     if not claude_ids:
         return out
     by_task = wtokens.rollup(snap, wtokens.attribute(snap, ctx.db))["by_task"]
-    costs = [by_task[t]["cost"] for t in claude_ids if t in by_task and by_task[t]["cost"] is not None]
+    costs = [by_task[t]["cost"] for t in claude_ids if t in by_task and by_task[t]["cost"] is not None
+             and not by_task[t]["cost_unknown"]]     # a part-priced task has a partial cost: left out too
     out["priced"], out["left_out"] = len(costs), len(claude_ids) - len(costs)
     if costs:
         out["figure"] = round(sum(costs) / len(costs), 4)
