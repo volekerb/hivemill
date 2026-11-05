@@ -122,6 +122,22 @@ class ConfigExpansionTests(unittest.TestCase):
         # unchanged from origin/main: their older no-push check already refuses a token containing `$` (exit 2)
         self.check([r"git config --get-regexp '^remote\..*\.url$'"], 2, roles=("reviewer", "qa", "pm"), text=False)
 
+    # Exits measured on origin/main (abdc5027c's parent 1723dd6b1 + merge) through the same hook, reviewer=qa=pm:
+    # --get-regexp 'alias.*' 0, --get-regexp '^alias\.' 0, ALIAS_FORM 2.
+    def test_other_roles_get_regexp_glob_unchanged(self):
+        self.check(["git config --get-regexp 'alias.*'"], 0, roles=("reviewer", "qa", "pm"))
+
+    def test_other_roles_get_regexp_anchored_unchanged(self):
+        self.check([r"git config --get-regexp '^alias\.'"], 0, roles=("reviewer", "qa", "pm"))
+
+    def test_other_roles_alias_form_unchanged(self):
+        self.check([ALIAS_FORM], 2, roles=("reviewer", "qa", "pm"), text=False)
+
+    def test_value_option_glob_before_action_flag_refused(self):
+        # tightened for every non-HQ role: origin/main exits 0 for all of these, head exits 2
+        cmds = ["git config --file al* --get k", "git config -f al* --get k", "git config --file=al* --get k"]
+        self.check(cmds, 2, roles=WRITERS + ("reviewer", "qa", "pm"), text=False)
+
     def test_hq_unchanged(self):
         self.check(["git config --get $KEY", r"git config --get-regexp '^remote\..*\.url$'"], 0, roles=("lead",), hq=True)
 
