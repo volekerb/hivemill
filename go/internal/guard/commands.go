@@ -905,7 +905,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	}
 	if name == "uv" || name == "uvx" { // T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
-		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns); err != nil {
+		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns, stdin); err != nil {
 			return err
 		}
 	}

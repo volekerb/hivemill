@@ -69,3 +69,15 @@ func TestStdinScanEchoPipe(t *testing.T) {
 		t.Fatalf("expected block, pipeSrc=%q", a.pipeSrc)
 	}
 }
+
+func TestStdinScanPythonExtractUnicode(t *testing.T) {
+	const nbsp = "\u00a0"
+	for _, cmd := range []string{
+		"python3 - <<'EOF'\nimport zipfile; zipfile.ZipFile('a').extract" + nbsp + "(\"x\")\nEOF",
+		"python\u0663 - <<'EOF'\nimport zipfile; zipfile.ZipFile('a').extractall('x')\nEOF",
+	} {
+		if err := Check(cmd, "", "qa", false); err == nil {
+			t.Fatalf("qa %q: allowed, want archive stdin block", cmd)
+		}
+	}
+}

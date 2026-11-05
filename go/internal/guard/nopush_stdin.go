@@ -1,18 +1,13 @@
 package guard
 
 import (
-	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // T-0882 (worker-guard.py:stdin_program, stdin_scan): NO_PUSH_ROLES may not feed an interpreter program on stdin
 // (heredoc, here-string, echo/printf pipe, cat heredoc pipe) that launches git push or a gh write, or (python)
 // extracts an archive.
-
-var (
-	rePythonInterpName = regexp.MustCompile(`^python[\d.]*\n?$`)
-	reExtractArchive   = regexp.MustCompile(`extractall|extract\s*\(|unpack_archive`)
-)
 
 // stdinChannel is worker-guard.py:Analyzer.cmd's stdin= tuple: piped flag, here-string/heredoc bodies, echo|printf|cat literal.
 type stdinChannel struct {
@@ -62,12 +57,37 @@ func (a *Analyzer) scanInlineText(name, t, what string) error {
 	return nil
 }
 
+// stdinExtractArchive matches worker-guard.py stdin_scan's re.search(r"extractall|extract\s*\(|unpack_archive", text).
+func stdinExtractArchive(text string) bool {
+	if strings.Contains(text, "extractall") || strings.Contains(text, "unpack_archive") {
+		return true
+	}
+	const needle = "extract"
+	for i := 0; i <= len(text)-len(needle); i++ {
+		if text[i:i+len(needle)] != needle {
+			continue
+		}
+		p := i + len(needle)
+		for p < len(text) {
+			r, w := utf8.DecodeRuneInString(text[p:])
+			if r == '(' {
+				return true
+			}
+			if !pyIsSpace(r) {
+				break
+			}
+			p += w
+		}
+	}
+	return false
+}
+
 // stdinScan is a port of Analyzer.stdin_scan.
 func (a *Analyzer) stdinScan(name, text string) error {
 	if err := a.scanInlineText(name, text, "stdin code"); err != nil {
 		return err
 	}
-	if rePythonInterpName.MatchString(name) && reExtractArchive.MatchString(text) {
+	if isPythonName(name) && stdinExtractArchive(text) {
 		return blockf("`" + name + "` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); " +
 			"use unzip -d or tar -C")
 	}

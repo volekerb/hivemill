@@ -23,7 +23,7 @@ func uvInner(name string, rest []string) []string {
 
 // uvCheck is a port of Analyzer.uv_check (T-0880): `uv run [opts] [--] CMD...` / `uvx [opts] CMD...` is checked like
 // CMD run directly, for the coder and the no-push roles only.
-func (a *Analyzer) uvCheck(name string, rest []string, depth int, piped, inLoose bool, hstrs, assigns []string) error {
+func (a *Analyzer) uvCheck(name string, rest []string, depth int, piped, inLoose bool, hstrs, assigns []string, stdin *stdinChannel) error {
 	if a.HQ || !(a.Role == "coder" || in(noPushRoles, a.Role)) {
 		return nil
 	}
@@ -64,7 +64,8 @@ func (a *Analyzer) uvCheck(name string, rest []string, depth int, piped, inLoose
 		}
 	}
 	if i < len(words) {
-		return a.cmd(words[i:], depth+1, piped, inLoose, hstrs, assigns, nil)
+		ch := a.activeStdin(stdin, piped, hstrs)
+		return a.cmd(words[i:], depth+1, piped, inLoose, hstrs, assigns, &ch)
 	}
 	return nil
 }
