@@ -12853,7 +12853,7 @@ def judge_status_only_hold(con, task_id):
 
 
 def judge_verdicts_stale(con, t, clock):
-    """T-1098: why the latest reviewer and QA PASS do not both hold for the PR's CURRENT head, else None. A PASS recorded on an older head
+    """T-1098: (throttle key part, why) when the latest reviewer and QA PASS do not both hold for the PR's CURRENT head, else None. A PASS recorded on an older head
     counts only when the T-0095 carry rule does (pure origin/main merges since): the same test the merge gate applies, so a judge
     never starts only to reject on head. Fails closed: an unreadable PR or an unverifiable carry is a reason. Local-gate projects
     (gate_cmd, decided from gate_runs) are not checked here."""
@@ -12861,7 +12861,7 @@ def judge_verdicts_stale(con, t, clock):
         return None
     pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
     if isinstance(pr, BaseException) or not isinstance(pr, dict) or not pr.get("headRefOid"):
-        return f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
+        return "head", f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
     sha, number = pr["headRefOid"], pr.get("number")
     wt = t["worktree"]
     git_repo = wt if wt and Path(wt).is_dir() else HOME
@@ -12876,10 +12876,10 @@ def judge_verdicts_stale(con, t, clock):
             try:
                 repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
                 carry[x] = verdict_carries(git_repo, x, sha, number, repo_url, owner_repo) if x else (False, "verdict has no head", None, [])
-            except (SystemExit, ValueError, KeyError) as e:
+            except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
                 carry[x] = (False, f"cannot verify: {e}", None, [])
         if not carry[x][0]:
-            return f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({carry[x][1]})"[:300]
+            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({carry[x][1]})"[:300]
     return None
 
 
@@ -12898,16 +12898,16 @@ def judge_autospawn_tick(con):
             continue
         if judge_hold(con, tid, behind_ok=True):
             continue
-        stale = judge_verdicts_stale(con, t, clock)
-        if stale:  # T-1098: both verdicts must hold on the current head; the review pass starts what is missing
-            key = f"judge-stale:{tid}:{stale}"
-            if not _throttled(con, key, clock, float("inf")):
-                _throttle_set(con, key, clock)
-                event(con, "task", tid, "judge-autospawn-wait", stale)
-            continue
         _o = org_for(con, t["goal_id"], tid)
         name = oname(con, _o, slug(f"judge-{tid}"))
         if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
+            continue  # cheap DB check first: the stale check below costs gh calls
+        stale = judge_verdicts_stale(con, t, clock)
+        if stale:  # T-1098: both verdicts must hold on the current head; the review pass starts what is missing
+            key = f"judge-stale:{tid}:{stale[0]}"  # fixed-shape key: no free-form reason text
+            if not _throttled(con, key, clock, REVIEW_WAIT_EVERY_S if stale[0] == "head" else float("inf")):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "judge-autospawn-wait", stale[1])
             continue
         if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
             break
@@ -14925,17 +14925,25 @@ def review_rerun_tick(con):
         head = _ci_remote_head(t["branch"], batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
-        if head and (_review_head_done(con, tid, head, clock) or _review_hold(con, t, head, clock)):
+        if head and _review_head_done(con, tid, head, clock):
+            continue
+        if head and _review_hold(con, t, head, clock):
+            _review_wait(con, t, head, "coder", "a coder agent of the task is queued, starting or live, or prcheck is not ok on the head", clock)
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
             continue
         sha = pr["headRefOid"]
-        if _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if _review_head_done(con, tid, sha, clock):
+            continue
+        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            _review_wait(con, t, sha, "ci", "CI is not green on the new head", clock)
             continue
         if _review_hold(con, t, sha, clock):
+            _review_wait(con, t, sha, "coder", "a coder agent of the task is queued, starting or live, or prcheck is not ok on the head", clock)
             continue
         if not _rerun_agents(con, tid, sha) and _review_verdict_fresh(con, tid, sha, clock):
+            _review_wait(con, t, sha, "verdict", "a lead-run round on this head just got its first verdict", clock)
             continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
@@ -14943,7 +14951,9 @@ def review_rerun_tick(con):
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
             name = _rerun_name(con, tid, role, sha)
-            if not gate(con, role=role)[0]:
+            g_ok, g_why = gate(con, role=role)[:2]
+            if not g_ok:
+                _review_wait(con, t, sha, "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
             try:
