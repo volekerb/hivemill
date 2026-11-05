@@ -49,9 +49,10 @@ class Base(FactoryTestCase):
     def tick(self, prs, gate_open=True, real_spawn=False, now=NOW, refuse=()):
         """prs: {pr url: (head sha, rollup, mergeStateStatus)}. Returns the fake spawn calls (empty with real_spawn)."""
         calls = []
+        self.probed = getattr(self, "probed", [])
         with self.env.load_factory() as f:
             con = f.db()
-            f._ci_wake_probe = lambda url, timeout: {
+            f._ci_wake_probe = lambda url, timeout: self.probed.append(url) or {
                 "number": int(url.rsplit("/", 1)[1]), "state": "OPEN", "headRefOid": prs[url][0], "statusCheckRollup": prs[url][1],
                 "mergeStateStatus": prs[url][2] if len(prs[url]) > 2 else "CLEAN"}
             f._ci_remote_heads = lambda: {f"factory/t-{int(u.rsplit('/', 1)[1]):04d}": v[0] for u, v in prs.items()}
@@ -259,6 +260,111 @@ class SkipTests(Base):
         self.assertEqual(self.tick({pr_url(1): (SHA, [])}, now=NOW + 3700), [])
         self.assertEqual(self.tick({pr_url(1): (SHA, [])}, now=NOW + 3800), [])
         self.assertEqual(len(self.mails("no CI checks%", to=LEAD)), 1)
+
+
+class FollowUpTests(Base):
+    def test_non_coder_in_review_task_with_a_red_pr_starts_and_mails_nothing(self):
+        for role in ("qa", "pm"):
+            self.env.sql("DELETE FROM tasks")
+            self.env.sql("DELETE FROM agents WHERE role='coder'")
+            self.task(coder=None)
+            self.env.sql("UPDATE tasks SET role=? WHERE id='T-0001'", (role,))
+            self.assertEqual(self.tick({pr_url(1): (SHA, RED)}), [], role)
+            self.assertEqual(self.env.sql("SELECT 1 FROM messages"), [], role)  # AC1: no mail of any subject from this path
+            self.assertEqual(self.starts(), [], role)
+            self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='coder-ci-resume'"), [])
+
+    def test_resume_dropped_after_a_runtime_change_reports_fresh(self):
+        self.task()
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='coder-t-0001'", (json.dumps({"runtime": "cursor"}),))
+        calls = self.tick({pr_url(1): (SHA, RED)})
+        self.assertEqual(len(calls), 1)
+        self.assertIn("fresh session", calls[0]["prompt"])
+        ev = self.env.sql("SELECT detail FROM events WHERE action='coder-ci-resume' AND entity_id='T-0001'")
+        self.assertEqual(json.loads(ev[0][0])["mode"], "fresh")
+        self.assertEqual(len(self.mails("coder restarted on red CI%", to=LEAD)), 1)
+        self.assertIn("(fresh)", self.mails("coder restarted on red CI%", to=LEAD)[0]["body"])
+        self.assertEqual(self.mails("CI red:%", to="coder-t-0001"), [])  # spawn sends the fresh kickoff itself
+
+    def test_goal_org_differs_from_the_stored_org_tick_and_spawn_agree_on_fresh(self):
+        # goal is claude; the prior row stored org=cursor runtime=cursor with a session. spawn keeps the stored org, so the
+        # tick must decide with that org too: no --resume on the start, event and mail say fresh (the kickoff is sent).
+        self.task()
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='coder-t-0001'", (json.dumps({"org": "cursor", "runtime": "cursor"}),))
+        fake = self.env.stub_bin / "agent"  # a cursor-runtime start needs an agent binary; CI runners have none
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
+        self.tick({pr_url(1): (SHA, RED)}, real_spawn=True)
+        argv = self.starts()
+        self.assertEqual(len(argv), 1, self.env.calls("herdr"))
+        self.assertNotIn("--resume", argv[0])  # a resume kept alongside a fresh kickoff is the bug: spawn would resume with no instructions
+        self.assertIn("--kind", argv[0])
+        self.assertEqual(argv[0][argv[0].index("--kind") + 1], "cursor")
+        with self.env.load_factory() as f:  # spawn's own org for this row is the stored one
+            prior = f.db().execute("SELECT * FROM agents WHERE name='coder-t-0001'").fetchone()
+            self.assertEqual(f.spawn_org(f.db(), prior, "coder-t-0001", "G-001", "T-0001"), "cursor")
+        ev = self.env.sql("SELECT detail FROM events WHERE action='coder-ci-resume' AND entity_id='T-0001'")
+        self.assertEqual(json.loads(ev[0][0])["mode"], "fresh")
+        self.assertIn("(fresh)", self.mails("coder restarted on red CI%", to=LEAD)[0]["body"])
+
+    def test_unreadable_closed_dirty_and_no_checks_prs_cost_one_probe_per_window(self):
+        cases = {"dirty": (SHA, RED, "DIRTY"), "nochecks": (SHA, [])}
+        for label, pr in cases.items():
+            with self.subTest(label):
+                self.env.sql("DELETE FROM tasks")
+                self.env.sql("DELETE FROM agents WHERE role='coder'")
+                self.env.sql("DELETE FROM throttle")
+                self.probed = []
+                self.task()
+                self.tick({pr_url(1): pr}, now=NOW)
+                self.tick({pr_url(1): pr}, now=NOW + 30)
+                self.assertEqual(len(self.probed), 1)
+                self.tick({pr_url(1): pr}, now=NOW + 300)  # window over: probed again
+                self.assertEqual(len(self.probed), 2)
+        for label, state in (("closed", "CLOSED"), ("error", None)):
+            with self.subTest(label):
+                self.env.sql("DELETE FROM tasks")
+                self.env.sql("DELETE FROM agents WHERE role='coder'")
+                self.env.sql("DELETE FROM throttle")
+                self.probed = []
+                self.task()
+                self.tick_probe(state, NOW)
+                self.tick_probe(state, NOW + 30)
+                self.assertEqual(len(self.probed), 1)
+
+    def tick_probe(self, state, now):
+        with self.env.load_factory() as f:
+            con = f.db()
+            def probe(url, timeout):
+                self.probed.append(url)
+                return OSError("gh down") if state is None else {"number": 1, "state": state, "headRefOid": SHA, "statusCheckRollup": RED}
+            f._ci_wake_probe = probe
+            f._ci_remote_heads = lambda: {"factory/t-0001": SHA}
+            f.digest_clock = lambda: f.dt.datetime.fromtimestamp(now, f.dt.timezone.utc)
+            f.coder_ci_resume_tick(con)
+            con.commit()
+
+    def test_new_head_on_a_throttled_pr_is_probed_on_the_next_tick(self):
+        self.task()
+        self.probed = []
+        self.tick({pr_url(1): (SHA, [])}, now=NOW)
+        self.tick({pr_url(1): (SHA, [])}, now=NOW + 30)
+        self.assertEqual(len(self.probed), 1)
+        self.tick({pr_url(1): (SHA2, RED)}, now=NOW + 60)  # new head, still inside the window
+        self.assertEqual(len(self.probed), 2)
+        self.assertEqual(len(self.starts_from_events()), 1)
+
+    def starts_from_events(self):
+        return self.env.sql("SELECT 1 FROM events WHERE action='coder-ci-resume' AND entity_id='T-0001'")
+
+    def test_cursor_runtime_with_session_and_worktree_spawns_fresh_without_resume(self):
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        self.task()
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='coder-t-0001'", (json.dumps({"runtime": "cursor"}),))
+        calls = self.tick({pr_url(1): (SHA, RED)})
+        self.assertEqual(len(calls), 1)
+        self.assertIsNone(calls[0]["resume"])
+        self.assertIn("fresh session", calls[0]["prompt"])
 
 
 class WorktreeTests(Base):
