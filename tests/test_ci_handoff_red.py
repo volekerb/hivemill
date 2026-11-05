@@ -106,7 +106,6 @@ class ResumeTests(Base):
             with self.subTest(kw=kw):
                 self.env.sql("DELETE FROM agents WHERE role='coder'")
                 self.env.sql("DELETE FROM tasks")
-                self.env.sql("DELETE FROM agents WHERE role='coder'")
                 self.env.sql("DELETE FROM throttle")
                 self.task(**kw)
                 calls = self.tick({pr_url(1): (SHA, RED)})
