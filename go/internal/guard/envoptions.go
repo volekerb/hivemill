@@ -65,9 +65,7 @@ func envOptions(words []string) []parsedEnvOpt {
 			return ""
 		}
 		if strings.HasPrefix(q[0], "-") {
-			w := q[0]
-			q = q[1:]
-			return w
+			return q[0] // peek only; a dash word is never consumed as a value (T-0964)
 		}
 		return val()
 	}
