@@ -684,6 +684,8 @@ class Parser(argparse.ArgumentParser):
     def error(self, message):
         if message.startswith("unrecognized arguments"):  # never echo a rejected value: it may be a token
             message = "unrecognized option (values are not echoed)"
+        elif message.startswith("argument ") and ": invalid " in message:  # argparse quotes the bad value
+            message = message.split(": invalid ", 1)[0] + ": invalid value (not echoed)"
         raise Stop(2, "usage error: %s\n%s" % (message, self.format_usage().strip()))
 
 

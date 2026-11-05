@@ -235,6 +235,13 @@ class TestModes(Base):
         self.assertEqual(p.returncode, 2)
         self.assertNotIn(TOKEN, p.stdout + p.stderr)
 
+    def test_real_entry_point_never_echoes_a_bad_option_value(self):
+        for opt in ("--port", "--max-agents"):
+            p = subprocess.run([sys.executable, SCRIPT, "--dry-run", opt, TOKEN], stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
+            self.assertEqual(p.returncode, 2, opt)
+            self.assertNotIn(TOKEN, p.stdout + p.stderr, opt)
+
     def test_real_entry_point_refuses_inside_an_agent_pane(self):
         env = dict(os.environ, FACTORY_AGENT="x", HOME=self.td_home())
         p = subprocess.run([sys.executable, SCRIPT, "--dry-run"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
