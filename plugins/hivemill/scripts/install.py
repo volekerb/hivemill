@@ -84,6 +84,15 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+class HttpsOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuses any redirect that leaves https, so a pinned-or-not download cannot be downgraded to plain http."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.lower().startswith("https://"):
+            raise urllib.error.URLError("refusing redirect away from https")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 class Host:
     """Everything that touches the machine. Tests replace it; --check and --dry-run only use the read methods."""
 
@@ -164,7 +173,8 @@ class Host:
             raise StepFail("refusing non-https download %s" % url)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
-            with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as f:
+            opener = urllib.request.build_opener(HttpsOnlyRedirect)
+            with opener.open(req, timeout=60) as r, open(dest, "wb") as f:
                 shutil.copyfileobj(r, f)
         except urllib.error.HTTPError as e:
             raise StepFail("HTTP %s for %s" % (e.code, url))
@@ -347,6 +357,7 @@ def preflight(c):
         raise Stop(1, "refusing to run as root: run this as your normal user (it never uses elevated rights)")
     if h.environ.get("FACTORY_AGENT"):
         raise Stop(1, "FACTORY_AGENT is set: this is an agent pane. Run the installer in your own terminal")
+    check_prereqs(c)  # missing git must exit 3 before the first git call below
     if h.exists(c.fh):
         rc, out = c.read(["git", "-C", c.fh, "remote", "get-url", "origin"])
         if rc != 0 or norm_url(out.strip()) != norm_url(a.repo_url):

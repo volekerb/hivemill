@@ -351,6 +351,26 @@ class TestFailureModes(Base):
         self.assertNotIn("RESULT FAIL", out)
         self.assertIn("sudo apt-get install -y git python3", out)
 
+    def test_missing_git_with_existing_clone_exit_3(self):
+        self.make_install(db=True)  # preflight would call `git remote get-url` on the clone: must not run without git
+        h = self.host(tools=())
+        rc, out, _ = self.run_main(h, "--yes", "--resume")
+        self.assertEqual(rc, 3, out)
+        self.assertIn("apt-get install -y git python3", out)
+        self.assertNotIn("not a clone", out)
+
+    def test_redirect_leaving_https_refused(self):
+        """No network: call the handler directly with a downgrade target and with an https target."""
+        import urllib.error
+        import urllib.request
+        handler = ins.HttpsOnlyRedirect()
+        req = urllib.request.Request("https://claude.ai/install.sh")
+        with self.assertRaises(urllib.error.URLError) as cm:
+            handler.redirect_request(req, None, 302, "Found", {}, "http://evil.example/install.sh")
+        self.assertIn("refusing redirect", str(cm.exception))
+        ok = handler.redirect_request(req, None, 302, "Found", {}, "https://downloads.claude.ai/install.sh")
+        self.assertEqual(ok.full_url, "https://downloads.claude.ai/install.sh")
+
     def test_missing_git_real_host_exit_3(self):
         """The real Host (no fake answering git): an empty PATH makes git unrunnable."""
         with tempfile.TemporaryDirectory() as td:
