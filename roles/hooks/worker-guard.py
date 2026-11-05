@@ -4823,6 +4823,13 @@ def lead_hq_goal_show_guard(an, cmd):
             words = stripped
         if not words:
             return
+        if not in_loose:
+            saved_hq = an.hq
+            an.hq = True
+            try:
+                an.priv(words, depth, piped, hstrs)
+            finally:
+                an.hq = saved_hq
         w, rest = words[0], words[1:]
         name = os.path.basename(w)
         if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):

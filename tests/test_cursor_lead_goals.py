@@ -170,6 +170,46 @@ class LeadTeamGoalShowTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertIn("broad factory reads", p.stderr)
 
+    def test_lead_hq_script_hole_trap_and_git_blocked(self):
+        """Acceptance 15: cmd_goal_only runs priv before allow (trap body, git bang-alias, GIT_CMD_KEYS)."""
+        blocked = (
+            "trap 'factory goal show G-001' EXIT",
+            'bash -c "trap \'factory goal show G-001\' EXIT"',
+            "git -c alias.x='!factory goal show G-001' x",
+            "git -c core.pager='factory goal show G-001' status",
+            "git config alias.x '!factory goal show G-001'",
+        )
+        for cmd in blocked:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, self._lead_shell_argv())
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("broad factory reads", p.stderr)
+
+    def test_lead_hq_script_hole_trap_and_git_owned_allowed(self):
+        allowed = (
+            "trap 'factory goal show G-028' EXIT",
+            "git -c alias.x='!factory goal show G-028' x",
+        )
+        for cmd in allowed:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, self._lead_shell_argv())
+                self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_lead_hq_script_hole_trap_script_file(self):
+        with tempfile.TemporaryDirectory() as wd:
+            script = os.path.join(wd, "trap.sh")
+            with open(script, "w", encoding="utf-8") as f:
+                f.write("#!/bin/sh\ntrap 'factory goal show G-001' EXIT\n")
+            os.chmod(script, 0o755)
+            p = self.run_hook("./trap.sh", self._lead_shell_argv(), cwd=wd)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("broad factory reads", p.stderr)
+
+    def test_lead_non_hq_still_blocks_script_hole(self):
+        p = self.run_hook("trap 'factory goal show G-001' EXIT", ["--role", "lead"])
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("broad factory reads", p.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
