@@ -11277,6 +11277,40 @@ def owner_blockers(con):
     return out
 
 
+def owner_attention(con):
+    """The one narrow "needs the owner" selector (G-015 SC3, D7): [{kind, org, ref, since, link}], never a subject, title or
+    body. Five sources: owner-waiting blocked tasks, judge auto_merge=0 holds, open "owner action" escalations and the
+    closed /tmp gate (both via owner_blockers, so the open/answered rule cannot drift), blocked goals. Other boss mail,
+    proposed goals and internal-blocked tasks are not listed. owner_blockers writes a throttle row: tick-side callers only."""
+    out = []
+
+    def row(kind, org, ref, since, link):
+        out.append({"kind": kind, "org": org, "ref": ref, "since": since, "link": link})
+
+    for t in con.execute("SELECT id, goal_id, updated FROM tasks WHERE status='blocked' AND waits='owner' ORDER BY id"):
+        ev = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                         "AND detail LIKE '%waits=owner%' ORDER BY id DESC LIMIT 1", (t["id"],)).fetchone()
+        row("task-owner-wait", org_for(con, goal=t["goal_id"]), t["id"], ev["ts"] if ev else t["updated"], f"/task/{t['id']}")
+    latest = {}
+    for e in con.execute("SELECT entity_id, ts, detail FROM events WHERE entity='task' AND action='judge-blocked' ORDER BY id"):
+        latest[e["entity_id"]] = e
+    for tid, e in latest.items():
+        t = con.execute("SELECT goal_id, status FROM tasks WHERE id=?", (tid,)).fetchone()
+        if t and t["status"] not in ("done", "cancelled") and "auto_merge=0" in (e["detail"] or ""):
+            row("judge-hold", org_for(con, goal=t["goal_id"]), tid, e["ts"], f"/task/{tid}")
+    for b in owner_blockers(con):
+        if b["key"].startswith("owner-blocker:M"):
+            mid = int(b["key"].rsplit("M", 1)[1])
+            m = con.execute("SELECT goal_id, task_id, recipient, created FROM messages WHERE id=?", (mid,)).fetchone()
+            row("escalation", org_for(con, goal=m["goal_id"], task=m["task_id"], sender=m["recipient"]), f"M{mid}",
+                m["created"], f"/goal/{m['goal_id']}" if m["goal_id"] else "/")
+        elif b["key"].startswith("owner-blocker:gate:"):
+            row("tmp-gate", "all", "tmp", b["since"], "/resources")
+    for g in con.execute("SELECT id, updated FROM goals WHERE status='blocked' ORDER BY id"):
+        row("goal-blocked", org_for(con, goal=g["id"]), g["id"], g["updated"], f"/goal/{g['id']}")
+    return out
+
+
 def owner_blocker_nudge(con, blockers):
     """The one night exception to "the tick never prompts the boss pane": prompt it once per alerted night blocker, like
     step 3 does for other agents (idle/done only, never into a running turn; retried each tick until delivered)."""
