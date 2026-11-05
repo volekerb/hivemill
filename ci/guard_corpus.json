@@ -14866,6 +14866,10 @@
    "role": "coder"
   },
   {
+   "cmd": "env --sp='ls -l'",
+   "role": "coder"
+  },
+  {
    "cmd": "env -S '\"-u\" FACTORY_ROLE' ls",
    "role": "coder"
   },
@@ -15058,6 +15062,18 @@
    "role": "coder"
   },
   {
+   "cmd": "env -S 'ls -l'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '\"ls\" -l'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"'-u FACTORY_ROLE'\" ls",
+   "role": "coder"
+  },
+  {
    "cmd": "env -S ls",
    "role": "coder"
   },
@@ -15223,6 +15239,10 @@
   },
   {
    "cmd": "env -S 'ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S 'git status'",
    "role": "qa"
   },
   {

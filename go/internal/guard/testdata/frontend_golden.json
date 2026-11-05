@@ -79250,6 +79250,48 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "env --sp='ls -l'",
+"mask_quotes_pre": "env --sp='QQQQQ'",
+"mask_quotes_raw": "env --sp='QQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env --sp='ls -l'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env --sp='ls -l'"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"env",
+"--sp='QQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"env",
+"--sp='QQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "env -S '\"-u\" FACTORY_ROLE' ls",
 "mask_quotes_pre": "env -S 'QQQQQQQQQQQQQQQQQ' ls",
 "mask_quotes_raw": "env -S 'QQQQQQQQQQQQQQQQQ' ls",
@@ -81568,6 +81610,140 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "env -S 'ls -l'",
+"mask_quotes_pre": "env -S 'QQQQQ'",
+"mask_quotes_raw": "env -S 'QQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -S 'ls -l'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -S 'ls -l'"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"env",
+"-S",
+"'QQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"env",
+"-S",
+"'QQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -S '\"ls\" -l'",
+"mask_quotes_pre": "env -S 'QQQQQQQ'",
+"mask_quotes_raw": "env -S 'QQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -S '\"ls\" -l'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -S '\"ls\" -l'"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"env",
+"-S",
+"'QQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"env",
+"-S",
+"'QQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -S \"'-u FACTORY_ROLE'\" ls",
+"mask_quotes_pre": "env -S \"QQQQQQQQQQQQQQQQQ\" ls",
+"mask_quotes_raw": "env -S \"QQQQQQQQQQQQQQQQQ\" ls",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -S \"'-u FACTORY_ROLE'\" ls"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -S \"'-u FACTORY_ROLE'\" ls"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"env",
+"-S",
+"\"QQQQQQQQQQQQQQQQQ\"",
+"ls"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"env",
+"-S",
+"\"QQQQQQQQQQQQQQQQQ\"",
+"ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "env -S ls",
 "mask_quotes_pre": "env -S ls",
 "mask_quotes_raw": "env -S ls",
@@ -83356,6 +83532,50 @@
 "env",
 "--split-string",
 "ls"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "env -S 'git status'",
+"mask_quotes_pre": "env -S 'QQQQQQQQQQ'",
+"mask_quotes_raw": "env -S 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "env -S 'git status'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "env -S 'git status'"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"env",
+"-S",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"env",
+"-S",
+"'QQQQQQQQQQ'"
 ]
 ]
 ],
@@ -116039,7 +116259,7 @@
 ]
 }
 },
-"corpus_commands": 2060,
+"corpus_commands": 2065,
 "edge_inputs": 97,
 "python": "3.13"
 }
