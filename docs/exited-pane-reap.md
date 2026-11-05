@@ -27,7 +27,14 @@ same tick. A host pane whose `agent_session` names a session other than the row'
 a newer agent under this name; `relaunch_agent` makes the same check). When the host reports no session (most
 workers), the pane is closed only when the host `agent_status` is `done` or `idle` (never `working`) and the host pane's
 cwd equals the row's recorded `cwd` (a ` (deleted)` suffix is ignored); anything else is kept. Other rows, old `lost`
-ones included, do not block it.
+ones included, do not block it. In this no-session branch the pane is also kept when another `live` or `starting` row
+has the same `cwd` (T-1118; `stopped` rows do not count). Every would-close/closed event carries `branch`: `session`
+or `cwd`, the check that decided.
+
+Stop leftovers (T-1118): when `factory stop --now` or the tick's force stop finds that the host lists no agent under
+the row's name but still lists the row's pane id, it closes that pane only if no host agent carries the id, no other
+live/starting/queued row holds it and its foreground is a plain shell (`leftover-shell-closed`). Otherwise it keeps the
+pane and logs one `leftover-shell-kept` event naming the reason. Tests: `tests/test_leftover_shell.py`.
 Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and
 non-exited rows are never touched. Tests: `tests/test_exited_pane_reap.py`.
 

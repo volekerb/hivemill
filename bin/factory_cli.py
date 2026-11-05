@@ -1131,6 +1131,35 @@ def close_named_pane(con, name, pane):
     return "closed", h["pane_id"]
 
 
+def close_leftover_shell(con, name, pane):
+    """T-1118: a stopped agent's pane id is still listed but the host names no agent under it (the agent is gone, a bare
+    shell is left; close_named_pane skipped it). Close it only when no agent on the host carries that pane id, its
+    foreground is a plain shell and no live/starting/queued row holds the id. Anything else is kept and one
+    "leftover-shell-kept" event names why. Returns "closed", "kept" or "unknown"."""
+    def keep(reason):
+        event(con, "agent", name, "leftover-shell-kept", {"agent": name, "pane": pane, "reason": reason})
+        return "kept"
+    listed = herdr_agents()
+    gone = pane_gone(pane)
+    if listed is None or gone is None:
+        return "unknown"
+    if gone is True:
+        return "closed"
+    holder = next((x.get("name") for x in listed if x.get("pane_id") == pane), None)
+    if holder:
+        return keep(f"pane held by agent {holder}")
+    if con.execute("SELECT 1 FROM agents WHERE pane_id=? AND name!=? AND status IN ('live','starting','queued')",
+                   (pane, name)).fetchone():
+        return keep("pane id held by another live row")
+    if not pane_at_shell(pane):
+        return keep("pane foreground is not a plain shell")
+    herdr("pane", "close", pane, check=False)
+    if pane_gone(pane) is True:
+        event(con, "agent", name, "leftover-shell-closed", {"agent": name, "pane": pane})
+        return "closed"
+    return keep("close issued but the host still lists the pane")
+
+
 def herdr_workspaces():
     r = herdr("workspace", "list", check=False)
     return {w["workspace_id"]: w for w in (r or {}).get("workspaces", [])}
@@ -7049,7 +7078,8 @@ def reap_exited_panes(con, agents):
     stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
     the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
     names no session, the pane closes only if its agent_status is done/idle (never working) and its cwd equals the row's
-    recorded cwd (' (deleted)' suffix ignored).
+    recorded cwd (' (deleted)' suffix ignored) and no other live/starting row has that same cwd (T-1118); the event
+    detail's "branch" says which check decided ("session" or "cwd").
     Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
@@ -7072,8 +7102,12 @@ def reap_exited_panes(con, agents):
             sess = (h.get("agent_session") or {}).get("value")
             if sess and sess != r["session_id"]:
                 continue  # the pane runs another session (a newer agent under this name): never ours to close
+            branch = "session" if sess else "cwd"
             if not sess and not _pane_idle_in_cwd(h, pane, r["cwd"]):
                 continue  # session unknown: only an idle/done pane sitting in this row's own cwd is provably its leftover
+            if not sess and con.execute("SELECT 1 FROM agents WHERE cwd=? AND name!=? AND status IN ('live','starting')",
+                                        (r["cwd"], name)).fetchone():
+                continue  # T-1118: a live peer shares the cwd, so the cwd cannot tell the panes apart: keep it
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
@@ -7082,7 +7116,7 @@ def reap_exited_panes(con, agents):
                 continue  # the pane id was handed to a newer live agent
             if pane_gone(pane) is not False:
                 continue  # the tick's list is stale (e.g. its reap loop just closed it) or the host cannot be asked
-            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"]}
+            detail = {"agent": name, "pane": pane, "role": r["role"], "ended": r["ended"], "branch": branch}
             key = json.dumps({"agent": name, "pane": pane})[:-1] + ","
 
             def seen(action):
@@ -10123,6 +10157,7 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
                 gone = None  # the host cannot be asked: nothing closed, the stop is retried
             elif st == "not-found":
                 gone = True  # no host pane under this name (today's no-pane path); the process check below decides
+                close_leftover_shell(con, name, pane)  # T-1118: the id may still list a bare shell; close it or say why not
             end = time.time() + wait
             while st == "closed":  # confirm: the host must stop listing the pane it closed
                 gone = pane_gone(hp)
