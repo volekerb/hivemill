@@ -571,6 +571,34 @@ class SeedTests(GuardDiffCase):
             self.assertEqual(con.execute("SELECT key, value FROM config ORDER BY key").fetchall(), [("a", "1"), ("b", "2")])
             con.close()
 
+    def test_refresh_guard_export_if_stale_rewrites_old_generated_at(self):
+        import threading
+        from datetime import datetime, timedelta, timezone
+        with tempfile.TemporaryDirectory() as t:
+            home = guard_diff.make_seed_home(t, (("test_sandbox", "1"),), 0)
+            path = os.path.join(home, "run", "guard-export.json")
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            doc["generated_at"] = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat(timespec="seconds")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+            guard_diff.refresh_guard_export_if_stale(home, threading.Lock())
+            with open(path, encoding="utf-8") as fh:
+                fresh = json.load(fh)
+            self.assertLess(guard_diff._export_age_seconds(fresh), guard_diff._GUARD_EXPORT_REFRESH_AFTER)
+
+    def test_refresh_guard_export_if_stale_leaves_fresh_timestamp(self):
+        import threading
+        with tempfile.TemporaryDirectory() as t:
+            home = guard_diff.make_seed_home(t, (("test_sandbox", "1"),), 0)
+            path = os.path.join(home, "run", "guard-export.json")
+            with open(path, encoding="utf-8") as fh:
+                before = fh.read()
+            guard_diff.refresh_guard_export_if_stale(home, threading.Lock())
+            with open(path, encoding="utf-8") as fh:
+                after = fh.read()
+            self.assertEqual(before, after)
+
 
 class EnvTests(GuardDiffCase):
     """T-0871: a corpus entry's `env` map reaches both hook sides; an entry without it gets no injected FACTORY_AGENT."""
