@@ -229,6 +229,24 @@ class TestModes(Base):
                                stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
             self.assertEqual(p.returncode, 2, (argv, p.stderr))
 
+    def test_real_entry_point_never_echoes_a_rejected_token(self):
+        p = subprocess.run([sys.executable, SCRIPT, "--dry-run", "--gh-token", TOKEN], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
+        self.assertEqual(p.returncode, 2)
+        self.assertNotIn(TOKEN, p.stdout + p.stderr)
+
+    def test_real_entry_point_refuses_inside_an_agent_pane(self):
+        env = dict(os.environ, FACTORY_AGENT="x", HOME=self.td_home())
+        p = subprocess.run([sys.executable, SCRIPT, "--dry-run"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, universal_newlines=True, timeout=60, env=env)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("FACTORY_AGENT", p.stdout)
+
+    def td_home(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        return d.name
+
     def test_port_range_and_dash_ref_are_usage(self):
         self.assertEqual(self.run_main(self.host(), "--dry-run", "--port", "70000")[0], 2)
         self.assertEqual(self.run_main(self.host(), "--dry-run", "--ref", "--upload-pack=x")[0], 2)
