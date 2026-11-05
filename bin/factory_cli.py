@@ -7525,8 +7525,8 @@ def drift_pr_states(con):
 
 
 def tick_drift(con):
-    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live lead, else
-    the director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
+    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live (else parked) lead of the goal's org, else
+    the goal org's director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
     (DRIFT_GH_BUDGET_S, env FACTORY_DRIFT_GH_BUDGET_S) running out, leaves D2 unchecked; nothing here stops the tick."""
     try:
         t = time.time()
