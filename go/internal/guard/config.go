@@ -86,7 +86,7 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 		t := cfgExpand(substVars(w, a.vars))
 		if strings.ContainsAny(t, "$`*?[{") {
 			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") ||
-				strings.Contains(t, ".local/lib/factory") || strings.Contains(t, "run/guard_impl") {
+				strings.Contains(t, ".local/lib/factory") || strings.Contains(t, "run/guard_impl") || hasLocalBin(t) {
 				return true
 			}
 			if a.exportGlob(t) {
@@ -108,8 +108,49 @@ func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 				return true
 			}
 		}
+		for _, q := range []string{p, pyNormpath(full)} { // T-0957: the spelled path too (a symlink in ~/.local/bin)
+			for _, d := range h.binDirs {
+				if q == d || Under(q, d) || (ancestor && Under(d, q)) {
+					return true
+				}
+			}
+		}
 		for _, d := range h.runExport { // the file itself and its temp sibling <file>.tmp<pid>
 			if p == d || strings.HasPrefix(p, d+".") || (ancestor && Under(d, p)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasLocalBin is the T-0957 regex \.local/bin(?![A-Za-z0-9_]).
+func hasLocalBin(s string) bool {
+	const k = ".local/bin"
+	for i := 0; i+len(k) <= len(s); i++ {
+		if hasAt(s, i, k) {
+			n := nextRune(s, i+len(k))
+			if !(n >= 0 && asciiWord(n)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// inBinDir is Python's in_bin_dir (block message only).
+func (a *Analyzer) inBinDir(w string) bool {
+	t := cfgExpand(substVars(w, a.vars))
+	if t == "" || strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
+		return hasLocalBin(t)
+	}
+	full := t
+	if !strings.HasPrefix(t, "/") {
+		full = pyJoin(a.ccwd, t)
+	}
+	for _, q := range []string{pyRealpath(full), pyNormpath(full)} {
+		for _, d := range h0().binDirs {
+			if q == d || Under(q, d) {
 				return true
 			}
 		}
@@ -122,8 +163,8 @@ func (a *Analyzer) cfgRedirect(target string) error {
 	if a.cfgHit(target, false) {
 		return blockf("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live " +
 			"home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json (the guard's own " +
-			"decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation flag and binary); only the " +
-			"owner and the tick change them")
+			"decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation flag and binary) or " +
+			"~/.local/bin (first on the tick's PATH); only the owner and the tick change them")
 	}
 	return nil
 }
@@ -269,6 +310,10 @@ func (a *Analyzer) cfgWrite(name string, rest []string) error {
 				if strings.Contains(x, "guard_impl") || strings.Contains(x, ".local/lib/factory") || a.inGuardImpl(x) {
 					return blockf("`" + name + "` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the " +
 						"guard implementation; only the owner and `factory` change them")
+				}
+				if a.inBinDir(x) {
+					return blockf("`" + name + "` on ~/.local/bin: it is first on the tick's PATH, so a file there runs with " +
+						"the tick's credentials; only the owner changes it")
 				}
 				return blockf("`" + name + "` on ~/.config/factory: " + cfgWhy)
 			}

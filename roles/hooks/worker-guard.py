@@ -85,6 +85,10 @@ BROAD_READS = {"res": None, "agents": None, "scorecard": None, "digest": None, "
                "project": {"list"}, "lesson": {"list"}}
 PRIV_WORDS = {"sudo", "su", "doas", "pkexec", "docker"}
 FACTORY_BRANCH = re.compile(r"^factory/[A-Za-z0-9._/-]+$")
+GIT_PIN_FLAGS = {"-p", "--paginate", "-P", "--no-pager", "--no-replace-objects", "--bare", "--literal-pathspecs",
+                 "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--no-optional-locks",
+                 "--no-lazy-fetch", "--no-advice", "--html-path", "--man-path", "--info-path", "--version",
+                 "--help", "-v", "-h"}
 # wrappers whose options are modelled, so PRIV sees the command they run and not their option values:
 # name -> options that take a value (as a separate word)
 WRAP_VALUE_OPTS = {
@@ -155,7 +159,80 @@ PERSIST_CODE = re.compile(r"(?<![\w-])\.(?:gitconfig|bashrc|zshrc|zshenv|profile
 CFG_ENV_ASSIGN = re.compile(r"(?<![\w])(?:GIT_CONFIG\w*|HOME|XDG_CONFIG_HOME)=")
 PERSIST_EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 REMOTE_WRITE = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-branches"}
+# T-1035: `git config` read classifier. Git parses options with parse-options (unique abbreviations, value options that
+# eat the next word, `--`, short bundles); the guard does NOT mirror that. It proves a command is a read from an exact
+# table, and anything it cannot prove is a write (fail closed).
+CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l",
+                "--show-origin", "--show-scope", "--name-only", "--all", "--regexp", "--global", "--local", "--system",
+                "--worktree", "--null", "-z", "--bool", "--int", "--bool-or-int", "--bool-or-str", "--path",
+                "--expiry-date", "--includes", "--no-includes"}
+# T-1064: exact table of the output/scope modifiers that may also FOLLOW a positional (`--get alias.x --show-origin`,
+# `list --show-origin`, `get --all alias.x`). Action flags and everything else stay refused after a positional, so
+# `alias.x push --get` stays a refusal. `--regexp` is a `get` subcommand option: config_is_read accepts it only there.
+CONFIG_TRAILING = {"--show-origin", "--show-scope", "--name-only", "--all", "--regexp", "--global", "--local", "--system",
+                   "--worktree", "--null", "-z", "--bool", "--int", "--bool-or-int", "--bool-or-str", "--path",
+                   "--expiry-date", "--includes", "--no-includes"}
+CONFIG_PARSE_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
+# Mirrored by the Go port through go/internal/guard/testdata/frontend_golden.json (ci/guard_golden.py CONST_SETS); the
+# Python classifier no longer reads them. Values stay as they were until the Go mirror follow-up (G-016).
+# T-1064 v2: config_parse adds this marker to flags when an option follows the first positional.
+CONFIG_LATE = "\0late"
 CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
+CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
+               "--name-only"}
+CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section", "--remove-section"}
+CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l"}
+CONFIG_WORD_WRITE = {"set", "unset", "edit", "rename-section", "remove-section"}
+
+
+def config_parse(args):
+    """(flags, positionals) of `git config <args>`, or None when a token is outside the exact table (an abbreviation,
+    `--`, a short bundle, an unknown option, a value option without its value) or a positional precedes a flag."""
+    flags, pos, k = [], [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        if a in CONFIG_FLAGS and (not pos or a in CONFIG_TRAILING):
+            flags.append(a)
+            if pos:
+                flags.append(CONFIG_LATE)
+        elif a in CONFIG_PARSE_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_PARSE_VALUE_OPTS and "=" in a):
+            if pos:
+                flags.append(CONFIG_LATE)
+            if "=" not in a:
+                if k >= len(args):
+                    return None
+                k += 1
+        elif a.startswith("-") and a != "-":
+            return None
+        else:
+            pos.append(a)
+    return flags, pos
+
+
+def config_is_read(args):
+    """True only when `git config <args>` is PROVEN a read: exact-table options only, no write flag, and either one
+    action flag, a leading get/list word, or no action with at most one positional."""
+    parsed = config_parse(args)
+    if parsed is None:
+        return False
+    flags, pos = parsed
+    if "--regexp" in flags and pos[:1] != ["get"]:
+        return False
+    actions = [f for f in flags if f in CONFIG_ACTION_FLAGS]
+    if len(actions) > 1:
+        return False
+    if actions:
+        return len(pos) <= 2
+    if CONFIG_LATE in flags and pos[:1] not in (["get"], ["list"]):
+        return False  # git's legacy parser stops at the first non-option: a later option token is the VALUE, a write
+    if pos[:1] == ["get"]:
+        return len(pos) <= 3
+    if pos[:1] == ["list"]:
+        return len(pos) == 1
+    return len(pos) <= 1 and pos[:1] != ["set"] and not (pos and pos[0] in CONFIG_WORD_WRITE)
+
+
 PERSIST_WHY = ("it would persist config into the live box (git config keys like core.fsmonitor or diff.external, and "
                "shell init files, run later as the tick and other agents); only the owner changes ~/.gitconfig, "
                "~/.config/git and shell rc files")
@@ -246,6 +323,11 @@ RUN_SETTINGS = {os.path.realpath(os.path.join(h, "run", "settings")) for h in LI
 # RUN_SETTINGS and CFG_DIR (writers, redirects, cd + write); reads stay allowed.
 RUN_GUARD_IMPL = {os.path.realpath(os.path.join(h, "run", "guard_impl")) for h in LIVE_HOMES}
 LIB_DIR = os.path.realpath(os.path.join(PW_DIR, ".local", "lib", "factory"))
+# T-0957: ~/.local/bin is first on the tick's and factory-up's PATH, so a file a worker plants there (git, factory, go)
+# runs with their credentials. Protected like LIB_DIR, but matched on the path AS WRITTEN too: its entries are
+# symlinks (factory, claude) whose realpath is outside the tree. Reads and running stay allowed.
+BIN_DIR = os.path.join(PW_DIR, ".local", "bin")
+BIN_DIRS = {BIN_DIR, os.path.realpath(BIN_DIR)}
 # T-0883: run/guard-export.json (what the Go guard decides own goal, push pin, sandbox and terms file from) and its
 # atomic-rename temp sibling guard-export.json.tmp<pid>: a Bash write there forges the guard's own decisions
 RUN_EXPORT = {os.path.realpath(os.path.join(h, "run", "guard-export.json")) for h in LIVE_HOMES}
@@ -262,7 +344,203 @@ def _ancestors(path):
 
 
 EXPORT_ANCESTORS = set().union(*(_ancestors(d) for d in RUN_EXPORT))  # run/, the live home, ~, its parents, /
-CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
+# T-0925: protected trees for workers, one more layer over the cfg_* detector: ~/.local/go (the Go toolchain: its go.env
+# applies GOFLAGS even with GOENV=off) and ~/.config/go (go env -w), the guard trees above, and four trees INSIDE the live
+# checkout (go/, roles/hooks, roles/settings, bin/: the tick builds, runs and renders from them). Only these four, not the
+# whole live checkout. Reads and runs stay allowed; worktrees are not under them.
+PROT_LIVE_SUBDIRS = ("go", "roles/hooks", "roles/settings", "bin")
+PROT_MARKERS = (".local/go", ".config/go", ".local/lib/factory", ".config/factory", "roles/hooks", "roles/settings",
+                "run/settings", "run/guard_impl")  # an expansion we cannot resolve that spells one of these counts
+PROT_WHY = ("it is a protected tree for workers (~/.local/go and ~/.config/go: the Go toolchain and `go env -w`; ~/.local/bin: first on the tick's PATH; "
+            "~/.config/factory, ~/.local/lib/factory, <live>/run/settings, <live>/run/guard_impl: the guard; <live>/go, "
+            "<live>/bin, <live>/roles/hooks, <live>/roles/settings: what the tick builds, runs and renders); only the owner "
+            "and the tick change them. Work in your worktree")
+
+
+def prot_trees():
+    """Absolute paths of the protected trees, each spelled and resolved. The live homes are LIVE_HOMES, or the
+    WORKER_GUARD_LIVE_HOME override (tests only); never live_homes(): that adds the hook's own repo root (a CI checkout
+    or a coder's worktree copy), which a coder may write."""
+    override = os.environ.get("WORKER_GUARD_LIVE_HOME")
+    homes = {os.path.realpath(override)} if override else set(LIVE_HOMES)
+    base = [CFG_DIR, LIB_DIR, os.path.join(PW_DIR, ".config", "factory"), os.path.join(PW_DIR, ".local", "lib", "factory"),
+            os.path.join(PW_DIR, ".local", "go"), os.path.join(PW_DIR, ".config", "go")] + sorted(BIN_DIRS)  # T-0957 family
+    for h in homes:
+        base += [os.path.join(h, "run", "settings"), os.path.join(h, "run", "guard_impl")]
+        base += [os.path.join(h, *sub.split("/")) for sub in PROT_LIVE_SUBDIRS]
+    return sorted({q for b in base for q in (os.path.normpath(b), os.path.realpath(b))})
+
+
+def prot_path(p, ancestor=False):
+    """True when absolute, glob-free path `p` (spelled or resolved) is a protected tree, inside one, or (ancestor) holds one."""
+    trees = prot_trees()
+    return any(c == d or under(c, d) or (ancestor and under(d, c)) for c in {os.path.normpath(p), os.path.realpath(p)}
+               for d in trees)
+
+
+def prot_dest_indexes(args):
+    """B1: indexes of the words that can be the destination of cp/install/ln -s/rsync/dd. Options may trail the
+    destination (`cp a dest -f`, `install a dest -m 755`), so the last word is not enough: the last non-option word
+    counts, and so does the last non-option word before the trailing run of options and their values, when at least
+    two non-option words precede that run (a source and a destination)."""
+    n = len(args)
+    isopt = [a.startswith("-") and len(a) > 1 for a in args]
+    nonopt = [j for j in range(n) if not isopt[j]]
+    res = {n - 1} if n else set()
+    if nonopt:
+        res.add(nonopt[-1])
+    t = n
+    while t > 0 and (isopt[t - 1] or (t > 1 and isopt[t - 2])):  # the trailing run: options, each with one value word
+        t -= 1
+    pre = [j for j in nonopt if j < t]
+    if len(pre) >= 2:
+        res.add(pre[-1])
+    return res
+
+
+def long_opt(opt, *names):
+    """B5: GNU getopt accepts a unique prefix of a long option (`--dir=X` for --directory). True when `opt` (a `--word`,
+    without any =value) is one of `names` or a prefix of one, at least one letter long after the dashes; an ambiguous
+    prefix counts too."""
+    return opt.startswith("--") and len(opt) >= 3 and any(n.startswith(opt) for n in names)
+
+
+def target_dir_values(args):
+    """N2: the -t/--target-directory values of cp/install/ln, in every spelling: `-t V`, `-tV`, a cluster ending at t
+    (`-rt V`, `-rtV`), a long prefix (`--t V`, `--target-dir=V`). A cluster is walked left to right and stops at a
+    letter that takes a value (g m o S: `install -groot` has no target), so the letters after it are not options."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        if a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            if long_opt(opt, "--target-directory"):
+                if eq:
+                    out.append(val)
+                elif k < len(args):
+                    out.append(args[k])
+                    k += 1
+        elif a.startswith("-") and len(a) > 1:
+            for i, ch in enumerate(a[1:], 1):
+                if ch == "t":
+                    if a[i + 1:]:
+                        out.append(a[i + 1:])
+                    elif k < len(args):
+                        out.append(args[k])
+                        k += 1
+                    break
+                if ch in "gmoS":
+                    break
+    return out
+
+
+TAR_VALUE_LETTERS = "fCgTXFLbHVIKN"  # tar --help: the short options that take a value
+
+
+def tar_mode_letters(word, old):
+    """N2: the letters of a tar bundle that can be modes. `-czf~/x.tar`: up to and including the first value letter (the
+    rest is that option's value). The old style first word (`tar fc a.tar`) takes its values from the following words,
+    so the whole word is scanned."""
+    letters = word[1:]
+    if old:
+        return letters
+    for i, ch in enumerate(letters):
+        if ch in TAR_VALUE_LETTERS:
+            return letters[:i + 1]
+    return letters
+
+
+def prot_glob(p, ancestor=False):
+    """True when glob pattern `p` (absolute) can match a protected tree, a path inside one or (ancestor) a path holding
+    one: each component is fnmatched against the tree's, so `~/.local/fact*/x` and `<live>/rol*/hooks/y` match. B6: a
+    `**` component stands for any number of components (zero included)."""
+    pat = os.path.normpath(p).strip("/").split("/")
+
+    def m(i, j, parts):
+        if j == len(parts):
+            return True  # the whole tree is matched: the pattern names it or something inside it
+        if i == len(pat):
+            return ancestor
+        if pat[i] == "**":
+            return m(i + 1, j, parts) or m(i, j + 1, parts)
+        return fnmatch.fnmatchcase(parts[j], pat[i]) and m(i + 1, j + 1, parts)
+
+    return any(m(0, 0, d.strip("/").split("/")) for d in prot_trees())
+
+
+def prot_edit_path(p):
+    """persist_edit side (T-0925 gap g): p is a file_path of Write/Edit/MultiEdit/NotebookEdit."""
+    if any(c in p for c in "$`"):
+        return any(m in p for m in PROT_MARKERS) or bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", p))
+    return prot_path(p)
+
+
+def tar_dirs(args):
+    """-C/--directory targets of tar, also in a bundle (`-xCf DIR a.tar`, `xfC a.tar DIR`): every letter C or f takes a
+    word, so the glued rest and the next words are all candidates (over-approximate; options are skipped)."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        if a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            if long_opt(opt, "--directory"):
+                if eq:
+                    out.append(val)
+                elif k < len(args):
+                    out.append(args[k])
+                    k += 1
+        elif a.startswith("-") and "C" in a[1:]:
+            letters = a[1:]
+            rem = letters[letters.index("C") + 1:]
+            if rem:
+                out.append(rem)
+            n = sum(1 for ch in letters if ch in "Cf")
+            out += [w for w in args[k:k + n] if not w.startswith("-")]
+    return out
+
+
+def unzip_dirs(args):
+    """-d targets of unzip, also bundled (`-qd DIR`, `-qodDIR`)."""
+    out = []
+    for k, a in enumerate(args):
+        if a.startswith("-") and not a.startswith("--") and "d" in a[1:]:
+            rem = a[a.index("d") + 1:]
+            if rem:
+                out.append(rem)
+            elif k + 1 < len(args):
+                out.append(args[k + 1])
+    return out
+
+
+def opt_values(args, letters="", longs=()):
+    """Values of the options named in `longs` (exact word, as --output X, --output=X, -o X) and of the single-dash
+    letters in `letters` (curl -o X, -oX, -sSLo X: glued, or the next word), in the order they appear."""
+    out, k = [], 0
+    while k < len(args):
+        a = args[k]
+        k += 1
+        opt, eq, val = a.partition("=")
+        if opt in longs or long_opt(opt, *longs):
+            if eq:
+                out.append(val)
+            elif k < len(args):
+                out.append(args[k])
+                k += 1
+        elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
+            for i, ch in enumerate(a[1:], 1):
+                if ch in letters:
+                    if a[i + 1:]:
+                        out.append(a[i + 1:])
+                    elif k < len(args):
+                        out.append(args[k])
+                        k += 1
+                    break
+    return out
+
+
+CFG_CODE = re.compile(r"\.config/factory|\.local/lib/factory|\.local/bin(?![A-Za-z0-9_])|run/guard_impl|run/settings|guard-export|(?<![A-Za-z0-9_])live_home(?![A-Za-z0-9_])")
 HOOK_REAL = os.path.realpath(__file__)
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "ash", "fish", "csh", "tcsh", "rbash"}
 INTERPRETERS = re.compile(r"^(python[\d.]*|perl|ruby|node|nodejs|php|lua|deno|bun)$")
@@ -323,10 +601,6 @@ BRANCH_LIST_LONG = {"--list", "--all", "--remotes"}
 BRANCH_PLAIN_LONG = {"--show-current", "--verbose", "--ignore-case", "--color", "--no-color", "--column",
                      "--no-column", "--abbrev", "--no-abbrev", "--quiet"}
 BRANCH_VALUE_LONG = {"--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort", "--format"}
-CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin",
-               "--show-scope", "--name-only"}
-CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section",
-                "--remove-section"}
 # T-0755: read-only git allow-list for NO_PUSH_ROLES (git_allow); anything not listed fails closed
 GIT_OPTS_ALLOWED = {"-P", "--no-pager", "--no-optional-locks", "--version", "--help"}
 GIT_ALLOW_PLAIN = (GIT_READ_ONLY - {"fetch", "ls-remote"}) | {"merge-tree"}
@@ -340,6 +614,46 @@ GIT_CONFIG_ENV = re.compile(r"^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VA
 GIT_SENSITIVE_ENV = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)(\+?=.*)?$")  # T-0788: zsh `path` is tied to PATH
 PROTECTED_NAME = re.compile(r"^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_\w*)$")  # T-0788: zsh `path` is tied to PATH
 PARAM_DEFAULT = re.compile(r"\$\{(!?[A-Za-z_]\w*):{0,2}=")  # ${VAR:=x} / ${VAR=x} assign VAR (T-0771)
+# T-0808 F2: python long options that may precede -m (value-taking ones named separately); any other fails closed
+PY_LONG_FLAG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
+PY_LONG_VALUE = {"--check-hash-based-pycs"}
+# T-0808 F5: an inline interpreter program may write anything, so it counts as a filesystem change. Non-python: no program
+# argument at all or an explicit `-` (program on stdin); option forms (-e/-r ...) are not tightened (T-0953). Python: py_inline_code.
+
+
+def py_inline_code(args):
+    """T-0808 F5: True when a python command line carries its program inline: -c (bare or in a cluster such as -Bc, attached
+    code too), `-` / no program at all (heredoc or pipe on stdin). -m module and a script file are not inline."""
+    k = 0
+    while k < len(args) and args[k].startswith("-") and len(args[k]) > 1:
+        cl = args[k]
+        k += 1
+        if cl.startswith("--"):
+            if cl in PY_LONG_FLAG:
+                return False  # --version/--help print and exit: no program runs (as on origin/main)
+            if cl.partition("=")[0] in PY_LONG_VALUE and "=" not in cl:
+                k += 1
+            continue
+        for i, ch in enumerate(cl[1:], 1):
+            if ch == "c":
+                return True
+            if ch in "mVh?":
+                return False  # -m module, or -V/-h/-? print and exit
+            if ch in "WXQ":
+                k += 0 if cl[i + 1:] else 1
+                break
+    return k >= len(args) or args[k] == "-"
+
+
+def inline_interpreter(name, rest):
+    """T-0808 F5: an interpreter invocation whose program is inline (option, stdin heredoc/pipe)."""
+    if not INTERPRETERS.match(name):
+        return False
+    if re.match(r"^python[\d.]*$", name):
+        return py_inline_code(rest)
+    return not rest or rest[0] == "-"
+
+
 FS_MUTATORS = {"ln", "mv", "cp", "install", "chmod", "chown", "rsync", "dd", "tee", "touch", "truncate", "sed", "perl", "patch"}
 # T-0805 rule E: the only options an extracting tar/bsdtar/unzip may carry, matched exactly (no prefix matching: GNU tar
 # accepts --xfo= for --xform=); anything else can rewrite, add or re-read member names so the listing no longer matches
@@ -369,7 +683,20 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+# T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
+INLINE_GH_API_BODY = re.compile(
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
+INLINE_GH_GET = re.compile(r"(?<![\w-])(?:-X|--method)\W*(?i:GET)\b")
+
+
+def inline_gh_api_body(text):
+    """T-0881: True when some `gh ... api ... -f|-F|--field|--raw-field|--input` in the inline code has no GET method of
+    its own: each gh command is cut at the next `gh` word, so a `-X GET` on another gh call exempts nothing."""
+    parts = re.split(r"(?=\bgh\b)", text)
+    return any(INLINE_GH_API_BODY.search(c) and not INLINE_GH_GET.search(c) for c in parts if c.lstrip().startswith("gh"))
+
+
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
 
@@ -405,10 +732,11 @@ GH_GRAPHQL_SETTINGS = re.compile(r"(?:update|create|delete)(?:BranchProtectionRu
 GH_REPO_ROOT = re.compile(r"(?:^|/)repos/[^/\s]+/[^/\s?]+/?(?:\?.*)?$")
 
 
-def gh_parse(args):
+def gh_parse(args, headers=None):
     """(positionals, method or None, body flag) of `gh <args>` as gh's pflag reads it: long options (--method=POST),
     short clusters (-iX DELETE, -XPUT, -X=PUT), the last -X/--method wins; -f/-F/--field/--raw-field/--input set body
-    (gh api then uses POST). Shared by gh_repo_change and the researcher gh api rule (T-0874)."""
+    (gh api then uses POST). With a `headers` list, every -H/--header value is appended to it (T-1030). Shared by
+    gh_repo_change and the researcher gh api rule (T-0874)."""
     pos, method, body, j = [], None, False, 0
 
     def note(opt, val):
@@ -417,6 +745,8 @@ def gh_parse(args):
             method = val.upper()
         elif opt in ("-f", "--raw-field", "-F", "--field", "--input"):
             body = True
+        elif opt in ("-H", "--header") and headers is not None:
+            headers.append(val)
 
     while j < len(args):
         x = args[j]
@@ -558,17 +888,20 @@ AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 
 ENV_LONG_OK = ("--null", "--debug", "--block-signal", "--default-signal", "--ignore-signal",
-               "--list-signal-handling", "--help", "--version", "--split-string")
-ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; no word is consumed (as on main)
+               "--list-signal-handling", "--help", "--version")
+ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; since T-0964 the value is the next word unless `=value`
 
 
 def env_long(a):
     """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "ignore"
     (a prefix of --ignore-environment that is not an exact other long option), "value" (a prefix of --argv0/--chdir:
-    its value is the next word unless `=value`), "ok" (an exact harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
+    its value is the next word unless `=value`), "split" (--s .. --split-string: T-1037, workers may not use it), "ok" (an exact
+    harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
     name = a.split("=", 1)[0]
     if len(name) < 3:
         return "unknown"
+    if "--split-string".startswith(name):
+        return "split"
     if "--unset".startswith(name):
         return "unset"
     if any(v.startswith(name) for v in ENV_VALUE_LONG):
@@ -578,6 +911,65 @@ def env_long(a):
     if "--ignore-environment".startswith(name):
         return "ignore"
     return "unknown"
+
+
+def env_options(words):
+    """T-0964/T-1037: yield (kind, value) for the GNU env options before the command word: ("split", opt) for -S or
+    --split-string (any unique prefix, with or without `=value`; an `S` before the first `u` of a short cluster, attached
+    or not) and then stop, because the string is never parsed; ("clear", opt) for -i/-/--ignore-env* (an `i` in a short
+    cluster before any `u`), ("clear-attached", opt) for an `i` after `u` (check_scrub counts it, no-push ignores it),
+    ("unset", name), ("unknown", opt) for a long option this guard does not model. Hard rule: a word starting with - is
+    always parsed as an option, never consumed as a value. A -u/--unset value that starts with - is still reported
+    (peeked, not consumed) so a dynamic `-$X` stays denied as on main. -a/-C/-P and --argv0/--chdir take the next word
+    only when it exists and does not start with `-`. The first word that is neither an option nor an assignment ends the scan."""
+    q = collections.deque(words)
+
+    def val():
+        return q.popleft() if q and not q[0].startswith("-") else ""
+
+    def uval():
+        if q and q[0].startswith("-"):
+            return q[0]
+        return q.popleft() if q else ""
+
+    while q:
+        a = q.popleft()
+        if a == "--" or ASSIGN.match(a):
+            continue
+        if a == "-":
+            yield "clear", a
+        elif a.startswith("--"):
+            kind = env_long(a)
+            if kind == "split":
+                yield "split", a
+                return
+            if kind == "ignore":
+                yield "clear", a
+            elif kind == "unknown":
+                yield "unknown", a
+            elif kind == "unset":
+                yield "unset", a.split("=", 1)[1] if "=" in a else uval()
+            elif "=" not in a and kind == "value":
+                val()
+        elif a.startswith("-"):
+            if "S" in a[1:].split("u", 1)[0]:
+                yield "split", a
+                return
+            scan = a[1:].split("u", 1)[0]  # main's no-push rule
+            if "i" in scan:
+                yield "clear", a
+            elif "i" in a[1:]:
+                yield "clear-attached", a  # check_scrub only (spec hard rule)
+            for k, c in enumerate(a[1:], 1):
+                if c == "u":
+                    yield "unset", a[k + 1:] or uval()
+                    break
+                if c in "aCP":  # as on main, a `u` later in the cluster still counts; a trailing one takes the next word
+                    if k == len(a) - 1:
+                        val()
+                    continue
+        else:
+            return
 
 
 def strip_prefix(words):
@@ -726,12 +1118,13 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
-def preprocess(cmd, fold_ticks=False, bodies=None):
+def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
     """Make newlines separators, drop comments and non-shell heredoc bodies.
 
     Returns (text, extras): extras are texts to analyze too (bodies of heredocs fed to a shell) and
     text blocks fed to other interpreters (only searched for the word herdr). When bodies is a list, every heredoc
     is appended to it as (the command line up to its newline, the body): the public-text rule reads `-F -` from it.
+    When slots is a list, one [body, strip] list per `<<` in text order is appended; a resolved heredoc's slot holds its body and whether it is `<<-`.
     """
     out, extras = [], []
     i, n, q = 0, len(cmd), None
@@ -781,10 +1174,15 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
             r = heredoc_delim(cmd, i)
             if r:
-                pending.append((r[0], r[1], r[3]))
+                slot = [None, r[0]]  # body, then whether this is a real `<<-`
+                if slots is not None:
+                    slots.append(slot)
+                pending.append((r[0], r[1], r[3], slot))
                 out.append(cmd[i:r[2]])
                 i = r[2]
             else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
+                if slots is not None:
+                    slots.append([None, False])
                 out.append("<<")
                 i += 2
             continue
@@ -792,7 +1190,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             head = "".join(out[line_start:])
             out.append(" ; ")
             i += 1
-            for strip, delim, quoted in pending:
+            for strip, delim, quoted, slot in pending:
                 body = []
                 while i < n:
                     seg = i
@@ -811,6 +1209,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                     if cmp != line:
                         body.append(cmp)  # what bash feeds the inner command after joining
                 body = "\n".join(body)
+                slot[0] = body
                 if bodies is not None:
                     bodies.append((head, body))
                 if re.search(r"\b(%s|eval|source)\b" % "|".join(SHELLS), head):
@@ -886,6 +1285,7 @@ class Analyzer:
         self.role = role
         self.hq = hq
         self.skip_priv = False
+        self.shell_assigns = []  # env assignments of the shell command being analysed (T-0331)
         self.unit_rule = False  # HQ mode: block mutating systemctl (workers keep the factory unit rule)
         self.text = ""
         self.ran_factory = False
@@ -947,6 +1347,79 @@ class Analyzer:
             return False
         return self.outside_live(v)
 
+    def scratch_homes(self, assigns):
+        """T-0331: True when BOTH HOME and FACTORY_HOME are static absolute paths whose realpath is inside the worker's own
+        scratchpad. Each comes from this command's assignments, else an earlier assignment/export in the same command
+        line, else the hook's environment; unset, relative, dynamic, `~`, a symlink or `..` out of the scratchpad, the
+        live home and another agent's scratchpad all fail. The command line must also be the lone form (lone_command):
+        nothing in it (unset, env -u, a subshell, another assignment) may change what is read here."""
+        if not self.lone_command():
+            return False
+        for name in ("HOME", "FACTORY_HOME"):
+            vals = [a.split("=", 1)[1] for a in assigns if a.startswith(name + "=")]
+            v = vals[-1] if vals else self.vars.get(name, os.environ.get(name))
+            if not v or any(c in v for c in "$`*?[{~\\\"'") or not os.path.isabs(v):
+                return False
+            if not in_scratchpad(os.path.realpath(v)):
+                return False
+        return True
+
+    def install_dry_run(self, args, assigns):
+        """T-0331: args (after the shell word and its options) is exactly `systemd/install.sh --dry-run`, run by a coder/qa
+        with both homes in the scratchpad, and the script is byte-for-byte the install.sh of a live checkout (which a worker
+        cannot write). Its body is then not parsed: `--dry-run` only echoes, and a parse of its case arms and `"$@"` trips
+        the glob and dynamic-word rules. Any edited copy goes through the normal script inspection (and is refused)."""
+        if self.role not in ("coder", "qa") or len(args) != 2 or args[1] != "--dry-run":
+            return False
+        if is_dynamic(args[0], strict=True) or not self.scratch_homes(assigns):
+            return False
+        p = os.path.expanduser(args[0])
+        p = os.path.realpath(p if os.path.isabs(p) else os.path.join(self.cwd, p))
+        if os.path.basename(p) != "install.sh" or os.path.basename(os.path.dirname(p)) != "systemd" or not os.path.isfile(p):
+            return False
+        override = os.environ.get("WORKER_GUARD_LIVE_HOME")
+        homes = {os.path.realpath(override)} if override else set(LIVE_HOMES)  # as prot_trees(): never the hook's own repo root
+        try:
+            with open(p, "rb") as f:
+                mine = f.read(1 << 20)
+            for h in sorted(homes):
+                live = os.path.join(h, "systemd", "install.sh")
+                if os.path.isfile(live) and not os.path.islink(live):
+                    with open(live, "rb") as f:
+                        if f.read(1 << 20) == mine:
+                            return True
+        except OSError:
+            return False
+        return False
+
+    def lone_command(self):
+        """T-0331: the whole command line is one command, optionally after plain `HOME=v` / `FACTORY_HOME=v` /
+        `export HOME=v FACTORY_HOME=v;` statements, and the command itself is the literal word `factory` or `bash` after
+        only HOME= / FACTORY_HOME= prefixes. Nothing before it can edit what it runs or what the guard read (no redirect,
+        pipe, chain, substitution, subshell, unset, env, other assignment such as PATH or BASH_ENV). Printable ASCII only,
+        so the regexes agree with the Go RE2 mirror."""
+        text = getattr(self, "text", "") or ""
+        if not all(" " <= c < "\x7f" or c == "\t" for c in text) or any(c in text for c in "|&<>`$(){}\"'\\"):
+            return False
+        *pre, last = text.split(";")
+        if not all(re.fullmatch(r"[ \t]*(export[ \t]+)?((HOME|FACTORY_HOME)=[^ \t]*[ \t]*)+", x) for x in pre):
+            return False
+        words = last.split()
+        while words and re.fullmatch(r"(HOME|FACTORY_HOME)=[^ \t]*", words[0]):
+            words = words[1:]
+        return bool(words) and words[0] in ("factory", "bash")
+
+    def scratch_form(self, words, assigns):
+        """T-0331: words is exactly one of the commands a qa/coder may run with HOME in the scratchpad: the real `factory`
+        (not a script merely named so, not a path) `init`, or `bash` (no other shell) running systemd/install.sh."""
+        if self.role not in ("coder", "qa") or not words:
+            return False
+        if words[0] == "factory":
+            return words[1:2] == ["init"] and self.scratch_homes(assigns)  # strict: a flag value must not shift the match
+        if words[0] == "bash":
+            return self.install_dry_run(words[1:], assigns)  # no shell option (-s runs stdin, the file is then an argument)
+        return False
+
     def check_identity(self, assigns):
         own = os.environ.get("FACTORY_AGENT") or ""
         for a in assigns:
@@ -966,14 +1439,12 @@ class Analyzer:
             raise Block("unset of FACTORY_ROLE/HERDR_PANE_ID")
         if name != "env":
             return
-        for j, a in enumerate(rest):
-            if not a.startswith("-") and not ASSIGN.match(a):
-                break
-            if a in ("-u", "--unset") and rest[j + 1:j + 2] and rest[j + 1] in SCRUB_VARS:
+        for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
+            if kind == "split":
+                raise Block("env -S/--split-string: workers may not use it; write the command without env -S (T-1037)")
+            if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a.startswith("-u") and a[2:] in SCRUB_VARS or a.startswith("--unset=") and a[8:] in SCRUB_VARS:
-                raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if a == "-" or a == "--ignore-environment" or re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a):
+            if kind in ("clear", "clear-attached"):
                 self.scrub_with_factory = "env -i"
 
     def factory_unit(self, name, rest, assigns):
@@ -993,6 +1464,10 @@ class Analyzer:
         sub = nonopt[0] if nonopt else None
         if self.role == "evaluator":
             self.evaluator_factory(sub, nonopt, assigns)
+        if self.role in ("coder", "qa") and not self.hq and sub == "init" \
+                and not self.scratch_homes(assigns):
+            raise Block(f"workers may run `factory init` only with HOME and FACTORY_HOME both "
+                        "set (same command or exported earlier) to absolute paths inside your own scratchpad")
         if sub in BROAD_READS:
             self.broad_read(sub, rest, assigns)
         if sub not in FACTORY_UNIT_CMDS:
@@ -1102,7 +1577,8 @@ class Analyzer:
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
-        text, extras = preprocess(text, self.hq, nbodies)
+        slots = []
+        text, extras = preprocess(text, self.hq, nbodies, slots)
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.call_assign(text, [b for _, b in nbodies[seen:]])
         for kind, body in extras:
@@ -1127,6 +1603,7 @@ class Analyzer:
             self.soft(self.script, sub, depth + 1)
         cmds, cur, piped, i, hs = [], [], False, 0, []
         reds = []  # (index of the command it belongs to, redirect target word)
+        hds = {}  # command index -> heredoc bodies (T-0882: they join the here-string stdin channel)
         stack, dollar = [], False  # saved (cur, piped, hs) of the commands that open a $( )
         while i < len(toks):
             tok = toks[i]
@@ -1158,6 +1635,13 @@ class Analyzer:
                     if nxt is not None and not is_punct(nxt):
                         if tok == "<<<":
                             hs.append(nxt)
+                        elif tok == "<<":
+                            slot = slots.pop(0) if slots else [None, False]
+                            b = slot[0]
+                            if b is not None:
+                                hds.setdefault(len(cmds), []).append(b)
+                            if slot[1] and nxt == "-" and i + 2 < len(toks) and not is_punct(toks[i + 2]):
+                                i += 1  # `<<- EOF`
                         elif ">" in tok and ("&" not in tok or (re.match(r"^[0-9]*(&>>?|>&)$", tok)
                                                                  and not re.match(r"^([0-9]+|-)$", nxt))):
                             reds.append((len(cmds), nxt))  # `>&2` / `>&-` duplicate or close an fd: no file target
@@ -1190,8 +1674,16 @@ class Analyzer:
             if not self.hq:
                 for _, target in [r for r in reds if r[0] == n]:
                     self.cfg_redirect(target)
+                    self.prot_redirect(target)
                     self.persist_redirect(target)
-            self.soft(self.cmd, words, depth, piped, False, hstrs)
+            k = n - 1
+            while k > 0 and cmds[k][1] and cmds[k][0] and os.path.basename(cmds[k][0][0]) in ("tee", "cat"):
+                k -= 1  # pass-through stages (`echo ... | tee f | python3`) keep the literal
+            prev = cmds[k][0] if piped and k >= 0 else []
+            self.pipe_src = " ".join(prev[1:]) if prev and os.path.basename(prev[0]) in ("echo", "printf") else None
+            if prev and os.path.basename(prev[0]) == "cat" and (hds.get(k) or cmds[k][2]):
+                self.pipe_src = "\n".join([*hds.get(k, []), *cmds[k][2]])
+            self.soft(self.cmd, words, depth, piped, False, hstrs, (), (piped, [*hstrs, *hds.get(n, [])], self.pipe_src))
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
                 self.fs_changed = True
 
@@ -1312,11 +1804,39 @@ class Analyzer:
         # attached code (`perl -e'CODE'`, `node --eval=CODE`) is not a separate word: scan option words that look like code
         texts += [a for a in rest if a.startswith("-") and re.search(r"[\s\"'();]", a)]
         for t in texts:
-            if all(p.search(t) for p in INLINE_GIT_PUSH):
-                raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t):
-                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method); "
-                            "no-push roles never write to GitHub; ask your lead")
+            self.scan_inline_text(name, t, "inline code")
+
+    def scan_inline_text(self, name, t, what):
+        if all(p.search(t) for p in INLINE_GIT_PUSH):
+            raise Block(f"{name} {what} that runs `git push` (no-push roles never push; ask your lead)")
+        if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
+            raise Block(f"{name} {what} that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
+                        "no-push roles never write to GitHub; ask your lead")
+
+    def stdin_program(self, name, rest):
+        """T-0882: True when the interpreter command reads its program from stdin: no script file (or `-`) and no -c/-e code.
+        An option this hook does not model counts as stdin too (scanning only ever refuses a push/gh write)."""
+        if not INLINE_CODE_INTERPS.match(name):
+            return False
+        n = "node" if name.startswith("nodejs") else name
+        si, ci, unknown = interp_args(n, rest)
+        if unknown:
+            return True
+        if ci is not None:
+            return False
+        if si is not None and PT_STDIN_PATH.match(os.path.normpath(rest[si])):
+            return True
+        return si is None or rest[si] == "-" or bool(PT_STDIN_PATH.match(os.path.normpath(rest[si])))
+
+    def stdin_scan(self, name, text):
+        """T-0882: scan code fed to an interpreter on stdin (heredoc body, here-string, echo/printf piped in) with the T-0789
+        scan, plus the T-0808 F4 fail-closed rule for archive extraction from python. NOT covered, by design: a piped
+        non-literal source (`cat file | python3`, `curl ... | python3`), uv run wrappers, obfuscated code. Defense in depth only;
+        the sandbox + worker PAT are the boundary (M15349)."""
+        self.scan_inline_text(name, text, "stdin code")
+        if re.match(r"^python[\d.]*$", name) and re.search(r"extractall|extract\s*\(|unpack_archive", text):
+            raise Block(f"`{name}` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); "
+                        "use unzip -d or tar -C")
 
     def git_priv(self, rest, depth):
         """git runs shell text from `-c alias.x=!cmd`, `-c core.pager=cmd` and `git config <key> <value>`."""
@@ -1407,17 +1927,22 @@ class Analyzer:
             t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
             if any(c in t for c in "$`*?[{"):
                 if (".config/factory" in t or ".local/lib/factory" in t or "run/settings" in t
-                        or "run/guard_impl" in t or "guard-export" in t):
+                        or "run/guard_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
                     return True
                 if self.export_glob(t):
                     return True
                 continue
             if not t or (not os.path.isabs(t) and self.ccwd is None):
                 continue
-            p = os.path.realpath(t if os.path.isabs(t) else os.path.join(self.ccwd, t))
+            full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+            p = os.path.realpath(full)
             for d in {CFG_DIR, LIB_DIR} | RUN_SETTINGS | RUN_GUARD_IMPL:
                 if p == d or under(p, d) or (ancestor and under(d, p)):
                     return True
+            for q in (p, os.path.normpath(full)):  # T-0957: the spelled path too (a symlink in ~/.local/bin)
+                for d in BIN_DIRS:
+                    if q == d or under(q, d) or (ancestor and under(d, q)):
+                        return True
             for d in RUN_EXPORT:  # the file itself and its temp sibling <file>.tmp<pid>
                 if p == d or p.startswith(d + ".") or (ancestor and under(d, p)):
                     return True
@@ -1428,7 +1953,7 @@ class Analyzer:
             raise Block("a redirect into ~/.config/factory (it holds live_home, which decides what counts as the live "
                         "home), <live>/run/settings (the rendered role settings) or <live>/run/guard-export.json "
                         "(the guard's own decisions), <live>/run/guard_impl or ~/.local/lib/factory (the guard implementation "
-                        "flag and binary); only the owner and the tick change them")
+                        "flag and binary) or ~/.local/bin (first on the tick's PATH); only the owner and the tick change them")
 
     def cfg_path(self, w):
         """Realpath of a word for the export checks, None when it has an expansion we cannot resolve."""
@@ -1441,6 +1966,14 @@ class Analyzer:
         """Message only (the block fires on cfg_hit): w resolves to run/guard_impl or to LIB_DIR or a file under it."""
         p = self.cfg_path(w)
         return p is not None and (p in RUN_GUARD_IMPL or under(p, LIB_DIR))
+
+    def in_bin_dir(self, w):
+        """Message only (the block fires on cfg_hit): w, as spelled or resolved, is ~/.local/bin or under it."""
+        t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+        if not t or any(c in t for c in "$`*?[{") or (not os.path.isabs(t) and self.ccwd is None):
+            return bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", t))
+        full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+        return any(under(q, d) or q == d for q in (os.path.realpath(full), os.path.normpath(full)) for d in BIN_DIRS)
 
     def export_rule(self, name, args):
         """T-0883 rule R, position independent (no guess which argument is the destination): True when ANY argument of a
@@ -1503,6 +2036,9 @@ class Analyzer:
                     if "guard_impl" in a or ".local/lib/factory" in a or self.in_guard_impl(a):
                         raise Block(f"`{name}` on <live>/run/guard_impl or ~/.local/lib/factory: they pick and hold the "
                                     "guard implementation; only the owner and `factory` change them")
+                    if self.in_bin_dir(a):
+                        raise Block(f"`{name}` on ~/.local/bin: it is first on the tick's PATH, so a file there runs with "
+                                    "the tick's credentials; only the owner changes it")
                     raise Block(f"`{name}` on ~/.config/factory: {why}")
         elif (name in ("sed", "perl", "gawk") or name in AWKS) and (name in AWKS or any(
                 re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") or a == "inplace" for a in rest)):
@@ -1511,6 +2047,206 @@ class Analyzer:
         elif INTERPRETERS.match(name) or name in EDITORS - {"less", "more", "man", "view"}:
             if any(self.cfg_hit(a) or self.cfg_code(a) for a in rest):
                 raise Block(f"`{name}` naming ~/.config/factory (code there cannot be inspected; read it with cat): {why}")
+
+    def prot_hit(self, word, ancestor=False, base="cwd"):
+        """T-0925: True when `word` (or the value of --opt=value / of=value) names a protected tree (prot_trees), something
+        inside one (a glob that can match one counts) or, with ancestor, a directory holding one. A relative word is
+        joined to `base` (default: the tracked cwd; unknown = not decidable = False, like cfg_hit). An expansion we cannot
+        resolve counts when it spells a protected tree name."""
+        base = self.ccwd if base == "cwd" else base
+        for w in {word, word.split("=", 1)[-1]}:
+            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+            for e in brace_expand(t):
+                if any(c in e for c in "$`"):
+                    if any(m in e for m in PROT_MARKERS) or re.search(r"\.local/bin(?![A-Za-z0-9_])", e):
+                        return True
+                    continue
+                if not e or e == "-" or (not os.path.isabs(e) and base is None):
+                    continue
+                full = e if os.path.isabs(e) else os.path.join(base, e)
+                if GLOB.search(e):
+                    if prot_glob(full, ancestor):
+                        return True
+                elif prot_path(full, ancestor):
+                    return True
+        return False
+
+    def prot_redirect(self, target):
+        if self.prot_hit(target):
+            raise Block(f"a redirect into a protected tree: {PROT_WHY}")
+
+    def prot_write(self, name, rest):
+        """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a
+        glob target and for the new trees), the writer flags curl/wget/go/cc/tar/unzip/7z/git clone have, and an extractor
+        or downloader whose target is the cwd after a `cd` into a tree. `go env -w|-u` writes ~/.config/go/env."""
+        args = [a for a in rest if a != "--"]
+
+        def block(w, what=None):
+            raise Block(f"`{name}` on {what or repr(w)}: {PROT_WHY}")
+
+        def hit(w, anc=False, base="cwd"):
+            if w and self.prot_hit(w, anc, base):
+                block(w, "a protected tree")
+
+        def cwd_write(strict, base="cwd"):  # the command writes into its working directory
+            b = self.ccwd if base == "cwd" else base
+            if b is None:
+                if strict:
+                    block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
+            elif prot_path(b):
+                block(b, "the working directory, which is in a protected tree")
+
+        if name in CFG_WRITERS:
+            dest_only = name in ("cp", "install", "rsync", "dd") or (
+                name == "ln" and any(long_opt(a, "--symbolic") or (re.match(r"^-[A-Za-z]+$", a) and "s" in a) for a in args))
+            tvals = target_dir_values(args) if name in ("cp", "install", "ln") and dest_only else []
+            if tvals:  # N2: -t names the destination; the words after it are sources (reads)
+                for v in tvals:
+                    hit(v)
+                return
+            dests = prot_dest_indexes(args) if dest_only else None
+            for j, a in enumerate(args):
+                if dest_only and not (j in dests or a.startswith("of=") or (j > 0 and args[j - 1] in ("-t", "--target-directory"))
+                                      or (long_opt(a.partition("=")[0], "--target-directory") and "=" in a)):
+                    continue
+                hit(a, name in CFG_REMOVERS or (name == "mv" and j < len(args) - 1))
+        elif name in ("sed", "perl", "gawk") and any(re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") for a in args):
+            for a in args:
+                hit(a)
+        elif name == "curl":
+            for v in opt_values(args, "oDc", {"--output", "--dump-header", "--cookie-jar", "--trace", "--trace-ascii", "--stderr"}):
+                hit(v)
+            dirs = opt_values(args, "", {"--output-dir"})
+            for d in dirs:
+                hit(d)
+            if not dirs and (any(re.match(r"^-[A-Za-z]*[OJ]", a) for a in args) or any(
+                    a in ("--remote-name", "--remote-name-all", "--remote-header-name") for a in args)):
+                cwd_write(False)
+        elif name == "wget":
+            outs = opt_values(args, "O", {"--output-document"})
+            for v in outs + opt_values(args, "oa", {"--output-file", "--append-output", "--save-cookies"}):
+                hit(v)
+            prefix = opt_values(args, "P", {"--directory-prefix"})
+            for v in prefix:
+                hit(v)
+            if not outs and not prefix:
+                cwd_write(False)
+        elif name == "go":
+            sub, k = None, 0
+            while k < len(args):  # the first word that is not an option (or the value of -C)
+                if args[k] in ("-C", "--C"):
+                    k += 1
+                elif not args[k].startswith("-"):
+                    sub = args[k]
+                    break
+                k += 1
+            if sub == "env" and any(re.match(r"^--?[wu](=|$)", a) for a in args):
+                block(None, "`go env -w|-u` (it writes ~/.config/go/env)")
+            cdir = (opt_values(args, "", {"-C", "--C"}) or [None])[-1]
+            hit(cdir)
+            cdir = None if cdir is None else self.cfg_expand(cdir)
+            if cdir is None:
+                base = self.ccwd
+            elif os.path.isabs(cdir):
+                base = cdir
+            else:
+                base = None if self.ccwd is None else os.path.join(self.ccwd, cdir)
+            if sub in ("build", "test", "install"):
+                for v in opt_values(args, "", {"-o", "--o"}):
+                    hit(v, base=base)
+        elif name in ("gcc", "g++", "cc", "c++", "clang", "clang++", "ld", "as", "rustc"):
+            for k, a in enumerate(args):
+                if (a == "-o" or long_opt(a, "--output")) and k + 1 < len(args):
+                    hit(args[k + 1])
+                elif long_opt(a.partition("=")[0], "--output") and "=" in a:
+                    hit(a)
+                elif a.startswith("-o") and len(a) > 2:
+                    hit(a[2:])
+        elif name in ("tar", "gtar", "bsdtar"):
+            targs = list(args)
+            old = bool(targs) and re.fullmatch(r"[A-Za-z]+", targs[0]) is not None
+            if old:
+                targs[0] = "-" + targs[0]  # the old style `tar xf a.tar`
+            extract = any(a.startswith("-") and not a.startswith("--") and "x" in tar_mode_letters(a, old and i == 0)
+                          for i, a in enumerate(targs)) or any(
+                long_opt(a.partition("=")[0], "--extract", "--get") for a in targs)
+            # B3: only create, append and update (and --catenate) write the archive; list and diff only read it
+            writes_archive = any(
+                a.startswith("-") and not a.startswith("--") and any(c in tar_mode_letters(a, old and i == 0) for c in "cruA")
+                for i, a in enumerate(targs)) or any(
+                long_opt(a.partition("=")[0], "--create", "--append", "--update", "--catenate", "--concatenate") for a in targs)
+            dirs = tar_dirs(targs)
+            top = [a.partition("=")[2] for a in targs if long_opt(a.partition("=")[0], "--one-top-level")]
+            if extract:
+                base = self.ccwd
+                for d in dirs:  # -C chains: each relative one is relative to the one before
+                    hit(d, base=base)
+                    d = self.cfg_expand(d)
+                    base = d if os.path.isabs(d) else (None if base is None else os.path.join(base, d))
+                for v in top:
+                    hit(v, base=base)
+                if base is None:
+                    block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
+                hit(base)  # no -C: the cwd; with -C: where the last one leads
+            elif writes_archive:
+                for v in opt_values(targs[1:] if old else targs, "f", {"--file"}):  # create/append/update: the archive is written
+                    hit(v)
+                if old and "f" in targs[0]:  # `tar cfb a.tar 20 x`: the value letters take the next words
+                    n = sum(1 for ch in targs[0] if ch in TAR_VALUE_LETTERS)
+                    for v in targs[1:1 + n]:
+                        if not v.startswith("-"):
+                            hit(v)
+        elif name == "unzip":
+            dirs = unzip_dirs(args)
+            if not unzip_listing(list(rest)):
+                for d in dirs:
+                    hit(d)
+                if not dirs:
+                    cwd_write(True)
+        elif name == "env":
+            for v in opt_values(args, "C", {"--chdir"}):
+                hit(v)
+        elif name in ("7z", "7za", "7zr"):
+            if [a for a in args if not a.startswith("-")][:1] in (["x"], ["e"]):
+                outs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
+                for v in outs:
+                    hit(v)
+                if not outs:
+                    cwd_write(True)
+        elif name == "git":
+            base, k = self.ccwd, 0
+            while k < len(args) and args[k].startswith("-"):
+                a = args[k]
+                k += 1
+                if a == "-C" and k < len(args):
+                    args[k] = self.cfg_expand(args[k])
+                    base = None if base is None and not os.path.isabs(args[k]) else (
+                        args[k] if os.path.isabs(args[k]) else os.path.join(base, args[k]))
+                    k += 1
+                elif a in ("-c", "--attr-source", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix") and "=" not in a:
+                    k += 1
+            if k < len(args) and args[k] == "clone":
+                pos, j, unknown = [], k + 1, False
+                valued = {"-b", "--branch", "--depth", "-o", "--origin", "--template", "--reference", "--reference-if-able",
+                          "-c", "--config", "-j", "--jobs", "--filter", "--separate-git-dir", "-u", "--upload-pack",
+                          "--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri"}
+                while j < len(args):
+                    a = args[j]
+                    j += 1
+                    if a in valued or long_opt(a, "--separate-git-dir"):
+                        if long_opt(a, "--separate-git-dir") and j < len(args):
+                            hit(args[j], base=base)
+                        j += 1
+                    elif long_opt(a.partition("=")[0], "--separate-git-dir") and "=" in a:
+                        hit(a, base=base)
+                    elif not a.startswith("-"):
+                        pos.append(a)
+                    elif a.startswith("--") and "=" not in a:
+                        unknown = True  # N1: a `--word` we do not know may take a value word
+                for d in pos[1:]:  # N1: pos[0] is the repository; a value word of an unknown option may precede it
+                    hit(d, base=base)
+                if len(pos) < 2 or unknown:
+                    cwd_write(False, base)
 
     def persist_hit(self, word, ancestor=False, gitfile=False):
         """True when `word` (or the value of --opt=value / of=value) names a protected persistence path (T-0334). A
@@ -1638,10 +2374,23 @@ class Analyzer:
             extract = bool(args[:1]) and args[0] in ("x", "e")
             dirs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
         elif re.match(r"^python[\d.]*$", name):
-            mod, k = None, 0
-            while k < len(args) and args[k].startswith("-") and not args[k].startswith("--") and len(args[k]) > 1:
-                cl = args[k]  # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile
+            mod, k, code = None, 0, None
+            while k < len(args) and args[k].startswith("-") and len(args[k]) > 1:
+                cl = args[k]
                 k += 1
+                if cl.startswith("--"):  # T-0808 F2: skip a known long option (and its value); an unknown one fails closed
+                    base, eq, _ = cl.partition("=")
+                    if base in PY_LONG_VALUE:
+                        k += 0 if eq else 1  # `--opt=value` carries its value; `--opt value` takes the next argument
+                    elif base not in PY_LONG_FLAG:
+                        # unknown arity: block only when a later -m names an archive module (`--bogus -m pytest` stays allowed)
+                        if any(a.endswith(("zipfile", "tarfile", "zipfile.__main__", "tarfile.__main__")) for a in args[k:]):
+                            raise Block(f"`{name}` with the unknown option {cl!r} before -m zipfile/tarfile: the target cannot "
+                                        "be bounded; drop the option or extract with unzip -d")
+                        break
+                    continue
+                # a short-flag cluster: -I, -Bm, -Im zipfile, -mzipfile. T-0808 F1: walk it char by char; only a bare c/m ends
+                # the loop, and -W/-X (value-taking) consume the rest of the cluster or the next argument as their value
                 for i, ch in enumerate(cl[1:], 1):
                     tail = cl[i + 1:]
                     if ch == "m":
@@ -1649,19 +2398,26 @@ class Analyzer:
                         k += 0 if tail else 1
                         break
                     if ch == "c":
+                        code = tail or (args[k] if k < len(args) else "")
                         break
                     if ch in "WXQ":  # takes a value
                         k += 0 if tail else 1
                         break
-                if mod is not None or "c" in cl:
+                if mod is not None or code is not None:
                     break
-            if mod in ("zipfile", "tarfile"):
+            if code is not None and re.search(r"extractall|extract\s*\(|unpack_archive", code):
+                raise Block(f"`{name} -c` code that extracts an archive cannot be bounded (it may write .git/config or hooks): "
+                            f"{why}; use unzip -d or tar -C")
+            if mod in ("zipfile", "tarfile", "zipfile.__main__", "tarfile.__main__"):  # T-0945: `-m zipfile.__main__` runs the same CLI
                 for j, a in enumerate(args[k:], k):
                     if a in ("-e", "--extract"):
                         extract = True
                         dirs += args[j + 2:j + 3]
         elif name == "ar":
             ops, k, outs, opseen = [], 0, [], False
+            for a in args:
+                if a.startswith("@"):  # T-0808 F3: a response file adds options the hook cannot see, even as an option value
+                    raise Block("`ar @file`: the response file's options cannot be inspected; pass the options on the command line")
             while k < len(args):
                 a = args[k]
                 k += 1
@@ -1851,22 +2607,8 @@ class Analyzer:
 
     @staticmethod
     def config_args_write(args):
-        """True when `git config <args>` writes. Like config_mutates, but understands the `get`/`list` words and
-        options that take a value (`--type bool key` is a read)."""
-        pos, k = [], 0
-        while k < len(args):
-            a = args[k]
-            k += 1
-            if a in CONFIG_VALUE_OPTS:
-                k += 1
-            elif not a.startswith("-"):
-                pos.append(a)
-        flags = [a for a in args if a.startswith("-")]
-        if any(a in CONFIG_WRITE for a in flags):
-            return True
-        if any(a in CONFIG_READ for a in flags) or pos[:1] in (["get"], ["list"]):
-            return False
-        return pos[:1] in (["set"], ["unset"], ["edit"]) or len(pos) >= 2
+        """True when `git config <args>` writes: anything config_is_read cannot prove a read."""
+        return not config_is_read(args)
 
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
@@ -1911,10 +2653,26 @@ class Analyzer:
             return
         args, scope, files, k = [], None, [], i + 1
         rest = rest[:]
+        # T-1064 v3: git's legacy form (bare key, no action flag, no leading subcommand word) takes every token after the
+        # key as the VALUE, so scope/file options are only stripped while they are real options; a value option's value
+        # (`--comment --global k v`) is never one.
+        stripping, first, action = True, None, False
         while k < len(rest):
             a = rest[k]
             k += 1
             name, eq, val = a.partition("=")
+            if not stripping:
+                args.append(a)
+                continue
+            # git accepts unique abbreviations (`--typ bool`): a prefix of a value option eats the next token too
+            abbrev = len(a) >= 3 and a.startswith("--") and "=" not in a and any(
+                o.startswith(a) for o in ("--type", "--default", "--comment", "--blob", "--value"))
+            if (a in CONFIG_PARSE_VALUE_OPTS and a not in ("--file", "-f")) or abbrev:
+                args.append(a)
+                if k < len(rest):
+                    args.append(rest[k])
+                    k += 1
+                continue
             if a.startswith("--") and len(name) >= 4:
                 if "--global".startswith(name) or "--system".startswith(name):
                     scope = name
@@ -1934,6 +2692,12 @@ class Analyzer:
                     k += 1
                 continue
             args.append(a)
+            if a in CONFIG_ACTION_FLAGS:
+                action = True
+            elif first is None and (not a.startswith("-") or a == "-"):
+                first = a
+                if not action and a not in ("set", "unset", "edit", "rename-section", "remove-section", "get", "list"):
+                    stripping = False
         if not self.config_args_write(args):
             return
         if scope:
@@ -2129,11 +2893,7 @@ class Analyzer:
 
     @staticmethod
     def config_mutates(args):
-        if any(a in CONFIG_WRITE for a in args) or args[:1] in (["set"], ["unset"], ["edit"]):
-            return True
-        if any(a in CONFIG_READ for a in args) or args[:1] in (["get"], ["list"]):
-            return False
-        return len([a for a in args if not a.startswith("-")]) >= 2
+        return not config_is_read(args)
 
     def git_mutates(self, sub, args):
         if sub in GIT_READ_ONLY:
@@ -2214,8 +2974,18 @@ class Analyzer:
         while i < len(rest) and rest[i].startswith("-"):
             if rest[i] != "-C" and "push" in rest[i + 1:]:
                 raise Block(f"git {rest[i]} before push: coder pushes take no git option except -C")
-            if rest[i] == "-c" and i + 1 < len(rest) and re.match(r"(?i)alias\.[^=]*=.*push", rest[i + 1]):
-                raise Block("git -c alias.<x>=...push...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
+            cv = rest[i + 1] if rest[i] == "-c" and i + 1 < len(rest) else (rest[i][2:] if re.match(r"-c.", rest[i]) else None)
+            if cv is not None and re.match(r"(?i)alias\.[^=]*=.*(?:push|send-pack)", cv):
+                raise Block("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only `git push origin HEAD:factory/<task id>`")
+            ce = rest[i][len("--config-env="):] if rest[i].startswith("--config-env=") else (
+                rest[i + 1] if rest[i] == "--config-env" and i + 1 < len(rest) else None)
+            if ce is not None and re.match(r"(?i)alias\.", ce):
+                raise Block("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; "
+                            "coders push only `git push origin HEAD:factory/<task id>`")
+            o = rest[i]
+            if "=" not in o and not re.match(r"-c.", o) and o not in GIT_PIN_FLAGS \
+                    and o not in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"):
+                raise Block(f"git {o}: coders may use only known git options here; write the command without it")
             i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i < len(rest) and (rest[i] in ("send-pack", "http-push") or (rest[i] == "subtree" and "push" in rest[i + 1:])):
             raise Block(f"git {rest[i]} is a push by another name: coders push only `git push origin HEAD:factory/<task id>`")
@@ -2233,7 +3003,7 @@ class Analyzer:
                         "force, --all/--mirror/--tags/--delete or option)")
         # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
         # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
-        w = re.fullmatch(rf"git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
+        w = re.fullmatch(rf"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push origin HEAD:factory/{m.group(1)}", self.text.strip())
         if not w:
             raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
                         "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
@@ -2338,6 +3108,29 @@ class Analyzer:
             self.git_deny(f"`git {sub}` is not on the read-only list (aliases, push, send-pack, subtree, rebase --exec, "
                           "bisect run, submodule foreach, archive --remote ... are refused)")
 
+    def nopush_gh_write(self, rest):
+        """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
+        POST) unless the method is GET, nor `gh api` with any -X/--method other than GET (T-0987; HEAD, OPTIONS and an
+        empty method are refused too, only GET is a read), nor `gh api -H 'X-HTTP-Method-Override: POST|PUT|PATCH|DELETE'`
+        (T-1030), nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
+        headers = []
+        pos, method, body = gh_parse(rest, headers)
+        if pos[:1] == ["api"] and body and method != "GET":
+            raise Block("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to "
+                        "GitHub; use -X GET for a read with fields, or ask your lead")
+        if pos[:1] == ["api"] and method not in (None, "GET"):  # T-0987: a non-GET method is a write even without a body
+            raise Block(f"gh api -X/--method {method!r} is not GET; no-push roles only read GitHub through gh api "
+                        "(GET); use GET, or ask your lead")
+        if pos[:1] == ["api"]:  # T-1030: a method-override header turns a POST into a write on the server side
+            for h in headers:
+                name, _, val = h.partition(":")
+                if name.strip().lower() == "x-http-method-override" and val.strip().upper() in GH_MUTATING:
+                    raise Block(f"gh api -H X-HTTP-Method-Override: {val.strip()} is a write; no-push roles never write "
+                                "to GitHub; drop the header, or ask your lead")
+        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
+            raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
+
     def researcher_cmd(self, name, rest):
         """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
         report, task show|note, goal show); merge, PR, judge, spawn and every other form is refused."""
@@ -2417,9 +3210,8 @@ class Analyzer:
 
     @staticmethod
     def git_config_read(args):
-        if any(a in CONFIG_WRITE for a in args) or not any(a in GIT_CONFIG_READ_ONLY for a in args):
-            return False
-        return not Analyzer.config_mutates(args)
+        parsed = config_parse(args)
+        return bool(parsed) and any(f in GIT_CONFIG_READ_ONLY for f in parsed[0]) and config_is_read(args)
 
     def git_fetch_args(self, sub, args):
         ok_flags = GIT_FETCH_FLAGS | (GIT_LSREMOTE_FLAGS if sub == "ls-remote" else set())
@@ -2505,53 +3297,13 @@ class Analyzer:
         name, rest = os.path.basename(words[0]), words[1:]
         targets = []
         if name == "env":  # T-0788: removing a protected name (env -u, env -i) strips the pane's git isolation
-            q = collections.deque(rest)
-            it = iter(lambda: q.popleft() if q else None, None)  # -S pushes its words back onto q
-            for a in it:
-                if a in ("-C", "--chdir"):  # takes a directory argument: skip it, keep scanning for -u
-                    next(it, None)
-                    continue
-                if a in ("-S", "--split-string") or a.startswith("--split-string=") or (a.startswith("-S") and not a.startswith("--")):
-                    # re-parse the string as env options
-                    sval = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a[2:] if a.startswith("-S") and a != "-S" else next(it, "")
-                    q.extendleft(reversed(sval.split()))
-                    continue
-                if a in ("-i", "--ignore-environment", "-"):
-                    deny("env " + a, "the whole environment", "clear or unset")
-                if a in ("-u", "--unset"):
-                    names = [next(it, "")]
-                elif a.startswith("--unset="):
-                    names = [a[8:]]
-                elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
-                    names = []
-                    for k, c in enumerate(a[1:], 1):
-                        if c == "i":
-                            deny("env " + a, "the whole environment", "clear or unset")
-                        if c == "u":  # -uNAME, or the next word
-                            names = [a[k + 1:] or next(it, "")]
-                            break
-                elif a == "--" or ASSIGN.match(a):
-                    continue
-                elif a.startswith("--"):  # T-0826: GNU env takes any unique prefix of a long option; fail closed on the rest
-                    kind = env_long(a)
-                    if kind == "ignore":
-                        deny("env " + a, "the whole environment", "clear or unset")
-                    if kind == "unknown":
-                        deny("env " + a, "an env option this guard does not model", "run")
-                    if kind == "unset":  # --uns / --unse prefixes; the value word is never an option
-                        if "=" in a:
-                            names = [a.split("=", 1)[1]]
-                        elif q and not q[0].startswith("-"):
-                            names = [next(it, "")]
-                        else:
-                            continue
-                    else:
-                        continue  # "value" (--argv0/--chdir prefixes) and "ok": as on main, no word is consumed
-                else:
-                    break  # the command word
-                for n in names:
-                    if bad(n) or dyn(n):
-                        deny("env -u", n, "unset")
+            for kind, v in env_options(rest):  # T-0964: shared parser; a dash word is never a value
+                if kind == "clear":
+                    deny("env " + v, "the whole environment", "clear or unset")
+                if kind == "unknown":
+                    deny("env " + v, "an env option this guard does not model", "run")
+                if kind == "unset" and (bad(v) or dyn(v)):
+                    deny("env -u", v, "unset")
         elif name == "unset":
             for a in rest:
                 if not a.startswith("-") and (bad(a) or dyn(a)):
@@ -2641,8 +3393,10 @@ class Analyzer:
             return None
         return os.path.realpath(row[0]) if row and row[0] else None
 
-    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
+    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
         words = list(words)
+        # T-0882: a wrapped interpreter keeps the wrapper's stdin (here-strings, the echo/printf literal piped in)
+        stdin_piped, stdin_hs, stdin_pipe = stdin if stdin else (piped, hstrs, getattr(self, "pipe_src", None))
         assigns = list(env_assigns)
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
@@ -2662,9 +3416,11 @@ class Analyzer:
         if words and not self.listing_only(words):
             self.may_create = True
         if self.role in NO_PUSH_ROLES and not self.hq:
-            self.git_config_env(assigns, words)
-            self.builtin_assign(assigns, words, hstrs)
-            self.git_launch(assigns, words)
+            # T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
+            chk = [x for x in assigns if not (x.startswith("HOME=") and self.scratch_form(words, assigns))]
+            self.git_config_env(chk, words)
+            self.builtin_assign(chk, words, hstrs)
+            self.git_launch(chk, words)
         for x in assigns if not words else []:
             if ASSIGN.match(x) and "+=" not in x.split("=", 1)[0] + "=":
                 self.vars[x.split("=", 1)[0]] = x.split("=", 1)[1]
@@ -2708,13 +3464,16 @@ class Analyzer:
         self.claude_launchers(name, rest)
         self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
+        self.prot_write(name, rest)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
-            if self.archive_extract(name, rest) or name in FS_MUTATORS:
+            if self.archive_extract(name, rest) or name in FS_MUTATORS or inline_interpreter(name, rest):
                 self.fs_changed = True
         self.factory_unit(name, rest, assigns)
         if self.role == RESEARCHER and not self.hq:
             self.researcher_cmd(name, rest)
+        if self.role in NO_PUSH_ROLES and not self.hq and name == "gh":
+            self.nopush_gh_write(rest)
         if name in COPIERS:  # R3: no copying/encoding/reading the real herdr binary
             for a in rest:
                 a = a.split("=", 1)[1] if re.match(r"^(if|of)=", a) else a
@@ -2722,6 +3481,7 @@ class Analyzer:
                     raise Block(f"{name} on the herdr binary")
         if name in SHELLS:
             saved = (self.gcwd, self.gdyn, self.ccwd)  # a cd inside `sh -c` does not move the caller
+            self.shell_assigns = assigns
             try:
                 self.shell(rest, depth, piped, hstrs)
             finally:
@@ -2739,10 +3499,16 @@ class Analyzer:
             self.interp_priv(name, rest)
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
+                if self.stdin_program(name, rest):  # T-0882: here-string, heredoc, echo|printf piped in
+                    for h in list(stdin_hs) + ([stdin_pipe] if stdin_piped and stdin_pipe else []):
+                        self.stdin_scan(name, h)
             self.unittest_full(name, rest)
+            self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
                 if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
                     raise Block("herdr in inline interpreter code")
+        elif name in ("pytest", "py.test"):
+            self.pytest_full(name, rest)
         elif name in AWKS or name in EDITORS:
             if any("herdr" in a for a in rest):
                 raise Block(f"herdr in {name} program text (can run shell commands)")
@@ -2766,6 +3532,8 @@ class Analyzer:
             self.kill(rest)
         elif "/" in w and not in_loose:
             self.exec_path(w, depth)
+        if name in ("uv", "uvx"):  # T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
+            self.uv_check(name, rest, depth, piped, in_loose, hstrs, assigns)
         if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):
             return
         if name == "find":
@@ -2775,7 +3543,7 @@ class Analyzer:
         elif name in WRAPPERS and not in_loose:
             if name == "xargs":
                 self.xargs(rest)
-            self.loose(rest, depth, assigns)
+            self.loose(rest, depth, assigns, (stdin_piped, stdin_hs, stdin_pipe))
 
     def test_sandbox_on(self):
         """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
@@ -2914,6 +3682,51 @@ class Analyzer:
                 return f"{prefix} {base}"
         return None
 
+    @staticmethod
+    def uv_inner(name, rest):
+        """T-0880: the words after `uv [opts] run` / `uv [opts] tool run` / `uvx`, or [] when uv runs nothing."""
+        if name == "uvx":
+            return rest
+        return rest[rest.index("run") + 1:] if "run" in rest else []
+
+    UV_VALUED = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--env-file",
+                 "--extra", "--group", "--package", "--only-group", "--no-group", "--with-editable", "-w", "--index",
+                 "--config-file", "--from"}
+
+    def uv_check(self, name, rest, depth, piped, in_loose, hstrs, assigns):
+        """T-0880: `uv run [opts] [--] CMD...` / `uvx [opts] CMD...` is checked like CMD run directly, for the coder and
+        the no-push roles only (cleaner, judge and HQ stay as before). Only the first word after the uv options gets
+        the full command check (exactly the bare command's rules). Later words are a closed predicate: a word whose
+        basename is git followed by the word push (coder and no-push roles), or, for no-push roles, a gh word matching
+        INLINE_GH_WRITE or inline interpreter code (T-0789). No later word reaches exec_path, kill or any other rule
+        (accepted false positive: `uv run python3 x.py git push`). Defense in depth only; the sandbox + worker PAT are the boundary (M15349)."""
+        if self.hq or not (self.role == "coder" or self.role in NO_PUSH_ROLES):
+            return
+        words = self.uv_inner(name, rest)
+        i = 0
+        while i < len(words):
+            a = words[i]
+            if a == "--":
+                i += 1
+                break
+            if not a.startswith("-"):
+                break
+            i += 2 if a in self.UV_VALUED else 1
+        for k in range(i, len(words)):  # git / inline code: later words only, so values of known options are never scanned
+            cand = words[k:]
+            base = os.path.basename(cand[0])
+            if base == "git" and k > i and "push" in cand[1:]:
+                raise Block(f"{name} running git push behind an unknown uv option; push only your own task branch "
+                            "with a plain `git push origin HEAD:factory/<task>`")
+            if self.role in NO_PUSH_ROLES:
+                if base == "gh" and INLINE_GH_WRITE.search(" ".join(cand)):  # item 1: includes the command word
+                    raise Block(f"{name} running a gh write (pr merge/create, repo, api with a write method); "
+                                "no-push roles never write to GitHub; ask your lead")
+                if k > i:
+                    self.interp_inline_push(base, cand[1:])  # inline code after an unknown valued option (T-0789 scan)
+        if i < len(words):
+            self.cmd(words[i:], depth + 1, piped, in_loose, hstrs, assigns)
+
     def uv_run_runner(self, rest, prefix="uv run"):
         """T-0735: `uv run [opts] pytest ...` or `uv run [opts] python -m pytest ...`; returns the runner text or None."""
         valued = {"--with", "--with-requirements", "-p", "--python", "--project", "--directory", "--extra", "--group",
@@ -2955,12 +3768,13 @@ class Analyzer:
             mod, args = self.python_m_split(args)
         if mod not in ("unittest", "unittest.__main__"):
             return
-        advice = ("; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one "
-                  "module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)")
+        advice = FULL_SUITE_ADVICE
         if args[:1] == ["discover"]:
             pats = [args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--pattern")]
             pats += [a.split("=", 1)[1] for a in args if a.startswith("--pattern=")]
             if pats and all(re.fullmatch(r"test_[\w]+\.py", x) for x in pats):  # the last pattern wins, so all must be single-module
+                return
+            if "-k" in args[1:]:  # T-0435: a -k name filter is targeted
                 return
             raise Block("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
         mods = []
@@ -2970,10 +3784,50 @@ class Analyzer:
                 skip = False
             elif a in ("-k", "--start-directory", "-s", "-t", "-p"):
                 skip = True
+                if a == "-k":
+                    mods.append(a)  # T-0435: -k name filters the run
             elif not a.startswith("-"):
                 mods.append(a)
         if not mods:
             raise Block("`python3 -m unittest` with no test module runs the full suite" + advice)
+
+    PYTEST_VALUED = frozenset(("-m", "-c", "-p", "-o", "-W", "-n", "--rootdir", "--maxfail", "--deselect", "--ignore",
+                               "--ignore-glob", "--confcutdir", "--basetemp", "--junitxml", "--durations", "--tb",
+                               "--log-level", "--cov", "--cov-report", "--import-mode", "--color", "--capture",
+                               "--override-ini", "--config-file", "--junit-xml", "--log-file"))
+
+    @staticmethod
+    def pytest_target(a):
+        """A token is a pytest target only if its part before the first `::` ends in .py and has no glob char."""
+        f = a.split("::", 1)[0]
+        return f.endswith(".py") and not any(c in f for c in "*?[")
+
+    def pytest_full(self, name, rest):
+        """T-0435: coder, qa and reviewer run no full pytest suite locally. Blocked: pytest with no path and no -k, or
+        with tests/ (or .) as the only path. Allowed: a file or node path, a -k expression."""
+        if self.role not in ("coder", "qa", "reviewer") or self.hq:
+            return
+        if name in ("pytest", "py.test"):
+            args = rest
+        elif re.fullmatch(r"python[\d.]*", name):
+            mod, args = self.python_m_split(rest)
+            while mod == "?":
+                mod, args = self.python_m_split(args)
+            if mod not in ("pytest", "pytest.__main__"):
+                return
+        else:
+            return
+        skip = False
+        for a in args:
+            if skip:
+                skip = False
+            elif a == "-k" or (a.startswith("-k") and not a.startswith("--")):
+                return  # a -k filter is targeted ("--keep-duplicates" is not -k)
+            elif a in self.PYTEST_VALUED:
+                skip = True
+            elif not a.startswith("-") and self.pytest_target(a):
+                return  # a test file or node id; a directory or an option value is never a target
+        raise Block("pytest with no test file or -k runs the full suite" + FULL_SUITE_ADVICE)
 
     def kill(self, rest):
         """Worker mode (G-008 M1932): `kill` may only name the worker's own background job, `%<job>` or `$!`.
@@ -3013,7 +3867,7 @@ class Analyzer:
             if any(CLAUDE_CLI.search(a) or CLAUDE_PKG in a for a in rest):
                 raise ClaudeBlock(f"{name} running the Claude Code cli")
 
-    def loose(self, rest, depth, env_assigns=()):
+    def loose(self, rest, depth, env_assigns=(), stdin=None):
         for k in range(len(rest)):
             whole = True
             if ASSIGN.match(rest[k]):
@@ -3030,7 +3884,7 @@ class Analyzer:
             if whole and re.search(r"\s", rest[k]):
                 self.script(rest[k], depth + 1)
             self.cmd(rest[k:], depth, False, True,
-                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))])
+                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))], stdin=stdin)
 
     def xargs(self, rest):
         repl, j, first = None, 0, None
@@ -3074,10 +3928,22 @@ class Analyzer:
         one, and the usual push pin and alias refusal apply to the words that are visible."""
         i = 0
         while i < len(gargs) and gargs[i].startswith("-"):
+            cv = gargs[i + 1] if gargs[i] == "-c" and i + 1 < len(gargs) else (gargs[i][2:] if re.match(r"-c.", gargs[i]) else None)
+            if cv is not None and re.match(r"(?i)alias\.", cv):
+                raise Block("xargs git -c alias.<x>=...: the alias could expand to config or push with arguments from stdin; "
+                            "run git directly")
             i += 2 if gargs[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
         if i >= len(gargs) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", gargs[i]) or gargs[i] in ("push", "send-pack", "http-push", "subtree"):
             raise Block("xargs git: the subcommand would come from stdin or could be push; coders push only "
                         "`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+        if gargs[i] == "config":  # T-1035 + #371: refuse unless BOTH main's read-flag rule and the explicit-action exact-read rule hold
+            cargs = gargs[i + 1:]
+            parsed = config_parse(cargs)
+            explicit = bool(parsed) and (any(f in CONFIG_ACTION_FLAGS for f in parsed[0]) or parsed[1][:1] in (["get"], ["list"]))
+            main_ok = any(a in GIT_CONFIG_READ_ONLY for a in cargs) and not any(a in CONFIG_WRITE for a in cargs)
+            if not (main_ok and explicit and config_is_read(cargs)):
+                raise Block("xargs git config: stdin adds arguments, so only a read with an explicit action (`--get`, "
+                            "`--get-all`, `--get-regexp`, `--list`, `-l`) and exact options is allowed; run `git config` directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
@@ -3101,7 +3967,8 @@ class Analyzer:
         for h in hstrs:
             self.script(h, depth + 1)
         if i < len(rest):
-            self.file(rest[i], depth)
+            if i or not self.install_dry_run(rest, self.shell_assigns):  # T-0331: the one unparsed script (no shell options)
+                self.file(rest[i], depth)
         elif hstrs:
             return
         elif piped:
@@ -3151,6 +4018,11 @@ class Analyzer:
         for u in units:
             if re.match(r"^(factory|herdr)", u) or GLOB.search(u) or "$" in u or "`" in u:
                 raise Block(f"systemctl {verbs[0]} {u}")
+
+
+FULL_SUITE_ADVICE = ("; CI runs the full suite (sharded). Locally run `python3 ci/affected.py --base origin/main --quick --run`, "
+                     "or one module: `python3 -m unittest tests.test_X` or `python3 -m unittest discover -s tests -p test_X.py`"
+                     " (T-0642). QA that needs a merged-tree full run asks its lead (T-0435)")
 
 
 def mask_quotes(text):
@@ -3377,6 +4249,7 @@ class PublicText:
         self.public = self.slugs("public_text_repos")
         self.frozen = self.slugs("frozen_repos")
         self.active = bool(self.public or self.frozen)
+        self.nopush = False  # T-0961: set by check() for a NO_PUSH_ROLES role (not HQ): push() refuses before scanning
         self.bodies = []  # (head line, body) of every heredoc seen by preprocess
         self.raw = ""  # the command as the hook received it
         self._mod = self._terms = None
@@ -3700,6 +4573,9 @@ class PublicText:
         return pos, opts
 
     def push(self, cwd, remote, rest):
+        if self.nopush:  # T-0961: refuse by role before the (slow) base..HEAD scan; NO_PUSH_ROLES never push
+            raise PublicBlock("this role may not push (no-push roles only read; ask your lead). "
+                              "The push was refused before any public-text scan")
         if cwd is None or not os.path.isdir(cwd):
             raise PublicBlock("push from a directory known only at run time: cd to a static path first")
         pos, opts = self.push_args(rest)
@@ -3821,6 +4697,7 @@ class PublicText:
 def check(cmd, cwd=None, role=None, hq=False):
     pt = PublicText(cwd, Analyzer(cwd).db_path())
     pt.raw = cmd
+    pt.nopush = role in NO_PUSH_ROLES and not hq
     try:  # PRIV pass (the whole of HQ mode): parse trouble allows
         an = Analyzer(cwd, role, True)
         an.unit_rule = hq
@@ -4201,6 +5078,17 @@ def persist_edit(data, role=None):
         p = os.path.join(cwd, p)
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    if prot_edit_path(p):  # T-0925 gap g: the Edit tools were checked against the persist paths only
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): {PROT_WHY}. Tell your lead if this is wrong.\n")
+        return 2
+    # T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
+    # a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
+    if any(q == d or under(q, d) for q in (os.path.normpath(p), os.path.realpath(p)) for d in BIN_DIRS) or (
+            "$" in p and re.search(r"\.local/bin(?![A-Za-z0-9_])", p)):
+        sys.stderr.write(f"worker-guard: blocked ({path!r}): ~/.local/bin is first on the tick's PATH, so a file "
+                         "planted there runs with the tick's credentials; only the owner changes it. "
+                         "Tell your lead if this is wrong.\n")
         return 2
     nopush = role in NO_PUSH_ROLES  # T-0770: no scratchpad exemption for git config/hooks/info (never reached for HQ)
     if persist_path(p, scratch_ok=not nopush) or (nopush and (git_hooks_path(p) or gitfile_path(p))) or (

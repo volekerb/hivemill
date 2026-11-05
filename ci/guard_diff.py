@@ -22,6 +22,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -90,7 +91,37 @@ def scratch_fixture():
         pass
     os.makedirs(os.path.join(path, "deep", "a", "b"), exist_ok=True)
     open(os.path.join(path, "deep", "a", "b", ".git"), "a").close()
+    # T-0331: `esc` is a symlink out of the scratchpad (the corpus' symlink-escape cases)
+    outside = os.path.join(tempfile.gettempdir(), f"guard-diff-outside-{os.getuid()}")
+    os.makedirs(outside, exist_ok=True)
+    try:
+        os.symlink(outside, os.path.join(path, "esc"))
+    except FileExistsError:
+        pass
     return path
+
+
+def install_fixture():
+    """T-0331: a stand-in live checkout at a fixed temp path whose systemd/install.sh is a byte copy of this repo's;
+    corpus commands spell that script @INSTALL@ and the hook is told it is the live home (WORKER_GUARD_LIVE_HOME), so a
+    `bash <script> --dry-run` is the byte-for-byte live install.sh on any machine."""
+    home = os.path.join(tempfile.gettempdir(), f"guard-diff-install-{os.getuid()}", "factory")
+    dest = os.path.join(home, "systemd", "install.sh")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "systemd", "install.sh")
+    with open(src, "rb") as f:
+        data = f.read()
+    try:
+        with open(dest, "rb") as f:
+            same = f.read() == data
+    except FileNotFoundError:
+        same = False
+    if not same:  # hook_env runs on several threads: write a private file and rename it into place
+        tmp = f"{dest}.{os.getpid()}.{threading.get_ident()}"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, dest)
+    return os.path.realpath(dest)
 
 
 def worktree_fixture():
@@ -116,6 +147,8 @@ def hook_env(cmd, env=None):
         out["WORKER_GUARD_LIVE_HOME"] = shared_fixture()
     if scratch_fixture() in cmd:
         out["WORKER_GUARD_SCRATCH"] = scratch_fixture()
+    if f"guard-diff-install-{os.getuid()}" in cmd:  # only a command naming @INSTALL@ builds that fixture
+        out["WORKER_GUARD_LIVE_HOME"] = os.path.dirname(os.path.dirname(install_fixture()))
     return {**(os.environ if env is None else env), **out} if out else env
 
 
@@ -125,6 +158,7 @@ def expand(cmd):
                          "mixed with @LIVE_HOME@ (the live home would be unguarded); use one token")
     cmd = cmd.replace("@LIVE_HOME@", live_home())
     cmd = cmd.replace("@SHARED@", shared_fixture()) if "@SHARED@" in cmd else cmd
+    cmd = cmd.replace("@INSTALL@", install_fixture()) if "@INSTALL@" in cmd else cmd
     return cmd.replace("@SCRATCH@", scratch_fixture()) if "@SCRATCH@" in cmd else cmd
 
 
@@ -354,6 +388,14 @@ def _shape(name, key, value, want):
     return value
 
 
+def _text(name, key, obj, field):
+    """obj[field] as a string; a missing field is "" (today's default), null or a non-string raises SettingsShapeError."""
+    value = obj.get(field, "")
+    if not isinstance(value, str):
+        raise SettingsShapeError(f"settings {name}: {key} must be a JSON string, got {type(value).__name__}; fix the file")
+    return value
+
+
 def settings_rules(text, legacy=False, name="settings"):
     """{(kind, rule)} of one settings JSON text: the allow/deny lists, every hook as
     `<event>|<matcher>|<type>|<command>` (a missing matcher or type is an empty field), each hook's timeout as its own
@@ -371,11 +413,15 @@ def settings_rules(text, legacy=False, name="settings"):
                 raise SettingsShapeError(f"settings {name}: permissions.{kind} entries must be strings; fix the file")
             out.add((kind, fix(rule)))
     for event, groups in _shape(name, "hooks", d.get("hooks", {}), "object").items():
-        for group in _shape(name, f"hooks.{event}", groups, "list"):
-            _shape(name, f"hooks.{event}[]", group, "object")
-            for h in _shape(name, f"hooks.{event}[].hooks", group.get("hooks", []), "list"):
-                _shape(name, f"hooks.{event}[].hooks[]", h, "object")
-                ident = "|".join((event, group.get("matcher", ""), h.get("type", ""), fix(h.get("command", ""))))
+        ev = f"hooks.{json.dumps(event)}"  # json.dumps keeps a newline in the event name off the error line
+        for group in _shape(name, ev, groups, "list"):
+            _shape(name, f"{ev}[]", group, "object")
+            matcher = _text(name, f"{ev}[].matcher", group, "matcher")
+            for h in _shape(name, f"{ev}[].hooks", group.get("hooks", []), "list"):
+                _shape(name, f"{ev}[].hooks[]", h, "object")
+                htype = _text(name, f"{ev}[].hooks[].type", h, "type")
+                command = _text(name, f"{ev}[].hooks[].command", h, "command")
+                ident = "|".join((event, matcher, htype, fix(command)))
                 out.add(("hook", ident))
                 timeout = h.get("timeout")
                 out.add(("hook-timeout", f"{ident}|timeout={'' if timeout is None else json.dumps(timeout)}"))
@@ -464,7 +510,7 @@ def compare_settings(repo, top, base):
     return lines, loosened
 
 
-ROLE_CALL = re.compile(r"worker-guard\.py --role ([A-Za-z0-9_-]+)")
+ROLE_CALL = re.compile(r"worker-guard(?:\.py)? --role ([A-Za-z0-9_-]+)")  # `python3 ..worker-guard.py` (HQ) or `sh ..worker-guard` (shim)
 
 
 def template_roles(top):
@@ -480,7 +526,7 @@ def template_roles(top):
     except OSError as e:
         raise UsageError(f"cannot read settings templates in {sdir}: {e}; --roles all needs roles/settings/*.json.in")
     if not roles:
-        raise UsageError(f"no roles/settings/*.json.in under {top} calls worker-guard.py --role; cannot derive --roles all")
+        raise UsageError(f"no roles/settings/*.json.in under {top} calls worker-guard or worker-guard.py --role; cannot derive --roles all")
     return sorted(roles)
 
 

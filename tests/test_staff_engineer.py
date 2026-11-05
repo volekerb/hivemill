@@ -118,6 +118,12 @@ class StaffEngineerTests(FactoryTestCase):
         self.ok("msg", "staff-engineer", "q", "ctx", "--kind", "request", agent="zz-test-lead")
         self.assertEqual([(r["name"], r["status"]) for r in self.se_agents()], [("staff-engineer", "queued")])
 
+    def host_lists_old_pane(self):
+        """T-1007: the close is name-checked, so the host must list the done row's pane under its name."""
+        self.env.set_herdr(workspaces=[{"workspace_id": "w1", "label": "x"}],
+                           panes=[{"pane_id": "p-old", "tab_id": "t1", "workspace_id": "w1"}],
+                           agents=[{"name": "staff-engineer", "agent": "claude", "pane_id": "p-old", "agent_status": "idle"}])
+
     def closes(self, pane):
         return [c for c in self.env.calls("herdr") if c["argv"][:3] == ["pane", "close", pane]]
 
@@ -127,6 +133,7 @@ class StaffEngineerTests(FactoryTestCase):
     def test_msg_after_done_gate_open_closes_old_pane_once(self):
         self.clean_slate()
         self.env.seed_agent("staff-engineer", "staff-engineer", status="done", pane_id="p-old")
+        self.host_lists_old_pane()
         self.ok("msg", "staff-engineer", "q", "ctx", "--kind", "request", agent="zz-test-lead")
         self.assertEqual(len(self.closes("p-old")), 1)
         rows = self.se_agents()
@@ -136,6 +143,7 @@ class StaffEngineerTests(FactoryTestCase):
     def test_msg_after_done_gate_closed_closes_old_pane_once(self):
         self.clean_slate()
         self.env.seed_agent("staff-engineer", "staff-engineer", status="done", pane_id="p-old")
+        self.host_lists_old_pane()
         self.ok("config", "max_live_agents", "0", agent="zz-test-director")
         self.ok("msg", "staff-engineer", "q", "ctx", "--kind", "request", agent="zz-test-lead")
         self.ok("msg", "staff-engineer", "q2", "ctx", "--kind", "request", agent="zz-test-lead")  # repeat: no 2nd claim
@@ -222,6 +230,7 @@ class StaffEngineerTests(FactoryTestCase):
     def test_direct_spawn_reuse_closes_old_pane_once(self):
         self.clean_slate()
         self.env.seed_agent("staff-engineer", "staff-engineer", status="done", pane_id="p-old")
+        self.host_lists_old_pane()
         self.ok("spawn", "staff-engineer", "--name", "staff-engineer", agent="zz-test-lead")
         self.assertEqual(len(self.closes("p-old")), 1)
         rows = self.se_agents()

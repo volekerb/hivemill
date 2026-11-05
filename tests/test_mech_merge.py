@@ -6,6 +6,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import unittest
 
 from harness import FACTORY, PR_URL, REPO, FactoryTestCase, gates_summary
@@ -178,6 +179,71 @@ class MechMergeTests(FactoryTestCase):
         self.assertIn("STALE-ONLY", self.events("mech-blocked")[0])
         self.assertEqual(self.events("refreshed"), [])
 
+    def _behind_ok_main_moves(self, name):
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('stale_strict:zz-test/repo',?)",
+                     (json.dumps({"at": time.time(), "strict": False}),))
+        other = self.env.home / "other"
+        git(self.env.home, "clone", "-q", str(self.remote), str(other))
+        (other / name).parent.mkdir(parents=True, exist_ok=True)
+        (other / name).write_text("m\n")
+        git(other, "add", name)
+        git(other, "commit", "-q", "-m", "main moves")
+        git(other, "push", "-q", "origin", "HEAD:main")
+
+    def test_behind_ok_with_tests_yml_changed_on_main_is_refused_for_refresh(self):
+        # T-1000: behind_ok must not let a head that predates a CI change merge; the mech merger refuses, never refreshes
+        self._behind_ok_main_moves(".github/workflows/tests.yml")
+        self.mech("on")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("tests.yml changed on main since the merge-base", self.events("mech-blocked")[0])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def test_behind_ok_without_tests_yml_change_still_merges(self):
+        self._behind_ok_main_moves("main.txt")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.merges()), 1)
+        self.assertEqual(self.status(), "done")
+        self.assertIn("tests.yml unchanged on main since the merge-base", self.events("merged")[0])
+
+    def test_behind_ok_with_a_file_changed_by_main_and_the_pr_is_refused_for_refresh(self):
+        # T-1025: main edits a file the PR also edits (different lines, merge-tree clean): refused, never refreshed
+        self.commit("base.txt", "PR\nb\nc\n", "pr edits base")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("base.txt")
+        self.mech("on")
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertIn("main and the PR both changed base.txt", self.events("mech-blocked")[0])
+        self.assertEqual(self.events("refreshed"), [])
+
+    def _judge_candidates(self):
+        with self.env.load_factory() as f:
+            con = f.db()
+            return [r["id"] for r in f.judge_autospawn_candidates(con)]
+
+    def test_a_mech_refused_overlap_pr_keeps_its_judge_route_after_the_retry_window(self):
+        # T-1025 B1: T0-T2 overlap PR refused by the merger; 10+ minutes later (judge slots full) it must still reach the judge
+        self.commit("base.txt", "PR\nb\nc\n", "pr edits base")
+        self.x = self.publish()
+        self.stub(views=[self.pr(self.x, GREEN)])
+        for agent, summary in (("zz-test-reviewer", "ok"), ("zz-test-qa", gates_summary())):
+            self.assertEqual(self.cli("verdict", "T-0001", "--pass", "--summary", summary, agent=agent).returncode, 0)
+        self._behind_ok_main_moves("base.txt")
+        self.mech("on")
+        self.assertEqual(len(self.events("mech-blocked")), 1)
+        self.assertIn("T-0001", self._judge_candidates())
+        self.env.sql("UPDATE events SET ts='2020-01-01T00:00:00+00:00' WHERE action='mech-blocked'")
+        self.assertIn("T-0001", self._judge_candidates())
+
+    def test_a_task_the_merger_has_not_refused_stays_with_the_merger(self):
+        self.ok("config", "mech_merge", "on")
+        self.assertNotIn("T-0001", self._judge_candidates())
+
     # -- who goes to the LLM judge ---------------------------------------
     def test_t3_goes_to_the_judge(self):
         self.commit(".github/workflows/x.yml", "name: x\n", "touch ci")
@@ -230,6 +296,35 @@ class MechMergeTests(FactoryTestCase):
         self.mech("on")
         self.assertEqual(self.merges(), [])
         self.assertEqual(self.status(), "in_review")
+
+    # -- judge hold on the task (G-022 T-1012) ----------------------------
+    def test_judge_hold_stops_the_mech_merge_and_clear_restores_it(self):
+        self.ok("task", "update", "T-0001", "--judge-hold", "owner wants to look")
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.ok("task", "update", "T-0001", "--judge-hold-clear")
+        p = self.cli("mech-merge")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.status(), "done")
+        self.assertEqual(len(self.merges()), 1)
+
+    def test_judge_hold_set_after_the_candidate_list_stops_the_merge(self):
+        hook = ('if argv[:2] == ["pr", "view"]:\n    if st.get("hold_db"):\n        import sqlite3\n'
+                '        c = sqlite3.connect(st["hold_db"])\n'
+                '        c.execute("UPDATE tasks SET judge_hold_reason=\'late hold\' WHERE id=\'T-0001\'")\n        c.commit()\n')
+        stub = GH_STUB.replace('if argv[:2] == ["pr", "view"]:\n', hook, 1)
+        self.assertNotEqual(stub, GH_STUB)
+        (self.gh_dir / "gh").write_text(stub)
+        st = json.loads(self.jw_state.read_text())
+        st["hold_db"] = str(self.env.db_path)
+        self.jw_state.write_text(json.dumps(st))
+        p = self.mech("on")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.merges(), [])
+        self.assertEqual(self.status(), "in_review")
+        self.assertEqual(self.events("judge-hold"), ["late hold"])
 
     # -- QA live-run marker (roles/qa.md Q7) ------------------------------
     def qa_verdict(self, summary, verdict="pass"):

@@ -110,7 +110,7 @@ func TestNoPushInterpInlineMessages(t *testing.T) {
 		t.Errorf("git push message: %v", err)
 	}
 	err = Check("python3 -c '"+inlPyPost+"'", t.TempDir(), "qa", false)
-	want := "python3 inline code that runs a gh write (pr merge/create, repo, api with a write method); no-push roles never write to GitHub; ask your lead"
+	want := "python3 inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); no-push roles never write to GitHub; ask your lead"
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("gh write message: %v", err)
 	}

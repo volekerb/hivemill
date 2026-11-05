@@ -18,7 +18,7 @@ import (
 
 // Port of the PublicText class of worker-guard.py (G-021): the public-text and frozen-repo rule for git and gh
 // writes (T-0887). The config comes from the guard export (guardexport.go), the checker from scrub.go / ptcheck.go:
-// nothing is delegated to the Python hook any more. publictext.go holds the entry conditions and the Analyzer hook.
+// this rule delegates nothing to the Python hook (only the tar/unzip member list does, archive_rule.go). publictext.go holds the entry conditions and the Analyzer hook.
 
 var (
 	ptTextFlags = set("--title", "-t", "--body", "-b", "--subject", "--comment", "-c", "--notes", "-n", "--message", "-m",
@@ -43,6 +43,7 @@ type publicText struct {
 	frozen  map[string]struct{}
 	active  bool
 	terms   string // the scrub_terms_file config row
+	nopush  bool   // T-0961: a NO_PUSH_ROLES role: push refuses before any scan
 	bodies  []Heredoc
 	raw     string
 	scanner *scrubScanner
@@ -738,6 +739,9 @@ var reRefsPrefix = regexp.MustCompile(`^refs/(?:heads|tags)/`)
 
 // push is PublicText.push.
 func (pt *publicText) push(cwd string, cwdOK bool, remote string, rest []string) error {
+	if pt.nopush { // T-0961: refuse by role before the (slow) base..HEAD scan
+		return pubBlock("this role may not push (no-push roles only read; ask your lead). The push was refused before any public-text scan")
+	}
 	if !cwdOK || !isDir(cwd) {
 		return pubBlock("push from a directory known only at run time: cd to a static path first")
 	}

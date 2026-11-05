@@ -322,12 +322,32 @@ class GoImplTests(GuardDiffCase):
             lines = set(f.read().splitlines())
         self.assertEqual(lines, {f"--role coder --py-hook {os.path.abspath(self.hook)}"})
 
+    def test_template_roles_reads_both_hook_forms_and_still_fails_closed(self):
+        """T-0356 C1: the shim form `sh <live>/roles/hooks/worker-guard --role X` is a role call too; no call is an error."""
+        sdir = os.path.join(self.repo, "roles", "settings")
+        os.makedirs(sdir)
+        for name, cmd in (("a", "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder"),
+                          ("b", "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role qa"),
+                          ("c", "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --hq")):
+            with open(os.path.join(sdir, name + ".json.in"), "w") as f:
+                f.write('{"command": "%s"}' % cmd)
+        self.assertEqual(guard_diff.template_roles(self.repo), ["coder", "qa"])
+        for name in ("a", "b"):
+            os.remove(os.path.join(sdir, name + ".json.in"))
+        with self.assertRaises(guard_diff.UsageError) as cm:
+            guard_diff.template_roles(self.repo)
+        self.assertIn("cannot derive --roles all", str(cm.exception))
+
+    def test_template_roles_of_the_real_templates_are_the_worker_roles(self):
+        self.assertEqual(guard_diff.template_roles(harness.REPO),
+                         sorted(("cleaner", "coder", "evaluator", "judge", "pm", "qa", "researcher", "reviewer", "scout", "staff-engineer")))
+
     def test_roles_all_derived_from_templates(self):
         sdir = os.path.join(self.repo, "roles", "settings")
         os.makedirs(sdir)
-        for role in ("alpha", "beta-two"):
-            with open(os.path.join(sdir, role + ".json.in"), "w") as f:
-                f.write('{"command": "python3 x/roles/hooks/worker-guard.py --role %s"}' % role)
+        for role, form in (("alpha", "python3 x/roles/hooks/worker-guard.py"), ("beta-two", "sh x/roles/hooks/worker-guard")):
+            with open(os.path.join(sdir, role + ".json.in"), "w") as f:  # T-0356: the python3 form (HQ) and the sh shim form
+                f.write('{"command": "%s --role %s"}' % (form, role))
         with open(os.path.join(sdir, "norole.json.in"), "w") as f:
             f.write('{"command": "python3 x/roles/hooks/worker-guard.py --hq"}')
         p = self.run_go(STUB_TIGHT, "--roles", "all", "--mode", "both")
@@ -978,6 +998,44 @@ class SettingsFollowUpTests(GuardDiffCase):
                 self.assertEqual(len(p.stderr.strip().splitlines()), 1, p.stderr)
                 self.assertNotIn("no change", p.stdout.lower())
                 git(self.repo, "checkout", "-q", "--", ".")
+
+    def test_hook_field_types_and_newline_event_fail_closed_on_one_line(self):
+        def hook_edit(field, value, where):
+            def edit(d):
+                grp = d["hooks"]["PreToolUse"][0]
+                (grp if where == "group" else grp["hooks"][0])[field] = value
+            return edit
+
+        def newline_event(d):
+            d["hooks"]["Pre\nTool"] = [{"hooks": None}]
+
+        cases = [("matcher", hook_edit("matcher", v, "group")) for v in (None, 5, ["a"])]
+        cases += [("matcher", lambda d: d["hooks"]["PreToolUse"].append({"matcher": None}))]
+        cases += [("type", hook_edit("type", v, "hook")) for v in (None, 5)]
+        cases += [("command", hook_edit("command", v, "hook")) for v in (None, 5, ["a"])]
+        cases.append(("Pre\\nTool", newline_event))
+        self.commit_base(self.seed)
+        for key, edit in cases:
+            with self.subTest(key=key, edit=edit):
+                self.edit_tree(edit)
+                p = self.settings()
+                self.assertNotEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertNotIn("Traceback", p.stdout + p.stderr)
+                self.assertIn("qa.json.in", p.stderr)
+                self.assertIn(key, p.stderr)
+                self.assertEqual(len(p.stderr.strip().splitlines()), 1, p.stderr)
+                self.assertNotIn("no change", p.stdout.lower())
+                git(self.repo, "checkout", "-q", "--", ".")
+
+    def test_missing_hook_matcher_type_command_still_work(self):
+        self.commit_base(self.seed)
+
+        def edit(d):
+            d["hooks"]["Stop"] = [{"hooks": [{}]}]
+        self.edit_tree(edit)
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-TIGHTENED qa hook added: Stop|||", p.stdout)
 
     def test_malformed_base_settings_fail_closed(self):
         self.commit_base(lambda d: d["permissions"].__setitem__("ask", None))

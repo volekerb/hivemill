@@ -1,7 +1,7 @@
 # worker-guard in Go (G-016 SC4)
 
 `go/cmd/worker-guard` is the Go port of `roles/hooks/worker-guard.py`. It was built in four section tasks and is
-**not wired anywhere**: no settings file, shim or flag calls it, and Python stays the default (`guard_impl=python`).
+wired only behind the shim: the 10 worker settings templates call `roles/hooks/worker-guard` (T-0356), which picks Go or Python from the `guard_impl` flag; Python stays the default (`guard_impl=python`). HQ (boss, director, lead) calls the Python hook directly.
 The Python hook on `origin/main` is the behaviour contract.
 
 ## Status
@@ -62,7 +62,8 @@ removals and chmods of it and Edit-class calls on it (realpath and symlink forms
    to): from it the rule reads `ci/scrub_allowlist.txt` for a push and checks that `ci/public_text_guard.py` and
    `ci/scrub_scan.py` exist (Python's "cannot be loaded" refusal). A push with no `--py-hook` is refused (the allowlist
    cannot be located); text checks do not need it. The delegation machinery (`Delegate`, `RunPython`) is still in the
-   package, now used by no rule, so a future DB read without an export row can use it.
+   package. One rule uses it today: the member list of a no-push `tar`/`unzip` extraction (T-1001, see below); a
+   future DB read without an export row can use it too.
 
    The checker port: the patterns of `scrub_scan.py` (GENERIC) and `public_text_guard.py` (EXTRA, image metadata readers,
    `check_push`) are RE2 expressions plus hand-written lookbehind/`\b` assertions (`scanRule`); owner terms are matched
@@ -106,6 +107,17 @@ scratchpad; without it the scratchpad comes from the payload `session_id` (`guar
 Tests: `git_test.go` (`go test ./internal/guard -run Git`) ports `tests/test_worker_guard_git.py`; where the decision
 reads the DB and a DB file exists, the test accepts the delegation.
 
+## No-push gh writes (T-0881, T-0993)
+
+For the no-push roles (not HQ) `nopush.go:noPushGhWrite` mirrors `Analyzer.nopush_gh_write`: a direct `gh api` with a body
+flag (`-f -F --field --raw-field --input`) is refused unless the parsed method is GET (`ghParse`: `--method=GET`, `-XGET`,
+global flags such as `-R`), and so is `gh release create|edit|delete|upload|delete-asset`. Inline interpreter code and
+`bash -c` go through `nopush_inline.go`: `INLINE_GH_WRITE` gained the `release` alternative, and `inlineGhAPIBody` ports
+`inline_gh_api_body` (the text is cut at each `gh` word, so a `-X GET` on another gh call exempts nothing). RE2 has no
+lookbehind, so `(?<![\w-])` before the flag and `(?![\w-])` after it are hand-coded (`bodyFlagAt`, `matchInlineGhGet`).
+Messages keep Python's `gh api with -f/...` and `gh release <verb>` text. Tests: `nopush_gh_api_release_test.go`; corpus
+entries sit next to the gh release lines in `ci/guard_corpus.json`.
+
 ## Config, persist and factory rules (T-0351)
 
 - `host.go`: the module-level state that comes from the passwd entry: `derive_live_homes`, `LIVE_HOME(S)`, `PW_DIR`,
@@ -115,7 +127,7 @@ reads the DB and a DB file exists, the test accepts the delegation.
   write detector); `persist.go`: `brace_expand`, `repo_cfg_path`, `persist_path`, `persist_hit`, `persist_redirect`,
   `persist_write`; `git.go`: `git_persist` (with `-C`, `--git-dir`, `--work-tree`), `repo_cfg_refuse`, `cfg_in_scratch`,
   `git_push_pin`; `factory.go`: `temp_home`, `outside_live`, `agent_temp_home`, `check_identity`, `evaluator_factory`,
-  `factory_unit`, `broad_read`; `gh.go`: `gh_repo_change`; `publictext.go` / `ptrule.go`: `PublicText` (T-0887: the whole rule);
+  `factory_unit`, `broad_read`, `scratch_homes`, `install_dry_run`, `scratch_form` (T-0331); `gh.go`: `gh_repo_change`; `publictext.go` / `ptrule.go`: `PublicText` (T-0887: the whole rule);
   `tools.go`: `persist_edit` and `terms_tool` (Edit/Write/MultiEdit/NotebookEdit and Read/Grep payloads).
 - Tests: `persist_test.go` ports `tests/test_worker_guard_persist.py` and `tests/test_worker_guard_repocfg.py`;
   `factory_test.go` ports `tests/test_worker_guard_repoprot.py`, `tests/test_worker_guard_data.py`, the
@@ -194,12 +206,25 @@ stale or missing binary never runs old rules. The binary is called as `worker-gu
 
 **Modes.** `python`: `python3 worker-guard.py <args>`. `go`: the binary. Both get stdin as is.
 
+**Who calls the shim (T-0356, M22079).** The 10 worker templates call `sh <live home>/roles/hooks/worker-guard --role <role>` (27 hook lines; was `python3 <live home>/roles/hooks/worker-guard.py --role <role>`). The 3 HQ templates (boss, director, lead) stay on `python3 <live home>/roles/hooks/worker-guard.py --hq`. Why: HQ repairs a broken hook. A direct python3 crash exits non-2, which does not block, so HQ can still fix it. The shim maps every crash to exit 2, so a broken hook under the shim would lock boss, director and leads out of Bash with no agent able to repair it (M20449). Moving HQ onto the shim is decided at the Go flip, not before. The sandboxed evaluator rewrites whichever form its template has to `python3 <trial copy of worker-guard.py> <same args>` (the shim is not copied into the trial). `ci/guard_diff.py --roles all` reads both forms.
+
 **Fail closed.** The shim never `exec`s. Every exit status other than 0 and 2 (including 126/127 when python3 or the
 binary cannot run, and signals such as SIGKILL = 137) becomes exit 2 with
 `worker-guard shim: <impl> failed (<status>); blocking`. Exit 1 and 126/127 would otherwise be non-blocking for Claude Code.
 
 **Protected.** `<live home>/run/guard_impl` and the `~/.local/lib/factory` tree are write-protected from workers' Bash
 in both the Python and the Go guard (writers, redirects, `cd` + write); reads (`ls`, `cat` of the stamp) stay allowed.
+
+**Protected trees for workers (T-0925).** One list, in both guards (`prot_trees` / `protTrees`): `~/.local/lib/factory`,
+`~/.config/factory`, `<live>/run/settings`, `<live>/run/guard_impl`, `~/.local/go` (the Go toolchain: its `go.env` applies
+`GOFLAGS` even with `GOENV=off`), `~/.config/go` (`go env -w` writes it), and four trees inside the live checkout:
+`<live>/go`, `<live>/bin`, `<live>/roles/hooks`, `<live>/roles/settings`. Not the whole live checkout, and never the
+hook's own repo root (a worktree stays writable). A Bash command is refused when it is a redirect, a writer
+(`cp mv ln rm tee install touch dd ...`, `sed -i`), a writer flag (`curl -o/-O`, `wget -O/-P`, `go build -o`, `gcc -o`,
+`tar -C/-f/--one-top-level`, `unzip -d`, `7z -o`, `git clone <dir>`), `go env -w|-u`, or an extractor/downloader with no
+target after a `cd` into a tree, and the target is a tree, inside one, or a glob that can match one (`~/.local/fact*/x`).
+A `cd` target that is only known at run time followed by an extractor is refused too. Write/Edit/MultiEdit/NotebookEdit
+on a path in a tree are refused the same way. Reads, runs and look-alikes (`~/.local/gox`, `<live>/binx`) stay allowed.
 
 **Rollback.** Write `python` (or remove `run/guard_impl`): the next call uses Python, no relaunch.
 
@@ -276,3 +301,39 @@ setting `go` or `shadow` while it is not `ok` prints a warning (the key is still
 - **Failure marker.** A failed or timed-out build writes `~/.local/lib/factory/worker-guard.failed` holding the `srchash`. The tick does not rebuild while the marker holds the current `srchash` and is under 30 minutes old; a new `srchash` builds at once, `factory up` ignores the marker, and a successful build removes it.
 - The tick path stays silent when `go` is missing (it would log every minute); `factory up` logs the `skipped` line, and `factory config` shows `guard binary: missing`.
 - The flag and the stamp are written through a unique temp file in the same directory, never a fixed `.new` name, so a planted symlink is not followed.
+
+## Latency
+
+Per-call latency of the shim `sh roles/hooks/worker-guard` through the real entry point (T-0355, SC4), python vs go. Command:
+`python3 ci/profile_baseline.py --runs 50 --hook-cmd 'sh roles/hooks/worker-guard'` run twice with the flag file `run/guard_impl` = `python <hash>`, then `go <hash>`; temp `HOME` (holding the built binary and its stamp) and temp `FACTORY_HOME`, on the factory box. Each row is 150 calls per implementation (50 runs of an allowed, a blocked and a heredoc command, exit codes as expected: 0, 2, 0; hq blocks nothing).
+
+| role | python min / median / p95 (ms) | go min / median / p95 (ms) | median ratio (python / go) |
+|---|---|---|---|
+| coder | 63.4 / 68.0 / 71.1 | 7.4 / 8.0 / 9.5 | 8.5x |
+| qa | 63.2 / 69.1 / 76.6 | 7.4 / 8.0 / 9.7 | 8.7x |
+| reviewer | 64.5 / 68.9 / 76.0 | 7.2 / 8.0 / 9.4 | 8.6x |
+| judge | 65.8 / 69.1 / 80.4 | 7.3 / 8.1 / 9.3 | 8.6x |
+| cleaner | 66.1 / 71.3 / 87.0 | 7.2 / 8.0 / 9.5 | 8.9x |
+| evaluator | 67.1 / 70.3 / 81.8 | 7.2 / 7.8 / 9.0 | 9.0x |
+| hq | 64.1 / 68.9 / 81.1 | 7.2 / 7.9 / 9.4 | 8.7x |
+
+meta (python run): git_sha=1a1111fc3 python=3.13.5 nproc=8 loadavg=[4.92, 2.6, 2.23] date=2026-11-04T01:34:17+01:00
+meta (go run): git_sha=1a1111fc3 python=3.13.5 nproc=8 loadavg=[3.17, 2.55, 2.24] date=2026-11-04T01:35:35+01:00
+
+Go is faster at the median for every role (about 8.5x to 9x): about 8 ms against about 69 ms, and the Go p95 (9.7 ms at most) is below the Python minimum (63 ms). The Go figure is close to the cost of `sh` plus one process start; Python pays for interpreter start and the hook module import. Python stays the default; this table is the measured gain for a later flip decision.
+
+## No-push `tar` / `unzip` extraction (T-1001, mirror of T-0805)
+
+Go ports the `parse_tar` grammar and rule E1/E2: the option allowlist, the `TAR_OPTIONS`-style environment variables,
+the name-rewrite options, the `-C`/`-d` target checks and the stdin / glob / expansion archive names. An unclassifiable
+tar word counts as extract mode (fail closed), as in Python. The reason text is the Python text, byte for byte.
+
+Go does **not** read archives. Rule E3 (the member list has no `.git` member and no `config`+`HEAD` pair) needs
+`tarfile` and `zipfile` as the reference, so an extraction that passes every Go check is delegated: `archiveMembers`
+returns `Delegate`, before any `Lstat` or `Stat`, and the Python hook answers (missing file, FIFO, oversize and
+unreadable archive included). Go therefore cannot disagree with Python on a crafted archive (NUL names, the 0x7075
+Unicode path extra, truncated or padded tars, any bzip2 level).
+
+**Python stays required for this path after any flip to `impl=go`.** `RunPython` exits 2 when `--py-hook` is not
+given, the hook file is unreadable, `python3` is missing or the hook crashes: the extraction is refused, never
+allowed. Measuring how often a no-push extraction reaches the list step is T-0357.

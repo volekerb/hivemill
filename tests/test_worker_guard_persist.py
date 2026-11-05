@@ -114,7 +114,7 @@ class PersistGuardTests(unittest.TestCase):
                         "git config --global --remove-section a", "git config --system core.fsmonitor x",
                         "git config --global set a.b c", "git config --global unset a.b",
                         "git -c core.pager=cat config --global a.b c", "git -C /tmp config --global a.b c",
-                        "git config --glo a.b c", "git config a.b c --global",
+                        "git config --glo a.b c",
                         "env git config --global a.b c", "sh -c 'git config --global a.b c'"):
                 self.blocked(cmd, role)
 
@@ -270,12 +270,89 @@ class PersistEditToolTests(unittest.TestCase):
             groups = settings_groups(role)
             edit = [g for g in groups if set(g.get("matcher", "").split("|")) == PERSIST_TOOLS]
             self.assertEqual(len(edit), 1, role)
-            self.assertTrue(edit[0]["hooks"][0]["command"].endswith(f"worker-guard.py --role {role}"), role)
+            # T-0356 (M22079): worker templates call the sh shim (no .py suffix)
+            self.assertTrue(edit[0]["hooks"][0]["command"].endswith(f"/roles/hooks/worker-guard --role {role}"), role)
         for role in ("boss", "director", "lead"):
             self.assertFalse([g for g in settings_groups(role) if "Edit" in g.get("matcher", "")], role)
 
 
+# T-0957: ~/.local/bin is first on the tick's PATH, so workers must not write it (a planted git/factory runs with the
+# tick's credentials); writes exit 2, also through a symlink entry (spelled path), reads and running stay allowed.
+LB_BIN = f"{PW}/.local/bin"
+LB_BLOCKED = [
+    "echo x > ~/.local/bin/git", "echo x >> ~/.local/bin/go", "echo x > ~/.local/bin/factory",
+    "echo x > $HOME/.local/bin/nice", "cp /tmp/x ~/.local/bin/git", "mv /tmp/x ~/.local/bin/git",
+    "ln -s /tmp/x ~/.local/bin/git", "ln -sf /tmp/x ~/.local/bin/factory", "rm ~/.local/bin/factory",
+    "rm -r ~/.local/bin", "tee ~/.local/bin/git", "cd ~/.local/bin && echo x > git",
+    "cd ~/.local/bin && cp /tmp/x git", f"echo x > {LB_BIN}/git", f"cp /tmp/x {LB_BIN}/git",
+    f"echo x > {LB_BIN}/../bin/git", "sed -i s/a/b/ ~/.local/bin/git",
+    "python3 -c \"open('/h/.local/bin/git','w')\"",
+]
+LB_ALLOWED = [
+    "ls ~/.local/bin", "ls -la ~/.local/bin/factory", "cp ~/.local/bin/x /tmp/x", "~/.local/bin/factory whoami",
+    "grep -rn .local/bin docs", "echo x > /usr/local/bin/foo", "echo x > ~/.local/binx/foo",
+    f"echo x > {PW}/.local/binx/foo", "git commit -m 'note: ~/.local/bin is on PATH'",
+    "factory msg lead 'subj' 'see ~/.local/bin/git'", "export PATH=~/.local/bin:$PATH",
+    "cp /tmp/x ~/.local/share/foo",
+]
+
+
+def lb_run(cmd, role="coder"):
+    return hook_run(json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": ROOT}), ["--role", role])
+
+
+class LocalBinGuardTest(unittest.TestCase):
+    def test_writes_into_local_bin_are_blocked(self):
+        for cmd in LB_BLOCKED:
+            r = lb_run(cmd)
+            self.assertEqual(r.returncode, 2, f"{cmd}: {r.stderr}")
+
+    def test_block_message_names_local_bin(self):
+        for cmd in ("echo x > ~/.local/bin/git", "cp /tmp/x ~/.local/bin/git", "rm ~/.local/bin/factory"):
+            self.assertIn("~/.local/bin", lb_run(cmd).stderr, cmd)
+
+    def test_reads_runs_look_alikes_and_text_are_allowed(self):
+        for cmd in LB_ALLOWED:
+            r = lb_run(cmd)
+            self.assertEqual(r.returncode, 0, f"{cmd}: {r.stderr}")
+
+    def test_blocked_for_every_worker_role(self):
+        for role in ("coder", "qa", "reviewer", "pm"):
+            self.assertEqual(lb_run("echo x > ~/.local/bin/git", role).returncode, 2, role)
+
+
 PERSIST_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+
+class LocalBinEditToolsTest(unittest.TestCase):
+    """T-0957 AC11: Write/Edit/MultiEdit/NotebookEdit into ~/.local/bin exit 2 (spelled, resolved, symlink entry)."""
+
+    def call(self, tool, path, cwd=ROOT):
+        key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+        return hook_subprocess({"tool_name": tool, "tool_input": {key: path}, "cwd": cwd})
+
+    def test_edit_tools_into_local_bin_are_blocked(self):
+        paths = [("~/.local/bin/git", ROOT), ("$HOME/.local/bin/git", ROOT), (f"{LB_BIN}/git", ROOT),
+                 ("git", LB_BIN), (f"{LB_BIN}/factory", ROOT), (f"{LB_BIN}/../bin/git", ROOT),
+                 ("/tmp/$X/.local/bin/git", ROOT)]
+        for tool in sorted(PERSIST_TOOLS):
+            for path, cwd in paths:
+                r = self.call(tool, path, cwd)
+                self.assertEqual(r.returncode, 2, f"{tool} {path}\n{r.stderr}")
+                self.assertIn("~/.local/bin", r.stderr)
+
+    def test_symlink_entry_with_realpath_outside_tree_is_blocked(self):
+        # a fixture symlink in a temp tree cannot sit inside the real ~/.local/bin (never written); the spelled path of
+        # the live entry (factory -> repo bin/factory) is decided on its text, so the check needs no file there
+        self.assertEqual(self.call("Write", f"{LB_BIN}/factory").returncode, 2)
+
+    def test_other_paths_are_allowed(self):
+        for tool in sorted(PERSIST_TOOLS):
+            for path in ("~/.local/binx/foo", f"{PW}/.local/binx/foo", os.path.join(ROOT, "notes.md")):
+                r = self.call(tool, path)
+                self.assertEqual(r.returncode, 0, f"{tool} {path}\n{r.stderr}")
+        main = hook_subprocess({"tool_name": "Write", "tool_input": {"file_path": "/usr/local/bin/foo"}}).returncode
+        self.assertEqual(main, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

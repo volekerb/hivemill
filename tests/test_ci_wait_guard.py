@@ -22,7 +22,7 @@ def hook(command, background):
 
 class CiWaitGuardTests(unittest.TestCase):
     def test_background_watch_allowed_for_coder(self):
-        p = hook("gh pr checks 1 --watch --fail-fast", True)
+        p = hook("gh pr checks 1 --watch --interval 60 --fail-fast", True)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(hook("pkill claude", True).returncode, 2)  # control: the hook is active
 
@@ -37,7 +37,7 @@ class CiWaitGuardTests(unittest.TestCase):
     def test_skill_has_exact_call_and_rules(self):
         with open(SKILL) as f:
             text = f.read()
-        for needle in ("run_in_background: true", "gh pr checks <url> --watch --fail-fast",
+        for needle in ("run_in_background: true", "gh pr checks <url> --watch --interval 60 --fail-fast",
                        "Do not poll", "sleep", "Never more than one watch per PR", "Kill only your own"):
             self.assertIn(needle, text)
 

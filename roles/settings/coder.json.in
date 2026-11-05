@@ -208,7 +208,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role coder",
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder",
             "timeout": 120,
             "onFailure": "block"
           }
@@ -219,7 +219,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role coder",
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder",
             "timeout": 120,
             "onFailure": "block"
           }
@@ -230,7 +230,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --role coder",
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role coder",
             "timeout": 120,
             "onFailure": "block"
           }

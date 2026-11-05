@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -84,6 +85,7 @@ func TestUvRunnersSeededTestSandbox(t *testing.T) {
 	allowed := []string{"uvx ruff", "uv tool run black", "uvx pytest-cov", "uvx 'ruff >=0.5'", "uvx pytestx"}
 	for _, role := range []string{"coder", "qa"} {
 		for _, c := range blocked {
+			c = withTestPath(c)
 			t.Setenv("FACTORY_HOME", on)
 			if got, want := exitThroughBinaryPath(t, c, role), pythonExit(t, c, role); got != 2 || want != 2 {
 				t.Errorf("%s %q with test_sandbox=1: go path exit %d, python exit %d, want 2", role, c, got, want)
@@ -115,4 +117,13 @@ func TestUvDelegationFailsClosedWithoutThePythonHook(t *testing.T) {
 		}
 	}
 	SetPyHook("")
+}
+
+// withTestPath names a test file on a pytest form: T-0435 refuses bare pytest (full suite) with or without test_sandbox,
+// and the Go guard does not carry that rule, so only the test_sandbox decision is under test here.
+func withTestPath(c string) string {
+	if strings.Contains(c, "pytest") || strings.Contains(c, "py.test") {
+		return c + " tests/test_x.py"
+	}
+	return c
 }

@@ -165,5 +165,76 @@ class RoutingTests(FactoryTestCase):
         self.assertIn("across orgs", p.stderr)
 
 
+class LeadBareHqRoutingTests(RoutingTests):
+    """T-1075: a lead or worker's bare director/boss/owner is its OWN org's, whatever --goal says."""
+
+    def test_claude_lead_bare_hq_with_cursor_goal_stays_in_own_org(self):
+        for to, want in (("director", "director"), ("boss", "boss"), ("owner", "boss")):
+            self.ok("msg", to, "zz-test s", "b", "--goal", "G-002", agent="lead-g-001-a")
+            self.assertEqual(self.last_rcpt(), want)
+
+    def test_cursor_lead_bare_director_with_claude_goal_stays_in_cursor(self):
+        self.ok("msg", "director", "zz-test s", "b", "--goal", "G-001", agent="cursor-lead-g-002-a")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+
+    def test_worker_bare_director_with_other_org_goal_stays_in_own_org(self):
+        self.env.seed_agent("zz-test-coder", "coder", goal="G-001", team="g-001-a")
+        self.env.sql("UPDATE agents SET org='claude' WHERE name='zz-test-coder'")
+        self.ok("msg", "director", "zz-test s", "b", "--goal", "G-002", agent="zz-test-coder")
+        self.assertEqual(self.last_rcpt(), "director")
+
+    def test_explicit_other_org_agent_still_refused(self):
+        p = self.refused(3, "msg", "cursor-director", "zz-test s", "b", "--goal", "G-002", agent="lead-g-001-a")
+        self.assertIn("across orgs", p.stderr)
+        p = self.refused(3, "msg", "cursor-lead-g-002-a", "zz-test s", "b", "--goal", "G-001", agent="lead-g-001-a")
+        self.assertIn("across orgs", p.stderr)
+
+    def test_director_with_cursor_goal_still_resolves_to_cursor_director(self):
+        self.ok("msg", "director", "zz-test s", "b", "--goal", "G-002", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+
+    def test_lead_report_to_director_with_cursor_goal_stays_in_own_org(self):
+        self.ok("report", "zz-test h", "b", "--goal", "G-002", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+
+
+class OrgPrefixDefaultRoutingTests(RoutingTests):
+    """Bare boss/director under org_prefix_default=1: legacy unprefixed HQ rows still receive mail."""
+
+    def setUp(self):
+        super().setUp()
+        self.ok("config", "org_prefix_default", "1")
+
+    def test_default_org_bare_hq_reaches_legacy_row(self):
+        e = self.env
+        e.sql("DELETE FROM agents WHERE name IN ('claude-director', 'claude-boss')")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+        self.ok("msg", "boss", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "boss")
+
+    def test_live_prefixed_hq_wins_over_legacy(self):
+        e = self.env
+        e.seed_agent("claude-director", "director")
+        e.seed_agent("claude-boss", "boss")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "claude-director")
+        self.assertNotEqual(self.last_rcpt(), "cursor-director")
+
+    def test_stopped_prefixed_row_falls_back_to_legacy(self):
+        e = self.env
+        e.seed_agent("claude-director", "director", status="stopped")
+        self.ok("msg", "director", "zz-test s", "b", agent="lead-g-001-a")
+        self.assertEqual(self.last_rcpt(), "director")
+
+    def test_cursor_hq_unchanged_under_org_prefix_default(self):
+        self.ok("msg", "director", "zz-test s", "b", agent="cursor-lead-g-002-a")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+        self.ok("msg", "cursor-director", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-director")
+        self.ok("msg", "cursor-boss", "zz-test s", "b", agent="director")
+        self.assertEqual(self.last_rcpt(), "cursor-boss")
+
+
 if __name__ == "__main__":
     unittest.main()

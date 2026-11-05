@@ -32,7 +32,7 @@ var casesPerModule = map[string]int{
 	"test_priv_guard":           572,
 	"test_worker_guard_heredoc": 101,
 	"test_worker_guard_units":   111,
-	"test_worker_guard_reads":   135,
+	"test_worker_guard_reads":   152,
 }
 
 func loadPyCases(t *testing.T) []pyCase {
@@ -743,6 +743,7 @@ func TestUvxRunnerRouting(t *testing.T) {
 		"uv tool -q run black", "uv tool uvx ruff", "uvx 'ruff >=0.5'",
 		"uvx pytestx", "uvx pytest-cov",
 	}
+	offRefused := map[string]bool{"uv -q tool run pytest": true, "uv tool -q run pytest": true, "uvx path/to/py.test": true}
 	for _, role := range []string{"coder", "qa"} {
 		for _, c := range routed {
 			t.Setenv("FACTORY_HOME", on)
@@ -750,7 +751,12 @@ func TestUvxRunnerRouting(t *testing.T) {
 				t.Errorf("%s: %q: err = %v, want the test_sandbox block", role, c, err)
 			}
 			t.Setenv("FACTORY_HOME", off)
-			if err := checkRole(c, role); err != nil {
+			err := checkRole(c, role)
+			if offRefused[c] { // T-0435 through uv (T-1018): a bare uv-wrapped pytest is the full suite, refused sandbox or not
+				if err == nil || !strings.Contains(err.Error(), "runs the full suite") {
+					t.Errorf("%s: %q with test_sandbox off: %v, want the full-suite refusal", role, c, err)
+				}
+			} else if err != nil {
 				t.Errorf("%s: %q with test_sandbox off: %v, want exit 0", role, c, err)
 			}
 		}
@@ -768,4 +774,22 @@ func TestUvxRunnerRouting(t *testing.T) {
 func tmpXExists() bool {
 	st, err := os.Stat("/tmp/x")
 	return err == nil && st.IsDir()
+}
+
+// T-0435 review B1/B2: the pytest full-suite rule. An option value is never a path and `--keep-duplicates` is not -k.
+func TestPytestFullSuiteRule(t *testing.T) {
+	clearTermsEnv(t)
+	t.Setenv("FACTORY_AGENT", "coder-t-9")
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	for _, c := range []string{"pytest --keep-duplicates", "pytest --keep-duplicates tests", "pytest -r A tests", "pytest -r a",
+		"pytest --lfnf all", "pytest --timeout 60 tests", "pytest", "python3 -m pytest tests/"} {
+		if err := checkRole(c, "coder"); err == nil {
+			t.Errorf("%q: allowed, want refused", c)
+		}
+	}
+	for _, c := range []string{"pytest tests/test_x.py", "pytest -k name", "pytest tests -k name", "pytest tests/test_x.py::C::test_one -q"} {
+		if err := checkRole(c, "coder"); err != nil {
+			t.Errorf("%q: %v, want allowed", c, err)
+		}
+	}
 }

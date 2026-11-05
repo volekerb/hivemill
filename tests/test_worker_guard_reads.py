@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+import guard_impl
 from guard_impl import hook_run
 
 LIVE_HOME = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # what the hook and bin/factory derive (T-0212)
@@ -121,7 +123,15 @@ class BroadReadTests(ReadsBase):
         os.mkdir(os.path.join(bad, "db"))
         with open(os.path.join(bad, "db", "factory.db"), "w") as f:
             f.write("not a database")
-        self.blocked(f"factory goal show {OWN}", home=bad)
+        # M20992: no export is seeded for a non-SQLite DB; Go fails closed with its own message, Python's differs.
+        with mock.patch.dict(os.environ, {"GUARD_IMPL": "python"}):
+            self.blocked(f"factory goal show {OWN}", home=bad)
+        if guard_impl.impl() in ("go", "diff"):
+            with mock.patch.dict(os.environ, {"GUARD_IMPL": "go"}):
+                p = self.run_hook(f"factory goal show {OWN}", home=bad)
+            self.assertEqual(p.returncode, 2, p.stderr)
+            self.assertIn("failing closed", p.stderr)
+            self.assertIn("guard-export.json", p.stderr)
 
     def test_own_goal_wal_db_with_open_writer(self):
         con = sqlite3.connect(os.path.join(self.home, "db", "factory.db"))
@@ -174,7 +184,7 @@ class NoFalsePositiveTests(ReadsBase):
         cmds = [
             "git status", "git diff", "git log --oneline -5", 'git commit -m "x"',
             "git push origin HEAD:factory/t-9", "gh pr create --fill", "gh pr view 5", "gh pr checks 5",
-            "python3 -m unittest discover -s tests -p test_x.py -v", "pytest -q", "ls -la", "cat README.md",
+            "python3 -m unittest discover -s tests -p test_x.py -v", "pytest -q tests/test_x.py", "ls -la", "cat README.md",
             "rg factory README.md", 'grep "factory res" README.md', 'git commit -m "factory task list fix"',
             "echo factory agents", 'gh pr create --title t --body "uses factory res and factory task list"',
             "factory task show T-1", "factory task show T-0041", "factory inbox", "factory inbox --all",

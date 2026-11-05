@@ -21,6 +21,7 @@ HOOK = REPO / "roles" / "hooks" / "worker-guard.py"
 SETTINGS = REPO / "roles" / "settings"
 PW_DIR = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
 LIVE_HOME = os.path.join(PW_DIR, "factory")  # what bin/factory and the hook derive (T-0212)
+HQ = ("boss", "director", "lead")
 WORKERS = ("pm", "coder", "qa", "reviewer", "judge", "cleaner", "staff-engineer", "researcher", "scout", "evaluator")
 TOKENS = {"@FACTORY_LIVE_HOME@": LIVE_HOME, "@FACTORY_HOME_DIR@": PW_DIR,
           "@FACTORY_USER_CONFIG@": os.path.join(PW_DIR, ".config")}
@@ -119,18 +120,43 @@ class TemplateFileTests(unittest.TestCase):
             data = json.loads(rendered_settings_dir().joinpath(f"{r}.json").read_text())
             groups = data["hooks"].get("PreToolUse", [])
             cmds = [h["command"] for g in groups if g.get("matcher") == "Bash" for h in g["hooks"]]
-            guard = [c for c in cmds if "worker-guard.py" in c]
+            guard = [c for c in cmds if "worker-guard" in c]
             self.assertEqual(len(guard), 1, r)
             edit = [h["command"] for g in groups if g.get("matcher") != "Bash" for h in g["hooks"]]  # T-0334: workers only
-            self.assertEqual(len(edit), 0 if r in ("boss", "director", "lead") else 2 if r in ("coder", "qa", "reviewer", "judge", "pm", "staff-engineer", "researcher") else 1, r)  # T-0600: + Read|Grep
-            self.assertTrue(all(f"{LIVE_HOME}/roles/hooks/worker-guard.py" in c for c in edit), r)
-            self.assertTrue(guard[0].startswith(f"python3 {LIVE_HOME}/roles/hooks/worker-guard.py"), guard[0])
+            self.assertEqual(len(edit), 0 if r in HQ else 2 if r in ("coder", "qa", "reviewer", "judge", "pm", "staff-engineer", "researcher") else 1, r)  # T-0600: + Read|Grep
+            # T-0356 (M22079): worker templates call the sh shim; the 3 HQ templates keep the direct python3 hook
+            form = f"python3 {LIVE_HOME}/roles/hooks/worker-guard.py" if r in HQ else f"sh {LIVE_HOME}/roles/hooks/worker-guard "
+            self.assertTrue(all(c.startswith(form) for c in edit), r)
+            self.assertTrue(guard[0].startswith(form), guard[0])
+
+    def test_hq_templates_keep_the_direct_python_hook_and_workers_use_the_shim(self):
+        """T-0356 (M22079): a crashed python3 hook exits non-2 (does not block), so HQ can repair a broken hook; the shim
+        would turn that crash into exit 2 and lock HQ out. Only the 10 worker templates call the shim."""
+        for r in ROLES:
+            text = (SETTINGS / f"{r}.json.in").read_text()
+            if r in HQ:
+                self.assertIn("python3 @FACTORY_LIVE_HOME@/roles/hooks/worker-guard.py --hq", text, r)
+                self.assertNotIn("sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard", text, r)
+            else:
+                self.assertNotIn("worker-guard.py", text, r)
+                self.assertIn(f"sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role {r}", text, r)
+
+    def rendered_hook_command(self, role):
+        data = json.loads(rendered_settings_dir().joinpath(f"{role}.json").read_text())
+        cmd = data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        return cmd.replace(LIVE_HOME, str(REPO))  # a live home pointing at this worktree (P2)
+
+    def run_rendered(self, cmd, command):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, HOME=home)  # no flag, no Go binary: the shim runs the Python hook
+            return subprocess.run(["sh", "-c", cmd], input=payload, capture_output=True, text=True, timeout=60, env=env)
 
     def test_worker_guard_entries_time_out_closed_and_hq_templates_are_unchanged(self):
         """T-0960: a worker-guard hook that hangs must block the call (docs: onFailure "block")."""
         def guard_entries(role):
             data = json.loads(substitute((SETTINGS / f"{role}.json.in").read_text()))
-            return [h for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if "worker-guard.py" in h.get("command", "")]
+            return [h for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if "worker-guard" in h.get("command", "")]
         for r in WORKERS:
             entries = guard_entries(r)
             self.assertTrue(entries, r)
@@ -144,17 +170,16 @@ class TemplateFileTests(unittest.TestCase):
                     self.assertNotIn("timeout", h, r)
 
     def test_hook_entry_point_blocks_and_allows_with_the_rendered_coder_settings(self):
-        data = json.loads(rendered_settings_dir().joinpath("coder.json").read_text())
-        cmd = data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-        args = cmd.split("worker-guard.py", 1)[1].split()  # the role flags exactly as the rendered settings pass them
-        self.assertEqual(args, ["--role", "coder"])
+        cmd = self.rendered_hook_command("coder")
+        self.assertEqual(cmd, f"sh {REPO}/roles/hooks/worker-guard --role coder")
+        self.assertEqual(self.run_rendered(cmd, "sudo ls").returncode, 2)
+        self.assertEqual(self.run_rendered(cmd, "ls").returncode, 0)
 
-        def run(command):
-            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
-            return subprocess.run([sys.executable, str(HOOK), *args], input=payload, capture_output=True, text=True, timeout=30)
-
-        self.assertEqual(run("sudo id").returncode, 2)
-        self.assertEqual(run("git status").returncode, 0)
+    def test_hook_entry_point_blocks_and_allows_with_the_rendered_lead_settings(self):
+        cmd = self.rendered_hook_command("lead")
+        self.assertEqual(cmd, f"python3 {REPO}/roles/hooks/worker-guard.py --hq")
+        self.assertEqual(self.run_rendered(cmd, "sudo ls").returncode, 2)
+        self.assertEqual(self.run_rendered(cmd, "ls").returncode, 0)
 
 
 class LiveHomePinTests(unittest.TestCase):
@@ -187,7 +212,7 @@ class LiveHomePinTests(unittest.TestCase):
             mod = self.module(REPO, REPO)
             dest = mod.render_settings("coder", Path(tmp) / "coder.json")
             hook = json.loads(dest.read_text())["hooks"]["PreToolUse"]
-            self.assertIn(f"{REPO}/roles/hooks/worker-guard.py", json.dumps(hook))
+            self.assertIn(f"sh {REPO}/roles/hooks/worker-guard --role coder", json.dumps(hook))
 
     def test_live_home_forged_while_factory_home_is_the_checkout_dies(self):
         with tempfile.TemporaryDirectory() as tmp:

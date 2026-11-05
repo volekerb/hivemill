@@ -114,6 +114,15 @@ func ghWriteTail(s string, q int) bool {
 	if hasAt(s, q, "repo") && boundary(s, q+4) {
 		return true
 	}
+	if hasAt(s, q, "release") { // T-0881: release\W+(create|edit|delete|upload|delete-asset)\b
+		for _, e := range nonWordEnds(s, q+7) {
+			for _, w := range []string{"create", "edit", "delete-asset", "delete", "upload"} {
+				if hasAt(s, e, w) && boundary(s, e+len(w)) {
+					return true
+				}
+			}
+		}
+	}
 	if hasAt(s, q, "api") && boundary(s, q+3) {
 		for m := q + 3; m <= len(s); m++ {
 			if r := prevRune(s, m); r >= 0 && isWord(r) {
@@ -162,6 +171,93 @@ func matchInlineGhWrite(s string) bool {
 	return false
 }
 
+// bodyFlagAt reports whether one of -f -F --field --raw-field --input starts at m with (?<![\w-]) before and (?![\w-]) after.
+func bodyFlagAt(s string, m int) bool {
+	if r := prevRune(s, m); r >= 0 && isFlagNameRune(r) {
+		return false
+	}
+	for _, flag := range []string{"-f", "-F", "--field", "--raw-field", "--input"} {
+		if hasAt(s, m, flag) {
+			if e := m + len(flag); e >= len(s) || !isFlagNameRune(nextRune(s, e)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchInlineGhAPIBody ports INLINE_GH_API_BODY.search(c) for a c that starts at a `gh` word:
+// \bgh\b(flags)*?\W+api\b[\s\S]*?<body flag>.
+func matchInlineGhAPIBody(s string) bool {
+	if !hasAt(s, 0, "gh") || !boundary(s, 2) {
+		return false
+	}
+	seen := map[int]bool{2: true}
+	queue := []int{2}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		for _, q := range nonWordEnds(s, p) {
+			if hasAt(s, q, "api") && boundary(s, q+3) {
+				for m := q + 3; m <= len(s); m++ {
+					if bodyFlagAt(s, m) {
+						return true
+					}
+				}
+			}
+		}
+		for _, e := range ghFlagGroupEnds(s, p) {
+			if !seen[e] {
+				seen[e] = true
+				queue = append(queue, e)
+			}
+		}
+	}
+	return false
+}
+
+// matchInlineGhGet ports INLINE_GH_GET.search: (?<![\w-])(-X|--method)\W*(?i:GET)\b.
+func matchInlineGhGet(s string) bool {
+	for m := 0; m < len(s); m++ {
+		if r := prevRune(s, m); r >= 0 && isFlagNameRune(r) {
+			continue
+		}
+		for _, flag := range []string{"-X", "--method"} {
+			if !hasAt(s, m, flag) {
+				continue
+			}
+			j := m + len(flag)
+			for _, e := range append([]int{j}, nonWordEnds(s, j)...) {
+				if foldWordAt(s, e, "GET") {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// inlineGhAPIBody ports inline_gh_api_body (T-0881): the text is cut at each `gh` word, so a GET on another gh call
+// exempts nothing.
+func inlineGhAPIBody(s string) bool {
+	var starts []int
+	for i := 0; i+2 <= len(s); i++ {
+		if hasAt(s, i, "gh") && boundary(s, i) && boundary(s, i+2) {
+			starts = append(starts, i)
+		}
+	}
+	for k, st := range starts {
+		end := len(s)
+		if k+1 < len(starts) {
+			end = starts[k+1]
+		}
+		if c := s[st:end]; matchInlineGhAPIBody(c) && !matchInlineGhGet(c) {
+			return true
+		}
+	}
+	return false
+}
+
 // interpInlinePush is a port of Analyzer.interp_inline_push.
 func (a *Analyzer) interpInlinePush(name string, rest []string) error {
 	if !inlineCodeInterp(name) {
@@ -193,8 +289,8 @@ func (a *Analyzer) interpInlinePush(name string, rest []string) error {
 		if hasWordToken(t, "git") && hasWordToken(t, "push") {
 			return blockf(name + " inline code that runs `git push` (no-push roles never push; ask your lead)")
 		}
-		if matchInlineGhWrite(t) {
-			return blockf(name + " inline code that runs a gh write (pr merge/create, repo, api with a write method); " +
+		if matchInlineGhWrite(t) || inlineGhAPIBody(t) {
+			return blockf(name + " inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); " +
 				"no-push roles never write to GitHub; ask your lead")
 		}
 	}

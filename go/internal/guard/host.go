@@ -28,6 +28,7 @@ type hostInfo struct {
 	runExport    []string // RUN_EXPORT (T-0883)
 	runGuardImpl []string // RUN_GUARD_IMPL (T-0353)
 	libDir       string   // LIB_DIR: ~/.local/lib/factory (T-0353)
+	binDirs      []string // BIN_DIRS: ~/.local/bin as spelled and resolved (T-0957)
 	hookReal     string   // HOOK_REAL ("" when --py-hook was not given)
 	persistFiles map[string]struct{}
 	persistTrees []string
@@ -85,6 +86,7 @@ func buildHost(pwDir string, uid int, pyHook string) *hostInfo {
 		pwDir:        pwDir,
 		cfgDir:       pyRealpath(pyJoin(pyJoin(pwDir, ".config"), "factory")),
 		libDir:       pyRealpath(pyJoin(pyJoin(pyJoin(pwDir, ".local"), "lib"), "factory")),
+		binDirs:      uniq([]string{pyJoin(pyJoin(pwDir, ".local"), "bin"), pyRealpath(pyJoin(pyJoin(pwDir, ".local"), "bin"))}),
 		liveHome:     primary,
 		liveHomes:    homes,
 		persistFiles: map[string]struct{}{"/etc/gitconfig": {}},
