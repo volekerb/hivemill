@@ -144,6 +144,21 @@ class TermsGhFpTests(unittest.TestCase):
         self.allowed("gh issue create --title 'a b' --body-file - <<'EOF'\nfind / -name x\nEOF")
         self.allowed("gh pr review 5 --approve --body-file=- <<\"EOF\"\ntar cf x.tar ~\nEOF")
 
+    def test_every_listed_subcommand_is_allowed(self):
+        for sub in ("pr comment 1", "pr review 1 --approve", "pr create --title t", "pr edit 1",
+                    "issue comment 1", "issue create --title t", "issue edit 1"):
+            self.allowed(f"gh {sub} --body-file - <<'EOF'\nfind / -name x\nEOF")
+
+    def test_strip_splice_unit_keeps_separators_and_non_gh_text(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("wg_t0942", os.path.join(ROOT, "roles", "hooks", "worker-guard.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cmd = "gh pr view 1 --jq '{a,b}' ;  git log  x |\tfactory res # n"
+        out = mod.terms_strip_gh_jq(cmd)
+        self.assertEqual(out, "gh pr view 1 --jq '' ;  git log  x |\tfactory res # n")  # gh value blanked, separators and spacing kept
+        self.assertEqual(mod.terms_strip_gh_jq("echo x; gh pr view 1 --jq '{a,b}'"), "echo x; gh pr view 1 --jq '{a,b}'")
+
     # --- T-0942 attempt 3 (spec v4): the skip is one anchored allowlist shape; B3 and B4 forms stay scanned ---
     def test_b3_subshell_before_gh_stays_scanned(self):
         self.scanned("(bash; gh pr comment 1 --body-file -) <<'EOF'\nfind / -name x\nEOF")
