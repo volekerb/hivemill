@@ -26,13 +26,24 @@ TIGHTENED = [
     "git config -t --get al*", "git config --default --get al*", "git config --blob --get al*",
     "git config --value --get al*", "git config --fil --get al*",
     "git config --comment --get a[l]*", "git config --comment --get a?ias.x",
+    # zsh alternation and numeric-range globs: no GLOB character, expanded by zsh into a write (lead measured .git/config
+    # gaining `[alias] x = y # --get`)
+    "git config --comment --get (alias.x|y)", "git config --file --get (a|b)", "git config --comment --get <->",
+    "git config --comment --get <1-2>", "git config --type --get (alias.x|y)", "git config --default --get (alias.x|y)",
+    "git config --blob --get (alias.x|y)", "git config --value --get (alias.x|y)", "git config -f --get (a|b)",
 ]
+ZSH = [c for c in TIGHTENED if "(" in c or "<" in c]
+ZSH_TEXT = "has an unquoted zsh glob ((a|b) or <->)"
 # refused for every role by the older parser check (unknown option or abbreviation), kept refused
 OLDER = ["git config --com --get al*", "git config --unknown-opt --get al*"]
 READS = [
     "git config --get alias.x", "git config --get al*", "git config --comment c --get alias.x",
     "git config --file f --get a.b", "git config --comment c --get al*", "git config --file=f --get al*",
-    "git config --type bool --get core.bare",
+    "git config --type bool --get core.bare", "git config --get (a|b)", "git config --get <->",
+    # a real action flag follows the value: zsh expansion after it stays a read
+    "git config --comment c --get (alias.x|y)",
+    # a QUOTED parenthesis value is masked in the checked text, so it is told apart from the zsh glob and stays a read
+    "git config --comment '(a|b)' --get alias.x", "git config --comment 'a|b' --get alias.x",
 ]
 
 
@@ -77,7 +88,11 @@ class ConfigValueGlobTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.wt, ".git")), "cwd must be a linked worktree")
 
     def test_value_option_then_action_flag_then_glob_refused_for_writers(self):
-        self.check(TIGHTENED, 2, WRITERS, text=TEXT)
+        self.check([c for c in TIGHTENED if c not in ZSH], 2, WRITERS, text=TEXT)
+
+    def test_zsh_alternation_and_range_globs_refused_for_writers(self):
+        self.assertEqual(len(ZSH), 9)
+        self.check(ZSH, 2, WRITERS, text=ZSH_TEXT)
 
     def test_abbreviation_and_unknown_option_stay_refused(self):
         self.check(OLDER, 2, WRITERS + OTHERS)

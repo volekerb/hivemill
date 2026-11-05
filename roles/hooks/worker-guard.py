@@ -565,6 +565,10 @@ UNIT_MUTATING = {"start", "stop", "restart", "reload", "try-restart", "reload-or
 SYSTEMCTL_NOUNIT = {"daemon-reload", "daemon-reexec"}
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
 GLOB = re.compile(r"[*?\[]")
+# T-1097: zsh alternation `(a|b)` and numeric-range `<->`/`<1-9>` globs. The parser splits `(`, `|` and `)` into separate
+# commands and drops `<->` as a redirection, so they never reach the git config tokens: they are looked for in the
+# quote-masked script text instead (a quoted `(a|b)` is masked and not matched). The shared GLOB is left alone.
+CONFIG_ZSH_GLOB = re.compile(r"\([^()]*\)|<\d*-\d*>")
 COPIERS = {"cat", "dd", "cp", "install", "rsync", "tee", "ln", "mv", "base64", "xxd", "head", "tail"}
 # R1: herdr word, then (same line, any tokens between) a mutating sequence; only fires together with an
 # exec-capable launcher in a command position on that line (see launcher_in_command_position)
@@ -2615,13 +2619,14 @@ class Analyzer:
         any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
         if self.hq:
             return
-        read = unsure = skip = False
+        read = unsure = skip = swallowed = False
         for n, t in enumerate(toks):
             if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
                 raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
                             "write the arguments literally (T-1063)")
             if skip:  # T-1097: the value of a value option (`--comment --get`) is never the action flag
                 skip = False
+                swallowed = swallowed or t in CONFIG_ACTION_FLAGS
                 continue
             name = t.partition("=")[0]
             if t in CONFIG_PARSE_VALUE_OPTS or (len(t) >= 3 and t.startswith("--") and "=" not in t and any(
@@ -2632,6 +2637,10 @@ class Analyzer:
                 unsure = True  # an option outside the table before the action flag: fail closed, no read proven
             elif (t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list"))) and not unsure:
                 read = True
+        if swallowed and not read and CONFIG_ZSH_GLOB.search(mask_quotes(getattr(self, "text", "") or "")):
+            raise Block("git config: the action flag is the value of a value option and the line has an unquoted zsh glob "
+                        "((a|b) or <->) that zsh expands into more arguments, so it could be a write; "
+                        "write the arguments literally (T-1063, T-1097)")
 
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
