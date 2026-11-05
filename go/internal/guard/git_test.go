@@ -751,20 +751,26 @@ func TestGitPushPinAliasHide(t *testing.T) {
 	}
 }
 
-// T-1035 / T-1083: xargs git config must match Python xargs_git (stdin adds args; only explicit exact reads).
+// T-1035 / T-1083 / T-1152: xargs git config must match Python (stdin adds args; config expansion refuse on bare git).
 func TestXargsGitConfig(t *testing.T) {
 	f := newGitFix(t)
+	cmd := "echo alias.x push | xargs git config --comment --get"
+	direct := "git config --comment --get alias.x"
+	for _, role := range []string{"coder", "cleaner", "judge", "director"} {
+		f.blocked(t, cmd, f.wt, role)
+		f.blocked(t, direct, f.wt, role)
+	}
 	for _, cmd := range []string{
-		"echo alias.x push | xargs git config --comment --get",
+		cmd,
 		"echo alias.y push | xargs git config set --value --get",
 		"echo alias.x push | xargs git config --co --get",
 		"echo alias.x | xargs git config",
 	} {
 		f.blocked(t, cmd, f.wt, "coder")
 	}
-	err := f.check("echo alias.x push | xargs git config --comment --get", f.wt, "coder")
+	err := f.check(cmd, f.wt, "cleaner")
 	msg := Explain(err)
-	if !strings.Contains(msg, "xargs git config:") {
-		t.Fatalf("stderr %q, want xargs git config refusal", msg)
+	if !strings.Contains(msg, "follows a value option") {
+		t.Fatalf("cleaner stderr %q, want value-option refusal", msg)
 	}
 }

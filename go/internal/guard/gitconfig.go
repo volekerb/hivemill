@@ -129,3 +129,26 @@ func configValueOptAbbrev(a string) bool {
 	}
 	return false
 }
+
+// configExpansionRefuse mirrors worker-guard.py config_expansion_refuse; T-1103 and T-1137 extend it.
+// T-1152: only the swallowed-flag clause — a token after a value option must not be a config flag or write word.
+func (a *Analyzer) configExpansionRefuse(toks []string) error {
+	if a.HQ {
+		return nil
+	}
+	skip := false
+	for _, t := range toks {
+		if skip {
+			skip = false
+			if in(configFlags, t) || in(configWordWrite, t) {
+				return blockf("git config: `" + t + "` follows a value option, so git takes it as the option's value and " +
+					"not as an action; put the action flag first, or write the arguments literally (T-1063, T-1097)")
+			}
+			continue
+		}
+		if in(configParseValueOpts, t) || configValueOptAbbrev(t) {
+			skip = true
+		}
+	}
+	return nil
+}
