@@ -871,17 +871,20 @@ AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 
 ENV_LONG_OK = ("--null", "--debug", "--block-signal", "--default-signal", "--ignore-signal",
-               "--list-signal-handling", "--help", "--version", "--split-string")
-ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; no word is consumed (as on main)
+               "--list-signal-handling", "--help", "--version")
+ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; since T-0964 the value is the next word unless `=value`
 
 
 def env_long(a):
     """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "ignore"
     (a prefix of --ignore-environment that is not an exact other long option), "value" (a prefix of --argv0/--chdir:
-    its value is the next word unless `=value`), "ok" (an exact harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
+    its value is the next word unless `=value`), "split" (--s .. --split-string: T-1037, workers may not use it), "ok" (an exact
+    harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
     name = a.split("=", 1)[0]
     if len(name) < 3:
         return "unknown"
+    if "--split-string".startswith(name):
+        return "split"
     if "--unset".startswith(name):
         return "unset"
     if any(v.startswith(name) for v in ENV_VALUE_LONG):
@@ -894,37 +897,35 @@ def env_long(a):
 
 
 def env_options(words):
-    """T-0964: yield (kind, value) for the GNU env options before the command word: ("clear", opt) for -i/-/--ignore-env*
-    (an `i` in a short cluster before any `u` and outside an -S string), ("clear-attached", opt) for an `i` anywhere
-    else in a cluster (text attached to -S, text after `u`; check_scrub counts it, no-push ignores it), ("unset", name), ("unknown", opt) for a long option this guard does not
-    model. Hard rule: a word starting with - is always parsed as an option, never consumed as a value. A -u/--unset
-    value that starts with - is still reported (peeked, not consumed) so a dynamic `-$X` stays denied as on main.
-    -a/-C/-P and --argv0/--chdir take the next word only when it exists and does not start with `-`. -S/--split-string
-    re-parses its string (also inside a cluster, where the rest of the cluster keeps being scanned, so a later `u` counts);
-    a non-dash word that came from an -S string does not end the scan (main kept scanning the outer words)."""
-    q = collections.deque((w, False) for w in words)  # (word, came from an -S string)
+    """T-0964/T-1037: yield (kind, value) for the GNU env options before the command word: ("split", opt) for -S or
+    --split-string (any unique prefix, with or without `=value`; an `S` before the first `u` of a short cluster, attached
+    or not) and then stop, because the string is never parsed; ("clear", opt) for -i/-/--ignore-env* (an `i` in a short
+    cluster before any `u`), ("clear-attached", opt) for an `i` after `u` (check_scrub counts it, no-push ignores it),
+    ("unset", name), ("unknown", opt) for a long option this guard does not model. Hard rule: a word starting with - is
+    always parsed as an option, never consumed as a value. A -u/--unset value that starts with - is still reported
+    (peeked, not consumed) so a dynamic `-$X` stays denied as on main. -a/-C/-P and --argv0/--chdir take the next word
+    only when it exists and does not start with `-`. The first word that is neither an option nor an assignment ends the scan."""
+    q = collections.deque(words)
 
     def val():
-        return q.popleft()[0] if q and not q[0][0].startswith("-") else ""
+        return q.popleft() if q and not q[0].startswith("-") else ""
 
     def uval():
-        if q and q[0][0].startswith("-"):
-            return q[0][0]
-        return q.popleft()[0] if q else ""
-
-    def push(sval):
-        q.extendleft((w, True) for w in reversed(sval.split()))
+        if q and q[0].startswith("-"):
+            return q[0]
+        return q.popleft() if q else ""
 
     while q:
-        a, from_s = q.popleft()
+        a = q.popleft()
         if a == "--" or ASSIGN.match(a):
             continue
         if a == "-":
             yield "clear", a
-        elif a == "--split-string" or a.startswith("--split-string="):
-            push(a.split("=", 1)[1] if "=" in a else q.popleft()[0] if q else "")
         elif a.startswith("--"):
             kind = env_long(a)
+            if kind == "split":
+                yield "split", a
+                return
             if kind == "ignore":
                 yield "clear", a
             elif kind == "unknown":
@@ -934,12 +935,14 @@ def env_options(words):
             elif "=" not in a and kind == "value":
                 val()
         elif a.startswith("-"):
-            scan = "" if a.startswith("-S") else a[1:].split("u", 1)[0]  # main's no-push rule
+            if "S" in a[1:].split("u", 1)[0]:
+                yield "split", a
+                return
+            scan = a[1:].split("u", 1)[0]  # main's no-push rule
             if "i" in scan:
                 yield "clear", a
             elif "i" in a[1:]:
                 yield "clear-attached", a  # check_scrub only (spec hard rule)
-            pending = []  # -S strings are pushed after the cluster, so a later `u` still takes the outer next word
             for k, c in enumerate(a[1:], 1):
                 if c == "u":
                     yield "unset", a[k + 1:] or uval()
@@ -948,13 +951,7 @@ def env_options(words):
                     if k == len(a) - 1:
                         val()
                     continue
-                if c == "S":
-                    pending.append(a[k + 1:] or (q.popleft()[0] if q else ""))
-                    if k == len(a) - 1:
-                        break
-            for sval in reversed(pending):
-                push(sval)
-        elif not from_s:
+        else:
             return
 
 
@@ -1426,6 +1423,8 @@ class Analyzer:
         if name != "env":
             return
         for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
+            if kind == "split":
+                raise Block("env -S/--split-string: workers may not use it; write the command without env -S (T-1037)")
             if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
             if kind in ("clear", "clear-attached"):
