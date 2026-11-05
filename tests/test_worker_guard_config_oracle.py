@@ -77,6 +77,10 @@ for _t in SCOPE_TOKENS:
         CROSS.append([_o, *_t, CROSS_KEY, CROSS_VAL])
     for _w in ("set", "unset"):
         CROSS += [[_w, *_t, CROSS_KEY, CROSS_VAL], [_w, CROSS_KEY, CROSS_VAL, *_t], [_w, CROSS_KEY, *_t]]
+# T-1064 v5 acceptance 15: scratchpad-path file tokens after key+value (<S> is filled with the scratch dir at run time)
+for _t in (["--file=<S>/y"], ["-f<S>/y"]):
+    for _p in ([], ["--replace-all"], ["--rep"], ["--fixed-value"], ["--no-type"], ["-z"]):
+        CROSS.append([*_p, CROSS_KEY, CROSS_VAL, *_t])
 CROSS += [["--comment", "--global", CROSS_KEY, CROSS_VAL], ["--global", CROSS_KEY, "--global"], ["--global", CROSS_KEY, "--file=x"]]
 CROSS = [list(f) for f in dict.fromkeys(tuple(f) for f in CROSS)]
 
@@ -113,7 +117,9 @@ class ConfigOracleTests(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.tmp = os.path.realpath(td.name)
         self.oracle = os.path.join(self.tmp, "oracle")
+        self.scratch = os.path.join(self.tmp, "scratch")
         os.makedirs(self.oracle)
+        os.makedirs(self.scratch)
         self.home = os.path.join(self.tmp, "factory")
         self.wt = os.path.join(self.home, "worktrees", "G-010-T-1035")
         main = os.path.join(self.home, "main-checkout")
@@ -133,9 +139,12 @@ class ConfigOracleTests(unittest.TestCase):
     def tearDown(self):
         self.assertEqual(snapshot(self.real_cfg), self.before, "TRIPWIRE: the real common-dir git config changed")
 
+    def fill(self, form):
+        return [t.replace("<S>", self.scratch) for t in form]
+
     def hook(self, cmd, role="coder"):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
-        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home,
+        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home, WORKER_GUARD_SCRATCH=self.scratch,
                    FACTORY_AGENT=f"coder-{TASK}" if role == "coder" else f"{role}-x")
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.wt})
         return hook_run(payload, ["--role", role], env=env)
@@ -154,6 +163,7 @@ class ConfigOracleTests(unittest.TestCase):
 
     def git_wrote_unfiled(self, form):
         """Same form without --file: real git in a fresh temp repo with a temp HOME (scope flags work here)."""
+        form = self.fill(form)
         repo = os.path.join(self.tmp, "unfiled")
         home = os.path.join(self.tmp, "unfiled-home")
         for d in (repo, home):
@@ -209,7 +219,7 @@ class ConfigOracleTests(unittest.TestCase):
         wrote = [f for f in CROSS if self.git_wrote_unfiled(f)]
         self.assertTrue(wrote, "cross product: git never wrote, the fixture is broken")
         for form in wrote:
-            cmd = "git config " + " ".join(form)
+            cmd = "git config " + " ".join(self.fill(form))
             with self.subTest(form=cmd):
                 p = self.hook(cmd)
                 self.assertEqual(p.returncode, 2, f"git wrote but the guard allowed: {cmd}\n{p.stderr}")

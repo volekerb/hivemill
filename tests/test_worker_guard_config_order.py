@@ -33,7 +33,10 @@ STILL_REFUSED = [
 ]
 # acceptance 12: reads stay reads (exit 0 for the coder)
 READS = ["-fx --get k", "--glob --get k", "--get k --glob", "get --glob k", "list -fx", "--get alias.x --show-origin",
-         "list --show-origin", "get --all alias.x", "--get alias.x --local"]
+         "list --show-origin", "get --all alias.x", "--get alias.x --local", "--glob k", "-fx k"]
+# acceptance 15: after key and value, a scope/file token is part of git's legacy value pattern, never a scope option
+SCRATCH_PREFIXES = ["", "--replace-all ", "--rep ", "--fixed-value ", "--no-type ", "-z "]
+SCRATCH_TOKENS = ["--file=<S>/y", "-f<S>/y"]
 
 
 class ConfigOrderTests(unittest.TestCase):
@@ -100,6 +103,23 @@ class ConfigOrderTests(unittest.TestCase):
                 payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git config " + f}, "cwd": clone})
                 p = hook_run(payload, ["--role", "coder"], env=env)
                 self.assertEqual(p.returncode, 2, p.stderr)
+    def test_scratch_path_forms_refused(self):
+        # WORKER_GUARD_SCRATCH set, <S> inside it: the path being in scratch must not make the form a "read"
+        scratch = os.path.join(self.tmp, "scratch")
+        os.makedirs(scratch)
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+        forms = [f"{pre}core.hooksPath /tmp/x {tok}".replace("<S>", scratch)
+                 for pre in SCRATCH_PREFIXES for tok in SCRATCH_TOKENS]
+        self.assertEqual(len(set(forms)), 12)
+        for role in WRITERS:
+            env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home,
+                       WORKER_GUARD_SCRATCH=scratch, FACTORY_AGENT=f"coder-{TASK}" if role == "coder" else f"{role}-x")
+            for f in forms:
+                with self.subTest(role=role, form=f):
+                    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git config " + f}, "cwd": self.wt})
+                    p = hook_run(payload, ["--role", role], env=env)
+                    self.assertEqual(p.returncode, 2, p.stderr)
+
     def test_reads_stay_reads(self):
         self.check(READS, 0, ("coder",))
 
