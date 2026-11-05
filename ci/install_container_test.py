@@ -142,7 +142,8 @@ def user_cmd(home, argv, safe_dir):
     (command scope, this process tree only): git refuses a workspace owned by another user and the global git config
     stays untouched."""
     env = ["HOME=" + home, "PATH=%s/.local/bin:/usr/local/bin:/usr/bin:/bin" % home, "LANG=C.UTF-8",
-           "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=safe.directory", "GIT_CONFIG_VALUE_0=" + safe_dir]
+           "GIT_CONFIG_COUNT=2", "GIT_CONFIG_KEY_0=safe.directory", "GIT_CONFIG_VALUE_0=" + safe_dir,
+           "GIT_CONFIG_KEY_1=safe.directory", "GIT_CONFIG_VALUE_1=" + safe_dir + "/.git"]
     return ["runuser", "-u", USER, "--", "env", "-i"] + env + argv
 
 
