@@ -72,6 +72,10 @@ class FakeHost(ins.Host):
         ins.Host.install_file(self, src, dest, mode)
         self.tools.add(os.path.basename(dest))
 
+    def rename(self, src, dst):
+        self.muts.append(("rename", dst))
+        ins.Host.rename(self, src, dst)
+
     def popen(self, argv, logpath):
         self.muts.append(("popen", list(argv)))
         self.popens.append(list(argv))
@@ -85,6 +89,8 @@ class FakeHost(ins.Host):
             if sub in joined:
                 return resp(argv) if callable(resp) else resp
         a0, rest = os.path.basename(argv[0]), argv[1:]
+        if a0 == "git" and "git" not in self.tools:  # a box without git answers nothing, like Host.run on OSError
+            return 127, "git: not found"
         if a0 == "python3" and rest == ["--version"]:
             return 0, "Python 3.12.1"
         if a0 in ("git", "herdr", "gh", "claude") and rest[:1] == ["--version"]:
@@ -202,7 +208,7 @@ class TestModes(Base):
         self.assertEqual(h.muts, [])
         self.assertFalse([c for c in h.calls if c[1]])
         self.assertFalse(os.path.exists(self.fh))
-        self.assertIn("git clone -- %s %s" % (REPO, self.fh), out)
+        self.assertIn("git clone -- %s %s" % (REPO, self.fh + ".installing"), out)
         self.assertIn("checkout --detach refs/tags/v0.10.0", out)
         self.assertIn("config max_live_agents 3", out)
         self.assertIn("project add demo --name demo --repo /r", out)
@@ -337,6 +343,71 @@ class TestRefusals(Base):
         self.assertTrue(sets[0].endswith("config max_live_agents 4"))
 
 
+class TestFailureModes(Base):
+    def test_missing_git_with_default_latest_ref_exit_3_not_resolve_failure(self):
+        h = self.host(tools=())  # default --ref latest: ls-remote would run first without the prereq check
+        rc, out, _ = self.run_main(h, "--yes")
+        self.assertEqual(rc, 3, out)
+        self.assertNotIn("RESULT FAIL", out)
+        self.assertIn("sudo apt-get install -y git python3", out)
+
+    def test_missing_git_real_host_exit_3(self):
+        """The real Host (no fake answering git): an empty PATH makes git unrunnable."""
+        with tempfile.TemporaryDirectory() as td:
+            env = {"PATH": td, "HOME": td}
+            p = subprocess.run([sys.executable, SCRIPT, "--yes"], env=env, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        self.assertEqual(p.returncode, 3, p.stdout)
+        self.assertIn("sudo apt-get install -y git python3", p.stdout)
+
+    def test_failed_checkout_leaves_no_clone_and_resume_is_a_normal_install(self):
+        h = self.host(rules=[("fetch origin", (1, "fatal: couldn't find remote ref v9.9.9"))])
+        rc, out, _ = self.run_main(h, "--yes", "--ref", "v9.9.9", "--no-systemd")
+        self.assertEqual(rc, 1, out)
+        self.assertTrue(out.splitlines()[-1].startswith("RESULT FAIL step=clone"), out)
+        self.assertFalse(os.path.exists(self.fh), "a failed checkout must not leave ~/factory behind")
+        self.assertFalse(os.path.exists(self.fh + ".installing"))
+        h2 = self.host()
+        rc, out, _ = self.run_main(h2, "--yes", "--resume", "--ref", "v0.3.0", "--no-systemd")
+        self.assertEqual(rc, 0, out)
+        self.assertTrue([a for a in h2.argvs() if "checkout --detach" in a], "resume must check the ref out")
+
+    def test_clone_is_renamed_into_place_only_after_checkout(self):
+        h = self.host()
+        self.assertEqual(self.run_main(h, "--yes", "--no-systemd")[0], 0)
+        kinds = [m[0] for m in h.muts]
+        co = [i for i, m in enumerate(h.muts) if m[0] == "run" and "checkout" in m[1]]
+        self.assertEqual(kinds.count("rename"), 1)
+        self.assertLess(co[-1], kinds.index("rename"))
+
+    def test_oserror_during_a_write_ends_with_result_fail(self):
+        def boom(*a, **k):
+            raise PermissionError(13, "Permission denied", "/ro/.local/bin")
+        for what, step, tools in (("mkdirs", "tools", ("git",)), ("symlink", "link", ("git", "herdr", "gh", "claude"))):
+            h = self.host(tools=tools)
+            with mock.patch.object(h, what, boom):
+                rc, out, err = self.run_main(h, "--yes", "--no-systemd")
+            self.assertEqual(rc, 1, (what, out, err))
+            self.assertEqual(out.splitlines()[-1], "RESULT FAIL step=" + step, out)
+
+    def test_oserror_message_is_redacted(self):
+        h = self.host()
+
+        def boom(*a, **k):
+            raise OSError(5, "disk error " + TOKEN)
+        with mock.patch.object(h, "symlink", boom):
+            rc, out, err = self.run_main(h, "--yes", "--no-systemd")
+        self.assertEqual(rc, 1)
+        self.assertNotIn(TOKEN, out + err)
+
+    def test_usage_errors_never_echo_a_value(self):
+        for argv in (["--check=" + TOKEN], ["--yes=" + TOKEN], ["--port", TOKEN], ["--bogus", TOKEN], ["--dry-run", "--ref"]):
+            p = subprocess.run([sys.executable, SCRIPT] + argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, universal_newlines=True)
+            self.assertEqual(p.returncode, 2, (argv, p.stderr))
+            self.assertNotIn("abcdefgh", p.stdout + p.stderr)
+
+
 class TestPrereqsAndAuth(Base):
     def test_missing_git_exit_3_prints_hint_and_changes_nothing(self):
         h = self.host(tools=())
@@ -393,7 +464,7 @@ class TestLatestTag(Base):
     def test_checkout_uses_the_resolved_tag(self):
         h = self.host()
         self.run_main(h, "--yes", "--no-systemd")
-        self.assertIn("git -C %s checkout --detach refs/tags/v0.10.0" % self.fh, h.argvs())
+        self.assertIn("git -C %s checkout --detach refs/tags/v0.10.0" % (self.fh + ".installing"), h.argvs())
 
     def test_explicit_ref_is_fetched_then_detached(self):
         h = self.host()
@@ -401,8 +472,8 @@ class TestLatestTag(Base):
         self.assertEqual(rc, 0, out)
         argvs = h.argvs()
         self.assertFalse([a for a in argvs if "ls-remote" in a])
-        self.assertIn("git -C %s fetch origin -- main" % self.fh, argvs)
-        self.assertIn("git -C %s checkout --detach FETCH_HEAD" % self.fh, argvs)
+        self.assertIn("git -C %s fetch origin -- main" % (self.fh + ".installing"), argvs)
+        self.assertIn("git -C %s checkout --detach FETCH_HEAD" % (self.fh + ".installing"), argvs)
 
 
 class TestFullRun(Base):
@@ -416,7 +487,7 @@ class TestFullRun(Base):
         a = h.argvs()
         fac = os.path.join(self.home, ".local", "bin", "factory")
         order = [a.index(x) for x in (
-            "git clone -- %s %s" % (REPO, self.fh), "%s init" % fac, "%s config serve_bind 127.0.0.1" % fac,
+            "git clone -- %s %s" % (REPO, self.fh + ".installing"), "%s init" % fac, "%s config serve_bind 127.0.0.1" % fac,
             "%s config serve_port 9000" % fac, "%s config max_live_agents 3" % fac, "%s config scout_enabled 0" % fac,
             "%s project add demo --name demo --repo /r --gh o/r" % fac,
             "bash %s/systemd/install.sh --with-serve" % self.fh,

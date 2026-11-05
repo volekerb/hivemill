@@ -150,6 +150,9 @@ class Host:
     def mkdirs(self, path):
         os.makedirs(path, exist_ok=True)
 
+    def rename(self, src, dst):
+        os.rename(src, dst)
+
     def mkdtemp(self):
         return tempfile.mkdtemp(prefix="hivemill-install-")
 
@@ -378,7 +381,7 @@ def resolve_ref(c):
 
 
 # --------------------------------------------------------------------------------------------- steps
-def step_prereqs(c):
+def check_prereqs(c):
     missing = []
     v = c.host.py_version()
     rc, out = c.read(["python3", "--version"])
@@ -390,6 +393,11 @@ def step_prereqs(c):
         missing.append("git")
     if missing:
         raise Stop(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s" % (", ".join(missing), APT_HINT))
+    return v
+
+
+def step_prereqs(c):
+    v = check_prereqs(c)
     return "python3>=3.11 and git present (installer runs on %d.%d)" % (v[0], v[1])
 
 
@@ -471,12 +479,25 @@ def step_clone(c):
     if c.host.exists(c.fh):
         return "kept the existing clone at %s (--resume: no checkout, no ref change)" % c.fh
     c.ref = c.ref or resolve_ref(c)
-    c.do(["git", "clone", "--", c.args.repo_url, c.fh], "git clone")
-    if c.args.ref == "latest":
-        c.do(["git", "-C", c.fh, "checkout", "--detach", "refs/tags/" + c.ref], "git checkout")
+    # clone beside ~/factory and rename after the checkout: a failed run never leaves a clone at ~/factory that
+    # --resume would take for a finished one (it would keep the default branch instead of the requested ref)
+    part = c.fh + ".installing"
+    if not c.plan:
+        c.host.rmtree(part)
+    c.do(["git", "clone", "--", c.args.repo_url, part], "git clone")
+    try:
+        if c.args.ref == "latest":
+            c.do(["git", "-C", part, "checkout", "--detach", "refs/tags/" + c.ref], "git checkout")
+        else:
+            c.do(["git", "-C", part, "fetch", "origin", "--", c.ref], "git fetch ref")
+            c.do(["git", "-C", part, "checkout", "--detach", "FETCH_HEAD"], "git checkout")
+    except StepFail:
+        c.host.rmtree(part)
+        raise
+    if c.plan:
+        c.emit("    $ mv %s %s" % (part, c.fh))
     else:
-        c.do(["git", "-C", c.fh, "fetch", "origin", "--", c.ref], "git fetch ref")
-        c.do(["git", "-C", c.fh, "checkout", "--detach", "FETCH_HEAD"], "git checkout")
+        c.host.rename(part, c.fh)
     return "cloned %s at %s" % (c.args.repo_url, c.ref)
 
 
@@ -648,6 +669,8 @@ def run_steps(c):
     try:
         try:
             preflight(c)
+            name = "prereqs"
+            check_prereqs(c)  # git must be known to exist before the first git call (ls-remote)
             name = "resolve-ref"
             c.ref = None if c.host.exists(c.fh) else resolve_ref(c)
             if not c.plan and not c.args.no_systemd:
@@ -668,7 +691,7 @@ def run_steps(c):
     except Stop as s:
         c.emit(s.msg)
         return s.code
-    except StepFail as e:
+    except (StepFail, OSError) as e:  # an OSError from a write (read-only dir, full disk) is a failed step too
         c.emit("[FAIL] %s: %s" % (name, e))
         c.emit("RESULT FAIL step=%s" % name)
         return 1
@@ -682,10 +705,10 @@ def run_steps(c):
 # --------------------------------------------------------------------------------------------- CLI
 class Parser(argparse.ArgumentParser):
     def error(self, message):
-        if message.startswith("unrecognized arguments"):  # never echo a rejected value: it may be a token
-            message = "unrecognized option (values are not echoed)"
-        elif message.startswith("argument ") and ": invalid " in message:  # argparse quotes the bad value
-            message = message.split(": invalid ", 1)[0] + ": invalid value (not echoed)"
+        # argparse quotes rejected values in many messages (unrecognized, invalid, ignored explicit argument): it may
+        # be a token, so only the option name survives, never the text after it
+        m = re.match(r"argument ([\w/-]+):", message)
+        message = "argument %s rejected (values are not echoed)" % m.group(1) if m else "unrecognized option (values are not echoed)"
         raise Stop(2, "usage error: %s\n%s" % (message, self.format_usage().strip()))
 
 
