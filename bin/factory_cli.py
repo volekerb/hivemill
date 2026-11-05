@@ -3156,7 +3156,10 @@ def cmd_task(a):
             goal_auto_active(con, t["goal_id"], f"task {a.id} in_progress (task update)")
         print(f"{a.id} updated")
     elif a.action == "note":
-        event(con, "task", a.id, "note", read_text(a.text))
+        text = read_text(a.text)
+        if not (text or "").strip():
+            die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
+        event(con, "task", a.id, "note", text)
         print("noted")
     elif a.action == "tier":
         task_tier_cmd(con, a)
