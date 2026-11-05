@@ -47,6 +47,15 @@ CORPUS += [
     ["--ty", "list", "alias.x", "push"], ["--local", "list", "alias.x", "push"], ["--fixed-value", "list", "alias.x", "push"],
     ["alias.x", "push", "--get"], ["alias.x", "push", "--", "--get"], ["--", "--get", "alias.x", "push"],
     ["--get", "--", "alias.x", "push"], ["--unset-a", "alias.x"], ["--remove-s", "alias"],
+    # T-1064: restored read forms and their neighbours; M23762: coder `-t bool <key>` and `--value x <key>`
+    ["--get", "alias.x", "--show-origin"], ["--get", "alias.x", "--null"], ["list", "--show-origin"], ["list", "--name-only"],
+    ["get", "--all", "alias.x"], ["get", "--show-origin", "alias.x"], ["get", "--regexp", "alias"], ["--get-color", "color.x"],
+    ["--get-colorbool", "color.ui"], ["--get", "alias.x", "--local"], ["--get", "alias.x", "--bool"],
+    ["--get", "alias.x", "--int"], ["--get", "alias.x", "--path"], ["--get", "alias.x", "--includes"],
+    ["--get", "alias.x", "--global"], ["--get", "alias.x", "--system"], ["--regexp", "alias"], ["--regexp", "alias.x", "push"],
+    ["alias.x", "push", "--null"], ["alias.x", "push", "--bool"], ["alias.x", "--bool", "push"], ["set", "alias.x", "push", "--local"],
+    ["-t", "bool", "alias.x"], ["-t", "bool", "core.bare", "true"], ["--value", "x", "alias.y"], ["--value", "x", "alias.y", "push"],
+    ["--get-color", "color.x", "push"], ["--get-colorbool", "color.ui", "alias.x", "push"],
 ]
 CORPUS = [list(f) for f in dict.fromkeys(tuple(f) for f in CORPUS)]
 

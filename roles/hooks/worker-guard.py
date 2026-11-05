@@ -162,9 +162,16 @@ REMOTE_WRITE = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-bra
 # T-1035: `git config` read classifier. Git parses options with parse-options (unique abbreviations, value options that
 # eat the next word, `--`, short bundles); the guard does NOT mirror that. It proves a command is a read from an exact
 # table, and anything it cannot prove is a write (fail closed).
-CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
-                "--name-only", "--all", "--global", "--local", "--system", "--worktree", "--null", "-z", "--bool", "--int",
-                "--bool-or-int", "--bool-or-str", "--path", "--expiry-date", "--includes", "--no-includes"}
+CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l",
+                "--show-origin", "--show-scope", "--name-only", "--all", "--regexp", "--global", "--local", "--system",
+                "--worktree", "--null", "-z", "--bool", "--int", "--bool-or-int", "--bool-or-str", "--path",
+                "--expiry-date", "--includes", "--no-includes"}
+# T-1064: exact table of the output/scope modifiers that may also FOLLOW a positional (`--get alias.x --show-origin`,
+# `list --show-origin`, `get --all alias.x`). Action flags and everything else stay refused after a positional, so
+# `alias.x push --get` stays a refusal. `--regexp` is a `get` subcommand option: config_is_read accepts it only there.
+CONFIG_TRAILING = {"--show-origin", "--show-scope", "--name-only", "--all", "--regexp", "--global", "--local", "--system",
+                   "--worktree", "--null", "-z", "--bool", "--int", "--bool-or-int", "--bool-or-str", "--path",
+                   "--expiry-date", "--includes", "--no-includes"}
 CONFIG_PARSE_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
 # Mirrored by the Go port through go/internal/guard/testdata/frontend_golden.json (ci/guard_golden.py CONST_SETS); the
 # Python classifier no longer reads them. Values stay as they were until the Go mirror follow-up (G-016).
@@ -172,7 +179,7 @@ CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
 CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
                "--name-only"}
 CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section", "--remove-section"}
-CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
+CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l"}
 CONFIG_WORD_WRITE = {"set", "unset", "edit", "rename-section", "remove-section"}
 
 
@@ -183,7 +190,7 @@ def config_parse(args):
     while k < len(args):
         a = args[k]
         k += 1
-        if a in CONFIG_FLAGS and not pos:
+        if a in CONFIG_FLAGS and (not pos or a in CONFIG_TRAILING):
             flags.append(a)
         elif a in CONFIG_PARSE_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_PARSE_VALUE_OPTS and "=" in a):
             if "=" not in a:
@@ -204,6 +211,8 @@ def config_is_read(args):
     if parsed is None:
         return False
     flags, pos = parsed
+    if "--regexp" in flags and pos[:1] != ["get"]:
+        return False
     actions = [f for f in flags if f in CONFIG_ACTION_FLAGS]
     if len(actions) > 1:
         return False
