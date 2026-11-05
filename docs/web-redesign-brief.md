@@ -48,14 +48,14 @@ The one recurring defect is not scroll but overlap: the org switch sits over the
 
 ## Decisions
 
-R1 to R4 keep the factory's look (Data-Dense Dashboard on a Swiss base, Inter, slate and one blue accent) and fix structure and phone behaviour. No restyle for its own sake.
+R1 to R4 keep the factory's look (Data-Dense Dashboard on a Swiss base, Inter, neutral greys and one blue accent) and fix structure and phone behaviour. No restyle for its own sake.
 
 | Area | Decision | Skill row |
 |---|---|---|
-| Style | Keep flat, dense, tables first: 1 px hairlines, no blur, the shadow only on the phone tab bar. Cards only where a group needs a frame. | `styles.csv#28` (Data-Dense Dashboard), `styles.csv#1` (Minimalism & Swiss Style), `quick-reference:style-match` (section 4) |
+| Style | Keep flat, dense, tables first: 1 px hairlines, faint `--e1` on cards and tiles, `--e2` on the phone tab bar, no blur. Cards only where a group needs a frame. | `styles.csv#28` (Data-Dense Dashboard), `styles.csv#1` (Minimalism & Swiss Style), `quick-reference:style-match` (section 4) |
 | Palette and tokens | Keep the existing semantic tokens (`--surface-*`, `--text-*`, `--accent`, status `-fg` / `-bg` / `-solid`). Add none unless a change needs one; a new token is added in both themes in the same PR with its contrast pair in `tests/test_web_design.py`. Dark is a tonal variant, not an inversion (already so). | `colors.csv#7` (Analytics Dashboard), `colors.csv#81` (Developer Tool / IDE), `quick-reference:color-semantic`, `quick-reference:color-dark-mode` |
 | Status | Keep status as glyph plus word (never colour alone). The Resources "Over cap" row gets the `danger` tone on the whole row, not only the dot. | `quick-reference:color-not-only` |
-| Type | Keep Inter (self-hosted, `web/static/fonts/`), the 12 / 13 / 14 / 15 / 28 px sizes in `app.css`, tabular figures for numbers. Chart labels use the formatted value (`97.3M`, not `9.73e+07`). | `typography.csv#5` (Minimal Swiss: Inter), `quick-reference:number-tabular`, `quick-reference:number-formatting` |
+| Type | Keep Inter (self-hosted, `web/static/fonts/`), the 12 / 13 / 14 / 15 px sizes in `app.css` (h1 22 px on a phone and 28 px from 1024 px), tabular figures for numbers. Chart labels use the formatted value (`97.3M`, not `9.73e+07`). | `typography.csv#5` (Minimal Swiss: Inter), `quick-reference:number-tabular`, `quick-reference:number-formatting` |
 | Spacing | Keep the 4 px scale `--s1..--s7`. Rows keep `--row` (44 px phone, 40 px desktop). | `quick-reference:spacing-scale` |
 | Density | Desktop stays dense. Filters collapse: one row of chips for the main filter, the others behind a "Filters" disclosure with a count of active ones. Phone: first screen shows content, not filters. | `quick-reference:progressive-disclosure` |
 | Navigation | Keep the sidebar (desktop) and the five-item tab bar (phone, already at the limit). The org switch moves out of the title row: on a phone it goes below the title, on desktop it stays right. The in-page "More" nav list stays on the More page only, never at the end of a content page. | `quick-reference:bottom-nav-limit`, `quick-reference:nav-label-icon`, `quick-reference:nav-state-active`, `quick-reference:nav-hierarchy`, `quick-reference:bottom-nav-top-level`, `ux-guidelines#3` |

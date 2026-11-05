@@ -274,6 +274,30 @@ class TestPhoneNeedsOnce(ShellDb):
         self.assertIn('aria-label="3 items need you"', block(text, r'<header class="shellbar".*?</header>'))
 
 
+class TestR1ShellCss(unittest.TestCase):
+    CSS = (ROOT / "web" / "static" / "app.css").read_text()
+
+    def test_phone_shellbar_stacks_and_desktop_rule_is_unchanged(self):
+        phone = "".join(re.findall(r"@media \(max-width: 639px\) \{(.*?)\n\}", self.CSS, re.S))
+        self.assertRegex(phone, r"\.shellbar \{[^}]*flex-direction: column")
+        self.assertRegex(self.CSS, r"\n\.shellbar \{ display: flex; align-items: flex-start; justify-content: space-between;")
+
+    def test_seg_links_do_not_wrap_and_scroll_inside_themselves(self):
+        self.assertRegex(self.CSS, r"\.seg-links \{[^}]*max-width: 100%; overflow-x: auto")
+        self.assertRegex(self.CSS, r"\.seg-links a \{[^}]*white-space: nowrap")
+
+    def test_seg_links_focus_ring_is_drawn_inside_the_scroll_box(self):
+        self.assertRegex(self.CSS, r"\.seg-links a:focus-visible \{ outline-offset: -2px; \}")
+        self.assertRegex(self.CSS, r"\.ins-check--over \{[^}]*padding: 0 var\(--s2\)")
+
+    def test_more_list_hidden_until_targeted_and_tab_still_points_at_it(self):
+        self.assertRegex(self.CSS, r"\n\.more \{ display: none;")
+        self.assertRegex(self.CSS, r"\n\.more:target \{ display: block; \}")
+        self.assertRegex(self.CSS, r"\.tabbar, \.more, \.more:target \{ display: none; \}")   # still hidden from 640 px up
+        self.assertRegex(self.CSS, r"\.topbar, \.tabbar, \.more, \.more:target \{ display: none; \}")
+        self.assertIn("Theme", wh._shell_navs("/tasks", SHELL)[1].__str__())
+
+
 class TestMemoryLow(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
