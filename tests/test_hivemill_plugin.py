@@ -80,7 +80,7 @@ class SkillTests(unittest.TestCase):
 
     def test_flags_exist_in_installer(self):
         installer = (PLUGIN / "scripts" / "install.py").read_text()
-        flags = set(re.findall(r"`(--[a-z][a-z-]+)", self.text))
+        flags = set(re.findall(r"(?<![\w-])(--[a-z][a-z-]+)", self.text))
         self.assertIn("--yes", flags)
         for f in flags:
             self.assertIn('"%s"' % f, installer, f)
