@@ -260,7 +260,7 @@ class TestUnattendedShare(Case):
         d, html = self.unattended()
         self.assertEqual((d["unattended"], d["merges"]), (2, 3))
         self.assertIn("2 of 3", html)
-        self.assertEqual(tile_labels(html)[-1] if "Unattended share" in tile_labels(html) else None, "Unattended share")
+        self.assertIn("Unattended share", tile_labels(html))
 
     def test_judge_blocked_auto_merge_zero_is_attended(self):
         self.merged("T-1")
