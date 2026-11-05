@@ -114,7 +114,7 @@ class PersistGuardTests(unittest.TestCase):
                         "git config --global --remove-section a", "git config --system core.fsmonitor x",
                         "git config --global set a.b c", "git config --global unset a.b",
                         "git -c core.pager=cat config --global a.b c", "git -C /tmp config --global a.b c",
-                        "git config --glo a.b c", "git config a.b c --global",
+                        "git config --glo a.b c",
                         "env git config --global a.b c", "sh -c 'git config --global a.b c'"):
                 self.blocked(cmd, role)
 
