@@ -11301,7 +11301,7 @@ def owner_attention(con):
                 m["created"], f"/goal/{m['goal_id']}" if m["goal_id"] else "/")
         elif b["key"].startswith("owner-blocker:gate:"):
             row("tmp-gate", "all", "tmp", b["since"], "/resources")
-    for g in con.execute("SELECT id, org, updated FROM goals WHERE status='blocked' ORDER BY id"):
+    for g in con.execute("SELECT id, updated FROM goals WHERE status='blocked' ORDER BY id"):
         row("goal-blocked", org_for(con, goal=g["id"]), g["id"], g["updated"], f"/goal/{g['id']}")
     return out
 
