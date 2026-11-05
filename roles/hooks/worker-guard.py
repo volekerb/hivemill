@@ -2615,13 +2615,44 @@ class Analyzer:
         any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
         if self.hq:
             return
-        read = False
+        read = unsure = skip = False
+        key = None
         for n, t in enumerate(toks):
             if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
                 raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
                             "write the arguments literally (T-1063)")
-            if t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list")):
+            if skip:  # T-1097: the value of a value option (`--comment --get`) is never the action flag
+                skip = False
+                if t in CONFIG_FLAGS or t in CONFIG_WORD_WRITE:
+                    raise Block(f"git config: `{t}` follows a value option, so git takes it as the option's value and "
+                                "not as an action; put the action flag first, or write the arguments literally "
+                                "(T-1063, T-1097)")
+                continue
+            name = t.partition("=")[0]
+            if t in CONFIG_PARSE_VALUE_OPTS or (len(t) >= 3 and t.startswith("--") and "=" not in t and any(
+                    o.startswith(t) for o in ("--type", "--default", "--comment", "--blob", "--value", "--file"))):
+                skip = True  # also a unique abbreviation (`--com --get al*`), which git accepts
+            elif t.startswith("-") and t != "-" and t not in CONFIG_FLAGS and t not in CONFIG_ACTION_FLAGS \
+                    and name not in CONFIG_PARSE_VALUE_OPTS:
+                unsure = True  # an option outside the table before the action flag: fail closed, no read proven
+            elif (t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list"))) and not unsure:
                 read = True
+            elif key is None and not t.startswith("-"):
+                key = t
+        if read:
+            return
+        # T-1097: the parser drops a zsh glob such as (a|b) or <-> and the extendedglob forms (^z, a~b, al#) as
+        # separate commands or redirections, so the command's own args are checked: no value, or no literal key.
+        if skip:
+            raise Block("git config: a value option has no value, so zsh may have expanded a glob away from it and "
+                        "the command could be a write; write the arguments literally (T-1063, T-1097)")
+        if (not unsure and key is None) or (key is not None and re.search(r"[()|<>^~#]", key)):
+            scope = next((t for t in toks if t in ("--global", "--system")), None)
+            if scope:  # same refusal as the write path (and the Go mirror) gives a scoped write
+                raise Block(f"`git config {scope}` write: {PERSIST_WHY}")
+            raise Block("git config: no read action flag is proven and no literal key is given (a zsh glob such as "
+                        "(a|b), <->, ^z, a~b or al# expands into more arguments, or the key is missing), so it could "
+                        "be a write; write the arguments literally (T-1063, T-1097)")
 
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
