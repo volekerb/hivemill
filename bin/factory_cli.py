@@ -125,7 +125,7 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 CLAIM_TTL_S = 600
 # a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
 EVALUATOR_SPAWN_RETRY_MAX = 5
-UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
+UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "researcher")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
 OWNER_CAP_KEYS = ("max_live_agents", "max_total_claude", "min_mem_available_mb", "max_five_hour_pct", "max_seven_day_pct",
