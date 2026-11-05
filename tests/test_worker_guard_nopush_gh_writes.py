@@ -75,7 +75,7 @@ class NoPushGhWriteTests(unittest.TestCase):
 
     def test_pr_comment_refused_for_other_no_push_roles(self):
         for c in COMMENT:
-            for w in (c, f"bash -c {shlex.quote(c)}"):
+            for w in (c, c.replace("gh ", "gh -R a/b ", 1), f"bash -c {shlex.quote(c)}"):
                 for role in NON_COMMENTERS:
                     self.assertEqual(self.code(w, role), 2, f"{role}: {w}")
 
