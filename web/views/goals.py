@@ -7,7 +7,7 @@ from scout import orgs as _orgs
 from web.components import (COLLAPSED, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
                             org_badge, org_href, row_status, section, segmented)
 from web.html import CLASSES, LABELS, badge, card, crumbs, el, empty, link, table, ts
-from web.views.home import _needs
+from web.views.home import _needs, goal_row, needs_by_goal
 
 TITLE = "Goals"
 
@@ -69,8 +69,9 @@ def data(ctx, sort=None, **params):
     gl = sorted((g for g in every if org is None or g["org"] == org), key=_rank)
     ids = {g["id"] for g in gl}
     internal = [t for t in queries.internal_blocked(ctx.db) if org is None or t["goal_id"] in ids]
+    needs = _needs(ctx, org)
     return {"org": org, "orgs": by_org, "goals": gl, "owner_pending": queries.owner_pending(ctx.db), "internal_blocked": internal,
-            "needs_you": _needs(ctx, org), "criteria": queries.criteria_by_goal(ctx.db), "last_activity": queries.last_activity_by_goal(ctx.db),
+            "needs_you": needs, "needs_by_goal": needs_by_goal(needs), "criteria": queries.criteria_by_goal(ctx.db), "last_activity": queries.last_activity_by_goal(ctx.db),
             "sort": sort if sort in SORTS else None}
 
 
@@ -99,18 +100,8 @@ def _sorted(goals, sort, last):
 
 
 def _goal_row(g, d, now):
-    done, total = g["tasks_done"], g["tasks_total"]
-    prs = f"{g['open_prs']} open PR" + ("s" if g["open_prs"] != 1 else "") if g["open_prs"] else None
-    crit = d["criteria"].get(g["id"])
-    act = ago(d["last_activity"].get(g["id"]) or g["updated"], now)
-    title = el("span", el("a", g["title"], href=f"/goal/{g['id']}"),
-               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None, " ", org_badge(g.get("org")),
-               class_="gtitle")
-    meta = el("div", charts.meter(done, total, f"{done}/{total} tasks"),
-              el("span", f"criteria {crit[0]}/{crit[1]}", class_="gprs") if crit else None,
-              el("span", prs, class_="gprs") if prs else None, _blocked_cell(g),
-              el("span", f"last activity {act}", class_="gact") if act else None, class_="gm")
-    return el("li", row_status(g["status"]), el("span", g["id"], class_="mono lrow-id"), title, meta, class_="goalrow")
+    return goal_row(g, now, crit=d["criteria"].get(g["id"]), last=d["last_activity"].get(g["id"]) or g["updated"],
+                    needs=d["needs_by_goal"].get(g["id"], 0), extra=_blocked_cell(g))
 
 
 def _goal_list(goals, d, now):
