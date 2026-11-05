@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_worker_guard_config_oracle as oracle  # noqa: E402
 
+GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 ALL_ROLES = ("coder", "reviewer", "qa", "pm", "judge", "cleaner")
 EVERY_ROLE_READS = ["git config --get alias.x --show-origin", "git config --get alias.x --null",
                     "git config --get alias.x --local", "git config --get alias.x --bool", "git config --get alias.x --int",
