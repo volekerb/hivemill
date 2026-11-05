@@ -189,7 +189,7 @@ class TermsGhFpTests(unittest.TestCase):
     def test_fix_d_shell_whitespace_after_terminator_keeps_body_scanned(self):
         head = "gh pr comment 1 --body-file - <<'EOF'\nfind / -name x\nEOF\n"
         self.scanned(head + "\x1c")
-        self.scanned(head + " ")
+        self.scanned(head + "\u00a0")  # non-breaking space is a shell command word, not blank
         self.allowed(head + " \t\n")
 
     # --- T-0942 attempt 3 (spec v4): the skip is one anchored allowlist shape; B3 and B4 forms stay scanned ---
