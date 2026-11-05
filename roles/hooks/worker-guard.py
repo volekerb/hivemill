@@ -1104,12 +1104,13 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
-def preprocess(cmd, fold_ticks=False, bodies=None):
+def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
     """Make newlines separators, drop comments and non-shell heredoc bodies.
 
     Returns (text, extras): extras are texts to analyze too (bodies of heredocs fed to a shell) and
     text blocks fed to other interpreters (only searched for the word herdr). When bodies is a list, every heredoc
     is appended to it as (the command line up to its newline, the body): the public-text rule reads `-F -` from it.
+    When slots is a list, one [body, strip] list per `<<` in text order is appended; a resolved heredoc's slot holds its body and whether it is `<<-`.
     """
     out, extras = [], []
     i, n, q = 0, len(cmd), None
@@ -1159,10 +1160,15 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
             r = heredoc_delim(cmd, i)
             if r:
-                pending.append((r[0], r[1], r[3]))
+                slot = [None, r[0]]  # body, then whether this is a real `<<-`
+                if slots is not None:
+                    slots.append(slot)
+                pending.append((r[0], r[1], r[3], slot))
                 out.append(cmd[i:r[2]])
                 i = r[2]
             else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
+                if slots is not None:
+                    slots.append([None, False])
                 out.append("<<")
                 i += 2
             continue
@@ -1170,7 +1176,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             head = "".join(out[line_start:])
             out.append(" ; ")
             i += 1
-            for strip, delim, quoted in pending:
+            for strip, delim, quoted, slot in pending:
                 body = []
                 while i < n:
                     seg = i
@@ -1189,6 +1195,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                     if cmp != line:
                         body.append(cmp)  # what bash feeds the inner command after joining
                 body = "\n".join(body)
+                slot[0] = body
                 if bodies is not None:
                     bodies.append((head, body))
                 if re.search(r"\b(%s|eval|source)\b" % "|".join(SHELLS), head):
@@ -1554,7 +1561,8 @@ class Analyzer:
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
-        text, extras = preprocess(text, self.hq, nbodies)
+        slots = []
+        text, extras = preprocess(text, self.hq, nbodies, slots)
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.call_assign(text, [b for _, b in nbodies[seen:]])
         for kind, body in extras:
@@ -1579,6 +1587,7 @@ class Analyzer:
             self.soft(self.script, sub, depth + 1)
         cmds, cur, piped, i, hs = [], [], False, 0, []
         reds = []  # (index of the command it belongs to, redirect target word)
+        hds = {}  # command index -> heredoc bodies (T-0882: they join the here-string stdin channel)
         stack, dollar = [], False  # saved (cur, piped, hs) of the commands that open a $( )
         while i < len(toks):
             tok = toks[i]
@@ -1610,6 +1619,13 @@ class Analyzer:
                     if nxt is not None and not is_punct(nxt):
                         if tok == "<<<":
                             hs.append(nxt)
+                        elif tok == "<<":
+                            slot = slots.pop(0) if slots else [None, False]
+                            b = slot[0]
+                            if b is not None:
+                                hds.setdefault(len(cmds), []).append(b)
+                            if slot[1] and nxt == "-" and i + 2 < len(toks) and not is_punct(toks[i + 2]):
+                                i += 1  # `<<- EOF`
                         elif ">" in tok and ("&" not in tok or (re.match(r"^[0-9]*(&>>?|>&)$", tok)
                                                                  and not re.match(r"^([0-9]+|-)$", nxt))):
                             reds.append((len(cmds), nxt))  # `>&2` / `>&-` duplicate or close an fd: no file target
@@ -1644,7 +1660,14 @@ class Analyzer:
                     self.cfg_redirect(target)
                     self.prot_redirect(target)
                     self.persist_redirect(target)
-            self.soft(self.cmd, words, depth, piped, False, hstrs)
+            k = n - 1
+            while k > 0 and cmds[k][1] and cmds[k][0] and os.path.basename(cmds[k][0][0]) in ("tee", "cat"):
+                k -= 1  # pass-through stages (`echo ... | tee f | python3`) keep the literal
+            prev = cmds[k][0] if piped and k >= 0 else []
+            self.pipe_src = " ".join(prev[1:]) if prev and os.path.basename(prev[0]) in ("echo", "printf") else None
+            if prev and os.path.basename(prev[0]) == "cat" and (hds.get(k) or cmds[k][2]):
+                self.pipe_src = "\n".join([*hds.get(k, []), *cmds[k][2]])
+            self.soft(self.cmd, words, depth, piped, False, hstrs, (), (piped, [*hstrs, *hds.get(n, [])], self.pipe_src))
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
                 self.fs_changed = True
 
@@ -1765,11 +1788,39 @@ class Analyzer:
         # attached code (`perl -e'CODE'`, `node --eval=CODE`) is not a separate word: scan option words that look like code
         texts += [a for a in rest if a.startswith("-") and re.search(r"[\s\"'();]", a)]
         for t in texts:
-            if all(p.search(t) for p in INLINE_GIT_PUSH):
-                raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
-                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
-                            "no-push roles never write to GitHub; ask your lead")
+            self.scan_inline_text(name, t, "inline code")
+
+    def scan_inline_text(self, name, t, what):
+        if all(p.search(t) for p in INLINE_GIT_PUSH):
+            raise Block(f"{name} {what} that runs `git push` (no-push roles never push; ask your lead)")
+        if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
+            raise Block(f"{name} {what} that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
+                        "no-push roles never write to GitHub; ask your lead")
+
+    def stdin_program(self, name, rest):
+        """T-0882: True when the interpreter command reads its program from stdin: no script file (or `-`) and no -c/-e code.
+        An option this hook does not model counts as stdin too (scanning only ever refuses a push/gh write)."""
+        if not INLINE_CODE_INTERPS.match(name):
+            return False
+        n = "node" if name.startswith("nodejs") else name
+        si, ci, unknown = interp_args(n, rest)
+        if unknown:
+            return True
+        if ci is not None:
+            return False
+        if si is not None and PT_STDIN_PATH.match(os.path.normpath(rest[si])):
+            return True
+        return si is None or rest[si] == "-" or bool(PT_STDIN_PATH.match(os.path.normpath(rest[si])))
+
+    def stdin_scan(self, name, text):
+        """T-0882: scan code fed to an interpreter on stdin (heredoc body, here-string, echo/printf piped in) with the T-0789
+        scan, plus the T-0808 F4 fail-closed rule for archive extraction from python. NOT covered, by design: a piped
+        non-literal source (`cat file | python3`, `curl ... | python3`), uv run wrappers, obfuscated code. Defense in depth only;
+        the sandbox + worker PAT are the boundary (M15349)."""
+        self.scan_inline_text(name, text, "stdin code")
+        if re.match(r"^python[\d.]*$", name) and re.search(r"extractall|extract\s*\(|unpack_archive", text):
+            raise Block(f"`{name}` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); "
+                        "use unzip -d or tar -C")
 
     def git_priv(self, rest, depth):
         """git runs shell text from `-c alias.x=!cmd`, `-c core.pager=cmd` and `git config <key> <value>`."""
@@ -3304,8 +3355,10 @@ class Analyzer:
             return None
         return os.path.realpath(row[0]) if row and row[0] else None
 
-    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
+    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
         words = list(words)
+        # T-0882: a wrapped interpreter keeps the wrapper's stdin (here-strings, the echo/printf literal piped in)
+        stdin_piped, stdin_hs, stdin_pipe = stdin if stdin else (piped, hstrs, getattr(self, "pipe_src", None))
         assigns = list(env_assigns)
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
@@ -3408,6 +3461,9 @@ class Analyzer:
             self.interp_priv(name, rest)
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
+                if self.stdin_program(name, rest):  # T-0882: here-string, heredoc, echo|printf piped in
+                    for h in list(stdin_hs) + ([stdin_pipe] if stdin_piped and stdin_pipe else []):
+                        self.stdin_scan(name, h)
             self.unittest_full(name, rest)
             self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
@@ -3449,7 +3505,7 @@ class Analyzer:
         elif name in WRAPPERS and not in_loose:
             if name == "xargs":
                 self.xargs(rest)
-            self.loose(rest, depth, assigns)
+            self.loose(rest, depth, assigns, (stdin_piped, stdin_hs, stdin_pipe))
 
     def test_sandbox_on(self):
         """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
@@ -3773,7 +3829,7 @@ class Analyzer:
             if any(CLAUDE_CLI.search(a) or CLAUDE_PKG in a for a in rest):
                 raise ClaudeBlock(f"{name} running the Claude Code cli")
 
-    def loose(self, rest, depth, env_assigns=()):
+    def loose(self, rest, depth, env_assigns=(), stdin=None):
         for k in range(len(rest)):
             whole = True
             if ASSIGN.match(rest[k]):
@@ -3790,7 +3846,7 @@ class Analyzer:
             if whole and re.search(r"\s", rest[k]):
                 self.script(rest[k], depth + 1)
             self.cmd(rest[k:], depth, False, True,
-                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))])
+                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))], stdin=stdin)
 
     def xargs(self, rest):
         repl, j, first = None, 0, None
