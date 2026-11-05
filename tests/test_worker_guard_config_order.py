@@ -83,6 +83,23 @@ class ConfigOrderTests(unittest.TestCase):
     def test_scope_and_file_writes_still_refused(self):
         self.check(STILL_REFUSED, 2)
 
+    def test_abbreviated_value_option_in_scratch_clone(self):
+        # git takes `--typ bool` as --type; its value is not a bare key, so a later --global is a real scope option.
+        # In a scratchpad clone (own .git) only the scope refusal stops the write, so probe there.
+        scratch = os.path.join(self.tmp, "scratch")
+        clone = os.path.join(scratch, "clone")
+        os.makedirs(clone)
+        git("init", "-q", "-b", "main", clone, cwd=self.tmp)
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home,
+                   WORKER_GUARD_SCRATCH=scratch, FACTORY_AGENT=f"coder-{TASK}")
+        for f in ("--typ bool --global core.hooksPath /tmp/x", "--def x --global core.hooksPath /tmp/x",
+                  "--comm x --global core.hooksPath /tmp/x", "--blo x --glob core.hooksPath /tmp/x",
+                  "--type bool --global core.hooksPath /tmp/x", "--add --global core.hooksPath /tmp/x"):
+            with self.subTest(form=f):
+                payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git config " + f}, "cwd": clone})
+                p = hook_run(payload, ["--role", "coder"], env=env)
+                self.assertEqual(p.returncode, 2, p.stderr)
     def test_reads_stay_reads(self):
         self.check(READS, 0, ("coder",))
 

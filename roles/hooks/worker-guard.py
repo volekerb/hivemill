@@ -2664,7 +2664,10 @@ class Analyzer:
             if not stripping:
                 args.append(a)
                 continue
-            if a in CONFIG_PARSE_VALUE_OPTS and a not in ("--file", "-f"):
+            # git accepts unique abbreviations (`--typ bool`): a prefix of a value option eats the next token too
+            abbrev = len(a) >= 3 and a.startswith("--") and "=" not in a and any(
+                o.startswith(a) for o in ("--type", "--default", "--comment", "--blob", "--value"))
+            if (a in CONFIG_PARSE_VALUE_OPTS and a not in ("--file", "-f")) or abbrev:
                 args.append(a)
                 if k < len(rest):
                     args.append(rest[k])
