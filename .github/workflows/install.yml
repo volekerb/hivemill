@@ -38,6 +38,8 @@ jobs:
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git python3 ca-certificates
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # the workspace is copied to the plain user: no token in its git config
       - name: Run the installer as a plain user
         env:
           MODE: ${{ matrix.ref }}
