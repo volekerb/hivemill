@@ -125,6 +125,7 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 CLAIM_TTL_S = 600
 # a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
 EVALUATOR_SPAWN_RETRY_MAX = 5
+START_FAILED_RETRY_S = 600  # a queued row at the failure cap is retried at most this often (T-1135)
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "researcher")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -8732,35 +8733,42 @@ def sandbox_drop_queued(con, row, s, e):
 
 
 def start_failed_queued(con, row, s, e):
-    """A queued non-evaluator row whose start died (spawn() restored it to queued): count the failure on the row. The first
-    failure logs one `spawn-start-failed` event and alerts the team's lead once (director with no lead); later failures are
-    silent. At EVALUATOR_SPAWN_RETRY_MAX failures the row is cancelled (`dequeued`, by=spawn-start-failed) with a second alert,
-    so a lasting failure neither repeats every tick nor stays queued forever. Gate refusals never reach here."""
+    """A queued non-evaluator row whose start died (spawn() restored it to queued): count the failure and its time on the row.
+    The first failure logs one `spawn-start-failed` event and alerts the team's lead once (director with no lead); the
+    failure that reaches EVALUATOR_SPAWN_RETRY_MAX sends one last alert. The row is never cancelled (T-1135, M26136): queued
+    rows are the work, and a pane-server outage must not drop them. At or past the cap the tick attempts the start at most
+    every START_FAILED_RETRY_S (see start_failed_wait); a start that works ends the episode. Gate refusals never reach here."""
     name, team = row["name"], s.get("team")
     fails = int(s.get("spawn_failures", 0)) + 1
     why = f"exit {e.code}" if isinstance(e.code, int) else str(e.code)[:200]
-    cap = fails >= EVALUATOR_SPAWN_RETRY_MAX
-    if cap:
-        if not cancel_queued(con, name, "spawn-start-failed", f"start failed {fails} times ({why}); giving up"):
-            return
-    else:
-        cur = con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) WHERE name=? "
-                          "AND status='queued'", (fails, name))
-        if cur.rowcount != 1 or fails > 1:  # no longer queued (cancelled meanwhile): nothing to retry or report
-            return
+    cur = con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?,'$.spawn_failed_at',?) "
+                      "WHERE name=? AND status='queued'", (fails, digest_clock().timestamp(), name))
+    if cur.rowcount != 1:  # no longer queued (cancelled meanwhile): nothing to retry or report
+        return
+    if fails == 1:
         event(con, "agent", name, "spawn-start-failed", f"queued {s['role']} start failed ({why}); retried next tick, "
-              f"cancelled after {EVALUATOR_SPAWN_RETRY_MAX} failures")
-    subject = f"start of queued {s['role']} {name} " + ("cancelled after repeated failures" if cap else "failed")
+              f"every {START_FAILED_RETRY_S // 60} min from failure {EVALUATOR_SPAWN_RETRY_MAX}; stays queued")
+    if fails != 1 and fails != EVALUATOR_SPAWN_RETRY_MAX:
+        return
+    capped = fails >= EVALUATOR_SPAWN_RETRY_MAX
+    subject = f"start of queued {s['role']} {name} " + ("keeps failing" if capped else "failed")
     body = (f"The start of queued {s['role']} {name} died ({why}). " +
-            (f"It failed {fails} times and was cancelled; fix the cause and spawn again." if cap else
-             f"The tick retries it each tick and cancels it after {EVALUATOR_SPAWN_RETRY_MAX} failures; no further alert "
-             "until then."))
+            (f"It failed {fails} times and stays queued, retried every {START_FAILED_RETRY_S // 60} minutes; this is the "
+             "last alert. Fix the cause: it starts on the next retry." if capped else
+             f"The tick retries it each tick; one more alert at failure {EVALUATOR_SPAWN_RETRY_MAX}, then none."))
     up = {"lead": "director", "director": "boss"}.get(s["role"])  # never alert the failing row itself: one level up
     try:
         send(con, up or (f"lead:{team}" if team else "director"), subject, body, "alert", goal=s.get("goal"),
              task=s.get("task"), sender="factory")
     except SystemExit:  # the team has no lead any more: the director hears it instead
         send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
+
+
+def start_failed_wait(s):
+    """True while a queued row at or past the failure cap is inside its retry window: the tick skips its start."""
+    if int(s.get("spawn_failures", 0)) < EVALUATOR_SPAWN_RETRY_MAX:
+        return False
+    return digest_clock().timestamp() - float(s.get("spawn_failed_at", 0)) < START_FAILED_RETRY_S
 
 
 def sandbox_prepare(con, role, name, cwd):
@@ -13682,6 +13690,8 @@ def cmd_tick(a, locked=False):
         s = json.loads(cur["spawn_args"])
         if time.time() - s.get("claimed_at", 0) < CLAIM_TTL_S:
             continue  # a msg is spawning this one right now
+        if s["role"] != "evaluator" and start_failed_wait(s):
+            continue  # T-1135: at the failure cap the start is retried every START_FAILED_RETRY_S, not every tick
         if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
         if s["role"] == "judge":

@@ -1,12 +1,11 @@
 """T-1135: a queued non-evaluator row whose start dies (die(3), missing binary) must not end the tick: later phases run,
-one event and one alert per row, a cancel at the retry cap. Real cmd_tick in-process, temp FACTORY_HOME."""
+one event and one alert per row; at the retry cap the row stays queued, retried every 10 minutes (M26136). Real cmd_tick in-process, temp FACTORY_HOME."""
 import os
 import unittest
 from unittest import mock
 
 from harness import FactoryTestCase
 
-NOW = {"FACTORY_NOW": "2026-11-05T12:00:00"}
 LEAD = "claude-lead-g-001-a"
 
 
@@ -26,19 +25,29 @@ class TickStartFailure(FactoryTestCase):
                '"prompt":null,"model":null,"resume":null,"org":"claude"}' % self.name, "2026-11-05T11:00:00", "claude"))
         self.later = 0
 
-    def tick(self, start_dies=True, gate_closed=False):
+    def tick(self, start_dies=True, gate_closed=False, at="2026-11-05T12:00:00"):
+        self.attempts = getattr(self, "attempts", 0)
+
         def die3(*a, **k):
+            self.attempts += 1
             raise SystemExit(3)
+
+        def works(con, role, goal, team, task, name, *a, **k):
+            self.attempts += 1
+            con.execute("UPDATE agents SET status='running' WHERE name=?", (name,))
 
         def later(con):
             self.later += 1
 
-        with mock.patch.dict(os.environ, NOW), self.env.load_factory() as m, mock.patch.object(m, "tick_lock", return_value=None), \
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": at}), self.env.load_factory() as m, mock.patch.object(m, "tick_lock", return_value=None), \
                 mock.patch.object(m, "dispatch_tick", later):
             if start_dies:
                 ctx = mock.patch.object(m, "_spawn_start", die3)  # the process boundary: pane/binary start
                 ctx.start()
                 self.addCleanup(ctx.stop)
+            else:
+                ctx = mock.patch.object(m, "_timed_spawn", works)
+                ctx.start()
             if gate_closed:
                 g = mock.patch.object(m, "gate", return_value=(False, "load", {}))
                 g.start()
@@ -118,15 +127,38 @@ class TickStartFailure(FactoryTestCase):
         self.assertEqual(len(got), 1)
         self.assertIn("director", got[0])
 
-    def test_cap_cancels_the_row_with_one_more_alert(self):
-        for _ in range(5):
-            self.tick()
-        self.assertEqual(self.status(), "cancelled")
-        self.assertEqual(self.count("dequeued"), 1)
-        self.assertEqual(len(self.alerts()), 2)
-        self.tick()  # cancelled: no more attempts, events or alerts
+    def at(self, minute):
+        return "2026-11-05T12:%02d:00" % minute
+
+    def test_past_the_cap_row_stays_queued_and_retries_every_10_minutes(self):  # M26136
+        for i in range(5):
+            self.tick(at=self.at(i))
+        self.assertEqual(self.attempts, 5)
+        self.assertEqual(self.status(), "queued")
+        self.assertEqual(self.count("dequeued"), 0)
+        self.assertEqual(len(self.alerts()), 2)  # failure 1 and the cap: the last
+        for m in (5, 9, 13):  # inside 10 min of the failure at 12:04: not attempted
+            self.tick(at=self.at(m))
+        self.assertEqual(self.attempts, 5)
+        self.tick(at=self.at(14))  # 10 min after: attempted again, fails again, silent
+        self.assertEqual(self.attempts, 6)
+        self.tick(at=self.at(20))
+        self.assertEqual(self.attempts, 6)
+        self.assertEqual(self.status(), "queued")
         self.assertEqual(self.count("spawn-start-failed"), 1)
         self.assertEqual(len(self.alerts()), 2)
+
+    def test_start_that_works_after_the_cap_starts_the_rows(self):  # M26136
+        other = "claude-coder-t-0002"
+        self.env.sql("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,spawn_args,queued_at,org) "
+                     "SELECT ?,role,goal_id,team_id,task_id,status,replace(spawn_args,?,?),queued_at,org FROM agents "
+                     "WHERE name=?", (other, self.name, other, self.name))
+        for i in range(5):
+            self.tick(at=self.at(i))
+        self.assertEqual(self.status(), "queued")
+        self.tick(start_dies=False, at=self.at(14))
+        got = {r["name"]: r["status"] for r in self.env.sql("SELECT name, status FROM agents WHERE name LIKE 'claude-coder-%'")}
+        self.assertEqual(got, {self.name: "running", other: "running"})
 
     def test_gate_refusal_leaves_the_row_queued_without_failure_handling(self):
         for _ in range(6):
