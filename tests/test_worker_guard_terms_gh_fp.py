@@ -88,6 +88,10 @@ class TermsGhFpTests(unittest.TestCase):
         self.refused("gh pr comment 1 --body-file - <<'EOF'; cat $SCRUB_TERMS_FILE\nx\nEOF")
         self.refused("cat <<'EOF' | gh pr comment 1 --body-file -\nfind / -name x\nEOF")
 
+    def test_path_named_gh_is_not_trusted(self):
+        self.refused("./gh pr comment 1 --body-file - <<'EOF'\ncat $SCRUB_TERMS_FILE\nEOF")
+        self.refused("/tmp/x/gh pr view 1 --jq '{a,b}' # factory")
+
     def test_heredoc_skip_is_not_fooled_by_quotes_or_comments(self):
         self.refused("gh pr comment 1 -b \"<<'EOF'\"\ncat $SCRUB_TERMS_FILE\nEOF")
         self.refused("gh pr comment 1 -b x # <<'EOF'\ncat $SCRUB_TERMS_FILE\nEOF")

@@ -4945,7 +4945,7 @@ def terms_is_gh(seg):
         toks = seg.split()
     while toks and TERMS_ENV_ASSIGN.match(toks[0]):
         toks.pop(0)
-    return bool(toks) and os.path.basename(toks[0]) == "gh"
+    return bool(toks) and toks[0] == "gh"  # bare gh only: a path such as /tmp/x/gh may be a worker-written script
 
 
 def terms_gh_heredocs(cmd):
