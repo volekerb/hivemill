@@ -51,6 +51,10 @@ CONTROLS = (
 # Exit codes of the origin/main hook, measured through hook_run on a tree copy: one code per role on every command above.
 OTHER_ROLES = {"judge": 0, "cleaner": 0, "qa": 2, "reviewer": 2, "pm": 2, "hq": 0}
 
+# Acceptance 3, plain own push (OWN): codes of the origin/main hook, measured through hook_run on a copy of that hook.
+# They differ from OTHER_ROLES (cleaner refuses the plain own push), so they are kept apart.
+OWN_OTHER_ROLES = {"judge": 0, "cleaner": 2, "qa": 2, "reviewer": 2, "pm": 2, "hq": 0}
+
 FULL_SUITE_INNER = ("git rebase -x 'pytest -q' HEAD~1", "git bisect run pytest -q")
 
 
@@ -129,6 +133,12 @@ class CoderGitRunnerTests(unittest.TestCase):
             for role in ("judge", "cleaner", "qa", "reviewer", "pm"):
                 self.assertEqual(self.code(c, role=role), OTHER_ROLES[role], f"{role}: {c}")
             self.assertEqual(self.code(c, role="boss", hq=True), OTHER_ROLES["hq"], f"hq: {c}")
+
+    def test_other_roles_own_push_unchanged(self):
+        """Acceptance 3: the plain own push keeps the exit code the origin/main hook gives each other role."""
+        for role in ("judge", "cleaner", "qa", "reviewer", "pm"):
+            self.assertEqual(self.code(OWN, role=role), OWN_OTHER_ROLES[role], f"{role}: {OWN}")
+        self.assertEqual(self.code(OWN, role="boss", hq=True), OWN_OTHER_ROLES["hq"], f"hq: {OWN}")
 
 
 if __name__ == "__main__":
