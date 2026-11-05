@@ -163,6 +163,7 @@ DEFAULT_CONFIG = {
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
     "review_autospawn": "off",   # off | on: the tick starts reviewer + QA (or one combined agent for T0/T1) when a PR opens (G-022 #6, docs/review-autospawn.md)
     "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
+    "coder_ci_resume_max": "2",   # with coder_ci_handoff on: at most this many tick starts of a handed-off coder per task on a red head, then the lead is mailed (T-1004, docs/lead-wake.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -3155,7 +3156,10 @@ def cmd_task(a):
             goal_auto_active(con, t["goal_id"], f"task {a.id} in_progress (task update)")
         print(f"{a.id} updated")
     elif a.action == "note":
-        event(con, "task", a.id, "note", read_text(a.text))
+        text = read_text(a.text)
+        if not (text or "").strip():
+            die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
+        event(con, "task", a.id, "note", text)
         print("noted")
     elif a.action == "tier":
         task_tier_cmd(con, a)
@@ -3206,6 +3210,18 @@ def org_for(con, goal=None, task=None, sender=None, org=None):
     else the default org."""
     return (org if org in orgs.ORGS else None) or goal_org(con, goal) or task_org(con, task) \
         or agent_org(con, sender) or orgs.DEFAULT_ORG
+
+
+def goal_alert_to(con, goal, team=None, lead=None):
+    """Recipient of an unprompted tick alert about `goal`: the lead (`lead` name, else the lead of `team`) when that lead is
+    of the goal's org (default org when the goal has none), else "director" (resolved inside the goal's org by send).
+    A lead of another org gets no mail and no wake. Mail that answers a lead's own action does not use this."""
+    if not lead and team:
+        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+        lead = r["lead_agent"] if r else None
+    if lead and agent_org(con, lead) == (goal_org(con, goal) or orgs.DEFAULT_ORG):
+        return lead
+    return "director"
 
 
 def oname(con, org, base):
@@ -3363,6 +3379,14 @@ def warn_spec_by_msg(con, mid, sender_role, rcpt, kind, subject, body):
     event(con, "task", r["task_id"], "spec-by-msg", f"M{mid} {actor()}->{rcpt}")
 
 
+def sender_org_for(con, role, to, goal=None, task=None):
+    """The org a message is resolved in: a lead or worker (not CROSS_ORG_ROLES) addressing a bare singleton (director,
+    boss, owner, staff-engineer) reaches its OWN org's HQ whatever --goal/--task says; everyone else: goal, task, sender."""
+    if role not in CROSS_ORG_ROLES and (to == "owner" or to in orgs.SINGLETON_ROLES):
+        return agent_org(con, actor()) or orgs.DEFAULT_ORG
+    return org_for(con, goal, task, actor())
+
+
 def cmd_msg(a):
     con = db()
     role = actor_role(con)
@@ -3371,7 +3395,8 @@ def cmd_msg(a):
     refuse_on_demand(con, a.to, role)
     body = read_text(a.body)
     refuse_cross_org(con, role, a.to, a.goal, a.task)
-    mid, rcpt = send(con, a.to, a.subject, body, a.kind, a.goal, a.task)
+    mid, rcpt = send(con, a.to, a.subject, body, a.kind, a.goal, a.task,
+                     org=sender_org_for(con, role, a.to, a.goal, a.task))
     print(f"M{mid} → {rcpt}")
     warn_spec_by_msg(con, mid, role, rcpt, a.kind, a.subject, body)
     if orgs.strip_prefix(rcpt) == ON_DEMAND and a.kind == "request":
@@ -3389,7 +3414,7 @@ def refuse_cross_org(con, role, to, goal=None, task=None):
     if role in CROSS_ORG_ROLES:
         return
     mine = agent_org(con, actor()) or orgs.DEFAULT_ORG
-    rcpt = resolve_recipient(con, to, org_for(con, goal, task, actor()))
+    rcpt = resolve_recipient(con, to, sender_org_for(con, role, to, goal, task))
     theirs = agent_org(con, rcpt) or orgs.prefix_of(rcpt)
     if theirs and theirs != mine:
         die(f"{actor()} ({mine} org) may not message {rcpt} ({theirs} org); only the boss and director talk across "
@@ -3481,7 +3506,8 @@ def cmd_report(a):
                     print(f"note: team {team} has no lead; report sent to director", file=sys.stderr)
     else:
         refuse_on_demand(con, to, role)
-    mid, rcpt = send(con, to, f"status: {a.goal or ''} {a.headline}".strip(), read_text(a.body), "report", a.goal)
+    mid, rcpt = send(con, to, f"status: {a.goal or ''} {a.headline}".strip(), read_text(a.body), "report", a.goal,
+                     org=sender_org_for(con, role, to, a.goal))
     print(f"M{mid} report → {rcpt}")
 
 
@@ -7515,8 +7541,8 @@ def drift_pr_states(con):
 
 
 def tick_drift(con):
-    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live lead, else
-    the director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
+    """Tick hook, at most hourly: one message per goal with drift items (D1-D4, docs/lifecycle.md) to its live (else parked) lead of the goal's org, else
+    the goal org's director. An identical item set is not re-sent for 24 h. A gh failure, or the run's gh time budget
     (DRIFT_GH_BUDGET_S, env FACTORY_DRIFT_GH_BUDGET_S) running out, leaves D2 unchecked; nothing here stops the tick."""
     try:
         t = time.time()
@@ -7560,9 +7586,11 @@ def tick_drift(con):
                       if _ts(e["ts"]) and (now_dt - _ts(e["ts"])).total_seconds() < DRIFT_DEDUPE_S]
             if key in recent:
                 continue
-            team = con.execute("SELECT t.id FROM teams t JOIN agents a ON a.name=t.lead_agent "
-                               "WHERE t.goal_id=? AND t.status='active' AND (a.status='live' OR t.parked_at IS NOT NULL) "
-                               "ORDER BY a.status='live' DESC, t.id", (g["id"],)).fetchone()
+            gorg = goal_org(con, g["id"]) or orgs.DEFAULT_ORG  # a lead of another org gets no drift mail and no wake
+            team = next((r for r in con.execute(
+                "SELECT t.id, t.lead_agent FROM teams t JOIN agents a ON a.name=t.lead_agent "
+                "WHERE t.goal_id=? AND t.status='active' AND (a.status='live' OR t.parked_at IS NOT NULL) "
+                "ORDER BY a.status='live' DESC, t.id", (g["id"],)) if agent_org(con, r["lead_agent"]) == gorg), None)
             body = "\n".join(items + [f"D2 unchecked {u}" for u in unchecked.get(g["id"], [])])
             send(con, f"lead:{team['id']}" if team else "director", f"drift {g['id']}: {len(items)} items", body,
                  "alert", g["id"], sender="tick")
@@ -11947,7 +11975,7 @@ def gate_notify_fail(con, pr_url, r):
     t = con.execute("SELECT t.id,t.goal_id,t.team_id FROM tasks t WHERE t.pr_url=?", (pr_url,)).fetchone()
     if not t or not t["team_id"]:
         return
-    send(con, f"lead:{t['team_id']}", f"local gate {r['status']}: {t['id']} @{(r['head_sha'] or '?')[:8]}",
+    send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"local gate {r['status']}: {t['id']} @{(r['head_sha'] or '?')[:8]}",
          f"gate run #{r['id']} {r['status']} (exit {r['exit_code']}); {r['note'] or ''}\nlog: {r['log_path']}\n"
          f"`factory gate show {r['id']}`. Fix the head and push; the tick enqueues a new run.", "report", t["goal_id"], t["id"], sender="tick")
 
@@ -12168,9 +12196,10 @@ def _migrated(new, counts, problems):
 
 
 def blocked_alert_target(con, r):
-    """(recipient, body hint) of the tick's "blocked >10 min" alert. A team worker's alert goes to its lead (L-021);
-    a worker without a team, or whose team has no live lead, and every lead goes to the director; the director to the
-    boss. Never raises: this runs inside the tick loop."""
+    """(recipient, body hint) of the tick's "blocked >10 min" alert. A team worker's alert goes to its live or parked lead
+    (L-021) when that lead is of the worker's goal org (goal_alert_to); a worker without a team, whose team has no such
+    lead, or whose lead is of another org, and every lead goes to the goal org's director (the default director when
+    there is no goal); the director to the boss. Never raises: this runs inside the tick loop."""
     if r["role"] == "director":
         return "boss", ""
     if r["role"] not in WORKER_ROLES:
@@ -12181,7 +12210,7 @@ def blocked_alert_target(con, r):
     lead = con.execute("SELECT a.name FROM teams t JOIN agents a ON a.name=t.lead_agent "
                        "WHERE t.id=? AND (a.status='live' OR t.parked_at IS NOT NULL)",  # a parked lead wakes on the message
                        (r["team_id"],)).fetchone() if r["team_id"] else None
-    return (lead["name"] if lead else "director"), hint
+    return (goal_alert_to(con, r["goal_id"], lead=lead["name"]) if lead else "director"), hint
 
 
 SETTINGS_WARN_HEAD = "SettingsWarning"
@@ -13226,6 +13255,11 @@ def cmd_tick(a, locked=False):
         review_autospawn_tick(con)
     except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
         event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
+
+    try:
+        coder_ci_resume_tick(con)
+    except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
+        event(con, "tick", "coder-ci-resume", "coder-ci-resume-error", str(e)[:300])
 
     try:
         judge_autospawn_tick(con)
@@ -14315,7 +14349,7 @@ def dispatch_tick(con):
             if not _throttled(con, key, clock, 10 * 365 * 86400):
                 _throttle_set(con, key, clock)
                 event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
-                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                send(con, goal_alert_to(con, t["goal_id"], team=team), f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
                      "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
@@ -14339,10 +14373,16 @@ def dispatch_tick(con):
         status = row["status"] if row else "unknown"
         event(con, "task", tid, "dispatch", {"agent": name, "role": role, "team": team, "status": status})
         spawned += 1
-        send(con, f"lead:{team}", f"dispatch: {name} started on {tid}",
-             f"{t['title']}\n\nLead-less dispatch (lead_less_dispatch=1): you are parked, so the tick started this worker. "
-             "Sequencing stays yours: set --after/priorities on tasks that must wait; `factory stop " + name + "` undoes it. "
-             "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+        to = goal_alert_to(con, t["goal_id"], team=team)
+        if to != "director":
+            who, tail = "you are parked", "Sequencing stays yours: set --after/priorities on tasks that must wait; "
+        else:
+            who = f"the lead of {team} is parked or of another org"
+            tail = "Sequencing stays with that lead; "
+        send(con, to, f"dispatch: {name} started on {tid}",
+             f"{t['title']}\n\nLead-less dispatch (lead_less_dispatch=1): {who}, so the tick started this worker. "
+             + tail + "`factory stop " + name + "` undoes it. This mail does not wake you.",
+             kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
         if status == "queued":
             break
 
@@ -14526,8 +14566,9 @@ def _review_verdict_fresh(con, tid, head, clock):
         return False
 
 
-def _review_alert_no_verdict(con, t, head, boss, clock):
-    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role."""
+def _review_alert_no_verdict(con, t, head, clock):
+    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role.
+    Goes to the lead of the goal's org, else that org's director (goal_alert_to): an unprompted alert never wakes another org's lead."""
     for role in _rerun_agents(con, t["id"], head):
         name = _rerun_name(con, t["id"], role, head)
         row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
@@ -14540,7 +14581,7 @@ def _review_alert_no_verdict(con, t, head, boss, clock):
             continue
         _throttle_set(con, key, clock)
         event(con, "task", t["id"], "review-no-verdict", {"agent": name, "role": role, "head": head[:8]})
-        send(con, boss, f"review autospawn: {role} ended with no verdict on {t['id']} @{head[:8]}",
+        send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"review autospawn: {role} ended with no verdict on {t['id']} @{head[:8]}",
              f"{t['title']}\n\n{name} ended (status {row['status']}) without recording a {role} verdict on head {head}. "
              f"The tick starts no further {role} on this head: spawn one or decide.",
              kind="request", goal=t["goal_id"], task=t["id"], sender="tick")
@@ -14573,7 +14614,7 @@ def review_rerun_tick(con):
             continue
         head = _ci_remote_head(t["branch"], batch)
         if head:
-            _review_alert_no_verdict(con, t, head, f"lead:{team}" if team else "director", clock)
+            _review_alert_no_verdict(con, t, head, clock)
         if head and (_review_head_done(con, tid, head, clock) or _review_hold(con, t, head, clock)):
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
@@ -14609,7 +14650,7 @@ def review_rerun_tick(con):
         if not _rerun_missing(con, tid, sha):  # the mark only when both halves are done; a queued reviewer or refused qa retries
             _throttle_set(con, f"review-head:{tid}:{sha}", clock)
         if started:
-            send(con, boss, f"review autospawn: new head review started on {tid} @{sha[:8]}",
+            send(con, goal_alert_to(con, t["goal_id"], team=team), f"review autospawn: new head review started on {tid} @{sha[:8]}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} because head {sha} has all checks green "
                  "and no verdict yet. This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
         if gate_closed:
@@ -14681,9 +14722,147 @@ def review_autospawn_tick(con):
         else:
             if not started:
                 continue
-            send(con, boss, f"review autospawn: {'combined ' if low else ''}review started on {tid}",
+            send(con, goal_alert_to(con, t["goal_id"], team=team), f"review autospawn: {'combined ' if low else ''}review started on {tid}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} when the PR opened. "
                  "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+
+
+CODER_RESUME_MAX_STARTS = 2      # coder starts per tick
+CODER_RESUME_REFUSED_MAX = 3     # refused spawns on one head before the tick gives up and mails the lead
+CODER_RESUME_PROBE_S = 120      # a probed head that is not red is not probed again for this long
+CODER_RESUME_NO_CHECKS_S = 3600  # a head with no checks for this long is mailed to the lead, no spawn
+
+
+def _failed_runs(rollup, names):
+    """[(check name, run id or '?')] of the failed checks `names`: the run id is the one in the check's details url (/actions/runs/<id>/...)."""
+    out = []
+    for c in latest_checks(rollup):
+        n = c.get("name") or c.get("context") or "?"
+        if n in names:
+            m = re.search(r"/actions/runs/(\d+)", c.get("detailsUrl") or c.get("targetUrl") or "")
+            out.append((n, m.group(1) if m else "?"))
+    return out
+
+
+def coder_ci_resume_kickoff(sha, failed, resumed, fresh_wt, branch):
+    runs = ", ".join(f"{n} (run {r})" for n, r in failed)
+    first = next((r for _, r in failed if r != "?"), "<run id>")
+    text = (f"CI is RED on PR head {sha[:8]} of your task: failed checks: {runs}. Read the failure with `gh run view {first} --log-failed`, "
+            "fix what you caused, run `git fetch origin && git merge origin/main`, push to the existing PR (same branch, no new PR), "
+            "rerun pre-pr-check, then `factory done` again. The task stays in_review; do not bump attempts.")
+    if not resumed:
+        text += " You are a fresh session: read `factory task show` and the PR first."
+    if fresh_wt:
+        text += f" Your worktree was missing: after it is created run `git fetch origin && git reset --hard origin/{branch}` so you start from the pushed head."
+    return text
+
+
+def coder_ci_resume_tick(con):
+    """Tick step 2c': with coder_ci_handoff on (resume|fresh) an in_review task whose PR head is red and has no coder live/starting/queued gets
+    its coder started again, once per (task, head sha; throttle row `coder-resume:<task>:<sha>`). resume mode resumes the recorded session in the
+    task's worktree; a missing session or worktree, fresh mode, or a runtime that is not Claude starts a fresh session. The kickoff names the head,
+    the failed checks, their run ids and `gh run view <id> --log-failed`. At most coder_ci_resume_max starts per task (then one mail to the lead),
+    2 per tick, none while the red-main freeze says main is red or the gate is closed (retried next tick). A conflicted PR, or one with no checks for
+    over 60 min, is mailed to the lead, never spawned. Blocked and judge-held tasks are skipped (red_pr_owner_alert mails them). The task status is
+    untouched and attempts are not bumped."""
+    if not ci_handoff_on(con):
+        return
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    try:
+        cap = int(cfg(con, "coder_ci_resume_max"))
+    except (TypeError, ValueError):
+        cap = 2
+    batch, starts = [], 0
+    for t in con.execute(
+            "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
+            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role='coder' "
+            "AND a.status NOT IN ('done','exited','lost','cancelled')) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
+        if starts >= CODER_RESUME_MAX_STARTS:
+            return
+        tid, team = t["id"], t["team_id"]
+        if task_judge_hold_reason(con, tid) or _review_repo_mismatch(con, t):
+            continue
+        head = _ci_remote_head(t["branch"], batch)
+        if head and _throttled(con, f"coder-resume:{tid}:{head}", clock, float("inf")):
+            continue
+        probe_key = f"coder-resume-probe:{tid}:{head or ''}"
+        if _throttled(con, probe_key, clock, CODER_RESUME_PROBE_S):
+            continue
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if isinstance(pr, BaseException) or pr.get("state", "OPEN") != "OPEN":
+            continue  # the review tick logs dead or unreadable PRs
+        sha = pr["headRefOid"]
+        to = goal_alert_to(con, t["goal_id"], team=team)
+        label = f"{tid} PR #{pr.get('number', '?')} @{sha[:8]}"
+        rollup = pr.get("statusCheckRollup")
+        if (pr.get("mergeStateStatus") or "").upper() == "DIRTY":
+            if not _throttled(con, f"coder-resume-dirty:{tid}:{sha}", clock, float("inf")):
+                _throttle_set(con, f"coder-resume-dirty:{tid}:{sha}", clock)
+                send(con, to, f"coder not resumed, PR conflicted: {label}",
+                     f"head {sha}: merge conflict with main (mergeStateStatus DIRTY). The tick does not start the coder for a conflict.",
+                     "report", t["goal_id"], tid, sender="tick")
+            continue
+        if not latest_checks(rollup):
+            nk = f"coder-resume-nochecks:{tid}:{sha}"
+            if not _throttled(con, nk, clock, float("inf")):
+                _throttle_set(con, nk, clock)  # first seen without checks
+            elif not _throttled(con, nk, clock, CODER_RESUME_NO_CHECKS_S) and not _throttled(con, nk + ":mail", clock, float("inf")):
+                _throttle_set(con, nk + ":mail", clock)
+                send(con, to, f"no CI checks for over 60 min: {label}",
+                     f"head {sha} has had no checks since the tick first saw it. Coder not started.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        verdict, names = ci_verdict(rollup)
+        if verdict != "red":
+            _throttle_set(con, probe_key, clock)
+            continue
+        mark = f"coder-resume:{tid}:{sha}"
+        if _throttled(con, mark, clock, float("inf")):
+            continue
+        used = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume'", (tid,)).fetchone()["c"]
+        if used >= cap:
+            _throttle_set(con, mark, clock)
+            if not _throttled(con, f"coder-resume-max:{tid}", clock, float("inf")):
+                _throttle_set(con, f"coder-resume-max:{tid}", clock)
+                send(con, to, f"coder resume limit reached: {label}",
+                     f"head {sha} is red ({', '.join(names)}) and the tick already started the coder {used} times for {tid} "
+                     f"(coder_ci_resume_max={cap}). Decide: spawn a fix coder by hand or block the task.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        slugs = [x for x in [_repo_slug(re.sub(r"/pull/\d+.*$", "", t["pr_url"] or ""))] if x]
+        if red_main_refusal(con, slugs, tid):
+            continue  # main is red in THIS task's repo: a red PR is not the PR's fault; retry when main is green. Other repos' tasks go on
+        prior = con.execute("SELECT * FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1", (tid,)).fetchone()
+        org = org_for(con, t["goal_id"], tid)
+        name = prior["name"] if prior else oname(con, org, slug(f"coder-{tid}"))
+        wt_ok = bool(t["worktree"]) and Path(t["worktree"]).exists()
+        resume = (prior["session_id"] if prior and prior["session_id"] and wt_ok and cfg(con, "coder_ci_handoff") == "resume"
+                  and org_runtime(con, "coder", org) == "claude" else None)
+        kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), bool(resume), not wt_ok, t["branch"] or f"factory/{tid.lower()}")
+        if not gate(con, role="coder")[0]:
+            return
+        try:
+            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume)
+        except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
+            event(con, "task", tid, "coder-ci-resume-error", f"@{sha[:8]} {name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+            refused = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume-error' "
+                                  "AND detail LIKE ?", (tid, f"@{sha[:8]} %")).fetchone()["c"]
+            if refused >= CODER_RESUME_REFUSED_MAX:  # give up on this head and tell the lead once; later red tasks are not held back
+                _throttle_set(con, mark, clock)
+                if not _throttled(con, f"coder-resume-refused:{tid}", clock, float("inf")):
+                    _throttle_set(con, f"coder-resume-refused:{tid}", clock)
+                    send(con, to, f"coder restart refused: {label}",
+                         f"head {sha}: spawn of {name} was refused {refused} times (see the coder-ci-resume-error events of {tid}). "
+                         "The tick stops retrying this head. Fix the cause or start a fix coder by hand.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        _throttle_set(con, mark, clock)
+        if resume:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
+            send(con, name, f"CI red: {label}", kick, "request", t["goal_id"], tid, sender="tick")
+        event(con, "task", tid, "coder-ci-resume", {"agent": name, "mode": "resume" if resume else "fresh", "head": sha[:8], "failed": names})
+        send(con, to, f"coder restarted on red CI: {label}", f"{name} started ({'resume' if resume else 'fresh'}) for failed {', '.join(names)}. "
+             "This mail does not wake you.", "fyi", t["goal_id"], tid, sender="tick")
+        starts += 1
 
 
 SPEC_FILL_ROLES = ("coder", "qa", "reviewer", "cleaner")
@@ -14758,7 +14937,7 @@ def spec_fill_tick(con):
                          SPEC_FILL_ACCEPTANCE, now(), now()))
             event_as(con, "tick", "task", tid, "add", title)
             event_as(con, "tick", "goal", gid, "spec-fill", {"task": tid, "tasks": ids})
-            send(con, f"lead:{team}", f"spec-fill: {tid} filed for {joined}",
+            send(con, goal_alert_to(con, gid, team=team), f"spec-fill: {tid} filed for {joined}",
                  f"{title}\n\nLead-less dispatch (lead_less_dispatch=1): {team} is parked and goal {gid} had no ready specced "
                  "task, so the tick filed a pm task to write the missing specs. This mail does not wake you.",
                  kind="fyi", goal=gid, task=tid, sender="tick")
@@ -14931,7 +15110,7 @@ def pr_probe(con, pr_url, timeout, clock, head=None, optional=False, fetch=None)
 
 
 def tick_ci_wake(con):
-    """Tick step 1c': message the lead of a parked team when an in_review PR of the team is CLEAN with all checks green
+    """Tick step 1c': message the lead of a parked team (the goal org's director when the lead is of another org: goal_alert_to) when an in_review PR of the team is CLEAN with all checks green
     (or all checks done and one failed), once per (task, head sha); tick_wake_leads then wakes it on the unread mail.
     Only parked teams whose lead is not live/starting/queued; off with lead_parking=0. A gh failure or timeout
     (CI_WAKE_GH_TIMEOUT_S) is logged and skipped. The gh call is skipped for a task when the branch head on origin
@@ -14996,7 +15175,7 @@ def tick_ci_wake(con):
     for (t, k, _head), pr in zip(todo, results):
         if pr is None:
             continue
-        lead = t["lead_agent"]
+        lead = goal_alert_to(con, t["goal_id"], lead=t["lead_agent"])
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
             continue
@@ -15029,8 +15208,8 @@ def tick_ci_wake(con):
 
 
 def tick_red_pr_owner(con):
-    """Tick step 1c'': config red_pr_owner_alert=1 mails the task's lead (the director when the task has no team or the team
-    has no lead) once per (task, head sha) when its PR is open, red or conflicted, and no coder is live/starting/queued for
+    """Tick step 1c'': config red_pr_owner_alert=1 mails the task's lead (the goal org's director when the task has no team, the team
+    has no lead, or the lead is of another org: goal_alert_to) once per (task, head sha) when its PR is open, red or conflicted, and no coder is live/starting/queued for
     the task. Tasks in_progress, in_review or blocked (a blocked one's mail carries its waits value and recorded reason); independent of lead_parking; never spawns. A red head
     shares tick_ci_wake's `ci-red:<task>:<sha>` throttle row, so a parked team gets one mail; a conflict uses `red-pr:<task>:<sha>`.
     The gh call is skipped when origin's head (one batched ls-remote) is already mailed; an unreadable head is re-probed only
@@ -15079,7 +15258,7 @@ def tick_red_pr_owner(con):
         if _throttled(con, key, clock, float("inf")):
             continue
         _throttle_set(con, key, clock)
-        to = k["lead_agent"] or "director"
+        to = goal_alert_to(con, k["goal_id"], lead=k["lead_agent"])
         label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
         tail = "Decide: spawn a fix coder or block the task with a reason."
         if k["status"] == "blocked":

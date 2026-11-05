@@ -162,17 +162,26 @@ REMOTE_WRITE = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-bra
 # T-1035: `git config` read classifier. Git parses options with parse-options (unique abbreviations, value options that
 # eat the next word, `--`, short bundles); the guard does NOT mirror that. It proves a command is a read from an exact
 # table, and anything it cannot prove is a write (fail closed).
-CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
-                "--name-only", "--all", "--global", "--local", "--system", "--worktree", "--null", "-z", "--bool", "--int",
-                "--bool-or-int", "--bool-or-str", "--path", "--expiry-date", "--includes", "--no-includes"}
+CONFIG_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l",
+                "--show-origin", "--show-scope", "--name-only", "--all", "--regexp", "--global", "--local", "--system",
+                "--worktree", "--null", "-z", "--bool", "--int", "--bool-or-int", "--bool-or-str", "--path",
+                "--expiry-date", "--includes", "--no-includes"}
+# T-1064: exact table of the output/scope modifiers that may also FOLLOW a positional (`--get alias.x --show-origin`,
+# `list --show-origin`, `get --all alias.x`). Action flags and everything else stay refused after a positional, so
+# `alias.x push --get` stays a refusal. `--regexp` is a `get` subcommand option: config_is_read accepts it only there.
+CONFIG_TRAILING = {"--show-origin", "--show-scope", "--name-only", "--all", "--regexp", "--global", "--local", "--system",
+                   "--worktree", "--null", "-z", "--bool", "--int", "--bool-or-int", "--bool-or-str", "--path",
+                   "--expiry-date", "--includes", "--no-includes"}
 CONFIG_PARSE_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
 # Mirrored by the Go port through go/internal/guard/testdata/frontend_golden.json (ci/guard_golden.py CONST_SETS); the
 # Python classifier no longer reads them. Values stay as they were until the Go mirror follow-up (G-016).
+# T-1064 v2: config_parse adds this marker to flags when an option follows the first positional.
+CONFIG_LATE = "\0late"
 CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
 CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
                "--name-only"}
 CONFIG_WRITE = {"--unset", "--unset-all", "--add", "--replace-all", "--edit", "-e", "--rename-section", "--remove-section"}
-CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
+CONFIG_ACTION_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "--list", "-l"}
 CONFIG_WORD_WRITE = {"set", "unset", "edit", "rename-section", "remove-section"}
 
 
@@ -183,9 +192,13 @@ def config_parse(args):
     while k < len(args):
         a = args[k]
         k += 1
-        if a in CONFIG_FLAGS and not pos:
+        if a in CONFIG_FLAGS and (not pos or a in CONFIG_TRAILING):
             flags.append(a)
+            if pos:
+                flags.append(CONFIG_LATE)
         elif a in CONFIG_PARSE_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_PARSE_VALUE_OPTS and "=" in a):
+            if pos:
+                flags.append(CONFIG_LATE)
             if "=" not in a:
                 if k >= len(args):
                     return None
@@ -204,11 +217,15 @@ def config_is_read(args):
     if parsed is None:
         return False
     flags, pos = parsed
+    if "--regexp" in flags and pos[:1] != ["get"]:
+        return False
     actions = [f for f in flags if f in CONFIG_ACTION_FLAGS]
     if len(actions) > 1:
         return False
     if actions:
         return len(pos) <= 2
+    if CONFIG_LATE in flags and pos[:1] not in (["get"], ["list"]):
+        return False  # git's legacy parser stops at the first non-option: a later option token is the VALUE, a write
     if pos[:1] == ["get"]:
         return len(pos) <= 3
     if pos[:1] == ["list"]:
@@ -2593,6 +2610,19 @@ class Analyzer:
         """True when `git config <args>` writes: anything config_is_read cannot prove a read."""
         return not config_is_read(args)
 
+    def config_expansion_refuse(self, toks):
+        """T-1063: a raw `git config` token built by an expansion (dollar forms, backtick, brace list, or a glob before
+        any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
+        if self.hq:
+            return
+        read = False
+        for n, t in enumerate(toks):
+            if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
+                raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
+                            "write the arguments literally (T-1063)")
+            if t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list")):
+                read = True
+
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
         alias. Read-only forms (`--global --get`, `--global --list`) and repo-local writes stay allowed."""
@@ -2636,10 +2666,26 @@ class Analyzer:
             return
         args, scope, files, k = [], None, [], i + 1
         rest = rest[:]
+        # T-1064 v3: git's legacy form (bare key, no action flag, no leading subcommand word) takes every token after the
+        # key as the VALUE, so scope/file options are only stripped while they are real options; a value option's value
+        # (`--comment --global k v`) is never one.
+        stripping, first, action = True, None, False
         while k < len(rest):
             a = rest[k]
             k += 1
             name, eq, val = a.partition("=")
+            if not stripping:
+                args.append(a)
+                continue
+            # git accepts unique abbreviations (`--typ bool`): a prefix of a value option eats the next token too
+            abbrev = len(a) >= 3 and a.startswith("--") and "=" not in a and any(
+                o.startswith(a) for o in ("--type", "--default", "--comment", "--blob", "--value"))
+            if (a in CONFIG_PARSE_VALUE_OPTS and a not in ("--file", "-f")) or abbrev:
+                args.append(a)
+                if k < len(rest):
+                    args.append(rest[k])
+                    k += 1
+                continue
             if a.startswith("--") and len(name) >= 4:
                 if "--global".startswith(name) or "--system".startswith(name):
                     scope = name
@@ -2659,7 +2705,15 @@ class Analyzer:
                     k += 1
                 continue
             args.append(a)
+            if a in CONFIG_ACTION_FLAGS:
+                action = True
+            elif first is None and (not a.startswith("-") or a == "-"):
+                first = a
+                if not action and a not in ("set", "unset", "edit", "rename-section", "remove-section", "get", "list"):
+                    stripping = False
+        raw = rest[i + 1:]
         if not self.config_args_write(args):
+            self.config_expansion_refuse(raw)
             return
         if scope:
             raise Block(f"`git config {scope}` write: {PERSIST_WHY}")
@@ -2675,6 +2729,7 @@ class Analyzer:
         finally:
             self.ccwd = saved
         self.repo_cfg_refuse("git config", cwd, git_dir, work_tree, files)
+        self.config_expansion_refuse(raw)
 
     def repo_cfg_refuse(self, what, cwd, git_dir, work_tree, files):
         """T-0226: a repo-config write (git config, git remote add/...) is allowed only with --file inside the worker's own
