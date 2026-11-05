@@ -8737,9 +8737,9 @@ def start_failed_queued(con, row, s, e):
         if not cancel_queued(con, name, "spawn-start-failed", f"start failed {fails} times ({why}); giving up"):
             return
     else:
-        con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) WHERE name=? AND status='queued'",
-                    (fails, name))
-        if fails > 1:
+        cur = con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) WHERE name=? "
+                          "AND status='queued'", (fails, name))
+        if cur.rowcount != 1 or fails > 1:  # no longer queued (cancelled meanwhile): nothing to retry or report
             return
         event(con, "agent", name, "spawn-start-failed", f"queued {s['role']} start failed ({why}); retried next tick, "
               f"cancelled after {EVALUATOR_SPAWN_RETRY_MAX} failures")
@@ -8748,9 +8748,10 @@ def start_failed_queued(con, row, s, e):
             (f"It failed {fails} times and was cancelled; fix the cause and spawn again." if cap else
              f"The tick retries it each tick and cancels it after {EVALUATOR_SPAWN_RETRY_MAX} failures; no further alert "
              "until then."))
+    up = {"lead": "director", "director": "boss"}.get(s["role"])  # never alert the failing row itself: one level up
     try:
-        send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
-             sender="factory")
+        send(con, up or (f"lead:{team}" if team else "director"), subject, body, "alert", goal=s.get("goal"),
+             task=s.get("task"), sender="factory")
     except SystemExit:  # the team has no lead any more: the director hears it instead
         send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 

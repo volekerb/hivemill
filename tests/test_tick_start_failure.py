@@ -52,8 +52,13 @@ class TickStartFailure(FactoryTestCase):
     def count(self, action):
         return len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action=?", (self.name, action)))
 
-    def alerts(self):
-        return self.env.sql("SELECT recipient, body FROM messages WHERE subject LIKE '%queued coder%'")
+    def alerts(self, role="coder"):
+        return self.env.sql("SELECT recipient, body FROM messages WHERE subject LIKE ?", (f"%queued {role}%",))
+
+    def requeue_as(self, role, team):
+        """Turn the queued row into a queued `role` row named name (team may be NULL)."""
+        self.env.sql("UPDATE agents SET role=?, team_id=?, task_id=NULL, spawn_args=json_set(spawn_args,'$.role',?,"
+                     "'$.team',?,'$.task',NULL) WHERE name=?", (role, team, role, team, self.name))
 
     def test_dying_start_does_not_end_the_tick(self):
         self.tick()
@@ -71,6 +76,43 @@ class TickStartFailure(FactoryTestCase):
     def test_no_lead_alerts_the_director(self):
         self.env.sql("DELETE FROM agents WHERE name=?", (LEAD,))
         self.env.sql("UPDATE agents SET team_id=NULL, spawn_args=json_set(spawn_args,'$.team',NULL) WHERE name=?", (self.name,))
+        self.tick()
+        got = [a["recipient"] for a in self.alerts()]
+        self.assertEqual(len(got), 1)
+        self.assertIn("director", got[0])
+
+    def test_failing_lead_row_alerts_the_director_not_itself(self):  # reviewer B1
+        self.env.sql("DELETE FROM agents WHERE name=?", (LEAD,))
+        self.env.sql("UPDATE teams SET lead_agent=? WHERE id='g-001-a'", (self.name,))
+        self.requeue_as("lead", "g-001-a")
+        self.tick()
+        got = [a["recipient"] for a in self.alerts("lead")]
+        self.assertEqual(len(got), 1)
+        self.assertIn("director", got[0])
+        self.assertNotIn(self.name, got)
+
+    def test_failing_director_row_alerts_the_boss_not_itself(self):  # reviewer B1
+        self.requeue_as("director", None)
+        self.tick()
+        got = [a["recipient"] for a in self.alerts("director")]
+        self.assertEqual(len(got), 1)
+        self.assertIn("boss", got[0])
+        self.assertNotIn(self.name, got)
+
+    def test_row_no_longer_queued_gets_no_event_and_no_alert(self):  # reviewer B2
+        self.env.sql("UPDATE agents SET status='cancelled' WHERE name=?", (self.name,))
+        with self.env.load_factory() as m:
+            con = m.db()
+            row = con.execute("SELECT * FROM agents WHERE name=?", (self.name,)).fetchone()
+            m.start_failed_queued(con, row, {"role": "coder", "team": "g-001-a", "goal": "G-001", "task": "T-0001"},
+                                  SystemExit(3))
+            con.commit()
+            con.close()
+        self.assertEqual(self.count("spawn-start-failed"), 0)
+        self.assertEqual(self.alerts(), [])
+
+    def test_lead_gone_between_resolve_and_send_falls_back_to_the_director(self):
+        self.env.sql("UPDATE teams SET lead_agent=NULL WHERE id='g-001-a'")
         self.tick()
         got = [a["recipient"] for a in self.alerts()]
         self.assertEqual(len(got), 1)
