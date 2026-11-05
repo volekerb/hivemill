@@ -12801,6 +12801,10 @@ def log_task_judge_hold(con, task, reason):
     if not task:
         return
     print(f"judge-hold {task}: {reason}")
+    last = con.execute("SELECT action, detail FROM events WHERE entity='task' AND entity_id=? "
+                       "AND action IN ('judge-hold','judge-hold-clear') ORDER BY id DESC LIMIT 1", (task,)).fetchone()
+    if last and last["action"] == "judge-hold" and (last["detail"] or "") == reason[:300]:
+        return  # same hold already on record: one event per hold, not one per tick (T-1130)
     event(con, "task", task, "judge-hold", reason[:300])
 
 
