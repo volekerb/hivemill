@@ -12907,8 +12907,44 @@ def judge_status_only_hold(con, task_id):
     return not newer
 
 
+def judge_verdicts_stale(con, t, clock):
+    """T-1098: (throttle key part, why) when the latest reviewer and QA PASS do not both hold for the PR's CURRENT head, else None. A PASS recorded on an older head
+    counts only when the T-0095 carry rule does (pure origin/main merges since): the same test the merge gate applies, so a judge
+    never starts only to reject on head. Fails closed: an unreadable PR or an unverifiable carry is a reason. Local-gate projects
+    (gate_cmd, decided from gate_runs) are not checked here."""
+    if gate_project_for(con, t["pr_url"]):
+        return None
+    pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
+    if isinstance(pr, BaseException) or not isinstance(pr, dict) or not pr.get("headRefOid"):
+        return "head", f"cannot read the PR head: {pr if isinstance(pr, BaseException) else 'no headRefOid'}"[:200]
+    sha, number = pr["headRefOid"], pr.get("number")
+    wt = t["worktree"]
+    git_repo = wt if wt and Path(wt).is_dir() else HOME
+    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+    repo_url, carry = None, {}
+    for role in ("reviewer", "qa"):
+        last = con.execute("SELECT head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1", (t["id"], role)).fetchone()
+        x = (last["head_sha"] or "") if last else ""
+        if x.lower() == sha.lower():
+            continue
+        if x not in carry:
+            try:
+                repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+                carry[x] = verdict_carries(git_repo, x, sha, number, repo_url, owner_repo) if x else (False, "verdict has no head", None, [])
+            except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
+                carry[x] = (False, f"cannot verify: {e}", None, [])
+        if not carry[x][0]:
+            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({carry[x][1]})"[:300]
+    return None
+
+
 def judge_autospawn_tick(con):
-    """Tick: after reviewer and QA PASS, start a judge when CI is ready unless the task is judge-held or mech will merge."""
+    """Tick: after reviewer and QA PASS on the current head (or carried to it), start a judge when CI is ready unless the task is
+    judge-held or mech will merge."""
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
     for t in judge_autospawn_candidates(con):
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
@@ -12920,6 +12956,13 @@ def judge_autospawn_tick(con):
         _o = org_for(con, t["goal_id"], tid)
         name = oname(con, _o, slug(f"judge-{tid}"))
         if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
+            continue  # cheap DB check first: the stale check below costs gh calls
+        stale = judge_verdicts_stale(con, t, clock)
+        if stale:  # T-1098: both verdicts must hold on the current head; the review pass starts what is missing
+            key = f"judge-stale:{tid}:{stale[0]}"  # fixed-shape key: no free-form reason text
+            if not _throttled(con, key, clock, REVIEW_WAIT_EVERY_S if stale[0] == "head" else float("inf")):
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "judge-autospawn-wait", stale[1])
             continue
         if not gate(con, load_exempt=True, role="judge", runtime=org_runtime(con, "judge", _o))[0]:
             break
@@ -14778,6 +14821,18 @@ def _review_skip(con, t, reason, clock):
         _throttle_set(con, key, clock)
 
 
+REVIEW_WAIT_EVERY_S = 3600  # one review-autospawn-wait event per task, head and reason kind per hour
+
+
+def _review_wait(con, t, head, kind, why, clock):
+    """T-1098: the first-round pass is not starting review on t yet (CI not green, a coder still live, spawn gate closed). Until now it
+    skipped silently, so 'no review started' could not be told from a bug. One `review-autospawn-wait` event per task, head and kind per hour."""
+    key = f"review-wait:{t['id']}:{head[:8]}:{kind}"
+    if not _throttled(con, key, clock, REVIEW_WAIT_EVERY_S):
+        event(con, "task", t["id"], "review-autospawn-wait", {"head": head[:8], "kind": kind, "why": why[:200]})
+        _throttle_set(con, key, clock)
+
+
 def _review_repo_mismatch(con, t):
     """Reason string when the PR url is not on the task's project repo (project gh_repo, else origin), else None. No repo known = no check."""
     m = re.match(r"https?://[^/\s]+/([^/\s]+/[^/\s]+)/pull/\d+(?:[/?#]|$)", t["pr_url"] or "")
@@ -14939,17 +14994,25 @@ def review_rerun_tick(con):
         head = _ci_remote_head(t["branch"], batch)
         if head:
             _review_alert_no_verdict(con, t, head, clock)
-        if head and (_review_head_done(con, tid, head, clock) or _review_hold(con, t, head, clock)):
+        if head and _review_head_done(con, tid, head, clock):
+            continue
+        if head and _review_hold(con, t, head, clock):
+            _review_wait(con, t, head, "coder", "a coder agent of the task is queued, starting or live, or prcheck is not ok on the head", clock)
             continue
         pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
             continue
         sha = pr["headRefOid"]
-        if _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+        if _review_head_done(con, tid, sha, clock):
+            continue
+        if ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            _review_wait(con, t, sha, "ci", "CI is not green on the new head", clock)
             continue
         if _review_hold(con, t, sha, clock):
+            _review_wait(con, t, sha, "coder", "a coder agent of the task is queued, starting or live, or prcheck is not ok on the head", clock)
             continue
         if not _rerun_agents(con, tid, sha) and _review_verdict_fresh(con, tid, sha, clock):
+            _review_wait(con, t, sha, "verdict", "a lead-run round on this head just got its first verdict", clock)
             continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
@@ -14957,7 +15020,9 @@ def review_rerun_tick(con):
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
             name = _rerun_name(con, tid, role, sha)
-            if not gate(con, role=role)[0]:
+            g_ok, g_why = gate(con, role=role)[:2]
+            if not g_ok:
+                _review_wait(con, t, sha, "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
             try:
@@ -15010,8 +15075,10 @@ def review_autospawn_tick(con):
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
+            _review_wait(con, t, pr["headRefOid"], "ci", "CI is not green on the head (coder_ci_handoff waits for green)", clock)
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
         if _review_hold(con, t, pr["headRefOid"], clock):
+            _review_wait(con, t, pr["headRefOid"], "coder", "a coder agent of the task is queued, starting or live", clock)
             continue  # T-1048: a coder is still live/queued, or the latest prcheck on this head is not ok: retry next tick
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
@@ -15027,7 +15094,9 @@ def review_autospawn_tick(con):
                     continue
             elif con.execute("SELECT 1 FROM agents WHERE name=?", (name,)).fetchone():
                 continue
-            if not gate(con, role=role)[0]:
+            g_ok, g_why = gate(con, role=role)[:2]
+            if not g_ok:
+                _review_wait(con, t, pr["headRefOid"], "gate", f"spawn gate closed for {role}: {g_why}", clock)
                 return
             brief = REVIEW_BRIEF.format(boss=boss)
             if low:
@@ -15073,7 +15142,7 @@ def coder_ci_resume_kickoff(sha, failed, resumed, fresh_wt, branch):
     first = next((r for _, r in failed if r != "?"), "<run id>")
     text = (f"CI is RED on PR head {sha[:8]} of your task: failed checks: {runs}. Read the failure with `gh run view {first} --log-failed`, "
             "fix what you caused, run `git fetch origin && git merge origin/main`, push to the existing PR (same branch, no new PR), "
-            "rerun pre-pr-check, then `factory done` again. The task stays in_review; do not bump attempts.")
+            "rerun pre-pr-check, then `factory done` again. The task stays in_review; do not change its status (the tick has already counted this run in attempts).")
     if not resumed:
         text += " You are a fresh session: read `factory task show` and the PR first."
     if fresh_wt:
@@ -15088,7 +15157,7 @@ def coder_ci_resume_tick(con):
     the failed checks, their run ids and `gh run view <id> --log-failed`. At most coder_ci_resume_max starts per task (then one mail to the lead),
     2 per tick, none while the red-main freeze says main is red or the gate is closed (retried next tick). A conflicted PR, or one with no checks for
     over 60 min, is mailed to the lead, never spawned. Blocked and judge-held tasks are skipped (red_pr_owner_alert mails them). The task status is
-    untouched and attempts are not bumped."""
+    untouched; each successful start adds 1 to attempts (T-1098: the lead's 3-attempt rule sees tick resumes)."""
     if not ci_handoff_on(con):
         return
     try:
@@ -15187,6 +15256,7 @@ def coder_ci_resume_tick(con):
                          "The tick stops retrying this head. Fix the cause or start a fix coder by hand.", "report", t["goal_id"], tid, sender="tick")
             continue
         _throttle_set(con, mark, clock)
+        con.execute("UPDATE tasks SET attempts=attempts+1 WHERE id=?", (tid,))  # T-1098: a tick resume is an attempt
         if resumed:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
             send(con, name, f"CI red: {label}", kick, "request", t["goal_id"], tid, sender="tick")
         event(con, "task", tid, "coder-ci-resume", {"agent": name, "mode": "resume" if resumed else "fresh", "head": sha[:8], "failed": names})

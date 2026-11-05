@@ -41,8 +41,9 @@ and one failed starts the coder again, once per (task, head sha) (throttle row `
 - A refused spawn skips that task and the step goes on with the next one. After 3 refusals on one head the tick stops retrying that head and
   mails the lead once (`coder restart refused`).
 - A conflicted PR (`mergeStateStatus` DIRTY), or one without any checks for over 60 minutes, mails the lead (once per head) and starts nothing.
-- Blocked and judge-held tasks start nothing (`red_pr_owner_alert` mails the lead for a blocked one). The task stays `in_review`; `attempts`
-  is not bumped; the review rerun on a new head, the scorecard retry count and the worktree are untouched.
+- Blocked and judge-held tasks start nothing (`red_pr_owner_alert` mails the lead for a blocked one). The task stays `in_review`; each
+  successful start adds 1 to `attempts` (T-1098), so the lead's 3-attempt rule and the scorecard retry count see tick resumes; a refused
+  spawn adds nothing. The review rerun on a new head and the worktree are untouched.
 - The lead gets an `fyi` per start (`coder restarted on red CI`); event `coder-ci-resume` on the task records mode and head.
 
 ## Idle coder reap (T-1028)
