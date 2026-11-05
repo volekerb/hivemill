@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from web import charts, queries
 from scout import orgs as _orgs
-from web.components import (COLLAPSED, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, needs_you_row,
+from web.components import (COLLAPSED, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
                             org_badge, org_href, row_status, section, segmented)
 from web.html import CLASSES, LABELS, badge, card, crumbs, el, empty, link, table, ts
 from web.views.home import _needs
@@ -138,7 +138,7 @@ def render(ctx, d):
     closed = [g for g in goals if g["status"] in ("done", "cancelled")]
     sort = d.get("sort")
     org = d.get("org")
-    parts = [_org_chips(d), _chips(goals)]
+    parts = [filter_bar(_chips(goals), [_org_chips(d)], key="goals-filters", active=1 if org else 0)]
     needs = d["needs_you"]
     parts.append(section("Needs you", el("ul", [needs_you_row(i) for i in needs], class_="lrow-list") if needs
                          else empty_state("Nothing is waiting on the owner."), count=len(needs) or None))
