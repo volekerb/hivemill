@@ -40,13 +40,21 @@ Owner decision Q3 (G-026): yes, the director may change labels and post comments
 
 ## Milestones
 
-One milestone per planned release, named `vX.Y.Z`. Accepted issues for that release are added to it. The milestone is closed when the tag is pushed. See [RELEASING.md](RELEASING.md) for the release process.
+One milestone per planned release, named `vX.Y.Z`. Accepted issues for that release are added to it. After the tag is pushed the owner closes that milestone and creates the one for the next planned release:
+
+```
+gh api -X PATCH repos/volekerb/hivemill/milestones/<number> -f state=closed
+gh api -X POST repos/volekerb/hivemill/milestones -f title=vX.Y.Z
+```
+
+See [RELEASING.md](RELEASING.md) for the release process.
 
 ## Owner setup (one time)
 
 Creating labels and milestones changes the repository settings, which are owner-only. Run these once (owner decision Q2, G-026):
 
 ```
+gh label create setup --repo volekerb/hivemill -d 'Installing or adopting the factory failed or got stuck'
 gh label create triage --repo volekerb/hivemill -d 'New, not yet reviewed'
 gh label create accepted --repo volekerb/hivemill -d 'Accepted, tracked as a factory task'
 gh label create needs-info --repo volekerb/hivemill -d 'Waiting for more information from the reporter'
