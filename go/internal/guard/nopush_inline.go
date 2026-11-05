@@ -286,12 +286,8 @@ func (a *Analyzer) interpInlinePush(name string, rest []string) error {
 		}
 	}
 	for _, t := range texts {
-		if hasWordToken(t, "git") && hasWordToken(t, "push") {
-			return blockf(name + " inline code that runs `git push` (no-push roles never push; ask your lead)")
-		}
-		if matchInlineGhWrite(t) || inlineGhAPIBody(t) {
-			return blockf(name + " inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); " +
-				"no-push roles never write to GitHub; ask your lead")
+		if err := a.scanInlineText(name, t, "inline code"); err != nil {
+			return err
 		}
 	}
 	return nil
