@@ -12,8 +12,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIVE = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "factory")  # T-0212
 TOOLS = ("Edit", "Write", "NotebookEdit")
 EXTRA_ENTRIES = (".git",)  # not in git ls-tree, but live and must be denied
-# G-012 top-level OSS files, denied ahead of their PRs so those PRs stay out of the settings files
-PLANNED_ENTRIES = ("LICENSE", "THIRD_PARTY.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", ".editorconfig")
+# G-012 top-level OSS files and the G-025 plugins/ dir, denied ahead of their PRs so those PRs stay out of the settings files
+PLANNED_ENTRIES = ("LICENSE", "THIRD_PARTY.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", ".editorconfig", "plugins")
 
 
 def _in_git_work_tree():
