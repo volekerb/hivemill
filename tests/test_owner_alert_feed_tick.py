@@ -60,6 +60,37 @@ class TickCallsFeed(FactoryTestCase):
         ev = self.env.sql("SELECT detail FROM events WHERE action='owner-alert-feed-failed'")
         self.assertEqual([r["detail"] for r in ev], ["boom"])
 
+    def test_send_flag_off_tick_makes_no_sender_call_and_reads_no_topic(self):
+        self.flag("1")  # feed on, owner_alert_send at its default 0
+        calls = []
+
+        def patch(m):
+            for name in ("_ntfy_post", "ntfy_topic"):
+                p = mock.patch.object(m, name, side_effect=lambda *a, **k: calls.append(1))
+                p.start()
+                self.addCleanup(p.stop)
+
+        self.tick(patch)
+        self.assertEqual(calls, [])
+
+    def test_raising_sender_does_not_stop_later_steps(self):
+        self.flag("1")
+        self.env.sql("INSERT OR REPLACE INTO config(key,value) VALUES('owner_alert_send','1')")
+        after = []
+
+        def patch(m):
+            ps = [mock.patch.object(m, "ntfy_topic", return_value="faketopic_0123456789"),
+                  mock.patch.object(m, "_ntfy_post", side_effect=OSError("down")),
+                  mock.patch.object(m, "_pt_emit", side_effect=lambda *a, **k: after.append(1))]
+            for p in ps:
+                p.start()
+                self.addCleanup(p.stop)
+
+        self.tick(patch)
+        self.assertEqual(len(after), 1)
+        self.assertEqual(self.feed_rows(), [("task-owner-wait", "T-1")])
+        self.assertEqual([r["sent"] for r in self.env.sql("SELECT sent FROM owner_alert_feed")], [None])
+
 
 if __name__ == "__main__":
     unittest.main()
