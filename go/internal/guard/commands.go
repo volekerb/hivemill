@@ -643,7 +643,7 @@ func isDurationWord(w string) bool {
 }
 
 // cmd is a port of Analyzer.cmd. envAssigns are the FACTORY_HOME= assignments an enclosing wrapper passes down.
-func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, envAssigns []string) error {
+func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, envAssigns []string, stdin *stdinChannel) error {
 	assigns := append([]string(nil), envAssigns...)
 	stripped := StripPrefix(words)
 	for _, x := range words[:len(words)-len(stripped)] {
@@ -835,6 +835,19 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			if err := a.interpInlinePush(name, rest); err != nil {
 				return err
 			}
+			ch := a.activeStdin(stdin, piped, hstrs)
+			if stdinProgram(name, rest) {
+				var scan []string
+				scan = append(scan, ch.hs...)
+				if ch.piped && ch.pipe != "" {
+					scan = append(scan, ch.pipe)
+				}
+				for _, h := range scan {
+					if err := a.stdinScan(name, h); err != nil {
+						return err
+					}
+				}
+			}
 		}
 		if err := a.unittestFull(name, rest); err != nil {
 			return err
@@ -892,7 +905,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	}
 	if name == "uv" || name == "uvx" { // T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
-		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns); err != nil {
+		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns, stdin); err != nil {
 			return err
 		}
 	}
@@ -902,7 +915,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if name == "find" {
 		for j, x := range rest {
 			if in(FindExec, x) {
-				if err := a.loose(rest[j+1:], depth, nil); err != nil {
+				if err := a.loose(rest[j+1:], depth, nil, nil); err != nil {
 					return err
 				}
 			}
@@ -913,7 +926,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 				return err
 			}
 		}
-		return a.loose(rest, depth, assigns)
+		return a.loose(rest, depth, assigns, stdin)
 	}
 	return nil
 }
@@ -1061,7 +1074,7 @@ func (a *Analyzer) claudeLaunchers(name string, rest []string) error {
 }
 
 // loose is a port of Analyzer.loose.
-func (a *Analyzer) loose(rest []string, depth int, envAssigns []string) error {
+func (a *Analyzer) loose(rest []string, depth int, envAssigns []string, stdin *stdinChannel) error {
 	for k := range rest {
 		whole := true
 		if IsAssign(rest[k]) {
@@ -1092,7 +1105,7 @@ func (a *Analyzer) loose(rest []string, depth int, envAssigns []string) error {
 				env = append(env, x)
 			}
 		}
-		if err := a.cmd(rest[k:], depth, false, true, nil, env); err != nil {
+		if err := a.cmd(rest[k:], depth, false, true, nil, env, stdin); err != nil {
 			return err
 		}
 	}

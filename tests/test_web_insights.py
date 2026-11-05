@@ -44,7 +44,7 @@ DEFINITIONS = (
 # data() keys on main (acceptance 6): the JSON contract only grows
 KEYS = {
     "quality": {"overall", "teams", "weeks", "formula"},
-    "throughput": {"days", "merges", "median_s", "p90_s", "timed", "open_tasks", "live_workers", "merges_per_day", "stages",
+    "throughput": {"days", "merges", "unattended", "median_s", "p90_s", "timed", "open_tasks", "live_workers", "merges_per_day", "stages",
                    "goals", "slowest"},
     "resources": {"gate", "machine", "config", "timeline", "per_day", "before"},
     "tokens": {"period", "prices_as_of", "usage", "ready", "files", "mb_read", "goal", "model", "models", "totals", "by_goal",
@@ -217,6 +217,110 @@ class Case(unittest.TestCase):
         d = view.data(c)
         json.dumps(d)
         return d, str(view.render(c, d))
+
+
+class TestUnattendedShare(Case):
+    """F-06: the Unattended share tile counts merged tasks with no owner involvement, from factory records only."""
+    LIMIT = ("Counted from factory records only. It cannot see a push the owner makes by hand, "
+             "or an owner wait set on a task that was already blocked.")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / "factory.db"
+        self.w = make_db(self.path, seed=False)
+        self.addCleanup(self.w.close)
+        self.w.execute("ALTER TABLE goals ADD COLUMN org TEXT")
+        self.w.execute("INSERT INTO projects(id,name,created) VALUES('p1','P','x')")
+        for g, org in (("G-1", "claude"), ("G-2", "cursor")):
+            self.w.execute("INSERT INTO goals(id,project_id,title,status,created,updated,org) VALUES(?,?,?,?,?,?,?)",
+                           (g, "p1", g, "active", ts(8, 0), ts(8, 0), org))
+
+    def merged(self, tid, goal="G-1"):
+        self.w.execute("INSERT INTO tasks(id,goal_id,title,role,status,created,updated) VALUES(?,?,?,?,?,?,?)",
+                       (tid, goal, tid, "coder", "done", ts(8, 0), ts(8, 0)))
+        self.w.execute(E_SQL, (ts(11, 0), "judge", "task", tid, "merged", "@abc"))
+
+    def event(self, tid, action, detail):
+        self.w.execute(E_SQL, (ts(10, 0), "x", "task", tid, action, detail))
+
+    def msg(self, sender, kind, subject, body=None, task_id=None):
+        self.w.execute("INSERT INTO messages(sender,recipient,kind,subject,body,task_id,created) VALUES(?,?,?,?,?,?,?)",
+                       (sender, "lead", kind, subject, body, task_id, ts(10, 0)))
+
+    def unattended(self, **q):
+        d, html = self.page(throughput, query=q)
+        return d, html
+
+    def test_waits_owner_makes_one_of_three_attended(self):
+        for t in ("T-1", "T-2", "T-3"):
+            self.merged(t)
+        self.event("T-2", "update", "status=blocked waits=owner")
+        self.event("T-3", "update", "status=in_progress")
+        d, html = self.unattended()
+        self.assertEqual((d["unattended"], d["merges"]), (2, 3))
+        self.assertIn("2 of 3", html)
+        self.assertIn("Unattended share", tile_labels(html))
+
+    def test_judge_blocked_auto_merge_zero_is_attended(self):
+        self.merged("T-1")
+        self.merged("T-2")
+        self.event("T-1", "judge-blocked", "project has auto_merge=0 - boss must get the owner's OK")
+        self.event("T-2", "judge-blocked", "checks not green: unittest")
+        self.assertEqual(self.unattended()[0]["unattended"], 1)
+
+    def test_boss_decision_by_task_id_or_whole_word_is_attended(self):
+        for t in ("T-1", "T-2", "T-3", "T-4"):
+            self.merged(t)
+        self.msg("claude-boss", "decision", "go", task_id="T-1")
+        self.msg("cursor-boss", "decision", "about T-2", None)
+        self.msg("boss", "decision", "x", "see T-3.")
+        self.assertEqual(self.unattended()[0]["unattended"], 1)    # T-4 only
+
+    def test_non_boss_decision_and_other_kinds_do_not_count(self):
+        self.merged("T-1")
+        self.merged("T-2")
+        self.msg("claude-director", "decision", "about T-1", task_id="T-1")
+        self.msg("claude-boss", "report", "about T-2", task_id="T-2")
+        self.assertEqual(self.unattended()[0]["unattended"], 2)
+
+    def test_t11_in_a_message_does_not_count_for_t111(self):
+        self.merged("T-111")
+        self.merged("T-11")
+        self.msg("claude-boss", "decision", "ok", "T-11 is fine, not T-1112x")
+        d, _ = self.unattended()
+        self.assertEqual((d["unattended"], d["merges"]), (1, 2))    # T-111 stays unattended, T-11 is attended
+
+    def test_org_filter_counts_only_that_orgs_merges(self):
+        self.merged("T-1", "G-1")
+        self.merged("T-2", "G-2")
+        self.merged("T-3", "G-2")
+        self.event("T-3", "update", "waits=owner")
+        d, html = self.unattended(org="cursor")
+        self.assertEqual((d["unattended"], d["merges"]), (1, 2))
+        self.assertIn("1 of 2", html)
+        self.assertEqual(self.unattended(org="claude")[0]["merges"], 1)
+
+    def test_zero_merges_shows_the_empty_value(self):
+        d, html = self.unattended()
+        self.assertEqual((d["unattended"], d["merges"]), (0, 0))
+        self.assertIn("Unattended share", html)
+        self.assertNotIn("0 of 0", html)
+
+    def test_limit_sentence_is_on_the_page_once(self):
+        self.merged("T-1")
+        _, html = self.unattended()
+        self.assertEqual(html.count(self.LIMIT), 1)
+        src = (ROOT / "web/views/throughput.py").read_text()
+        self.assertEqual(src.count(self.LIMIT), 1)
+
+    def test_attended_tasks_is_one_call_per_render_and_read_only(self):
+        self.merged("T-1")
+        c = self.ctx()
+        with mock.patch.object(queries, "attended_tasks", wraps=queries.attended_tasks) as m:
+            throughput.render(c, throughput.data(c))
+        self.assertEqual(m.call_count, 1)
+        self.assertEqual(self.ctx().db.execute("PRAGMA query_only").fetchone()[0], 1)
 
 
 class TestResourcesRender(Case):
