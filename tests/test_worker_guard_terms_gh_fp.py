@@ -98,6 +98,45 @@ class TermsGhFpTests(unittest.TestCase):
         self.refused("gh pr comment 1 --body-file - <<'EOF'\ncat $SCRUB_TERMS_FILE\n")  # unterminated: body stays scanned
         self.refused("gh pr comment 1 --body-file - <<'A' <<'B'\nx\nA\ncat $SCRUB_TERMS_FILE\nB")
 
+    # --- T-0942 attempt 2: a line the shell runs as a command stays scanned (PR 435 comment 6657905109) ---
+    def scanned(self, cmd):
+        """The line must still reach the owner-terms scan: coder gets the owner-terms refusal; reviewer is refused (it may be
+        another rule first, e.g. for a PATH assignment)."""
+        p = self.bash(cmd, "coder")
+        self.assertTrue(self.owner_terms_refusal(p), f"coder should be refused by owner-terms: {cmd!r}\nrc={p.returncode} {p.stderr}")
+        p = self.bash(cmd, "reviewer")
+        self.assertEqual(p.returncode, 2, f"reviewer should be refused: {cmd!r}\n{p.stderr}")
+
+    def test_b1_here_string_stays_scanned(self):
+        self.scanned("gh pr view 1 <<<'EOF'\nfind / -name x\nEOF")
+        self.scanned('gh pr view 1 <<<"EOF"\nfind / -name x\nEOF')
+
+    def test_b1_delimiter_suffix_stays_scanned(self):
+        self.scanned("gh pr view 1 <<'EOF'X\nEOFX\nfind / -name x\nEOF")
+        self.scanned("gh pr view 1 <<\\EOF'X'\nEOFX\nfind / -name x\nEOF")
+
+    def test_b1_ansi_c_string_stays_scanned(self):
+        self.scanned("gh pr comment 1 -b $'\\'<<\\EOF' #'\nfind / -name x\nEOF")
+
+    def test_b2_redefined_gh_stays_scanned(self):
+        self.scanned("gh() { bash; }; gh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("function gh { bash; }\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("alias gh=bash\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+
+    def test_b2_path_change_stays_scanned(self):
+        self.scanned("PATH=/tmp/x gh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("export PATH=/tmp/x\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("PATH=/tmp/x\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+
+    def test_b2_other_redefinition_stays_scanned(self):
+        for pre in ("hash -p /tmp/x/gh gh", "source /tmp/x.sh", ". /tmp/x.sh", "eval 'gh() { bash; }'"):
+            self.scanned(f"{pre}\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+
+    def test_plain_quoted_gh_heredoc_still_allowed(self):
+        self.allowed("gh pr comment 324 --body-file - <<'EOF'\nfind / -name x\nEOF")
+        self.allowed("gh pr comment 324 --body-file - <<'EOF' # note\nfind / -name x\nEOF")
+        self.allowed("gh pr comment 324 --body-file - <<'EOF';\nfind / -name x\nEOF")
+
 
 if __name__ == "__main__":
     unittest.main()

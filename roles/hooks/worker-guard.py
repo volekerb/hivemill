@@ -4934,6 +4934,9 @@ def terms_split(cmd):
 
 
 TERMS_HEREDOC = re.compile(r"<<(-?)[ \t]*(\\?)(['\"]?)([^\s;&|<>()'\"\\]+)\3")
+# T-0942: any of these anywhere in the command means gh may not be the real gh: the heredoc skip is off (fail closed)
+TERMS_GH_REDEFINED = re.compile(
+    r"(?:^|[\s;&|(){}])(?:gh\s*\(|function\b|alias\b|export\b|hash\b|source\b|eval\b|declare\b|typeset\b|PATH\+?=|\.[ \t])")
 TERMS_GH_VALUE_FLAG = re.compile(r"(?:--jq|-q|--template)(?:=|[ \t]+)'")
 
 
@@ -4951,7 +4954,11 @@ def terms_is_gh(seg):
 def terms_gh_heredocs(cmd):
     """T-0942: drop the body of a QUOTED-delimiter heredoc that feeds a gh command: the shell neither expands nor runs it.
     Everything else (unquoted delimiter, shell/interpreter/cat target, two heredocs on a line, a dollar-paren or backtick on
-    the line, an unterminated body) is returned unchanged and stays scanned. The scan is quote- and comment-aware."""
+    the line, an unterminated body) is returned unchanged and stays scanned. The scan is quote- and comment-aware.
+    Fail closed (attempt 2): also unchanged for a here-string (<<<), a delimiter followed by anything but whitespace or a
+    separator, an ANSI-C string (dollar then single quote) on the line, and a command that can redefine gh or PATH."""
+    if "$'" in cmd or TERMS_GH_REDEFINED.search(cmd):  # ANSI-C strings quote differently: the scan below would misread them
+        return cmd
     res, emit, i, n, quote, ops, line_begin = [], 0, 0, len(cmd), None, [], 0
     while i < n:
         c = cmd[i]
@@ -4972,10 +4979,12 @@ def terms_gh_heredocs(cmd):
             nl = cmd.find("\n", i)
             i = n if nl < 0 else nl
             continue
-        elif cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
+        elif cmd.startswith("<<<", i):
+            return cmd  # here-string: the shell reads no body, so the following lines are commands
+        elif cmd.startswith("<<", i):
             m = TERMS_HEREDOC.match(cmd, i)
-            if not m:
-                return cmd  # a heredoc whose delimiter cannot be parsed: leave everything scanned
+            if not m or (m.group(2) and m.group(3)) or (m.end() < n and cmd[m.end()] not in " \t\n;&|<>)"):
+                return cmd  # delimiter cannot be parsed the way the shell reads it (suffix, mixed quoting): leave all scanned
             ops.append((i, m))
             i = m.end()
             continue
