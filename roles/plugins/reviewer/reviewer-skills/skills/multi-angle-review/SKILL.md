@@ -27,4 +27,4 @@ Source: G-011 T-0242; cost and off switch in docs/review-workflow.md.
 
 Moved verbatim from the reviewer role prompt:
 
-- **Stale base (S1):** if behind origin/main and merge-tree (rule below) exits 0, run the quick check on the merged tree and PASS with `STALE-BASE: behind origin/main by N; merge-tree clean; merged-tree quick Ran N OK`. Conflict: FAIL, first line `CONFLICT-ONLY: <files>`; still verify content.
+- **Stale base (S1):** if behind origin/main and merge-tree (rule below) exits 0, run the quick check on the PR head (not a merged tree: the guard refuses `git archive` and worktrees for reviewers) and PASS with `STALE-BASE: behind origin/main by N; merge-tree clean; head quick Ran N OK; merged-tree check left to CI or the judge's refresh`. Conflict: FAIL, first line `CONFLICT-ONLY: <files>`; still verify content.
