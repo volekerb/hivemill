@@ -434,6 +434,17 @@ class TestResourcesRender(Case):
         self.assertIn("coder-x spawn", html)         # the structured part is still there, inside the disclosure
         self.assertEqual((ROOT / "web/views/resources.py").read_text().count("only structured details are shown"), 1)
 
+    def test_over_cap_row_gets_the_danger_tone_other_words_do_not(self):
+        def row(word, state):
+            return {"label": "Agents", "value": "9", "limit": "cap 8", "state": state, "word": word}
+        html = str(resources._checks_section({"rows": [row("Over cap", "over"), row("At cap", "over"), row("OK", "ok"), row("Stale", "unknown")]}))
+        self.assertEqual(html.count("ins-check--over"), 1)
+        over = re.search(r'<li class="ins-check ins-check--over">.*?</li>', html, re.S).group(0)
+        self.assertIn("Over cap", over)
+        self.assertIn("<svg", over)         # glyph stays
+        for word in ("At cap", "OK", "Stale"):
+            self.assertRegex(html, rf'<li class="ins-check">(?:(?!</li>).)*{word}', word)
+
     def test_more_page_opens_the_events_disclosure(self):
         first, _ = self.page(resources)
         # enough events for a second page
@@ -458,7 +469,7 @@ class TestResourcesRender(Case):
         self.assertEqual(rows["Agents"]["state"], "over")
         self.assertEqual(rows["Memory available"]["state"], "ok")
         self.assertEqual(rows["Claude usage"]["word"], "OK")
-        self.assertGreaterEqual(html.count('class="ins-check"'), 6)
+        self.assertGreaterEqual(len(re.findall(r'class="ins-check[ "]', html)), 6)   # R1: an over-cap row adds ins-check--over
         self.assertNotIn(" · ".join(g["checks"]), html)     # the dot string is replaced by rows
 
     def test_four_gauges_use_the_overview_labels(self):
