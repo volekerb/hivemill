@@ -153,6 +153,7 @@ DEFAULT_CONFIG = {
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "goal_token_tally_s": "0",   # 0 = off; >0 = seconds between the tick's drained per-goal token tally passes, read by `factory goal tokens` (G-015 SC3, F-74)
+    "owner_alert_send": "0",     # 1 (with owner_alert_feed=1) = the tick sends each open feed row to the owner's phone over ntfy, fixed fields only (G-015 SC3 A3)
     "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
@@ -296,7 +297,7 @@ CREATE INDEX IF NOT EXISTS idx_lesson_links ON lesson_links(lesson_id);
 OWNER_ALERT_DDL = """
 CREATE TABLE IF NOT EXISTS owner_alert_feed (
   id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
-  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT);
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
 """
 
@@ -509,6 +510,12 @@ def migrate(con):
                     raise
     con.executescript(UTIL_DDL)
     con.executescript(OWNER_ALERT_DDL)
+    if "sent" not in {r["name"] for r in con.execute("PRAGMA table_info(owner_alert_feed)")}:  # G-015 SC3 A3: NULL = unsent
+        try:
+            con.execute("ALTER TABLE owner_alert_feed ADD COLUMN sent TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "sent" not in {r["name"] for r in con.execute("PRAGMA table_info(owner_alert_feed)")}:
+                raise
     con.executescript(GOAL_TOKEN_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
@@ -11504,10 +11511,112 @@ def owner_alert_feed_tick(con):
         for (kind, ref), i in items.items():
             con.execute("INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES(?,?,?,?,?,?)",
                         (i["org"], kind, ref, i["since"], i["link"], now))
+        cutoff = digest_clock() - dt.timedelta(days=OWNER_ALERT_KEEP_DAYS)  # closed rows age out; an open row is never deleted
+        for r in con.execute("SELECT id, closed FROM owner_alert_feed WHERE closed IS NOT NULL").fetchall():
+            if dt.datetime.fromisoformat(r["closed"]) < cutoff:
+                con.execute("DELETE FROM owner_alert_feed WHERE id=? AND closed IS NOT NULL", (r["id"],))
     except Exception as e:  # noqa: BLE001 — alerting must never break the tick
         try:
             if not _util_throttled(con, "owner-alert-feed-failed", 3600, digest_clock().timestamp()):
                 event(con, "util", "-", "owner-alert-feed-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+OWNER_ALERT_KEEP_DAYS = 30
+NTFY_BASE = "https://ntfy.sh/"  # a constant on purpose: no config key or env var may point the feed elsewhere
+NTFY_TOPIC_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+NTFY_TIMEOUT_S = 5
+NTFY_RETRY_S = 300
+OWNER_ALERT_SEND_CAP = 5
+OWNER_ALERT_FLAP_S = 24 * 3600
+
+
+def ntfy_topic():
+    """The topic from the ntfy-topic file under ~/.config/factory, or None when the file is unsafe (_token_file_ok) or
+    malformed. The topic is a secret: it goes to the sender only, never into the DB, an event or a log."""
+    path = os.path.expanduser("~/.config/factory/ntfy-topic")
+    if not _token_file_ok(path):
+        return None
+    try:
+        with open(path) as f:
+            topic = f.read(256).strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return topic if NTFY_TOPIC_RE.match(topic) else None
+
+
+def _ntfy_post(topic, line):
+    """POST one line to NTFY_BASE + topic; returns the HTTP status. No redirects (a 3xx raises HTTPError), timeout 5 s, no ntfy
+    header. urllib is imported here so a tick with the flag off pays nothing."""
+    import urllib.request
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    req = urllib.request.Request(NTFY_BASE + topic, data=line.encode(), method="POST",
+                                 headers={"Content-Type": "text/plain; charset=utf-8"})
+    with urllib.request.build_opener(NoRedirect).open(req, timeout=NTFY_TIMEOUT_S) as r:
+        return r.status
+
+
+def owner_alert_send_tick(con):
+    """Tick hook (G-015 SC3 A3, F-50): with owner_alert_send=1 AND owner_alert_feed=1, send each open, unsent feed row to ntfy,
+    oldest first, at most 5 per tick, `sent` set only after a 2xx. The first failure ends the tick's sending and pauses it 300 s.
+    A row is held while the same kind+ref was sent in the last 24 h. No write transaction is open during the HTTP call. Events
+    carry a fixed word, an exception class name or an HTTP status, never str(e) or the URL (either can hold the topic)."""
+    try:
+        if cfg(con, "owner_alert_send") != "1" or cfg(con, "owner_alert_feed") != "1":
+            return
+        t = digest_clock().timestamp()
+        last = con.execute("SELECT ts FROM throttle WHERE key='owner-alert-send-retry'").fetchone()
+        if last and 0 <= t - float(last["ts"]) < NTFY_RETRY_S:
+            return
+        rows = con.execute("SELECT id, org, kind, ref, since, link FROM owner_alert_feed WHERE closed IS NULL AND sent IS NULL "
+                           "ORDER BY first_seen, id").fetchall()
+        if not rows:
+            return
+        topic = ntfy_topic()
+        if topic is None:
+            if not _util_throttled(con, "owner-alert-send-blocked-ev", 3600, t):
+                event(con, "util", "-", "owner-alert-send-blocked", "topic file missing, unsafe or malformed")
+            con.commit()
+            return
+        now = digest_clock()
+        sent = 0
+        for r in rows:
+            if sent >= OWNER_ALERT_SEND_CAP:
+                break
+            held = any(now - dt.datetime.fromisoformat(x["sent"]) < dt.timedelta(seconds=OWNER_ALERT_FLAP_S)
+                       for x in con.execute("SELECT sent FROM owner_alert_feed WHERE kind=? AND ref=? AND sent IS NOT NULL",
+                                            (r["kind"], r["ref"])))
+            if held:
+                continue
+            line = " ".join(f"{k}={str(r[k]).replace(chr(10), ' ').replace(chr(13), ' ')}"
+                            for k in ("id", "org", "kind", "ref", "since", "link"))
+            con.commit()  # no write transaction may be open across the HTTP call
+            try:
+                status = _ntfy_post(topic, line)
+                fail = None if isinstance(status, int) and 200 <= status < 300 else f"HTTP {status}"
+            except Exception as e:  # noqa: BLE001 — any send failure is a retry, never a tick failure
+                code = getattr(e, "code", None)
+                fail = f"HTTP {code}" if isinstance(code, int) else type(e).__name__
+            if fail:
+                con.execute("INSERT INTO throttle(key,ts) VALUES('owner-alert-send-retry',?) "
+                            "ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(digest_clock().timestamp()),))
+                if not _util_throttled(con, "owner-alert-send-failed-ev", 3600, t):
+                    event(con, "util", "-", "owner-alert-send-failed", fail)
+                con.commit()
+                return
+            con.execute("UPDATE owner_alert_feed SET sent=? WHERE id=?",
+                        (digest_clock().isoformat(timespec="seconds"), r["id"]))
+            con.commit()
+            sent += 1
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-alert-send-error-ev", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-alert-send-error", type(e).__name__)
         except Exception:  # noqa: BLE001 — not even the failure log may break the tick
             pass
 
@@ -13751,6 +13860,7 @@ def cmd_tick(a, locked=False):
     util_alerts(con)
     owner_blocker_alerts(con)
     owner_alert_feed_tick(con)
+    owner_alert_send_tick(con)
     goal_token_tally_tick(con)
     goal_token_warn_tick(con)
     _pt_lap("util")
