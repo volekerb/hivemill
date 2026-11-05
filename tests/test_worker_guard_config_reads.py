@@ -40,6 +40,12 @@ class ConfigReadsTests(oracle.ConfigOracleTests):
                     p = self.hook(cmd, role)
                     self.assertEqual(p.returncode, 0, p.stderr)
 
+    def test_narrow_roles_keep_refusing_wide_forms(self):
+        for role in ("reviewer", "qa", "pm"):
+            for cmd in WIDE_ROLE_READS:
+                with self.subTest(role=role, cmd=cmd):
+                    self.assertEqual(self.hook(cmd, role).returncode, 2)
+
     def test_near_misses_refused(self):
         for role in ALL_ROLES:
             for cmd in REFUSED:
@@ -52,7 +58,7 @@ class ConfigReadsTests(oracle.ConfigOracleTests):
         self.assertEqual(self.hook("echo alias.x push | xargs git config --get-color --unset").returncode, 2)
 
     def test_coder_type_and_value_forms(self):
-        # M23762: git wrote nothing for either (checked by the oracle corpus); the coder keeps both allowed as reads
+        # M23762: both are in the oracle CORPUS; the PR body records the measured git result. The coder keeps both allowed
         for cmd in ("git config -t bool alias.x", "git config --value x alias.y"):
             with self.subTest(cmd=cmd):
                 p = self.hook(cmd)
