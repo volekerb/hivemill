@@ -44,7 +44,7 @@ DEFINITIONS = (
 # data() keys on main (acceptance 6): the JSON contract only grows
 KEYS = {
     "quality": {"overall", "teams", "weeks", "formula"},
-    "throughput": {"days", "merges", "unattended", "median_s", "p90_s", "timed", "open_tasks", "live_workers", "merges_per_day", "stages",
+    "throughput": {"days", "merges", "unattended", "cost", "median_s", "p90_s", "timed", "open_tasks", "live_workers", "merges_per_day", "stages",
                    "goals", "slowest"},
     "resources": {"gate", "machine", "config", "timeline", "per_day", "before"},
     "tokens": {"period", "prices_as_of", "usage", "ready", "files", "mb_read", "goal", "model", "models", "totals", "by_goal",
@@ -321,6 +321,101 @@ class TestUnattendedShare(Case):
             throughput.render(c, throughput.data(c))
         self.assertEqual(m.call_count, 1)
         self.assertEqual(self.ctx().db.execute("PRAGMA query_only").fetchone()[0], 1)
+
+
+class TestCostPerMergedPR(TestUnattendedShare):
+    """F-06 U2: the Cost per merged PR tile: by_task cost over merged Claude-org tasks with a known cost."""
+
+    def row(self, sid, model="claude-sonnet-5-5", out=1_000_000):
+        return {"session": sid, "model": model, "day": "2026-10-20", "fast": False, "input": 0, "output": out,
+                "cache_read": 0, "cache_write_5m": 0, "cache_write_1h": 0, "requests": 1}
+
+    def attach(self, tid, sid, rows, goal="G-1"):
+        self.w.execute("INSERT INTO agents(name,role,goal_id,task_id,session_id,status,started) VALUES(?,?,?,?,?,?,?)",
+                       (f"coder-{tid}", "coder", goal, tid, sid, "done", ts(9, 0)))
+        rows.append(self.row(sid))
+
+    def snap(self, rows, ready=True):
+        return {"ready": ready, "rows": rows, "sessions": {r["session"]: {} for r in rows}, "files": 1, "bytes_total": 0}
+
+    def cost_page(self, snap, **q):
+        c = self.ctx(**q)
+        c.tokens = (lambda: snap) if snap is not None else None
+        d = throughput.data(c)
+        json.dumps(d)
+        return d, str(throughput.render(c, d))
+
+    def test_figure_is_the_by_task_cost_sum_over_priced_merged_tasks(self):
+        rows = []
+        for t, sid in (("T-1", "s1"), ("T-2", "s2")):
+            self.merged(t)
+            self.attach(t, sid, rows)
+        rows[1]["output"] = 3_000_000                      # $10 and $30 at $10 per million output
+        d, html = self.cost_page(self.snap(rows))
+        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (20.0, 2, 0))
+        self.assertIn("Cost per merged PR", tile_labels(html))
+        self.assertIn("$20.00", html)
+        self.assertIn("list-price estimate", html)
+
+    def test_tasks_without_tokens_or_with_no_price_are_left_out_not_zero(self):
+        rows = []
+        self.merged("T-1")
+        self.attach("T-1", "s1", rows)
+        self.merged("T-2")                                  # merged, no attributed tokens
+        self.merged("T-3")
+        self.attach("T-3", "s3", rows)
+        rows[-1]["model"] = "unpriced-model"               # cost None
+        d, html = self.cost_page(self.snap(rows))
+        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (10.0, 1, 2))
+        self.assertIn("2 left out", html)
+
+    def test_part_priced_task_is_left_out(self):
+        rows = []
+        self.merged("T-1")
+        self.attach("T-1", "s1", rows)
+        self.merged("T-2")
+        self.attach("T-2", "s2", rows)
+        rows.append(self.row("s2", model="unpriced-model"))     # T-2 has one priced and one unpriced row
+        d, _ = self.cost_page(self.snap(rows))
+        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["left_out"]), (10.0, 1, 1))
+
+    def test_cursor_org_task_adds_nothing_and_org_cursor_shows_hours_only(self):
+        rows = []
+        self.merged("T-1")
+        self.attach("T-1", "s1", rows)
+        self.merged("T-2", "G-2")
+        self.w.execute("INSERT INTO agents(name,role,goal_id,task_id,status,started,ended,spawn_args) VALUES(?,?,?,?,?,?,?,?)",
+                       ("cursor-coder-t-2", "coder", "G-2", "T-2", "done", ts(9, 0), ts(11, 0), '{"runtime":"cursor"}'))
+        d, html = self.cost_page(self.snap(rows))
+        self.assertEqual((d["cost"]["figure"], d["cost"]["priced"], d["cost"]["cursor_tasks"]), (10.0, 1, 1))
+        self.assertIn("2.0 agent-hours", html)
+        d, html = self.cost_page(self.snap(rows), org="cursor")
+        self.assertIsNone(d["cost"]["figure"])
+        self.assertIn("2.0 agent-hours", html)
+        self.assertNotRegex(html.split("Cost per merged PR", 1)[1].split("</div></div>", 1)[0], r"\$\d")
+
+    def test_org_claude_filter_ignores_cursor_tasks_and_hours(self):
+        rows = []
+        self.merged("T-1")
+        self.attach("T-1", "s1", rows)
+        self.merged("T-2", "G-2")
+        d, html = self.cost_page(self.snap(rows), org="claude")
+        self.assertEqual((d["cost"]["figure"], d["cost"]["merged"], d["cost"]["cursor_hours"]), (10.0, 1, None))
+        self.assertNotIn("agent-hours", html)
+
+    def test_index_not_ready_or_no_tokens_says_not_ready_with_200(self):
+        self.merged("T-1")
+        for snap in (self.snap([], ready=False), {}, None):
+            d, html = self.cost_page(snap)
+            self.assertEqual(d["cost"]["state"], "not_ready")
+            self.assertIn("not ready", html)
+            self.assertNotRegex(html.split("Cost per merged PR", 1)[1].split("</div></div>", 1)[0], r"\$\d")
+
+
+class TestCostPageIsServed(InsightServer):
+    def test_throughput_is_200_with_the_cost_tile_and_json_key(self):
+        self.assertIn("Cost per merged PR", tile_labels(self.text("/throughput")))
+        self.assertIn("cost", json.loads(self.text("/api/throughput.json")))
 
 
 class TestResourcesRender(Case):
