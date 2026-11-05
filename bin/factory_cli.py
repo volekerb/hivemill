@@ -14660,6 +14660,20 @@ def dispatch_tick(con):
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
                      "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
             continue
+        why = goal_token_refusal(con, role, t["goal_id"], None)  # G-015 F-74: same check as spawn(), before it can log per tick
+        if why:
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            key = f"dispatch-token-limit:{tid}"
+            if not _throttled(con, key, clock, 10 * 365 * 86400):  # once per task: one event, one alert, never retried per tick
+                _throttle_set(con, key, clock)
+                event(con, "task", tid, "goal-token-limit-refused", f"{role}: {why}")
+                send(con, goal_alert_to(con, t["goal_id"], team=team), f"dispatch refused: {tid}: goal at its token limit",
+                     f"{t['title']}\n\nLead-less dispatch did not start {name}: {why}", kind="alert", goal=t["goal_id"], task=tid,
+                     sender="tick")
+            continue
         extra = (f"Dispatched by the tick: lead {t['lead_agent']} of {team} is parked (lead_less_dispatch=1). Your spec and "
                  "acceptance are in the task. Report to lead:" + team + " as usual and finish with factory done. "
                  "Never call the advisor tool.")

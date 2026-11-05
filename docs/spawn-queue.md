@@ -40,5 +40,5 @@ A Claude-org goal with `token_limit` (`factory goal edit G --token-limit N`) and
 
 - Direct `factory spawn`: exit 3, the reason names the goal, the tally and the limit, and says to raise it (`factory goal edit <G> --token-limit N`, director or owner). One `goal-token-limit-refused` event on the task, no `agents` row.
 - Queued row: the tick cancels it once (`dequeued` event, `by=goal-token-limit`) and sends one alert to the team's lead (director with no lead), like the settings render failure above. It is not retried each tick.
-- Other callers (review autospawn, lead-less dispatch, coder CI resume, `team new`) reach the same check inside `spawn()` and treat the refusal like any other refused spawn.
+- Lead-less dispatch checks the same limit before it calls `spawn()`: one `goal-token-limit-refused` event and one alert per task, then the task is skipped each tick. Other callers (review autospawn, coder CI resume, `team new`) reach the check inside `spawn()` and treat the refusal like any other refused spawn.
 - The check reads the `goals` and `goal_token_tally` rows only, never a log. No limit, no tally row or a non-Claude goal: allowed, as before. A missing tally fails open on purpose: no figure, no refusal. The tally can also read low (read errors, a missing log root, deleted logs), which makes the refusal come later, never earlier.
