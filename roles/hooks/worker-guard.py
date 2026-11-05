@@ -4933,101 +4933,55 @@ def terms_split(cmd):
     return segs
 
 
-TERMS_HEREDOC = re.compile(r"<<(-?)[ \t]*(\\?)(['\"]?)([^\s;&|<>()'\"\\]+)\3")
-# T-0942: any of these anywhere in the command means gh may not be the real gh: the heredoc skip is off (fail closed)
-TERMS_GH_REDEFINED = re.compile(
-    r"(?:^|[\s;&|(){}])(?:gh\s*\(|function\b|alias\b|export\b|hash\b|source\b|eval\b|declare\b|typeset\b|\.[ \t])")
-TERMS_GH_PATH_OR_ARITH = re.compile(r"(?<!\w)PATH(?!\w)|\$\[|\(\(")  # any mention of PATH; $[ and (( read << as a shift
+# T-0942: the heredoc skip matches ONE approved shape (an allowlist), never "any gh line minus dangerous forms".
+TERMS_GH_HEAD = re.compile(
+    r"""\A(?:cd[ \t]+(?:~|[\w./-]+)[ \t]*&&[ \t]*)?gh[ \t]+(?:pr[ \t]+(?:comment|review|create|edit)"""
+    r"""|issue[ \t]+(?:comment|create|edit))(?P<args>(?:[ \t]+(?:[\w./:=,@%+-]+|'[^'\n]*'|"[^"$`\\\n]*"))*)"""
+    r"""[ \t]+<<(?P<dash>-?)(?P<q>['"])(?P<d>[A-Za-z_]\w*)(?P=q)[ \t]*\n""")
+TERMS_GH_STDIN = re.compile(r"[ \t](?:--body-file|-F)(?:=|[ \t]+)-(?=[ \t]|$)")
 TERMS_GH_VALUE_FLAG = re.compile(r"(?:--jq|-q|--template)(?:=|[ \t]+)'")
-
-
-def terms_is_gh(seg):
-    """True when the command word of one segment (after VAR=value prefixes) is gh."""
-    try:
-        toks = shlex.split(seg)
-    except ValueError:
-        toks = seg.split()
-    while toks and TERMS_ENV_ASSIGN.match(toks[0]):
-        toks.pop(0)
-    return bool(toks) and toks[0] == "gh"  # bare gh only: a path such as /tmp/x/gh may be a worker-written script
+TERMS_STRIP_FIRST_WORDS = {"gh", "git", "cd", "factory"}
 
 
 def terms_gh_heredocs(cmd):
-    """T-0942: drop the body of a QUOTED-delimiter heredoc that feeds a gh command: the shell neither expands nor runs it.
-    Everything else (unquoted delimiter, shell/interpreter/cat target, two heredocs on a line, a dollar-paren or backtick on
-    the line, an unterminated body) is returned unchanged and stays scanned. The scan is quote- and comment-aware.
-    Fail closed (attempt 2): also unchanged for a here-string (<<<), a delimiter followed by anything but whitespace or a
-    separator, an ANSI-C string (dollar then single quote) on the line, and a command that can redefine gh or PATH."""
-    if "$'" in cmd or TERMS_GH_REDEFINED.search(cmd) or TERMS_GH_PATH_OR_ARITH.search(cmd):  # ANSI-C strings quote differently: the scan below would misread them
+    """T-0942: drop the body of ONE quoted-delimiter heredoc that feeds an approved gh subcommand (pr comment, pr review,
+    pr create, pr edit, issue comment, issue create, issue edit) with --body-file - or -F -. The command must be that one
+    gh line (optional cd prefix) at offset 0, args plain words or quoted strings, delimiter on the next lines exactly,
+    nothing after it. Any other shape is returned unchanged and stays scanned."""
+    m = TERMS_GH_HEAD.match(cmd)
+    if not m or not TERMS_GH_STDIN.search(m.group("args")):
         return cmd
-    res, emit, i, n, quote, ops, line_begin = [], 0, 0, len(cmd), None, [], 0
-    while i < n:
-        c = cmd[i]
-        if quote:
-            if c == "\\" and quote == '"' and i + 1 < n:
-                i += 2
-                continue
-            if c == quote:
-                quote = None
-            i += 1
-            continue
-        if c == "\\" and i + 1 < n:
-            i += 2
-            continue
-        if c in "'\"":
-            quote = c
-        elif c == "#" and (i == 0 or cmd[i - 1] in " \t\n;&|("):
-            nl = cmd.find("\n", i)
-            i = n if nl < 0 else nl
-            continue
-        elif cmd.startswith("<<<", i):
-            return cmd  # here-string: the shell reads no body, so the following lines are commands
-        elif cmd.startswith("<<", i):
-            m = TERMS_HEREDOC.match(cmd, i)
-            if not m or (m.group(2) and m.group(3)) or (m.end() < n and cmd[m.end()] not in " \t\n;&|<>)"):
-                return cmd  # delimiter cannot be parsed the way the shell reads it (suffix, mixed quoting): leave all scanned
-            ops.append((i, m))
-            i = m.end()
-            continue
-        elif c == "\n":
-            if ops:
-                line = cmd[line_begin:i]
-                pos, bodies_end = i + 1, None
-                for _, m in ops:
-                    delim, dash = m.group(4), m.group(1) == "-"
-                    while pos <= n:
-                        nl = cmd.find("\n", pos)
-                        end = n if nl < 0 else nl
-                        text = cmd[pos:end]
-                        pos = n + 1 if nl < 0 else nl + 1
-                        if (text.lstrip("\t") if dash else text) == delim:
-                            bodies_end = min(pos, n)
-                            break
-                    else:
-                        return cmd  # unterminated: the rest is body or malformed, keep it all scanned
-                m = ops[0][1]
-                if (len(ops) == 1 and (m.group(2) or m.group(3)) and "`" not in line and "$(" not in line
-                        and terms_is_gh(terms_split(cmd[line_begin:ops[0][0]])[-1])):
-                    res.append(cmd[emit:i + 1])
-                    emit = bodies_end
-                i = bodies_end
-                ops = []
-                line_begin = i
-                continue
-            line_begin = i + 1
-        i += 1
-    if ops:
-        return cmd  # heredoc opened on the last line with no body
-    res.append(cmd[emit:])
-    return "".join(res)
+    delim, dash = m.group("d"), m.group("dash") == "-"
+    lines = cmd[m.end():].split("\n")
+    for k, line in enumerate(lines):
+        if (line.lstrip("\t") if dash else line) == delim:
+            if "".join(lines[k + 1:]).strip():
+                return cmd  # something follows the terminator: it runs, keep it all scanned
+            return cmd[:m.end()]
+    return cmd  # no terminator line: not a well-formed heredoc
 
 
 def terms_strip_gh_jq(cmd):
     """T-0942: inside a gh segment, blank the single-quoted value of --jq/-q/--template (outside any quotes): the shell does
-    no brace expansion there. Used only for the brace check; every other shape keeps its braces."""
-    out = []
-    for seg in terms_split(cmd):
-        if not terms_is_gh(seg):
+    no brace expansion there. Used only for the brace check; every other shape keeps its braces. Unstripped (cmd returned
+    as is) when a segment's first raw word is not gh, git, cd or factory, when a parenthesis or backtick remains after
+    blanking, or when the command holds an ANSI-C string. Non-gh text is never rebuilt: segments are spliced in place."""
+    if "$'" in cmd:
+        return cmd
+    segs = terms_split(cmd)
+    out, pos = [], 0
+    for seg in segs:
+        words = seg.split()
+        if not words:
+            continue
+        if words[0] not in TERMS_STRIP_FIRST_WORDS:
+            return cmd
+        at = cmd.find(seg, pos)
+        if at < 0:
+            return cmd
+        out.append(cmd[pos:at])
+        pos = at + len(seg)
+        if words[0] != "gh":
             out.append(seg)
             continue
         buf, i, quote = [], 0, None
@@ -5055,7 +5009,11 @@ def terms_strip_gh_jq(cmd):
             buf.append(c)
             i += 1
         out.append("".join(buf))
-    return "\n".join(out)
+    out.append(cmd[pos:])
+    res = "".join(out)
+    if re.search(r"[()`]", res):
+        return cmd
+    return res
 
 
 def terms_bash(cmd, cwd, env=None, depth=0):

@@ -139,8 +139,62 @@ class TermsGhFpTests(unittest.TestCase):
 
     def test_plain_quoted_gh_heredoc_still_allowed(self):
         self.allowed("gh pr comment 324 --body-file - <<'EOF'\nfind / -name x\nEOF")
-        self.allowed("gh pr comment 324 --body-file - <<'EOF' # note\nfind / -name x\nEOF")
-        self.allowed("gh pr comment 324 --body-file - <<'EOF';\nfind / -name x\nEOF")
+        self.allowed("gh pr comment 324 --body-file - <<'EOF'\nfind / -name x\nEOF\n")  # trailing newline
+        self.allowed("cd ~ && gh pr comment 324 -F - <<'EOF'\nfind / -name x\nEOF")
+        self.allowed("gh issue create --title 'a b' --body-file - <<'EOF'\nfind / -name x\nEOF")
+        self.allowed("gh pr review 5 --approve --body-file=- <<\"EOF\"\ntar cf x.tar ~\nEOF")
+
+    # --- T-0942 attempt 3 (spec v4): the skip is one anchored allowlist shape; B3 and B4 forms stay scanned ---
+    def test_b3_subshell_before_gh_stays_scanned(self):
+        self.scanned("(bash; gh pr comment 1 --body-file -) <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("{ bash; gh pr comment 1 --body-file -; } <<'EOF'\nfind / -name x\nEOF")
+
+    def test_b4_redefinition_spellings_stay_scanned(self):
+        pre = ["\\source /tmp/x.sh", '". /tmp/x.sh"', "\\eval 'gh() { bash; }'", "'g'h() { bash; }",
+               "functions[gh]='bash'", "commands[gh]=/tmp/x/bash", "path=(/tmp/x $path)"]
+        for p in pre:
+            self.scanned(f"{p}\ngh pr comment 1 --body-file - <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("gh() { bash; }; gh pr comment 1 --body-file - <<'EOF'\nfind / -name x\nEOF")
+
+    def test_forms_outside_the_grammar_stay_scanned(self):
+        body = "\nfind / -name x\nEOF"
+        for head in ("gh pr view 1 --body-file - <<'EOF'",  # subcommand not in the list
+                     "gh pr comment 1 <<'EOF'",  # no stdin argument
+                     "gh pr comment 1 --body-file x <<'EOF'",
+                     "git status && gh pr comment 1 --body-file - <<'EOF'",
+                     "gh pr comment 1 --body-file - <<'EOF' # note",
+                     "gh pr comment 1 --body-file - <<'EOF';",
+                     "gh pr comment 1 --body \"$X\" --body-file - <<'EOF'",
+                     "gh pr comment 1 --body-file - <<'EOF' | cat"):
+            self.scanned(head + body)
+        self.scanned("gh pr comment 1 --body-file - <<'EOF'\nx\nEOF\nfind / -name x")  # command after the terminator
+
+    def test_indented_delimiter_does_not_end_body_without_dash(self):
+        # the shell keeps reading: the indented EOF and the find line are body text, the last EOF ends it
+        self.allowed("gh pr comment 1 --body-file - <<'EOF'\nx\n\tEOF\nfind / -name x\nEOF")
+        self.scanned("gh pr comment 1 --body-file - <<'EOF'\nx\nEOF \nfind / -name x\n")  # no exact terminator: not skipped
+
+    # --- T-0942 attempt 3: reproduce results and jq strip limits ---
+    def test_repro_gh_function_before_jq_is_refused(self):
+        self.refused("gh() { eval \"$1\"; }; gh pr view 1 --json a,b --jq '{a,b}' # factory")
+
+    def test_repro_ansi_c_string_before_jq_is_refused(self):
+        self.refused("gh x $'\\'' ' --jq '{a,b}'' # factory")
+
+    def test_strip_limit_non_gh_first_word_unstripped(self):
+        self.refused("VAR=1 gh pr view 1 --jq '{a,b}' # factory")
+        self.refused("echo hi; gh pr view 1 --jq '{a,b}' # factory")
+
+    def test_strip_limit_parenthesis_or_backtick_unstripped(self):
+        self.refused("gh pr view 1 --jq '{a,b}' --title (x) # factory")
+        self.refused("gh pr view 1 --jq '{a,b}' --title `x` # factory")
+
+    def test_strip_splice_keeps_non_gh_text_identical(self):
+        self.refused("git log {a;,c} # factory")
+        self.refused("gh pr view 1 --jq '{a,b}' | git x {c;,d} # factory")
+
+    def test_compound_evidence_form_allowed(self):
+        self.allowed("gh pr view 1 --json a,b --jq '{a,b}' && git rev-list --count HEAD && factory res # factory")
 
 
 if __name__ == "__main__":
