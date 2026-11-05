@@ -3069,6 +3069,81 @@ class Analyzer:
                 raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
                             f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
 
+    def git_runners(self, rest, depth):
+        """T-0908: a coder's git may run a command through submodule foreach, rebase -x/--exec, bisect run and difftool
+        -x/--extcmd. The inner command is checked as `bash -c <inner>` would be (self.script, one level deeper); a missing,
+        dynamic or unparseable inner command is refused. Coder only."""
+        if self.role != "coder":
+            return
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i >= len(rest):
+            return
+        sub, args = rest[i], rest[i + 1:]
+        if sub in ("submodule", "bisect"):
+            j = 0
+            while j < len(args) and args[j].startswith("-"):
+                j += 1
+            if j >= len(args):
+                return
+            word = args[j]
+            if is_dynamic(word, True) or GLOB.search(word):
+                raise Block(f"git {sub} {word}: the {sub} subcommand is dynamic and could run a command; write it literally")
+            if word != ("foreach" if sub == "submodule" else "run"):
+                return
+            inner = args[j + 1:]
+            if sub == "submodule":
+                while inner and inner[0] in ("--recursive", "--quiet", "-q"):
+                    inner = inner[1:]
+            self.git_inner(f"git {sub} {word}", inner, depth, quote=sub == "bisect")
+        elif sub == "rebase":
+            self.git_exec_opts(sub, args, "x", "--exec", "XsCS", depth)
+        elif sub == "difftool":
+            self.git_exec_opts(sub, args, "x", "--extcmd", "tOSG", depth)
+
+    def git_inner(self, what, words, depth, quote=False):
+        if not words:
+            raise Block(f"{what} without a command: the inner command cannot be inspected; give it a literal command")
+        dyn = [w for w in words if is_dynamic(w, True)]
+        if dyn:
+            raise Block(f"{what} {dyn[0]!r}: the inner command is built from an expansion and cannot be inspected")
+        try:
+            self.script(" ".join(shlex.quote(w) for w in words) if quote else " ".join(words), depth + 1)
+        except ValueError as e:
+            raise Block(f"{what}: the inner command cannot be parsed ({e})")
+
+    def git_exec_opts(self, sub, args, short, long, valued, depth):
+        """Every -<short>/--<long> (or git-accepted prefix of it) value of a git subcommand: separate, =value, attached,
+        or at the end of a short flag cluster; options in `valued` swallow the rest of their cluster."""
+        k = 0
+        while k < len(args):
+            a = args[k]
+            k += 1
+            if a == "--":
+                return
+            if a.startswith("--"):
+                name, eq, val = a.partition("=")
+                if len(name) > 2 and long.startswith(name):
+                    if not eq:
+                        val = args[k] if k < len(args) else None
+                        k += 1
+                    self.git_inner(f"git {sub} {long}", [val] if val else [], depth)
+                continue
+            if a.startswith("-") and len(a) > 1:
+                for n, c in enumerate(a[1:], 1):
+                    if c == short:
+                        val = a[n + 1:]
+                        if not val:
+                            val = args[k] if k < len(args) else None
+                            k += 1
+                        self.git_inner(f"git {sub} -{short}", [val] if val else [], depth)
+                        break
+                    if c in valued:
+                        if n == len(a) - 1 and c != "S":
+                            k += 1
+                        break
+
     def git_deny(self, why):
         raise Block(f"{self.role} may not run git push, or any git form outside the read-only allow-list ({why}): "
                     "read-only roles only inspect (status, log, diff, show, fetch ...); report results with factory done / "
@@ -3477,6 +3552,7 @@ class Analyzer:
             return
         if os.path.basename(words[0]) == "git":
             self.git_push_pin(words[1:])  # before the public-text push check: names the one allowed push
+            self.git_runners(words[1:], depth)
         if self.pt:
             self.pt.command(words, self.hq)
         if not in_loose:
@@ -3991,6 +4067,18 @@ class Analyzer:
             if not (main_ok and explicit and config_is_read(cargs)):
                 raise Block("xargs git config: stdin adds arguments, so only a read with an explicit action (`--get`, "
                             "`--get-all`, `--get-regexp`, `--list`, `-l`) and exact options is allowed; run `git config` directly")
+        sub = gargs[i]
+        if sub in ("rebase", "difftool"):
+            raise Block(f"xargs git {sub}: stdin adds arguments, so the -x/--exec command cannot be inspected; run git {sub} directly")
+        if sub in ("submodule", "bisect"):
+            word, run = None, "foreach" if sub == "submodule" else "run"
+            for w in gargs[i + 1:]:
+                if not w.startswith("-"):
+                    word = w
+                    break
+            if word is None or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", word) or word == run:
+                raise Block(f"xargs git {sub}: stdin adds arguments, so without a literal subcommand other than {run} the inner "
+                            f"command cannot be inspected; run git {sub} directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
