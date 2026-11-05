@@ -165,7 +165,7 @@ def main(argv=None):
         need(rc == 0, "%s (rc=%s)" % (" ".join(step[:2]), rc), out)
 
     # b. root refusal
-    check_root_refusal(lambda c: run(c), [py, installer, "--check"])
+    check_root_refusal(lambda c: run(c), [py, installer, "--yes", "--no-systemd"])  # refused before any step
 
     # c. plain user with the two fakes
     rc, out = run(["useradd", "-m", "-s", "/bin/bash", USER])
