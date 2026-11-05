@@ -823,6 +823,76 @@ func (a *Analyzer) cfgInScratch(word string) bool {
 	return inScratchpad(pyRealpath(t))
 }
 
+var xargsGitForbidden = set("push", "send-pack", "http-push", "subtree")
+
+// xargsGit is a port of Analyzer.xargs_git (T-0799, T-1035).
+func (a *Analyzer) xargsGit(gargs []string) error {
+	i := 0
+	for i < len(gargs) && strings.HasPrefix(gargs[i], "-") {
+		cv := ""
+		if gargs[i] == "-c" && i+1 < len(gargs) {
+			cv = gargs[i+1]
+		} else if strings.HasPrefix(gargs[i], "-c") && !strings.HasPrefix(gargs[i], "--") && len(gargs[i]) > 2 {
+			cv = gargs[i][2:]
+		}
+		if cv != "" && reGitAliasAssign.MatchString(cv) {
+			return blockf("xargs git -c alias.<x>=...: the alias could expand to config or push with arguments from stdin; " +
+				"run git directly")
+		}
+		if gargs[i] == "-C" || gargs[i] == "-c" || gargs[i] == "--git-dir" || gargs[i] == "--work-tree" ||
+			gargs[i] == "--namespace" || gargs[i] == "--exec-path" {
+			i += 2
+		} else {
+			i++
+		}
+	}
+	if i >= len(gargs) || !reGitSubcommand.MatchString(gargs[i]) || in(xargsGitForbidden, gargs[i]) {
+		return blockf("xargs git: the subcommand would come from stdin or could be push; coders push only " +
+			"`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+	}
+	if gargs[i] == "config" {
+		cargs := gargs[i+1:]
+		flags, pos, parsed := configParse(cargs)
+		explicit := parsed && (anyInFlags(flags, configActionFlags) || firstPos(pos, "get", "list"))
+		mainOK := anyInSlice(cargs, gitConfigReadOnly) && !anyInSlice(cargs, ConfigWrite)
+		if !(mainOK && explicit && configIsRead(cargs)) {
+			return blockf("xargs git config: stdin adds arguments, so only a read with an explicit action (`--get`, " +
+				"`--get-all`, `--get-regexp`, `--list`, `-l`) and exact options is allowed; run `git config` directly")
+		}
+	}
+	return a.gitPushPin(gargs)
+}
+
+func anyInFlags(flags []string, s map[string]struct{}) bool {
+	for _, f := range flags {
+		if in(s, f) {
+			return true
+		}
+	}
+	return false
+}
+
+func anyInSlice(ss []string, s map[string]struct{}) bool {
+	for _, x := range ss {
+		if in(s, x) {
+			return true
+		}
+	}
+	return false
+}
+
+func firstPos(pos []string, want ...string) bool {
+	if len(pos) == 0 {
+		return false
+	}
+	for _, w := range want {
+		if pos[0] == w {
+			return true
+		}
+	}
+	return false
+}
+
 // gitPushPin is a port of Analyzer.git_push_pin (T-0689, T-0743): a coder's only allowed push is `git push origin
 // HEAD:factory/<own task id>`; the task id comes from FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec,
 // force/--all/--mirror/--tags/--delete or option; no -c / --git-dir overrides; an unknown own task id refuses. The

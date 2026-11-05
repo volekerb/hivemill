@@ -718,3 +718,21 @@ func TestPushPinAttemptSuffix(t *testing.T) {
 		}
 	}
 }
+
+// T-1035 / T-1083: xargs git config must match Python xargs_git (stdin adds args; only explicit exact reads).
+func TestXargsGitConfig(t *testing.T) {
+	f := newGitFix(t)
+	for _, cmd := range []string{
+		"echo alias.x push | xargs git config --comment --get",
+		"echo alias.y push | xargs git config set --value --get",
+		"echo alias.x push | xargs git config --co --get",
+		"echo alias.x | xargs git config",
+	} {
+		f.blocked(t, cmd, f.wt, "coder")
+	}
+	err := f.check("echo alias.x push | xargs git config --comment --get", f.wt, "coder")
+	msg := Explain(err)
+	if !strings.Contains(msg, "xargs git config:") {
+		t.Fatalf("stderr %q, want xargs git config refusal", msg)
+	}
+}
