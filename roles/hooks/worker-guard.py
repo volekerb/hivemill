@@ -1550,6 +1550,24 @@ class Analyzer:
             return None
         return {r[0] for r in rows if r[0]}
 
+    def _lead_factory_goal_words(self, words):
+        """True when words invoke `factory goal ...` (HQ lead panes still run goal-show broad_read)."""
+        if not words:
+            return False
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "factory":
+            rest_cmd = rest
+        elif INTERPRETERS.match(name):
+            fi = self.factory_script(name, rest)
+            if fi is None:
+                return False
+            rest_cmd = rest[fi + 1:]
+        else:
+            return False
+        nonopt = [a for a in rest_cmd if not a.startswith("-")]
+        return bool(nonopt) and nonopt[0] == "goal"
+
     def broad_read(self, sub, rest, assigns):
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
@@ -3460,7 +3478,7 @@ class Analyzer:
             self.pt.command(words, self.hq)
         if not in_loose:
             self.priv(words, depth, piped, hstrs)
-            if self.hq:
+            if self.hq and not (self.role == "lead" and self._lead_factory_goal_words(words)):
                 return
         w, rest = words[0], words[1:]
         name = os.path.basename(w)
@@ -4720,6 +4738,32 @@ class PublicText:
 
 
 
+def lead_hq_goal_show_guard(an, cmd):
+    """HQ lead panes: team goal-show allow/deny before the HQ-only return (T-0822)."""
+    real_cmd = an.cmd
+    real_soft = an.soft
+
+    def soft(fn, *args):
+        try:
+            fn(*args)
+        except Block:
+            raise
+        except (PrivBlock, PublicBlock):
+            raise
+
+    def cmd_goal_only(words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
+        if an._lead_factory_goal_words(words):
+            real_cmd(words, depth, piped, in_loose, hstrs, env_assigns, stdin)
+
+    an.soft = soft
+    an.cmd = cmd_goal_only
+    try:
+        an.script(cmd)
+    finally:
+        an.soft = real_soft
+        an.cmd = real_cmd
+
+
 def check(cmd, cwd=None, role=None, hq=False):
     pt = PublicText(cwd, Analyzer(cwd).db_path())
     pt.raw = cmd
@@ -4741,6 +4785,11 @@ def check(cmd, cwd=None, role=None, hq=False):
             pt.frozen_hit(slug)
             if pt.applies(slug):
                 raise PublicBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
+    if hq and role == "lead":
+        try:
+            lead_hq_goal_show_guard(Analyzer(cwd, role, hq=False), cmd)
+        except Block:
+            raise
     if hq:
         return
     if role in TERMS_ROLES:

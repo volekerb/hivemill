@@ -231,6 +231,7 @@ class CrossRoleHooksTests(unittest.TestCase):
             self.assertIn("--role coder", coder_cmd)
             self.assertNotIn("--role pm", coder_cmd)
             self.assertIn("--hq", lead_cmd)
+            self.assertIn("--role lead", lead_cmd)
             self.assertNotIn("--role pm", lead_cmd)
 
 

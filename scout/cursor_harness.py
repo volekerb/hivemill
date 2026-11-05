@@ -87,9 +87,8 @@ def adapter_command(hooks_dir: Path, role: str, event: str, hq: bool = False) ->
     parts = ["python3", str(adapter.resolve())]
     if hq:
         parts.append("--hq")
-    # HQ hooks use --hq only, but beforeMCPExecution must still know the role (only boss may use MCP).
-    if not hq or event == "beforeMCPExecution":
-        parts.extend(["--role", role])
+    # HQ hooks pass --role so worker-guard can enforce lead goal-show scope (T-0822); MCP needs role for boss-only MCP.
+    parts.extend(["--role", role])
     parts.extend(["--event", event])
     return " ".join(shlex.quote(p) for p in parts)
 
