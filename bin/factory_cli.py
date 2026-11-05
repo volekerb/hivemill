@@ -6425,9 +6425,54 @@ def _sweep_candidates(con, t):
     return out
 
 
+TMP_LEFTOVER_MIN_AGE_S = 86400   # a listed leftover must be untouched (dir and everything inside) for this long
+TMP_LEFTOVER_CAP = 500           # at most this many leftovers per run
+# Closed list of top-level <tmp> names that our own code leaves behind (tempfile.mkdtemp names: prefix + 8 chars):
+#   ci/guard_diff.py:615 (guard-diff-) and :293 (guard-diff-seed-), ci/screenshots.py:895 (factory-screenshots-),
+#   ci/freshbox_test.py:188 (freshbox-). Other litter seen in /tmp (go-build*, corp-*, gd-*, cursor-askpass-*) has no
+#   producer in this repo, so it is not listed.
+_LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox-)[a-z0-9_]{8}")
+
+
+def _sweep_leftovers(con, t):
+    """[(dir, bytes)] removed: real dirs of our uid directly under <tmp> whose name is in the closed list above, with
+    nothing in the tree touched for 24 h, and not containing the cwd of any unfinished agent. Symlinks are never
+    followed; a tree that cannot be measured completely is kept. At most TMP_LEFTOVER_CAP per run."""
+    base = tmp_dir()
+    if not base.is_dir() or base.is_symlink():
+        return []
+    cwds = [os.path.realpath(r["cwd"]) for r in con.execute(
+        "SELECT cwd FROM agents WHERE cwd IS NOT NULL AND cwd != '' AND status IN ('live','starting','queued','done')")]
+    out = []
+    for d in sorted(base.iterdir()):
+        if len(out) >= TMP_LEFTOVER_CAP:
+            break
+        if not _LEFTOVER_NAME.fullmatch(d.name):
+            continue
+        try:
+            st = d.lstat()
+            if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+                continue
+            if t - _harness_newest_mtime(d) < TMP_LEFTOVER_MIN_AGE_S:
+                continue
+            real = os.path.realpath(d)
+            if any(c == real or c.startswith(real + os.sep) for c in cwds):
+                continue
+            size = _tree_bytes(d)
+            shutil.rmtree(d)
+        except FileNotFoundError:
+            continue   # vanished while we looked
+        except OSError as e:
+            event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-failed", f"{d}: {e}")
+            continue
+        out.append((d, size))
+    return out
+
+
 def tmp_sweep(con):
-    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates),
-    write one tmp-swept event (MB freed, dir count), and alert the director once if /tmp is still over tmp_max_pct.
+    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates)
+    and stale leftovers with a listed prefix (see _sweep_leftovers),
+    write one tmp-swept event (MB freed, dir count, leftover count), and alert the director once if /tmp is still over tmp_max_pct.
     No agent involved; any failure is an event, never a stopped tick."""
     try:
         tmp = tmp_usage()
@@ -6445,8 +6490,11 @@ def tmp_sweep(con):
                     continue
                 freed += size
                 n += 1
-            if n:
-                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept", {"mb": round(freed / 1048576, 1), "dirs": n})
+            left = _sweep_leftovers(con, t)
+            freed += sum(sz for _, sz in left)
+            if n or left:
+                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
+                         {"mb": round(freed / 1048576, 1), "dirs": n, "leftovers": len(left)})
             tmp = tmp_usage() or tmp
         over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
         armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
