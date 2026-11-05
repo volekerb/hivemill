@@ -170,7 +170,7 @@ class TestNeedsYou(Base):
     def test_more_than_four_items_link_the_rest(self):   # name kept; the strip now shows 3 (R2) and links the rest
         d, page = self.page()
         self.assertEqual(len(d["needs_you"]), 5)
-        self.assertIn("2 more", section(page, "needs-you"))
+        self.assertNotIn(" more", text(section(page, "needs-you")))   # only "All 5" links the rest
         self.assertIn('<a href="/goals" class="sect-link">All 5</a>', section(page, "needs-you"))
         self.assertEqual(section(page, "needs-you").count('class="needs"'), 3)
 
@@ -314,6 +314,36 @@ class TestTree(Base):
         self.assertRegex(goal_li(page, "G-1"), r'<details class="disc gnode" data-key="ov-goal-G-1">')
         self.assertIn('data-key="ov-team-G-9-t-9" open>', page)       # the team with the owner-blocked task is open too
         self.assertNotIn('data-key="ov-team-G-1-t-a" open', page)
+
+    def _calm_and_asked_teams(self):
+        """G-77 with a calm team that sorts first by id and a team t-77z holding T-772; no owner-blocked task anywhere."""
+        self.w.execute("UPDATE messages SET read_at=? WHERE read_at IS NULL", (ts(9, 0),))
+        self.w.execute("UPDATE events SET detail='checks not green' WHERE action='judge-blocked'")
+        self.w.execute("INSERT INTO goals(id,project_id,title,status,priority,created,updated) VALUES('G-77','p1','Goal 77','active',5,?,?)",
+                       (ts(8, 0), ts(9, 0)))
+        for t in ("t-77a", "t-77z"):
+            self.w.execute("INSERT INTO teams(id,goal_id,scope,lead_agent,status,created) VALUES(?,'G-77','s','l','active',?)", (t, ts(8, 0)))
+        self.add_task("T-771", "G-77", "t-77a", "calm work", "in_progress")
+        self.add_task("T-772", "G-77", "t-77z", "asked work", "in_review", pr="https://github.com/o/r/pull/9")
+
+    def _assert_asked_team_first_and_open(self):
+        d, page = self.page()
+        g = next(g for g in d["tree"] if g["id"] == "G-77")
+        self.assertEqual([t["id"] for t in g["teams"]], ["t-77z", "t-77a"])
+        self.assertIn('data-key="ov-team-G-77-t-77z" open>', page)
+        self.assertNotIn('data-key="ov-team-G-77-t-77a" open', page)
+
+    def test_team_with_merge_needs_ok_sorts_first_and_opens(self):
+        self._calm_and_asked_teams()
+        self.w.execute("INSERT INTO events(ts,actor,entity,entity_id,action,detail) VALUES(?,?,?,?,?,?)",
+                       (ts(9, 5), "judge", "task", "T-772", "judge-blocked", "auto_merge=0"))
+        self._assert_asked_team_first_and_open()
+
+    def test_team_with_task_scoped_escalation_sorts_first_and_opens(self):
+        self._calm_and_asked_teams()
+        self.w.execute("INSERT INTO messages(sender,recipient,kind,subject,body,goal_id,task_id,created) VALUES(?,?,?,?,?,?,?,?)",
+                       ("lead-a", "owner", "escalation", "decide T-772", "b", "G-77", "T-772", ts(9, 5)))
+        self._assert_asked_team_first_and_open()
 
     def test_org_switch_filters_strip_and_tree(self):
         add_org_columns(self.w)

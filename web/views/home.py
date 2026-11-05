@@ -109,7 +109,7 @@ def _task_row(t, rej):
             "waits": t["waits"]}
 
 
-def _team_node(team, tasks, agents, rej):
+def _team_node(team, tasks, agents, rej, asked=frozenset()):
     """One level-2 node. `team` is a goal_teams row or None (the goal's tasks that have no team). Level 3 holds the
     in review / blocked / in progress tasks (blocked first); `more` holds the open rest (todo). Done and cancelled
     tasks are history: they count in the goal's progress, not here."""
@@ -122,7 +122,7 @@ def _team_node(team, tasks, agents, rej):
             "running": sum(1 for a in agents if a["status"] == "live"),
             "counts": {st: len(by[st]) for st in COUNTED}, "tasks": shown,
             "more": [_task_row(t, rej) for t in by["todo"]],
-            "owner_wait": any(t["waits"] == "owner" for t in by["blocked"])}
+            "owner_wait": any(t["waits"] == "owner" for t in by["blocked"]) or any(t["id"] in asked for t in tasks)}
 
 
 def _tree(ctx, gl, needs):
@@ -134,13 +134,14 @@ def _tree(ctx, gl, needs):
     last = queries.last_activity_by_goal(ctx.db)
     rej = {b["task_id"]: b["rejections"] for b in queries.bouncing_tasks(ctx.db, limit=10 ** 9)}
     wait = needs_by_goal(needs)
+    asked = {i["ref"] for i in needs if i["ref"]}   # task ids named by a Needs-you item (merge needs OK, task-scoped escalation)
     out = []
     for g in (g for g in gl if g["status"] in OPEN_GOAL):
         grp = grouped.get(g["id"]) or {"teams": [], "loose": []}
-        nodes = [_team_node(t, t["tasks"], t["agents"], rej) for t in grp["teams"]]
+        nodes = [_team_node(t, t["tasks"], t["agents"], rej, asked) for t in grp["teams"]]
         loose = [t for t in grp["loose"] if t["status"] not in ("done", "cancelled")]
         if loose:
-            nodes.append(_team_node(None, loose, [], rej))
+            nodes.append(_team_node(None, loose, [], rej, asked))
         nodes.sort(key=lambda n: (not n["owner_wait"], n["id"] is None, n["id"] or ""))
         out.append({"id": g["id"], "title": g["title"], "status": g["status"], "priority": g["priority"], "org": g["org"],
                     "tasks_total": g["tasks_total"], "tasks_done": g["tasks_done"], "open_prs": g["open_prs"],
@@ -324,9 +325,7 @@ def _needs_section(d, now):
     items = d["needs_you"]
     if not items:
         return None
-    more = len(items) - NEEDS_MAX
     return _sect("needs-you", "Needs you", el("ul", [needs_you_row(i) for i in items[:NEEDS_MAX]], class_="lrow-list"),
-                 el("a", f"{more} more", href=_o(d, "/goals"), class_="more-link") if more > 0 else None,
                  count=len(items), more=(_o(d, "/goals"), f"All {len(items)}"))
 
 

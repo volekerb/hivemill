@@ -365,6 +365,7 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 /* disclosure: the native marker stays (design guard); the count sits beside the label */
 .disc > summary { font: 600 14px/20px var(--font); }
 .disc-n { margin-left: var(--s2); }
+.disc > summary .gm, .disc > summary .tm, .disc > summary .tscope { font-weight: 400; }
 
 /* data table: rows keep the --row height (40 px on desktop), phone rows stack */
 .dt-wrap { margin: var(--s2) 0; }
