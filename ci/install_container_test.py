@@ -231,7 +231,7 @@ def main(argv=None):
 
     # f. rerun
     db = os.path.join(home, "factory", "db", "factory.db")
-    check_rerun_refused(lambda c: as_user(c), [py, installer, "--yes", "--no-systemd"], lambda: os.stat(db).st_mtime_ns)
+    check_rerun_refused(lambda c: as_user(c), [py, installer, "--yes", "--no-systemd"] + which, lambda: os.stat(db).st_mtime_ns)
     print("ALL CHECKS PASSED (%s)" % a.mode)
     return 0
 
