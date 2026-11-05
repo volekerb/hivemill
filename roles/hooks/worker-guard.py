@@ -4936,7 +4936,8 @@ def terms_split(cmd):
 TERMS_HEREDOC = re.compile(r"<<(-?)[ \t]*(\\?)(['\"]?)([^\s;&|<>()'\"\\]+)\3")
 # T-0942: any of these anywhere in the command means gh may not be the real gh: the heredoc skip is off (fail closed)
 TERMS_GH_REDEFINED = re.compile(
-    r"(?:^|[\s;&|(){}])(?:gh\s*\(|function\b|alias\b|export\b|hash\b|source\b|eval\b|declare\b|typeset\b|PATH\+?=|\.[ \t])")
+    r"(?:^|[\s;&|(){}])(?:gh\s*\(|function\b|alias\b|export\b|hash\b|source\b|eval\b|declare\b|typeset\b|\.[ \t])")
+TERMS_GH_PATH_OR_ARITH = re.compile(r"(?<!\w)PATH(?!\w)|\$\[|\(\(")  # any mention of PATH; $[ and (( read << as a shift
 TERMS_GH_VALUE_FLAG = re.compile(r"(?:--jq|-q|--template)(?:=|[ \t]+)'")
 
 
@@ -4957,7 +4958,7 @@ def terms_gh_heredocs(cmd):
     the line, an unterminated body) is returned unchanged and stays scanned. The scan is quote- and comment-aware.
     Fail closed (attempt 2): also unchanged for a here-string (<<<), a delimiter followed by anything but whitespace or a
     separator, an ANSI-C string (dollar then single quote) on the line, and a command that can redefine gh or PATH."""
-    if "$'" in cmd or TERMS_GH_REDEFINED.search(cmd):  # ANSI-C strings quote differently: the scan below would misread them
+    if "$'" in cmd or TERMS_GH_REDEFINED.search(cmd) or TERMS_GH_PATH_OR_ARITH.search(cmd):  # ANSI-C strings quote differently: the scan below would misread them
         return cmd
     res, emit, i, n, quote, ops, line_begin = [], 0, 0, len(cmd), None, [], 0
     while i < n:

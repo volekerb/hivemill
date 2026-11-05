@@ -132,6 +132,11 @@ class TermsGhFpTests(unittest.TestCase):
         for pre in ("hash -p /tmp/x/gh gh", "source /tmp/x.sh", ". /tmp/x.sh", "eval 'gh() { bash; }'"):
             self.scanned(f"{pre}\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
 
+    def test_other_path_setters_and_arithmetic_shift_stay_scanned(self):
+        self.scanned("printf -v PATH /tmp/x\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("mapfile PATH < /dev/null\ngh pr view 1 <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("gh x $[1<<\"2\" ]\nfind / -name x\n2")
+
     def test_plain_quoted_gh_heredoc_still_allowed(self):
         self.allowed("gh pr comment 324 --body-file - <<'EOF'\nfind / -name x\nEOF")
         self.allowed("gh pr comment 324 --body-file - <<'EOF' # note\nfind / -name x\nEOF")
