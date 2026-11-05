@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -76,6 +77,13 @@ class SkillTests(unittest.TestCase):
 
     def test_forbidden_detector_rejects(self):
         self.assertEqual(forbidden_hits(self.text + "\ncurl https://x\n"), ["curl"])
+
+    def test_flags_exist_in_installer(self):
+        installer = (PLUGIN / "scripts" / "install.py").read_text()
+        flags = set(re.findall(r"`(--[a-z][a-z-]+)", self.text))
+        self.assertIn("--yes", flags)
+        for f in flags:
+            self.assertIn('"%s"' % f, installer, f)
 
     def test_thin(self):
         self.assertLessEqual(len(self.text.splitlines()), 90)
