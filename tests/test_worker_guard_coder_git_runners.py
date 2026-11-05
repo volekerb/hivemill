@@ -111,6 +111,11 @@ class CoderGitRunnerTests(unittest.TestCase):
             "echo f | xargs git submodule update", "echo f | xargs git bisect good", "echo x | xargs git status",
         ), 0)
 
+    def test_full_suite_inner_refused_plain(self):
+        """Acceptance 2a (M26057): the inner command meets the full-suite rule, so pytest -q exits 2 for coder."""
+        for c in ("git rebase -x 'pytest -q' HEAD~1", "git bisect run pytest -q"):
+            self.assertEqual(self.code(c), 2, c)
+
     def test_own_push_plain_allowed(self):
         self.assertEqual(self.code(OWN), 0)
 
