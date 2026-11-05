@@ -43,6 +43,14 @@
    "state": "off"
   },
   {
+   "key": "coder_ci_resume_max",
+   "kind": "setting",
+   "default": "2",
+   "summary": "with coder_ci_handoff on: tick starts of a handed-off coder per task on a red head, then the lead is mailed",
+   "goal": "G-018",
+   "doc": "docs/lead-wake.md"
+  },
+  {
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
