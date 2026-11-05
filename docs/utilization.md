@@ -5,7 +5,7 @@ recording only: `gate()` and `spawn()` do not read it. The code is `utilization(
 
 ## Definitions
 
-- **D1 worker**: an agent with status `live` or `starting` and role `pm`, `coder`, `qa` or `reviewer`
+- **D1 worker**: an agent with status `live` or `starting` and role `pm`, `coder`, `qa`, `reviewer` or `researcher`
   (`UTIL_WORKER_ROLES`). Leads, judges and HQ (`boss`, `director`) are counted on their own; every other role
   (cleaner, staff-engineer, scout, evaluator) counts only in the live total N.
 - **D2 line**: the exact text used by `factory res`, the web home and the reports:
@@ -15,7 +15,7 @@ recording only: `gate()` and `spawn()` do not read it. The code is `utilization(
   that is not an integer falls back to the default cap. Under target means workers < target. HQ-heavy means
   `(leads + judges) * 3 > N`.
 - **D4 starved goal**: status `planning` or `active`, priority 1 (P1) or 2 (P2), with no agent of role `pm`, `coder`,
-  `qa`, `reviewer` or `judge` on that goal in status `live`, `starting` or `queued`.
+  `qa`, `reviewer`, `researcher` or `judge` on that goal in status `live`, `starting` or `queued`.
 - **D5 demand**: a queued worker-role agent exists, or a ready task exists (status `todo`, every `depends_on` done, worker
   role, no live/starting/queued agent on it). "UNDER TARGET" is shown only with demand.
 
