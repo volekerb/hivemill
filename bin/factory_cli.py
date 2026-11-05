@@ -8652,7 +8652,8 @@ def goal_token_refusal(con, role, goal, org):
     """Why a `role` spawn for `goal` is refused at the goal's token limit, else None. Reads the goals row and the cached
     goal_token_tally row only, never a log. No limit, no tally row, an unreadable table or a non-Claude org: None (fails open,
     on purpose: no figure, no refusal; the tally can also read low, which refuses less, never more)."""
-    if role not in GOAL_TOKEN_REFUSED_ROLES or not goal or org != orgs.DEFAULT_ORG:
+    # the goal's own org decides, never the resolved spawn org: a cursor-prefixed --name must not escape a Claude goal's limit
+    if role not in GOAL_TOKEN_REFUSED_ROLES or not goal or (goal_org(con, goal) or orgs.DEFAULT_ORG) != orgs.DEFAULT_ORG:
         return None
     try:
         g = con.execute("SELECT token_limit FROM goals WHERE id=?", (goal,)).fetchone()

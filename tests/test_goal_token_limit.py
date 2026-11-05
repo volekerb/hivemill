@@ -93,6 +93,14 @@ class DirectSpawn(Base):
             with self.subTest(role=role):
                 self.assert_not_limit_refused(role, f"cursor-{role}-x")  # the name prefix carries the org
 
+    def test_cursor_prefixed_name_on_a_claude_goal_does_not_escape(self):
+        self.limit(1000)
+        self.tally(1000)
+        p = self.spawn("coder", "cursor-coder-x")
+        self.assertEqual(p.returncode, 3, f"{p.stdout}\n{p.stderr}")
+        self.assertIn("token limit", p.stderr)
+        self.assertEqual(self.agent_rows("cursor-coder-x"), [])
+
     def test_retry_of_a_task_in_progress_is_refused(self):
         self.env.sql("UPDATE tasks SET status='in_progress' WHERE id='T-0001'")
         self.limit(1000)
