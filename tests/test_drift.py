@@ -184,6 +184,44 @@ class DriftDeliveryTests(DriftBase):
         ev = self.env.sql("SELECT entity_id FROM events WHERE action='drift' ORDER BY entity_id")
         self.assertEqual([r[0] for r in ev], ["G-001", "G-002"])
 
+    def cursor_goal(self):
+        """G-002 on the cursor org: its only team has a claude lead (live, or parked); cursor-director is live."""
+        e = self.env
+        e.seed_goal("G-002")
+        e.sql("UPDATE goals SET org='cursor' WHERE id='G-002'")
+        e.seed_team("g-002-a", "G-002", lead="claude-lead-g-002-a")
+        e.seed_agent("claude-lead-g-002-a", "lead", goal="G-002", team="g-002-a")
+        e.sql("UPDATE agents SET org='claude' WHERE name='claude-lead-g-002-a'")
+        e.seed_agent("cursor-director", "director")
+        e.sql("UPDATE agents SET org='cursor' WHERE name='cursor-director'")
+        self.register("claude-lead-g-002-a", "cursor-director")
+        e.seed_task("T-0003", goal="G-002", status="blocked", pr_url=None, team="g-002-a")
+        e.sql("UPDATE tasks SET updated=? WHERE id='T-0003'", (ago(hours=40),))
+
+    def test_cursor_goal_drift_goes_to_cursor_director_not_the_claude_lead_live(self):
+        self.cursor_goal()
+        self.tick()
+        (m,) = [m for m in self.drift_msgs() if m["goal_id"] == "G-002"]
+        self.assertEqual(m["recipient"], "cursor-director")
+        self.assertEqual([dict(r) for r in self.env.sql("SELECT subject FROM messages WHERE recipient='claude-lead-g-002-a' AND subject LIKE 'drift %'")], [])
+
+    def test_cursor_goal_drift_skips_a_parked_claude_lead(self):
+        self.cursor_goal()
+        self.env.sql("UPDATE agents SET status='exited' WHERE name='claude-lead-g-002-a'")
+        self.env.sql("UPDATE teams SET parked_at=? WHERE id='g-002-a'", (ago(hours=3),))
+        self.tick()
+        (m,) = [m for m in self.drift_msgs() if m["goal_id"] == "G-002"]
+        self.assertEqual(m["recipient"], "cursor-director")
+        self.assertEqual([dict(r) for r in self.env.sql("SELECT subject FROM messages WHERE recipient='claude-lead-g-002-a' AND subject LIKE 'drift %'")], [])
+
+    def test_goal_org_lead_parked_still_gets_the_drift(self):
+        self.env.sql("UPDATE agents SET status='exited' WHERE name='zz-test-lead'")
+        self.env.sql("UPDATE teams SET parked_at=? WHERE id='g-001-a'", (ago(hours=3),))
+        self.task("T-0001", "blocked", ago(hours=30))
+        self.tick()
+        (m,) = self.drift_msgs()
+        self.assertEqual(m["recipient"], "zz-test-lead")
+
     def test_no_live_lead_goes_to_the_director(self):
         self.env.sql("UPDATE agents SET status='exited' WHERE name='zz-test-lead'")
         self.task("T-0001", "blocked", ago(hours=30))

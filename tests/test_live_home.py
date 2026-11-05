@@ -260,6 +260,7 @@ class HookTests(Tmp):
     def run_hook(self, cmd, role="coder", pw_dir=None):
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": self.tmp})
         env = {k: v for k, v in os.environ.items() if k not in ("FACTORY_HOME", "FACTORY_ROLE")}
+        env["WORKER_GUARD_SCRATCH"] = os.path.join(self.tmp, "s")  # the worker's scratchpad (hook's own test env)
         return subprocess.run([sys.executable, "-c", WRAPPER, pw_dir or self.h, HOOK, "--role", role], input=payload,
                               capture_output=True, text=True, timeout=30, env=env)
 
@@ -319,12 +320,21 @@ class HookTests(Tmp):
         for role in ("coder", "qa"):
             for cmd in (f"cat {c}/live_home", "cat ~/.config/factory/live_home", "grep . ~/.config/factory/live_home",
                         f"cd {c} && cat live_home", f"ls {c}", "echo hi > /tmp/x", "touch ~/notes.txt", "mv /tmp/a ~/a",
-                        "rm ~/old.txt", "cp ~/.config/factory/live_home /tmp/copy", "factory init",
+                        "rm ~/old.txt", "cp ~/.config/factory/live_home /tmp/copy",
+                        f"HOME={self.tmp}/s/h FACTORY_HOME={self.tmp}/s/f factory init",
                         "sed -i s/a/b/ /tmp/f", "mkdir -p ~/.config/other",
                         "echo hi > /tmp/x 2>&1", "echo hi >&2", "echo hi 2>&-", "echo hi &> /tmp/x",
                         "perl -e 'print 1'", "perl -e 'unlink q(/tmp/x)'"):
                 with self.subTest(f"{role}: {cmd}"):
                     self.allowed(cmd, role)
+
+    def test_bare_factory_init_blocked(self):
+        # T-0331 AC2: factory init needs both HOME and FACTORY_HOME in the scratchpad; bare (or one of them) is blocked
+        s = os.path.join(self.tmp, "s")
+        for role in ("coder", "qa"):
+            for cmd in ("factory init", f"FACTORY_HOME={s}/f factory init", f"HOME={s}/h factory init"):
+                with self.subTest(f"{role}: {cmd}"):
+                    self.blocked(cmd, role)
 
 
 if __name__ == "__main__":

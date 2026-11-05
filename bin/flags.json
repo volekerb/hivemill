@@ -43,6 +43,14 @@
    "state": "off"
   },
   {
+   "key": "coder_ci_resume_max",
+   "kind": "setting",
+   "default": "2",
+   "summary": "with coder_ci_handoff on: tick starts of a handed-off coder per task on a red head, then the lead is mailed",
+   "goal": "G-018",
+   "doc": "docs/lead-wake.md"
+  },
+  {
    "key": "cursor_pilot_roles",
    "kind": "flag",
    "default": "",
@@ -184,6 +192,14 @@
    "doc": ""
   },
   {
+   "key": "gh_quota_min",
+   "kind": "setting",
+   "default": "300",
+   "summary": "GraphQL points left below which optional tick probes are skipped and one alert per hour is raised; 0 = never read the quota",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md"
+  },
+  {
    "key": "gh_rw_roles",
    "kind": "setting",
    "default": "coder,judge,cleaner",
@@ -242,6 +258,23 @@
    "doc": ""
   },
   {
+   "key": "idle_coder_reap",
+   "kind": "flag",
+   "default": "off",
+   "summary": "off | dry-run | on: the tick stops a coder idle over idle_coder_reap_s with a clean tree, a pushed PR head and no mail",
+   "goal": "G-018",
+   "doc": "docs/lead-wake.md",
+   "state": "off"
+  },
+  {
+   "key": "idle_coder_reap_s",
+   "kind": "setting",
+   "default": "900",
+   "summary": "seconds a coder must be idle or done before idle_coder_reap may stop it",
+   "goal": "G-018",
+   "doc": "docs/lead-wake.md"
+  },
+  {
    "key": "issue_intake_repos",
    "kind": "flag",
    "default": "",
@@ -265,6 +298,15 @@
    "summary": "refreshes one `factory judge --merge` run does before it gives up with STALE-LOOP",
    "goal": "",
    "doc": ""
+  },
+  {
+   "key": "judge_wait_main_run",
+   "kind": "flag",
+   "default": "0",
+   "summary": "judge merges wait while the tests.yml push run for the current main head is not completed+success",
+   "goal": "G-022",
+   "doc": "docs/stale-policy.md",
+   "state": "off"
   },
   {
    "key": "lead_less_dispatch",
@@ -422,6 +464,14 @@
    "goal": "",
    "doc": "",
    "state": "shadow"
+  },
+  {
+   "key": "pr_view_ttl_s",
+   "kind": "setting",
+   "default": "120",
+   "summary": "seconds the tick's optional PR probes (CI wake, red PR alert, review autospawn) reuse one gh pr view per PR and head; 0 = off",
+   "goal": "G-022",
+   "doc": "docs/gh-quota.md"
   },
   {
    "key": "prcheck_required",

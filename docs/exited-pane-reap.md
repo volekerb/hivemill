@@ -19,8 +19,19 @@ Tick hook `reap_exited_panes`, at most every 10 minutes (`throttle` key `exitedp
   `exited-pane-close-failed` per (agent, pane) and is retried on the next run without further events.
 - `off`: skips.
 
-A pane is closed only when the host lists it under the exact name and pane id of an agents row that, re-read in the same
-tick, is `exited` for more than 10 minutes, has role coder/qa/reviewer/pm/judge/cleaner, and whose pane id no
-live/starting/queued/stopped row holds. Panes with no agents row (the owner's), boss/director/lead rows and non-exited
-rows are never touched. Tests: `tests/test_exited_pane_reap.py`. Enable with `factory config exited_pane_reap_mode on`
-after reading the would-close events.
+A pane is closed only when the host lists it under the exact name of an agents row that, re-read in the same
+tick, is `exited` for more than 10 minutes, has role coder/qa/reviewer/pm/judge/cleaner, and whose HOST pane id no
+live/starting/queued/stopped row holds. The row's own `pane_id` is not compared and never closed: it can differ from the
+host's (seen in production, T-1005: host `w7:pPQ`, row `w7:pPR`), so the pane id comes from the host listing of the
+same tick. A host pane whose `agent_session` names a session other than the row's `session_id` is skipped (it runs
+a newer agent under this name; `relaunch_agent` makes the same check). When the host reports no session (most
+workers), the pane is closed only when the host `agent_status` is `done` or `idle` (never `working`) and the host pane's
+cwd equals the row's recorded `cwd` (a ` (deleted)` suffix is ignored); anything else is kept. Other rows, old `lost`
+ones included, do not block it.
+Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and
+non-exited rows are never touched. Tests: `tests/test_exited_pane_reap.py`.
+
+Do not enable `on` yet. `factory config exited_pane_reap_mode on` is not cleared until T-1033 is done and the director
+approves. Known limit (B6): when the host reports no session, an idle pane in a worktree shared with another agent can
+be misjudged as the exited agent's pane and closed. Dry-run cannot reveal this: the `exited-pane-would-close` events
+look the same for a correct and a misjudged pane, so reading them is not enough to clear `on`.
