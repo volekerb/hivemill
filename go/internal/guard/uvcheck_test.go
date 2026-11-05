@@ -111,6 +111,29 @@ func TestWholePushAcceptsUvPrefix(t *testing.T) {
 	}
 }
 
+func TestUvRunWrapperHeredocNotForwarded(t *testing.T) {
+	body := "import subprocess; subprocess.run([\"git\",\"push\"])"
+	c := "uv run python3 <<'EOF'\n" + body + "\nEOF"
+	if msg, blocked := uvBlockMsg(t, c, "qa"); blocked {
+		t.Errorf("qa heredoc %q: blocked (%s), want allowed (Python uv_check does not forward heredoc stdin)", c, msg)
+	}
+}
+
+func TestUvRunWrapperStdinScan(t *testing.T) {
+	echoPipe := "echo 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+	prog := "'import subprocess; subprocess.run([\"git\",\"push\"])'"
+	for _, c := range []string{
+		echoPipe + " | uv run timeout 5 python3",
+		echoPipe + " | uv run env python3",
+		"uv run timeout 5 python3 <<< " + prog,
+		"uv run env python3 <<< " + prog,
+	} {
+		if _, blocked := uvBlockMsg(t, c, "qa"); !blocked {
+			t.Errorf("qa %q: allowed, want blocked", c)
+		}
+	}
+}
+
 func TestUvT0435FullSuiteThroughUv(t *testing.T) {
 	for _, role := range []string{"coder", "qa", "reviewer"} {
 		for _, c := range []string{"uv run pytest", "uvx pytest", "uvx --from x pytest", "uv tool run pytest",
