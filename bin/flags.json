@@ -466,6 +466,15 @@
    "state": "shadow"
   },
   {
+   "key": "owner_alert_feed",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = the tick records the owner needs-you list as a dark deduped feed read by factory alerts; nothing is sent",
+   "goal": "G-015",
+   "doc": "docs/boss-mail.md",
+   "state": "off"
+  },
+  {
    "key": "pr_view_ttl_s",
    "kind": "setting",
    "default": "120",
