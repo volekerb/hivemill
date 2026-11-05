@@ -163,6 +163,7 @@ DEFAULT_CONFIG = {
     "lead_less_dispatch": "0",   # 0 = off, shadow = events only, 1 = the tick spawns workers for ready tasks of parked teams (G-018 T-0467)
     "review_autospawn": "off",   # off | on: the tick starts reviewer + QA (or one combined agent for T0/T1) when a PR opens (G-022 #6, docs/review-autospawn.md)
     "coder_ci_handoff": "off",   # off | resume | fresh: coder runs factory done at PR open without waiting for CI; the tick starts review at green (T-1003, docs/prcheck.md)
+    "coder_ci_resume_max": "2",   # with coder_ci_handoff on: at most this many tick starts of a handed-off coder per task on a red head, then the lead is mailed (T-1004, docs/lead-wake.md)
     "review_reserved_slots": "2",  # with review_autospawn=on: this many of max_live_agents are kept for reviewer/qa; coder/pm/cleaner spawns cannot take them
     "dispatch_max_per_tick": "2",  # at most this many lead-less spawns per tick run
     "dispatch_max_team_workers": "2",  # no lead-less spawn while the team already has this many worker agents live/starting/queued
@@ -13243,6 +13244,11 @@ def cmd_tick(a, locked=False):
         event(con, "tick", "review-autospawn", "review-autospawn-error", str(e)[:300])
 
     try:
+        coder_ci_resume_tick(con)
+    except Exception as e:  # noqa: BLE001 — a bad PR or task row must never stop the tick
+        event(con, "tick", "coder-ci-resume", "coder-ci-resume-error", str(e)[:300])
+
+    try:
         judge_autospawn_tick(con)
     except Exception as e:  # noqa: BLE001 — autospawn must never stop the tick
         event(con, "tick", "judge-autospawn", "judge-autospawn-error", str(e)[:300])
@@ -14699,6 +14705,144 @@ def review_autospawn_tick(con):
             send(con, boss, f"review autospawn: {'combined ' if low else ''}review started on {tid}",
                  f"{t['title']}\n\nreview_autospawn=on: the tick started {' + '.join(started)} when the PR opened. "
                  "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+
+
+CODER_RESUME_MAX_STARTS = 2      # coder starts per tick
+CODER_RESUME_REFUSED_MAX = 3     # refused spawns on one head before the tick gives up and mails the lead
+CODER_RESUME_PROBE_S = 120      # a probed head that is not red is not probed again for this long
+CODER_RESUME_NO_CHECKS_S = 3600  # a head with no checks for this long is mailed to the lead, no spawn
+
+
+def _failed_runs(rollup, names):
+    """[(check name, run id or '?')] of the failed checks `names`: the run id is the one in the check's details url (/actions/runs/<id>/...)."""
+    out = []
+    for c in latest_checks(rollup):
+        n = c.get("name") or c.get("context") or "?"
+        if n in names:
+            m = re.search(r"/actions/runs/(\d+)", c.get("detailsUrl") or c.get("targetUrl") or "")
+            out.append((n, m.group(1) if m else "?"))
+    return out
+
+
+def coder_ci_resume_kickoff(sha, failed, resumed, fresh_wt, branch):
+    runs = ", ".join(f"{n} (run {r})" for n, r in failed)
+    first = next((r for _, r in failed if r != "?"), "<run id>")
+    text = (f"CI is RED on PR head {sha[:8]} of your task: failed checks: {runs}. Read the failure with `gh run view {first} --log-failed`, "
+            "fix what you caused, run `git fetch origin && git merge origin/main`, push to the existing PR (same branch, no new PR), "
+            "rerun pre-pr-check, then `factory done` again. The task stays in_review; do not bump attempts.")
+    if not resumed:
+        text += " You are a fresh session: read `factory task show` and the PR first."
+    if fresh_wt:
+        text += f" Your worktree was missing: after it is created run `git fetch origin && git reset --hard origin/{branch}` so you start from the pushed head."
+    return text
+
+
+def coder_ci_resume_tick(con):
+    """Tick step 2c': with coder_ci_handoff on (resume|fresh) an in_review task whose PR head is red and has no coder live/starting/queued gets
+    its coder started again, once per (task, head sha; throttle row `coder-resume:<task>:<sha>`). resume mode resumes the recorded session in the
+    task's worktree; a missing session or worktree, fresh mode, or a runtime that is not Claude starts a fresh session. The kickoff names the head,
+    the failed checks, their run ids and `gh run view <id> --log-failed`. At most coder_ci_resume_max starts per task (then one mail to the lead),
+    2 per tick, none while the red-main freeze says main is red or the gate is closed (retried next tick). A conflicted PR, or one with no checks for
+    over 60 min, is mailed to the lead, never spawned. Blocked and judge-held tasks are skipped (red_pr_owner_alert mails them). The task status is
+    untouched and attempts are not bumped."""
+    if not ci_handoff_on(con):
+        return
+    try:
+        clock = digest_clock().timestamp()
+    except FactoryNowError:
+        clock = time.time()
+    try:
+        cap = int(cfg(con, "coder_ci_resume_max"))
+    except (TypeError, ValueError):
+        cap = 2
+    batch, starts = [], 0
+    for t in con.execute(
+            "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' AND t.pr_url IS NOT NULL AND t.pr_url != '' "
+            "AND g.status='active' AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.task_id=t.id AND a.role='coder' "
+            "AND a.status NOT IN ('done','exited','lost','cancelled')) ORDER BY COALESCE(g.priority, 2), t.id").fetchall():
+        if starts >= CODER_RESUME_MAX_STARTS:
+            return
+        tid, team = t["id"], t["team_id"]
+        if task_judge_hold_reason(con, tid) or _review_repo_mismatch(con, t):
+            continue
+        head = _ci_remote_head(t["branch"], batch)
+        if head and _throttled(con, f"coder-resume:{tid}:{head}", clock, float("inf")):
+            continue
+        probe_key = f"coder-resume-probe:{tid}:{head or ''}"
+        if _throttled(con, probe_key, clock, CODER_RESUME_PROBE_S):
+            continue
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        if isinstance(pr, BaseException) or pr.get("state", "OPEN") != "OPEN":
+            continue  # the review tick logs dead or unreadable PRs
+        sha = pr["headRefOid"]
+        to = f"lead:{team}" if team else "director"
+        label = f"{tid} PR #{pr.get('number', '?')} @{sha[:8]}"
+        rollup = pr.get("statusCheckRollup")
+        if (pr.get("mergeStateStatus") or "").upper() == "DIRTY":
+            if not _throttled(con, f"coder-resume-dirty:{tid}:{sha}", clock, float("inf")):
+                _throttle_set(con, f"coder-resume-dirty:{tid}:{sha}", clock)
+                send(con, to, f"coder not resumed, PR conflicted: {label}",
+                     f"head {sha}: merge conflict with main (mergeStateStatus DIRTY). The tick does not start the coder for a conflict.",
+                     "report", t["goal_id"], tid, sender="tick")
+            continue
+        if not latest_checks(rollup):
+            nk = f"coder-resume-nochecks:{tid}:{sha}"
+            if not _throttled(con, nk, clock, float("inf")):
+                _throttle_set(con, nk, clock)  # first seen without checks
+            elif not _throttled(con, nk, clock, CODER_RESUME_NO_CHECKS_S) and not _throttled(con, nk + ":mail", clock, float("inf")):
+                _throttle_set(con, nk + ":mail", clock)
+                send(con, to, f"no CI checks for over 60 min: {label}",
+                     f"head {sha} has had no checks since the tick first saw it. Coder not started.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        verdict, names = ci_verdict(rollup)
+        if verdict != "red":
+            _throttle_set(con, probe_key, clock)
+            continue
+        mark = f"coder-resume:{tid}:{sha}"
+        if _throttled(con, mark, clock, float("inf")):
+            continue
+        used = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume'", (tid,)).fetchone()["c"]
+        if used >= cap:
+            _throttle_set(con, mark, clock)
+            if not _throttled(con, f"coder-resume-max:{tid}", clock, float("inf")):
+                _throttle_set(con, f"coder-resume-max:{tid}", clock)
+                send(con, to, f"coder resume limit reached: {label}",
+                     f"head {sha} is red ({', '.join(names)}) and the tick already started the coder {used} times for {tid} "
+                     f"(coder_ci_resume_max={cap}). Decide: spawn a fix coder by hand or block the task.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        slugs = [x for x in [_repo_slug(re.sub(r"/pull/\d+.*$", "", t["pr_url"] or ""))] if x]
+        if red_main_refusal(con, slugs, tid):
+            continue  # main is red in THIS task's repo: a red PR is not the PR's fault; retry when main is green. Other repos' tasks go on
+        prior = con.execute("SELECT * FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1", (tid,)).fetchone()
+        org = org_for(con, t["goal_id"], tid)
+        name = prior["name"] if prior else oname(con, org, slug(f"coder-{tid}"))
+        wt_ok = bool(t["worktree"]) and Path(t["worktree"]).exists()
+        resume = (prior["session_id"] if prior and prior["session_id"] and wt_ok and cfg(con, "coder_ci_handoff") == "resume"
+                  and org_runtime(con, "coder", org) == "claude" else None)
+        kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), bool(resume), not wt_ok, t["branch"] or f"factory/{tid.lower()}")
+        if not gate(con, role="coder")[0]:
+            return
+        try:
+            spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume)
+        except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
+            event(con, "task", tid, "coder-ci-resume-error", f"@{sha[:8]} {name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+            refused = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume-error' "
+                                  "AND detail LIKE ?", (tid, f"@{sha[:8]} %")).fetchone()["c"]
+            if refused >= CODER_RESUME_REFUSED_MAX:  # give up on this head and tell the lead once; later red tasks are not held back
+                _throttle_set(con, mark, clock)
+                if not _throttled(con, f"coder-resume-refused:{tid}", clock, float("inf")):
+                    _throttle_set(con, f"coder-resume-refused:{tid}", clock)
+                    send(con, to, f"coder restart refused: {label}",
+                         f"head {sha}: spawn of {name} was refused {refused} times (see the coder-ci-resume-error events of {tid}). "
+                         "The tick stops retrying this head. Fix the cause or start a fix coder by hand.", "report", t["goal_id"], tid, sender="tick")
+            continue
+        _throttle_set(con, mark, clock)
+        if resume:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
+            send(con, name, f"CI red: {label}", kick, "request", t["goal_id"], tid, sender="tick")
+        event(con, "task", tid, "coder-ci-resume", {"agent": name, "mode": "resume" if resume else "fresh", "head": sha[:8], "failed": names})
+        send(con, to, f"coder restarted on red CI: {label}", f"{name} started ({'resume' if resume else 'fresh'}) for failed {', '.join(names)}. "
+             "This mail does not wake you.", "fyi", t["goal_id"], tid, sender="tick")
+        starts += 1
 
 
 SPEC_FILL_ROLES = ("coder", "qa", "reviewer", "cleaner")
