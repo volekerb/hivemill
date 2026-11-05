@@ -125,7 +125,7 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 CLAIM_TTL_S = 600
 # a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
 EVALUATOR_SPAWN_RETRY_MAX = 5
-UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer")  # G-018: what counts as a working slot (docs/utilization.md)
+UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "researcher")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
 OWNER_CAP_KEYS = ("max_live_agents", "max_total_claude", "min_mem_available_mb", "max_five_hour_pct", "max_seven_day_pct",
@@ -152,6 +152,8 @@ DEFAULT_CONFIG = {
     "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
+    "goal_token_tally_s": "0",   # 0 = off; >0 = seconds between the tick's drained per-goal token tally passes, read by `factory goal tokens` (G-015 SC3, F-74)
+    "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -291,6 +293,19 @@ CREATE TABLE IF NOT EXISTS lesson_links (
 CREATE INDEX IF NOT EXISTS idx_lesson_links ON lesson_links(lesson_id);
 """
 
+OWNER_ALERT_DDL = """
+CREATE TABLE IF NOT EXISTS owner_alert_feed (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
+"""
+
+GOAL_TOKEN_DDL = """
+CREATE TABLE IF NOT EXISTS goal_token_tally (
+  goal_id TEXT PRIMARY KEY, input INTEGER NOT NULL, output INTEGER NOT NULL, cache_read INTEGER NOT NULL,
+  cache_write_5m INTEGER NOT NULL, cache_write_1h INTEGER NOT NULL, cost REAL, computed_at TEXT NOT NULL);
+"""
+
 UTIL_DDL = """
 CREATE TABLE IF NOT EXISTS util_samples (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, live INTEGER NOT NULL, workers INTEGER NOT NULL,
@@ -324,7 +339,7 @@ CREATE TABLE IF NOT EXISTS goals (
   intent TEXT, success_criteria TEXT, status TEXT NOT NULL DEFAULT 'proposed',
   priority INTEGER NOT NULL DEFAULT 2, requested_by TEXT, workspace_id TEXT,
   created TEXT NOT NULL, updated TEXT NOT NULL,
-  org TEXT NOT NULL DEFAULT 'claude');
+  org TEXT NOT NULL DEFAULT 'claude', token_limit INTEGER);
 CREATE TABLE IF NOT EXISTS plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL REFERENCES goals(id),
   version INTEGER NOT NULL, body TEXT NOT NULL, author TEXT, created TEXT NOT NULL);
@@ -351,6 +366,8 @@ CREATE TABLE IF NOT EXISTS agents (
   start_pending REAL, start_pending_info TEXT, org TEXT);
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL);
 {UTIL_DDL}
+{OWNER_ALERT_DDL}
+{GOAL_TOKEN_DDL}
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT NOT NULL, recipient TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'msg', subject TEXT NOT NULL, body TEXT, goal_id TEXT, task_id TEXT,
@@ -411,6 +428,12 @@ def migrate(con):
             con.execute("ALTER TABLE goals ADD COLUMN org TEXT NOT NULL DEFAULT 'claude'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "org" not in {r["name"] for r in con.execute("PRAGMA table_info(goals)")}:
+                raise
+    if gcols and "token_limit" not in gcols:  # G-015 SC3 F-74 L2: NULL = no limit
+        try:
+            con.execute("ALTER TABLE goals ADD COLUMN token_limit INTEGER")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "token_limit" not in {r["name"] for r in con.execute("PRAGMA table_info(goals)")}:
                 raise
     for col, ddl in (("flagless", "INTEGER NOT NULL DEFAULT 0"), ("flagless_since", "TEXT"),
                      ("stop_requested_at", "TEXT"), ("stop_attempt_at", "TEXT"), ("stop_failed_kind", "TEXT"),
@@ -485,6 +508,8 @@ def migrate(con):
                 if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
                     raise
     con.executescript(UTIL_DDL)
+    con.executescript(OWNER_ALERT_DDL)
+    con.executescript(GOAL_TOKEN_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -621,7 +646,7 @@ def require_known(a):
           or (a.cmd == "config" and a.value is None)
           or (a.cmd == "project" and a.action == "list")
           or (a.cmd == "gate" and a.action in ("show", "list"))
-          or (a.cmd == "goal" and a.action in ("list", "show"))
+          or (a.cmd == "goal" and a.action in ("list", "show", "tokens"))
           or (a.cmd == "team" and a.action == "list")
           or (a.cmd == "lesson" and a.action in ("list", "show"))
           or (a.cmd == "task" and a.action in ("list", "ready", "show"))
@@ -2275,13 +2300,25 @@ def cmd_goal(a):
               ["id", "org", "status", "priority", "project_id", "done", "total", "title"])
     elif a.action == "show":
         show_goal(con, a.id, compact=compact_view(con, a))
+    elif a.action == "tokens":
+        goal_tokens(con, a.id)
     elif a.action == "edit":
         require_role(con, "boss", "director")
+        if a.token_limit is not None and a.token_limit < 0:
+            die("--token-limit must be a positive number of tokens, or 0 to clear the limit", 2)
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
                                     ("success_criteria", read_text(a.success)),
                                     ("priority", a.priority)) if v is not None]
-        if not sets:
+        if a.token_limit:
+            sets.append(("token_limit", a.token_limit))
+        if not sets and a.token_limit is None:
             die("nothing to change")
+        if a.token_limit == 0:  # 0 clears: NULL needs its own clause
+            con.execute("UPDATE goals SET token_limit=NULL, updated=? WHERE id=?", (now(), a.id))
+            event(con, "goal", a.id, "edit", "token_limit cleared")
+            if not sets:
+                print(f"{a.id} updated")
+                return
         con.execute(f"UPDATE goals SET {', '.join(c + '=?' for c, _ in sets)}, updated=? WHERE id=?",
                     (*[v for _, v in sets], now(), a.id))
         event(con, "goal", a.id, "edit", ", ".join(c for c, _ in sets))
@@ -2444,6 +2481,10 @@ def show_goal(con, gid, compact=False):
         die(f"no goal {gid}")
     print(f"# {g['id']} — {g['title']}\nstatus={g['status']} priority={g['priority']} project={g['project_id']}"
           + (f" org={g['org']}" if "org" in g.keys() else ""))
+    if "token_limit" in g.keys() and g["token_limit"]:
+        t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (gid,)).fetchone()
+        used = f"tally {tally_tokens(t)} tokens" if t else "no tally yet"
+        print(f"token limit: {g['token_limit']} tokens ({used}; `factory goal tokens {gid}`)")
     for k in ("intent", "success_criteria"):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
@@ -11272,6 +11313,40 @@ def owner_blockers(con):
     return out
 
 
+def owner_attention(con):
+    """The one narrow "needs the owner" selector (G-015 SC3, D7): [{kind, org, ref, since, link}], never a subject, title or
+    body. Five sources: owner-waiting blocked tasks, judge auto_merge=0 holds, open "owner action" escalations and the
+    closed /tmp gate (both via owner_blockers, so the open/answered rule cannot drift), blocked goals. Other boss mail,
+    proposed goals and internal-blocked tasks are not listed. owner_blockers writes a throttle row: tick-side callers only."""
+    out = []
+
+    def row(kind, org, ref, since, link):
+        out.append({"kind": kind, "org": org, "ref": ref, "since": since, "link": link})
+
+    for t in con.execute("SELECT id, goal_id, updated FROM tasks WHERE status='blocked' AND waits='owner' ORDER BY id"):
+        ev = con.execute("SELECT ts FROM events WHERE entity='task' AND entity_id=? AND action='update' "
+                         "AND detail LIKE '%waits=owner%' ORDER BY id DESC LIMIT 1", (t["id"],)).fetchone()
+        row("task-owner-wait", org_for(con, goal=t["goal_id"]), t["id"], ev["ts"] if ev else t["updated"], f"/task/{t['id']}")
+    latest = {}
+    for e in con.execute("SELECT entity_id, ts, detail FROM events WHERE entity='task' AND action='judge-blocked' ORDER BY id"):
+        latest[e["entity_id"]] = e
+    for tid, e in latest.items():
+        t = con.execute("SELECT goal_id, status FROM tasks WHERE id=?", (tid,)).fetchone()
+        if t and t["status"] not in ("done", "cancelled") and "auto_merge=0" in (e["detail"] or ""):
+            row("judge-hold", org_for(con, goal=t["goal_id"]), tid, e["ts"], f"/task/{tid}")
+    for b in owner_blockers(con):
+        if b["key"].startswith("owner-blocker:M"):
+            mid = int(b["key"].rsplit("M", 1)[1])
+            m = con.execute("SELECT goal_id, task_id, recipient, created FROM messages WHERE id=?", (mid,)).fetchone()
+            row("escalation", org_for(con, goal=m["goal_id"], task=m["task_id"], sender=m["recipient"]), f"M{mid}",
+                m["created"], f"/goal/{m['goal_id']}" if m["goal_id"] else "/")
+        elif b["key"].startswith("owner-blocker:gate:"):
+            row("tmp-gate", "all", "tmp", b["since"], "/resources")
+    for g in con.execute("SELECT id, updated FROM goals WHERE status='blocked' ORDER BY id"):
+        row("goal-blocked", org_for(con, goal=g["id"]), g["id"], g["updated"], f"/goal/{g['id']}")
+    return out
+
+
 def owner_blocker_nudge(con, blockers):
     """The one night exception to "the tick never prompts the boss pane": prompt it once per alerted night blocker, like
     step 3 does for other agents (idle/done only, never into a running turn; retried each tick until delivered)."""
@@ -11312,6 +11387,166 @@ def owner_blocker_alerts(con):
                 event(con, "util", "-", "owner-blocker-failed", str(e))
         except Exception:  # noqa: BLE001 — not even the failure log may break the tick
             pass
+
+
+def owner_alert_feed_tick(con):
+    """Tick hook (G-015 SC3, F-50): config owner_alert_feed=1 mirrors owner_attention() into the owner_alert_feed table, one
+    open row per (kind, ref): new item -> row, still listed -> untouched, gone -> closed, back later -> a new row. Fixed fields
+    only, nothing is sent. At 0 it returns before reading anything. Never raises."""
+    try:
+        if cfg(con, "owner_alert_feed") != "1":
+            return
+        now = digest_clock().isoformat(timespec="seconds")
+        items = {(i["kind"], i["ref"]): i for i in owner_attention(con)}
+        for r in con.execute("SELECT id, kind, ref FROM owner_alert_feed WHERE closed IS NULL").fetchall():
+            if (r["kind"], r["ref"]) not in items:
+                con.execute("UPDATE owner_alert_feed SET closed=? WHERE id=?", (now, r["id"]))
+        for (kind, ref), i in items.items():
+            con.execute("INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES(?,?,?,?,?,?)",
+                        (i["org"], kind, ref, i["since"], i["link"], now))
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-alert-feed-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-alert-feed-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+TALLY_COUNTERS = ("input", "output", "cache_write_5m", "cache_write_1h")  # the tally; cache_read is printed apart
+GOAL_TOKEN_DEADLINE_S = 60  # wall-clock cap of one drain; one refresh() can overrun it, it is only checked between refreshes
+
+
+def tally_tokens(row):
+    """Tally definition (G-015 SC3, F-74; read by L2 and L3): input + output + cache_write_5m + cache_write_1h.
+    cache_read is left out: it dwarfs the rest and costs far less."""
+    return sum(row[k] for k in TALLY_COUNTERS)
+
+
+def goal_tokens(con, gid):
+    """`factory goal tokens G`: read-only, reads the goal_token_tally table only, never a log."""
+    g = con.execute("SELECT id, org FROM goals WHERE id=?", (gid,)).fetchone() or die(f"no goal {gid}")
+    if (g["org"] or orgs.DEFAULT_ORG) != "claude":
+        print(f"{gid} ({g['org']}): Cursor reports agent-hours and no tokens; there is no token tally for this goal.")
+        return
+    rows = {r["goal_id"]: r for r in con.execute("SELECT * FROM goal_token_tally")}
+    if not rows:
+        print(f"{gid}: no tally yet (set config goal_token_tally_s above 0; the tick fills the table).")
+        return
+    r = rows.get(gid)
+    stamp = max(x["computed_at"] for x in rows.values())
+    if r is None:
+        print(f"{gid}: no tokens attributed to this goal as of {stamp}.")
+    else:
+        cost_s = "n/a" if r["cost"] is None else f"${r['cost']:.2f}"
+        print(f"{gid} tally: {tally_tokens(r)} tokens (input + output + cache_write_5m + cache_write_1h)")
+        for k in TALLY_COUNTERS:
+            print(f"  {k}: {r[k]}")
+        print(f"cache_read: {r['cache_read']} (printed apart, not in the tally)")
+        print(f"cost estimate: {cost_s}")
+        print(f"computed at: {r['computed_at']}")
+    u = rows.get("unattributed")
+    if u is not None:
+        print(f"unattributed: {tally_tokens(u)} tokens (cache_read {u['cache_read']}) not counted in any goal")
+
+
+class TallyDeadline(Exception):
+    pass
+
+
+def goal_token_tally_tick(con):
+    """Tick hook (G-015 SC3, F-74): config goal_token_tally_s > 0 = seconds between passes. A pass drains one fresh TokenIndex
+    (refresh() until a refresh reads 0 bytes, so no file is left half read), computes by_goal like web/tokens.py
+    attribute + rollup, and replaces the goal_token_tally rows in one transaction. Past the deadline nothing is stored: a
+    partial figure would be an undercount and let a limit be missed. The attempt time is stored when a pass starts, success
+    or not, so a failing pass is not retried every tick. Runs under the tick lock. Never raises."""
+    try:
+        try:
+            every = int(cfg(con, "goal_token_tally_s"))
+        except ValueError:
+            return
+        if every <= 0:
+            return
+        if _util_throttled(con, "goal-token-tally-attempt", every, digest_clock().timestamp()):
+            return
+        from web import tokens  # noqa: PLC0415 — web/ lives at the repo root, like scout/
+        idx = tokens.TokenIndex()
+        deadline = time.monotonic() + GOAL_TOKEN_DEADLINE_S
+        while True:
+            idx.refresh()
+            snap = idx.snapshot()
+            if snap["bytes_read"] == 0:
+                break
+            if time.monotonic() >= deadline:
+                raise TallyDeadline(f"drain not finished in {GOAL_TOKEN_DEADLINE_S}s; table left as it was")
+        by_goal = tokens.rollup(snap, tokens.attribute(snap, con))["by_goal"]
+        by_goal.setdefault("unattributed", {k: 0 for k in tokens.COUNTERS} | {"cost": 0.0})
+        at = digest_clock().isoformat(timespec="seconds")
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            con.execute("DELETE FROM goal_token_tally")
+            for gid, e in by_goal.items():
+                con.execute("INSERT INTO goal_token_tally(goal_id,input,output,cache_read,cache_write_5m,cache_write_1h,cost,computed_at)"
+                            " VALUES(?,?,?,?,?,?,?,?)",
+                            (gid, e["input"], e["output"], e["cache_read"], e["cache_write_5m"], e["cache_write_1h"], e["cost"], at))
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
+    except Exception as e:  # noqa: BLE001 — a tally must never break the tick
+        try:
+            if not _util_throttled(con, "goal-token-tally-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "goal-token-tally-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+GOAL_TOKEN_WARN_PCT = 80
+
+
+def goal_token_warn_tick(con):
+    """Tick hook right after the tally (G-015 SC3, F-74 L2): a Claude-org goal with token_limit whose cached tally reached 80%
+    of it gets one alert to its lead and one to its org's director (one, when the goal has no lead of its own). Once per
+    goal and limit: throttle key goal-token-warn:<goal>:<limit>, so a new limit arms it again. The text names goal, tally,
+    limit and percent only. Refuses nothing. Never raises."""
+    try:
+        rows = con.execute("SELECT g.id, g.token_limit FROM goals g WHERE g.token_limit IS NOT NULL AND g.token_limit > 0 "
+                           "AND g.org='claude' AND g.status NOT IN ('done','closed','cancelled') ORDER BY g.id").fetchall()
+        for g in rows:
+            gid, limit = g["id"], g["token_limit"]
+            t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (gid,)).fetchone()
+            if t is None or tally_tokens(t) * 100 < GOAL_TOKEN_WARN_PCT * limit:
+                continue
+            key = f"goal-token-warn:{gid}:{limit}"
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            used = tally_tokens(t)
+            pct = used * 100 // limit
+            team = con.execute("SELECT lead_agent FROM teams WHERE goal_id=? AND lead_agent IS NOT NULL AND status='active' "
+                               "ORDER BY id LIMIT 1", (gid,)).fetchone()
+            to = goal_alert_to(con, gid, lead=team["lead_agent"] if team else None)
+            subject = f"token limit 80% reached: {gid}"
+            body = f"{gid}: tally {used} tokens of limit {limit} ({pct}%). Nothing is refused."
+            for rcpt in dict.fromkeys([to, "director"]):
+                send(con, rcpt, subject, body, kind="alert", goal=gid, sender="tick")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                        (key, str(digest_clock().timestamp())))  # after the sends: a failed send is retried, not lost
+    except Exception as e:  # noqa: BLE001 — a warning must never break the tick
+        try:
+            if not _util_throttled(con, "goal-token-warn-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "goal-token-warn-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+def cmd_alerts(a):
+    """Read-only: the open rows of the dark needs-you feed, newest first. Reads the table only (no owner_attention, no writes)."""
+    con = db()
+    rows = [{k: r[k] for k in ("id", "org", "kind", "ref", "since", "link")} for r in con.execute(
+        "SELECT id, org, kind, ref, since, link FROM owner_alert_feed WHERE closed IS NULL ORDER BY id DESC")]
+    if a.json:
+        print(json.dumps(rows, indent=1))
+        return
+    table(rows, ["id", "org", "kind", "ref", "since", "link"])
 
 
 # ───────────────────────────── local merge gate (T-0515) ─────────────────────────────
@@ -13367,6 +13602,9 @@ def cmd_tick(a, locked=False):
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
+    owner_alert_feed_tick(con)
+    goal_token_tally_tick(con)
+    goal_token_warn_tick(con)
     _pt_lap("util")
     _pt_emit(con)
 
@@ -16171,7 +16409,7 @@ def main():
     x.add_argument("--gate-count-cmd", default=None, help="prints the test count of a tree (director only)")
     x.add_argument("--gate-timeout-s", type=int, default=None); x.set_defaults(fn=cmd_project)
 
-    x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close", "org"])
+    x = sp.add_parser("goal"); x.add_argument("action", choices=["new", "list", "show", "edit", "status", "audit", "signoff", "close", "org", "tokens"])
     x.add_argument("--org", help="goal new: the owning org (default: your own org); goal list: filter")
     x.add_argument("id", nargs="?"); x.add_argument("status", nargs="?")
     x.add_argument("--ready", action="store_true"); x.add_argument("--gaps", action="store_true")
@@ -16179,6 +16417,7 @@ def main():
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
+    x.add_argument("--token-limit", type=int, help="goal edit: token limit for the goal (director/boss/owner); 0 clears it")
     x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_goal)
 
     x = sp.add_parser("plan", help="store a new plan version: factory plan G-001 - <<'EOF' ... EOF")
@@ -16321,6 +16560,8 @@ def main():
     x.add_argument("--no-cache", action="store_true", help="run: do not reuse a pass row of the same (project, head, main)")
     x.add_argument("--run-id", type=int, help=argparse.SUPPRESS)  # the tick launching an enqueued row
     x.set_defaults(fn=cmd_gate)
+    x = sp.add_parser("alerts", help="the dark needs-you feed: open rows, newest first (read-only; reaches nobody)")
+    x.add_argument("--json", action="store_true"); x.set_defaults(fn=cmd_alerts)
     sp.add_parser("res", help="resources and spawn-gate state").set_defaults(fn=cmd_res)
     x = sp.add_parser("serve", help="read-only web UI on the LAN (no writes, no auth)")
     x.add_argument("--bind"); x.add_argument("--port", type=int)

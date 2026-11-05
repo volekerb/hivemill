@@ -7,3 +7,7 @@ The owner types in the boss pane, so the tick **never** calls `herdr agent promp
 
 Director and leads keep the `📬` nudges. An existing boss needs `factory relaunch boss` to pick up the new settings (the director coordinates that after the merge).
 
+
+## Needs-you feed (dark)
+
+With config `owner_alert_feed=1` the tick records `owner_attention()` as a deduped feed (table `owner_alert_feed`, one open row per kind + ref, fixed fields only: id, org, kind, ref, since, link; never a subject or body). `factory alerts [--json]` lists the open rows read-only. The feed reaches nobody yet: it sends no message, prompt or network call. Default is off.

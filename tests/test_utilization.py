@@ -83,6 +83,23 @@ class UtilCase(Base):
         self.assertEqual(u["p2_starved"], ["G-D"])
         self.assertEqual((u["workers"], u["leads"], u["judges"], u["hq"], u["other"], u["live"]), (7, 4, 3, 2, 1, 17))
 
+    def test_researcher_counts_as_worker_and_staffs_goal(self):
+        e = self.env
+        e.sql("INSERT OR REPLACE INTO config(key,value) VALUES('max_live_agents','22')")
+        e.seed_goal("G-R")
+        e.sql("UPDATE goals SET priority=1 WHERE id='G-R'")
+        e.seed_agent("researcher-1", "researcher", goal="G-R", status="live")
+        u = self.mod_util()
+        self.assertEqual(u["workers"], 1)
+        self.assertEqual(u["p1_starved"], [])
+        self.assertIn("workers 1 /", u["line"])
+        self.assertTrue(u["line"].endswith("P1 goals without workers: none"))
+        self.assertEqual(u["target"], 10)
+
+    def mod_util(self):
+        con = self.load()
+        return self.mod.utilization(con)
+
     def test_cap_variants(self):
         con = self.load()
         con.execute("INSERT OR REPLACE INTO config(key,value) VALUES('max_live_agents','6')")

@@ -234,6 +234,14 @@
    "promoted_in": "baseline"
   },
   {
+   "key": "goal_token_tally_s",
+   "kind": "setting",
+   "default": "0",
+   "summary": "seconds between the tick's per-goal token tally passes read by factory goal tokens; 0 = off",
+   "goal": "G-015",
+   "doc": "docs/goal-lifecycle.md"
+  },
+  {
    "key": "guard_impl",
    "kind": "setting",
    "default": "python",
@@ -464,6 +472,15 @@
    "goal": "",
    "doc": "",
    "state": "shadow"
+  },
+  {
+   "key": "owner_alert_feed",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 = the tick records the owner needs-you list as a dark deduped feed read by factory alerts; nothing is sent",
+   "goal": "G-015",
+   "doc": "docs/boss-mail.md",
+   "state": "off"
   },
   {
    "key": "pr_view_ttl_s",
