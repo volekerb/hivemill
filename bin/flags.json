@@ -234,6 +234,14 @@
    "promoted_in": "baseline"
   },
   {
+   "key": "goal_token_tally_s",
+   "kind": "setting",
+   "default": "0",
+   "summary": "seconds between the tick's per-goal token tally passes read by factory goal tokens; 0 = off",
+   "goal": "G-015",
+   "doc": "docs/goal-lifecycle.md"
+  },
+  {
    "key": "guard_impl",
    "kind": "setting",
    "default": "python",
