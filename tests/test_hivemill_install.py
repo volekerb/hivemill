@@ -371,6 +371,26 @@ class TestFailureModes(Base):
         ok = handler.redirect_request(req, None, 302, "Found", {}, "https://downloads.claude.ai/install.sh")
         self.assertEqual(ok.full_url, "https://downloads.claude.ai/install.sh")
 
+    def test_download_builds_opener_with_https_only_redirect(self):
+        """Wiring: Host.download must hand HttpsOnlyRedirect to build_opener (no network at all)."""
+        import urllib.error
+        import urllib.request
+        seen = []
+
+        class Boom:
+            def open(self, req, timeout=None):
+                raise urllib.error.URLError("stop here")
+
+        def fake_build(*handlers):
+            seen.extend(handlers)
+            return Boom()
+
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(urllib.request, "build_opener", fake_build):
+                with self.assertRaises(ins.StepFail):
+                    ins.Host(td, {}).download("https://example.invalid/x", os.path.join(td, "x"))
+        self.assertTrue([h for h in seen if h is ins.HttpsOnlyRedirect or isinstance(h, ins.HttpsOnlyRedirect)], seen)
+
     def test_missing_git_real_host_exit_3(self):
         """The real Host (no fake answering git): an empty PATH makes git unrunnable."""
         with tempfile.TemporaryDirectory() as td:
@@ -667,7 +687,19 @@ class TestDownloadGuard(Base):
         self.assertIn(hashlib.sha256(payload).hexdigest(), out)
         run = [a for a in h.argvs() if a.startswith("bash ") and "claude-install.sh" in a]
         self.assertEqual(len(run), 1)
-        self.assertFalse([a for a in h.argvs() if "|" in a or "curl" in a])
+        # the command word, not the whole line: the random tmpdir in the path may itself contain "curl"
+        self.assertFalse([a for a in h.argvs() if "|" in a or a.split()[0] == "curl"])
+
+    def test_claude_installer_test_independent_of_tmpdir_name(self):
+        payload = b"#!/bin/sh\necho hi\n"
+        h = self.host(tools=("git", "herdr", "gh"), assets={ins.CLAUDE_INSTALLER_URL: payload})
+        h.mkdtemp = lambda: tempfile.mkdtemp(prefix="curl-")  # worst case name: holds the string curl
+        rc, out, _ = self.run_main(h, "--yes", "--no-systemd")
+        self.assertEqual(rc, 0, out)
+        run = [a for a in h.argvs() if a.startswith("bash ") and "claude-install.sh" in a]
+        self.assertEqual(len(run), 1)
+        self.assertIn("curl-", run[0])
+        self.assertFalse([a for a in h.argvs() if "|" in a or a.split()[0] == "curl"])
 
     def test_non_https_download_refused(self):
         with self.assertRaises(ins.StepFail):
