@@ -15,6 +15,44 @@ TASK = "t-0908"
 P = "git push origin main"
 OWN = f"git push origin HEAD:factory/{TASK}"
 
+REFUSED = (
+    f"git submodule foreach '{P}'", f"git submodule --quiet foreach '{P}'",
+    f"git submodule foreach --recursive '{P}'", f"git submodule foreach 'echo a && {P}'",
+    f"git submodule foreach '{OWN}'", f"git submodule foreach -- '{P}'", f"git submodule foreach --recursive -- '{P}'",
+    f"git bisect run -- {P}",
+    f"git rebase -x '{P}' HEAD~1", f"git rebase -x'{P}' HEAD~1", f"git rebase -ix '{P}' HEAD~1",
+    f"git rebase -i -x '{P}' HEAD~1", f"git rebase --exec '{P}' HEAD~1", f"git rebase --exec='{P}' HEAD~1",
+    f"git rebase --exe='{P}' HEAD~1", f"git rebase --exec 'echo a; {P}' HEAD~1",
+    f"git rebase -x 'git status' -x '{P}' HEAD~1", f"git rebase -ix'{P}' HEAD~1",
+    f"git bisect run {P}", f"git bisect run bash -c '{P}'",
+    f"git difftool -x '{P}'", f"git difftool -x'{P}'", f"git difftool -yx '{P}'",
+    f"git difftool --extcmd='{P}'", f"git difftool --extcmd '{P}'", f"git difftool --ext='{P}'",
+    f"git -C . submodule foreach '{P}'", f"git -c core.quotepath=off rebase -x '{P}' HEAD~1",
+    f"echo foreach '{P}' | xargs git submodule", f"echo '{P}' | xargs git submodule foreach",
+    f"echo -x '{P}' | xargs git rebase", f"echo run {P} | xargs git bisect",
+    f"echo -x '{P}' | xargs git difftool",
+    )
+
+DYNAMIC_REFUSED = (
+    'git submodule foreach "$X"', 'git rebase -x "$X" HEAD~1', 'git bisect run "$X"', 'git difftool -x "$X"',
+    "git submodule $S", "git bisect $S", "git submodule foreach", "git rebase -x", "git bisect run",
+    "git difftool -x", "git rebase --exec",
+    )
+
+CONTROLS = (
+    "git submodule foreach 'git status'", "git submodule foreach ./x.sh", "git rebase -x 'pytest tests/test_x.py' HEAD~1",
+    "git rebase -x ./x.sh HEAD~1", "git rebase -Xours origin/main", "git rebase origin/main",
+    "git rebase -sx origin/main", "git rebase -C4 origin/main",
+    "git submodule update --init", "git bisect start", "git bisect run pytest tests/test_x.py", "git bisect run ./x.sh",
+    "git difftool --stat", "git difftool --tool=vimdiff", "git difftool -x ./x.sh", "git difftool -tx",
+    "echo f | xargs git submodule update", "echo f | xargs git bisect good", "echo x | xargs git status",
+    )
+
+# Exit codes of the origin/main hook, measured through hook_run on a tree copy: one code per role on every command above.
+OTHER_ROLES = {"judge": 0, "cleaner": 0, "qa": 2, "reviewer": 2, "pm": 2, "hq": 0}
+
+FULL_SUITE_INNER = ("git rebase -x 'pytest -q' HEAD~1", "git bisect run pytest -q")
+
 
 def wrappers(cmd):
     return (cmd, f"cd . && {cmd}", f"bash -c {shlex.quote(cmd)}", f"zsh -c {shlex.quote(cmd)}")
@@ -69,59 +107,28 @@ class CoderGitRunnerTests(unittest.TestCase):
                 self.assertEqual(self.code(w), want, w)
 
     def test_runners_refused(self):
-        self.assert_all((
-            f"git submodule foreach '{P}'", f"git submodule --quiet foreach '{P}'",
-            f"git submodule foreach --recursive '{P}'", f"git submodule foreach 'echo a && {P}'",
-            f"git submodule foreach '{OWN}'", f"git submodule foreach -- '{P}'", f"git submodule foreach --recursive -- '{P}'",
-            f"git bisect run -- {P}",
-            f"git rebase -x '{P}' HEAD~1", f"git rebase -x'{P}' HEAD~1", f"git rebase -ix '{P}' HEAD~1",
-            f"git rebase -i -x '{P}' HEAD~1", f"git rebase --exec '{P}' HEAD~1", f"git rebase --exec='{P}' HEAD~1",
-            f"git rebase --exe='{P}' HEAD~1", f"git rebase --exec 'echo a; {P}' HEAD~1",
-            f"git rebase -x 'git status' -x '{P}' HEAD~1", f"git rebase -ix'{P}' HEAD~1",
-            f"git bisect run {P}", f"git bisect run bash -c '{P}'",
-            f"git difftool -x '{P}'", f"git difftool -x'{P}'", f"git difftool -yx '{P}'",
-            f"git difftool --extcmd='{P}'", f"git difftool --extcmd '{P}'", f"git difftool --ext='{P}'",
-            f"git -C . submodule foreach '{P}'", f"git -c core.quotepath=off rebase -x '{P}' HEAD~1",
-            f"echo foreach '{P}' | xargs git submodule", f"echo '{P}' | xargs git submodule foreach",
-            f"echo -x '{P}' | xargs git rebase", f"echo run {P} | xargs git bisect",
-            f"echo -x '{P}' | xargs git difftool",
-        ), 2)
+        self.assert_all(REFUSED, 2)
 
     def test_dynamic_or_missing_inner_refused(self):
-        self.assert_all((
-            'git submodule foreach "$X"', 'git rebase -x "$X" HEAD~1', 'git bisect run "$X"', 'git difftool -x "$X"',
-            "git submodule $S", "git bisect $S", "git submodule foreach", "git rebase -x", "git bisect run",
-            "git difftool -x", "git rebase --exec",
-        ), 2)
+        self.assert_all(DYNAMIC_REFUSED, 2)
 
     def test_controls_allowed(self):
-        self.assert_all((
-            "git submodule foreach 'git status'", "git submodule foreach ./x.sh", "git rebase -x 'pytest tests/test_x.py' HEAD~1",
-            "git rebase -x ./x.sh HEAD~1", "git rebase -Xours origin/main", "git rebase origin/main",
-            "git rebase -sx origin/main", "git rebase -C4 origin/main",
-            "git submodule update --init", "git bisect start", "git bisect run pytest tests/test_x.py", "git bisect run ./x.sh",
-            "git difftool --stat", "git difftool --tool=vimdiff", "git difftool -x ./x.sh", "git difftool -tx",
-            "echo f | xargs git submodule update", "echo f | xargs git bisect good", "echo x | xargs git status",
-        ), 0)
+        self.assert_all(CONTROLS, 0)
 
     def test_full_suite_inner_refused_plain(self):
         """Acceptance 2a (M26057): the inner command meets the full-suite rule, so pytest -q exits 2 for coder."""
-        for c in ("git rebase -x 'pytest -q' HEAD~1", "git bisect run pytest -q"):
+        for c in FULL_SUITE_INNER:
             self.assertEqual(self.code(c), 2, c)
 
     def test_own_push_plain_allowed(self):
         self.assertEqual(self.code(OWN), 0)
 
     def test_other_roles_unchanged(self):
-        """Exit codes measured on origin/main 1df5ae252: runners judge 0, cleaner 0, qa 2, pm 2, hq 0."""
-        runners = (f"git submodule foreach '{P}'", f"git rebase -x '{P}' HEAD~1", f"git bisect run {P}",
-                   f"git difftool -x '{P}'")
-        for c in runners:
-            for role, want in (("judge", 0), ("cleaner", 0), ("qa", 2), ("pm", 2)):
-                self.assertEqual(self.code(c, role=role), want, f"{role}: {c}")
-            self.assertEqual(self.code(c, role="boss", hq=True), 0, f"hq: {c}")
-        for role, want in (("judge", 0), ("cleaner", 0), ("qa", 2), ("pm", 2)):
-            self.assertEqual(self.code("git rebase -Xours origin/main", role=role), want, role)
+        """Acceptance 3: every acceptance 1 and 2 command, plain form, keeps the exit code the origin/main hook gives."""
+        for c in REFUSED + DYNAMIC_REFUSED + CONTROLS + FULL_SUITE_INNER:
+            for role in ("judge", "cleaner", "qa", "reviewer", "pm"):
+                self.assertEqual(self.code(c, role=role), OTHER_ROLES[role], f"{role}: {c}")
+            self.assertEqual(self.code(c, role="boss", hq=True), OTHER_ROLES["hq"], f"hq: {c}")
 
 
 if __name__ == "__main__":
