@@ -266,6 +266,15 @@ class TestTaskCost(DetailCase):
         self.assertIn("Cursor", line)
         self.assertNotRegex(line, r"\$\d")
 
+    def test_large_snapshot_keeps_the_task_page_under_one_second(self):
+        self.seed([self.row("sess-80", "claude-opus-5-5")] + [self.row(f"s{i}", "claude-opus-5-5") for i in range(3000)])
+        runs = []
+        for _ in range(3):
+            t = time.perf_counter()
+            self.assertIn("Cost: $4.00", self.cost_line())
+            runs.append(time.perf_counter() - t)
+        self.assertLess(statistics.median(runs), 1.0)
+
 
 class TestSpeed(DetailCase):
     def test_median_render_under_200ms(self):
