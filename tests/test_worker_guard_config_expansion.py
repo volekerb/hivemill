@@ -24,10 +24,10 @@ REFUSED = [
     "git config --global $X", "git config --get $X --global", "git config --file $X", "git config -f $X --get a.b",
     "git -C . config $X", "git -c a.b=c config $X", "git --no-pager config $X",
     "git config $(echo --global alias.x push)", "git config --file $(echo .git/config alias.x push)",
-    "git -c alias.a='config $X' a",
 ]
+ALIAS_FORM = "git -c alias.a='config $X' a"  # exits 2 with the older public-text refusal, not the T-1063 text
 # quoted literals and regexps with a brace or a non-final dollar are refused too (fail-closed)
-TIGHTENED_EXTRA = ["git config '$X'", "git config --get-regexp 'a{1}'", "git config --get-regexp 'a$b'", "git config al* --get k"]
+TIGHTENED_EXTRA = ["git config '$X'", "git config --get-regexp 'a{1}'", "git config --get-regexp 'a$b'"]
 READS = [
     "--get alias.x", "--get user.name", "--list", "get alias.x", "user.name", "--get alias.x --show-origin",
     "--type bool --get core.bare", "--file f --get a.b", r"--get-regexp '^remote\..*\.url$'", "--get-regexp 'alias.*'",
@@ -78,6 +78,34 @@ class ConfigExpansionTests(unittest.TestCase):
     def test_expansion_forms_refused_for_writers(self):
         self.check(REFUSED, 2)
 
+    def test_alias_form_refused(self):
+        self.check([ALIAS_FORM], 2, text=False)
+
+    def test_stderr_invariant_main_refused_forms_keep_main_text(self):
+        # forms main already refuses must not carry the T-1063 text (keeps Go and Python stderr equal)
+        for c in ("git config --file=$HOME/.config/git/config a.b c", "git config $K push"):
+            with self.subTest(cmd=c):
+                p = self.run_hook(c, "coder")
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertNotIn("T-1063", p.stderr)
+
+    def test_scratch_write_with_expansion_token_refused(self):
+        scratch = os.path.join(self.tmp, "scratch")
+        os.makedirs(scratch)
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home,
+                   WORKER_GUARD_SCRATCH=scratch, FACTORY_AGENT=f"coder-{TASK}")
+
+        def run(c):
+            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": c}, "cwd": self.wt})
+            return hook_run(payload, ["--role", "coder"], env=env)
+        ok = run(f"git config --file {scratch}/f a.b c")
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        for c in (f"git config --file {scratch}/f a.b $V", f"git config --file {scratch}/f $(echo --file .git/config) a.b c"):
+            with self.subTest(cmd=c):
+                p = run(c)
+                self.assertEqual(p.returncode, 2, p.stderr)
+
     def test_tightened_extra_forms_refused(self):
         self.check(TIGHTENED_EXTRA, 2)
 
@@ -85,7 +113,8 @@ class ConfigExpansionTests(unittest.TestCase):
         self.check(["git config " + r for r in READS], 0)
 
     def test_glob_position(self):
-        self.check(["git config al*", "git config al* --get k"], 2)
+        self.check(["git config al*"], 2)
+        self.check(["git config al* --get k"], 2, text=False)  # main already refuses it: main stderr kept
         self.check(["git config --get al*"], 0)
 
     def test_other_roles_still_refuse(self):

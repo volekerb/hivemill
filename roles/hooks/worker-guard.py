@@ -2613,6 +2613,8 @@ class Analyzer:
     def config_expansion_refuse(self, toks):
         """T-1063: a raw `git config` token built by an expansion (dollar forms, backtick, brace list, or a glob before
         any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
+        if self.hq:
+            return
         read = False
         for n, t in enumerate(toks):
             if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
@@ -2663,8 +2665,6 @@ class Analyzer:
         if i >= len(rest) or rest[i] != "config":
             return
         args, scope, files, k = [], None, [], i + 1
-        if not self.hq:
-            self.config_expansion_refuse(rest[k:])
         rest = rest[:]
         # T-1064 v3: git's legacy form (bare key, no action flag, no leading subcommand word) takes every token after the
         # key as the VALUE, so scope/file options are only stripped while they are real options; a value option's value
@@ -2711,7 +2711,9 @@ class Analyzer:
                 first = a
                 if not action and a not in ("set", "unset", "edit", "rename-section", "remove-section", "get", "list"):
                     stripping = False
+        raw = rest[i + 1:]
         if not self.config_args_write(args):
+            self.config_expansion_refuse(raw)
             return
         if scope:
             raise Block(f"`git config {scope}` write: {PERSIST_WHY}")
@@ -2727,6 +2729,7 @@ class Analyzer:
         finally:
             self.ccwd = saved
         self.repo_cfg_refuse("git config", cwd, git_dir, work_tree, files)
+        self.config_expansion_refuse(raw)
 
     def repo_cfg_refuse(self, what, cwd, git_dir, work_tree, files):
         """T-0226: a repo-config write (git config, git remote add/...) is allowed only with --file inside the worker's own
