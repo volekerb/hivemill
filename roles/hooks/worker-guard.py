@@ -2647,6 +2647,9 @@ class Analyzer:
             raise Block("git config: a value option has no value, so zsh may have expanded a glob away from it and "
                         "the command could be a write; write the arguments literally (T-1063, T-1097)")
         if (not unsure and key is None) or (key is not None and re.search(r"[()|<>^~#]", key)):
+            scope = next((t for t in toks if t in ("--global", "--system")), None)
+            if scope:  # same refusal as the write path (and the Go mirror) gives a scoped write
+                raise Block(f"`git config {scope}` write: {PERSIST_WHY}")
             raise Block("git config: no read action flag is proven and no literal key is given (a zsh glob such as "
                         "(a|b), <->, ^z, a~b or al# expands into more arguments, or the key is missing), so it could "
                         "be a write; write the arguments literally (T-1063, T-1097)")
