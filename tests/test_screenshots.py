@@ -711,6 +711,87 @@ class TestFullRun(ScreenshotsBase):
         self.assert_clean()
 
 
+class TestEvidence(ScreenshotsBase):
+    """--evidence through main(): the real seed, server and scrub, the browser stub."""
+
+    def test_writes_every_page_theme_and_device_at_1x_and_no_hero(self):
+        self.use_zip()
+        out = self.images / "before"
+        code, o, e = self.run_main("--evidence", "--out", str(out))
+        self.assertEqual(code, 0, o + e)
+        want = sorted("%s-%s-%s.png" % (p, t, d) for p in screenshots.EVIDENCE_PAGES for t in ("light", "dark")
+                      for d in ("desktop", "phone"))
+        self.assertEqual(len(want), 44)
+        self.assertEqual(sorted(p.name for p in out.iterdir()), want)
+        self.assertFalse((out / "hero.png").exists() or (out / "social-preview.png").exists())
+        self.assertFalse((self.images / "hero.png").exists())
+        for p in out.iterdir():
+            self.assertEqual(struct.unpack(">I", p.read_bytes()[16:20])[0], 390 if p.name.endswith("-phone.png") else 1280, p.name)
+        self.assertIn("scrub task: exit 0", o)
+        self.assertIn("scrub changelog: exit 0", o)
+        self.assert_clean()
+
+    def test_pages_subset_and_unknown_page_exit_2(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "task,tokens")
+        self.assertEqual(code, 0, o + e)
+        self.assertEqual(sorted(p.name for p in (self.images / "x").iterdir()),
+                         ["task-dark-desktop.png", "task-dark-phone.png", "task-light-desktop.png",
+                          "task-light-phone.png", "tokens-dark-desktop.png", "tokens-dark-phone.png",
+                          "tokens-light-desktop.png", "tokens-light-phone.png"])
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "nope")
+        self.assertEqual(code, 2, o + e)
+
+    def test_out_docs_images_itself_is_refused(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images))
+        self.assertEqual(code, 3, o + e)
+        self.assertIn("not %s itself" % self.images.resolve(), e)
+        self.assertFalse(self.images.exists())
+
+    def test_out_outside_docs_images_is_refused_in_evidence_mode(self):
+        code, o, e = self.run_main("--evidence", "--out", str(self.dir / "elsewhere"))
+        self.assertEqual(code, 3, o + e)
+        self.assertIn("outside", e)
+
+    def test_task_page_is_not_available_without_evidence(self):
+        code, o, e = self.run_main("--out", str(self.images), "--pages", "task")
+        self.assertEqual(code, 2, o + e)
+
+    def test_pages_constant_unchanged_and_evidence_adds_four(self):
+        self.assertEqual(list(screenshots.PAGES), ["home", "goals", "goal", "tasks", "agents", "throughput", "quality"])
+        self.assertEqual(list(screenshots.EVIDENCE_EXTRA), ["task", "tokens", "resources", "changelog"])
+        self.assertEqual(len(screenshots.EVIDENCE_PAGES), 11)
+        self.assertEqual(screenshots.DEVICES, {"desktop": 1280, "phone": 390})
+
+    def test_phone_capture_uses_a_390_px_window_and_desktop_1280(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "home")
+        self.assertEqual(code, 0, o + e)
+        sizes = {re.search(r"--window-size=(\d+),", " ".join(c)).group(1) for c, _env in self.spawned if "--screenshot" in " ".join(c)}
+        self.assertEqual(sizes, {"390", "1280"})
+
+    def test_phone_tabbar_height_matches_app_css(self):
+        css = (ROOT / "web" / "static" / "app.css").read_text()
+        self.assertIn("--tabbar: %dpx" % screenshots.PHONE_TABBAR_CSS, css)
+
+    def test_phone_images_are_cropped_and_end_with_the_tab_bar_rows(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "home")
+        self.assertEqual(code, 0, o + e)
+        def height(name):
+            return struct.unpack(">I", (self.images / "x" / name).read_bytes()[20:24])[0]
+        # the stub draws content in the top 70% of the window and flat background below: the phone image is cropped
+        # (shorter than the window), and holds the 56 px bar rows
+        self.assertLess(height("home-light-phone.png"), int(250 * screenshots.PHONE_HMAX_MULT))
+        # at least the minimum cropped height (MIN_HEIGHT_CSS, patched to 100 in setUp) plus the appended bar rows
+        bar = screenshots.PHONE_TABBAR_CSS + screenshots.PHONE_TABBAR_SHADOW_CSS
+        self.assertGreaterEqual(height("home-light-phone.png"), 100 + bar)
+
+    def test_size_caps_are_unchanged(self):
+        self.assertEqual((screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES), (716800, 8388608))
+
+
 class TestFontPreflight(ScreenshotsBase):
     """check_fonts runs right after the checkout/--out refusals: exit 3 before any download, nothing written."""
 
