@@ -86,7 +86,7 @@ def snapshot(path):
 
 def fenced_env(tmp):
     env = {k: v for k, v in os.environ.items() if k != "GIT_DIR" and not k.startswith("GIT_CONFIG")}
-    env.update(HOME=tmp, GIT_CEILING_DIRECTORIES=tmp, GIT_CONFIG_NOSYSTEM="1", LC_ALL="C")
+    env.update(HOME=tmp, XDG_CONFIG_HOME=os.path.join(tmp, "xdg"), GIT_CEILING_DIRECTORIES=tmp, GIT_CONFIG_NOSYSTEM="1", LC_ALL="C")
     return env
 
 
@@ -141,6 +141,7 @@ class ConfigOracleTests(unittest.TestCase):
             os.makedirs(d)
         env = fenced_env(repo)
         env["HOME"] = home
+        env["XDG_CONFIG_HOME"] = os.path.join(home, "xdg")
         subprocess.run(["git", "init", "-q", repo], cwd=repo, env=env, check=True, stdin=subprocess.DEVNULL,
                        capture_output=True)
         local = os.path.join(repo, ".git", "config")
@@ -158,8 +159,12 @@ class ConfigOracleTests(unittest.TestCase):
     def test_unfiled_fence(self):
         # the unfiled run writes only under the temp dir; the real user-level config is never changed
         real = os.path.join(os.path.expanduser("~"), ".gitconfig")
-        before = snapshot(real)
+        real_xdg = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"),
+                                "git", "config")
+        before, before_xdg = snapshot(real), snapshot(real_xdg)
+        self.assertEqual(fenced_env(self.tmp)["XDG_CONFIG_HOME"], os.path.join(self.tmp, "xdg"))
         self.assertTrue(self.git_wrote_unfiled(["--global", "alias.z", "q"]))
+        self.assertEqual(snapshot(real_xdg), before_xdg)
         self.assertTrue(os.path.isfile(os.path.join(self.tmp, "unfiled-home", ".gitconfig")))
         self.assertEqual(snapshot(real), before)
 
