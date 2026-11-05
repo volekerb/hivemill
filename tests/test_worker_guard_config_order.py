@@ -29,6 +29,7 @@ TIGHTENED = [
 STILL_REFUSED = [
     "set --global core.hooksPath /tmp/x", "--add --global core.hooksPath /tmp/x", "--global core.hooksPath /tmp/x",
     "--file=~/.config/git/config core.hooksPath /tmp/x", "--replace-all core.hooksPath /tmp/x --global",
+    "a.b c --global",  # moved from test_worker_guard_persist: still refused, text is now the repo-config one (Go mirror: G-016)
     "unset --global core.hooksPath", "set --system core.hooksPath /tmp/x", "set -f x core.hooksPath /tmp/x",
 ]
 # acceptance 12: reads stay reads (exit 0 for the coder)
