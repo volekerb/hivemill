@@ -181,7 +181,16 @@ class TickCase(Base):
         self.limit(1000)
         self.tally(1000)
         name = self.queue_coder("cursor-coder-t-0001", "cursor")
-        self.tick()
+        started = []
+
+        def patch(m):  # stub the start: the test must not need a cursor binary on PATH
+            p = mock.patch.object(m, "_timed_spawn", lambda con, role, *a, **k: started.append((role, a)))
+            p.start()
+            self.addCleanup(p.stop)
+
+        self.tick(patch)
+        self.assertEqual(len(started), 1)  # the cursor row was looked at and started, not skipped
+        self.assertEqual(started[0][0], "coder")
         self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE entity_id=? AND action='dequeued'", (name,))), 0)
 
     def test_tick_warns_the_lead_at_80_percent_and_survives_a_warn_failure(self):
