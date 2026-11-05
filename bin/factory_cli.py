@@ -3209,6 +3209,18 @@ def org_for(con, goal=None, task=None, sender=None, org=None):
         or agent_org(con, sender) or orgs.DEFAULT_ORG
 
 
+def goal_alert_to(con, goal, team=None, lead=None):
+    """Recipient of an unprompted tick alert about `goal`: the lead (`lead` name, else the lead of `team`) when that lead is
+    of the goal's org (default org when the goal has none), else "director" (resolved inside the goal's org by send).
+    A lead of another org gets no mail and no wake. Mail that answers a lead's own action does not use this."""
+    if not lead and team:
+        r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (team,)).fetchone()
+        lead = r["lead_agent"] if r else None
+    if lead and agent_org(con, lead) == (goal_org(con, goal) or orgs.DEFAULT_ORG):
+        return lead
+    return "director"
+
+
 def oname(con, org, base):
     """The agent name for `base` in `org`: <org>-<base>. The default org's prefix is behind config org_prefix_default
     (off: a single-org install keeps boss, director, coder-t-0001; on: claude-boss, claude-coder-t-0001). An already
@@ -11960,7 +11972,7 @@ def gate_notify_fail(con, pr_url, r):
     t = con.execute("SELECT t.id,t.goal_id,t.team_id FROM tasks t WHERE t.pr_url=?", (pr_url,)).fetchone()
     if not t or not t["team_id"]:
         return
-    send(con, f"lead:{t['team_id']}", f"local gate {r['status']}: {t['id']} @{(r['head_sha'] or '?')[:8]}",
+    send(con, goal_alert_to(con, t["goal_id"], team=t["team_id"]), f"local gate {r['status']}: {t['id']} @{(r['head_sha'] or '?')[:8]}",
          f"gate run #{r['id']} {r['status']} (exit {r['exit_code']}); {r['note'] or ''}\nlog: {r['log_path']}\n"
          f"`factory gate show {r['id']}`. Fix the head and push; the tick enqueues a new run.", "report", t["goal_id"], t["id"], sender="tick")
 
@@ -14333,7 +14345,7 @@ def dispatch_tick(con):
             if not _throttled(con, key, clock, 10 * 365 * 86400):
                 _throttle_set(con, key, clock)
                 event(con, "task", tid, "dispatch-refused", f"{name}: qa task has no PR and no worktree")
-                send(con, f"lead:{team}", f"dispatch refused: {tid} has no PR and no worktree",
+                send(con, goal_alert_to(con, t["goal_id"], team=team), f"dispatch refused: {tid} has no PR and no worktree",
                      f"{t['title']}\n\nLead-less dispatch did not start {name}: the task has no PR and no worktree, so a qa agent "
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
                      "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
@@ -14357,7 +14369,7 @@ def dispatch_tick(con):
         status = row["status"] if row else "unknown"
         event(con, "task", tid, "dispatch", {"agent": name, "role": role, "team": team, "status": status})
         spawned += 1
-        send(con, f"lead:{team}", f"dispatch: {name} started on {tid}",
+        send(con, goal_alert_to(con, t["goal_id"], team=team), f"dispatch: {name} started on {tid}",
              f"{t['title']}\n\nLead-less dispatch (lead_less_dispatch=1): you are parked, so the tick started this worker. "
              "Sequencing stays yours: set --after/priorities on tasks that must wait; `factory stop " + name + "` undoes it. "
              "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
@@ -14772,7 +14784,7 @@ def coder_ci_resume_tick(con):
         if isinstance(pr, BaseException) or pr.get("state", "OPEN") != "OPEN":
             continue  # the review tick logs dead or unreadable PRs
         sha = pr["headRefOid"]
-        to = f"lead:{team}" if team else "director"
+        to = goal_alert_to(con, t["goal_id"], team=team)
         label = f"{tid} PR #{pr.get('number', '?')} @{sha[:8]}"
         rollup = pr.get("statusCheckRollup")
         if (pr.get("mergeStateStatus") or "").upper() == "DIRTY":
@@ -14914,7 +14926,7 @@ def spec_fill_tick(con):
                          SPEC_FILL_ACCEPTANCE, now(), now()))
             event_as(con, "tick", "task", tid, "add", title)
             event_as(con, "tick", "goal", gid, "spec-fill", {"task": tid, "tasks": ids})
-            send(con, f"lead:{team}", f"spec-fill: {tid} filed for {joined}",
+            send(con, goal_alert_to(con, gid, team=team), f"spec-fill: {tid} filed for {joined}",
                  f"{title}\n\nLead-less dispatch (lead_less_dispatch=1): {team} is parked and goal {gid} had no ready specced "
                  "task, so the tick filed a pm task to write the missing specs. This mail does not wake you.",
                  kind="fyi", goal=gid, task=tid, sender="tick")
@@ -15152,7 +15164,7 @@ def tick_ci_wake(con):
     for (t, k, _head), pr in zip(todo, results):
         if pr is None:
             continue
-        lead = t["lead_agent"]
+        lead = goal_alert_to(con, t["goal_id"], lead=t["lead_agent"])
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
             continue
@@ -15235,7 +15247,7 @@ def tick_red_pr_owner(con):
         if _throttled(con, key, clock, float("inf")):
             continue
         _throttle_set(con, key, clock)
-        to = k["lead_agent"] or "director"
+        to = goal_alert_to(con, k["goal_id"], lead=k["lead_agent"])
         label = f"{k['id']} PR #{pr.get('number', '?')} @{sha[:8]}"
         tail = "Decide: spawn a fix coder or block the task with a reason."
         if k["status"] == "blocked":

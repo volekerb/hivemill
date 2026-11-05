@@ -236,5 +236,40 @@ class OrgPrefixDefaultRoutingTests(RoutingTests):
         self.assertEqual(self.last_rcpt(), "cursor-boss")
 
 
+class GoalAlertRoutingTests(FactoryTestCase):
+    """T-1080: an unprompted tick alert about a goal goes to the lead of the goal's org, else to that org's director."""
+    LEAD, TEAM, SHA = "claude-lead-g-001-a", "g-001-a", "a" * 40
+    BAD = {"name": "build", "status": "COMPLETED", "conclusion": "FAILURE"}
+
+    def setUp(self):
+        super().setUp()
+        e = self.env
+        e.seed_goal()
+        e.seed_team(self.TEAM, lead=self.LEAD)
+        e.seed_agent(self.LEAD, "lead", goal="G-001", team=self.TEAM, status="live")
+        e.sql("UPDATE agents SET org='claude' WHERE name=?", (self.LEAD,))
+        e.seed_agent("cursor-director", "director")
+        e.sql("UPDATE agents SET org='cursor' WHERE name='cursor-director'")
+        e.seed_agent("claude-director", "director")
+        e.sql("UPDATE agents SET org='claude' WHERE name='claude-director'")
+        e.seed_task("T-0001", status="in_progress", team=self.TEAM)
+        self.ok("config", "red_pr_owner_alert", "1")
+        e.seed_pr(sha=self.SHA, checks=[self.BAD])
+
+    def red_pr_mails(self):
+        return {r["recipient"] for r in self.env.sql("SELECT recipient FROM messages WHERE subject LIKE 'red PR%'")}
+
+    def test_red_pr_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        self.ok("tick")
+        self.assertEqual(self.red_pr_mails(), {"cursor-director"})
+
+    def test_red_pr_on_a_claude_goal_goes_to_its_claude_lead(self):
+        self.ok("tick")
+        self.assertEqual(self.red_pr_mails(), {self.LEAD})
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

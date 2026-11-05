@@ -241,6 +241,16 @@ class SkipTests(Base):
         self.assertEqual(self.tick({pr_url(1): (SHA, RED, "DIRTY")}), [])
         self.assertEqual(len(self.mails("coder not resumed, PR conflicted%", to=LEAD)), 1)
 
+    def test_conflicted_pr_on_a_cursor_goal_mails_the_cursor_director_not_the_claude_lead(self):
+        self.task()
+        self.env.sql("UPDATE goals SET org='cursor' WHERE id='G-001'")
+        self.env.seed_agent("cursor-director", "director")
+        self.env.sql("UPDATE agents SET org='cursor' WHERE name='cursor-director'")
+        self.env.sql("UPDATE agents SET org='claude' WHERE name=?", (LEAD,))
+        self.assertEqual(self.tick({pr_url(1): (SHA, RED, "DIRTY")}), [])
+        self.assertEqual(len(self.mails("coder not resumed, PR conflicted%", to="cursor-director")), 1)
+        self.assertEqual(self.mails("coder not resumed, PR conflicted%", to=LEAD), [])
+
     def test_no_checks_for_over_60_min_mails_the_lead_and_starts_nothing(self):
         self.task()
         self.assertEqual(self.tick({pr_url(1): (SHA, [])}, now=NOW), [])
