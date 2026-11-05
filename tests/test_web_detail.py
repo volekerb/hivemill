@@ -1,6 +1,7 @@
 """G-019 B5: /goals, /goal/<id> and /task/<id> through the real server (web/views/goals.py, web/views/tasks.py)."""
 import json
 import re
+import sqlite3
 import statistics
 import sys
 import time
@@ -197,6 +198,73 @@ class TestContract(DetailCase):
         self.assertEqual(css.count("/* == B5 detail == */"), 1)
         sec = css.split("/* == B5 detail == */")[1]
         self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", sec))
+
+
+class TestTaskCost(DetailCase):
+    """T-1113: the cost line on /task/<id>, from the TokenIndex snapshot like /tokens."""
+
+    def row(self, sid, model, inp=1_000_000, out=0):
+        return {"session": sid, "model": model, "day": "2026-11-05", "fast": False, "input": inp, "output": out,
+                "cache_read": 0, "cache_write_5m": 0, "cache_write_1h": 0, "requests": 1}
+
+    def seed(self, rows, org="claude", snap_ready=True):
+        x = self.con.execute
+        x("INSERT INTO goals VALUES('G-80','p1','Cost goal','intent','1. a','active',2,'owner',NULL,?,?)", (ts(8, 0), ts(9, 0)))
+        if org != "claude":
+            x("ALTER TABLE goals ADD COLUMN org TEXT")
+            x("UPDATE goals SET org=? WHERE id='G-80'", (org,))
+        x(T_INS, ("T-80", "G-80", None, "Priced", "s", "a", "coder", "done", "coder-t-80", None, 1, ts(9, 0), ts(12, 0)))
+        x("INSERT INTO agents(name,role,goal_id,team_id,task_id,status,model,session_id,started,ended) VALUES(?,?,?,?,?,?,?,?,?,?)",
+          ("coder-80", "coder", "G-80", None, "T-80", "done", "m", "sess-80", ts(10, 0), ts(11, 0)))
+        self.con.commit()
+        sessions = {r["session"]: {"first_ts": ts(10, 0), "project": "", "cwd": "", "agent_name": None} for r in rows}
+        snap = {"ready": snap_ready, "rows": rows, "sessions": sessions}
+        self.httpd.app.tokens = lambda: snap
+
+    def cost_line(self):
+        return re.search(r"<p class=\"muted\">(Cost:.*?)</p>", self.page("/task/T-80"), re.S).group(1)
+
+    def test_figure_matches_the_by_task_rollup_and_says_list_price(self):
+        from web.tokens import attribute, rollup
+        self.seed([self.row("sess-80", "claude-opus-5-5", 1_000_000, 100_000), self.row("other", "claude-opus-5-5")])
+        snap = self.httpd.app.tokens()
+        self.con.row_factory = sqlite3.Row
+        want = rollup(snap, attribute(snap, self.con))["by_task"]["T-80"]["cost"]
+        self.assertAlmostEqual(want, 6.0)
+        line = self.cost_line()
+        self.assertIn(f"${want:.2f}", line)
+        self.assertIn("list prices", line)
+        self.assertIn("estimated", line)
+
+    def test_index_not_ready_and_no_tokens_callable_give_200_not_ready(self):
+        self.seed([self.row("sess-80", "claude-opus-5-5")], snap_ready=False)
+        self.assertIn("not ready", self.cost_line())
+        self.httpd.app.tokens = None
+        self.assertIn("not ready", self.cost_line())
+
+    def test_no_attributed_tokens_says_none_recorded_not_zero(self):
+        self.seed([self.row("unrelated", "claude-opus-5-5")])
+        line = self.cost_line()
+        self.assertIn("none recorded", line)
+        self.assertNotIn("$0", line)
+
+    def test_unpriced_model_says_unknown_never_a_guess(self):
+        self.seed([self.row("sess-80", "mystery-model-9")])
+        line = self.cost_line()
+        self.assertIn("unknown", line)
+        self.assertNotRegex(line, r"\$\d")
+
+    def test_partly_unpriced_says_unknown_with_a_floor(self):
+        self.seed([self.row("sess-80", "claude-opus-5-5"), self.row("sess-80", "mystery-model-9")])
+        line = self.cost_line()
+        self.assertIn("unknown", line)
+        self.assertIn("at least $4.00", line)
+
+    def test_cursor_org_goal_has_no_cost_figure(self):
+        self.seed([self.row("sess-80", "claude-opus-5-5")], org="cursor")
+        line = self.cost_line()
+        self.assertIn("Cursor", line)
+        self.assertNotRegex(line, r"\$\d")
 
 
 class TestSpeed(DetailCase):

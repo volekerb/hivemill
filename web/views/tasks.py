@@ -6,6 +6,8 @@ from web import ci, queries
 from web.queries import parse_ts
 from web.components import (data_table, disclosure, empty_state, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
                             GROUP_ORDER, COLLAPSED)
+from web.prices import PRICES_AS_OF
+from web.tokens import attribute, rollup
 from web.html import LABELS, badge, card, dur, el, empty, kpi, link, table, ts
 from web.views.goals import status_badge, task_badge
 
@@ -234,6 +236,30 @@ def _fkind(i):
     return "muted"
 
 
+def _cost_data(ctx, t):
+    """The task's list-price cost, from the TokenIndex snapshot like /tokens (rollup by_task over attribute()). A
+    state: cursor (no token counts exist), not_ready (index still warming or none wired: the page never waits),
+    none (no tokens attributed), unknown (a model without a price), ok. Only this task's rows go into rollup, so
+    the figure equals the by_task bucket without bucketing every session on every page load."""
+    if queries.org_of_goal(queries.goal_orgs(ctx.db), t["goal_id"]) == "cursor":
+        return {"state": "cursor"}
+    snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
+    if not snap or not snap.get("ready"):
+        return {"state": "not_ready"}
+    att = attribute(snap, ctx.db)
+    mine = {sid for sid, a in att.items() if a["task"] == t["id"]}
+    rows = [r for r in snap.get("rows", []) if r["session"] in mine]
+    e = rollup({"rows": rows, "sessions": {}}, att)["by_task"].get(t["id"])
+    if e is None:
+        return {"state": "none"}
+    tokens = sum(e[k] for k in ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h"))
+    if tokens == 0:
+        return {"state": "none"}
+    if e["cost"] is None or e["cost_unknown"]:
+        return {"state": "unknown", "cost": e["cost"], "tokens": tokens}
+    return {"state": "ok", "cost": e["cost"], "tokens": tokens}
+
+
 def _detail_data(ctx, id=None, **params):
     con = ctx.db
     rows = queries.tasks(con)
@@ -266,7 +292,7 @@ def _detail_data(ctx, id=None, **params):
             "assignee": t["assignee"], "team_id": t["team_id"], "pr_url": t["pr_url"], "follow_up_of": t["follow_up_of"], "follow_ups": follow,
             "created": t["created"], "merged": bool(merged_ev), "ci": label, "ci_checks": checks,
             "rejections": cyc["rejections"], "retries": cyc["retries"], "attempts": cyc["attempts"], "reopens": cyc["reopens"],
-            "total_s": total, "steps": steps}
+            "total_s": total, "steps": steps, "cost": _cost_data(ctx, t)}
 
 
 _ROLE = {"qa": "QA"}
@@ -417,6 +443,21 @@ def _meta(d):
     return el("p", *out, class_="metarow")
 
 
+def _cost_line(c):
+    st = c["state"]
+    if st == "cursor":
+        return "Cost: not available. The Cursor CLI reports no token counts."
+    if st == "not_ready":
+        return "Cost: not ready (the token index is still warming up)."
+    if st == "none":
+        return "Cost: none recorded (no tokens attributed to this task)."
+    note = f" · estimated at list prices as of {PRICES_AS_OF} (API-equivalent, not a bill)"
+    if st == "unknown":
+        part = f"at least ${c['cost']:.2f}, " if c["cost"] else ""
+        return f"Cost: unknown ({part}some tokens are on a model without a price)" + note
+    return f"Cost: ${c['cost']:.2f}" + note
+
+
 def _detail_render(ctx, d):
     crumb = crumbs(("/tasks", "Tasks"), (f"/task/{d.get('id')}", d.get("id") or "?"))
     if not d.get("found"):
@@ -425,7 +466,7 @@ def _detail_render(ctx, d):
                class_="tiles")
     blocks = _attempt_blocks(d["steps"])
     cycle = ([_attempt(n, b, n == len(blocks), ctx.now) for n, b in enumerate(blocks, 1)] if blocks else [empty_state("No events yet.")])
-    parts = [crumb, _meta(d), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
+    parts = [crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
              section("PR cycle", *cycle)]
     fu = [el("span", link(f"/task/{f['id']}", f["id"]), " ", f["title"], " ", task_badge(f["status"], f["waits"]), " ") for f in d["follow_ups"]]
     if d["follow_up_of"]:
