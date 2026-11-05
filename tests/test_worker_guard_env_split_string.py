@@ -88,6 +88,25 @@ class EnvSplitStringTests(unittest.TestCase):
                     p = run_hook(cmd, role)
                     self.assertEqual(p.returncode, 2, p.stderr)
 
+    def test_moved_out_of_corpus(self):
+        # T-1037 step 5: forms removed from ci/guard_corpus.json and test_worker_guard_nopush_env_unset.py (docs/guard-diff.md
+        # (b)(c)); T-1071 re-adds them with the Go mirror. Each exits 2 and names T-1037, plain and wrapped.
+        corpus_forms = ["env -S\"-u PATH\" ls", "env --split-string=-i ls", "env -S-uPATH ls"]
+        corpus_roles = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
+        jobs = [("coder", "env -Suxi factory task show T-1")]
+        for role in corpus_roles:
+            for cmd in corpus_forms:
+                jobs += [(role, cmd), (role, "zsh -c '%s'" % cmd)]
+        for role in ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator", "researcher"):
+            for cmd in ("env -S\"-u PATH\" ls", "env --split-string=-i ls"):
+                for form in (cmd, "cd /x && " + cmd, "zsh -c '%s'" % cmd, "bash -c '%s'" % cmd):
+                    jobs.append((role, form))
+        for role, cmd in jobs:
+            with self.subTest(role=role, cmd=cmd):
+                p = run_hook(cmd, role)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("(T-1037)", p.stderr)
+
     def test_allow_forms(self):
         for role, cmd in ALLOW:
             with self.subTest(role=role, cmd=cmd):
