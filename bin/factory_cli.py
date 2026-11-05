@@ -8213,6 +8213,29 @@ def check_evaluator_spawn(con, role, cwd, env_extra, plugin_dirs, add_home_dir):
             die(f"plugin dir {d} is not prompt-only: {e}", 3)
 
 
+def _prior_spawn_arg(prior, key):
+    """One key of a prior agent row's spawn_args JSON (None for no row, empty or unparsable args)."""
+    if not prior:
+        return None
+    try:
+        return json.loads(prior["spawn_args"] or "{}").get(key)
+    except ValueError:
+        return None
+
+
+def spawn_org(con, prior, name, goal, task, org=None):
+    """The org spawn() puts an agent in: the caller's org, else the one stored in the prior row, else the name prefix, else the goal's."""
+    return org_for(con, goal, task, org=org or _prior_spawn_arg(prior, "org") or orgs.prefix_of(name)
+                   or (None if goal or task else agent_org(con, actor())))
+
+
+def _resume_runtime_change(con, prior, role, org):
+    """'runtime A -> B' when the session id recorded in prior is from another runtime than role's runtime in org (spawn drops it), else ''."""
+    prior_rt = _prior_spawn_arg(prior, "runtime") or "claude"
+    now_rt = org_runtime(con, role, org)
+    return f"runtime {prior_rt} -> {now_rt}" if prior_rt != now_rt else ""
+
+
 def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, prompt=None, model=None,
           resume=None, from_queue=False, pane=None, relaunch=False, env_extra=None, plugin_dirs=None,
           add_home_dir=True, fresh=False, sandbox_optin=False, hold=None, org=None, strict_name=False):
@@ -8241,21 +8264,11 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     # G-028: the org comes from the goal (else the task's goal, the existing row, the caller, the default org);
     # every agent name carries its org prefix (claude-boss, cursor-coder-t-0840)
     prior = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
-    prior_org = None
-    if prior:
-        try:
-            prior_org = json.loads(prior["spawn_args"] or "{}").get("org")
-        except ValueError:
-            prior_org = None
-    org = org_for(con, goal, task, org=org or prior_org or orgs.prefix_of(name)
-                  or (None if goal or task else agent_org(con, actor())))
+    org = spawn_org(con, prior, name, goal, task, org=org)
     if resume and prior:  # a session id only resumes on the runtime that recorded it (org move, legacy row, config change)
-        try:
-            prior_rt = json.loads(prior["spawn_args"] or "{}").get("runtime") or "claude"
-        except ValueError:
-            prior_rt = "claude"
-        if prior_rt != org_runtime(con, role, org):
-            event(con, "agent", name, "resume-dropped", f"runtime {prior_rt} -> {org_runtime(con, role, org)}")
+        rtchg = _resume_runtime_change(con, prior, role, org)
+        if rtchg:
+            event(con, "agent", name, "resume-dropped", rtchg)
             resume, fresh = None, True
     if role != "evaluator":
         asked = name
@@ -14757,15 +14770,6 @@ def coder_ci_resume_kickoff(sha, failed, resumed, fresh_wt, branch):
     return text
 
 
-def _resume_dropped(con, prior, org):
-    """True when spawn() will drop prior's session id: it was recorded on another runtime than the coder's runtime in `org` (spawn's own rule)."""
-    try:
-        prior_rt = json.loads(prior["spawn_args"] or "{}").get("runtime") or "claude"
-    except ValueError:
-        prior_rt = "claude"
-    return prior_rt != org_runtime(con, "coder", org)
-
-
 def coder_ci_resume_tick(con):
     """Tick step 2c': with coder_ci_handoff on (resume|fresh) an in_review task whose PR head is red and has no coder live/starting/queued gets
     its coder started again, once per (task, head sha; throttle row `coder-resume:<task>:<sha>`). resume mode resumes the recorded session in the
@@ -14846,12 +14850,13 @@ def coder_ci_resume_tick(con):
         if red_main_refusal(con, slugs, tid):
             continue  # main is red in THIS task's repo: a red PR is not the PR's fault; retry when main is green. Other repos' tasks go on
         prior = con.execute("SELECT * FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1", (tid,)).fetchone()
-        org = org_for(con, t["goal_id"], tid)
-        name = prior["name"] if prior else oname(con, org, slug(f"coder-{tid}"))
+        name = prior["name"] if prior else slug(f"coder-{tid}")
+        org = spawn_org(con, prior, name, t["goal_id"], tid)  # spawn's own org order: the tick's resume decision must match it
+        name = prior["name"] if prior else oname(con, org, name)
         wt_ok = bool(t["worktree"]) and Path(t["worktree"]).exists()
         resume = (prior["session_id"] if prior and prior["session_id"] and wt_ok and cfg(con, "coder_ci_handoff") == "resume"
                   and org_runtime(con, "coder", org) == "claude" else None)
-        dropped = bool(resume) and _resume_dropped(con, prior, org)  # spawn drops a session recorded on another runtime and starts fresh
+        dropped = bool(resume) and bool(_resume_runtime_change(con, prior, "coder", org))  # spawn drops a session recorded on another runtime and starts fresh
         resumed = bool(resume) and not dropped
         kick = coder_ci_resume_kickoff(sha, _failed_runs(rollup, names), resumed, not wt_ok, t["branch"] or f"factory/{tid.lower()}")
         if not gate(con, role="coder")[0]:

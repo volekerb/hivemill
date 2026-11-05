@@ -270,7 +270,8 @@ class FollowUpTests(Base):
             self.task(coder=None)
             self.env.sql("UPDATE tasks SET role=? WHERE id='T-0001'", (role,))
             self.assertEqual(self.tick({pr_url(1): (SHA, RED)}), [], role)
-            self.assertEqual(self.mails("coder restarted%"), [])
+            self.assertEqual(self.env.sql("SELECT 1 FROM messages"), [], role)  # AC1: no mail of any subject from this path
+            self.assertEqual(self.starts(), [], role)
             self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='coder-ci-resume'"), [])
 
     def test_resume_dropped_after_a_runtime_change_reports_fresh(self):
@@ -284,6 +285,19 @@ class FollowUpTests(Base):
         self.assertEqual(len(self.mails("coder restarted on red CI%", to=LEAD)), 1)
         self.assertIn("(fresh)", self.mails("coder restarted on red CI%", to=LEAD)[0]["body"])
         self.assertEqual(self.mails("CI red:%", to="coder-t-0001"), [])  # spawn sends the fresh kickoff itself
+
+    def test_goal_org_differs_from_the_stored_org_tick_and_spawn_agree_on_fresh(self):
+        # goal is claude; the prior row stored org=cursor runtime=cursor with a session. spawn keeps the stored org, so the
+        # tick must decide with that org too: no --resume on the start, event and mail say fresh (the kickoff is sent).
+        self.task()
+        self.env.sql("UPDATE agents SET spawn_args=? WHERE name='coder-t-0001'", (json.dumps({"org": "cursor", "runtime": "cursor"}),))
+        self.tick({pr_url(1): (SHA, RED)}, real_spawn=True)
+        argv = self.starts()
+        self.assertEqual(len(argv), 1, self.env.calls("herdr"))
+        self.assertNotIn("--resume", argv[0])
+        ev = self.env.sql("SELECT detail FROM events WHERE action='coder-ci-resume' AND entity_id='T-0001'")
+        self.assertEqual(json.loads(ev[0][0])["mode"], "fresh")
+        self.assertIn("(fresh)", self.mails("coder restarted on red CI%", to=LEAD)[0]["body"])
 
     def test_unreadable_closed_dirty_and_no_checks_prs_cost_one_probe_per_window(self):
         cases = {"dirty": (SHA, RED, "DIRTY"), "nochecks": (SHA, [])}
