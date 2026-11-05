@@ -784,7 +784,9 @@ class TestEvidence(ScreenshotsBase):
         # the stub draws content in the top 70% of the window and flat background below: the phone image is cropped
         # (shorter than the window), and holds the 56 px bar rows
         self.assertLess(height("home-light-phone.png"), int(250 * screenshots.PHONE_HMAX_MULT))
-        self.assertGreater(height("home-light-phone.png"), screenshots.PHONE_TABBAR_CSS)
+        # at least the minimum cropped height (MIN_HEIGHT_CSS, patched to 100 in setUp) plus the appended bar rows
+        bar = screenshots.PHONE_TABBAR_CSS + screenshots.PHONE_TABBAR_SHADOW_CSS
+        self.assertGreaterEqual(height("home-light-phone.png"), 100 + bar)
 
     def test_size_caps_are_unchanged(self):
         self.assertEqual((screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES), (716800, 8388608))
