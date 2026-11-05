@@ -8365,7 +8365,12 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
     if not ok:
         if existing and existing["status"] in ("queued", "starting"):
             # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
-            old = json.loads(existing["spawn_args"] or "{}")
+            try:
+                old = json.loads(existing["spawn_args"] or "{}")
+            except ValueError:
+                old = {}
+            if not isinstance(old, dict):
+                old = {}
             args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at") if k in old})
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
@@ -8733,7 +8738,7 @@ def sandbox_drop_queued(con, row, s, e):
         send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
              sender="factory")
     except SystemExit:  # the team has no lead any more: the director hears it instead
-        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory", org=s.get("org"))
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
 def start_failed_queued(con, row, s, e):
