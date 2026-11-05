@@ -286,6 +286,10 @@ class TestR1ShellCss(unittest.TestCase):
         self.assertRegex(self.CSS, r"\.seg-links \{[^}]*max-width: 100%; overflow-x: auto")
         self.assertRegex(self.CSS, r"\.seg-links a \{[^}]*white-space: nowrap")
 
+    def test_seg_links_focus_ring_is_drawn_inside_the_scroll_box(self):
+        self.assertRegex(self.CSS, r"\.seg-links a:focus-visible \{ outline-offset: -2px; \}")
+        self.assertRegex(self.CSS, r"\.ins-check--over \{[^}]*padding: 0 var\(--s2\)")
+
     def test_more_list_hidden_until_targeted_and_tab_still_points_at_it(self):
         self.assertRegex(self.CSS, r"\n\.more \{ display: none;")
         self.assertRegex(self.CSS, r"\n\.more:target \{ display: block; \}")

@@ -359,6 +359,7 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .seg-links a { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; flex: 1; min-height: var(--tap); padding: 0 var(--s3);
                border-radius: 4px; color: var(--text-2); font: 400 13px/18px var(--font); }
 .seg-links a:hover { text-decoration: none; }
+.seg-links a:focus-visible { outline-offset: -2px; }
 .seg-links a[aria-current=true] { background: var(--surface-1); color: var(--text-1); box-shadow: var(--e1); }
 
 /* disclosure: the native marker stays (design guard); the count sits beside the label */
@@ -604,7 +605,7 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .ins-check { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s1) var(--s3); min-height: var(--row); list-style: none; }
 .ins-check .ins-name { min-width: 9rem; }
 .ins-check .gz { margin-left: auto; }
-.ins-check--over { background: var(--danger-bg); color: var(--danger-fg); }
+.ins-check--over { background: var(--danger-bg); color: var(--danger-fg); padding: 0 var(--s2); border-radius: var(--r-sm); }
 .ins-key { margin-left: var(--s2); color: var(--text-3); font-size: 12px; }
 .disc > .table { display: block; overflow-x: auto; max-width: 100%; }
 .sect-box .st--pill { margin-right: var(--s2); }
