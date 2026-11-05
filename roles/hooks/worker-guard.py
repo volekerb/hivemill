@@ -1550,41 +1550,62 @@ class Analyzer:
             return None
         return {r[0] for r in rows if r[0]}
 
-    def _lead_factory_goal_words(self, words):
-        """True when words invoke `factory goal ...` (HQ lead panes still run goal-show broad_read)."""
+    GOAL_ACTIONS = frozenset({"new", "list", "show", "edit", "status", "audit", "signoff", "close", "org"})
+    GOAL_SHOW_BOOL_OPTS = frozenset({"--", "--all", "--full", "--ready", "--gaps"})
+
+    def _factory_rest_cmd(self, words):
+        """Tokens after `factory` in words, or None when this is not a factory invocation."""
         if not words:
-            return False
+            return None
         w, rest = words[0], words[1:]
         name = os.path.basename(w)
         if name == "factory":
-            rest_cmd = rest
-        elif INTERPRETERS.match(name):
+            return rest
+        if INTERPRETERS.match(name):
             fi = self.factory_script(name, rest)
             if fi is None:
-                return False
-            rest_cmd = rest[fi + 1:]
-        else:
+                return None
+            return rest[fi + 1:]
+        return None
+
+    def _lead_factory_goal_words(self, words):
+        """True when words invoke `factory goal ...` (HQ lead panes still run goal-show broad_read)."""
+        rest_cmd = self._factory_rest_cmd(words)
+        if not rest_cmd:
             return False
         nonopt = [a for a in rest_cmd if not a.startswith("-")]
         return bool(nonopt) and nonopt[0] == "goal"
 
+    def _lead_goal_show_index(self, rest):
+        """Index of `show` in a `goal` rest vector, skipping valued/boolean flags before the action."""
+        if not rest or rest[0] != "goal":
+            return None
+        i = 1
+        while i < len(rest):
+            t = rest[i]
+            if t == "show":
+                return i
+            if t.startswith("-"):
+                if t in self.GOAL_SHOW_BOOL_OPTS:
+                    i += 1
+                    continue
+                if "=" in t:
+                    i += 1
+                    continue
+                if i + 1 >= len(rest):
+                    return None
+                if rest[i + 1] in self.GOAL_ACTIONS:
+                    i += 1
+                    continue
+                i += 2
+                continue
+            return None
+        return None
+
     def _lead_factory_goal_show_words(self, words):
         """True when words invoke `factory goal show` (not list or other goal subcommands)."""
-        if not words:
-            return False
-        w, rest = words[0], words[1:]
-        name = os.path.basename(w)
-        if name == "factory":
-            rest_cmd = rest
-        elif INTERPRETERS.match(name):
-            fi = self.factory_script(name, rest)
-            if fi is None:
-                return False
-            rest_cmd = rest[fi + 1:]
-        else:
-            return False
-        nonopt = [a for a in rest_cmd if not a.startswith("-")]
-        return len(nonopt) >= 2 and nonopt[0] == "goal" and nonopt[1] == "show"
+        rest_cmd = self._factory_rest_cmd(words)
+        return self._lead_goal_show_index(rest_cmd) is not None
 
     def broad_read(self, sub, rest, assigns):
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
@@ -4792,6 +4813,14 @@ def lead_hq_goal_show_guard(an, cmd):
         assigns = list(env_assigns)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
         words = stripped
+        while words and (words[0] in ("noglob", "nocorrect", "-") or words[0] == "repeat" and len(words) > 1):
+            if words[0] == "repeat":
+                words = words[2:]
+            else:
+                words = words[1:]
+            stripped = strip_prefix(words)
+            assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+            words = stripped
         if not words:
             return
         w, rest = words[0], words[1:]
@@ -4811,12 +4840,28 @@ def lead_hq_goal_show_guard(an, cmd):
                 raise Block("eval of an expansion: content cannot be inspected")
             an.script(" ".join(rest), depth + 1)
             return
+        if name in ("source", ".") and rest:
+            an.file(rest[0], depth)
+            return
+        if name == "find":
+            for j, a in enumerate(rest):
+                if a in FIND_EXEC:
+                    an.loose(rest[j + 1:], depth)
+            return
         if name in WRAPPERS and not in_loose:
             if name == "xargs":
                 an.xargs(rest)
             an.loose(rest, depth, assigns, stdin)
             return
         if an._lead_factory_goal_show_words(words):
+            rest_cmd = an._factory_rest_cmd(words)
+            show_i = an._lead_goal_show_index(rest_cmd)
+            gid = None
+            if show_i is not None and show_i + 1 < len(rest_cmd) and not rest_cmd[show_i + 1].startswith("-"):
+                gid = rest_cmd[show_i + 1]
+            team_goals = an.lead_team_goals()
+            if gid and team_goals is not None and gid in team_goals:
+                return
             real_cmd(orig_words, depth, piped, in_loose, hstrs, env_assigns, stdin)
 
     an.soft = soft

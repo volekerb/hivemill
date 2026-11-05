@@ -87,6 +87,41 @@ class LeadTeamGoalShowTests(unittest.TestCase):
                 self.assertEqual(p.returncode, 2, p.stderr)
                 self.assertIn("broad factory reads", p.stderr)
 
+    def test_lead_refused_unowned_goal_show_with_valued_flags(self):
+        blocked = (
+            "factory goal --org cursor show G-001",
+            "factory goal --note x show G-001",
+            "factory goal --title t show G-001",
+            "factory goal --priority 1 show G-001",
+            "factory goal --project p show G-001",
+            "factory goal --reason because show G-001",
+        )
+        for cmd in blocked:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, self._lead_shell_argv())
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("broad factory reads", p.stderr)
+
+    def test_lead_owned_goal_show_with_org_flag_allowed(self):
+        p = self.run_hook("factory goal --org cursor show G-028", self._lead_shell_argv())
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_lead_refused_unowned_goal_modifiers_and_find(self):
+        blocked = (
+            "noglob factory goal show G-001",
+            "zsh -c 'noglob factory goal show G-001'",
+            "find . -exec factory goal show G-001 \\;",
+        )
+        for cmd in blocked:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, self._lead_shell_argv())
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("broad factory reads", p.stderr)
+
+    def test_lead_noglob_show_owned_goal_allowed(self):
+        p = self.run_hook("noglob factory goal show G-028", self._lead_shell_argv())
+        self.assertEqual(p.returncode, 0, p.stderr)
+
     def test_lead_prefixed_show_owned_goal_allowed(self):
         p = self.run_hook("A=1 factory goal show G-028", self._lead_shell_argv())
         self.assertEqual(p.returncode, 0, p.stderr)
