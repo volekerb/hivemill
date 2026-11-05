@@ -154,6 +154,39 @@ class Sending(SendCase):
         self.assertEqual(det, "HTTP 302")
 
 
+class RealRedirect(SendCase):
+    def test_real_302_is_not_followed(self):
+        """The real sender against a loopback server (NTFY_BASE patched to 127.0.0.1; no external network): a 302 is a failure
+        and the Location target is never requested."""
+        import http.server
+        import threading
+        hits = []
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                hits.append(self.path)
+                self.send_response(302)
+                self.send_header("Location", "/elsewhere")
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+
+        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        th = threading.Thread(target=srv.serve_forever, daemon=True)
+        th.start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        self.row()
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": at()}), \
+                mock.patch.object(self.mod, "NTFY_BASE", f"http://127.0.0.1:{srv.server_address[1]}/"):
+            self.mod.owner_alert_send_tick(self.con)
+        self.assertEqual(hits, ["/" + TOPIC])
+        self.assertEqual(self.sent(), {1: None})
+        det = self.con.execute("SELECT detail FROM events WHERE action='owner-alert-send-failed'").fetchone()["detail"]
+        self.assertEqual(det, "HTTP 302")
+
+
 class Topic(SendCase):
     def blocked(self):
         self.row()

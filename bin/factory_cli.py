@@ -11515,7 +11515,7 @@ def ntfy_topic():
 
 
 def _ntfy_post(topic, line):
-    """POST one line to ntfy.sh/<topic>; returns the HTTP status. No redirects (a 3xx raises HTTPError), timeout 5 s, no ntfy
+    """POST one line to NTFY_BASE + topic; returns the HTTP status. No redirects (a 3xx raises HTTPError), timeout 5 s, no ntfy
     header. urllib is imported here so a tick with the flag off pays nothing."""
     import urllib.request
 
