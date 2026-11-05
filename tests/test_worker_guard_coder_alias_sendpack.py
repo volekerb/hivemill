@@ -106,14 +106,16 @@ class CoderAliasSendPackTests(unittest.TestCase):
                 self.assertEqual(p.returncode, 0, p.stderr)
 
     # exit codes of origin/main for ALL_CMDS, in order (recorded before this change); other roles and HQ must match
+    # T-1097: the two `xargs git config` forms (indices 4 and 5) have no literal key (keys come from stdin), so cleaner,
+    # judge and director now refuse them too (exit 2, was 0 on main): the accepted bare `git config` tightening.
     ALL_CMDS = DENIED + ALLOWED
     MAIN_RC = {
         "qa": [2, 2, 2, 2, 2, 2, 2, 0, 2, 2],
         "reviewer": [2, 2, 2, 2, 2, 2, 2, 0, 2, 2],
         "pm": [2, 2, 2, 2, 2, 2, 2, 0, 2, 2],
-        "cleaner": [0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-        "judge": [0] * 10,
-        "director": [0] * 10,
+        "cleaner": [0, 0, 0, 0, 2, 2, 0, 0, 0, 2],
+        "judge": [0, 0, 0, 0, 2, 2, 0, 0, 0, 0],
+        "director": [0, 0, 0, 0, 2, 2, 0, 0, 0, 0],
     }
 
     def test_other_roles_and_hq_unchanged(self):
