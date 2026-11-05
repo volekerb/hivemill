@@ -740,6 +740,15 @@ func TestGitPushPinAliasHide(t *testing.T) {
 	if err != nil {
 		t.Fatalf("safe alias status: %v, want allow", err)
 	}
+	for _, cmd := range []string{
+		"git -c core.pager=alias.x=push status",
+		"git -c=alias.x=push status",
+		"git -c core.pager=cat log",
+	} {
+		if err := f.check(cmd, f.wt, "coder"); err != nil {
+			t.Fatalf("%q: blocked %v, want allow", cmd, err)
+		}
+	}
 }
 
 // T-1035 / T-1083: xargs git config must match Python xargs_git (stdin adds args; only explicit exact reads).

@@ -33,7 +33,7 @@ var (
 	reXargsGitToken   = regexp.MustCompile(`(?:^|[` + gitSp + `/;&|(` + "`" + `'"` + `])git(?:-[a-z][a-z-]*)?(?:\z|[` + gitSp + `;&|)` + "`" + `'"` + `])`)
 	reGitSubcommand   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*$`)
 	reGitAliasAssign  = regexp.MustCompile(`(?i)^alias\.`)
-	reGitAliasPushPin = regexp.MustCompile(`(?i)alias\.[^=]*=.*(?:push|send-pack)`)
+	reGitAliasPushPin = regexp.MustCompile(`(?i)^alias\.[^=]*=.*(?:push|send-pack)`)
 	reGitConfig       = regexp.MustCompile(`^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=`)
 	reGitSens         = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
 	reGitDepth        = regexp.MustCompile(`^--(depth|deepen)=[0-9]+$`)
