@@ -483,6 +483,15 @@
    "state": "off"
   },
   {
+   "key": "owner_alert_send",
+   "kind": "flag",
+   "default": "0",
+   "summary": "1 (with owner_alert_feed=1) = the tick sends each open needs-you row to the owner's phone over ntfy, fixed fields only",
+   "goal": "G-015",
+   "doc": "docs/boss-mail.md",
+   "state": "off"
+  },
+  {
    "key": "pr_view_ttl_s",
    "kind": "setting",
    "default": "120",
