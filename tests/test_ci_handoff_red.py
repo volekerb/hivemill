@@ -291,10 +291,15 @@ class FollowUpTests(Base):
         # tick must decide with that org too: no --resume on the start, event and mail say fresh (the kickoff is sent).
         self.task()
         self.env.sql("UPDATE agents SET spawn_args=? WHERE name='coder-t-0001'", (json.dumps({"org": "cursor", "runtime": "cursor"}),))
-        calls = self.tick({pr_url(1): (SHA, RED)})  # fake spawn: a cursor-runtime start needs the cursor binary, absent on CI runners
-        self.assertEqual(len(calls), 1)
-        self.assertIsNone(calls[0]["resume"])  # a resume kept alongside a fresh kickoff is the bug: spawn would resume with no instructions
-        self.assertIn("fresh session", calls[0]["prompt"])
+        fake = self.env.stub_bin / "agent"  # a cursor-runtime start needs an agent binary; CI runners have none
+        fake.write_text("#!/bin/sh\necho CURSOR_OK\n")
+        fake.chmod(0o755)
+        self.tick({pr_url(1): (SHA, RED)}, real_spawn=True)
+        argv = self.starts()
+        self.assertEqual(len(argv), 1, self.env.calls("herdr"))
+        self.assertNotIn("--resume", argv[0])  # a resume kept alongside a fresh kickoff is the bug: spawn would resume with no instructions
+        self.assertIn("--kind", argv[0])
+        self.assertEqual(argv[0][argv[0].index("--kind") + 1], "cursor")
         with self.env.load_factory() as f:  # spawn's own org for this row is the stored one
             prior = f.db().execute("SELECT * FROM agents WHERE name='coder-t-0001'").fetchone()
             self.assertEqual(f.spawn_org(f.db(), prior, "coder-t-0001", "G-001", "T-0001"), "cursor")
