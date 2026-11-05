@@ -2663,6 +2663,10 @@ class Analyzer:
             name, eq, val = a.partition("=")
             if not stripping:
                 args.append(a)
+                if not a.startswith("-") or a == "-":
+                    # a second non-option token is a value (or the value of an option kept in args): the form is a write
+                    # whatever follows, so later scope/file tokens are stripped as before and the refusal text is unchanged
+                    stripping = True
                 continue
             # git accepts unique abbreviations (`--typ bool`): a prefix of a value option eats the next token too
             abbrev = len(a) >= 3 and a.startswith("--") and "=" not in a and any(
