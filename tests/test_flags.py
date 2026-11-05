@@ -80,6 +80,11 @@ class Registry(unittest.TestCase):
             else:
                 self.assertEqual(by[k]["state"], "off", k)
 
+    def test_coder_ci_resume_max_is_a_registered_setting(self):
+        e = {x["key"]: x for x in ENTRIES}["coder_ci_resume_max"]
+        self.assertEqual((e["kind"], e["default"], e["doc"]), ("setting", "2", "docs/lead-wake.md"))
+        self.assertEqual(CONFIG["coder_ci_resume_max"], "2")
+
     def test_unregistered_key_is_reported(self):
         """C4: the message of the coverage check names the key and says what to do."""
         fake = dict(CONFIG, zz_fake_key="0")

@@ -1,6 +1,8 @@
 """CI wiring of ci/guard_diff.py (T-0928): the real-corpus step of the guard-diff job in tests.yml, the skill text, and a loosened run."""
+import ast
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -35,9 +37,58 @@ class WorkflowWiring(unittest.TestCase):
         for path in ("docs/guard-diff.md", "ci/shard.py", "roles/prompts/coder.md", "go/internal/other/x.go"):
             self.assertNotRegex(path, pattern, path)
 
+    def test_base_tool_archive_carries_every_file_guard_diff_reads_next_to_itself(self):
+        """T-1062: a sibling read in ci/guard_diff.py with no archive entry crashes guard-diff on new bases."""
+        tree = ast.parse((ROOT / "ci" / "guard_diff.py").read_text())
+
+        def ev(n):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                return n.value
+            if isinstance(n, ast.Name) and n.id == "__file__":
+                return "ci/guard_diff.py"
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and not n.keywords:
+                a = [ev(x) for x in n.args]
+                if None in a:
+                    return None
+                if n.func.attr == "abspath" and len(a) == 1:
+                    return a[0]
+                if n.func.attr == "dirname" and len(a) == 1:
+                    return posixpath.dirname(a[0])
+                if n.func.attr == "join":
+                    return posixpath.join(*a)
+            return None
+
+        parent = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+        uses = [n for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id == "__file__"]
+        reads = set()
+        unresolved = []
+        for u in uses:
+            top = u
+            while isinstance(parent.get(top), ast.Call) and ev(parent[top]) is not None:
+                top = parent[top]
+            v = ev(top)
+            if top is u or v in (None, "ci"):  # bare "ci" is a dirname held in a variable: the read is hidden
+                unresolved.append("line %d" % u.lineno)
+            else:
+                reads.add(posixpath.normpath(v))
+        self.assertEqual(unresolved, [], "ci/guard_diff.py uses __file__ in a form this test cannot resolve (%d of %d uses): "
+                         "spell the read as one nested os.path.join/dirname/abspath call, or extend ev() here" % (len(unresolved), len(uses)))
+        # the pins: install.sh and the tests dir (_slot import) must be seen, or the derivation went blind
+        self.assertIn("systemd/install.sh", reads)
+        self.assertIn("tests", reads)
+        block = job_block(WF, JOB)
+        listed = re.search(r'git archive "\$BASE_SHA" ([^|\n]+?) \| tar -x -C "\$tool"; then\n\s+gd=', block).group(1).split()
+        for r in sorted(reads):
+            if r == "ci/guard_corpus.json":  # DEFAULT_CORPUS: archived by the separate call, asserted below
+                self.assertIn('git archive "$BASE_SHA" ci/guard_corpus.json', block)
+            elif (ROOT / r).is_dir():
+                self.assertTrue(any(f.startswith(r + "/") for f in listed), "%s/ has no entry in the archive list %s" % (r, listed))
+            else:
+                self.assertIn(r, listed, "guard_diff.py reads %s next to itself: add it to the git archive list" % r)
+
     def test_job_runs_guard_diff_from_base_with_pr_corpus(self):
         block = job_block(WF, JOB)
-        self.assertIn('git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py', block)
+        self.assertIn('git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py systemd/install.sh', block)
         self.assertIn('--base "$BASE_SHA"', block)
         self.assertIn("git diff --name-only --no-renames", block)
         self.assertIn("--mode both", block)
