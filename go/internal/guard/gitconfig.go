@@ -141,7 +141,7 @@ func (a *Analyzer) configExpansionRefuse(toks []string) error {
 		if skip {
 			skip = false
 			if in(configFlags, t) || in(configWordWrite, t) {
-				return blockf("git config: " + pyRepr(t) + " follows a value option, so git takes it as the option's value and " +
+				return blockf("git config: `" + t + "` follows a value option, so git takes it as the option's value and " +
 					"not as an action; put the action flag first, or write the arguments literally (T-1063, T-1097)")
 			}
 			continue

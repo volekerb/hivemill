@@ -770,7 +770,7 @@ func TestXargsGitConfig(t *testing.T) {
 	}
 	err := f.check(cmd, f.wt, "cleaner")
 	msg := Explain(err)
-	if !strings.Contains(msg, "follows a value option") && !strings.Contains(msg, "xargs git config:") {
-		t.Fatalf("cleaner stderr %q, want value-option or xargs git config refusal", msg)
+	if !strings.Contains(msg, "follows a value option") {
+		t.Fatalf("cleaner stderr %q, want value-option refusal", msg)
 	}
 }

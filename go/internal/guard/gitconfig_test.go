@@ -59,7 +59,7 @@ func TestConfigExpansionRefuseValueOpt(t *testing.T) {
 		if err == nil {
 			t.Fatalf("configExpansionRefuse(%v): want refusal", toks)
 		}
-		if !strings.Contains(err.Error(), wantSub) {
+		if !strings.Contains(err.Error(), "`--get`") || !strings.Contains(err.Error(), wantSub) {
 			t.Fatalf("configExpansionRefuse(%v): %q, want substring %q", toks, err.Error(), wantSub)
 		}
 	}
