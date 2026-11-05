@@ -42,6 +42,17 @@ class ResearchSkillsTests(unittest.TestCase):
         self.assertEqual(pe.count("Never install a plugin into any Claude config and never launch claude; propose a `factory skilleval` run to your lead instead."), 1)
         self.assertIn("AUTHORING.md section 6", pe)
 
+    def test_g032_rigor_steps(self):
+        checks = {
+            "research-brief": ["Write one falsifiable hypothesis per sub-question"],
+            "source-evaluation": ["Triangulate each claim that matters", "Seek counter-evidence for each hypothesis"],
+            "report-writing": ["Verify before you publish", "says which hypothesis it supports or refutes"],
+        }
+        for name, phrases in checks.items():
+            for phrase in phrases:
+                with self.subTest(skill=name, phrase=phrase):
+                    self.assertEqual(skill(name).count(phrase), 1)
+
     def test_report_headings_in_order(self):
         found = re.findall(r"^\s*(?:- )?`?## ([A-Za-z -]+?)`?\s*$", skill("report-writing"), re.M)
         self.assertEqual(found, HEADINGS)
