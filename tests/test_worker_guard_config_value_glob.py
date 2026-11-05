@@ -30,8 +30,11 @@ TIGHTENED = [
     # gaining `[alias] x = y # --get`)
     "git config --comment --get (alias.x|y)", "git config --file --get (a|b)", "git config --comment --get <->",
     "git config --comment --get <1-2>", "git config --type --get (alias.x|y)", "git config --default --get (alias.x|y)",
+    "git config (alias.x|y)", "git config --comment c (alias.x|y)", "git config --type bool (alias.x|y)",
     "git config --blob --get (alias.x|y)", "git config --value --get (alias.x|y)", "git config -f --get (a|b)",
 ]
+# the swallowed-flag path with a QUOTED paren (masked, not refused): older roles refuse the shape anyway
+WRITER_ONLY_READS = ["git config --comment --get '(a|b)'", "git config --comment --get 'x y'"]
 ZSH = [c for c in TIGHTENED if "(" in c or "<" in c]
 ZSH_TEXT = "has an unquoted zsh glob ((a|b) or <->)"
 # refused for every role by the older parser check (unknown option or abbreviation), kept refused
@@ -91,7 +94,7 @@ class ConfigValueGlobTests(unittest.TestCase):
         self.check([c for c in TIGHTENED if c not in ZSH], 2, WRITERS, text=TEXT)
 
     def test_zsh_alternation_and_range_globs_refused_for_writers(self):
-        self.assertEqual(len(ZSH), 9)
+        self.assertEqual(len(ZSH), 12)
         self.check(ZSH, 2, WRITERS, text=ZSH_TEXT)
 
     def test_abbreviation_and_unknown_option_stay_refused(self):
@@ -102,6 +105,9 @@ class ConfigValueGlobTests(unittest.TestCase):
 
     def test_literal_reads_allowed_for_writers(self):
         self.check(READS, 0, WRITERS)
+
+    def test_quoted_paren_on_swallowed_flag_path_allowed_for_writers(self):
+        self.check(WRITER_ONLY_READS + ["git config --comment 'a (b)' --get alias.x"], 0, WRITERS)
 
     def test_literal_reads_allowed_for_other_roles(self):
         self.check(READS, 0, OTHERS)

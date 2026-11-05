@@ -2619,14 +2619,13 @@ class Analyzer:
         any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
         if self.hq:
             return
-        read = unsure = skip = swallowed = False
+        read = unsure = skip = False
         for n, t in enumerate(toks):
             if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
                 raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
                             "write the arguments literally (T-1063)")
             if skip:  # T-1097: the value of a value option (`--comment --get`) is never the action flag
                 skip = False
-                swallowed = swallowed or t in CONFIG_ACTION_FLAGS
                 continue
             name = t.partition("=")[0]
             if t in CONFIG_PARSE_VALUE_OPTS or (len(t) >= 3 and t.startswith("--") and "=" not in t and any(
@@ -2637,8 +2636,8 @@ class Analyzer:
                 unsure = True  # an option outside the table before the action flag: fail closed, no read proven
             elif (t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list"))) and not unsure:
                 read = True
-        if swallowed and not read and CONFIG_ZSH_GLOB.search(mask_quotes(getattr(self, "text", "") or "")):
-            raise Block("git config: the action flag is the value of a value option and the line has an unquoted zsh glob "
+        if not read and CONFIG_ZSH_GLOB.search(mask_quotes(getattr(self, "text", "") or "")):
+            raise Block("git config: no read action flag is proven and the line has an unquoted zsh glob "
                         "((a|b) or <->) that zsh expands into more arguments, so it could be a write; "
                         "write the arguments literally (T-1063, T-1097)")
 
