@@ -23,6 +23,7 @@ REFUSED = ["git config alias.x push --get", "git config alias.x push --null", "g
            "git config --get-color color.x --unset", "git config --get-colorbool color.ui --edit",
            "git config --get alias.x --show-origi", "git config --get alias.x -- --null",
            "git config --get-color color.x a b", "git config list --show-origin x", "git config --get alias.x --null --replace-all"]
+REFUSED += ["git config " + " ".join(f) for f in oracle.LATE_FORMS]
 
 
 class ConfigReadsTests(oracle.ConfigOracleTests):

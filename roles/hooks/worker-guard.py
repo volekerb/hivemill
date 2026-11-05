@@ -175,6 +175,8 @@ CONFIG_TRAILING = {"--show-origin", "--show-scope", "--name-only", "--all", "--r
 CONFIG_PARSE_VALUE_OPTS = {"--type", "-t", "--default", "--comment", "--blob", "--value", "--file", "-f"}
 # Mirrored by the Go port through go/internal/guard/testdata/frontend_golden.json (ci/guard_golden.py CONST_SETS); the
 # Python classifier no longer reads them. Values stay as they were until the Go mirror follow-up (G-016).
+# T-1064 v2: config_parse adds this marker to flags when an option follows the first positional.
+CONFIG_LATE = "\0late"
 CONFIG_VALUE_OPTS = {"--type", "--default", "--comment", "--blob"}
 CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "--show-origin", "--show-scope",
                "--name-only"}
@@ -192,7 +194,11 @@ def config_parse(args):
         k += 1
         if a in CONFIG_FLAGS and (not pos or a in CONFIG_TRAILING):
             flags.append(a)
+            if pos:
+                flags.append(CONFIG_LATE)
         elif a in CONFIG_PARSE_VALUE_OPTS or (a.startswith("--") and a.partition("=")[0] in CONFIG_PARSE_VALUE_OPTS and "=" in a):
+            if pos:
+                flags.append(CONFIG_LATE)
             if "=" not in a:
                 if k >= len(args):
                     return None
@@ -218,6 +224,8 @@ def config_is_read(args):
         return False
     if actions:
         return len(pos) <= 2
+    if CONFIG_LATE in flags and pos[:1] not in (["get"], ["list"]):
+        return False  # git's legacy parser stops at the first non-option: a later option token is the VALUE, a write
     if pos[:1] == ["get"]:
         return len(pos) <= 3
     if pos[:1] == ["list"]:

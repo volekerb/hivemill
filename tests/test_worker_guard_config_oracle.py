@@ -7,6 +7,7 @@ GIT_CEILING_DIRECTORIES=<tmp>, GIT_CONFIG_NOSYSTEM=1, HOME=<tmp>, GIT_DIR and ev
 `--file <tmp>/cfg`. A tripwire snapshots the real common-dir config and fails the test if it changed."""
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -57,6 +58,12 @@ CORPUS += [
     ["-t", "bool", "alias.x"], ["-t", "bool", "core.bare", "true"], ["--value", "x", "alias.y"], ["--value", "x", "alias.y", "push"],
     ["--get-color", "color.x", "push"], ["--get-colorbool", "color.ui", "alias.x", "push"],
 ]
+# T-1064 v2: an option after a bare key is the VALUE (git's legacy parser stops at the first non-option)
+VALUE_FORMS = [["-t", "bool"], ["--type=bool"], ["--default", "v"], ["--comment", "c"], ["--value", "v"], ["--value=v"]]
+LATE_FORMS = [["alias.y", "--null"], ["core.hooksPath", "--all"], ["core.fsmonitor", "--null"],
+              ["--global", "core.hooksPath", "--all"]]
+LATE_FORMS += [[k, *v] for k in ("alias.y", "core.bare") for v in VALUE_FORMS]
+CORPUS += LATE_FORMS
 CORPUS = [list(f) for f in dict.fromkeys(tuple(f) for f in CORPUS)]
 
 
@@ -124,6 +131,54 @@ class ConfigOracleTests(unittest.TestCase):
         except subprocess.TimeoutExpired:
             return False
         return snapshot(cfg) != before
+
+    def git_wrote_unfiled(self, form):
+        """Same form without --file: real git in a fresh temp repo with a temp HOME (scope flags work here)."""
+        repo = os.path.join(self.tmp, "unfiled")
+        home = os.path.join(self.tmp, "unfiled-home")
+        for d in (repo, home):
+            shutil.rmtree(d, ignore_errors=True)
+            os.makedirs(d)
+        env = fenced_env(repo)
+        env["HOME"] = home
+        subprocess.run(["git", "init", "-q", repo], cwd=repo, env=env, check=True, stdin=subprocess.DEVNULL,
+                       capture_output=True)
+        local = os.path.join(repo, ".git", "config")
+        with open(local, "a") as f:
+            f.write(SEED)
+        paths = [local, os.path.join(home, ".gitconfig")]
+        before = [snapshot(x) for x in paths]
+        try:
+            subprocess.run(["git", "config", *form], cwd=repo, env=env, capture_output=True, text=True, timeout=20,
+                           stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            return False
+        return [snapshot(x) for x in paths] != before
+
+    def test_unfiled_fence(self):
+        # the unfiled run writes only under the temp dir; the real user-level config is never changed
+        real = os.path.join(os.path.expanduser("~"), ".gitconfig")
+        before = snapshot(real)
+        self.assertTrue(self.git_wrote_unfiled(["--global", "alias.z", "q"]))
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp, "unfiled-home", ".gitconfig")))
+        self.assertEqual(snapshot(real), before)
+
+    def test_git_write_without_file_implies_guard_refusal(self):
+        wrote = []
+        for form in CORPUS:
+            if self.git_wrote_unfiled(form):
+                wrote.append(form)
+                cmd = "git config " + " ".join(form)
+                with self.subTest(form=cmd):
+                    p = self.hook(cmd)
+                    self.assertEqual(p.returncode, 2, f"git wrote (no --file) but the guard allowed: {cmd}\n{p.stderr}")
+        self.assertTrue(wrote, "unfiled oracle never saw git write: the fixture is broken")
+        # core.bare forms may be rejected by git as an invalid bool; every other late form must be a proven write
+        for f in LATE_FORMS:
+            if f[0] != "core.bare":
+                self.assertIn(f, wrote, f"git did not write {f}: corpus entry is not a proven write")
+            with self.subTest(late=f):
+                self.assertEqual(self.hook("git config " + " ".join(f)).returncode, 2)
 
     def test_corpus_size(self):
         self.assertGreaterEqual(len(CORPUS), 100)
