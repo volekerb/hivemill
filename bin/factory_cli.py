@@ -11526,10 +11526,10 @@ def goal_token_warn_tick(con):
             to = goal_alert_to(con, gid, lead=team["lead_agent"] if team else None)
             subject = f"token limit 80% reached: {gid}"
             body = f"{gid}: tally {used} tokens of limit {limit} ({pct}%). Nothing is refused."
-            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
-                        (key, str(digest_clock().timestamp())))
             for rcpt in dict.fromkeys([to, "director"]):
                 send(con, rcpt, subject, body, kind="alert", goal=gid, sender="tick")
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                        (key, str(digest_clock().timestamp())))  # after the sends: a failed send is retried, not lost
     except Exception as e:  # noqa: BLE001 — a warning must never break the tick
         try:
             if not _util_throttled(con, "goal-token-warn-failed", 3600, digest_clock().timestamp()):

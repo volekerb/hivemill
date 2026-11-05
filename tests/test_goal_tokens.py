@@ -266,7 +266,9 @@ class Limit(TallyCase):
         self.tally(95)
         with mock.patch.object(self.mod, "send", side_effect=RuntimeError("boom")):
             self.warn()
-        self.assertEqual(self.alerts(), [])
+        self.assertEqual((self.alerts(), self.throttle_rows()), ([], 0))
+        self.warn()  # the failed send is retried on the next tick
+        self.assertEqual(len(self.alerts()), 2)
 
     def test_cli_director_sets_lead_refused_zero_clears(self):
         def stored():
