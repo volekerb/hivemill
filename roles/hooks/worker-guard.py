@@ -2615,12 +2615,22 @@ class Analyzer:
         any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
         if self.hq:
             return
-        read = False
+        read = unsure = skip = False
         for n, t in enumerate(toks):
             if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
                 raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
                             "write the arguments literally (T-1063)")
-            if t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list")):
+            if skip:  # T-1097: the value of a value option (`--comment --get`) is never the action flag
+                skip = False
+                continue
+            name = t.partition("=")[0]
+            if t in CONFIG_PARSE_VALUE_OPTS or (len(t) >= 3 and t.startswith("--") and "=" not in t and any(
+                    o.startswith(t) for o in ("--type", "--default", "--comment", "--blob", "--value", "--file"))):
+                skip = True  # also a unique abbreviation (`--com --get al*`), which git accepts
+            elif t.startswith("-") and t != "-" and t not in CONFIG_FLAGS and t not in CONFIG_ACTION_FLAGS \
+                    and name not in CONFIG_PARSE_VALUE_OPTS:
+                unsure = True  # an option outside the table before the action flag: fail closed, no read proven
+            elif (t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list"))) and not unsure:
                 read = True
 
     def git_persist(self, rest, depth):
