@@ -70,7 +70,7 @@ class TickStartFailure(FactoryTestCase):
 
     def test_no_lead_alerts_the_director(self):
         self.env.sql("DELETE FROM agents WHERE name=?", (LEAD,))
-        self.env.sql("UPDATE agents SET team_id=NULL, spawn_args=json_remove(spawn_args,'$.team') WHERE name=?", (self.name,))
+        self.env.sql("UPDATE agents SET team_id=NULL, spawn_args=json_set(spawn_args,'$.team',NULL) WHERE name=?", (self.name,))
         self.tick()
         got = [a["recipient"] for a in self.alerts()]
         self.assertEqual(len(got), 1)
