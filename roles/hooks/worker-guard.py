@@ -871,86 +871,22 @@ AWK_RUN = re.compile(r"system\s*\(|\|\s*&?\s*[\"']|[\"']\s*\|")
 
 
 ENV_LONG_OK = ("--null", "--debug", "--block-signal", "--default-signal", "--ignore-signal",
-               "--list-signal-handling", "--help", "--version", "--split-string")
-ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826/T-0964: classified "value" so unique prefixes are not "unknown"; env_options consumes the next word only when it exists and does not start with `-`
-ENV_SPLIT_WS = " \t\n\v\f\r"
-ENV_SPLIT_ESC = {"n": "\n", "t": "\t", "r": "\r", "f": "\f", "v": "\v"}
-
-
-def env_split(s):
-    """T-1037: split an `env -S` string the way GNU env does: whitespace separates words, single quotes are literal
-    (only backslash-backslash and backslash-quote escape), double quotes keep spaces and honour escapes, backslash-underscore
-    is a separator outside quotes and a space inside double quotes, backslash-c ends the string, backslash-n/t/r/f/v are
-    control characters, any other backslash-x is x. An unterminated quote takes the rest (env would refuse it; the guard
-    keeps the words). ${VAR} outside single quotes is kept as literal text (env expands it from the command's environment, which the guard cannot see); env_options treats it as dynamic. A `#` at the start of a word starts a comment."""
-    words, cur, have, q, i = [], [], False, None, 0
-
-    def end():
-        nonlocal cur, have
-        if have:
-            words.append("".join(cur))
-        cur, have = [], False
-
-    while i < len(s):
-        c = s[i]
-        i += 1
-        if q == "'":
-            if c == "'":
-                q = None
-            elif c == "\\" and i < len(s) and s[i] in "\\'":
-                cur.append(s[i])
-                i += 1
-            else:
-                cur.append(c)
-        elif c == "\\":
-            if i >= len(s):
-                break
-            e = s[i]
-            i += 1
-            if e == "c":
-                break
-            if e == "_" and q is None:
-                end()
-            elif e == "_":
-                cur.append(" ")
-                have = True
-            else:
-                cur.append(ENV_SPLIT_ESC.get(e, e))
-                have = True
-        elif c == "$" and s.startswith("{", i) and "}" in s[i:]:
-            j = s.index("}", i)
-            cur.append(s[i - 1:j + 1])  # kept literal: the guard cannot know env's value, so the word stays dynamic (fail closed)
-            have = True
-            i = j + 1
-        elif q == '"':
-            if c == '"':
-                q = None
-            else:
-                cur.append(c)
-        elif c in "'\"":
-            q, have = c, True
-        elif c in ENV_SPLIT_WS:
-            end()
-        elif c == "#" and not have:
-            break
-        else:
-            cur.append(c)
-            have = True
-    end()
-    return words
+               "--list-signal-handling", "--help", "--version")
+ENV_VALUE_LONG = ("--argv0", "--chdir")  # T-0826: classified "value" so unique prefixes are not "unknown"; since T-0964 the value is the next word unless `=value`
 
 
 def env_long(a):
-    """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "split" (a prefix of --split-string), "ignore"
+    """T-0826: classify a GNU env long option (GNU accepts any unique prefix): "unset" (a prefix of --unset), "ignore"
     (a prefix of --ignore-environment that is not an exact other long option), "value" (a prefix of --argv0/--chdir:
-    its value is the next word unless `=value`), "ok" (an exact harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
+    its value is the next word unless `=value`), "split" (--s .. --split-string: T-1037, workers may not use it), "ok" (an exact
+    harmless long option) or "unknown" (fail closed). `a` may carry an `=value`."""
     name = a.split("=", 1)[0]
     if len(name) < 3:
         return "unknown"
+    if "--split-string".startswith(name):
+        return "split"
     if "--unset".startswith(name):
         return "unset"
-    if "--split-string".startswith(name):
-        return "split"  # T-1037: any unique prefix of --split-string re-parses its string like the full name
     if any(v.startswith(name) for v in ENV_VALUE_LONG):
         return "value"
     if name in ENV_LONG_OK:
@@ -961,47 +897,36 @@ def env_long(a):
 
 
 def env_options(words):
-    """T-1037: two separate passes. env_split models env's quoting; str.split (main's parse) is kept as a floor."""
-    yield from env_scan(words, env_split)
-    yield from env_scan(words, str.split)
-
-
-def env_scan(words, split):
-    """T-0964: yield (kind, value) for the GNU env options before the command word: ("clear", opt) for -i/-/--ignore-env*
-    (an `i` in a short cluster before any `u` and outside an -S string), ("clear-attached", opt) for an `i` anywhere
-    else in a cluster (text attached to -S, text after `u`; check_scrub counts it, no-push ignores it), ("unset", name), ("unknown", opt) for a long option this guard does not
-    model. Hard rule: a word starting with - is always parsed as an option, never consumed as a value. A -u/--unset
-    value that starts with - is still reported (peeked, not consumed) so a dynamic `-$X` stays denied as on main.
-    -a/-C/-P and --argv0/--chdir take the next word only when it exists and does not start with `-`. -S/--split-string
-    re-parses its string (also inside a cluster, where the rest of the cluster keeps being scanned, so a later `u` counts);
-    a non-dash word that came from an -S string does not end the scan (main kept scanning the outer words)."""
-    q = collections.deque((w, False) for w in words)  # (word, came from an -S string)
+    """T-0964/T-1037: yield (kind, value) for the GNU env options before the command word: ("split", opt) for -S or
+    --split-string (any unique prefix, with or without `=value`; an `S` before the first `u` of a short cluster, attached
+    or not) and then stop, because the string is never parsed; ("clear", opt) for -i/-/--ignore-env* (an `i` in a short
+    cluster before any `u`), ("clear-attached", opt) for an `i` after `u` (check_scrub counts it, no-push ignores it),
+    ("unset", name), ("unknown", opt) for a long option this guard does not model. Hard rule: a word starting with - is
+    always parsed as an option, never consumed as a value. A -u/--unset value that starts with - is still reported
+    (peeked, not consumed) so a dynamic `-$X` stays denied as on main. -a/-C/-P and --argv0/--chdir take the next word
+    only when it exists and does not start with `-`. The first word that is neither an option nor an assignment ends the scan."""
+    q = collections.deque(words)
 
     def val():
-        return q.popleft()[0] if q and not q[0][0].startswith("-") else ""
+        return q.popleft() if q and not q[0].startswith("-") else ""
 
     def uval():
-        if q and q[0][0].startswith("-"):
-            return q[0][0]
-        return q.popleft()[0] if q else ""
-
-    def push(sval):
-        q.extendleft((w, True) for w in reversed(split(sval)))
+        if q and q[0].startswith("-"):
+            return q[0]
+        return q.popleft() if q else ""
 
     while q:
-        a, from_s = q.popleft()
+        a = q.popleft()
         if a == "--" or ASSIGN.match(a):
-            continue
-        if from_s and re.search(r"[$`]", a):
-            yield "unknown", a  # T-1037: an expansion in any -S word is dynamic: fail closed
             continue
         if a == "-":
             yield "clear", a
         elif a.startswith("--"):
             kind = env_long(a)
             if kind == "split":
-                push(a.split("=", 1)[1] if "=" in a else q.popleft()[0] if q else "")
-            elif kind == "ignore":
+                yield "split", a
+                return
+            if kind == "ignore":
                 yield "clear", a
             elif kind == "unknown":
                 yield "unknown", a
@@ -1010,12 +935,14 @@ def env_scan(words, split):
             elif "=" not in a and kind == "value":
                 val()
         elif a.startswith("-"):
-            scan = "" if a.startswith("-S") else a[1:].split("u", 1)[0]  # main's no-push rule
+            if "S" in a[1:].split("u", 1)[0]:
+                yield "split", a
+                return
+            scan = a[1:].split("u", 1)[0]  # main's no-push rule
             if "i" in scan:
                 yield "clear", a
             elif "i" in a[1:]:
                 yield "clear-attached", a  # check_scrub only (spec hard rule)
-            pending = []  # -S strings are pushed after the cluster, so a later `u` still takes the outer next word
             for k, c in enumerate(a[1:], 1):
                 if c == "u":
                     yield "unset", a[k + 1:] or uval()
@@ -1024,13 +951,7 @@ def env_scan(words, split):
                     if k == len(a) - 1:
                         val()
                     continue
-                if c == "S":
-                    pending.append(a[k + 1:] or (q.popleft()[0] if q else ""))
-                    if k == len(a) - 1:
-                        break
-            for sval in reversed(pending):
-                push(sval)
-        elif not from_s:
+        else:
             return
 
 
@@ -1180,12 +1101,13 @@ def heredoc_delim(cmd, i):
     return strip, word, j, quoted
 
 
-def preprocess(cmd, fold_ticks=False, bodies=None):
+def preprocess(cmd, fold_ticks=False, bodies=None, slots=None):
     """Make newlines separators, drop comments and non-shell heredoc bodies.
 
     Returns (text, extras): extras are texts to analyze too (bodies of heredocs fed to a shell) and
     text blocks fed to other interpreters (only searched for the word herdr). When bodies is a list, every heredoc
     is appended to it as (the command line up to its newline, the body): the public-text rule reads `-F -` from it.
+    When slots is a list, one [body, strip] list per `<<` in text order is appended; a resolved heredoc's slot holds its body and whether it is `<<-`.
     """
     out, extras = [], []
     i, n, q = 0, len(cmd), None
@@ -1235,10 +1157,15 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
         if c == "<" and cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
             r = heredoc_delim(cmd, i)
             if r:
-                pending.append((r[0], r[1], r[3]))
+                slot = [None, r[0]]  # body, then whether this is a real `<<-`
+                if slots is not None:
+                    slots.append(slot)
+                pending.append((r[0], r[1], r[3], slot))
                 out.append(cmd[i:r[2]])
                 i = r[2]
             else:  # unresolved delimiter: no body is skipped, the lines after it are scanned as code
+                if slots is not None:
+                    slots.append([None, False])
                 out.append("<<")
                 i += 2
             continue
@@ -1246,7 +1173,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
             head = "".join(out[line_start:])
             out.append(" ; ")
             i += 1
-            for strip, delim, quoted in pending:
+            for strip, delim, quoted, slot in pending:
                 body = []
                 while i < n:
                     seg = i
@@ -1265,6 +1192,7 @@ def preprocess(cmd, fold_ticks=False, bodies=None):
                     if cmp != line:
                         body.append(cmp)  # what bash feeds the inner command after joining
                 body = "\n".join(body)
+                slot[0] = body
                 if bodies is not None:
                     bodies.append((head, body))
                 if re.search(r"\b(%s|eval|source)\b" % "|".join(SHELLS), head):
@@ -1495,10 +1423,10 @@ class Analyzer:
         if name != "env":
             return
         for kind, v in env_options(rest):  # T-0964: value options no longer end the scan
+            if kind == "split":
+                raise Block("env -S/--split-string: workers may not use it; write the command without env -S (T-1037)")
             if kind == "unset" and v in SCRUB_VARS:
                 raise Block("env -u FACTORY_ROLE/HERDR_PANE_ID")
-            if kind in ("unknown", "unset") and re.search(r"[$`]", v):
-                raise Block("env -u or -S with an expansion: the guard cannot tell whether it names FACTORY_ROLE/HERDR_PANE_ID")
             if kind in ("clear", "clear-attached"):
                 self.scrub_with_factory = "env -i"
 
@@ -1632,7 +1560,8 @@ class Analyzer:
                         raise Block(f"a redirect built by a substitution into a protected config/init file: {PERSIST_WHY}")
         nbodies = self.pt.bodies if self.pt else []
         seen = len(nbodies)
-        text, extras = preprocess(text, self.hq, nbodies)
+        slots = []
+        text, extras = preprocess(text, self.hq, nbodies, slots)
         if self.role in NO_PUSH_ROLES and not self.hq:
             self.call_assign(text, [b for _, b in nbodies[seen:]])
         for kind, body in extras:
@@ -1657,6 +1586,7 @@ class Analyzer:
             self.soft(self.script, sub, depth + 1)
         cmds, cur, piped, i, hs = [], [], False, 0, []
         reds = []  # (index of the command it belongs to, redirect target word)
+        hds = {}  # command index -> heredoc bodies (T-0882: they join the here-string stdin channel)
         stack, dollar = [], False  # saved (cur, piped, hs) of the commands that open a $( )
         while i < len(toks):
             tok = toks[i]
@@ -1688,6 +1618,13 @@ class Analyzer:
                     if nxt is not None and not is_punct(nxt):
                         if tok == "<<<":
                             hs.append(nxt)
+                        elif tok == "<<":
+                            slot = slots.pop(0) if slots else [None, False]
+                            b = slot[0]
+                            if b is not None:
+                                hds.setdefault(len(cmds), []).append(b)
+                            if slot[1] and nxt == "-" and i + 2 < len(toks) and not is_punct(toks[i + 2]):
+                                i += 1  # `<<- EOF`
                         elif ">" in tok and ("&" not in tok or (re.match(r"^[0-9]*(&>>?|>&)$", tok)
                                                                  and not re.match(r"^([0-9]+|-)$", nxt))):
                             reds.append((len(cmds), nxt))  # `>&2` / `>&-` duplicate or close an fd: no file target
@@ -1722,7 +1659,14 @@ class Analyzer:
                     self.cfg_redirect(target)
                     self.prot_redirect(target)
                     self.persist_redirect(target)
-            self.soft(self.cmd, words, depth, piped, False, hstrs)
+            k = n - 1
+            while k > 0 and cmds[k][1] and cmds[k][0] and os.path.basename(cmds[k][0][0]) in ("tee", "cat"):
+                k -= 1  # pass-through stages (`echo ... | tee f | python3`) keep the literal
+            prev = cmds[k][0] if piped and k >= 0 else []
+            self.pipe_src = " ".join(prev[1:]) if prev and os.path.basename(prev[0]) in ("echo", "printf") else None
+            if prev and os.path.basename(prev[0]) == "cat" and (hds.get(k) or cmds[k][2]):
+                self.pipe_src = "\n".join([*hds.get(k, []), *cmds[k][2]])
+            self.soft(self.cmd, words, depth, piped, False, hstrs, (), (piped, [*hstrs, *hds.get(n, [])], self.pipe_src))
             if any(r[0] == n and r[1] != "/dev/null" for r in reds):
                 self.fs_changed = True
 
@@ -1843,11 +1787,39 @@ class Analyzer:
         # attached code (`perl -e'CODE'`, `node --eval=CODE`) is not a separate word: scan option words that look like code
         texts += [a for a in rest if a.startswith("-") and re.search(r"[\s\"'();]", a)]
         for t in texts:
-            if all(p.search(t) for p in INLINE_GIT_PUSH):
-                raise Block(f"{name} inline code that runs `git push` (no-push roles never push; ask your lead)")
-            if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
-                raise Block(f"{name} inline code that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
-                            "no-push roles never write to GitHub; ask your lead")
+            self.scan_inline_text(name, t, "inline code")
+
+    def scan_inline_text(self, name, t, what):
+        if all(p.search(t) for p in INLINE_GIT_PUSH):
+            raise Block(f"{name} {what} that runs `git push` (no-push roles never push; ask your lead)")
+        if INLINE_GH_WRITE.search(t) or inline_gh_api_body(t):
+            raise Block(f"{name} {what} that runs a gh write (pr merge/create, repo, api with a write method or body, release write); "
+                        "no-push roles never write to GitHub; ask your lead")
+
+    def stdin_program(self, name, rest):
+        """T-0882: True when the interpreter command reads its program from stdin: no script file (or `-`) and no -c/-e code.
+        An option this hook does not model counts as stdin too (scanning only ever refuses a push/gh write)."""
+        if not INLINE_CODE_INTERPS.match(name):
+            return False
+        n = "node" if name.startswith("nodejs") else name
+        si, ci, unknown = interp_args(n, rest)
+        if unknown:
+            return True
+        if ci is not None:
+            return False
+        if si is not None and PT_STDIN_PATH.match(os.path.normpath(rest[si])):
+            return True
+        return si is None or rest[si] == "-" or bool(PT_STDIN_PATH.match(os.path.normpath(rest[si])))
+
+    def stdin_scan(self, name, text):
+        """T-0882: scan code fed to an interpreter on stdin (heredoc body, here-string, echo/printf piped in) with the T-0789
+        scan, plus the T-0808 F4 fail-closed rule for archive extraction from python. NOT covered, by design: a piped
+        non-literal source (`cat file | python3`, `curl ... | python3`), uv run wrappers, obfuscated code. Defense in depth only;
+        the sandbox + worker PAT are the boundary (M15349)."""
+        self.scan_inline_text(name, text, "stdin code")
+        if re.match(r"^python[\d.]*$", name) and re.search(r"extractall|extract\s*\(|unpack_archive", text):
+            raise Block(f"`{name}` stdin code that extracts an archive cannot be bounded (it may write .git/config or hooks); "
+                        "use unzip -d or tar -C")
 
     def git_priv(self, rest, depth):
         """git runs shell text from `-c alias.x=!cmd`, `-c core.pager=cmd` and `git config <key> <value>`."""
@@ -3382,8 +3354,10 @@ class Analyzer:
             return None
         return os.path.realpath(row[0]) if row and row[0] else None
 
-    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=()):
+    def cmd(self, words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
         words = list(words)
+        # T-0882: a wrapped interpreter keeps the wrapper's stdin (here-strings, the echo/printf literal piped in)
+        stdin_piped, stdin_hs, stdin_pipe = stdin if stdin else (piped, hstrs, getattr(self, "pipe_src", None))
         assigns = list(env_assigns)
         stripped = strip_prefix(words)
         assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
@@ -3486,6 +3460,9 @@ class Analyzer:
             self.interp_priv(name, rest)
             if self.role in NO_PUSH_ROLES and not self.hq:
                 self.interp_inline_push(name, rest)
+                if self.stdin_program(name, rest):  # T-0882: here-string, heredoc, echo|printf piped in
+                    for h in list(stdin_hs) + ([stdin_pipe] if stdin_piped and stdin_pipe else []):
+                        self.stdin_scan(name, h)
             self.unittest_full(name, rest)
             self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
@@ -3527,7 +3504,7 @@ class Analyzer:
         elif name in WRAPPERS and not in_loose:
             if name == "xargs":
                 self.xargs(rest)
-            self.loose(rest, depth, assigns)
+            self.loose(rest, depth, assigns, (stdin_piped, stdin_hs, stdin_pipe))
 
     def test_sandbox_on(self):
         """T-0675: config test_sandbox is 1, read-only from the factory DB. Fails open (False) on a missing or unreadable DB or table."""
@@ -3851,7 +3828,7 @@ class Analyzer:
             if any(CLAUDE_CLI.search(a) or CLAUDE_PKG in a for a in rest):
                 raise ClaudeBlock(f"{name} running the Claude Code cli")
 
-    def loose(self, rest, depth, env_assigns=()):
+    def loose(self, rest, depth, env_assigns=(), stdin=None):
         for k in range(len(rest)):
             whole = True
             if ASSIGN.match(rest[k]):
@@ -3868,7 +3845,7 @@ class Analyzer:
             if whole and re.search(r"\s", rest[k]):
                 self.script(rest[k], depth + 1)
             self.cmd(rest[k:], depth, False, True,
-                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))])
+                     env_assigns=[*env_assigns, *(x for x in rest[:k] if x.startswith("FACTORY_HOME="))], stdin=stdin)
 
     def xargs(self, rest):
         repl, j, first = None, 0, None

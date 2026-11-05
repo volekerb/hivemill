@@ -44,12 +44,13 @@ DENY = [
     ("qa", "env -vSuGIT_DIR git status"), ("reviewer", "env -vSuGIT_DIR git status"),
     ("qa", "env -vSu GIT_DIR git status"), ("qa", "env -aSuGIT_DIR git status"),
     ("qa", "env -u -$X git status"), ("qa", "env --unset -$X git status"), ("qa", "env -xu -$X git status"),
+    # T-1037 (M24043): env -S is denied outright, whatever the text attached to it
+    ("qa", "env -Sprintf ls"), ("qa", "env -S'git status'"), ("reviewer", "env -S'git status'"),
 ]
 ALLOW = [
     ("qa", "env -a foo ls"), ("qa", "env -C /tmp ls"), ("coder", "env -a foo ls"), ("coder", "env -C /tmp ls"),
     ("coder", "env -u FOO ls"), ("coder", "env -P /bin ls"), ("coder", "env --argv0 foo ls"),
-    # attempt 3: an `i` in text attached to -S or after `u` is not -i for no-push roles
-    ("qa", "env -Sprintf ls"), ("qa", "env -S'git status'"), ("reviewer", "env -S'git status'"),
+    # attempt 3: an `i` after `u` is not -i for no-push roles
     ("qa", "env -ubig git status"), ("qa", "env -uxi git status"),
 ]
 # T-0826 REGRESSION LIST: exit 2 on origin/main and on head
