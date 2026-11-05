@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, "plugins", "hivemill", "scripts", "install.py")
 FRESHBOX = os.path.join(ROOT, "ci", "freshbox_test.py")
