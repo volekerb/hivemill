@@ -1,5 +1,6 @@
 """T-0629 (G-022 #6): review_autospawn: the tick starts reviewer + QA (or one combined agent) when a PR opens;
 review_reserved_slots keeps slots for them (docs/review-autospawn.md)."""
+import json
 import unittest
 
 from harness import SHA_A, FactoryTestCase, gates_summary
@@ -770,3 +771,35 @@ class PrefixedNameTests(Base):
         r = self.env.run("verdict", "T-0001", "--pass", "--sha", "b" * 40, "--summary", GOOD, agent="claude-qa-t-0001")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual([v["head_sha"] for v in self.env.sql("SELECT head_sha FROM verdicts")], ["b" * 40])
+
+
+class WaitEventTests(Base):
+    """T-1098: a first-round pass that starts nothing says why, once per task, head and kind (it used to skip silently)."""
+
+    def waits(self):
+        return [json.loads(r["detail"]) for r in self.env.sql(
+            "SELECT detail FROM events WHERE entity='task' AND entity_id='T-0001' AND action='review-autospawn-wait' ORDER BY id")]
+
+    def test_closed_gate_logs_one_wait_event_per_hour(self):
+        self.on()
+        self.task()
+        self.assertEqual(self.tick_step(gate_open=False, now=1_800_000_000), [])
+        self.assertEqual(self.tick_step(gate_open=False, now=1_800_000_060), [])
+        self.assertEqual([(w["kind"], w["head"]) for w in self.waits()], [("gate", SHA_A[:8])])
+        self.assertIn("spawn gate closed for reviewer", self.waits()[0]["why"])
+        self.assertEqual(self.tick_step(gate_open=False, now=1_800_000_000 + 3601), [])
+        self.assertEqual(len(self.waits()), 2)
+
+    def test_live_coder_logs_a_coder_wait(self):
+        self.on()
+        self.task()
+        self.env.seed_agent("coder-t-0001", "coder", goal="G-001", team=TEAM, task="T-0001", status="live")
+        self.assertEqual(self.tick_step(now=1_800_000_000), [])
+        self.assertEqual([w["kind"] for w in self.waits()], ["coder"])
+
+    def test_pending_ci_under_handoff_logs_a_ci_wait(self):
+        self.on(coder_ci_handoff="resume")
+        self.task()
+        self.env.seed_pr(checks=[{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS", "conclusion": ""}])
+        self.assertEqual(self.tick_step(stub_pr=False, now=1_800_000_000), [])
+        self.assertEqual([w["kind"] for w in self.waits()], ["ci"])

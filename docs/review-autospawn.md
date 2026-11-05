@@ -55,3 +55,8 @@ verdicts and green CI). With the flag `off` the first-round pass starts review a
   differs from the head that worker was started on is refused; a `--fail` without `--sha` is recorded on the started head. Verdicts of workers
   the lead spawned (no event) behave as before, as do those of a same-name worker the lead respawned after the tick's event (the event
   describes the earlier worker). No schema change; the merge gate is untouched.
+
+## Judge autospawn needs both verdicts on the current head; wait events (T-1098)
+
+- `judge_autospawn_tick` starts a judge only when the latest reviewer PASS and the latest QA PASS are each recorded on the PR's current head, or carry to it by the T-0095 rule (pure `origin/main` merges), the same test the merge gate applies. One verdict still on an older head (the other role is running on the new head) or an unverifiable carry starts no judge; the tick logs one `judge-autospawn-wait` event per task and reason and tries again next tick. Local-gate projects (`gate_cmd`) are not checked.
+- The first-round review pass used to skip silently while CI was not green under `coder_ci_handoff`, a coder agent of the task was live, or `gate()` was closed. It now logs one `review-autospawn-wait` event per task, head and kind (`ci`, `coder`, `gate`) per hour, with the reason. Behaviour is unchanged: it still retries each tick.

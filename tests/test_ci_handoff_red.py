@@ -89,9 +89,19 @@ class ResumeTests(Base):
             self.assertIn(f"gh run view {RUN} --log-failed", text)
             self.assertIn(SHA[:8], text)
             self.assertNotIn("lint (run", text)  # the passing check is not named as failed
-        before = self.env.sql("SELECT attempts FROM tasks WHERE id='T-0001'")[0][0]
+        after = self.env.sql("SELECT attempts FROM tasks WHERE id='T-0001'")[0][0]
         self.assertEqual(self.env.sql("SELECT status FROM tasks WHERE id='T-0001'")[0][0], "in_review")
-        self.assertEqual(before, 0)
+        self.assertEqual(after, 1)  # T-1098: a tick resume counts as an attempt
+
+    def test_each_tick_resume_adds_one_attempt_and_a_refused_spawn_adds_none(self):
+        self.task()
+        self.env.sql("UPDATE tasks SET attempts=1 WHERE id='T-0001'")
+        self.assertEqual(self.tick({pr_url(1): (SHA, RED)}, refuse=("T-0001",)), [])
+        self.assertEqual(self.env.sql("SELECT attempts FROM tasks WHERE id='T-0001'")[0][0], 1)
+        self.assertEqual(len(self.tick({pr_url(1): (SHA, RED)})), 1)
+        self.env.sql("UPDATE agents SET status='done' WHERE name='coder-t-0001'")
+        self.assertEqual(len(self.tick({pr_url(1): (SHA2, RED)})), 1)
+        self.assertEqual(self.env.sql("SELECT attempts FROM tasks WHERE id='T-0001'")[0][0], 3)
 
     def test_real_spawn_argv_has_resume_session_id(self):
         self.task()
