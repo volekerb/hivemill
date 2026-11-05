@@ -36,8 +36,10 @@ and one failed starts the coder again, once per (task, head sha) (throttle row `
   for Cursor). A missing worktree is rebuilt by spawn; the kickoff then tells the coder to `git reset --hard origin/<branch>` first.
 - The kickoff names the head, each failed check with its run id and `gh run view <id> --log-failed`.
 - Limits: `coder_ci_resume_max` starts per task (default 2); the next red head mails the lead once (`coder resume limit reached`) and starts
-  nothing. At most 2 starts per tick. Nothing starts while the red-main freeze (`red_main_freeze=1`) says main is red, or while `gate()` is closed;
-  both retry next tick.
+  nothing. At most 2 starts per tick. Nothing starts for a task whose own repo has a red main (`red_main_freeze=1`); tasks of other repos still
+  start. A closed `gate()` stops the step for the tick; both retry next tick.
+- A refused spawn skips that task and the step goes on with the next one. After 3 refusals on one head the tick stops retrying that head and
+  mails the lead once (`coder restart refused`).
 - A conflicted PR (`mergeStateStatus` DIRTY), or one without any checks for over 60 minutes, mails the lead (once per head) and starts nothing.
 - Blocked and judge-held tasks start nothing (`red_pr_owner_alert` mails the lead for a blocked one). The task stays `in_review`; `attempts`
   is not bumped; the review rerun on a new head, the scorecard retry count and the worktree are untouched.

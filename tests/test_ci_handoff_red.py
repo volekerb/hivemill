@@ -22,6 +22,10 @@ def pr_url(n):
     return f"https://github.com/zz-test/repo/pull/{n}"
 
 
+def other_pr_url(n):
+    return f"https://github.com/zz-test/other/pull/{n}"
+
+
 class Base(FactoryTestCase):
     def setUp(self):
         super().setUp()
@@ -33,16 +37,16 @@ class Base(FactoryTestCase):
         self.wt = e.home / "wt"
         self.wt.mkdir()
 
-    def task(self, n=1, coder="done", session="sess-1", worktree=True, status="in_review", **kw):
+    def task(self, n=1, coder="done", session="sess-1", worktree=True, status="in_review", url=None, **kw):
         tid = f"T-{n:04d}"
-        self.env.seed_task(tid, status=status, pr_url=pr_url(n), team=TEAM)
+        self.env.seed_task(tid, status=status, pr_url=url or pr_url(n), team=TEAM)
         self.env.sql("UPDATE tasks SET branch=?, worktree=? WHERE id=?", (f"factory/t-{n:04d}", str(self.wt) if worktree else None, tid))
         if coder:
             self.env.seed_agent(f"coder-{tid.lower()}", "coder", goal="G-001", team=TEAM, task=tid, status=coder)
             self.env.sql("UPDATE agents SET session_id=? WHERE name=?", (session, f"coder-{tid.lower()}"))
         return tid
 
-    def tick(self, prs, gate_open=True, real_spawn=False, now=NOW):
+    def tick(self, prs, gate_open=True, real_spawn=False, now=NOW, refuse=()):
         """prs: {pr url: (head sha, rollup, mergeStateStatus)}. Returns the fake spawn calls (empty with real_spawn)."""
         calls = []
         with self.env.load_factory() as f:
@@ -54,6 +58,8 @@ class Base(FactoryTestCase):
             f.digest_clock = lambda: f.dt.datetime.fromtimestamp(now, f.dt.timezone.utc)
             if not real_spawn:
                 def fake_spawn(con, role, goal=None, team=None, task=None, name=None, prompt=None, resume=None, **kw):
+                    if task in refuse:
+                        raise SystemExit(1)
                     calls.append({"role": role, "task": task, "name": name, "prompt": prompt, "resume": resume})
                     con.execute("UPDATE agents SET status='live' WHERE name=?", (name,))
                 f.spawn = fake_spawn
@@ -176,6 +182,40 @@ class LimitTests(Base):
         self.assertEqual(len(self.tick({pr_url(1): (SHA, RED)})), 1)
 
 
+class RefusalTests(Base):
+    def test_refused_spawn_does_not_stop_later_red_tasks_and_retries_are_bounded(self):
+        self.task(1)
+        self.task(2)
+        prs = {pr_url(1): (SHA, RED), pr_url(2): (SHA, RED)}
+        first = self.tick(prs, refuse=("T-0001",))
+        self.assertEqual([c["task"] for c in first], ["T-0002"])  # the refusing first task does not starve the one behind it
+        self.env.sql("UPDATE agents SET status='done' WHERE name='coder-t-0002'")
+        for _ in range(4):
+            self.tick(prs, refuse=("T-0001",))
+        errs = self.env.sql("SELECT count(*) FROM events WHERE action='coder-ci-resume-error' AND entity_id='T-0001'")[0][0]
+        self.assertEqual(errs, 3)  # bounded: no retry after the third refusal on this head
+        self.assertEqual(len(self.mails("coder restart refused%", to=LEAD)), 1)  # one lead mail, not one per tick
+        self.assertEqual(len(self.tick(prs)), 0)  # given up on this head even when spawn would now work
+
+
+class MainRedRepoTests(Base):
+    def test_red_main_in_one_repo_does_not_stop_a_task_of_another_repo(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.env.sql("INSERT INTO config(key,value) VALUES('red_main:zz-test/repo',?)", (json.dumps({"run": "9", "sha": "x", "url": "u", "since": "t"}),))
+        self.task(1)
+        self.task(2, url=other_pr_url(2))
+        calls = self.tick({pr_url(1): (SHA, RED), other_pr_url(2): (SHA, RED)})
+        self.assertEqual([c["task"] for c in calls], ["T-0002"])  # repo A (T-0001, sorts first) starts nothing; repo B starts
+
+    def test_red_main_in_the_later_repo_does_not_stop_the_earlier_one(self):
+        self.ok("config", "red_main_freeze", "1")
+        self.env.sql("INSERT INTO config(key,value) VALUES('red_main:zz-test/other',?)", (json.dumps({"run": "9", "sha": "x", "url": "u", "since": "t"}),))
+        self.task(1)
+        self.task(2, url=other_pr_url(2))
+        calls = self.tick({pr_url(1): (SHA, RED), other_pr_url(2): (SHA, RED)})
+        self.assertEqual([c["task"] for c in calls], ["T-0001"])
+
+
 class SkipTests(Base):
     def test_live_starting_queued_coder_blocked_hold_and_flag_off_start_nothing(self):
         prs = {pr_url(1): (SHA, RED)}
@@ -217,6 +257,21 @@ class WorktreeTests(Base):
         (self.wt / "keep.txt").write_text("x\n")
         self.tick({pr_url(1): (SHA, GREEN)})
         self.tick({pr_url(1): (SHA, RED)})
+        self.assertTrue((self.wt / "keep.txt").exists())
+        self.assertEqual(self.env.sql("SELECT worktree FROM tasks WHERE id='T-0001'")[0][0], str(self.wt))
+
+
+class RealTickTests(Base):
+    def test_real_tick_restarts_a_done_coder_on_a_red_pr_and_keeps_its_worktree(self):
+        self.task()
+        (self.wt / "keep.txt").write_text("x\n")
+        self.env.set_gh(prs={pr_url(1): {"number": 1, "state": "OPEN", "headRefOid": SHA, "mergeStateStatus": "CLEAN", "statusCheckRollup": RED}})
+        p = self.env.run("tick", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(len(self.env.sql("SELECT 1 FROM events WHERE action='coder-ci-resume' AND entity_id='T-0001'")), 1, p.stdout + p.stderr)
+        argv = self.starts()
+        self.assertEqual(len(argv), 1, self.env.calls("herdr"))
+        self.assertEqual(argv[0][argv[0].index("--resume") + 1], "sess-1")
         self.assertTrue((self.wt / "keep.txt").exists())
         self.assertEqual(self.env.sql("SELECT worktree FROM tasks WHERE id='T-0001'")[0][0], str(self.wt))
 

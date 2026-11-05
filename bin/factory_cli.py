@@ -14705,7 +14705,8 @@ def review_autospawn_tick(con):
 
 
 CODER_RESUME_MAX_STARTS = 2      # coder starts per tick
-CODER_RESUME_PROBE_S = 120       # a probed head that is not red is not probed again for this long
+CODER_RESUME_REFUSED_MAX = 3     # refused spawns on one head before the tick gives up and mails the lead
+CODER_RESUME_PROBE_S = 120      # a probed head that is not red is not probed again for this long
 CODER_RESUME_NO_CHECKS_S = 3600  # a head with no checks for this long is mailed to the lead, no spawn
 
 
@@ -14808,7 +14809,7 @@ def coder_ci_resume_tick(con):
             continue
         slugs = [x for x in [_repo_slug(re.sub(r"/pull/\d+.*$", "", t["pr_url"] or ""))] if x]
         if red_main_refusal(con, slugs, tid):
-            return  # main is red: a red PR is not the PR's fault; retry when main is green
+            continue  # main is red in THIS task's repo: a red PR is not the PR's fault; retry when main is green. Other repos' tasks go on
         prior = con.execute("SELECT * FROM agents WHERE task_id=? AND role='coder' ORDER BY started DESC LIMIT 1", (tid,)).fetchone()
         org = org_for(con, t["goal_id"], tid)
         name = prior["name"] if prior else oname(con, org, slug(f"coder-{tid}"))
@@ -14821,8 +14822,17 @@ def coder_ci_resume_tick(con):
         try:
             spawn(con, "coder", t["goal_id"], team, tid, name, prompt=kick, resume=resume)
         except (SystemExit, Exception) as e:  # noqa: BLE001 — one refused spawn must not stop the tick
-            event(con, "task", tid, "coder-ci-resume-error", f"{name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
-            return
+            event(con, "task", tid, "coder-ci-resume-error", f"@{sha[:8]} {name}: " + (f"exit {e.code}" if isinstance(e, SystemExit) else str(e))[:300])
+            refused = con.execute("SELECT count(*) c FROM events WHERE entity='task' AND entity_id=? AND action='coder-ci-resume-error' "
+                                  "AND detail LIKE ?", (tid, f"@{sha[:8]} %")).fetchone()["c"]
+            if refused >= CODER_RESUME_REFUSED_MAX:  # give up on this head and tell the lead once; later red tasks are not held back
+                _throttle_set(con, mark, clock)
+                if not _throttled(con, f"coder-resume-refused:{tid}", clock, float("inf")):
+                    _throttle_set(con, f"coder-resume-refused:{tid}", clock)
+                    send(con, to, f"coder restart refused: {label}",
+                         f"head {sha}: spawn of {name} was refused {refused} times (see the coder-ci-resume-error events of {tid}). "
+                         "The tick stops retrying this head. Fix the cause or start a fix coder by hand.", "report", t["goal_id"], tid, sender="tick")
+            continue
         _throttle_set(con, mark, clock)
         if resume:  # a resume sends no kickoff of its own: the mail is what the agent reads (the nudge wakes it)
             send(con, name, f"CI red: {label}", kick, "request", t["goal_id"], tid, sender="tick")
@@ -14832,7 +14842,7 @@ def coder_ci_resume_tick(con):
         starts += 1
 
 
-SPEC_FILL_ROLES =("coder", "qa", "reviewer", "cleaner")
+SPEC_FILL_ROLES = ("coder", "qa", "reviewer", "cleaner")
 SPEC_FILL_THROTTLE_S = 3600
 SPEC_FILL_MAX = 5
 SPEC_FILL_SPEC = (
