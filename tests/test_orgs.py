@@ -269,7 +269,5 @@ class GoalAlertRoutingTests(FactoryTestCase):
         self.assertEqual(self.red_pr_mails(), {self.LEAD})
 
 
-
-
 if __name__ == "__main__":
     unittest.main()
