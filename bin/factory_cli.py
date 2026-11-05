@@ -6478,7 +6478,7 @@ def _sweep_leftovers(con, t):
         old.append((d, isdir, real))
     if not old:
         return [], locked
-    held = _proc_holds([real for _, isdir, real in old if isdir])
+    held = _proc_holds([real for _, _, real in old])
     if held is None:
         return [], locked
     out = []

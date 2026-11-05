@@ -164,6 +164,17 @@ class LeftoverSweep(FactoryTestCase):
         self.assertTrue(b.exists())
         self.assertFalse(c.exists())
 
+    def test_plain_file_held_open_kept(self):
+        old = time.time() - 48 * 3600
+        held, free = self.tmp / "tmp.AbCd123456", self.tmp / "tmp.ZyXw987654"
+        for f in (held, free):
+            f.write_text("x")
+            os.utime(f, (old, old))
+        self.fake_pid(104, fd_target=held)
+        self.tick()
+        self.assertTrue(held.exists())
+        self.assertFalse(free.exists())
+
     def test_unreadable_pid_keeps_everything(self):
         d = self.leftover("tmpabcd1234")
         p = self.fake_pid(103)
