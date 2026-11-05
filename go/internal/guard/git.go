@@ -705,6 +705,9 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 		}
 	}
 	if !configArgsWrite(args) {
+		if err := a.configExpansionRefuse(restCfg); err != nil {
+			return err
+		}
 		return nil
 	}
 	if scope != "" {
@@ -723,7 +726,10 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 		}
 	}
 	a.ccwd, a.ccwdKnown = saved, savedOK
-	return a.repoCfgRefuse("git config", cwd, cwdOK, gitDir, workTree, files)
+	if err := a.repoCfgRefuse("git config", cwd, cwdOK, gitDir, workTree, files); err != nil {
+		return err
+	}
+	return a.configExpansionRefuse(restCfg)
 }
 
 // reGitDirEnv is re.search(r"\bGIT_(?:DIR|WORK_TREE|COMMON_DIR|CONFIG\w*)=", text).

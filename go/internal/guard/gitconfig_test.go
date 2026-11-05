@@ -1,6 +1,9 @@
 package guard
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestConfigParseAndIsRead(t *testing.T) {
 	for _, c := range []struct {
@@ -37,6 +40,31 @@ func TestConfigParseAndIsRead(t *testing.T) {
 		if got := configIsRead(c.args); got != c.read {
 			t.Errorf("configIsRead(%q) = %v, want %v (flags=%v pos=%v)", c.args, got, c.read, flags, pos)
 		}
+	}
+}
+
+func TestConfigExpansionRefuseValueOpt(t *testing.T) {
+	a, err := NewAnalyzer("/tmp/wt", "cleaner", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSub := "follows a value option, so git takes it as the option's value and " +
+		"not as an action; put the action flag first, or write the arguments literally (T-1063, T-1097)"
+	for _, toks := range [][]string{
+		{"--comment", "--get"},
+		{"--comment", "--get", "alias.x"},
+		{"--comment", "--get", "alias.x", "push"},
+	} {
+		err := a.configExpansionRefuse(toks)
+		if err == nil {
+			t.Fatalf("configExpansionRefuse(%v): want refusal", toks)
+		}
+		if !strings.Contains(err.Error(), "`--get`") || !strings.Contains(err.Error(), wantSub) {
+			t.Fatalf("configExpansionRefuse(%v): %q, want substring %q", toks, err.Error(), wantSub)
+		}
+	}
+	if err := a.configExpansionRefuse([]string{"--comment", "c", "--get", "alias.x"}); err != nil {
+		t.Fatalf("literal value between value option and action: %v", err)
 	}
 }
 
