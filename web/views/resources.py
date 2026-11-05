@@ -413,7 +413,8 @@ def _gauges_section(s):
 def _checks_section(g):
     glyphs = {"ok": "done", "over": "blocked", "unknown": "queued"}
     rows = [el("li", glyph(glyphs[r["state"]]), el("span", r["label"], class_="ins-name"), el("span", r["value"], class_="mono"),
-               el("span", r["limit"], class_="muted"), el("b", r["word"], class_="gz"), class_="ins-check") for r in g["rows"]]
+               el("span", r["limit"], class_="muted"), el("b", r["word"], class_="gz"),
+               class_="ins-check ins-check--over" if r["word"] == "Over cap" else "ins-check") for r in g["rows"]]
     return section("Checks", el("ul", rows, class_="lrow-list"))
 
 
