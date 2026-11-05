@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 v0.1.0 summarises the changes merged during private development.
 
-## [0.3.0] - 2026-10-30
+## [0.3.0] - 2026-11-05
 """
 # The previous release (tag v0.2.0); the generated list covers the commits after it. Update it with HEADER at each release.
 SINCE = "3b1d99516"
