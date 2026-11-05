@@ -2610,6 +2610,19 @@ class Analyzer:
         """True when `git config <args>` writes: anything config_is_read cannot prove a read."""
         return not config_is_read(args)
 
+    def config_expansion_refuse(self, toks):
+        """T-1063: a raw `git config` token built by an expansion (dollar forms, backtick, brace list, or a glob before
+        any read action) could expand into a write the parser cannot see. A dollar ending a token is regexp text."""
+        if self.hq:
+            return
+        read = False
+        for n, t in enumerate(toks):
+            if "`" in t or re.search(r"\$.", t, re.S) or "{" in t or (GLOB.search(t) and not read):
+                raise Block(f"git config: argument {t} is built from an expansion, so it could be a write; "
+                            "write the arguments literally (T-1063)")
+            if t in CONFIG_ACTION_FLAGS or (n == 0 and t in ("get", "list")):
+                read = True
+
     def git_persist(self, rest, depth):
         """T-0334: `git config --global|--system|-f <protected file>` writes, also behind `git -c ... config` and an
         alias. Read-only forms (`--global --get`, `--global --list`) and repo-local writes stay allowed."""
@@ -2698,7 +2711,9 @@ class Analyzer:
                 first = a
                 if not action and a not in ("set", "unset", "edit", "rename-section", "remove-section", "get", "list"):
                     stripping = False
+        raw = rest[i + 1:]
         if not self.config_args_write(args):
+            self.config_expansion_refuse(raw)
             return
         if scope:
             raise Block(f"`git config {scope}` write: {PERSIST_WHY}")
@@ -2714,6 +2729,7 @@ class Analyzer:
         finally:
             self.ccwd = saved
         self.repo_cfg_refuse("git config", cwd, git_dir, work_tree, files)
+        self.config_expansion_refuse(raw)
 
     def repo_cfg_refuse(self, what, cwd, git_dir, work_tree, files):
         """T-0226: a repo-config write (git config, git remote add/...) is allowed only with --file inside the worker's own
