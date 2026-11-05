@@ -8724,6 +8724,37 @@ def sandbox_drop_queued(con, row, s, e):
         send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
+def start_failed_queued(con, row, s, e):
+    """A queued non-evaluator row whose start died (spawn() restored it to queued): count the failure on the row. The first
+    failure logs one `spawn-start-failed` event and alerts the team's lead once (director with no lead); later failures are
+    silent. At EVALUATOR_SPAWN_RETRY_MAX failures the row is cancelled (`dequeued`, by=spawn-start-failed) with a second alert,
+    so a lasting failure neither repeats every tick nor stays queued forever. Gate refusals never reach here."""
+    name, team = row["name"], s.get("team")
+    fails = int(s.get("spawn_failures", 0)) + 1
+    why = f"exit {e.code}" if isinstance(e.code, int) else str(e.code)[:200]
+    cap = fails >= EVALUATOR_SPAWN_RETRY_MAX
+    if cap:
+        if not cancel_queued(con, name, "spawn-start-failed", f"start failed {fails} times ({why}); giving up"):
+            return
+    else:
+        con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?) WHERE name=? AND status='queued'",
+                    (fails, name))
+        if fails > 1:
+            return
+        event(con, "agent", name, "spawn-start-failed", f"queued {s['role']} start failed ({why}); retried next tick, "
+              f"cancelled after {EVALUATOR_SPAWN_RETRY_MAX} failures")
+    subject = f"start of queued {s['role']} {name} " + ("cancelled after repeated failures" if cap else "failed")
+    body = (f"The start of queued {s['role']} {name} died ({why}). " +
+            (f"It failed {fails} times and was cancelled; fix the cause and spawn again." if cap else
+             f"The tick retries it each tick and cancels it after {EVALUATOR_SPAWN_RETRY_MAX} failures; no further alert "
+             "until then."))
+    try:
+        send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
+             sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
+
+
 def sandbox_prepare(con, role, name, cwd):
     """Preflight, then workerbox.prepare_agent; returns the agent dir. Fails closed: any problem refuses the spawn."""
     bad = sandbox_preflight(role, cwd, name, con)
@@ -13566,9 +13597,10 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE skill_trials SET status='cancelled', passed=0, ended=?, check_output=? "
                         "WHERE agent=? AND status='running'", (now(), "queued evaluator no longer validates", q["name"]))
             event(con, "agent", q["name"], "evaluator-spawn-refused", "queued evaluator no longer validates")
-        except SystemExit:
+        except SystemExit as e:
             if s["role"] != "evaluator":
-                raise
+                start_failed_queued(con, q, s, e)  # T-1135: one dying start must not end the tick; later rows and phases run
+                continue
             # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
             # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
             fails = int(s.get("spawn_failures", 0)) + 1
