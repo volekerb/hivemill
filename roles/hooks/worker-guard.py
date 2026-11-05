@@ -4938,9 +4938,23 @@ TERMS_GH_HEAD = re.compile(
     r"""\A(?:cd[ \t]+(?:~|[\w./-]+)[ \t]*&&[ \t]*)?gh[ \t]+(?:pr[ \t]+(?:comment|review|create|edit)"""
     r"""|issue[ \t]+(?:comment|create|edit))(?P<args>(?:[ \t]+(?:[\w./:=,@%+-]+|'[^'\n]*'|"[^"$`\\\n]*"))*)"""
     r"""[ \t]+<<(?P<dash>-?)(?P<q>['"])(?P<d>[A-Za-z_]\w*)(?P=q)[ \t]*\n""")
-TERMS_GH_STDIN = re.compile(r"[ \t](?:--body-file|-F)(?:=|[ \t]+)-(?=[ \t]|$)")
-TERMS_GH_VALUE_FLAG = re.compile(r"(?:--jq|-q|--template)(?:=|[ \t]+)'")
-TERMS_STRIP_FIRST_WORDS = {"gh", "git", "cd", "factory"}
+
+
+def terms_gh_stdin_flag(args):
+    """T-0942: True when the shlex tokens of the gh args hold a real stdin body flag: --body-file=- or -F=-, or --body-file / -F
+    followed by a token that is exactly -. Rejected when the token before the flag is a dash word without an equals sign (gh
+    would take the flag as that value) or when a bare -- token is present. Unparseable: not a stdin flag."""
+    try:
+        toks = shlex.split(args)
+    except ValueError:
+        return False
+    if "--" in toks:
+        return False
+    for i, t in enumerate(toks):
+        hit = t in ("--body-file=-", "-F=-") or (t in ("--body-file", "-F") and toks[i + 1:i + 2] == ["-"])
+        if hit and not (i and toks[i - 1].startswith("-") and "=" not in toks[i - 1]):
+            return True
+    return False
 
 
 def terms_gh_heredocs(cmd):
@@ -4949,71 +4963,16 @@ def terms_gh_heredocs(cmd):
     gh line (optional cd prefix) at offset 0, args plain words or quoted strings, delimiter on the next lines exactly,
     nothing after it. Any other shape is returned unchanged and stays scanned."""
     m = TERMS_GH_HEAD.match(cmd)
-    if not m or not TERMS_GH_STDIN.search(m.group("args")):
+    if not m or not terms_gh_stdin_flag(m.group("args")):
         return cmd
     delim, dash = m.group("d"), m.group("dash") == "-"
     lines = cmd[m.end():].split("\n")
     for k, line in enumerate(lines):
         if (line.lstrip("\t") if dash else line) == delim:
-            if "".join(lines[k + 1:]).strip():
+            if "".join(lines[k + 1:]).strip(" \t\n"):
                 return cmd  # something follows the terminator: it runs, keep it all scanned
             return cmd[:m.end()]
     return cmd  # no terminator line: not a well-formed heredoc
-
-
-def terms_strip_gh_jq(cmd):
-    """T-0942: inside a gh segment, blank the single-quoted value of --jq/-q/--template (outside any quotes): the shell does
-    no brace expansion there. Used only for the brace check; every other shape keeps its braces. Unstripped (cmd returned
-    as is) when a segment's first raw word is not gh, git, cd or factory, when a parenthesis or backtick remains after
-    blanking, or when the command holds an ANSI-C string. Non-gh text is never rebuilt: segments are spliced in place."""
-    if "$'" in cmd:
-        return cmd
-    segs = terms_split(cmd)
-    out, pos = [], 0
-    for seg in segs:
-        words = seg.split()
-        if not words:
-            continue
-        if words[0] not in TERMS_STRIP_FIRST_WORDS:
-            return cmd
-        at = cmd.find(seg, pos)
-        if at < 0:
-            return cmd
-        out.append(cmd[pos:at])
-        pos = at + len(seg)
-        if words[0] != "gh":
-            out.append(seg)
-            continue
-        buf, i, quote = [], 0, None
-        while i < len(seg):
-            c = seg[i]
-            if quote:
-                if c == "\\" and quote == '"' and i + 1 < len(seg):
-                    buf.append(seg[i:i + 2])
-                    i += 2
-                    continue
-                if c == quote:
-                    quote = None
-            elif c == "\\" and i + 1 < len(seg):
-                buf.append(seg[i:i + 2])
-                i += 2
-                continue
-            elif c in "'\"":
-                quote = c
-            elif (i == 0 or seg[i - 1] in " \t") and (m := TERMS_GH_VALUE_FLAG.match(seg, i)):
-                close = seg.find("'", m.end())
-                if close > 0:
-                    buf.append(seg[i:m.end()] + "'")
-                    i = close + 1
-                    continue
-            buf.append(c)
-            i += 1
-        out.append("".join(buf))
-    out.append(cmd[pos:])
-    res = "".join(out)
-    if re.search(r"[()`]", res):
-        return cmd
-    return res
 
 
 def terms_bash(cmd, cwd, env=None, depth=0):
@@ -5026,7 +4985,7 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
     cmd = terms_gh_heredocs(cmd)
-    if ("${!" in cmd or TERMS_BRACE.search(terms_strip_gh_jq(cmd))) and any(n in cmd.lower() for n in names):
+    if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
     for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):

@@ -1,5 +1,5 @@
-"""T-0942: the owner-terms check no longer refuses (1) a single-quoted gh --jq/-q/--template value holding a comma brace
-next to the word "factory", and (2) the body of a quoted-delimiter heredoc feeding gh. Everything else stays refused.
+"""T-0942: the owner-terms check no longer refuses the body of a quoted-delimiter heredoc feeding an approved gh subcommand.
+Everything else stays refused, including the gh jq/q/template brace forms (FP1, unchanged from main).
 Through the real hook with a temp FACTORY_HOME/DB and a fixture terms file in a directory named "factory"."""
 import json
 import os
@@ -52,16 +52,28 @@ class TermsGhFpTests(unittest.TestCase):
             self.assertTrue(self.owner_terms_refusal(p), f"{role} should be refused by owner-terms: {cmd}\nrc={p.returncode} {p.stderr}")
             self.assertNotIn("zebracorp", p.stderr)
 
-    # --- FP1: gh --jq / -q / --template braces ---
-    def test_gh_jq_single_quoted_braces_allowed(self):
-        self.allowed("gh pr list --head factory/t-1 --json a,b --jq '.[]|{a,b}'")
-        self.allowed("gh pr view 1 --json a,b --jq '{a,b}' # factory")
+    # --- FP1 stays as on main: a gh --jq/-q/--template brace value next to a listed word is refused ---
+    def test_fp1_gh_jq_q_template_braces_stay_refused(self):
+        self.refused("gh pr view 1 --json a,b --jq '{a,b}' # factory")
+        self.refused("gh pr view 1 --json a,b -q '{a,b}' # factory")
+        self.refused("gh pr view 1 --json a,b --template '{a,b}' # factory")
+        self.refused("gh pr view 1 --json a,b --jq='{a,b}' # factory")
 
-    def test_gh_q_and_template_and_equals_forms_allowed(self):
-        self.allowed("gh pr view 1 --json a,b -q '{a,b}' # factory")
-        self.allowed("gh pr view 1 --json a,b --template '{a,b}' # factory")
-        self.allowed("gh pr view 1 --json a,b --jq='{a,b}' # factory")
-        self.allowed("cd factory && gh pr view 1 --json a,b --jq '{a,b}'")
+    def test_fp1_compound_evidence_form_stays_refused(self):
+        self.refused("gh pr view 1 --json a,b --jq '{a,b}' && git rev-list --count HEAD && factory res # factory")
+
+    def test_b5_forms_stay_refused(self):
+        brace = " cat " + self.secrets + "/{s,x}*"
+        # form A: a comment with one apostrophe on line 1, then a gh line whose --jq looks quoted to a naive scanner
+        self.refused("gh pr view 1 # it's\ngh pr view 1 x'--jq'; " + brace.strip() + '; echo "q"')
+        # form B: the apostrophe sits in a heredoc body
+        self.refused("gh pr comment 1 --body-file - <<'EOF'\nit's\nEOF\ngh pr view 1 x'--jq'; " + brace.strip() + '; echo "q"')
+        for role in ROLES:
+            p = self.bash("gh pr view 1 # it's\ngh pr view 1 x'--jq'; " + brace.strip() + '; echo "q"', role)
+            self.assertEqual(p.returncode, 2, f"{role}: {p.stderr}")
+
+    def test_m25470_one_line_default_expansion_form_refused(self):
+        self.refused("gh pr view 1 ${X:-\"it's\"} x'--jq'; cat " + self.secrets + "/{s,x}*; echo \"q\"")
 
     def test_brace_forms_still_refused(self):
         self.refused("cat ~/.config/factory/{s,x}*")
@@ -142,22 +154,43 @@ class TermsGhFpTests(unittest.TestCase):
         self.allowed("gh pr comment 324 --body-file - <<'EOF'\nfind / -name x\nEOF\n")  # trailing newline
         self.allowed("cd ~ && gh pr comment 324 -F - <<'EOF'\nfind / -name x\nEOF")
         self.allowed("gh issue create --title 'a b' --body-file - <<'EOF'\nfind / -name x\nEOF")
-        self.allowed("gh pr review 5 --approve --body-file=- <<\"EOF\"\ntar cf x.tar ~\nEOF")
+        self.allowed("gh pr review 5 --body-file=- --approve <<\"EOF\"\ntar cf x.tar ~\nEOF")
 
     def test_every_listed_subcommand_is_allowed(self):
-        for sub in ("pr comment 1", "pr review 1 --approve", "pr create --title t", "pr edit 1",
+        for sub in ("pr comment 1", "pr review 1", "pr create --title t", "pr edit 1",
                     "issue comment 1", "issue create --title t", "issue edit 1"):
             self.allowed(f"gh {sub} --body-file - <<'EOF'\nfind / -name x\nEOF")
 
-    def test_strip_splice_unit_keeps_separators_and_non_gh_text(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("wg_t0942", os.path.join(ROOT, "roles", "hooks", "worker-guard.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        cmd = "gh pr view 1 --jq '{a,b}' ;  git log  x |\tfactory res # n"
-        out = mod.terms_strip_gh_jq(cmd)
-        self.assertEqual(out, "gh pr view 1 --jq '' ;  git log  x |\tfactory res # n")  # gh value blanked, separators and spacing kept
-        self.assertEqual(mod.terms_strip_gh_jq("echo x; gh pr view 1 --jq '{a,b}'"), "echo x; gh pr view 1 --jq '{a,b}'")
+    def test_skipped_body_may_hold_brace_and_apostrophe(self):
+        self.allowed("gh pr comment 1 --body-file - <<'EOF'\n{a,b} factory scrub\nEOF")
+        self.allowed("gh pr comment 1 --body-file - <<'EOF'\nit's fine\nEOF")
+
+    # --- B6: the stdin flag must be a real argument (shlex tokens) ---
+    def test_b6_stdin_flag_text_inside_quoted_title_is_scanned(self):
+        self.scanned("gh pr create --title '--body-file -' <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("gh pr create --title \"-F -\" <<'EOF'\nfind / -name x\nEOF")
+
+    def test_b6_value_flag_before_stdin_flag_is_scanned(self):
+        self.scanned("gh pr create --title --body-file - <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("gh pr create --title --body-file=- <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("gh pr create --title -F - <<'EOF'\nfind / -name x\nEOF")
+
+    def test_b6_double_dash_token_is_scanned(self):
+        self.scanned("gh pr comment 1 -- --body-file - <<'EOF'\nfind / -name x\nEOF")
+        self.scanned("gh pr comment 1 --body-file - -- x <<'EOF'\nfind / -name x\nEOF")
+
+    def test_b6_boolean_flag_right_before_stdin_flag_stays_scanned(self):
+        self.scanned("gh pr review 1 --approve --body-file - <<'EOF'\nfind / -name x\nEOF")  # false positive by design: reorder args
+
+    def test_b6_real_stdin_flag_forms_still_allowed(self):
+        self.allowed("gh pr create --title t --body-file=- <<'EOF'\nfind / -name x\nEOF")
+        self.allowed("gh pr create --title=t -F=- <<'EOF'\nfind / -name x\nEOF")
+
+    def test_fix_d_shell_whitespace_after_terminator_keeps_body_scanned(self):
+        head = "gh pr comment 1 --body-file - <<'EOF'\nfind / -name x\nEOF\n"
+        self.scanned(head + "\x1c")
+        self.scanned(head + " ")
+        self.allowed(head + " \t\n")
 
     # --- T-0942 attempt 3 (spec v4): the skip is one anchored allowlist shape; B3 and B4 forms stay scanned ---
     def test_b3_subshell_before_gh_stays_scanned(self):
@@ -189,27 +222,6 @@ class TermsGhFpTests(unittest.TestCase):
         self.allowed("gh pr comment 1 --body-file - <<'EOF'\nx\n\tEOF\nfind / -name x\nEOF")
         self.scanned("gh pr comment 1 --body-file - <<'EOF'\nx\nEOF \nfind / -name x\n")  # no exact terminator: not skipped
 
-    # --- T-0942 attempt 3: reproduce results and jq strip limits ---
-    def test_repro_gh_function_before_jq_is_refused(self):
-        self.refused("gh() { eval \"$1\"; }; gh pr view 1 --json a,b --jq '{a,b}' # factory")
-
-    def test_repro_ansi_c_string_before_jq_is_refused(self):
-        self.refused("gh x $'\\'' ' --jq '{a,b}'' # factory")
-
-    def test_strip_limit_non_gh_first_word_unstripped(self):
-        self.refused("VAR=1 gh pr view 1 --jq '{a,b}' # factory")
-        self.refused("echo hi; gh pr view 1 --jq '{a,b}' # factory")
-
-    def test_strip_limit_parenthesis_or_backtick_unstripped(self):
-        self.refused("gh pr view 1 --jq '{a,b}' --title (x) # factory")
-        self.refused("gh pr view 1 --jq '{a,b}' --title `x` # factory")
-
-    def test_strip_splice_keeps_non_gh_text_identical(self):
-        self.refused("git log {a;,c} # factory")
-        self.refused("gh pr view 1 --jq '{a,b}' | git x {c;,d} # factory")
-
-    def test_compound_evidence_form_allowed(self):
-        self.allowed("gh pr view 1 --json a,b --jq '{a,b}' && git rev-list --count HEAD && factory res # factory")
 
 
 if __name__ == "__main__":
