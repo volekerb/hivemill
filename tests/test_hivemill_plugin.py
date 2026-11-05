@@ -104,6 +104,21 @@ class SkillTests(unittest.TestCase):
         self.assertIn("separate terminal", self.text)
         self.assertIn("never through `!`", self.text)
 
+    def test_fresh_box_does_not_dead_end(self):
+        self.assertIn("`herdr` or `gh` `missing`", self.text)
+        self.assertIn("the installer installs them", self.text)
+
+    def test_scout_default_off(self):
+        line = [l for l in self.text.splitlines() if "scout, the skills triage helper" in l]
+        self.assertEqual(len(line), 1)
+        self.assertIn("default off", line[0])
+        self.assertIn("pass `--no-scout` unless", line[0])
+        self.assertNotIn("default yes", self.text)
+
+    def test_apt_line_not_claimed_in_check(self):
+        self.assertIn("not in the `--check` report", self.text)
+        self.assertNotIn("the apt line the report printed", self.text)
+
 
 if __name__ == "__main__":
     unittest.main()
