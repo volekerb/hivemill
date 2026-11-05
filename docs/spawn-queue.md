@@ -33,3 +33,12 @@ A refused lead stays `queued`; the tick continues to the next queued row, so wor
 ## Settings render failure (T-0359)
 
 `_spawn_start` renders the role settings first, before any worktree, sandbox agent dir, pane or `agents` row, so a template that does not render (invalid JSON, unknown `@FACTORY_` token, LIVE_HOME pin refusal) leaves nothing behind. A direct `factory spawn` exits 3 (`settings render failed for <role>: ...`). A queued row is not retried each tick: the tick cancels it once (`dequeued` event, `by=settings-render-preflight`) and sends one alert to the team's lead (director with no lead). Fix the template and spawn again.
+
+## Goal token limit (G-015 SC3, F-74 L3)
+
+A Claude-org goal with `token_limit` (`factory goal edit G --token-limit N`) and a cached `goal_token_tally` row with tally >= limit starts no new work: `spawn()` refuses a `coder` or `pm` before the gate and before any `agents` row. `lead`, `judge`, `reviewer`, `qa` and `cleaner` are never refused, so work already done still reaches main. A Cursor-org goal is never refused (Cursor has agent-hours, not tokens). A coder retry on a task already in progress is new work and is refused too. A relaunch of an agent that already ran (`factory relaunch`, `factory up`) is not new work and is not checked.
+
+- Direct `factory spawn`: exit 3, the reason names the goal, the tally and the limit, and says to raise it (`factory goal edit <G> --token-limit N`, director or owner). One `goal-token-limit-refused` event on the task, no `agents` row.
+- Queued row: the tick cancels it once (`dequeued` event, `by=goal-token-limit`) and sends one alert to the team's lead (director with no lead), like the settings render failure above. It is not retried each tick.
+- Other callers (review autospawn, lead-less dispatch, coder CI resume, `team new`) reach the same check inside `spawn()` and treat the refusal like any other refused spawn.
+- The check reads the `goals` and `goal_token_tally` rows only, never a log. No limit, no tally row or a non-Claude goal: allowed, as before. A missing tally fails open on purpose: no figure, no refusal. The tally can also read low (read errors, a missing log root, deleted logs), which makes the refusal come later, never earlier.

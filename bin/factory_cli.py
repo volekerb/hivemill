@@ -8310,6 +8310,8 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
         if role == "evaluator":
             raise EvaluatorInvalid(e.code) from None  # the tick cancels on this one only; other exits are retried
         raise
+    if not relaunch:  # a relaunch restarts an agent that already runs: not new work
+        goal_token_gate(con, role, goal, task, org, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
     existing = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
     if existing and existing["status"] == "live" and not relaunch:
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
@@ -8638,17 +8640,69 @@ def sandbox_refuse(con, role, name, reason, why):
     raise e
 
 
+class GoalTokenRefused(SandboxRefused):
+    """A coder or pm spawn on a Claude-org goal whose cached token tally reached its token_limit (G-015 SC3, F-74 L3): exit 3,
+    nothing started. A direct spawn just exits; the tick's dequeue loop cancels the queued row once (sandbox_drop_queued)."""
+
+
+GOAL_TOKEN_REFUSED_ROLES = ("coder", "pm")  # new-work roles; judge, reviewer, qa, lead, cleaner still get PRs to main
+
+
+def goal_token_refusal(con, role, goal, org):
+    """Why a `role` spawn for `goal` is refused at the goal's token limit, else None. Reads the goals row and the cached
+    goal_token_tally row only, never a log. No limit, no tally row, an unreadable table or a non-Claude org: None (fails open,
+    on purpose: no figure, no refusal; the tally can also read low, which refuses less, never more)."""
+    if role not in GOAL_TOKEN_REFUSED_ROLES or not goal or org != orgs.DEFAULT_ORG:
+        return None
+    try:
+        g = con.execute("SELECT token_limit FROM goals WHERE id=?", (goal,)).fetchone()
+        limit = g["token_limit"] if g else None
+        if not limit or limit <= 0:
+            return None
+        t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (goal,)).fetchone()
+        if t is None:
+            return None
+        used = tally_tokens(t)
+    except sqlite3.OperationalError:  # pre-migrate DB without the column or table
+        return None
+    if used < limit:
+        return None
+    return (f"{goal} is at its token limit: tally {used} tokens, limit {limit}. A {role} is new work and is not started; "
+            f"judge, reviewer, qa, lead and cleaner still are. To go on, the director or owner raises it: "
+            f"factory goal edit {goal} --token-limit N")
+
+
+def goal_token_gate(con, role, goal, task, org, from_queue):
+    """spawn()'s limit check (the one place every coder/pm start passes). Direct: one event on the task, exit 3. Queued row:
+    raise GoalTokenRefused, the tick cancels it once and alerts the lead. Never leaves an agents row behind."""
+    why = goal_token_refusal(con, role, goal, org)
+    if not why:
+        return
+    if not from_queue:
+        if task:
+            event(con, "task", task, "goal-token-limit-refused", f"{role}: {why}")
+        con.commit()  # the exit follows: the event must survive
+    print(f"factory: {why}", file=sys.stderr)
+    e = GoalTokenRefused(3)
+    e.reason, e.why = "goal-token-limit", why
+    raise e
+
+
 def sandbox_drop_queued(con, row, s, e):
     """A queued sandboxed spawn that preflight refused needs a human fix, not time: cancel the row (never start it
     unsandboxed) and tell the spawning team's lead once (director with no team). The message names no token path.
     A worker gh credential refusal (GhCredRefused) is dropped the same way."""
-    what = "gh-cred" if isinstance(e, GhCredRefused) else "settings-render" if isinstance(e, SettingsRenderRefused) else "sandbox"
-    if not cancel_queued(con, row["name"], f"{what}-preflight", f"{e.reason}: {e.why}"):
+    what = ("gh-cred" if isinstance(e, GhCredRefused) else "settings-render" if isinstance(e, SettingsRenderRefused)
+            else "goal-token" if isinstance(e, GoalTokenRefused) else "sandbox")
+    if not cancel_queued(con, row["name"], "goal-token-limit" if what == "goal-token" else f"{what}-preflight",
+                         f"{e.reason}: {e.why}"):
         return
     team = s.get("team")
     subject = f"{what} refused queued spawn {row['name']}"
     body = (f"The queued {s['role']} spawn {row['name']} was cancelled, not started: {what} preflight refused it "
             f"({e.reason}: {e.why}). Fix it and spawn again.")
+    if what == "goal-token":
+        body = f"The queued {s['role']} spawn {row['name']} was cancelled, not started: {e.why}"
     try:
         send(con, f"lead:{team}" if team else "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"),
              sender="factory")
