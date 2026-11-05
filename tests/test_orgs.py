@@ -268,6 +268,35 @@ class GoalAlertRoutingTests(FactoryTestCase):
         self.ok("tick")
         self.assertEqual(self.red_pr_mails(), {self.LEAD})
 
+    def blocked_target(self, goal_org):
+        self.env.sql("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
+        self.env.seed_agent("coder-x", "coder", goal="G-001", team=self.TEAM)
+        with self.env.load_factory() as f:
+            con = f.db()
+            return f.blocked_alert_target(con, con.execute("SELECT * FROM agents WHERE name='coder-x'").fetchone())[0]
+
+    def test_blocked_alert_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
+        self.assertEqual(self.blocked_target("cursor"), "director")  # resolved inside the goal's org by send
+
+    def test_blocked_alert_on_a_claude_goal_goes_to_its_claude_lead(self):
+        self.assertEqual(self.blocked_target("claude"), self.LEAD)
+
+    def review_alert_mails(self, goal_org):
+        e = self.env
+        e.sql("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
+        with e.load_factory() as f:
+            con = f.db()
+            e.seed_agent(f._rerun_name(con, "T-0001", "qa", self.SHA), "qa", goal="G-001", team=self.TEAM, task="T-0001", status="exited")
+            f._review_alert_no_verdict(con, con.execute("SELECT * FROM tasks WHERE id='T-0001'").fetchone(), self.SHA, 1.0)
+            con.commit()
+        return {r["recipient"] for r in e.sql("SELECT recipient FROM messages WHERE subject LIKE 'review autospawn: qa ended%'")}
+
+    def test_review_no_verdict_alert_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
+        self.assertEqual(self.review_alert_mails("cursor"), {"cursor-director"})
+
+    def test_review_no_verdict_alert_on_a_claude_goal_goes_to_its_claude_lead(self):
+        self.assertEqual(self.review_alert_mails("claude"), {self.LEAD})
+
 
 if __name__ == "__main__":
     unittest.main()
