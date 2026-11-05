@@ -2653,10 +2653,23 @@ class Analyzer:
             return
         args, scope, files, k = [], None, [], i + 1
         rest = rest[:]
+        # T-1064 v3: git's legacy form (bare key, no action flag, no leading subcommand word) takes every token after the
+        # key as the VALUE, so scope/file options are only stripped while they are real options; a value option's value
+        # (`--comment --global k v`) is never one.
+        stripping, first, action = True, None, False
         while k < len(rest):
             a = rest[k]
             k += 1
             name, eq, val = a.partition("=")
+            if not stripping:
+                args.append(a)
+                continue
+            if a in CONFIG_PARSE_VALUE_OPTS and a not in ("--file", "-f"):
+                args.append(a)
+                if k < len(rest):
+                    args.append(rest[k])
+                    k += 1
+                continue
             if a.startswith("--") and len(name) >= 4:
                 if "--global".startswith(name) or "--system".startswith(name):
                     scope = name
@@ -2676,6 +2689,12 @@ class Analyzer:
                     k += 1
                 continue
             args.append(a)
+            if a in CONFIG_ACTION_FLAGS:
+                action = True
+            elif first is None and (not a.startswith("-") or a == "-"):
+                first = a
+                if not action and a not in ("set", "unset", "edit", "rename-section", "remove-section", "get", "list"):
+                    stripping = False
         if not self.config_args_write(args):
             return
         if scope:
