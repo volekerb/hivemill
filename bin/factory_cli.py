@@ -339,7 +339,7 @@ CREATE TABLE IF NOT EXISTS goals (
   intent TEXT, success_criteria TEXT, status TEXT NOT NULL DEFAULT 'proposed',
   priority INTEGER NOT NULL DEFAULT 2, requested_by TEXT, workspace_id TEXT,
   created TEXT NOT NULL, updated TEXT NOT NULL,
-  org TEXT NOT NULL DEFAULT 'claude');
+  org TEXT NOT NULL DEFAULT 'claude', token_limit INTEGER);
 CREATE TABLE IF NOT EXISTS plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL REFERENCES goals(id),
   version INTEGER NOT NULL, body TEXT NOT NULL, author TEXT, created TEXT NOT NULL);
@@ -428,6 +428,12 @@ def migrate(con):
             con.execute("ALTER TABLE goals ADD COLUMN org TEXT NOT NULL DEFAULT 'claude'")
         except sqlite3.OperationalError:  # a concurrent process added it first
             if "org" not in {r["name"] for r in con.execute("PRAGMA table_info(goals)")}:
+                raise
+    if gcols and "token_limit" not in gcols:  # G-015 SC3 F-74 L2: NULL = no limit
+        try:
+            con.execute("ALTER TABLE goals ADD COLUMN token_limit INTEGER")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "token_limit" not in {r["name"] for r in con.execute("PRAGMA table_info(goals)")}:
                 raise
     for col, ddl in (("flagless", "INTEGER NOT NULL DEFAULT 0"), ("flagless_since", "TEXT"),
                      ("stop_requested_at", "TEXT"), ("stop_attempt_at", "TEXT"), ("stop_failed_kind", "TEXT"),
@@ -2298,11 +2304,21 @@ def cmd_goal(a):
         goal_tokens(con, a.id)
     elif a.action == "edit":
         require_role(con, "boss", "director")
+        if a.token_limit is not None and a.token_limit < 0:
+            die("--token-limit must be a positive number of tokens, or 0 to clear the limit", 2)
         sets = [(c, v) for c, v in (("title", a.title), ("intent", read_text(a.intent)),
                                     ("success_criteria", read_text(a.success)),
                                     ("priority", a.priority)) if v is not None]
-        if not sets:
+        if a.token_limit:
+            sets.append(("token_limit", a.token_limit))
+        if not sets and a.token_limit is None:
             die("nothing to change")
+        if a.token_limit == 0:  # 0 clears: NULL needs its own clause
+            con.execute("UPDATE goals SET token_limit=NULL, updated=? WHERE id=?", (now(), a.id))
+            event(con, "goal", a.id, "edit", "token_limit cleared")
+            if not sets:
+                print(f"{a.id} updated")
+                return
         con.execute(f"UPDATE goals SET {', '.join(c + '=?' for c, _ in sets)}, updated=? WHERE id=?",
                     (*[v for _, v in sets], now(), a.id))
         event(con, "goal", a.id, "edit", ", ".join(c for c, _ in sets))
@@ -2465,6 +2481,10 @@ def show_goal(con, gid, compact=False):
         die(f"no goal {gid}")
     print(f"# {g['id']} — {g['title']}\nstatus={g['status']} priority={g['priority']} project={g['project_id']}"
           + (f" org={g['org']}" if "org" in g.keys() else ""))
+    if "token_limit" in g.keys() and g["token_limit"]:
+        t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (gid,)).fetchone()
+        used = f"tally {tally_tokens(t)} tokens" if t else "no tally yet"
+        print(f"token limit: {g['token_limit']} tokens ({used}; `factory goal tokens {gid}`)")
     for k in ("intent", "success_criteria"):
         if g[k]:
             print(f"\n## {k}\n{g[k]}")
@@ -11480,6 +11500,44 @@ def goal_token_tally_tick(con):
             pass
 
 
+GOAL_TOKEN_WARN_PCT = 80
+
+
+def goal_token_warn_tick(con):
+    """Tick hook right after the tally (G-015 SC3, F-74 L2): a Claude-org goal with token_limit whose cached tally reached 80%
+    of it gets one alert to its lead and one to its org's director (one, when the goal has no lead of its own). Once per
+    goal and limit: throttle key goal-token-warn:<goal>:<limit>, so a new limit arms it again. The text names goal, tally,
+    limit and percent only. Refuses nothing. Never raises."""
+    try:
+        rows = con.execute("SELECT g.id, g.token_limit FROM goals g WHERE g.token_limit IS NOT NULL AND g.token_limit > 0 "
+                           "AND g.org='claude' AND g.status NOT IN ('done','closed','cancelled') ORDER BY g.id").fetchall()
+        for g in rows:
+            gid, limit = g["id"], g["token_limit"]
+            t = con.execute("SELECT * FROM goal_token_tally WHERE goal_id=?", (gid,)).fetchone()
+            if t is None or tally_tokens(t) * 100 < GOAL_TOKEN_WARN_PCT * limit:
+                continue
+            key = f"goal-token-warn:{gid}:{limit}"
+            if con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
+                continue
+            used = tally_tokens(t)
+            pct = used * 100 // limit
+            team = con.execute("SELECT lead_agent FROM teams WHERE goal_id=? AND lead_agent IS NOT NULL AND status='active' "
+                               "ORDER BY id LIMIT 1", (gid,)).fetchone()
+            to = goal_alert_to(con, gid, lead=team["lead_agent"] if team else None)
+            subject = f"token limit 80% reached: {gid}"
+            body = f"{gid}: tally {used} tokens of limit {limit} ({pct}%). Nothing is refused."
+            con.execute("INSERT INTO throttle(key,ts) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts",
+                        (key, str(digest_clock().timestamp())))
+            for rcpt in dict.fromkeys([to, "director"]):
+                send(con, rcpt, subject, body, kind="alert", goal=gid, sender="tick")
+    except Exception as e:  # noqa: BLE001 — a warning must never break the tick
+        try:
+            if not _util_throttled(con, "goal-token-warn-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "goal-token-warn-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
 def cmd_alerts(a):
     """Read-only: the open rows of the dark needs-you feed, newest first. Reads the table only (no owner_attention, no writes)."""
     con = db()
@@ -13546,6 +13604,7 @@ def cmd_tick(a, locked=False):
     owner_blocker_alerts(con)
     owner_alert_feed_tick(con)
     goal_token_tally_tick(con)
+    goal_token_warn_tick(con)
     _pt_lap("util")
     _pt_emit(con)
 
@@ -16358,6 +16417,7 @@ def main():
     x.add_argument("--report"); x.add_argument("--audit", type=int); x.add_argument("--reason")
     x.add_argument("--title"); x.add_argument("--project"); x.add_argument("--intent"); x.add_argument("--success")
     x.add_argument("--priority", type=int); x.add_argument("--requested-by"); x.add_argument("--note")
+    x.add_argument("--token-limit", type=int, help="goal edit: token limit for the goal (director/boss/owner); 0 clears it")
     x.add_argument("--all", action="store_true"); x.set_defaults(fn=cmd_goal)
 
     x = sp.add_parser("plan", help="store a new plan version: factory plan G-001 - <<'EOF' ... EOF")
