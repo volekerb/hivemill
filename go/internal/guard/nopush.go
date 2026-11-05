@@ -213,10 +213,18 @@ func gitRemoteRead(args []string) bool {
 
 // gitConfigRead is a port of Analyzer.git_config_read.
 func gitConfigRead(args []string) bool {
-	if anyOf(args, func(x string) bool { return in(ConfigWrite, x) }) || !anyOf(args, func(x string) bool { return in(gitConfigReadOnly, x) }) {
+	flags, _, ok := configParse(args)
+	if !ok {
 		return false
 	}
-	return !configMutates(args)
+	hasRead := false
+	for _, f := range flags {
+		if in(gitConfigReadOnly, f) {
+			hasRead = true
+			break
+		}
+	}
+	return hasRead && configIsRead(args)
 }
 
 // gitFetchArgs is a port of Analyzer.git_fetch_args.

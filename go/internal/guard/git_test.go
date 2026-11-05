@@ -346,28 +346,6 @@ func TestGitBranchMutates(t *testing.T) {
 	}
 }
 
-func TestGitConfigMutates(t *testing.T) {
-	for _, c := range []struct {
-		args       []string
-		mut, write bool
-	}{
-		{[]string{"--get", "user.name"}, false, false}, {[]string{"--list"}, false, false}, {[]string{"user.name"}, false, false},
-		{[]string{"user.name", "x"}, true, true}, {[]string{"--unset", "k"}, true, true}, {[]string{"--add", "k", "v"}, true, true},
-		{[]string{"set", "k", "v"}, true, true}, {[]string{"unset", "k"}, true, true}, {[]string{"edit"}, true, true},
-		{[]string{"get", "k"}, false, false}, {[]string{"list"}, false, false}, {[]string{"--global", "k", "v"}, true, true},
-		// config_args_write knows value options; config_mutates does not
-		{[]string{"--type", "bool", "k"}, true, false}, {[]string{"--default", "d", "--get", "k"}, false, false},
-		{[]string{"--show-origin", "k", "v"}, false, false}, {[]string{"--edit"}, true, true}, {[]string{"-e"}, true, true},
-	} {
-		if got := configMutates(c.args); got != c.mut {
-			t.Errorf("configMutates(%q) = %v, want %v", c.args, got, c.mut)
-		}
-		if got := configArgsWrite(c.args); got != c.write {
-			t.Errorf("configArgsWrite(%q) = %v, want %v", c.args, got, c.write)
-		}
-	}
-}
-
 func TestGitMutatesTable(t *testing.T) {
 	for _, c := range []struct {
 		sub  string

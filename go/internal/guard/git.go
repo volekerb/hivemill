@@ -400,33 +400,6 @@ func branchMutates(args []string) bool {
 	return positional && !listing
 }
 
-// configMutates is a port of Analyzer.config_mutates.
-func configMutates(args []string) bool {
-	for _, x := range args {
-		if in(ConfigWrite, x) {
-			return true
-		}
-	}
-	if len(args) > 0 && (args[0] == "set" || args[0] == "unset" || args[0] == "edit") {
-		return true
-	}
-	for _, x := range args {
-		if in(ConfigRead, x) {
-			return false
-		}
-	}
-	if len(args) > 0 && (args[0] == "get" || args[0] == "list") {
-		return false
-	}
-	n := 0
-	for _, x := range args {
-		if !strings.HasPrefix(x, "-") {
-			n++
-		}
-	}
-	return n >= 2
-}
-
 // gitMutates is a port of Analyzer.git_mutates.
 func gitMutates(sub string, args []string) bool {
 	if in(GitReadOnly, sub) || strings.HasPrefix(sub, "-") { // `git --version`, `git --help`
@@ -592,40 +565,6 @@ func (a *Analyzer) gitDelete(rest []string) error {
 		"must match; other roles never)")
 }
 
-// configArgsWrite is a port of Analyzer.config_args_write: like configMutates, but understands the get/list
-// words and options that take a value (`--type bool key` is a read).
-func configArgsWrite(args []string) bool {
-	var pos, flags []string
-	for k := 0; k < len(args); {
-		x := args[k]
-		k++
-		if in(ConfigValueOpts, x) {
-			k++
-		} else if !strings.HasPrefix(x, "-") {
-			pos = append(pos, x)
-		}
-	}
-	for _, x := range args {
-		if strings.HasPrefix(x, "-") {
-			flags = append(flags, x)
-		}
-	}
-	for _, x := range flags {
-		if in(ConfigWrite, x) {
-			return true
-		}
-	}
-	for _, x := range flags {
-		if in(ConfigRead, x) {
-			return false
-		}
-	}
-	if len(pos) > 0 && (pos[0] == "get" || pos[0] == "list") {
-		return false
-	}
-	return len(pos) > 0 && (pos[0] == "set" || pos[0] == "unset" || pos[0] == "edit") || len(pos) >= 2
-}
-
 // gitPersist is a port of Analyzer.git_persist (T-0334): `git config --global|--system|-f <protected file>` writes,
 // also behind `git -c ... config` and an alias. Read-only forms (`--global --get`, `--global --list`) and repo-local
 // writes stay allowed (repo-local ones only inside the scratchpad, T-0226: repoCfgRefuse).
@@ -713,11 +652,25 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 	}
 	var args, files []string
 	scope := ""
-	for k := i + 1; k < len(rest); {
-		x := rest[k]
+	restCfg := rest[i+1:]
+	stripping, first, action := true, "", false
+	for k := 0; k < len(restCfg); {
+		a := restCfg[k]
 		k++
-		name, val, eq := strings.Cut(x, "=")
-		if strings.HasPrefix(x, "--") && len(name) >= 4 {
+		name, val, eq := strings.Cut(a, "=")
+		if !stripping {
+			args = append(args, a)
+			continue
+		}
+		if (in(configParseValueOpts, a) && a != "--file" && a != "-f") || configValueOptAbbrev(a) {
+			args = append(args, a)
+			if k < len(restCfg) {
+				args = append(args, restCfg[k])
+				k++
+			}
+			continue
+		}
+		if strings.HasPrefix(a, "--") && len(name) >= 4 {
 			if strings.HasPrefix("--global", name) || strings.HasPrefix("--system", name) {
 				scope = name
 				continue
@@ -725,22 +678,31 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 			if strings.HasPrefix("--file", name) && len(name) >= 5 {
 				if eq {
 					files = append(files, val)
-				} else if k < len(rest) {
-					files = append(files, rest[k])
+				} else if k < len(restCfg) {
+					files = append(files, restCfg[k])
 					k++
 				}
 				continue
 			}
-		} else if strings.HasPrefix(x, "-f") && !strings.HasPrefix(x, "--") {
-			if len(x) > 2 {
-				files = append(files, x[2:])
-			} else if k < len(rest) {
-				files = append(files, rest[k])
+		} else if strings.HasPrefix(a, "-f") && !strings.HasPrefix(a, "--") {
+			if len(a) > 2 {
+				files = append(files, a[2:])
+			} else if k < len(restCfg) {
+				files = append(files, restCfg[k])
 				k++
 			}
 			continue
 		}
-		args = append(args, x)
+		args = append(args, a)
+		if in(configActionFlags, a) {
+			action = true
+		} else if first == "" && (!strings.HasPrefix(a, "-") || a == "-") {
+			first = a
+			if !action && a != "set" && a != "unset" && a != "edit" && a != "rename-section" && a != "remove-section" &&
+				a != "get" && a != "list" {
+				stripping = false
+			}
+		}
 	}
 	if !configArgsWrite(args) {
 		return nil
