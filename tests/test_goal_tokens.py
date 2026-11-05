@@ -184,5 +184,109 @@ class Cli(TallyCase):
         self.assertEqual([e["default"] for e in flags if e["key"] == "goal_token_tally_s"], ["0"])
 
 
+class Limit(TallyCase):
+    """G-015 T-1116 (F-74, L2): token_limit on goals, `goal edit --token-limit`, one warning at 80%."""
+
+    def setUp(self):
+        super().setUp()
+        for n, role in (("claude-director", "director"), ("claude-lead-a", "lead"), ("claude-lead-z", "lead")):
+            self.con.execute("INSERT INTO agents(name,role,status) VALUES(?,?,'live')", (n, role))
+        self.con.execute("INSERT INTO teams(id,goal_id,lead_agent,status,created) VALUES('g-1-a','G-1','claude-lead-a','active','t')")
+
+    def tally(self, used, gid="G-1"):
+        self.con.execute("INSERT OR REPLACE INTO goal_token_tally(goal_id,input,output,cache_read,cache_write_5m,cache_write_1h,cost,computed_at)"
+                         " VALUES(?,?,0,0,0,0,0,'t')", (gid, used))
+
+    def limit(self, n, gid="G-1"):
+        self.con.execute("UPDATE goals SET token_limit=? WHERE id=?", (n, gid))
+
+    def warn(self):
+        with mock.patch.dict(os.environ, NOW):
+            self.mod.goal_token_warn_tick(self.con)
+
+    def alerts(self):
+        return [(r["recipient"], r["sender"], r["kind"], r["subject"], r["body"]) for r in self.con.execute(
+            "SELECT * FROM messages WHERE kind='alert' ORDER BY id")]
+
+    def throttle_rows(self):
+        return self.con.execute("SELECT count(*) FROM throttle WHERE key LIKE 'goal-token-warn:%'").fetchone()[0]
+
+    def test_one_warning_to_lead_and_director_then_none_and_rearm(self):
+        self.limit(1000)
+        self.tally(799)
+        self.warn()
+        self.assertEqual(self.alerts(), [])  # under 80%
+        self.tally(800)
+        self.warn()
+        got = self.alerts()
+        self.assertEqual(sorted(r[0] for r in got), ["claude-director", "claude-lead-a"])
+        self.assertTrue(all(r[1] == "tick" for r in got))
+        self.tally(900)
+        self.warn()  # next tick: nothing new
+        self.assertEqual(len(self.alerts()), 2)
+        self.limit(2000)
+        self.warn()  # 900 < 80% of 2000: no warning yet
+        self.assertEqual(len(self.alerts()), 2)
+        self.tally(1700)
+        self.warn()  # new limit armed it again
+        self.assertEqual(len(self.alerts()), 4)
+
+    def test_no_lead_one_message_to_director(self):
+        self.con.execute("DELETE FROM teams")
+        self.limit(100)
+        self.tally(90)
+        self.warn()
+        self.assertEqual([r[0] for r in self.alerts()], ["claude-director"])
+
+    def test_text_is_fixed_no_title(self):
+        self.con.execute("UPDATE goals SET title='ZZMARKER title', intent='ZZMARKER' WHERE id='G-1'")
+        self.limit(100)
+        self.tally(85)
+        self.warn()
+        got = self.alerts()
+        self.assertEqual(len(got), 2)
+        for r in got:
+            self.assertEqual((r[3] + r[4]).count("ZZMARKER"), 0)
+            self.assertIn("G-1", r[3] + r[4])
+            self.assertIn("85 tokens of limit 100 (85%)", r[4])
+
+    def test_no_limit_no_message_no_throttle_row(self):
+        self.tally(10**9)
+        self.warn()
+        self.assertEqual((self.alerts(), self.throttle_rows()), ([], 0))
+
+    def test_cursor_goal_with_limit_is_not_warned(self):
+        self.limit(100, "G-9")
+        self.tally(500, "G-9")
+        self.warn()
+        self.assertEqual((self.alerts(), self.throttle_rows()), ([], 0))
+
+    def test_failure_never_raises(self):
+        self.limit(100)
+        self.tally(95)
+        with mock.patch.object(self.mod, "send", side_effect=RuntimeError("boom")):
+            self.warn()
+        self.assertEqual((self.alerts(), self.throttle_rows()), ([], 0))
+        self.warn()  # the failed send is retried on the next tick
+        self.assertEqual(len(self.alerts()), 2)
+
+    def test_cli_director_sets_lead_refused_zero_clears(self):
+        def stored():
+            return self.con.execute("SELECT token_limit FROM goals WHERE id='G-1'").fetchone()[0]
+        p = self.env.run("goal", "edit", "G-1", "--token-limit", "5000", agent="claude-director", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(stored(), 5000)
+        self.assertIn("token limit: 5000 tokens", self.cli("goal", "show", "G-1"))
+        p = self.env.run("goal", "edit", "G-1", "--token-limit", "9", agent="claude-lead-a", inproc=False)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertEqual(stored(), 5000)
+        p = self.env.run("goal", "edit", "G-1", "--token-limit", "0", agent="claude-director", inproc=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIsNone(stored())
+        self.assertNotIn("token limit", self.cli("goal", "show", "G-1"))
+        p = self.env.run("goal", "edit", "G-1", "--token-limit", "-1", agent="claude-director", inproc=False)
+        self.assertEqual(p.returncode, 2, p.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
