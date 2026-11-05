@@ -153,7 +153,7 @@ DEFAULT_CONFIG = {
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
-    "lead_parking": "0",       # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
+    "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
@@ -298,6 +298,7 @@ CREATE TABLE IF NOT EXISTS owner_alert_feed (
   link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
 """
+
 UTIL_DDL = """
 CREATE TABLE IF NOT EXISTS util_samples (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, live INTEGER NOT NULL, workers INTEGER NOT NULL,
