@@ -55974,6 +55974,6595 @@
 "src": "corpus"
 },
 {
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | python3'",
+"src": "corpus"
+},
+{
+"input": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"%s\\n",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"%s\\n",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"%s\\n",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "quote",
+"quoted": "'printf '\"'\"'%s\\n'\"'\"' '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | python3 -'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"perl",
+"-",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+");",
+"EOF"
+]
+},
+{
+"input": "perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"perl",
+"-",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+");",
+"EOF"
+]
+},
+{
+"input": "perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"perl",
+"-",
+"<<EOF",
+"system(git push);",
+"EOF"
+]
+},
+{
+"input": "perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "quote",
+"quoted": "'perl - <<'\"'\"'EOF'\"'\"'\nsystem(\"git push\");\nEOF'",
+"src": "corpus"
+},
+{
+"input": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"node",
+"<<",
+"EOF",
+"require",
+"(",
+"child_process",
+")",
+".execSync",
+"(",
+"gh pr merge 1",
+")",
+"EOF"
+]
+},
+{
+"input": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"node",
+"<<",
+"EOF",
+"require",
+"(",
+"child_process",
+")",
+".execSync",
+"(",
+"gh pr merge 1",
+")",
+"EOF"
+]
+},
+{
+"input": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"node",
+"<<EOF",
+"require(child_process).execSync(gh pr merge 1)",
+"EOF"
+]
+},
+{
+"input": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "quote",
+"quoted": "'node <<'\"'\"'EOF'\"'\"'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF'",
+"src": "corpus"
+},
+{
+"input": "ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ruby",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+")",
+"EOF"
+]
+},
+{
+"input": "ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ruby",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+")",
+"EOF"
+]
+},
+{
+"input": "ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ruby",
+"<<EOF",
+"system(git push)",
+"EOF"
+]
+},
+{
+"input": "ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "quote",
+"quoted": "'ruby <<'\"'\"'EOF'\"'\"'\nsystem(\"git push\")\nEOF'",
+"src": "corpus"
+},
+{
+"input": "perl <<< 'system(\"git push\");'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"perl",
+"<<<",
+"system(\"git push\");"
+]
+},
+{
+"input": "perl <<< 'system(\"git push\");'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"perl",
+"<<<",
+"system(\"git push\");"
+]
+},
+{
+"input": "perl <<< 'system(\"git push\");'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"perl",
+"<<<",
+"system(\"git push\");"
+]
+},
+{
+"input": "perl <<< 'system(\"git push\");'",
+"mode": "quote",
+"quoted": "'perl <<< '\"'\"'system(\"git push\");'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"require(\"child_process\").execSync(\"gh pr merge 1\")",
+"|",
+"node"
+]
+},
+{
+"input": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"require(\"child_process\").execSync(\"gh pr merge 1\")",
+"|",
+"node"
+]
+},
+{
+"input": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"require(\"child_process\").execSync(\"gh pr merge 1\")",
+"|",
+"node"
+]
+},
+{
+"input": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "quote",
+"quoted": "'echo '\"'\"'require(\"child_process\").execSync(\"gh pr merge 1\")'\"'\"' | node'",
+"src": "corpus"
+},
+{
+"input": "echo 'system(\"git push\")' | ruby",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"system(\"git push\")",
+"|",
+"ruby"
+]
+},
+{
+"input": "echo 'system(\"git push\")' | ruby",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"system(\"git push\")",
+"|",
+"ruby"
+]
+},
+{
+"input": "echo 'system(\"git push\")' | ruby",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"system(\"git push\")",
+"|",
+"ruby"
+]
+},
+{
+"input": "echo 'system(\"git push\")' | ruby",
+"mode": "quote",
+"quoted": "'echo '\"'\"'system(\"git push\")'\"'\"' | ruby'",
+"src": "corpus"
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[gh,pr,merge]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"gh",
+",",
+"pr",
+",",
+"merge",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([gh,pr,merge])",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"tarfile",
+";",
+"tarfile.open",
+"(",
+"a.tar",
+")",
+".extractall",
+"(",
+"x",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"tarfile",
+";",
+"tarfile.open",
+"(",
+"a.tar",
+")",
+".extractall",
+"(",
+"x",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<EOF",
+"import",
+"tarfile;",
+"tarfile.open(a.tar).extractall(x)",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "quote",
+"quoted": "'python3 - <<'\"'\"'EOF'\"'\"'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+},
+{
+"input": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+},
+{
+"input": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+},
+{
+"input": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "quote",
+"quoted": "'python3 <<< '\"'\"'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'env python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+">",
+"/dev/null",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+">",
+"/dev/null",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+">/dev/null",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 - >/dev/null <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"ignore",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"ignore",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-W",
+"ignore",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 -W ignore - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"/dev/stdin",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"/dev/stdin",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"/dev/stdin",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 /dev/stdin <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"tee",
+"/dev/null",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"tee",
+"/dev/null",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"tee",
+"/dev/null",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | tee /dev/null | python3'",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"cat",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"cat",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"cat",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | cat | python3 -'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"tee",
+"/dev/null",
+"|",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"tee",
+"/dev/null",
+"|",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"tee",
+"/dev/null",
+"|",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'cd /x && python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "quote",
+"quoted": "'cd /x && echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | python3'",
+"src": "corpus"
+},
+{
+"input": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"printf",
+"%s\\n",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"printf",
+"%s\\n",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"printf",
+"%s\\n",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-"
+]
+},
+{
+"input": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -",
+"mode": "quote",
+"quoted": "'cd /x && printf '\"'\"'%s\\n'\"'\"' '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | python3 -'",
+"src": "corpus"
+},
+{
+"input": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"cat",
+"<<",
+"EOF",
+"|",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"cat",
+"<<",
+"EOF",
+"|",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"cat",
+"<<EOF",
+"|",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && cat <<'\"'\"'EOF'\"'\"' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"perl",
+"-",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+");",
+"EOF"
+]
+},
+{
+"input": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"perl",
+"-",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+");",
+"EOF"
+]
+},
+{
+"input": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"perl",
+"-",
+"<<EOF",
+"system(git push);",
+"EOF"
+]
+},
+{
+"input": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && perl - <<'\"'\"'EOF'\"'\"'\nsystem(\"git push\");\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"node",
+"<<",
+"EOF",
+"require",
+"(",
+"child_process",
+")",
+".execSync",
+"(",
+"gh pr merge 1",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"node",
+"<<",
+"EOF",
+"require",
+"(",
+"child_process",
+")",
+".execSync",
+"(",
+"gh pr merge 1",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"node",
+"<<EOF",
+"require(child_process).execSync(gh pr merge 1)",
+"EOF"
+]
+},
+{
+"input": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && node <<'\"'\"'EOF'\"'\"'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"ruby",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"ruby",
+"<<",
+"EOF",
+"system",
+"(",
+"git push",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"ruby",
+"<<EOF",
+"system(git push)",
+"EOF"
+]
+},
+{
+"input": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && ruby <<'\"'\"'EOF'\"'\"'\nsystem(\"git push\")\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && perl <<< 'system(\"git push\");'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"perl",
+"<<<",
+"system(\"git push\");"
+]
+},
+{
+"input": "cd /x && perl <<< 'system(\"git push\");'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"perl",
+"<<<",
+"system(\"git push\");"
+]
+},
+{
+"input": "cd /x && perl <<< 'system(\"git push\");'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"perl",
+"<<<",
+"system(\"git push\");"
+]
+},
+{
+"input": "cd /x && perl <<< 'system(\"git push\");'",
+"mode": "quote",
+"quoted": "'cd /x && perl <<< '\"'\"'system(\"git push\");'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"require(\"child_process\").execSync(\"gh pr merge 1\")",
+"|",
+"node"
+]
+},
+{
+"input": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"require(\"child_process\").execSync(\"gh pr merge 1\")",
+"|",
+"node"
+]
+},
+{
+"input": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"require(\"child_process\").execSync(\"gh pr merge 1\")",
+"|",
+"node"
+]
+},
+{
+"input": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node",
+"mode": "quote",
+"quoted": "'cd /x && echo '\"'\"'require(\"child_process\").execSync(\"gh pr merge 1\")'\"'\"' | node'",
+"src": "corpus"
+},
+{
+"input": "cd /x && echo 'system(\"git push\")' | ruby",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"system(\"git push\")",
+"|",
+"ruby"
+]
+},
+{
+"input": "cd /x && echo 'system(\"git push\")' | ruby",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"system(\"git push\")",
+"|",
+"ruby"
+]
+},
+{
+"input": "cd /x && echo 'system(\"git push\")' | ruby",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"system(\"git push\")",
+"|",
+"ruby"
+]
+},
+{
+"input": "cd /x && echo 'system(\"git push\")' | ruby",
+"mode": "quote",
+"quoted": "'cd /x && echo '\"'\"'system(\"git push\")'\"'\"' | ruby'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[gh,pr,merge]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"gh",
+",",
+"pr",
+",",
+"merge",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([gh,pr,merge])",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"tarfile",
+";",
+"tarfile.open",
+"(",
+"a.tar",
+")",
+".extractall",
+"(",
+"x",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"tarfile",
+";",
+"tarfile.open",
+"(",
+"a.tar",
+")",
+".extractall",
+"(",
+"x",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+"<<EOF",
+"import",
+"tarfile;",
+"tarfile.open(a.tar).extractall(x)",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && python3 - <<'\"'\"'EOF'\"'\"'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<<",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+},
+{
+"input": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<<",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+},
+{
+"input": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"<<<",
+"import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")"
+]
+},
+{
+"input": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'",
+"mode": "quote",
+"quoted": "'cd /x && python3 <<< '\"'\"'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"env",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"env",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"env",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && env python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+">",
+"/dev/null",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+">",
+"/dev/null",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-",
+">/dev/null",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && python3 - >/dev/null <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-W",
+"ignore",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-W",
+"ignore",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"python3",
+"-W",
+"ignore",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cd /x && python3 -W ignore - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+]
+},
+{
+"input": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+]
+},
+{
+"input": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'"
+]
+},
+{
+"input": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 <<< '\"'\"'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"'\"'\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+]
+},
+{
+"input": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+]
+},
+{
+"input": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3"
+]
+},
+{
+"input": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"",
+"mode": "quote",
+"quoted": "'bash -c \"echo '\"'\"'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"'\"' | python3\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+]
+},
+{
+"input": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+]
+},
+{
+"input": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -"
+]
+},
+{
+"input": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"",
+"mode": "quote",
+"quoted": "'bash -c \"printf '\"'\"'%s\\\\n'\"'\"' '\"'\"'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"'\"' | python3 -\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"cat <<'\"'\"'EOF'\"'\"' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"perl - <<'EOF'\nsystem(\"git push\");\nEOF"
+]
+},
+{
+"input": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"perl - <<'EOF'\nsystem(\"git push\");\nEOF"
+]
+},
+{
+"input": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"perl - <<'EOF'\nsystem(\"git push\");\nEOF"
+]
+},
+{
+"input": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"perl - <<'\"'\"'EOF'\"'\"'\nsystem(\\\"git push\\\");\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF"
+]
+},
+{
+"input": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF"
+]
+},
+{
+"input": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF"
+]
+},
+{
+"input": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"node <<'\"'\"'EOF'\"'\"'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"ruby <<'EOF'\nsystem(\"git push\")\nEOF"
+]
+},
+{
+"input": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"ruby <<'EOF'\nsystem(\"git push\")\nEOF"
+]
+},
+{
+"input": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"ruby <<'EOF'\nsystem(\"git push\")\nEOF"
+]
+},
+{
+"input": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"ruby <<'\"'\"'EOF'\"'\"'\nsystem(\\\"git push\\\")\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"perl <<< 'system(\"git push\");'"
+]
+},
+{
+"input": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"perl <<< 'system(\"git push\");'"
+]
+},
+{
+"input": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"perl <<< 'system(\"git push\");'"
+]
+},
+{
+"input": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"",
+"mode": "quote",
+"quoted": "'bash -c \"perl <<< '\"'\"'system(\\\"git push\\\");'\"'\"'\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+]
+},
+{
+"input": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+]
+},
+{
+"input": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node"
+]
+},
+{
+"input": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"",
+"mode": "quote",
+"quoted": "'bash -c \"echo '\"'\"'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")'\"'\"' | node\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'system(\"git push\")' | ruby"
+]
+},
+{
+"input": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'system(\"git push\")' | ruby"
+]
+},
+{
+"input": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo 'system(\"git push\")' | ruby"
+]
+},
+{
+"input": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"",
+"mode": "quote",
+"quoted": "'bash -c \"echo '\"'\"'system(\\\"git push\\\")'\"'\"' | ruby\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 - <<'\"'\"'EOF'\"'\"'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+]
+},
+{
+"input": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+]
+},
+{
+"input": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'"
+]
+},
+{
+"input": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 <<< '\"'\"'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"'\"'\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"env python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 - >/dev/null <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF"
+]
+},
+{
+"input": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"",
+"mode": "quote",
+"quoted": "'bash -c \"python3 -W ignore - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"'",
+"src": "corpus"
+},
+{
+"input": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"then",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"then",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"if",
+"true;",
+"then",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'if true; then python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"do",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"do",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"if",
+"true;",
+"do",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'if true; do python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"else",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"else",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"if",
+"true;",
+"else",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'if true; else python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"{",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"{",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"if",
+"true;",
+"{",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'if true; { python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"!",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"!",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"if",
+"true;",
+"!",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'if true; ! python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'timeout 5 python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'timeout 5 python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"timeout",
+"5",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"timeout",
+"5",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"timeout",
+"5",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | timeout 5 python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"timeout",
+"5",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"timeout",
+"5",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"timeout",
+"5",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nice",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nice",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nice",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'nice python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nice",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nice",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nice",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'nice python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nice",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nice",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nice",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | nice python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"nice",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"nice",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"nice",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nice",
+"-n",
+"5",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nice",
+"-n",
+"5",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nice",
+"-n",
+"5",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'nice -n 5 python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nice",
+"-n",
+"5",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nice",
+"-n",
+"5",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nice",
+"-n",
+"5",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'nice -n 5 python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nice",
+"-n",
+"5",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nice",
+"-n",
+"5",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nice",
+"-n",
+"5",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | nice -n 5 python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"nice",
+"-n",
+"5",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"nice",
+"-n",
+"5",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"nice",
+"-n",
+"5",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"stdbuf",
+"-oL",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"stdbuf",
+"-oL",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"stdbuf",
+"-oL",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'stdbuf -oL python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"stdbuf",
+"-oL",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"stdbuf",
+"-oL",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"stdbuf",
+"-oL",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'stdbuf -oL python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"stdbuf",
+"-oL",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"stdbuf",
+"-oL",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"stdbuf",
+"-oL",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | stdbuf -oL python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"stdbuf",
+"-oL",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"stdbuf",
+"-oL",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"stdbuf",
+"-oL",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'env python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"env",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"env",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"env",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | env python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"env",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"env",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"env",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nohup",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nohup",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nohup",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'nohup python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nohup",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nohup",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nohup",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'nohup python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nohup",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nohup",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"nohup",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | nohup python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"nohup",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"nohup",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"nohup",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"python3",
+"-",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'env FOO=1 python3 - <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"FOO=1",
+"python3",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'env FOO=1 python3 <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"env",
+"FOO=1",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"env",
+"FOO=1",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"env",
+"FOO=1",
+"python3"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | env FOO=1 python3'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"env",
+"FOO=1",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"|",
+"env",
+"FOO=1",
+"python3",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"|",
+"env",
+"FOO=1",
+"python3",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<A;",
+"cat",
+"<<B",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "quote",
+"quoted": "'python3 <<'\"'\"'A'\"'\"'; cat <<'\"'\"'B'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB'",
+"src": "corpus"
+},
+{
+"input": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"A",
+"|",
+"python3",
+";",
+"cat",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"A",
+"|",
+"python3",
+";",
+"cat",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<A",
+"|",
+"python3;",
+"cat",
+"<<B",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'A'\"'\"' | python3; cat <<'\"'\"'B'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB'",
+"src": "corpus"
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"A",
+";",
+"python3",
+"<<",
+"B",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"B"
+]
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"A",
+";",
+"python3",
+"<<",
+"B",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"B"
+]
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<A;",
+"python3",
+"<<B",
+"ok",
+"A",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"B"
+]
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'A'\"'\"'; python3 <<'\"'\"'B'\"'\"'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB'",
+"src": "corpus"
+},
+{
+"input": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"0",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"0",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"0<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 0<<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"/dev/fd/0",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"/dev/fd/0",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"/dev/fd/0",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 /dev/fd/0 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"FOO",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"FOO",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-u",
+"FOO",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'env -u FOO python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"--",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"--",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"--",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'env -- python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"-C",
+"/tmp",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'env -C /tmp python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"-p",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"-p",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"-p",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'command -p python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"exec",
+"-a",
+"x",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"exec",
+"-a",
+"x",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"exec",
+"-a",
+"x",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'exec -a x python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"nohup",
+"--",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"nohup",
+"--",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"nohup",
+"--",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'nohup -- python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"(",
+"python3",
+"<<",
+"EOF",
+")",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"(",
+"python3",
+"<<",
+"EOF",
+")",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"(python3",
+"<<EOF)",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'(python3 <<'\"'\"'EOF'\"'\"')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"code",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"code",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"code",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 -m code <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"asyncio",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"asyncio",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"asyncio",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'python3 -m asyncio <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"code",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"code",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"code",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])"
+]
+},
+{
+"input": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'",
+"mode": "quote",
+"quoted": "'python3 -m code <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-m",
+"code"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-m",
+"code"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3",
+"-m",
+"code"
+]
+},
+{
+"input": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code",
+"mode": "quote",
+"quoted": "'echo '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | python3 -m code'",
+"src": "corpus"
+},
+{
+"input": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"a << b",
+";",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"a << b",
+";",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"a << b;",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'echo '\"'\"'a << b'\"'\"'; python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF",
+"mode": "quote",
+"quoted": "'python3 <<EOF\nimport subprocess; subprocess.run(['\"'\"'git'\"'\"','\"'\"'push'\"'\"'])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+"<<",
+"B",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"B"
+]
+},
+{
+"input": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+"<<",
+"B",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"B"
+]
+},
+{
+"input": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<A",
+"<<B",
+"ok",
+"A",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"B"
+]
+},
+{
+"input": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "quote",
+"quoted": "'python3 <<'\"'\"'A'\"'\"' <<'\"'\"'B'\"'\"'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB'",
+"src": "corpus"
+},
+{
+"input": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"C",
+";",
+"python3",
+"<<",
+"A",
+"<<",
+"B",
+"ok",
+"C",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"B"
+]
+},
+{
+"input": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"C",
+";",
+"python3",
+"<<",
+"A",
+"<<",
+"B",
+"ok",
+"C",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"B"
+]
+},
+{
+"input": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<C;",
+"python3",
+"<<A",
+"<<B",
+"ok",
+"C",
+"ok",
+"A",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"B"
+]
+},
+{
+"input": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'C'\"'\"'; python3 <<'\"'\"'A'\"'\"' <<'\"'\"'B'\"'\"'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB'",
+"src": "corpus"
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"ok",
+"A",
+"ok",
+"B",
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"ok",
+"A",
+"ok",
+"B",
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<A;",
+"cat",
+"<<B",
+"ok",
+"A",
+"ok",
+"B",
+"python3",
+"<<A;",
+"cat",
+"<<B",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"A",
+"ok",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB",
+"mode": "quote",
+"quoted": "'python3 <<'\"'\"'A'\"'\"'; cat <<'\"'\"'B'\"'\"'\nok\nA\nok\nB\npython3 <<'\"'\"'A'\"'\"'; cat <<'\"'\"'B'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB'",
+"src": "corpus"
+},
+{
+"input": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"FOO=a;b",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"EOF"
+]
+},
+{
+"input": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"FOO=a;b",
+"python3",
+"<<",
+"EOF",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"EOF"
+]
+},
+{
+"input": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"FOO=a;b",
+"python3",
+"<<EOF",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"EOF"
+]
+},
+{
+"input": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF",
+"mode": "quote",
+"quoted": "'FOO='\"'\"'a;b'\"'\"' python3 <<'\"'\"'EOF'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<<",
+"import subprocess; subprocess.run([\"git\",\"push\"])",
+"|",
+"python3"
+]
+},
+{
+"input": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3",
+"mode": "quote",
+"quoted": "'cat <<< '\"'\"'import subprocess; subprocess.run([\"git\",\"push\"])'\"'\"' | python3'",
+"src": "corpus"
+},
+{
+"input": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+"<<",
+"B",
+";",
+"cat",
+"<<",
+"C",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"B",
+"ok",
+"C"
+]
+},
+{
+"input": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+"<<",
+"B",
+";",
+"cat",
+"<<",
+"C",
+"ok",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"B",
+"ok",
+"C"
+]
+},
+{
+"input": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<A",
+"<<B;",
+"cat",
+"<<C",
+"ok",
+"A",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"B",
+"ok",
+"C"
+]
+},
+{
+"input": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC",
+"mode": "quote",
+"quoted": "'python3 <<A <<'\"'\"'B'\"'\"'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC'",
+"src": "corpus"
+},
+{
+"input": "git << - push origin main",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git << - push origin main",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git << - push origin main",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push",
+"origin",
+"main"
+]
+},
+{
+"input": "git << - push origin main",
+"mode": "quote",
+"quoted": "'git << - push origin main'",
+"src": "corpus"
+},
+{
+"input": "git << - push",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push"
+]
+},
+{
+"input": "git << - push",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push"
+]
+},
+{
+"input": "git << - push",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push"
+]
+},
+{
+"input": "git << - push",
+"mode": "quote",
+"quoted": "'git << - push'",
+"src": "corpus"
+},
+{
+"input": "factory << - res",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"<<",
+"-",
+"res"
+]
+},
+{
+"input": "factory << - res",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"<<",
+"-",
+"res"
+]
+},
+{
+"input": "factory << - res",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"<<",
+"-",
+"res"
+]
+},
+{
+"input": "factory << - res",
+"mode": "quote",
+"quoted": "'factory << - res'",
+"src": "corpus"
+},
+{
+"input": "rm << - @LIVE_HOME@/run/guard-export.json",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rm",
+"<<",
+"-",
+"@LIVE_HOME@/run/guard-export.json"
+]
+},
+{
+"input": "rm << - @LIVE_HOME@/run/guard-export.json",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rm",
+"<<",
+"-",
+"@",
+"LIVE_HOME",
+"@",
+"/run/guard-export.json"
+]
+},
+{
+"input": "rm << - @LIVE_HOME@/run/guard-export.json",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rm",
+"<<",
+"-",
+"@LIVE_HOME@/run/guard-export.json"
+]
+},
+{
+"input": "rm << - @LIVE_HOME@/run/guard-export.json",
+"mode": "quote",
+"quoted": "'rm << - @LIVE_HOME@/run/guard-export.json'",
+"src": "corpus"
+},
+{
+"input": "git <<- x push origin main\nbody\nx",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"x",
+"push",
+"origin",
+"main",
+"body",
+"x"
+]
+},
+{
+"input": "git <<- x push origin main\nbody\nx",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"x",
+"push",
+"origin",
+"main",
+"body",
+"x"
+]
+},
+{
+"input": "git <<- x push origin main\nbody\nx",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"<<-",
+"x",
+"push",
+"origin",
+"main",
+"body",
+"x"
+]
+},
+{
+"input": "git <<- x push origin main\nbody\nx",
+"mode": "quote",
+"quoted": "'git <<- x push origin main\nbody\nx'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -74706,6 +81295,1199 @@
 "src": "corpus"
 },
 {
+"input": "cat <<- EOF\n\thello\n\tEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"-",
+"EOF",
+"hello",
+"EOF"
+]
+},
+{
+"input": "cat <<- EOF\n\thello\n\tEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"-",
+"EOF",
+"hello",
+"EOF"
+]
+},
+{
+"input": "cat <<- EOF\n\thello\n\tEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<-",
+"EOF",
+"hello",
+"EOF"
+]
+},
+{
+"input": "cat <<- EOF\n\thello\n\tEOF",
+"mode": "quote",
+"quoted": "'cat <<- EOF\n\thello\n\tEOF'",
+"src": "corpus"
+},
+{
+"input": "cat <<-'EOF'\n\tgit push\n\tEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"-EOF",
+"git",
+"push",
+"EOF"
+]
+},
+{
+"input": "cat <<-'EOF'\n\tgit push\n\tEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"-EOF",
+"git",
+"push",
+"EOF"
+]
+},
+{
+"input": "cat <<-'EOF'\n\tgit push\n\tEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<-EOF",
+"git",
+"push",
+"EOF"
+]
+},
+{
+"input": "cat <<-'EOF'\n\tgit push\n\tEOF",
+"mode": "quote",
+"quoted": "'cat <<-'\"'\"'EOF'\"'\"'\n\tgit push\n\tEOF'",
+"src": "corpus"
+},
+{
+"input": "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"then",
+"python3",
+"<<",
+"EOF",
+"print",
+"(",
+"1",
+")",
+"EOF",
+"fi"
+]
+},
+{
+"input": "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"if",
+"true",
+";",
+"then",
+"python3",
+"<<",
+"EOF",
+"print",
+"(",
+"1",
+")",
+"EOF",
+"fi"
+]
+},
+{
+"input": "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"if",
+"true;",
+"then",
+"python3",
+"<<EOF",
+"print(1)",
+"EOF",
+"fi"
+]
+},
+{
+"input": "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+"mode": "quote",
+"quoted": "'if true; then python3 <<'\"'\"'EOF'\"'\"'\nprint(1)\nEOF\nfi'",
+"src": "corpus"
+},
+{
+"input": "timeout 5 python3 <<< 'print(1)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"<<<",
+"print(1)"
+]
+},
+{
+"input": "timeout 5 python3 <<< 'print(1)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"<<<",
+"print(1)"
+]
+},
+{
+"input": "timeout 5 python3 <<< 'print(1)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"<<<",
+"print(1)"
+]
+},
+{
+"input": "timeout 5 python3 <<< 'print(1)'",
+"mode": "quote",
+"quoted": "'timeout 5 python3 <<< '\"'\"'print(1)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo 'print(1)' | nice python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"print(1)",
+"|",
+"nice",
+"python3"
+]
+},
+{
+"input": "echo 'print(1)' | nice python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"print(1)",
+"|",
+"nice",
+"python3"
+]
+},
+{
+"input": "echo 'print(1)' | nice python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"print(1)",
+"|",
+"nice",
+"python3"
+]
+},
+{
+"input": "echo 'print(1)' | nice python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'print(1)'\"'\"' | nice python3'",
+"src": "corpus"
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"print",
+"(",
+"1",
+")",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<",
+"A",
+";",
+"cat",
+"<<",
+"B",
+"print",
+"(",
+"1",
+")",
+"A",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<A;",
+"cat",
+"<<B",
+"print(1)",
+"A",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"B"
+]
+},
+{
+"input": "python3 <<'A'; cat <<'B'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+"mode": "quote",
+"quoted": "'python3 <<'\"'\"'A'\"'\"'; cat <<'\"'\"'B'\"'\"'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB'",
+"src": "corpus"
+},
+{
+"input": "timeout 5 python3 script.py <<< 'git push'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"script.py",
+"<<<",
+"git push"
+]
+},
+{
+"input": "timeout 5 python3 script.py <<< 'git push'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"script.py",
+"<<<",
+"git push"
+]
+},
+{
+"input": "timeout 5 python3 script.py <<< 'git push'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"timeout",
+"5",
+"python3",
+"script.py",
+"<<<",
+"git push"
+]
+},
+{
+"input": "timeout 5 python3 script.py <<< 'git push'",
+"mode": "quote",
+"quoted": "'timeout 5 python3 script.py <<< '\"'\"'git push'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 - <<'EOF'\nprint(1)\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"print",
+"(",
+"1",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nprint(1)\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"print",
+"(",
+"1",
+")",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nprint(1)\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<EOF",
+"print(1)",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nprint(1)\nEOF",
+"mode": "quote",
+"quoted": "'python3 - <<'\"'\"'EOF'\"'\"'\nprint(1)\nEOF'",
+"src": "corpus"
+},
+{
+"input": "echo 'print(1)' | python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"print(1)",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'print(1)' | python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"print(1)",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'print(1)' | python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"print(1)",
+"|",
+"python3"
+]
+},
+{
+"input": "echo 'print(1)' | python3",
+"mode": "quote",
+"quoted": "'echo '\"'\"'print(1)'\"'\"' | python3'",
+"src": "corpus"
+},
+{
+"input": "python3 script.py <<< input",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"script.py",
+"<<<",
+"input"
+]
+},
+{
+"input": "python3 script.py <<< input",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"script.py",
+"<<<",
+"input"
+]
+},
+{
+"input": "python3 script.py <<< input",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"script.py",
+"<<<",
+"input"
+]
+},
+{
+"input": "python3 script.py <<< input",
+"mode": "quote",
+"quoted": "'python3 script.py <<< input'",
+"src": "corpus"
+},
+{
+"input": "python3 script.py <<< 'git push'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"script.py",
+"<<<",
+"git push"
+]
+},
+{
+"input": "python3 script.py <<< 'git push'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"script.py",
+"<<<",
+"git push"
+]
+},
+{
+"input": "python3 script.py <<< 'git push'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"script.py",
+"<<<",
+"git push"
+]
+},
+{
+"input": "python3 script.py <<< 'git push'",
+"mode": "quote",
+"quoted": "'python3 script.py <<< '\"'\"'git push'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "cat file | python3",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"file",
+"|",
+"python3"
+]
+},
+{
+"input": "cat file | python3",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"file",
+"|",
+"python3"
+]
+},
+{
+"input": "cat file | python3",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"file",
+"|",
+"python3"
+]
+},
+{
+"input": "cat file | python3",
+"mode": "quote",
+"quoted": "'cat file | python3'",
+"src": "corpus"
+},
+{
+"input": "python3 <<< 'print(1)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"print(1)"
+]
+},
+{
+"input": "python3 <<< 'print(1)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"print(1)"
+]
+},
+{
+"input": "python3 <<< 'print(1)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"<<<",
+"print(1)"
+]
+},
+{
+"input": "python3 <<< 'print(1)'",
+"mode": "quote",
+"quoted": "'python3 <<< '\"'\"'print(1)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "perl - <<'EOF'\nprint 1\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"perl",
+"-",
+"<<",
+"EOF",
+"print",
+"1",
+"EOF"
+]
+},
+{
+"input": "perl - <<'EOF'\nprint 1\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"perl",
+"-",
+"<<",
+"EOF",
+"print",
+"1",
+"EOF"
+]
+},
+{
+"input": "perl - <<'EOF'\nprint 1\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"perl",
+"-",
+"<<EOF",
+"print",
+"1",
+"EOF"
+]
+},
+{
+"input": "perl - <<'EOF'\nprint 1\nEOF",
+"mode": "quote",
+"quoted": "'perl - <<'\"'\"'EOF'\"'\"'\nprint 1\nEOF'",
+"src": "corpus"
+},
+{
+"input": "node <<'EOF'\nconsole.log(1)\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"node",
+"<<",
+"EOF",
+"console.log",
+"(",
+"1",
+")",
+"EOF"
+]
+},
+{
+"input": "node <<'EOF'\nconsole.log(1)\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"node",
+"<<",
+"EOF",
+"console.log",
+"(",
+"1",
+")",
+"EOF"
+]
+},
+{
+"input": "node <<'EOF'\nconsole.log(1)\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"node",
+"<<EOF",
+"console.log(1)",
+"EOF"
+]
+},
+{
+"input": "node <<'EOF'\nconsole.log(1)\nEOF",
+"mode": "quote",
+"quoted": "'node <<'\"'\"'EOF'\"'\"'\nconsole.log(1)\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cat <<'EOF'\ngit push\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"git",
+"push",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF'\ngit push\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"EOF",
+"git",
+"push",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF'\ngit push\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<EOF",
+"git",
+"push",
+"EOF"
+]
+},
+{
+"input": "cat <<'EOF'\ngit push\nEOF",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'EOF'\"'\"'\ngit push\nEOF'",
+"src": "corpus"
+},
+{
+"input": "echo 'git push' | cat",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push",
+"|",
+"cat"
+]
+},
+{
+"input": "echo 'git push' | cat",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push",
+"|",
+"cat"
+]
+},
+{
+"input": "echo 'git push' | cat",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push",
+"|",
+"cat"
+]
+},
+{
+"input": "echo 'git push' | cat",
+"mode": "quote",
+"quoted": "'echo '\"'\"'git push'\"'\"' | cat'",
+"src": "corpus"
+},
+{
+"input": "echo 'git push'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push"
+]
+},
+{
+"input": "echo 'git push'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push"
+]
+},
+{
+"input": "echo 'git push'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"git push"
+]
+},
+{
+"input": "echo 'git push'",
+"mode": "quote",
+"quoted": "'echo '\"'\"'git push'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 -c 'print(1)' <<< 'git push'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"print(1)",
+"<<<",
+"git push"
+]
+},
+{
+"input": "python3 -c 'print(1)' <<< 'git push'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"print(1)",
+"<<<",
+"git push"
+]
+},
+{
+"input": "python3 -c 'print(1)' <<< 'git push'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-c",
+"print(1)",
+"<<<",
+"git push"
+]
+},
+{
+"input": "python3 -c 'print(1)' <<< 'git push'",
+"mode": "quote",
+"quoted": "'python3 -c '\"'\"'print(1)'\"'\"' <<< '\"'\"'git push'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open('a.tar').getnames()\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"tarfile",
+";",
+"tarfile.open",
+"(",
+"a.tar",
+")",
+".getnames",
+"()",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open('a.tar').getnames()\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<",
+"EOF",
+"import",
+"tarfile",
+";",
+"tarfile.open",
+"(",
+"a.tar",
+")",
+".getnames",
+"()",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open('a.tar').getnames()\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-",
+"<<EOF",
+"import",
+"tarfile;",
+"tarfile.open(a.tar).getnames()",
+"EOF"
+]
+},
+{
+"input": "python3 - <<'EOF'\nimport tarfile; tarfile.open('a.tar').getnames()\nEOF",
+"mode": "quote",
+"quoted": "'python3 - <<'\"'\"'EOF'\"'\"'\nimport tarfile; tarfile.open('\"'\"'a.tar'\"'\"').getnames()\nEOF'",
+"src": "corpus"
+},
+{
+"input": "python3 -m json.tool <<'EOF'\n{\"a\": 1}\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"json.tool",
+"<<",
+"EOF",
+"{a:",
+"1}",
+"EOF"
+]
+},
+{
+"input": "python3 -m json.tool <<'EOF'\n{\"a\": 1}\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"json.tool",
+"<<",
+"EOF",
+"{",
+"a",
+":",
+"1",
+"}",
+"EOF"
+]
+},
+{
+"input": "python3 -m json.tool <<'EOF'\n{\"a\": 1}\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"python3",
+"-m",
+"json.tool",
+"<<EOF",
+"{a:",
+"1}",
+"EOF"
+]
+},
+{
+"input": "python3 -m json.tool <<'EOF'\n{\"a\": 1}\nEOF",
+"mode": "quote",
+"quoted": "'python3 -m json.tool <<'\"'\"'EOF'\"'\"'\n{\"a\": 1}\nEOF'",
+"src": "corpus"
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"A",
+";",
+"python3",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[git,push]",
+")",
+"A",
+"print",
+"(",
+"1",
+")",
+"B"
+]
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<",
+"A",
+";",
+"python3",
+"<<",
+"B",
+"import",
+"subprocess",
+";",
+"subprocess.run",
+"(",
+"[",
+"git",
+",",
+"push",
+"]",
+")",
+"A",
+"print",
+"(",
+"1",
+")",
+"B"
+]
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+"<<A;",
+"python3",
+"<<B",
+"import",
+"subprocess;",
+"subprocess.run([git,push])",
+"A",
+"print(1)",
+"B"
+]
+},
+{
+"input": "cat <<'A'; python3 <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB",
+"mode": "quote",
+"quoted": "'cat <<'\"'\"'A'\"'\"'; python3 <<'\"'\"'B'\"'\"'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB'",
+"src": "corpus"
+},
+{
+"input": "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cat",
+">",
+"note.md",
+"<<",
+"EOF",
+"git",
+"push",
+"origin",
+"main",
+"EOF"
+]
+},
+{
+"input": "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cat",
+">",
+"note.md",
+"<<",
+"EOF",
+"git",
+"push",
+"origin",
+"main",
+"EOF"
+]
+},
+{
+"input": "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cat",
+">",
+"note.md",
+"<<EOF",
+"git",
+"push",
+"origin",
+"main",
+"EOF"
+]
+},
+{
+"input": "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+"mode": "quote",
+"quoted": "'cat > note.md <<'\"'\"'EOF'\"'\"'\ngit push origin main\nEOF'",
+"src": "corpus"
+},
+{
+"input": "git <<- push\nbody\npush",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push",
+"body",
+"push"
+]
+},
+{
+"input": "git <<- push\nbody\npush",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"<<",
+"-",
+"push",
+"body",
+"push"
+]
+},
+{
+"input": "git <<- push\nbody\npush",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"<<-",
+"push",
+"body",
+"push"
+]
+},
+{
+"input": "git <<- push\nbody\npush",
+"mode": "quote",
+"quoted": "'git <<- push\nbody\npush'",
+"src": "corpus"
+},
+{
+"input": "factory <<- res\nbody\nres",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"factory",
+"<<",
+"-",
+"res",
+"body",
+"res"
+]
+},
+{
+"input": "factory <<- res\nbody\nres",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"factory",
+"<<",
+"-",
+"res",
+"body",
+"res"
+]
+},
+{
+"input": "factory <<- res\nbody\nres",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"factory",
+"<<-",
+"res",
+"body",
+"res"
+]
+},
+{
+"input": "factory <<- res\nbody\nres",
+"mode": "quote",
+"quoted": "'factory <<- res\nbody\nres'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -78737,7 +86519,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 1806,
+"corpus_commands": 1950,
 "edge_inputs": 123,
 "python": "3.13"
 }

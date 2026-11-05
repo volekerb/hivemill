@@ -64,7 +64,7 @@ func (a *Analyzer) uvCheck(name string, rest []string, depth int, piped, inLoose
 		}
 	}
 	if i < len(words) {
-		return a.cmd(words[i:], depth+1, piped, inLoose, hstrs, assigns)
+		return a.cmd(words[i:], depth+1, piped, inLoose, hstrs, assigns, nil)
 	}
 	return nil
 }

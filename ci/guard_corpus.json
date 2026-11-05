@@ -10,8 +10,8 @@
  {"cmd": "uvx --index-url https://pypi.example.org/simple pytest", "config": {"test_sandbox": "1"}},
  {"cmd": "python3 -m unittest discover -s tests -p test_X.py", "config": {"test_sandbox": "1"}},
  {"cmd": "python3 -m unittest tests.test_x", "config": {"test_sandbox": "1"}},
- {"cmd": "uvx pytest\u3000tests", "config": {"test_sandbox": "1"}},
- {"cmd": "uvx pytest\u2028tests", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx pytest　tests", "config": {"test_sandbox": "1"}},
+ {"cmd": "uvx pytest tests", "config": {"test_sandbox": "1"}},
  {"cmd": "pytest", "config": {"test_sandbox": "1"}},
  {"cmd": "python3 -m pytest tests/", "config": {"test_sandbox": "1"}},
  {"cmd": "py.test", "config": {"test_sandbox": "1"}},
@@ -52,36 +52,36 @@
   "cp /tmp/f @LIVE_HOME@/run/settings/coder.json",
   "rm @LIVE_HOME@/run/settings/coder.json",
   "rm -r @LIVE_HOME@/run",
- "echo x > ~/.local/lib/factory/worker-guard",
- "cp /tmp/x ~/.local/lib/factory/worker-guard",
- "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
- "mv /tmp/x ~/.local/lib/factory/worker-guard",
- "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
- "rm ~/.local/lib/factory/worker-guard.stamp",
- "rm -r ~/.local/lib/factory",
- "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
- "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
- "echo x > ~/.local/bin/git",
- "echo x >> ~/.local/bin/go",
- "echo x > ~/.local/bin/factory",
- "echo x > $HOME/.local/bin/nice",
- "cp /tmp/x ~/.local/bin/git",
- "mv /tmp/x ~/.local/bin/git",
- "ln -s /tmp/x ~/.local/bin/git",
- "ln -sf /tmp/x ~/.local/bin/factory",
- "rm ~/.local/bin/factory",
- "rm -r ~/.local/bin",
- "tee ~/.local/bin/git",
- "cd ~/.local/bin && echo x > git",
- "cd ~/.local/bin && cp /tmp/x git",
- "echo x > $Q/.local/bin",
- "echo x > $Q/.local/biné",
- "python3 -c \"open(1,2).write(0) # .local/bin\"",
- "python3 -c \"open(1,2).write(0) # .local/biné\"",
- "echo go > @LIVE_HOME@/run/guard_impl",
- "cp /tmp/x @LIVE_HOME@/run/guard_impl",
- "rm @LIVE_HOME@/run/guard_impl",
- "echo go > ~/.config/factory/guard_impl",
+  "echo x > ~/.local/lib/factory/worker-guard",
+  "cp /tmp/x ~/.local/lib/factory/worker-guard",
+  "cp /tmp/x ~/.local/lib/factory/worker-guard.stamp",
+  "mv /tmp/x ~/.local/lib/factory/worker-guard",
+  "ln -sf /tmp/x ~/.local/lib/factory/worker-guard",
+  "rm ~/.local/lib/factory/worker-guard.stamp",
+  "rm -r ~/.local/lib/factory",
+  "echo x | tee ~/.local/lib/factory/worker-guard.stamp",
+  "cd ~/.local/lib/factory && echo x > worker-guard.stamp",
+  "echo x > ~/.local/bin/git",
+  "echo x >> ~/.local/bin/go",
+  "echo x > ~/.local/bin/factory",
+  "echo x > $HOME/.local/bin/nice",
+  "cp /tmp/x ~/.local/bin/git",
+  "mv /tmp/x ~/.local/bin/git",
+  "ln -s /tmp/x ~/.local/bin/git",
+  "ln -sf /tmp/x ~/.local/bin/factory",
+  "rm ~/.local/bin/factory",
+  "rm -r ~/.local/bin",
+  "tee ~/.local/bin/git",
+  "cd ~/.local/bin && echo x > git",
+  "cd ~/.local/bin && cp /tmp/x git",
+  "echo x > $Q/.local/bin",
+  "echo x > $Q/.local/biné",
+  "python3 -c \"open(1,2).write(0) # .local/bin\"",
+  "python3 -c \"open(1,2).write(0) # .local/biné\"",
+  "echo go > @LIVE_HOME@/run/guard_impl",
+  "cp /tmp/x @LIVE_HOME@/run/guard_impl",
+  "rm @LIVE_HOME@/run/guard_impl",
+  "echo go > ~/.config/factory/guard_impl",
   "sed -i s/a/b/ @LIVE_HOME@/run/settings/coder.json",
   "echo x | tee @LIVE_HOME@/run/settings/qa.json",
   "cd @LIVE_HOME@/run/settings && echo '{}' > qa.json",
@@ -91,13 +91,7 @@
   "FOO=1 BAR=2 herdr agent list",
   "env HOME=x herdr pane list",
   "env -i herdr pane list",
-  {
-   "cmd": "sudo herdr server stop",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "sudo herdr server stop", "modes": ["worker", "hq"]},
   "command herdr server stop",
   "exec herdr server stop",
   "nohup herdr server stop",
@@ -120,76 +114,16 @@
   "./herdr x",
   "cd /tmp\nherdr server stop",
   "echo hi # c\nherdr x",
-  {
-   "cmd": "systemctl --user stop herdr.service",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "X=1 systemctl --user daemon-reload",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user enable factory-up.service",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user restart factory-tick.timer",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user start herdr-server",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user disable --now factory-tick.timer",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sudo systemctl stop herdr",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user kill 'factory-*'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user stop '*'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash -c 'systemctl --user daemon-reload'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "systemctl --user stop herdr.service", "modes": ["worker", "hq"]},
+ {"cmd": "X=1 systemctl --user daemon-reload", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user enable factory-up.service", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user restart factory-tick.timer", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user start herdr-server", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user disable --now factory-tick.timer", "modes": ["worker", "hq"]},
+ {"cmd": "sudo systemctl stop herdr", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user kill 'factory-*'", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user stop '*'", "modes": ["worker", "hq"]},
+ {"cmd": "bash -c 'systemctl --user daemon-reload'", "modes": ["worker", "hq"]},
   "echo \"unbalanced",
   "echo 'x",
   "factory up",
@@ -216,20 +150,8 @@
   "/usr/bin/her* server stop",
   "/usr/bin/herd? server stop",
   "{herdr,x} server stop",
-  {
-   "cmd": "sudo -u root env A=1 herdr server stop",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash -c \"sudo env A=1 herdr server stop\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "sudo -u root env A=1 herdr server stop", "modes": ["worker", "hq"]},
+ {"cmd": "bash -c \"sudo env A=1 herdr server stop\"", "modes": ["worker", "hq"]},
   "echo ok && (X=1 /opt/u/.local/bin/herdr pane list)",
   "find /usr -exec herdr x {} +",
   "echo 'herdr server stop' | bash",
@@ -281,25 +203,13 @@
   "git -c core.pager='herdr server stop' log",
   "git -c alias.x='!herdr server stop' x",
   "git config alias.x '!herdr server stop'",
-  {
-   "cmd": "systemctl --user isolate rescue.target",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "systemctl --user isolate rescue.target", "modes": ["worker", "hq"]},
   "eval \"$CMD\"",
   "bash -c",
   "find / -name herdr -exec {} server stop \\;",
   "echo herdr | xargs -I{} {} pane close p1",
   "env -S 'herdr agent start a'",
-  {
-   "cmd": "sudo herdr tab create",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "sudo herdr tab create", "modes": ["worker", "hq"]},
   "x=1 nohup herdr  workspace   close w1",
   "bash -c 'herdr agent send a x'",
   "echo herdr | xargs -I{} {} agent \\\n  start x",
@@ -338,26 +248,26 @@
   "env -Cdata -u FACTORY_ROLE ls",
   "env -ia foo factory task show T-1",
   "env -iC /tmp factory task show T-1",
-  {"cmd": "env --argv0 -i git status", "role": "qa"},
-  {"cmd": "env --arg -i git status", "role": "qa"},
-  {"cmd": "env --argv0 -u GIT_DIR git status", "role": "qa"},
-  {"cmd": "env --argv0 --unset=GIT_DIR git status", "role": "qa"},
-  {"cmd": "env --argv0 --ignore-environment git status", "role": "qa"},
-  {"cmd": "env --argv0 - git status", "role": "qa"},
-  {"cmd": "env --uns -i git status", "role": "qa"},
-  {"cmd": "env --uns -u GIT_DIR git status", "role": "qa"},
-  {"cmd": "env -afooa -u HERDR_PANE_ID ls", "role": "qa"},
-  {"cmd": "env -aC -u FACTORY_ROLE git status", "role": "qa"},
-  {"cmd": "env -ai git status", "role": "qa"},
-  {"cmd": "env -Ci git status", "role": "qa"},
-  {"cmd": "env -a -i git status", "role": "qa"},
-  {"cmd": "env -a -u GIT_DIR git status", "role": "qa"},
-  {"cmd": "env -Cu GIT_DIR git status", "role": "qa"},
-  {"cmd": "env --argv0 -i git status", "role": "reviewer"},
-  {"cmd": "env --argv0 -u GIT_DIR git status", "role": "reviewer"},
-  {"cmd": "env -aC -u FACTORY_ROLE ls", "role": "reviewer"},
-  {"cmd": "env -Ca -u FACTORY_ROLE ls", "role": "reviewer"},
-  {"cmd": "env -Cdata -u FACTORY_ROLE ls", "role": "reviewer"},
+ {"cmd": "env --argv0 -i git status", "role": "qa"},
+ {"cmd": "env --arg -i git status", "role": "qa"},
+ {"cmd": "env --argv0 -u GIT_DIR git status", "role": "qa"},
+ {"cmd": "env --argv0 --unset=GIT_DIR git status", "role": "qa"},
+ {"cmd": "env --argv0 --ignore-environment git status", "role": "qa"},
+ {"cmd": "env --argv0 - git status", "role": "qa"},
+ {"cmd": "env --uns -i git status", "role": "qa"},
+ {"cmd": "env --uns -u GIT_DIR git status", "role": "qa"},
+ {"cmd": "env -afooa -u HERDR_PANE_ID ls", "role": "qa"},
+ {"cmd": "env -aC -u FACTORY_ROLE git status", "role": "qa"},
+ {"cmd": "env -ai git status", "role": "qa"},
+ {"cmd": "env -Ci git status", "role": "qa"},
+ {"cmd": "env -a -i git status", "role": "qa"},
+ {"cmd": "env -a -u GIT_DIR git status", "role": "qa"},
+ {"cmd": "env -Cu GIT_DIR git status", "role": "qa"},
+ {"cmd": "env --argv0 -i git status", "role": "reviewer"},
+ {"cmd": "env --argv0 -u GIT_DIR git status", "role": "reviewer"},
+ {"cmd": "env -aC -u FACTORY_ROLE ls", "role": "reviewer"},
+ {"cmd": "env -Ca -u FACTORY_ROLE ls", "role": "reviewer"},
+ {"cmd": "env -Cdata -u FACTORY_ROLE ls", "role": "reviewer"},
   "env -i PATH=/usr/bin ./bin/factory tick",
   "FACTORY_AGENT=director factory team new G-001 x",
   "FACTORY_AGENT=owner factory msg x y",
@@ -381,13 +291,7 @@
   "$(which claude) -p x",
   "echo $(claude -p x)",
   "eval 'claude -p x'",
-  {
-   "cmd": "sudo -u x env A=1 claude",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "sudo -u x env A=1 claude", "modes": ["worker", "hq"]},
   "npx @anthropic-ai/claude-code -p x",
   "pnpm dlx @anthropic-ai/claude-code -p x",
   "node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js -p x",
@@ -404,190 +308,40 @@
   "alias c=\"ls;claude\"\nc\n",
   "alias c='\"claude\"'\nc -p\n",
   "alias h=\"ls;herdr\"\nh\n",
-  {
-   "cmd": "sudo -n true",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sudo",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "/usr/bin/doas ls",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "doas",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "env A=1 pkexec x",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "pkexec",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash -c 'su -'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "su",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "timeout 5 docker ps",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "docker",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "x=1 sh -c \"sh -c 'sudo id'\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "sudo -n true", "modes": ["worker", "hq"]},
+ {"cmd": "sudo", "modes": ["worker", "hq"]},
+ {"cmd": "/usr/bin/doas ls", "modes": ["worker", "hq"]},
+ {"cmd": "doas", "modes": ["worker", "hq"]},
+ {"cmd": "env A=1 pkexec x", "modes": ["worker", "hq"]},
+ {"cmd": "pkexec", "modes": ["worker", "hq"]},
+ {"cmd": "bash -c 'su -'", "modes": ["worker", "hq"]},
+ {"cmd": "su", "modes": ["worker", "hq"]},
+ {"cmd": "timeout 5 docker ps", "modes": ["worker", "hq"]},
+ {"cmd": "docker", "modes": ["worker", "hq"]},
+ {"cmd": "x=1 sh -c \"sh -c 'sudo id'\"", "modes": ["worker", "hq"]},
   "herdr pane list",
   "factory spawn coder --task T-1",
   "factory res",
   "$X y",
-  {
-   "cmd": "python3 -W ignore -c 'import os; os.system(\"sudo id\")'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "python3 -X dev -c 'import os; os.system(\"sudo id\")'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "python3 -W ignore -c 'import os; os.system(\"sudo id\")'", "modes": ["worker", "hq"]},
+ {"cmd": "python3 -X dev -c 'import os; os.system(\"sudo id\")'", "modes": ["worker", "hq"]},
   "python3 -Z bin/factory tick",
   "python3 --weird bin/factory tick",
   "python3 -Zq bin/factory up",
   "deno run bin/factory tick",
   "node --foo bin/factory tick",
-  {
-   "cmd": "perl -e \"system('sudo id')\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "perl -I lib -e \"system('sudo id')\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "ruby -r json -e \"system('sudo id')\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "node -r x -e \"require('child_process').execSync('sudo id')\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "node -p \"require('child_process').execSync('docker ps')\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo \"a $(sudo id) b\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo \"a `sudo id` b\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo $(sudo id)",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo `sudo id`",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo 'x'; echo \"$(sudo id)\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo 'x' \"$(docker ps)\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo \"it's $(sudo id)\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "perl -e \"system('sudo id')\"", "modes": ["worker", "hq"]},
+ {"cmd": "perl -I lib -e \"system('sudo id')\"", "modes": ["worker", "hq"]},
+ {"cmd": "ruby -r json -e \"system('sudo id')\"", "modes": ["worker", "hq"]},
+ {"cmd": "node -r x -e \"require('child_process').execSync('sudo id')\"", "modes": ["worker", "hq"]},
+ {"cmd": "node -p \"require('child_process').execSync('docker ps')\"", "modes": ["worker", "hq"]},
+ {"cmd": "echo \"a $(sudo id) b\"", "modes": ["worker", "hq"]},
+ {"cmd": "echo \"a `sudo id` b\"", "modes": ["worker", "hq"]},
+ {"cmd": "echo $(sudo id)", "modes": ["worker", "hq"]},
+ {"cmd": "echo `sudo id`", "modes": ["worker", "hq"]},
+ {"cmd": "echo 'x'; echo \"$(sudo id)\"", "modes": ["worker", "hq"]},
+ {"cmd": "echo 'x' \"$(docker ps)\"", "modes": ["worker", "hq"]},
+ {"cmd": "echo \"it's $(sudo id)\"", "modes": ["worker", "hq"]},
   "/usr/bin/s?do -n true",
   "/usr/bin/sud[o] -n true",
   "s*o id",
@@ -596,153 +350,27 @@
   "env /usr/bin/s?do id",
   "nohup /usr/bin/sud? id",
   "(/usr/bin/s?do id)",
-  {
-   "cmd": "git -c alias.x='!sudo id' x",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "git -c core.pager='sudo less' log",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "git -c core.sshCommand='docker x' fetch",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "git config alias.x '!sudo id'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "git config core.editor 'sudo vi'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "git -C . -c alias.y='!docker ps' y",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sed -n '1e sudo id' f",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sed -e 'e docker ps' f",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sed 's/x/sudo id/e' f",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sed '$e su -' f",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "awk 'BEGIN{system(\"sudo id\")}'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "awk 'BEGIN{\"docker ps\" | getline x}'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "awk 'BEGIN{print 1 | \"sudo tee f\"}'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "gawk 'BEGIN{system(\"pkexec ls\")}'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "time -p sudo id",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "time sudo id",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "function f { sudo id; }",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "function f { docker ps; }; f",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "trap 'sudo id' EXIT",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "trap -- 'docker ps' INT",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "f() { sudo id; }",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
+ {"cmd": "git -c alias.x='!sudo id' x", "modes": ["worker", "hq"]},
+ {"cmd": "git -c core.pager='sudo less' log", "modes": ["worker", "hq"]},
+ {"cmd": "git -c core.sshCommand='docker x' fetch", "modes": ["worker", "hq"]},
+ {"cmd": "git config alias.x '!sudo id'", "modes": ["worker", "hq"]},
+ {"cmd": "git config core.editor 'sudo vi'", "modes": ["worker", "hq"]},
+ {"cmd": "git -C . -c alias.y='!docker ps' y", "modes": ["worker", "hq"]},
+ {"cmd": "sed -n '1e sudo id' f", "modes": ["worker", "hq"]},
+ {"cmd": "sed -e 'e docker ps' f", "modes": ["worker", "hq"]},
+ {"cmd": "sed 's/x/sudo id/e' f", "modes": ["worker", "hq"]},
+ {"cmd": "sed '$e su -' f", "modes": ["worker", "hq"]},
+ {"cmd": "awk 'BEGIN{system(\"sudo id\")}'", "modes": ["worker", "hq"]},
+ {"cmd": "awk 'BEGIN{\"docker ps\" | getline x}'", "modes": ["worker", "hq"]},
+ {"cmd": "awk 'BEGIN{print 1 | \"sudo tee f\"}'", "modes": ["worker", "hq"]},
+ {"cmd": "gawk 'BEGIN{system(\"pkexec ls\")}'", "modes": ["worker", "hq"]},
+ {"cmd": "time -p sudo id", "modes": ["worker", "hq"]},
+ {"cmd": "time sudo id", "modes": ["worker", "hq"]},
+ {"cmd": "function f { sudo id; }", "modes": ["worker", "hq"]},
+ {"cmd": "function f { docker ps; }; f", "modes": ["worker", "hq"]},
+ {"cmd": "trap 'sudo id' EXIT", "modes": ["worker", "hq"]},
+ {"cmd": "trap -- 'docker ps' INT", "modes": ["worker", "hq"]},
+ {"cmd": "f() { sudo id; }", "modes": ["worker", "hq"]},
   "pkill -f 'unittest discover'",
   "killall python3",
   "killall -9 python3",
@@ -788,429 +416,80 @@
   "bash -c 'factory task list'",
   "echo $(factory res)",
   "`factory res`",
-  {
-   "cmd": "env A=1 systemctl --user restart factory-tick.timer",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "xargs systemctl restart",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo `systemctl --user start factory-serve`",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo hi; systemctl --user start factory-serve",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "systemctl --user start factory-serve | cat",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "env systemd-run --user true",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "VAR=`systemctl --user start factory-serve`",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "git commit -m \"$(systemctl --user start factory-serve)\"",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "env systemd-run x",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash -c 'systemd-run x'",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "echo `systemd-run --user x`",
-   "modes": [
-    "worker",
-    "hq"
-   ]
-  },
-  {
-   "cmd": "export FACTORY_HOME=@LIVE_HOME@; factory done x",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "declare -x FACTORY_HOME=@LIVE_HOME@; factory msg director hi",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "typeset -x FACTORY_HOME=@LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=@LIVE_HOME@; export FACTORY_HOME; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=@LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "unset FACTORY_HOME; factory msg director hi",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "env -u FACTORY_HOME factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "env FACTORY_HOME=@LIVE_HOME@ factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "readonly FACTORY_HOME=@LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=@LIVE_HOME@ factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=@LIVE_HOME@/worktrees/x factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "eval 'export FACTORY_HOME=@LIVE_HOME@'; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "bash -c 'export FACTORY_HOME=@LIVE_HOME@; factory inbox'",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "read FACTORY_HOME <<< @LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "printf -v FACTORY_HOME %s @LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "for FACTORY_HOME in @LIVE_HOME@; do factory done x; done",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "mapfile -t FACTORY_HOME <<< @LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "readarray -t FACTORY_HOME <<< @LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "getopts a FACTORY_HOME -a; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "export {FACTORY_HOME,Y}=@LIVE_HOME@; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox; export FACTORY_HOME=@LIVE_HOME@",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox && FACTORY_HOME=@LIVE_HOME@ factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "echo FACTORY_HOME; factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=$FACTORY_HOME factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory scout pending",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory goal show G-001",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory task update T-0001 --status done",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "cat <<$(a b)\nx\n$(a b)\nHERDR_SESSION=x touch MARK\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "cat <<$(a b)\nx\n$(a b)\nsudo -n true\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "cat <<${a:-b c}\nx\n${a:-b c}\nHERDR_SESSION=x touch MARK\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "cat <<${a:-b c}\nx\n${a:-b c}\nsudo -n true\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "cat <<`a b`\nx\n`a b`\nHERDR_SESSION=x touch MARK\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "cat <<`a b`\nx\n`a b`\nsudo -n true\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "cat <<EOF\nx\nEO\\\nF\nHERDR_SESSION=x touch MARK\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "cat <<EOF\nx\nEO\\\nF\nsudo -n true\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash -s <<EOF\n:\\\n\nHERDR_SESSION=x touch MARK\nEOF\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "bash -s <<EOF\n:\\\n\nsudo -n true\nEOF\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash <<EOF\n\\\nHERDR_SESSION=x touch MARK\nEOF\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "bash <<EOF\n\\\nsudo -n true\nEOF\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "bash <<EOF\ntrue \\\n; sudo -n true\nEOF\n",
-   "modes": [
-    "hq"
-   ]
-  },
-  {
-   "cmd": "sh <<EOF\n\\\nHERDR_SESSION=x touch MARK\nEOF\n",
-   "modes": [
-    "worker"
-   ]
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive -o @SHARED@/x.tar origin/main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: -o into the shared checkout"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive --output=x.tar origin/main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: relative -o resolves into the shared checkout"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive -o /tmp/../$HOME/factory/x.tar origin/main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: unresolvable output fails closed"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive --remote=origin origin/main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: --remote"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive --remote origin origin/main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: --remote <x>"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive --exec=/bin/true origin/main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: --exec"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init -q -b main",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: git init of the shared checkout itself"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init @SHARED@/sub",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303: git init inside the shared checkout"
-  },
-  {
-   "cmd": "cd @SHARED@ && git -c tar.foo.command='tee roles/pwn' archive --format=foo HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 self-review: -c tar.<fmt>.command runs a command"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive -o '~' HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 self-review: quoted ~ is a literal name inside the cwd"
-  },
-  {
-   "cmd": "cd @SHARED@ && export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tar.foo.command GIT_CONFIG_VALUE_0='tee roles/pwn'; git archive --format=foo HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B1: exported GIT_CONFIG_* runs a tar filter"
-  },
-  {
-   "cmd": "cd @SHARED@ && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tar.foo.command GIT_CONFIG_VALUE_0='tee roles/pwn' git archive --format=foo HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B1: env GIT_CONFIG_*"
-  },
-  {
-   "cmd": "cd @SHARED@ && export GIT_CONFIG_PARAMETERS=\"'tar.foo.command'='tee roles/pwn'\"; git archive --format=foo HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B1: exported GIT_CONFIG_PARAMETERS"
-  },
-  {
-   "cmd": "cd @SHARED@ && export GIT_CONFIG_GLOBAL=@SCRATCH@/gitconfig; git archive --format=foo HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B1: exported GIT_CONFIG_GLOBAL"
-  },
-  {
-   "cmd": "cd @SHARED@ && export GIT_CONFIG_GLOBAL=@SCRATCH@/gitconfig; git init @SCRATCH@/r",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B1: GIT_* config also refuses the git init loosening"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init /",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B2: git init /"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init ~",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B2: git init ~"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init @SHARED@/..",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B2: git init the parent of the shared checkout"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init @SHARED@/worktrees/W",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B2: git init a linked worktree path under the shared checkout"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init /etc/x",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B2: git init outside the scratchpad"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init @SCRATCH@/../x",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 B2: .. out of the scratchpad"
-  },
-  {
-   "cmd": "cd @SHARED@ && git archive -o @SHARED@ HEAD",
-   "modes": [
-    "worker"
-   ],
-   "note": "T-0303 nit: -o naming the shared checkout directory itself"
-  },
+ {"cmd": "env A=1 systemctl --user restart factory-tick.timer", "modes": ["worker", "hq"]},
+ {"cmd": "xargs systemctl restart", "modes": ["worker", "hq"]},
+ {"cmd": "echo `systemctl --user start factory-serve`", "modes": ["worker", "hq"]},
+ {"cmd": "echo hi; systemctl --user start factory-serve", "modes": ["worker", "hq"]},
+ {"cmd": "systemctl --user start factory-serve | cat", "modes": ["worker", "hq"]},
+ {"cmd": "env systemd-run --user true", "modes": ["worker", "hq"]},
+ {"cmd": "VAR=`systemctl --user start factory-serve`", "modes": ["worker", "hq"]},
+ {"cmd": "git commit -m \"$(systemctl --user start factory-serve)\"", "modes": ["worker", "hq"]},
+ {"cmd": "env systemd-run x", "modes": ["worker", "hq"]},
+ {"cmd": "bash -c 'systemd-run x'", "modes": ["worker", "hq"]},
+ {"cmd": "echo `systemd-run --user x`", "modes": ["worker", "hq"]},
+ {"cmd": "export FACTORY_HOME=@LIVE_HOME@; factory done x", "role": "evaluator"},
+ {"cmd": "declare -x FACTORY_HOME=@LIVE_HOME@; factory msg director hi", "role": "evaluator"},
+ {"cmd": "typeset -x FACTORY_HOME=@LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=@LIVE_HOME@; export FACTORY_HOME; factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=@LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "unset FACTORY_HOME; factory msg director hi", "role": "evaluator"},
+ {"cmd": "env -u FACTORY_HOME factory inbox", "role": "evaluator"},
+ {"cmd": "env FACTORY_HOME=@LIVE_HOME@ factory inbox", "role": "evaluator"},
+ {"cmd": "readonly FACTORY_HOME=@LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=@LIVE_HOME@ factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=@LIVE_HOME@/worktrees/x factory inbox", "role": "evaluator"},
+ {"cmd": "eval 'export FACTORY_HOME=@LIVE_HOME@'; factory inbox", "role": "evaluator"},
+ {"cmd": "bash -c 'export FACTORY_HOME=@LIVE_HOME@; factory inbox'", "role": "evaluator"},
+ {"cmd": "read FACTORY_HOME <<< @LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "printf -v FACTORY_HOME %s @LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "for FACTORY_HOME in @LIVE_HOME@; do factory done x; done", "role": "evaluator"},
+ {"cmd": "mapfile -t FACTORY_HOME <<< @LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "readarray -t FACTORY_HOME <<< @LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "getopts a FACTORY_HOME -a; factory inbox", "role": "evaluator"},
+ {"cmd": "export {FACTORY_HOME,Y}=@LIVE_HOME@; factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox; export FACTORY_HOME=@LIVE_HOME@", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox && FACTORY_HOME=@LIVE_HOME@ factory inbox", "role": "evaluator"},
+ {"cmd": "echo FACTORY_HOME; factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=$FACTORY_HOME factory inbox", "role": "evaluator"},
+ {"cmd": "factory scout pending", "role": "evaluator"},
+ {"cmd": "factory goal show G-001", "role": "evaluator"},
+ {"cmd": "factory task update T-0001 --status done", "role": "evaluator"},
+ {"cmd": "cat <<$(a b)\nx\n$(a b)\nHERDR_SESSION=x touch MARK\n", "modes": ["worker"]},
+ {"cmd": "cat <<$(a b)\nx\n$(a b)\nsudo -n true\n", "modes": ["hq"]},
+ {"cmd": "cat <<${a:-b c}\nx\n${a:-b c}\nHERDR_SESSION=x touch MARK\n", "modes": ["worker"]},
+ {"cmd": "cat <<${a:-b c}\nx\n${a:-b c}\nsudo -n true\n", "modes": ["hq"]},
+ {"cmd": "cat <<`a b`\nx\n`a b`\nHERDR_SESSION=x touch MARK\n", "modes": ["worker"]},
+ {"cmd": "cat <<`a b`\nx\n`a b`\nsudo -n true\n", "modes": ["hq"]},
+ {"cmd": "cat <<EOF\nx\nEO\\\nF\nHERDR_SESSION=x touch MARK\n", "modes": ["worker"]},
+ {"cmd": "cat <<EOF\nx\nEO\\\nF\nsudo -n true\n", "modes": ["hq"]},
+ {"cmd": "bash -s <<EOF\n:\\\n\nHERDR_SESSION=x touch MARK\nEOF\n", "modes": ["worker"]},
+ {"cmd": "bash -s <<EOF\n:\\\n\nsudo -n true\nEOF\n", "modes": ["hq"]},
+ {"cmd": "bash <<EOF\n\\\nHERDR_SESSION=x touch MARK\nEOF\n", "modes": ["worker"]},
+ {"cmd": "bash <<EOF\n\\\nsudo -n true\nEOF\n", "modes": ["hq"]},
+ {"cmd": "bash <<EOF\ntrue \\\n; sudo -n true\nEOF\n", "modes": ["hq"]},
+ {"cmd": "sh <<EOF\n\\\nHERDR_SESSION=x touch MARK\nEOF\n", "modes": ["worker"]},
+ {"cmd": "cd @SHARED@ && git archive -o @SHARED@/x.tar origin/main", "modes": ["worker"], "note": "T-0303: -o into the shared checkout"},
+ {"cmd": "cd @SHARED@ && git archive --output=x.tar origin/main", "modes": ["worker"], "note": "T-0303: relative -o resolves into the shared checkout"},
+ {"cmd": "cd @SHARED@ && git archive -o /tmp/../$HOME/factory/x.tar origin/main", "modes": ["worker"], "note": "T-0303: unresolvable output fails closed"},
+ {"cmd": "cd @SHARED@ && git archive --remote=origin origin/main", "modes": ["worker"], "note": "T-0303: --remote"},
+ {"cmd": "cd @SHARED@ && git archive --remote origin origin/main", "modes": ["worker"], "note": "T-0303: --remote <x>"},
+ {"cmd": "cd @SHARED@ && git archive --exec=/bin/true origin/main", "modes": ["worker"], "note": "T-0303: --exec"},
+ {"cmd": "cd @SHARED@ && git init -q -b main", "modes": ["worker"], "note": "T-0303: git init of the shared checkout itself"},
+ {"cmd": "cd @SHARED@ && git init @SHARED@/sub", "modes": ["worker"], "note": "T-0303: git init inside the shared checkout"},
+ {"cmd": "cd @SHARED@ && git -c tar.foo.command='tee roles/pwn' archive --format=foo HEAD", "modes": ["worker"], "note": "T-0303 self-review: -c tar.<fmt>.command runs a command"},
+ {"cmd": "cd @SHARED@ && git archive -o '~' HEAD", "modes": ["worker"], "note": "T-0303 self-review: quoted ~ is a literal name inside the cwd"},
+ {"cmd": "cd @SHARED@ && export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tar.foo.command GIT_CONFIG_VALUE_0='tee roles/pwn'; git archive --format=foo HEAD", "modes": ["worker"], "note": "T-0303 B1: exported GIT_CONFIG_* runs a tar filter"},
+ {"cmd": "cd @SHARED@ && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tar.foo.command GIT_CONFIG_VALUE_0='tee roles/pwn' git archive --format=foo HEAD", "modes": ["worker"], "note": "T-0303 B1: env GIT_CONFIG_*"},
+ {"cmd": "cd @SHARED@ && export GIT_CONFIG_PARAMETERS=\"'tar.foo.command'='tee roles/pwn'\"; git archive --format=foo HEAD", "modes": ["worker"], "note": "T-0303 B1: exported GIT_CONFIG_PARAMETERS"},
+ {"cmd": "cd @SHARED@ && export GIT_CONFIG_GLOBAL=@SCRATCH@/gitconfig; git archive --format=foo HEAD", "modes": ["worker"], "note": "T-0303 B1: exported GIT_CONFIG_GLOBAL"},
+ {"cmd": "cd @SHARED@ && export GIT_CONFIG_GLOBAL=@SCRATCH@/gitconfig; git init @SCRATCH@/r", "modes": ["worker"], "note": "T-0303 B1: GIT_* config also refuses the git init loosening"},
+ {"cmd": "cd @SHARED@ && git init /", "modes": ["worker"], "note": "T-0303 B2: git init /"},
+ {"cmd": "cd @SHARED@ && git init ~", "modes": ["worker"], "note": "T-0303 B2: git init ~"},
+ {"cmd": "cd @SHARED@ && git init @SHARED@/..", "modes": ["worker"], "note": "T-0303 B2: git init the parent of the shared checkout"},
+ {"cmd": "cd @SHARED@ && git init @SHARED@/worktrees/W", "modes": ["worker"], "note": "T-0303 B2: git init a linked worktree path under the shared checkout"},
+ {"cmd": "cd @SHARED@ && git init /etc/x", "modes": ["worker"], "note": "T-0303 B2: git init outside the scratchpad"},
+ {"cmd": "cd @SHARED@ && git init @SCRATCH@/../x", "modes": ["worker"], "note": "T-0303 B2: .. out of the scratchpad"},
+ {"cmd": "cd @SHARED@ && git archive -o @SHARED@ HEAD", "modes": ["worker"], "note": "T-0303 nit: -o naming the shared checkout directory itself"},
   "git config --global user.name x",
   "git config --global --add core.fsmonitor /tmp/x",
   "git config --global --unset user.name",
@@ -1254,30 +533,12 @@
   "bash -c 'echo x > ~/.bashrc'",
   "python3 -c \"open('/h/.bashrc','a')\"",
   "git -c alias.c=config c --global a.b c",
-  {
-   "cmd": "git config --global core.fsmonitor /tmp/x",
-   "role": "qa"
-  },
-  {
-   "cmd": "echo x >> ~/.bashrc",
-   "role": "qa"
-  },
-  {
-   "cmd": "echo x > ~/.config/git/config",
-   "role": "qa"
-  },
-  {
-   "cmd": "git config --global core.fsmonitor /tmp/x",
-   "role": "reviewer"
-  },
-  {
-   "cmd": "echo x >> ~/.bashrc",
-   "role": "reviewer"
-  },
-  {
-   "cmd": "echo x > ~/.config/git/config",
-   "role": "reviewer"
-  },
+ {"cmd": "git config --global core.fsmonitor /tmp/x", "role": "qa"},
+ {"cmd": "echo x >> ~/.bashrc", "role": "qa"},
+ {"cmd": "echo x > ~/.config/git/config", "role": "qa"},
+ {"cmd": "git config --global core.fsmonitor /tmp/x", "role": "reviewer"},
+ {"cmd": "echo x >> ~/.bashrc", "role": "reviewer"},
+ {"cmd": "echo x > ~/.config/git/config", "role": "reviewer"},
   "git config filter.x.smudge cmd",
   "git config filter.x.clean cmd",
   "git config diff.x.textconv cmd",
@@ -1318,15 +579,15 @@
   "echo x >> .git/info/attributes",
   "echo x >> ../../.git/config",
   "git config --file @SCRATCH@/x.cfg a b && git config core.hooksPath x",
-  {"cmd": "gh api -X PUT repos/acme/widgets/branches/main/protection"},
-  {"cmd": "gh api --method DELETE repos/acme/widgets/branches/main/protection"},
-  {"cmd": "gh api -X PATCH repos/acme/widgets -f private=true"},
-  {"cmd": "gh api repos/acme/widgets/branches/main/protection -X PUT"},
-  {"cmd": "gh pr create --repo acme/widgets --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
-  {"cmd": "git commit -m 'unterminated", "modes": ["hq"], "config": {"public_text_repos": "acme/widgets"}},
-  {"cmd": "gh pr create --title 'x", "modes": ["hq"], "config": {"public_text_repos": "acme/widgets"}},
-  {"cmd": "gh pr create -R acme/widgets --title t --body-file -", "config": {"public_text_repos": "acme/widgets"}},
-  {"cmd": "gh issue create --repo acme/widgets --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh api -X PUT repos/acme/widgets/branches/main/protection"},
+ {"cmd": "gh api --method DELETE repos/acme/widgets/branches/main/protection"},
+ {"cmd": "gh api -X PATCH repos/acme/widgets -f private=true"},
+ {"cmd": "gh api repos/acme/widgets/branches/main/protection -X PUT"},
+ {"cmd": "gh pr create --repo acme/widgets --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "git commit -m 'unterminated", "modes": ["hq"], "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh pr create --title 'x", "modes": ["hq"], "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh pr create -R acme/widgets --title t --body-file -", "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh issue create --repo acme/widgets --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
  {"cmd": "p=push; git $p origin main", "role": "qa"},
  {"cmd": "p=push; git ${p} x", "role": "qa"},
  {"cmd": "p=push; git \"$p\" origin main", "role": "qa"},
@@ -1779,12 +1040,12 @@
  {"cmd": "git send-pack origin main", "role": "coder"},
  {"cmd": "git send-pack origin main", "role": "reviewer"},
  {"cmd": "git send-pack origin main", "role": "pm"},
- {"cmd": "echo p | xargs 'a\u2003git p'", "role": "reviewer"},
- {"cmd": "echo p | xargs 'a\u2003git p'", "role": "pm"},
- {"cmd": "echo x | xargs 'a\u3000git p'", "role": "reviewer"},
- {"cmd": "echo x | xargs 'a\u3000git p'", "role": "pm"},
- {"cmd": "find . -exec 'a\u00a0git p' \\;", "role": "reviewer"},
- {"cmd": "find . -exec 'a\u00a0git p' \\;", "role": "pm"},
+ {"cmd": "echo p | xargs 'a git p'", "role": "reviewer"},
+ {"cmd": "echo p | xargs 'a git p'", "role": "pm"},
+ {"cmd": "echo x | xargs 'a　git p'", "role": "reviewer"},
+ {"cmd": "echo x | xargs 'a　git p'", "role": "pm"},
+ {"cmd": "find . -exec 'a git p' \\;", "role": "reviewer"},
+ {"cmd": "find . -exec 'a git p' \\;", "role": "pm"},
  {"cmd": "git remote -v set-url origin y", "role": "reviewer"},
  {"cmd": "git remote -v set-url origin y", "role": "pm"},
  {"cmd": "git remote --verbose add x y", "role": "reviewer"},
@@ -3541,141 +2802,141 @@
  {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "Claude-coder-t-1"}},
  {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "claude-coder-t-1x"}},
  {"cmd": "git push origin HEAD:factory/t-2", "role": "coder", "env": {"FACTORY_AGENT": "claude-coder-t-1"}},
- "echo x > ~/.local/lib/fact*/worker-guard.stamp",
- "echo x > ~/.local/lib/fact?ry/worker-guard.stamp",
- "echo x > @LIVE_HOME@/run/settin?s/coder.json",
- "echo x > ~/.config/fact*/x",
- "echo x > @LIVE_HOME@/run/guard_imp?",
- "cp /tmp/x ~/.local/lib/fact*/worker-guard",
- "tee ~/.config/f[a]ctory/live_home",
- "curl -o ~/.local/lib/factory/worker-guard URL",
- "curl -sSLo ~/.local/lib/factory/worker-guard URL",
- "curl --output ~/.config/factory/x URL",
- "wget -O ~/.local/lib/factory/worker-guard URL",
- "wget --output-document=~/.local/lib/factory/worker-guard URL",
- "go build -o ~/.local/lib/factory/worker-guard ./cmd/x",
- "gcc -o ~/.local/lib/factory/worker-guard a.c",
- "cc -o ~/.local/lib/factory/worker-guard a.c",
- "clang -o ~/.local/lib/factory/worker-guard a.c",
- "tar -C ~/.local/lib/factory -xf a.tar",
- "tar xf a.tar --directory ~/.config/factory",
- "unzip -d ~/.config/factory a.zip",
- "rsync -a /tmp/x/ ~/.local/lib/factory/",
- "install -m 755 /tmp/x ~/.local/lib/factory/worker-guard",
- "tar --one-top-level=$HOME/.local/lib/factory -xf a.tar",
- "cd ~/.local/lib/factory && tar -xf a.tar",
- "cd ~/.config/factory && unzip a.zip",
- "cd $X && tar -xf a.tar",
- "cd ~/.local/lib/factory && curl -O URL",
- "echo x > ~/.local/go/go.env",
- "echo x >> $HOME/.local/go/go.env",
- "cp /tmp/x ~/.local/go/go.env",
- "rm -r ~/.local/go",
- "echo x > ~/.local/g?/go.env",
- "curl -o ~/.local/go/bin/go URL",
- "tar -C ~/.local/go -xf a.tar",
- "cd ~/.local/go && echo x > go.env",
- "echo x > ~/.config/go/env",
- "go env -w GOFLAGS=-mod=mod",
- "go env -u GOFLAGS",
- "mv /tmp/x ~/.local/go/go.env",
- "ln -sf /tmp/x ~/.local/go/go.env",
- "tee ~/.local/go/go.env",
- "go build -o ~/.local/go/bin/go ./cmd/x",
- "wget -P ~/.local/go URL",
- "unzip -d ~/.local/go a.zip",
- "echo x > @LIVE_HOME@/bin/factory_cli.py",
- "echo x >> @LIVE_HOME@/bin/factory",
- "cp /tmp/x @LIVE_HOME@/bin/factory_cli.py",
- "mv /tmp/x @LIVE_HOME@/go/x.go",
- "ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py",
- "rm @LIVE_HOME@/bin/factory_cli.py",
- "rm -r @LIVE_HOME@/go",
- "tee @LIVE_HOME@/roles/hooks/worker-guard.py",
- "echo x > @LIVE_HOME@/roles/settings/coder.json",
- "echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py",
- "curl -o @LIVE_HOME@/bin/factory_cli.py URL",
- "go build -o @LIVE_HOME@/bin/x ./cmd/x",
- "tar -C @LIVE_HOME@/go -xf a.tar",
- "cd @LIVE_HOME@/bin && echo x > factory_cli.py",
- "cd @LIVE_HOME@/go && tar -xf a.tar",
- "cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py",
- "sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py",
- "echo x > @SHARED@/bin/factory_cli.py",
- "cd @SHARED@/go && echo x > x.go",
- "rm -r @SHARED@/roles/hooks",
- "git clone URL ~/.local/lib/factory/x",
- "git clone URL ~/.config/factory/x",
- "git clone URL @LIVE_HOME@/bin/x",
- "git clone --depth 1 URL ~/.local/go/x",
- "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
- "cd ~/.local/lib/factory && git clone URL",
- "tar -xCf @LIVE_HOME@/go a.tar",
- "tar xfC a.tar @LIVE_HOME@/go",
- "unzip -qd @LIVE_HOME@/go a.zip",
- "unzip -qod ~/.local/go a.zip",
- "env -C @LIVE_HOME@/bin tar xf a",
- "7z -y x a.7z -o@LIVE_HOME@/bin",
- "cp /tmp/x ~/.local/go/go.env -f",
- "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
- "install /tmp/x ~/.local/go/x -m755",
- "install /tmp/x ~/.local/go/x -m 755",
- "ln -s /tmp/x ~/.local/go/go.env -f",
- "rsync /tmp/x ~/.local/go/go.env -a",
- "cp /tmp/x ~/.local/bin/git -f",
- "cp /tmp/x @SHARED@/bin/factory_cli.py -f",
- "install /tmp/x ~/.local/go/x -m 755 -o root",
- "tar -cf ~/.local/go/pkg.tar x",
- "tar -rf ~/.local/go/pkg.tar x",
- "tar -uf ~/.local/go/pkg.tar x",
- "tar --create --file=~/.local/go/pkg.tar x",
- "tar --dir=~/.local/go -xf a.tar",
- "tar --direc ~/.local/go -xf a.tar",
- "wget --output-doc=~/.local/go/x URL",
- "wget --output-d=~/.local/go/x URL",
- "tar --one-top=~/.local/go -xf a.tar",
- "gcc --outp ~/.local/go/x a.c",
- "echo x > ~/**/factory_cli.py",
- "echo x > ~/**/go.env",
- "echo x > @SHARED@/**/factory_cli.py",
- "echo x > ~/.local/bin/git",
- "curl -o ~/.local/bin/git URL",
- "tar -C ~/.local/bin -xf a.tar",
- "cd ~/.local/bin && tar -xf a.tar",
- "echo x > ~/.local/b*/git",
- "go build -o ~/.local/bin/x ./cmd/x",
- "unzip -d ~/.local/bin a.zip",
- "git clone URL ~/.local/bin/x",
- "git clone --dep 1 URL ~/.local/go/x",
- "git clone --bra main URL ~/.config/factory/x",
- "git clone --ref-format files URL ~/.local/lib/factory/x",
+  "echo x > ~/.local/lib/fact*/worker-guard.stamp",
+  "echo x > ~/.local/lib/fact?ry/worker-guard.stamp",
+  "echo x > @LIVE_HOME@/run/settin?s/coder.json",
+  "echo x > ~/.config/fact*/x",
+  "echo x > @LIVE_HOME@/run/guard_imp?",
+  "cp /tmp/x ~/.local/lib/fact*/worker-guard",
+  "tee ~/.config/f[a]ctory/live_home",
+  "curl -o ~/.local/lib/factory/worker-guard URL",
+  "curl -sSLo ~/.local/lib/factory/worker-guard URL",
+  "curl --output ~/.config/factory/x URL",
+  "wget -O ~/.local/lib/factory/worker-guard URL",
+  "wget --output-document=~/.local/lib/factory/worker-guard URL",
+  "go build -o ~/.local/lib/factory/worker-guard ./cmd/x",
+  "gcc -o ~/.local/lib/factory/worker-guard a.c",
+  "cc -o ~/.local/lib/factory/worker-guard a.c",
+  "clang -o ~/.local/lib/factory/worker-guard a.c",
+  "tar -C ~/.local/lib/factory -xf a.tar",
+  "tar xf a.tar --directory ~/.config/factory",
+  "unzip -d ~/.config/factory a.zip",
+  "rsync -a /tmp/x/ ~/.local/lib/factory/",
+  "install -m 755 /tmp/x ~/.local/lib/factory/worker-guard",
+  "tar --one-top-level=$HOME/.local/lib/factory -xf a.tar",
+  "cd ~/.local/lib/factory && tar -xf a.tar",
+  "cd ~/.config/factory && unzip a.zip",
+  "cd $X && tar -xf a.tar",
+  "cd ~/.local/lib/factory && curl -O URL",
+  "echo x > ~/.local/go/go.env",
+  "echo x >> $HOME/.local/go/go.env",
+  "cp /tmp/x ~/.local/go/go.env",
+  "rm -r ~/.local/go",
+  "echo x > ~/.local/g?/go.env",
+  "curl -o ~/.local/go/bin/go URL",
+  "tar -C ~/.local/go -xf a.tar",
+  "cd ~/.local/go && echo x > go.env",
+  "echo x > ~/.config/go/env",
+  "go env -w GOFLAGS=-mod=mod",
+  "go env -u GOFLAGS",
+  "mv /tmp/x ~/.local/go/go.env",
+  "ln -sf /tmp/x ~/.local/go/go.env",
+  "tee ~/.local/go/go.env",
+  "go build -o ~/.local/go/bin/go ./cmd/x",
+  "wget -P ~/.local/go URL",
+  "unzip -d ~/.local/go a.zip",
+  "echo x > @LIVE_HOME@/bin/factory_cli.py",
+  "echo x >> @LIVE_HOME@/bin/factory",
+  "cp /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+  "mv /tmp/x @LIVE_HOME@/go/x.go",
+  "ln -sf /tmp/x @LIVE_HOME@/bin/factory_cli.py",
+  "rm @LIVE_HOME@/bin/factory_cli.py",
+  "rm -r @LIVE_HOME@/go",
+  "tee @LIVE_HOME@/roles/hooks/worker-guard.py",
+  "echo x > @LIVE_HOME@/roles/settings/coder.json",
+  "echo x > @LIVE_HOME@/rol*/hooks/worker-guard.py",
+  "curl -o @LIVE_HOME@/bin/factory_cli.py URL",
+  "go build -o @LIVE_HOME@/bin/x ./cmd/x",
+  "tar -C @LIVE_HOME@/go -xf a.tar",
+  "cd @LIVE_HOME@/bin && echo x > factory_cli.py",
+  "cd @LIVE_HOME@/go && tar -xf a.tar",
+  "cd @LIVE_HOME@/roles/hooks && cp /tmp/x worker-guard.py",
+  "sed -i s/a/b/ @LIVE_HOME@/bin/factory_cli.py",
+  "echo x > @SHARED@/bin/factory_cli.py",
+  "cd @SHARED@/go && echo x > x.go",
+  "rm -r @SHARED@/roles/hooks",
+  "git clone URL ~/.local/lib/factory/x",
+  "git clone URL ~/.config/factory/x",
+  "git clone URL @LIVE_HOME@/bin/x",
+  "git clone --depth 1 URL ~/.local/go/x",
+  "git clone --separate-git-dir ~/.local/go/g URL /tmp/z",
+  "cd ~/.local/lib/factory && git clone URL",
+  "tar -xCf @LIVE_HOME@/go a.tar",
+  "tar xfC a.tar @LIVE_HOME@/go",
+  "unzip -qd @LIVE_HOME@/go a.zip",
+  "unzip -qod ~/.local/go a.zip",
+  "env -C @LIVE_HOME@/bin tar xf a",
+  "7z -y x a.7z -o@LIVE_HOME@/bin",
+  "cp /tmp/x ~/.local/go/go.env -f",
+  "cp /tmp/x ~/.local/lib/factory/worker-guard -f",
+  "install /tmp/x ~/.local/go/x -m755",
+  "install /tmp/x ~/.local/go/x -m 755",
+  "ln -s /tmp/x ~/.local/go/go.env -f",
+  "rsync /tmp/x ~/.local/go/go.env -a",
+  "cp /tmp/x ~/.local/bin/git -f",
+  "cp /tmp/x @SHARED@/bin/factory_cli.py -f",
+  "install /tmp/x ~/.local/go/x -m 755 -o root",
+  "tar -cf ~/.local/go/pkg.tar x",
+  "tar -rf ~/.local/go/pkg.tar x",
+  "tar -uf ~/.local/go/pkg.tar x",
+  "tar --create --file=~/.local/go/pkg.tar x",
+  "tar --dir=~/.local/go -xf a.tar",
+  "tar --direc ~/.local/go -xf a.tar",
+  "wget --output-doc=~/.local/go/x URL",
+  "wget --output-d=~/.local/go/x URL",
+  "tar --one-top=~/.local/go -xf a.tar",
+  "gcc --outp ~/.local/go/x a.c",
+  "echo x > ~/**/factory_cli.py",
+  "echo x > ~/**/go.env",
+  "echo x > @SHARED@/**/factory_cli.py",
+  "echo x > ~/.local/bin/git",
+  "curl -o ~/.local/bin/git URL",
+  "tar -C ~/.local/bin -xf a.tar",
+  "cd ~/.local/bin && tar -xf a.tar",
+  "echo x > ~/.local/b*/git",
+  "go build -o ~/.local/bin/x ./cmd/x",
+  "unzip -d ~/.local/bin a.zip",
+  "git clone URL ~/.local/bin/x",
+  "git clone --dep 1 URL ~/.local/go/x",
+  "git clone --bra main URL ~/.config/factory/x",
+  "git clone --ref-format files URL ~/.local/lib/factory/x",
  {"cmd": "git --attr-source HEAD clone URL ~/.local/go/x", "role": "reviewer"},
- "cd ~/.local/go && git clone --dep 1 /tmp/r",
- "cp -rt ~/.local/go /tmp/x",
- "cp -t~/.local/go /tmp/x",
- "cp -rt~/.local/go /tmp/x",
- "ln -st ~/.local/go /tmp/x",
- "cp --target-dir ~/.local/go /tmp/x",
- "cp --t ~/.local/go /tmp/x",
- "cp --t=~/.local/go /tmp/x",
- "install --t=~/.local/go /tmp/x",
- "rsync -t /tmp/a ~/.local/go/x",
- "rsync -rt /tmp/a ~/.local/go/x",
- "install -groot /tmp/x ~/.local/go/x",
- "install -otom /tmp/x ~/.local/go/x",
- "cp -t /tmp/d ~/.config/factory/live_home",
- "tar -cf~/.local/go/pkg.tar /tmp/x",
- "tar -czf~/.local/go/pkg.tar /tmp/x",
- "tar -rf~/.local/go/pkg.tar /tmp/x",
- "tar -f~/.local/go/pkg.tar -c /tmp/x",
- "tar cf ~/.local/go/pkg.tar /tmp/x",
- "tar rf ~/.local/go/pkg.tar /tmp/x",
- "tar uvf ~/.local/go/pkg.tar /tmp/x",
- "tar fc ~/.local/go/pkg.tar /tmp/x",
- "tar cfb ~/.local/go/pkg.tar 20 /tmp/x",
- "tar bcf 20 ~/.local/go/pkg.tar /tmp/x",
- "tar xfC /tmp/a.tar ~/.local/go",
- "tar xCf ~/.local/go /tmp/a.tar",
+  "cd ~/.local/go && git clone --dep 1 /tmp/r",
+  "cp -rt ~/.local/go /tmp/x",
+  "cp -t~/.local/go /tmp/x",
+  "cp -rt~/.local/go /tmp/x",
+  "ln -st ~/.local/go /tmp/x",
+  "cp --target-dir ~/.local/go /tmp/x",
+  "cp --t ~/.local/go /tmp/x",
+  "cp --t=~/.local/go /tmp/x",
+  "install --t=~/.local/go /tmp/x",
+  "rsync -t /tmp/a ~/.local/go/x",
+  "rsync -rt /tmp/a ~/.local/go/x",
+  "install -groot /tmp/x ~/.local/go/x",
+  "install -otom /tmp/x ~/.local/go/x",
+  "cp -t /tmp/d ~/.config/factory/live_home",
+  "tar -cf~/.local/go/pkg.tar /tmp/x",
+  "tar -czf~/.local/go/pkg.tar /tmp/x",
+  "tar -rf~/.local/go/pkg.tar /tmp/x",
+  "tar -f~/.local/go/pkg.tar -c /tmp/x",
+  "tar cf ~/.local/go/pkg.tar /tmp/x",
+  "tar rf ~/.local/go/pkg.tar /tmp/x",
+  "tar uvf ~/.local/go/pkg.tar /tmp/x",
+  "tar fc ~/.local/go/pkg.tar /tmp/x",
+  "tar cfb ~/.local/go/pkg.tar 20 /tmp/x",
+  "tar bcf 20 ~/.local/go/pkg.tar /tmp/x",
+  "tar xfC /tmp/a.tar ~/.local/go",
+  "tar xCf ~/.local/go /tmp/a.tar",
  {"cmd": "uv run git push origin main", "role": "qa"},
  {"cmd": "uv run -- git push", "role": "qa"},
  {"cmd": "uv run --with requests python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
@@ -3861,61 +3122,898 @@
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ENV=@SCRATCH@/e bash @INSTALL@ --dry-run", "role": "qa"},
  {"cmd": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run", "role": "coder"},
  {"cmd": "ENV=@SCRATCH@/e HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run", "role": "qa"},
- {"cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init", "role": "coder"},
- {"cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init", "role": "qa"}
+ {"cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init", "role": "coder"},
+ {"cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init", "role": "qa"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "researcher"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "qa"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "reviewer"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "pm"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "staff-engineer"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "scout"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "evaluator"},
+ {"cmd": "printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "qa"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "reviewer"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "pm"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "staff-engineer"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "scout"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "evaluator"},
+ {"cmd": "perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "researcher"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "qa"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "reviewer"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "pm"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "staff-engineer"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "scout"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "evaluator"},
+ {"cmd": "node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "researcher"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "qa"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "reviewer"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "pm"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "staff-engineer"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "scout"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "evaluator"},
+ {"cmd": "ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "researcher"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "qa"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "reviewer"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "pm"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "staff-engineer"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "scout"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "evaluator"},
+ {"cmd": "perl <<< 'system(\"git push\");'", "role": "researcher"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "qa"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "reviewer"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "pm"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "staff-engineer"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "scout"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "evaluator"},
+ {"cmd": "echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "researcher"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "qa"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "reviewer"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "pm"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "staff-engineer"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "scout"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "evaluator"},
+ {"cmd": "echo 'system(\"git push\")' | ruby", "role": "researcher"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "qa"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "reviewer"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "pm"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "scout"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "evaluator"},
+ {"cmd": "python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "researcher"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "qa"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "reviewer"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "pm"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "staff-engineer"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "scout"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "evaluator"},
+ {"cmd": "python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "researcher"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 /dev/stdin <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | tee /dev/null | python3", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | cat | python3 -", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | tee /dev/null | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "cd /x && python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "qa"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "reviewer"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "pm"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "staff-engineer"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "scout"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "evaluator"},
+ {"cmd": "cd /x && echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "researcher"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "qa"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "reviewer"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "pm"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "staff-engineer"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "scout"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "evaluator"},
+ {"cmd": "cd /x && printf '%s\\n' 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -", "role": "researcher"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && cat <<'EOF' | python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "qa"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "pm"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "scout"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && perl - <<'EOF'\nsystem(\"git push\");\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "qa"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "pm"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "scout"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && node <<'EOF'\nrequire(\"child_process\").execSync(\"gh pr merge 1\")\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "qa"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "pm"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "scout"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && ruby <<'EOF'\nsystem(\"git push\")\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "qa"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "reviewer"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "pm"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "staff-engineer"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "scout"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "evaluator"},
+ {"cmd": "cd /x && perl <<< 'system(\"git push\");'", "role": "researcher"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "qa"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "reviewer"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "pm"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "staff-engineer"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "scout"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "evaluator"},
+ {"cmd": "cd /x && echo 'require(\"child_process\").execSync(\"gh pr merge 1\")' | node", "role": "researcher"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "qa"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "reviewer"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "pm"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "staff-engineer"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "scout"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "evaluator"},
+ {"cmd": "cd /x && echo 'system(\"git push\")' | ruby", "role": "researcher"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport subprocess; subprocess.run([\"gh\",\"pr\",\"merge\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "qa"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "pm"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "scout"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && python3 - <<'EOF'\nimport tarfile; tarfile.open(\"a.tar\").extractall(\"x\")\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "qa"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "reviewer"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "pm"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "scout"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "evaluator"},
+ {"cmd": "cd /x && python3 <<< 'import tarfile; tarfile.open(\"a.tar\").extractall(\"x\")'", "role": "researcher"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && env python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cd /x && python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 <<< 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])'\"", "role": "researcher"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "qa"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "reviewer"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "pm"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "scout"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "evaluator"},
+ {"cmd": "bash -c \"echo 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3\"", "role": "researcher"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "qa"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "reviewer"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "pm"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "scout"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "evaluator"},
+ {"cmd": "bash -c \"printf '%s\\\\n' 'import subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])' | python3 -\"", "role": "researcher"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"cat <<'EOF' | python3\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"perl - <<'EOF'\nsystem(\\\"git push\\\");\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"node <<'EOF'\nrequire(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"ruby <<'EOF'\nsystem(\\\"git push\\\")\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "qa"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "reviewer"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "pm"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "scout"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "evaluator"},
+ {"cmd": "bash -c \"perl <<< 'system(\\\"git push\\\");'\"", "role": "researcher"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "qa"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "reviewer"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "pm"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "scout"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "evaluator"},
+ {"cmd": "bash -c \"echo 'require(\\\"child_process\\\").execSync(\\\"gh pr merge 1\\\")' | node\"", "role": "researcher"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "qa"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "reviewer"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "pm"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "scout"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "evaluator"},
+ {"cmd": "bash -c \"echo 'system(\\\"git push\\\")' | ruby\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"gh\\\",\\\"pr\\\",\\\"merge\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 - <<'EOF'\nimport tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 <<< 'import tarfile; tarfile.open(\\\"a.tar\\\").extractall(\\\"x\\\")'\"", "role": "researcher"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"env python3 - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 - >/dev/null <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "qa"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "reviewer"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "pm"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "staff-engineer"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "scout"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "evaluator"},
+ {"cmd": "bash -c \"python3 -W ignore - <<'EOF'\nimport subprocess; subprocess.run([\\\"git\\\",\\\"push\\\"])\nEOF\"", "role": "researcher"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "if true; then python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "if true; do python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "if true; else python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "if true; { python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "if true; ! python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "timeout 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "timeout 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | timeout 5 python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | timeout 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "nice python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "nice python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | nice python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "nice -n 5 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "nice -n 5 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nice -n 5 python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | nice -n 5 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "stdbuf -oL python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "stdbuf -oL python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | stdbuf -oL python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | stdbuf -oL python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "env python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | env python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "nohup python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "nohup python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | nohup python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | nohup python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "env FOO=1 python3 - <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "env FOO=1 python3 <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | env FOO=1 python3", "role": "researcher"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "cat <<'EOF' | env FOO=1 python3\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "qa"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "reviewer"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "pm"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "staff-engineer"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "scout"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "evaluator"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "researcher"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "qa"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "reviewer"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "pm"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "staff-engineer"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "scout"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "evaluator"},
+ {"cmd": "cat <<'A' | python3; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "researcher"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "qa"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "reviewer"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "pm"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "staff-engineer"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "scout"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "evaluator"},
+ {"cmd": "cat <<'A'; python3 <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "researcher"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 0<<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 /dev/fd/0 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "env -u FOO python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "env -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "env -C /tmp python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "command -p python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "exec -a x python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "nohup -- python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "(python3 <<'EOF')\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 -m code <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 -m asyncio <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "qa"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "reviewer"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "pm"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "staff-engineer"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "scout"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "evaluator"},
+ {"cmd": "python3 -m code <<< 'import subprocess; subprocess.run([\"git\",\"push\"])'", "role": "researcher"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "qa"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "reviewer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "pm"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "staff-engineer"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "scout"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "evaluator"},
+ {"cmd": "echo 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3 -m code", "role": "researcher"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "echo 'a << b'; python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "qa"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "reviewer"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "pm"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "staff-engineer"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "scout"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "evaluator"},
+ {"cmd": "python3 <<EOF\nimport subprocess; subprocess.run(['git','push'])\nEOF", "role": "researcher"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "qa"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "reviewer"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "pm"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "staff-engineer"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "scout"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "evaluator"},
+ {"cmd": "python3 <<'A' <<'B'\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "researcher"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "qa"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "reviewer"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "pm"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "staff-engineer"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "scout"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "evaluator"},
+ {"cmd": "cat <<'C'; python3 <<'A' <<'B'\nok\nC\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB", "role": "researcher"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "qa"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "reviewer"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "pm"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "staff-engineer"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "scout"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "evaluator"},
+ {"cmd": "python3 <<'A'; cat <<'B'\nok\nA\nok\nB\npython3 <<'A'; cat <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nok\nB", "role": "researcher"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "qa"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "reviewer"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "pm"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "staff-engineer"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "scout"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "evaluator"},
+ {"cmd": "FOO='a;b' python3 <<'EOF'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nEOF", "role": "researcher"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "qa"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "reviewer"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "pm"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "staff-engineer"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "scout"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "evaluator"},
+ {"cmd": "cat <<< 'import subprocess; subprocess.run([\"git\",\"push\"])' | python3", "role": "researcher"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "qa"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "reviewer"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "pm"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "staff-engineer"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "scout"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "evaluator"},
+ {"cmd": "python3 <<A <<'B'; cat <<C\nok\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB\nok\nC", "role": "researcher"},
+ {"cmd": "git << - push origin main", "role": "qa"},
+ {"cmd": "git << - push origin main", "role": "reviewer"},
+ {"cmd": "git << - push origin main", "role": "pm"},
+ {"cmd": "git << - push origin main", "role": "staff-engineer"},
+ {"cmd": "git << - push origin main", "role": "scout"},
+ {"cmd": "git << - push origin main", "role": "evaluator"},
+ {"cmd": "git << - push origin main", "role": "researcher"},
+ {"cmd": "git << - push origin main", "role": "coder"},
+ {"cmd": "git << - push", "role": "qa"},
+ {"cmd": "git << - push", "role": "reviewer"},
+ {"cmd": "git << - push", "role": "pm"},
+ {"cmd": "git << - push", "role": "staff-engineer"},
+ {"cmd": "git << - push", "role": "scout"},
+ {"cmd": "git << - push", "role": "evaluator"},
+ {"cmd": "git << - push", "role": "researcher"},
+ {"cmd": "git << - push", "role": "coder"},
+ {"cmd": "factory << - res", "role": "qa"},
+ {"cmd": "factory << - res", "role": "reviewer"},
+ {"cmd": "factory << - res", "role": "pm"},
+ {"cmd": "factory << - res", "role": "scout"},
+ {"cmd": "factory << - res", "role": "evaluator"},
+ {"cmd": "factory << - res", "role": "researcher"},
+ {"cmd": "factory << - res", "role": "coder"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "qa"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "reviewer"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "pm"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "staff-engineer"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "scout"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "evaluator"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "researcher"},
+ {"cmd": "rm << - @LIVE_HOME@/run/guard-export.json", "role": "coder"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "qa"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "reviewer"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "pm"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "staff-engineer"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "scout"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "evaluator"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "researcher"},
+ {"cmd": "git <<- x push origin main\nbody\nx", "role": "coder"}
  ],
  "must_allow": [
- "tar -xCf /tmp/x a.tar",
- "unzip -qd /tmp/x a.zip",
- "env -C /tmp/x ls",
- "curl -o /tmp/x URL",
- "go build -o ./bin/x ./cmd/x",
- "tar -C /tmp/x -xf a.tar",
- "ls ~/.config/fact*",
- "cd /tmp/x && tar -xf a.tar",
- "tar --one-top-level=/tmp/x -xf a.tar",
- "~/.local/go/bin/go version",
- "cat ~/.local/go/go.env",
- "ls ~/.config/go",
- "go env GOFLAGS",
- "go env",
- "go build ./...",
- "cp ~/.local/go/go.env /tmp/x",
- "echo x > ~/.local/gox/y",
- "echo x > ~/.config/gopher/y",
- "tar -czf /tmp/x.tgz -C ~/.local/go .",
- "wget -qO- URL",
- "curl -O URL",
- "cat @LIVE_HOME@/bin/factory_cli.py",
- "ls @LIVE_HOME@/go",
- "grep -rn foo @LIVE_HOME@/roles/hooks",
- "cp @LIVE_HOME@/roles/settings/coder.json /tmp/x",
- "@LIVE_HOME@/bin/factory whoami",
- "echo x > @LIVE_HOME@/binx/y",
- "echo x > @LIVE_HOME@/gox/y",
- "echo x > @LIVE_HOME@/README.md",
- "echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x",
- "cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go",
- "cat @SHARED@/bin/factory_cli.py",
- "git clone URL /tmp/x",
- "git clone URL",
- "ls ~/.local/lib/factory",
- "cat ~/.local/lib/factory/worker-guard.stamp",
- "ls ~/.local/bin",
- "ls -la ~/.local/bin/factory",
- "cat ~/.local/bin/herdr-to-ha.py",
- "cp ~/.local/bin/herdr-to-ha.py /tmp/x",
- "~/.local/bin/factory whoami",
- "grep -rn .local/bin docs",
- "echo x > /usr/local/bin/foo",
- "echo x > ~/.local/binx/foo",
- "echo x > $Q/.local/binx",
- "echo x > $Q/.local/bin_",
- "python3 -c \"open(1,2).write(0) # .local/binx\"",
- "git commit -m 'note: ~/.local/bin is on PATH'",
- "factory msg lead 'subj' 'see ~/.local/bin/git'",
- "export PATH=~/.local/bin:$PATH",
- "cat @LIVE_HOME@/run/guard_impl",
+  "tar -xCf /tmp/x a.tar",
+  "unzip -qd /tmp/x a.zip",
+  "env -C /tmp/x ls",
+  "curl -o /tmp/x URL",
+  "go build -o ./bin/x ./cmd/x",
+  "tar -C /tmp/x -xf a.tar",
+  "ls ~/.config/fact*",
+  "cd /tmp/x && tar -xf a.tar",
+  "tar --one-top-level=/tmp/x -xf a.tar",
+  "~/.local/go/bin/go version",
+  "cat ~/.local/go/go.env",
+  "ls ~/.config/go",
+  "go env GOFLAGS",
+  "go env",
+  "go build ./...",
+  "cp ~/.local/go/go.env /tmp/x",
+  "echo x > ~/.local/gox/y",
+  "echo x > ~/.config/gopher/y",
+  "tar -czf /tmp/x.tgz -C ~/.local/go .",
+  "wget -qO- URL",
+  "curl -O URL",
+  "cat @LIVE_HOME@/bin/factory_cli.py",
+  "ls @LIVE_HOME@/go",
+  "grep -rn foo @LIVE_HOME@/roles/hooks",
+  "cp @LIVE_HOME@/roles/settings/coder.json /tmp/x",
+  "@LIVE_HOME@/bin/factory whoami",
+  "echo x > @LIVE_HOME@/binx/y",
+  "echo x > @LIVE_HOME@/gox/y",
+  "echo x > @LIVE_HOME@/README.md",
+  "echo x > @LIVE_HOME@/worktrees/G-000-T-0000/bin/x",
+  "cp /tmp/x @LIVE_HOME@/worktrees/G-000-T-0000/go/x.go",
+  "cat @SHARED@/bin/factory_cli.py",
+  "git clone URL /tmp/x",
+  "git clone URL",
+  "ls ~/.local/lib/factory",
+  "cat ~/.local/lib/factory/worker-guard.stamp",
+  "ls ~/.local/bin",
+  "ls -la ~/.local/bin/factory",
+  "cat ~/.local/bin/herdr-to-ha.py",
+  "cp ~/.local/bin/herdr-to-ha.py /tmp/x",
+  "~/.local/bin/factory whoami",
+  "grep -rn .local/bin docs",
+  "echo x > /usr/local/bin/foo",
+  "echo x > ~/.local/binx/foo",
+  "echo x > $Q/.local/binx",
+  "echo x > $Q/.local/bin_",
+  "python3 -c \"open(1,2).write(0) # .local/binx\"",
+  "git commit -m 'note: ~/.local/bin is on PATH'",
+  "factory msg lead 'subj' 'see ~/.local/bin/git'",
+  "export PATH=~/.local/bin:$PATH",
+  "cat @LIVE_HOME@/run/guard_impl",
  {"cmd": "factory test tests/test_x.py", "config": {"test_sandbox": "1"}},
  {"cmd": "factory test", "config": {"test_sandbox": "1"}},
  {"cmd": "uvx ruff check .", "config": {"test_sandbox": "1"}},
@@ -4118,44 +4216,17 @@
   "printf '%s\\n' herdr",
   "sed -n 1,20p roles/hooks/worker-guard.py",
   "git fetch origin && git merge origin/main",
-  {
-   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory done 'did it'",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory done x",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory task show T-0001",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory whoami",
-   "role": "evaluator"
-  },
-  {
-   "cmd": "factory msg lead hi there",
-   "role": "evaluator"
-  },
+ {"cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory inbox", "role": "evaluator"},
+ {"cmd": "FACTORY_HOME=/tmp/zz-guard-diff-home factory done 'did it'", "role": "evaluator"},
+ {"cmd": "factory done x", "role": "evaluator"},
+ {"cmd": "factory task show T-0001", "role": "evaluator"},
+ {"cmd": "factory whoami", "role": "evaluator"},
+ {"cmd": "factory msg lead hi there", "role": "evaluator"},
   "FACTORY_HOME=/tmp/x FACTORY_DB=/tmp/x/db/factory.db factory res",
   "git commit -m 'FACTORY_DB override docs'",
-  {
-   "cmd": "cat <<A; bash <<B\na\\\nA\nb\\\necho RAN\nB",
-   "note": "M3500: the backslash join in the cat <<A body swallows the A terminator, so bash runs nothing (intended false-positive fix vs main)"
-  },
-  {
-   "cmd": "cat <<A; bash <<B\na\\\nA\nb\\\necho RAN",
-   "note": "M3500/M4330: the M3500 shape with heredoc B left unterminated; bash reads the rest as B data (warning: delimited by end-of-file) and runs nothing (second intended false-positive fix vs main)"
-  },
-  {
-   "cmd": "cd @SHARED@ && git init -q -b main @SCRATCH@/repo",
-   "note": "M5368 (intended loosening): git init of a scratch dir from the shared checkout"
-  },
+ {"cmd": "cat <<A; bash <<B\na\\\nA\nb\\\necho RAN\nB", "note": "M3500: the backslash join in the cat <<A body swallows the A terminator, so bash runs nothing (intended false-positive fix vs main)"},
+ {"cmd": "cat <<A; bash <<B\na\\\nA\nb\\\necho RAN", "note": "M3500/M4330: the M3500 shape with heredoc B left unterminated; bash reads the rest as B data (warning: delimited by end-of-file) and runs nothing (second intended false-positive fix vs main)"},
+ {"cmd": "cd @SHARED@ && git init -q -b main @SCRATCH@/repo", "note": "M5368 (intended loosening): git init of a scratch dir from the shared checkout"},
   "git config --global --get user.name",
   "git config --global user.name",
   "git config --global --list",
@@ -4189,9 +4260,9 @@
   "gh api repos/acme/widgets",
   "gh repo view acme/widgets",
   "gh pr list --repo acme/widgets",
-  {"cmd": "gh pr create --repo other/repo --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
-  {"cmd": "gh pr list --repo acme/widgets", "config": {"public_text_repos": "acme/widgets"}},
-  {"cmd": "gh pr view 3 --repo acme/widgets", "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh pr create --repo other/repo --title t --body \"$(date)\"", "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh pr list --repo acme/widgets", "config": {"public_text_repos": "acme/widgets"}},
+ {"cmd": "gh pr view 3 --repo acme/widgets", "config": {"public_text_repos": "acme/widgets"}},
  {"cmd": "git log --oneline -5", "role": "qa"},
  {"cmd": "git show origin/x:f", "role": "qa"},
  {"cmd": "git fetch origin", "role": "qa"},
@@ -5018,41 +5089,66 @@
  {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "claude-coder-t-1"}},
  {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "cursor-coder-t-1"}},
  {"cmd": "git push origin HEAD:factory/t-1", "role": "coder", "env": {"FACTORY_AGENT": "coder-t-1"}},
- "cp /tmp/x /tmp/y -f",
- "cp ~/.local/go/go.env /tmp/x -f",
- "tar -tf ~/.local/go/pkg.tar",
- "tar --list -f ~/.local/go/pkg.tar",
- "tar -df ~/.local/go/pkg.tar",
- "tar --diff --file=~/.local/go/pkg.tar",
- "wget --output-doc=/tmp/x URL",
- "tar --dir=/tmp/x -xf a.tar",
- "echo x > /tmp/**/y",
- "ls ~/.local/bin",
- "cat ~/.local/bin/git",
- "echo x > ~/.local/binx/y",
- "tar -tf ~/.local/bin/a.tar",
- "git clone --depth 1 URL /tmp/x",
- "cp -t /tmp/d ~/.local/go/go.env",
- "install -t /tmp/d ~/.local/go/x",
- "ln -s -t /tmp/d ~/.local/go/x",
- "ln -st /tmp/d ~/.local/go/x",
- "cp -rt /tmp/d ~/.local/go/go.env",
- "cp -t/tmp/d ~/.local/go/go.env",
- "cp --target-dir /tmp/d ~/.local/go/go.env",
- "cp --target-directory=/tmp/d ~/.local/go/go.env",
- "tar -tf~/.local/go/pkg.tar",
- "tar -tzf~/.local/go/pkg.tar",
- "tar --list -f~/.local/go/pkg.tar",
- "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
- "tar tf ~/.local/go/pkg.tar",
- "tar ft ~/.local/go/pkg.tar",
- "tar -fc ~/.local/go/pkg.tar",
- "tar -tf/tmp/box.tar -C ~/.local/go",
- "cd ~/.local/go && tar -tf/tmp/box.tar",
+  "cp /tmp/x /tmp/y -f",
+  "cp ~/.local/go/go.env /tmp/x -f",
+  "tar -tf ~/.local/go/pkg.tar",
+  "tar --list -f ~/.local/go/pkg.tar",
+  "tar -df ~/.local/go/pkg.tar",
+  "tar --diff --file=~/.local/go/pkg.tar",
+  "wget --output-doc=/tmp/x URL",
+  "tar --dir=/tmp/x -xf a.tar",
+  "echo x > /tmp/**/y",
+  "ls ~/.local/bin",
+  "cat ~/.local/bin/git",
+  "echo x > ~/.local/binx/y",
+  "tar -tf ~/.local/bin/a.tar",
+  "git clone --depth 1 URL /tmp/x",
+  "cp -t /tmp/d ~/.local/go/go.env",
+  "install -t /tmp/d ~/.local/go/x",
+  "ln -s -t /tmp/d ~/.local/go/x",
+  "ln -st /tmp/d ~/.local/go/x",
+  "cp -rt /tmp/d ~/.local/go/go.env",
+  "cp -t/tmp/d ~/.local/go/go.env",
+  "cp --target-dir /tmp/d ~/.local/go/go.env",
+  "cp --target-directory=/tmp/d ~/.local/go/go.env",
+  "tar -tf~/.local/go/pkg.tar",
+  "tar -tzf~/.local/go/pkg.tar",
+  "tar --list -f~/.local/go/pkg.tar",
+  "tar -tC/tmp/c -f ~/.local/go/pkg.tar",
+  "tar tf ~/.local/go/pkg.tar",
+  "tar ft ~/.local/go/pkg.tar",
+  "tar -fc ~/.local/go/pkg.tar",
+  "tar -tf/tmp/box.tar -C ~/.local/go",
+  "cd ~/.local/go && tar -tf/tmp/box.tar",
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init", "role": "coder"},
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f factory init", "role": "qa"},
  {"cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f; factory init", "role": "coder"},
  {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run", "role": "coder"},
- {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run", "role": "qa"}
+ {"cmd": "HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f bash @INSTALL@ --dry-run", "role": "qa"},
+  "cat <<- EOF\n\thello\n\tEOF",
+  "cat <<-'EOF'\n\tgit push\n\tEOF",
+  "if true; then python3 <<'EOF'\nprint(1)\nEOF\nfi",
+  "timeout 5 python3 <<< 'print(1)'",
+  "echo 'print(1)' | nice python3",
+  "python3 <<'A'; cat <<'B'\nprint(1)\nA\nimport subprocess; subprocess.run([\"git\",\"push\"])\nB",
+  "timeout 5 python3 script.py <<< 'git push'",
+  "python3 - <<'EOF'\nprint(1)\nEOF",
+  "echo 'print(1)' | python3",
+  "python3 script.py <<< input",
+  "python3 script.py <<< 'git push'",
+  "cat file | python3",
+  "python3 <<< 'print(1)'",
+  "perl - <<'EOF'\nprint 1\nEOF",
+  "node <<'EOF'\nconsole.log(1)\nEOF",
+  "cat <<'EOF'\ngit push\nEOF",
+  "echo 'git push' | cat",
+  "echo 'git push'",
+  "python3 -c 'print(1)' <<< 'git push'",
+  "python3 - <<'EOF'\nimport tarfile; tarfile.open('a.tar').getnames()\nEOF",
+  "python3 -m json.tool <<'EOF'\n{\"a\": 1}\nEOF",
+  "cat <<'A'; python3 <<'B'\nimport subprocess; subprocess.run([\"git\",\"push\"])\nA\nprint(1)\nB",
+  "cat > note.md <<'EOF'\ngit push origin main\nEOF",
+  "git <<- push\nbody\npush",
+  "factory <<- res\nbody\nres"
  ]
 }
