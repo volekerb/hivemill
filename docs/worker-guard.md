@@ -150,3 +150,16 @@ The check reads the arguments of the `git config` command itself. Two shapes sta
 
 1. A zsh glob in the value position after a literal key: `git config alias.x (y|z)`, `git config alias.x <->`, `git config alias.x <(echo y)`, also inside eval. The arguments equal a plain read, so an argument check cannot see it. Measured by the lead (zsh 5.9): all three write.
 2. Git alias indirection, and git called by a full path, where the command is not seen as `git config`.
+
+## Coder git runners (T-0908)
+
+For `--role coder`, the push pin reads the inner command of the git subcommands that run one, the same way `bash -c <inner>` is checked: `git submodule foreach`, `git rebase -x/--exec` (any prefix, `=value`, attached, end of a short cluster), `git bisect run` and `git difftool -x/--extcmd` (same forms, `-yx`). A missing, dynamic or unparseable inner command is refused, as is a dynamic word right after `submodule` or `bisect`. `xargs git rebase|difftool`, and `xargs git submodule|bisect` with no literal subcommand or with `foreach`/`run`, are refused because stdin adds arguments. `xargs git submodule update` and `xargs git bisect good` stay allowed. An inner `pytest -q` meets the full-suite rule. Other roles and HQ mode are unchanged. Tests: `tests/test_worker_guard_coder_git_runners.py`. Go mirror follow-up in G-016.
+
+## Declared limits: coder git runners (T-0908)
+
+These exit 0 on origin/main too, so they are no worse than before; no check was added.
+
+1. A script as the inner command: `git rebase -x ./x.sh HEAD~1`. The file content is not read, the same as `./x.sh` alone.
+2. git called by a full path: `/usr/bin/git bisect run ...`.
+3. Other git paths that run commands: `git filter-branch --tree-filter ...`, and git config or aliases that run a program.
+4. An expansion as a plain argument: `git rebase "$X"`, `git difftool "$X"`. Its value could be an option.
