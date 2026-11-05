@@ -1,6 +1,8 @@
 """T-1146: over tmp_sweep_pct the tick also removes stale leftovers with a listed prefix (guard-diff-, guard-diff-seed-,
-factory-screenshots-, freshbox-) directly under <tmp>: older than 24 h by newest mtime in the tree, our uid, not an
-unfinished agent's cwd, symlinks never followed; one tmp-swept event per run. Runs against FACTORY_TMP_DIR only."""
+factory-screenshots-, freshbox-, zz-test-<name>-, zz-rv-, tmp<8>, tmp.<10>) directly under <tmp>: older than 24 h by newest
+mtime in the tree, our uid, not an unfinished agent's cwd, not held by a process of ours (cwd or fd), symlinks never
+followed; a locked tree is counted, not an error; one tmp-swept event per run, at most one run per throttle window.
+Runs against FACTORY_TMP_DIR and a fake proc root only."""
 import json
 import os
 import time
@@ -18,6 +20,16 @@ class LeftoverSweep(FactoryTestCase):
         self.env.seed_goal()
         self.tmp = self.env.home / "faketmp"
         self.tmp.mkdir(exist_ok=True)
+        self.proc = self.env.home / "fakeproc"
+        self.proc.mkdir()
+
+    def fake_pid(self, pid, fd_target=None, cwd=None):
+        p = self.proc / str(pid)
+        (p / "fd").mkdir(parents=True)
+        (p / "cwd").symlink_to(cwd or self.env.home)
+        if fd_target:
+            (p / "fd" / "3").symlink_to(fd_target)
+        return p
 
     def leftover(self, name="guard-diff-abcd1234", age_h=48, inner_age_h=None, kb=50):
         d = self.tmp / name
@@ -31,14 +43,19 @@ class LeftoverSweep(FactoryTestCase):
         return d
 
     def tick(self, statvfs=OVER):
-        return self.ok("tick", extra_env={"FACTORY_TMP_STATVFS": statvfs})
+        return self.ok("tick", extra_env={"FACTORY_TMP_STATVFS": statvfs, "FACTORY_SERVE_PROC_DIR": str(self.proc)})
+
+    def unthrottle(self):
+        self.env.sql("DELETE FROM throttle WHERE key='tmpleftover'")
 
     def events(self):
         return self.env.sql("SELECT detail FROM events WHERE action='tmp-swept'")
 
     def test_stale_listed_prefixes_removed(self):
         ds = [self.leftover(n) for n in ("guard-diff-abcd1234", "guard-diff-seed-abcd1234",
-                                         "factory-screenshots-abcd1234", "freshbox-abcd1234")]
+                                         "factory-screenshots-abcd1234", "freshbox-abcd1234",
+                                         "zz-test-persist-abcd1234", "zz-rv-abcd1234", "tmpabcd1234",
+                                         "tmp.AbCd123456")]
         self.tick()
         for d in ds:
             self.assertFalse(d.exists(), d.name)
@@ -55,7 +72,8 @@ class LeftoverSweep(FactoryTestCase):
 
     def test_unlisted_prefix_kept(self):
         keep = [self.leftover(n) for n in ("corp-abcd1234", "gd-abcd1234", "go-build123456", "claude-1000",
-                                           "cursor-agent-abcd1234", "guard-diff-shared-1000", "zz-other-abcd1234")]
+                                           "cursor-agent-abcd1234", "guard-diff-shared-1000", "zz-other-abcd1234",
+                                           "tmpfoo-notes", "tmp.short", "tmp-abcd1234", "tmpABCD1234", "zz-rv-abcd12345")]
         self.tick()
         for d in keep:
             self.assertTrue(d.exists(), d.name)
@@ -66,7 +84,7 @@ class LeftoverSweep(FactoryTestCase):
         other = os.getuid() + 1
         with self.env.load_factory() as f:
             f.os = type("OtherUid", (), {"__getattr__": lambda s, n: getattr(os, n), "getuid": staticmethod(lambda: other)})()
-            self.assertEqual(f._sweep_leftovers(f.db(), time.time()), [])
+            self.assertEqual(f._sweep_leftovers(f.db(), time.time()), ([], 0))
         self.assertTrue(d.exists())
 
     def test_symlink_not_followed(self):
@@ -94,6 +112,7 @@ class LeftoverSweep(FactoryTestCase):
         self.tick()
         self.assertTrue(d.exists())
         self.env.sql("UPDATE agents SET status='exited' WHERE name='zz-test-c1'")
+        self.unthrottle()
         self.tick()
         self.assertFalse(d.exists())
 
@@ -112,7 +131,80 @@ class LeftoverSweep(FactoryTestCase):
         detail = json.loads(ev[0]["detail"])
         self.assertEqual(detail["leftovers"], 3)
         self.assertEqual(detail["dirs"], 0)
+        self.assertEqual(detail["locked"], 0)
         self.assertGreaterEqual(detail["mb"], 2.8)
+
+    def test_plain_files_of_the_tmp_shapes_removed_when_stale(self):
+        old = time.time() - 48 * 3600
+        names = ("tmp.AbCd123456", "tmpabcd1234")
+        for n in names:
+            (self.tmp / n).write_text("x")
+            os.utime(self.tmp / n, (old, old))
+        fresh = self.tmp / "tmp.ZyXw987654"
+        fresh.write_text("x")
+        self.tick()
+        for n in names:
+            self.assertFalse((self.tmp / n).exists(), n)
+        self.assertTrue(fresh.exists())
+
+    def test_claude_and_cursor_agent_dirs_not_removed(self):
+        keep = [self.leftover(n) for n in ("claude-1000", "claude-abcd1234", "cursor-agent-abcd1234", "cursor-agent-1")]
+        self.tick()
+        for d in keep:
+            self.assertTrue(d.exists(), d.name)
+
+    def test_held_tmp_dir_kept_by_cwd_or_fd(self):
+        a = self.leftover("tmpabcd1234")
+        b = self.leftover("tmp.AbCd123456")
+        c = self.leftover("tmpzzzzzzzz")
+        self.fake_pid(101, cwd=a)
+        self.fake_pid(102, fd_target=b / "blob")
+        self.tick()
+        self.assertTrue(a.exists())
+        self.assertTrue(b.exists())
+        self.assertFalse(c.exists())
+
+    def test_unreadable_pid_keeps_everything(self):
+        d = self.leftover("tmpabcd1234")
+        p = self.fake_pid(103)
+        os.chmod(p / "fd", 0)
+        try:
+            self.tick()
+        finally:
+            os.chmod(p / "fd", 0o700)
+        self.assertTrue(d.exists())
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='tmp-sweep-failed'"), [])
+
+    @unittest.skipIf(os.getuid() == 0, "root reads mode-000 dirs")
+    def test_locked_subdir_counted_not_failed(self):
+        d = self.leftover("zz-rv-abcd1234")
+        locked = d / "scratch" / "locked"
+        locked.mkdir(parents=True)
+        old = time.time() - 48 * 3600
+        for q in (locked, d / "scratch", d):
+            os.utime(q, (old, old))
+        os.chmod(locked, 0)
+        self.addCleanup(lambda: os.chmod(locked, 0o700))
+        good = self.leftover("tmpzzzzzzzz")
+        self.tick()
+        self.unthrottle()
+        self.tick()
+        self.assertTrue(d.exists())
+        self.assertFalse(good.exists())
+        self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='tmp-sweep-failed'"), [])
+        ev = [json.loads(r["detail"]) for r in self.events()]
+        self.assertEqual(len(ev), 2)
+        self.assertEqual(ev[0]["locked"], 1)
+        self.assertEqual(ev[1]["locked"], 1)
+
+    def test_second_tick_inside_throttle_window_walks_nothing(self):
+        self.tick()
+        d = self.leftover()
+        self.tick()
+        self.assertTrue(d.exists())
+        self.unthrottle()
+        self.tick()
+        self.assertFalse(d.exists())
 
 
 if __name__ == "__main__":

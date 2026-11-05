@@ -6427,46 +6427,79 @@ def _sweep_candidates(con, t):
 
 TMP_LEFTOVER_MIN_AGE_S = 86400   # a listed leftover must be untouched (dir and everything inside) for this long
 TMP_LEFTOVER_CAP = 500           # at most this many leftovers per run
+TMP_LEFTOVER_THROTTLE_S = 600    # the walk of all listed entries (about 1 s on a 15000-entry /tmp) runs at most this often
 # Closed list of top-level <tmp> names that our own code leaves behind (tempfile.mkdtemp names: prefix + 8 chars):
 #   ci/guard_diff.py:615 (guard-diff-) and :293 (guard-diff-seed-), ci/screenshots.py:895 (factory-screenshots-),
 #   ci/freshbox_test.py:188 (freshbox-). Other litter seen in /tmp (go-build*, corp-*, gd-*, cursor-askpass-*) has no
 #   producer in this repo, so it is not listed.
-_LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox-)[a-z0-9_]{8}")
+# Added by M26359 (producer rule waived for these four):
+#   zz-test-<name>-<8>: the test suites' mkdtemp(prefix="zz-test-<name>-") homes (tests/harness.py:272 makes
+#       zz-test-factory-<8>, which tmp_sweep_harness also sweeps after 1 h; whichever runs first wins, same result).
+#   zz-rv-<8>: no producer found in this repo (git grep); seen on the real /tmp, with locked subdirs.
+#   tmp<8> (python mkdtemp default) and tmp.<10> (mktemp default; the real /tmp also holds plain files of this shape):
+#       generic, not ours alone (mkdtemp() callers without a prefix, shell mktemp in docs/CI), so a process of our uid
+#       holding one (cwd or open fd) keeps it (_proc_holds).
+_LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox-)[a-z0-9_]{8}"
+                            r"|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10}")
 
 
 def _sweep_leftovers(con, t):
-    """[(dir, bytes)] removed: real dirs of our uid directly under <tmp> whose name is in the closed list above, with
-    nothing in the tree touched for 24 h, and not containing the cwd of any unfinished agent. Symlinks are never
-    followed; a tree that cannot be measured completely is kept. At most TMP_LEFTOVER_CAP per run."""
+    """(removed [(path, bytes)], locked count). Entries of our uid directly under <tmp> whose name is in the closed list
+    above (real dirs, or plain files), with nothing in the tree touched for 24 h, not containing the cwd of an unfinished
+    agent and not held (cwd or open fd) by a process of ours. Symlinks are never followed. A tree that cannot be read or
+    removed completely is skipped and counted as locked, never an error (nothing is chmod-ed); _proc_holds None keeps
+    everything. At most TMP_LEFTOVER_CAP removals per run."""
     base = tmp_dir()
     if not base.is_dir() or base.is_symlink():
-        return []
+        return [], 0
     cwds = [os.path.realpath(r["cwd"]) for r in con.execute(
         "SELECT cwd FROM agents WHERE cwd IS NOT NULL AND cwd != '' AND status IN ('live','starting','queued','done')")]
-    out = []
+    old = []
+    locked = 0
     for d in sorted(base.iterdir()):
-        if len(out) >= TMP_LEFTOVER_CAP:
-            break
         if not _LEFTOVER_NAME.fullmatch(d.name):
             continue
         try:
             st = d.lstat()
-            if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+            isdir = stat.S_ISDIR(st.st_mode)
+            if not (isdir or stat.S_ISREG(st.st_mode)) or st.st_uid != os.getuid():
                 continue
-            if t - _harness_newest_mtime(d) < TMP_LEFTOVER_MIN_AGE_S:
+            newest = _harness_newest_mtime(d) if isdir else st.st_mtime
+            if t - newest < TMP_LEFTOVER_MIN_AGE_S:
                 continue
             real = os.path.realpath(d)
             if any(c == real or c.startswith(real + os.sep) for c in cwds):
                 continue
-            size = _tree_bytes(d)
-            shutil.rmtree(d)
         except FileNotFoundError:
             continue   # vanished while we looked
-        except OSError as e:
-            event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-failed", f"{d}: {e}")
+        except OSError:
+            locked += 1   # unreadable subdir: cannot be measured, keep it
+            continue
+        old.append((d, isdir, real))
+    if not old:
+        return [], locked
+    held = _proc_holds([real for _, isdir, real in old if isdir])
+    if held is None:
+        return [], locked
+    out = []
+    for d, isdir, real in old:
+        if len(out) >= TMP_LEFTOVER_CAP:
+            break
+        if real in held:
+            continue
+        try:
+            size = _tree_bytes(d) if isdir else d.lstat().st_size
+            if isdir:
+                shutil.rmtree(d)
+            else:
+                d.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            locked += 1   # partly removed or not removable: counted, not an error
             continue
         out.append((d, size))
-    return out
+    return out, locked
 
 
 def tmp_sweep(con):
@@ -6490,11 +6523,15 @@ def tmp_sweep(con):
                     continue
                 freed += size
                 n += 1
-            left = _sweep_leftovers(con, t)
+            left, locked = [], 0
+            last = con.execute("SELECT ts FROM throttle WHERE key='tmpleftover'").fetchone()
+            if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
+                con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+                left, locked = _sweep_leftovers(con, t)
             freed += sum(sz for _, sz in left)
-            if n or left:
+            if n or left or locked:
                 event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
-                         {"mb": round(freed / 1048576, 1), "dirs": n, "leftovers": len(left)})
+                         {"mb": round(freed / 1048576, 1), "dirs": n, "leftovers": len(left), "locked": locked})
             tmp = tmp_usage() or tmp
         over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
         armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
