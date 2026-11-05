@@ -28,13 +28,17 @@ var (
 	gitLsRemoteFlags = set("--heads", "--refs", "--symref", "--exit-code", "--get-url")
 
 	// Python's \s / \S are unicode-aware; RE2's are ASCII, so the class is spelled out (str.isspace).
-	gitSp       = `\t-\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
-	reGitWord   = regexp.MustCompile(`(?:^|[` + gitSp + `/;&|])git(?:-[^` + gitSp + `]*)?(?:[` + gitSp + `]|$)`)
-	reGitConfig = regexp.MustCompile(`^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=`)
-	reGitSens   = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
-	reGitDepth  = regexp.MustCompile(`^--(depth|deepen)=[0-9]+$`)
-	reGitRemote = regexp.MustCompile(`^[\p{L}\p{N}_.-]+@[\p{L}\p{N}_.-]+:`)
-	reGrepO     = regexp.MustCompile(`^-[^-]*O`)
+	gitSp             = `\t-\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
+	reGitWord         = regexp.MustCompile(`(?:^|[` + gitSp + `/;&|])git(?:-[^` + gitSp + `]*)?(?:[` + gitSp + `]|$)`)
+	reXargsGitToken   = regexp.MustCompile(`(?:^|[` + gitSp + `/;&|(` + "`" + `'"` + `])git(?:-[a-z][a-z-]*)?(?:\z|[` + gitSp + `;&|)` + "`" + `'"` + `])`)
+	reGitSubcommand   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*$`)
+	reGitAliasAssign  = regexp.MustCompile(`(?i)^alias\.`)
+	reGitAliasPushPin = regexp.MustCompile(`(?i)^alias\.[^=]*=.*(?:push|send-pack)`)
+	reGitConfig       = regexp.MustCompile(`^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_.*|GIT_CONFIG_VALUE_.*|GIT_CONFIG_PARAMETERS)\+?=`)
+	reGitSens         = regexp.MustCompile(`^(HOME|XDG_CONFIG_HOME|PATH|path|PAGER|GIT_[\p{L}\p{N}_]*)(\+?=.*)?\n?$`)
+	reGitDepth        = regexp.MustCompile(`^--(depth|deepen)=[0-9]+$`)
+	reGitRemote       = regexp.MustCompile(`^[\p{L}\p{N}_.-]+@[\p{L}\p{N}_.-]+:`)
+	reGrepO           = regexp.MustCompile(`^-[^-]*O`)
 )
 
 func (a *Analyzer) noPush() bool { return in(noPushRoles, a.Role) && !a.HQ }
@@ -213,10 +217,18 @@ func gitRemoteRead(args []string) bool {
 
 // gitConfigRead is a port of Analyzer.git_config_read.
 func gitConfigRead(args []string) bool {
-	if anyOf(args, func(x string) bool { return in(ConfigWrite, x) }) || !anyOf(args, func(x string) bool { return in(gitConfigReadOnly, x) }) {
+	flags, _, ok := configParse(args)
+	if !ok {
 		return false
 	}
-	return !configMutates(args)
+	hasRead := false
+	for _, f := range flags {
+		if in(gitConfigReadOnly, f) {
+			hasRead = true
+			break
+		}
+	}
+	return hasRead && configIsRead(args)
 }
 
 // gitFetchArgs is a port of Analyzer.git_fetch_args.

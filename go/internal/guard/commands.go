@@ -922,7 +922,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	} else if in(Wrappers, name) && !inLoose {
 		if name == "xargs" {
-			if err := xargs(rest); err != nil {
+			if err := a.xargs(rest); err != nil {
 				return err
 			}
 		}
@@ -1113,33 +1113,64 @@ func (a *Analyzer) loose(rest []string, depth int, envAssigns []string, stdin *s
 }
 
 // xargs is a port of Analyzer.xargs.
-func xargs(rest []string) error {
+func (a *Analyzer) xargs(rest []string) error {
 	repl, replSet := "", false
 	first, firstSet := "", false
-	for j := 0; j < len(rest); {
+	firstIdx := 0
+	j := 0
+	for j < len(rest) {
 		x := rest[j]
-		if x == "-I" || x == "-J" {
+		switch {
+		case x == "-I" || x == "-J":
 			repl, replSet = "", false
 			if j+1 < len(rest) {
 				repl, replSet = rest[j+1], true
 			}
 			j += 2
-			continue
-		}
-		if strings.HasPrefix(x, "-I") && len(x) > 2 {
+		case strings.HasPrefix(x, "-I") && len(x) > 2:
 			repl, replSet = x[2:], true
-		} else if x == "-i" || x == "--replace" {
+			j++
+		case x == "-i" || x == "--replace":
 			repl, replSet = "{}", true
-		} else if v, ok := strings.CutPrefix(x, "--replace="); ok {
-			repl, replSet = v, true
-		} else if !strings.HasPrefix(x, "-") {
-			first, firstSet = x, true
-			break
+			j++
+		case strings.HasPrefix(x, "--replace="):
+			repl, replSet = strings.TrimPrefix(x, "--replace="), true
+			j++
+		case WrapValueOpts["xargs"] != nil && in(WrapValueOpts["xargs"], x):
+			j += 2
+		case !strings.HasPrefix(x, "-"):
+			first, firstSet, firstIdx = x, true, j
+			j = len(rest)
+		default:
+			j++
 		}
-		j++
 	}
 	if replSet && firstSet && first == repl {
 		return blockf("xargs replacement string used as the command word")
+	}
+	if a.Role == "coder" && !a.HQ {
+		n := 0
+		for _, w := range rest {
+			if reXargsGitToken.MatchString(w) {
+				n++
+			}
+		}
+		if n > 0 {
+			if !(n == 1 && firstSet && pyBasename(first) == "git") {
+				return blockf("xargs with git: the command or its arguments could come from stdin; run git directly, " +
+					"not through xargs")
+			}
+			words := rest[firstIdx:]
+			if replSet {
+				for _, w := range words[1:] {
+					if strings.Contains(w, repl) {
+						return blockf("xargs git: the replacement string stands in for part of git's arguments (an alias or " +
+							"subcommand could come from stdin); coders push only `git push origin HEAD:factory/<task id>`")
+					}
+				}
+			}
+			return a.xargsGit(words[1:])
+		}
 	}
 	return nil
 }

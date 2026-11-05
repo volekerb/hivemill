@@ -400,33 +400,6 @@ func branchMutates(args []string) bool {
 	return positional && !listing
 }
 
-// configMutates is a port of Analyzer.config_mutates.
-func configMutates(args []string) bool {
-	for _, x := range args {
-		if in(ConfigWrite, x) {
-			return true
-		}
-	}
-	if len(args) > 0 && (args[0] == "set" || args[0] == "unset" || args[0] == "edit") {
-		return true
-	}
-	for _, x := range args {
-		if in(ConfigRead, x) {
-			return false
-		}
-	}
-	if len(args) > 0 && (args[0] == "get" || args[0] == "list") {
-		return false
-	}
-	n := 0
-	for _, x := range args {
-		if !strings.HasPrefix(x, "-") {
-			n++
-		}
-	}
-	return n >= 2
-}
-
 // gitMutates is a port of Analyzer.git_mutates.
 func gitMutates(sub string, args []string) bool {
 	if in(GitReadOnly, sub) || strings.HasPrefix(sub, "-") { // `git --version`, `git --help`
@@ -592,40 +565,6 @@ func (a *Analyzer) gitDelete(rest []string) error {
 		"must match; other roles never)")
 }
 
-// configArgsWrite is a port of Analyzer.config_args_write: like configMutates, but understands the get/list
-// words and options that take a value (`--type bool key` is a read).
-func configArgsWrite(args []string) bool {
-	var pos, flags []string
-	for k := 0; k < len(args); {
-		x := args[k]
-		k++
-		if in(ConfigValueOpts, x) {
-			k++
-		} else if !strings.HasPrefix(x, "-") {
-			pos = append(pos, x)
-		}
-	}
-	for _, x := range args {
-		if strings.HasPrefix(x, "-") {
-			flags = append(flags, x)
-		}
-	}
-	for _, x := range flags {
-		if in(ConfigWrite, x) {
-			return true
-		}
-	}
-	for _, x := range flags {
-		if in(ConfigRead, x) {
-			return false
-		}
-	}
-	if len(pos) > 0 && (pos[0] == "get" || pos[0] == "list") {
-		return false
-	}
-	return len(pos) > 0 && (pos[0] == "set" || pos[0] == "unset" || pos[0] == "edit") || len(pos) >= 2
-}
-
 // gitPersist is a port of Analyzer.git_persist (T-0334): `git config --global|--system|-f <protected file>` writes,
 // also behind `git -c ... config` and an alias. Read-only forms (`--global --get`, `--global --list`) and repo-local
 // writes stay allowed (repo-local ones only inside the scratchpad, T-0226: repoCfgRefuse).
@@ -713,11 +652,25 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 	}
 	var args, files []string
 	scope := ""
-	for k := i + 1; k < len(rest); {
-		x := rest[k]
+	restCfg := rest[i+1:]
+	stripping, first, action := true, "", false
+	for k := 0; k < len(restCfg); {
+		a := restCfg[k]
 		k++
-		name, val, eq := strings.Cut(x, "=")
-		if strings.HasPrefix(x, "--") && len(name) >= 4 {
+		name, val, eq := strings.Cut(a, "=")
+		if !stripping {
+			args = append(args, a)
+			continue
+		}
+		if (in(configParseValueOpts, a) && a != "--file" && a != "-f") || configValueOptAbbrev(a) {
+			args = append(args, a)
+			if k < len(restCfg) {
+				args = append(args, restCfg[k])
+				k++
+			}
+			continue
+		}
+		if strings.HasPrefix(a, "--") && len(name) >= 4 {
 			if strings.HasPrefix("--global", name) || strings.HasPrefix("--system", name) {
 				scope = name
 				continue
@@ -725,22 +678,31 @@ func (a *Analyzer) gitPersist(rest []string, depth int) error {
 			if strings.HasPrefix("--file", name) && len(name) >= 5 {
 				if eq {
 					files = append(files, val)
-				} else if k < len(rest) {
-					files = append(files, rest[k])
+				} else if k < len(restCfg) {
+					files = append(files, restCfg[k])
 					k++
 				}
 				continue
 			}
-		} else if strings.HasPrefix(x, "-f") && !strings.HasPrefix(x, "--") {
-			if len(x) > 2 {
-				files = append(files, x[2:])
-			} else if k < len(rest) {
-				files = append(files, rest[k])
+		} else if strings.HasPrefix(a, "-f") && !strings.HasPrefix(a, "--") {
+			if len(a) > 2 {
+				files = append(files, a[2:])
+			} else if k < len(restCfg) {
+				files = append(files, restCfg[k])
 				k++
 			}
 			continue
 		}
-		args = append(args, x)
+		args = append(args, a)
+		if in(configActionFlags, a) {
+			action = true
+		} else if first == "" && (!strings.HasPrefix(a, "-") || a == "-") {
+			first = a
+			if !action && a != "set" && a != "unset" && a != "edit" && a != "rename-section" && a != "remove-section" &&
+				a != "get" && a != "list" {
+				stripping = false
+			}
+		}
 	}
 	if !configArgsWrite(args) {
 		return nil
@@ -861,6 +823,106 @@ func (a *Analyzer) cfgInScratch(word string) bool {
 	return inScratchpad(pyRealpath(t))
 }
 
+var xargsGitForbidden = set("push", "send-pack", "http-push", "subtree")
+
+// xargsGit is a port of Analyzer.xargs_git (T-0799, T-1035).
+func (a *Analyzer) xargsGit(gargs []string) error {
+	i := 0
+	for i < len(gargs) && strings.HasPrefix(gargs[i], "-") {
+		cv := ""
+		if gargs[i] == "-c" && i+1 < len(gargs) {
+			cv = gargs[i+1]
+		} else if strings.HasPrefix(gargs[i], "-c") && !strings.HasPrefix(gargs[i], "--") && len(gargs[i]) > 2 {
+			cv = gargs[i][2:]
+		}
+		if cv != "" && reGitAliasAssign.MatchString(cv) {
+			return blockf("xargs git -c alias.<x>=...: the alias could expand to config or push with arguments from stdin; " +
+				"run git directly")
+		}
+		if gargs[i] == "-C" || gargs[i] == "-c" || gargs[i] == "--git-dir" || gargs[i] == "--work-tree" ||
+			gargs[i] == "--namespace" || gargs[i] == "--exec-path" {
+			i += 2
+		} else {
+			i++
+		}
+	}
+	if i >= len(gargs) || !reGitSubcommand.MatchString(gargs[i]) || in(xargsGitForbidden, gargs[i]) {
+		return blockf("xargs git: the subcommand would come from stdin or could be push; coders push only " +
+			"`git push origin HEAD:factory/<task id>` as the whole command: write `git <subcommand> ...` directly")
+	}
+	if gargs[i] == "config" {
+		cargs := gargs[i+1:]
+		flags, pos, parsed := configParse(cargs)
+		explicit := parsed && (anyInFlags(flags, configActionFlags) || firstPos(pos, "get", "list"))
+		mainOK := anyInSlice(cargs, gitConfigReadOnly) && !anyInSlice(cargs, ConfigWrite)
+		if !(mainOK && explicit && configIsRead(cargs)) {
+			return blockf("xargs git config: stdin adds arguments, so only a read with an explicit action (`--get`, " +
+				"`--get-all`, `--get-regexp`, `--list`, `-l`) and exact options is allowed; run `git config` directly")
+		}
+	}
+	return a.gitPushPin(gargs)
+}
+
+func anyInFlags(flags []string, s map[string]struct{}) bool {
+	for _, f := range flags {
+		if in(s, f) {
+			return true
+		}
+	}
+	return false
+}
+
+func anyInSlice(ss []string, s map[string]struct{}) bool {
+	for _, x := range ss {
+		if in(s, x) {
+			return true
+		}
+	}
+	return false
+}
+
+func firstPos(pos []string, want ...string) bool {
+	if len(pos) == 0 {
+		return false
+	}
+	for _, w := range want {
+		if pos[0] == w {
+			return true
+		}
+	}
+	return false
+}
+
+// gitPinFlags is worker-guard.py:GIT_PIN_FLAGS (options allowed on any coder git invocation).
+var gitPinFlags = set("-p", "--paginate", "-P", "--no-pager", "--no-replace-objects", "--bare", "--literal-pathspecs",
+	"--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--no-optional-locks",
+	"--no-lazy-fetch", "--no-advice", "--html-path", "--man-path", "--info-path", "--version",
+	"--help", "-v", "-h")
+
+func gitPinConfigValue(tok string, rest []string, i int) string {
+	if tok == "-c" && i+1 < len(rest) {
+		return rest[i+1]
+	}
+	if len(tok) > 2 && strings.HasPrefix(tok, "-c") && !strings.HasPrefix(tok, "--") {
+		return tok[2:]
+	}
+	return ""
+}
+
+func gitPinConfigEnvKey(tok string, rest []string, i int) string {
+	if strings.HasPrefix(tok, "--config-env=") {
+		return tok[len("--config-env="):]
+	}
+	if tok == "--config-env" && i+1 < len(rest) {
+		return rest[i+1]
+	}
+	return ""
+}
+
+func gitPinAttachedC(o string) bool {
+	return len(o) > 2 && strings.HasPrefix(o, "-c") && !strings.HasPrefix(o, "--")
+}
+
 // gitPushPin is a port of Analyzer.git_push_pin (T-0689, T-0743): a coder's only allowed push is `git push origin
 // HEAD:factory/<own task id>`; the task id comes from FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec,
 // force/--all/--mirror/--tags/--delete or option; no -c / --git-dir overrides; an unknown own task id refuses. The
@@ -875,10 +937,23 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 		if rest[i] != "-C" && containsStr(rest[i+1:], "push") {
 			return blockf("git " + rest[i] + " before push: coder pushes take no git option except -C")
 		}
-		switch rest[i] {
-		case "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path":
+		if cv := gitPinConfigValue(rest[i], rest, i); cv != "" && reGitAliasPushPin.MatchString(cv) {
+			return blockf("git -c alias.<x>=...push/send-pack...: an alias can hide a push; coders push only " +
+				"`git push origin HEAD:factory/<task id>`")
+		}
+		if ce := gitPinConfigEnvKey(rest[i], rest, i); ce != "" && reGitAliasAssign.MatchString(ce) {
+			return blockf("git --config-env alias.<x>=<VAR>: the alias value comes from the environment and could be a push or send-pack; " +
+				"coders push only `git push origin HEAD:factory/<task id>`")
+		}
+		o := rest[i]
+		if !strings.Contains(o, "=") && !gitPinAttachedC(o) && !in(gitPinFlags, o) &&
+			o != "-C" && o != "-c" && o != "--git-dir" && o != "--work-tree" && o != "--namespace" && o != "--exec-path" {
+			return blockf("git " + o + ": coders may use only known git options here; write the command without it")
+		}
+		if rest[i] == "-C" || rest[i] == "-c" || rest[i] == "--git-dir" || rest[i] == "--work-tree" ||
+			rest[i] == "--namespace" || rest[i] == "--exec-path" {
 			i += 2
-		default:
+		} else {
 			i++
 		}
 	}
