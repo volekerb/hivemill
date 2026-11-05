@@ -152,7 +152,8 @@ DEFAULT_CONFIG = {
     "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
-    "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
+    "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
+    "lead_parking": "0",       # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
     # main reads strict=false; strict = always refresh. Rollback: `factory config stale_policy strict`. See docs/stale-policy.md
@@ -291,6 +292,12 @@ CREATE TABLE IF NOT EXISTS lesson_links (
 CREATE INDEX IF NOT EXISTS idx_lesson_links ON lesson_links(lesson_id);
 """
 
+OWNER_ALERT_DDL = """
+CREATE TABLE IF NOT EXISTS owner_alert_feed (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
+"""
 UTIL_DDL = """
 CREATE TABLE IF NOT EXISTS util_samples (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, live INTEGER NOT NULL, workers INTEGER NOT NULL,
@@ -351,6 +358,7 @@ CREATE TABLE IF NOT EXISTS agents (
   start_pending REAL, start_pending_info TEXT, org TEXT);
 CREATE TABLE IF NOT EXISTS throttle (key TEXT PRIMARY KEY, ts TEXT NOT NULL);
 {UTIL_DDL}
+{OWNER_ALERT_DDL}
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT NOT NULL, recipient TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'msg', subject TEXT NOT NULL, body TEXT, goal_id TEXT, task_id TEXT,
@@ -485,6 +493,7 @@ def migrate(con):
                 if col not in {r["name"] for r in con.execute("PRAGMA table_info(gate_runs)")}:
                     raise
     con.executescript(UTIL_DDL)
+    con.executescript(OWNER_ALERT_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -11348,6 +11357,40 @@ def owner_blocker_alerts(con):
             pass
 
 
+def owner_alert_feed_tick(con):
+    """Tick hook (G-015 SC3, F-50): config owner_alert_feed=1 mirrors owner_attention() into the owner_alert_feed table, one
+    open row per (kind, ref): new item -> row, still listed -> untouched, gone -> closed, back later -> a new row. Fixed fields
+    only, nothing is sent. At 0 it returns before reading anything. Never raises."""
+    try:
+        if cfg(con, "owner_alert_feed") != "1":
+            return
+        now = digest_clock().isoformat(timespec="seconds")
+        items = {(i["kind"], i["ref"]): i for i in owner_attention(con)}
+        for r in con.execute("SELECT id, kind, ref FROM owner_alert_feed WHERE closed IS NULL").fetchall():
+            if (r["kind"], r["ref"]) not in items:
+                con.execute("UPDATE owner_alert_feed SET closed=? WHERE id=?", (now, r["id"]))
+        for (kind, ref), i in items.items():
+            con.execute("INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES(?,?,?,?,?,?)",
+                        (i["org"], kind, ref, i["since"], i["link"], now))
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-alert-feed-failed", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-alert-feed-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+def cmd_alerts(a):
+    """Read-only: the open rows of the dark needs-you feed, newest first. Reads the table only (no owner_attention, no writes)."""
+    con = db()
+    rows = [{k: r[k] for k in ("id", "org", "kind", "ref", "since", "link")} for r in con.execute(
+        "SELECT id, org, kind, ref, since, link FROM owner_alert_feed WHERE closed IS NULL ORDER BY id DESC")]
+    if a.json:
+        print(json.dumps(rows, indent=1))
+        return
+    table(rows, ["id", "org", "kind", "ref", "since", "link"])
+
+
 # ───────────────────────────── local merge gate (T-0515) ─────────────────────────────
 # `factory gate run <task>|--main <project>` runs projects.gate_cmd (from the DB, never from the PR tree) in a detached
 # worktree at the exact head sha, holding a tests/_slot.py slot, and records the outcome in gate_runs. Not yet read
@@ -13401,6 +13444,7 @@ def cmd_tick(a, locked=False):
     util_sample(con)
     util_alerts(con)
     owner_blocker_alerts(con)
+    owner_alert_feed_tick(con)
     _pt_lap("util")
     _pt_emit(con)
 
@@ -16355,6 +16399,8 @@ def main():
     x.add_argument("--no-cache", action="store_true", help="run: do not reuse a pass row of the same (project, head, main)")
     x.add_argument("--run-id", type=int, help=argparse.SUPPRESS)  # the tick launching an enqueued row
     x.set_defaults(fn=cmd_gate)
+    x = sp.add_parser("alerts", help="the dark needs-you feed: open rows, newest first (read-only; reaches nobody)")
+    x.add_argument("--json", action="store_true"); x.set_defaults(fn=cmd_alerts)
     sp.add_parser("res", help="resources and spawn-gate state").set_defaults(fn=cmd_res)
     x = sp.add_parser("serve", help="read-only web UI on the LAN (no writes, no auth)")
     x.add_argument("--bind"); x.add_argument("--port", type=int)
