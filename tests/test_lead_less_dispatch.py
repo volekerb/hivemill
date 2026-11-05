@@ -575,5 +575,35 @@ class QaNoPrTests(Base):
         self.assertEqual([c["name"] for c in self.dispatch()], ["coder-t-0001"])
 
 
+class TokenLimitTests(Base):
+    """G-015 T-1117: a ready coder on a goal at its token limit is refused once per task: one event, one alert, no retry."""
+
+    def seed_over_limit(self):
+        self.env.sql("UPDATE goals SET token_limit=1000 WHERE id='G-001'")
+        self.env.sql("INSERT INTO goal_token_tally(goal_id,input,output,cache_read,cache_write_5m,cache_write_1h,cost,computed_at)"
+                     " VALUES('G-001',1500,0,0,0,0,0,'t')")
+
+    def test_over_limit_coder_is_refused_once_over_five_ticks(self):
+        self.task("T-0001")
+        self.seed_over_limit()
+        self.mode()
+        calls = []
+        for _ in range(5):
+            calls += self.dispatch()
+        self.assertEqual(calls, [])  # spawn() is never reached, so nothing else logs per tick
+        self.assertEqual(len(self.events("goal-token-limit-refused")), 1)
+        self.assertEqual(self.events("dispatch-error"), [])
+        alerts = self.env.sql("SELECT recipient, task_id FROM messages WHERE kind='alert'")
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["task_id"], "T-0001")
+
+    def test_under_limit_coder_is_dispatched(self):
+        self.task("T-0001")
+        self.env.sql("UPDATE goals SET token_limit=1000 WHERE id='G-001'")
+        self.mode()
+        self.assertEqual([c["task"] for c in self.dispatch()], ["T-0001"])
+        self.assertEqual(self.events("goal-token-limit-refused"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

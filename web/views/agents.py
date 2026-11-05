@@ -13,7 +13,7 @@ from urllib.parse import quote
 from web import queries
 from web.db import has_column
 from scout import orgs as _orgs
-from web.components import (AGENT_COLS, agent_row, ago, chips, ctx_org, data_table, disclosure, empty_state, org_badge,
+from web.components import (AGENT_COLS, agent_row, ago, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, org_badge,
                             org_of, row_status, runtime_badge, section)
 from web.html import Safe, badge, el, link, status
 
@@ -417,21 +417,23 @@ def _chips(d):
             on = cur == set(sts)
             items.append((label, n, _href(f, org, status=None if on else list(sts)), on))
     by_org = d.get("orgs") or {}
-    out = [chips("Status", items),
-           chips("Org", [("All", sum(by_org.values()), _href(f), org is None)] +
-                 [(_orgs.label(o), by_org.get(o, 0), _href(f, None if org == o else o), org == o) for o in _orgs.NAMES])]
+    main = chips("Status", items)
+    rest = [chips("Org", [("All", sum(by_org.values()), _href(f), org is None)] +
+                  [(_orgs.label(o), by_org.get(o, 0), _href(f, None if org == o else o), org == o) for o in _orgs.NAMES])]
     roles = [(r, n, _href(f, org, role=None if f.get("role") == [r] else [r]), f.get("role") == [r]) for r, n in d["roles"].items()]
-    out.append(chips("Role", roles))
+    rest.append(chips("Role", roles))
     rts = [(r, n, _href(f, org, runtime=None if f.get("runtime") == [r] else [r]), f.get("runtime") == [r])
            for r, n in d.get("runtimes", {}).items()]
     if rts and (d.get("runtime_mixed", True) or f.get("runtime")):
-        out.append(chips("Runtime", rts))
+        rest.append(chips("Runtime", rts))
     goals = list(d["goals"].items())
-    first, rest = goals[:GOAL_CHIPS], goals[GOAL_CHIPS:]
+    first, more = goals[:GOAL_CHIPS], goals[GOAL_CHIPS:]
     row = lambda gs: [(g, n, _href(f, org, goal=None if f.get("goal") == [g] else [g]), f.get("goal") == [g]) for g, n in gs]
-    out.append(chips("Goal", row(first)))
-    if rest:
-        out.append(disclosure(f"{len(rest)} more goals", chips("More goals", row(rest)), key="agents-goals"))
+    rest.append(chips("Goal", row(first)))
+    if more:
+        rest.append(disclosure(f"{len(more)} more goals", chips("More goals", row(more)), key="agents-goals"))
+    active = (1 if org else 0) + sum(1 for k in ("role", "runtime", "goal") if f.get(k))
+    out = [filter_bar(main, rest, key="agents-filters", active=active)]
     if f:
         shown = ", ".join(f"{k}={','.join(v)}" for k, v in f.items())
         out.append(el("p", f"Showing: {shown} · ", link(_href({}, org), "clear"), class_="muted"))

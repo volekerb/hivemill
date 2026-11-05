@@ -87,6 +87,16 @@ def chips(label, items):
     return el("div", el("span", label, class_="facet-label"), el("div", [chip(*i) for i in items], class_="chips"), class_="facet")
 
 
+def filter_bar(main, rest=(), *, key="filters", active=0):
+    """One visible chips row (`main`) plus the secondary filters in a closed disclosure titled "Filters" with the
+    count of active non-default filters. No `rest`: no details. All links stay in the HTML (works without script)."""
+    parts = [x for x in (main if isinstance(main, (list, tuple)) else [main]) if x is not None]
+    rest = [x for x in rest if x is not None]
+    if rest:
+        parts.append(disclosure("Filters", *rest, key=key, count=active or None))
+    return el("div", *parts)
+
+
 def segmented(label, items):
     """Capsule of 2-4 exclusive options, links with aria-current on the selected one. items: (text, href, current)."""
     return el("nav", [el("a", t, href=h_, aria_current="true" if cur else None) for t, h_, cur in items],

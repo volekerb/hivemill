@@ -95,6 +95,19 @@ class TestComponents(unittest.TestCase):
         self.assertNotIn(" open", out)
         self.assertIn(" open", str(wc.disclosure("Done", key="k", open=True)))
 
+    def test_filter_bar_count_zero_count_and_no_details_without_rest(self):
+        main = wc.chips("Status", [("All", 3, "/x", True)])
+        rest = [wc.chips("Goal", [("G-1", 1, "/x?goal=G-1", False)])]
+        out = str(wc.filter_bar(main, rest, key="f"))
+        self.assertIn("<summary><span>Filters</span></summary>", out)
+        self.assertNotIn(" open", out)
+        self.assertIn('href="/x?goal=G-1"', out)
+        self.assertLess(out.index('href="/x"'), out.index("<details"))     # the main row stays outside the disclosure
+        self.assertIn('<span class="disc-n">2</span>', str(wc.filter_bar(main, rest, key="f", active=2)))
+        none = str(wc.filter_bar(main, [], key="f"))
+        self.assertNotIn("<details", none)
+        self.assertIn('href="/x"', none)
+
     def test_c17_agent_row_hides_role_equal_to_name_and_shows_last_event(self):
         a = {"name": "lead-a", "role": "lead", "status": "live", "task_id": "T-2", "task_title": "Build <it>",
              "last_event": "2026-10-24T11:56:00" }

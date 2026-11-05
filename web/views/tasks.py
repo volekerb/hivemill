@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from web import ci, queries
 from web.queries import parse_ts
-from web.components import (data_table, disclosure, empty_state, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
+from web.components import (data_table, disclosure, empty_state, filter_bar, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
                             GROUP_ORDER, COLLAPSED)
 from web.prices import PRICES_AS_OF
 from web.tokens import attribute, rollup
@@ -160,11 +160,11 @@ def _chips(d, q):
         shown.append(more.pop(more.index(f["goal"])))
     goal_items = [("All", None, go(goal=None), not f["goal"])]
     goal_items += [(g, d["goal_counts"][g], go(goal=g), f["goal"] == g) for g in shown]
-    parts = [chips("Status", status_items), chips("Goal", goal_items)]
+    rest = [chips("Goal", goal_items)]
     if more:
-        parts.append(disclosure(f"{len(more)} more goals", chips("More goals", [(g, d["goal_counts"][g], go(goal=g), f["goal"] == g) for g in more]),
-                                key="tasks-goals"))
-    return parts
+        rest.append(disclosure(f"{len(more)} more goals", chips("More goals", [(g, d["goal_counts"][g], go(goal=g), f["goal"] == g) for g in more]),
+                               key="tasks-goals"))
+    return [filter_bar(chips("Status", status_items), rest, key="tasks-filters", active=1 if f["goal"] else 0)]
 
 
 def render(ctx, d):
