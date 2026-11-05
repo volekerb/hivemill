@@ -3,12 +3,15 @@
 Numbers come from queries.throughput (stage definitions are in its docstring); a stage that could not be measured
 is None there and is counted as "unknown" here, never guessed.
 """
+import datetime as dt
 import math
 import statistics
 
-from web import charts, queries
+from web import charts, queries, tokens as wtokens
+from web.prices import PRICES_AS_OF
 from web.components import ctx_org, data_table, empty_state, org_href, section, segmented, tile
 from web.html import dur, el, link
+from web.views import tokens as tokens_view
 
 TITLE = "Throughput"
 
@@ -49,6 +52,37 @@ def _goal_filter(ctx):
     gorgs = queries.goal_orgs(ctx.db)
     goals = {r[0] for r in ctx.db.execute("SELECT id FROM goals") if queries.org_of_goal(gorgs, r[0]) == org}
     return goals, org
+
+
+def _cost(ctx, items, org, days):
+    """Cost per merged PR: the by_task cost of the Claude-org merged tasks of the period (each task's whole cost, not cut
+    to the period) over those with a known cost. Tasks with no attributed tokens or a None cost are counted as left out,
+    never as $0. Cursor-org tasks add nothing; their agent-hours are shown instead. Never waits for the token index."""
+    gorgs = queries.goal_orgs(ctx.db)
+    cursor_ids = [i["task_id"] for i in items if queries.org_of_goal(gorgs, i["goal_id"]) == "cursor"]
+    claude_ids = [i["task_id"] for i in items if queries.org_of_goal(gorgs, i["goal_id"]) != "cursor"]
+    out = {"state": "ready", "figure": None, "priced": 0, "left_out": 0, "merged": len(claude_ids),
+           "cursor_tasks": len(cursor_ids), "cursor_hours": None, "prices_as_of": PRICES_AS_OF}
+    if org in (None, "cursor"):
+        since = (queries._now(ctx.now).astimezone().date() - dt.timedelta(days=days - 1)).isoformat()
+        ag = queries.agents(ctx.db, include_ended=True, now=ctx.now)
+        out["cursor_hours"] = round(sum(r["hours"] for r in tokens_view.cursor_activity(ag, since, ctx.now, org)), 2)
+    if org == "cursor":
+        out["state"] = "cursor"
+        return out
+    snap = ctx.tokens() if getattr(ctx, "tokens", None) else None
+    if not snap or not snap.get("ready"):
+        out["state"] = "not_ready"
+        return out
+    if not claude_ids:
+        return out
+    by_task = wtokens.rollup(snap, wtokens.attribute(snap, ctx.db))["by_task"]
+    costs = [by_task[t]["cost"] for t in claude_ids if t in by_task and by_task[t]["cost"] is not None
+             and not by_task[t]["cost_unknown"]]     # a part-priced task has a partial cost: left out too
+    out["priced"], out["left_out"] = len(costs), len(claude_ids) - len(costs)
+    if costs:
+        out["figure"] = round(sum(costs) / len(costs), 4)
+    return out
 
 
 def data(ctx, **params):
@@ -95,7 +129,7 @@ def data(ctx, **params):
               "hq": sum(1 for r in live if r in HQ_ROLES)}
     agents["workers"] = agents["running"] - agents["leads"] - agents["hq"]
     attended = queries.attended_tasks(ctx.db, [i["task_id"] for i in items])
-    return {"org": org, "days": days, "merges": len(items), "unattended": len(items) - len(attended), "agents": agents, "median_s": _median(totals), "p90_s": _p90(totals),
+    return {"org": org, "days": days, "merges": len(items), "unattended": len(items) - len(attended), "cost": _cost(ctx, items, org, days), "agents": agents, "median_s": _median(totals), "p90_s": _p90(totals),
             "timed": len(totals), "open_tasks": open_tasks,
             "live_workers": live_workers, "merges_per_day": t["merges_per_day"],
             "stages": stages, "goals": goals_rows, "slowest": slowest}
@@ -127,6 +161,26 @@ def _unattended(d):
                                     "no auto-merge block, no boss decision about the task."),
              class_="tiles tiles--4")
     return el("div", row, el("p", LIMITS, class_="muted"))
+
+
+def _cost_tile(d):
+    c = d["cost"]
+    definition = (f"Average estimated API-equivalent cost of a merged PR at list prices as of {c['prices_as_of']}: the whole cost of each "
+                  "merged Claude-org task in the period (not cut to the period), divided by the tasks with a known cost. "
+                  "Tasks with no attributed tokens or no price are left out and counted. Cursor reports no tokens, so it has no cost.")
+    if c["state"] == "not_ready":
+        value, delta = "not ready", "The token index is still warming up."
+    elif c["state"] == "cursor":
+        value, delta = "-", f"Cursor: {c['cursor_hours']} agent-hours in {d['days']} days, no cost or tokens reported."
+    else:
+        value = f"${c['figure']:.2f}" if c["figure"] is not None else "-"
+        parts = [f"list-price estimate (as of {c['prices_as_of']})", f"{c['priced']} of {c['merged']} tasks priced"]
+        if c["left_out"]:
+            parts.append(f"{c['left_out']} left out: no tokens or no price")
+        if c["cursor_hours"] is not None:
+            parts.append(f"Cursor: {c['cursor_hours']} agent-hours, no cost")
+        delta = " · ".join(parts)
+    return el("div", tile("Cost per merged PR", value, delta=delta, definition=definition), class_="tiles tiles--4")
 
 
 def _per_day(d):
@@ -181,4 +235,4 @@ def _slowest(ctx, d):
 def render(ctx, d):
     open_note = el("p", f"{d['open_tasks']} tasks open now (in progress or in review), {d['live_workers']} agents working on a task.",
                    class_="muted")
-    return el("div", _range(d), _tiles(d), _unattended(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))
+    return el("div", _range(d), _tiles(d), _unattended(d), _cost_tile(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))
