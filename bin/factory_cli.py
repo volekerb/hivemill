@@ -14374,11 +14374,15 @@ def dispatch_tick(con):
         event(con, "task", tid, "dispatch", {"agent": name, "role": role, "team": team, "status": status})
         spawned += 1
         to = goal_alert_to(con, t["goal_id"], team=team)
-        who = "you are parked" if to != "director" else f"lead {t['lead_agent']} of {team} is parked"
+        if to != "director":
+            who, tail = "you are parked", "Sequencing stays yours: set --after/priorities on tasks that must wait; "
+        else:
+            who = f"the lead of {team} is parked or of another org"
+            tail = "Sequencing stays with that lead; "
         send(con, to, f"dispatch: {name} started on {tid}",
              f"{t['title']}\n\nLead-less dispatch (lead_less_dispatch=1): {who}, so the tick started this worker. "
-             "Sequencing stays yours: set --after/priorities on tasks that must wait; `factory stop " + name + "` undoes it. "
-             "This mail does not wake you.", kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
+             + tail + "`factory stop " + name + "` undoes it. This mail does not wake you.",
+             kind="fyi", goal=t["goal_id"], task=tid, sender="tick")
         if status == "queued":
             break
 
