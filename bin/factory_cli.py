@@ -6427,7 +6427,10 @@ def _sweep_candidates(con, t):
 
 TMP_LEFTOVER_MIN_AGE_S = 86400   # a listed leftover must be untouched (dir and everything inside) for this long
 TMP_LEFTOVER_CAP = 500           # at most this many leftovers per run
-TMP_LEFTOVER_THROTTLE_S = 600    # the walk of all listed entries (about 1 s on a 15000-entry /tmp) runs at most this often
+# Same-uid daemons that are non-dumpable (EACCES on cwd/fd) and never hold /tmp entries. Exact comm match, not prefix.
+# comm can be spoofed via PR_SET_NAME only by our own uid, which can remove the dir anyway; this guards against accidents.
+TMP_LEFTOVER_IGNORE_COMMS = frozenset({"systemd", "(sd-pam)", "ssh-agent", "sshd-session"})
+TMP_LEFTOVER_THROTTLE_S = 600   # the walk of all listed entries (about 1 s on a 15000-entry /tmp) runs at most this often
 # Closed list of top-level <tmp> names that our own code leaves behind (tempfile.mkdtemp names: prefix + 8 chars):
 #   ci/guard_diff.py:615 (guard-diff-) and :293 (guard-diff-seed-), ci/screenshots.py:895 (factory-screenshots-),
 #   ci/freshbox_test.py:188 (freshbox-). Other litter seen in /tmp (go-build*, corp-*, gd-*, cursor-askpass-*) has no
@@ -6444,14 +6447,15 @@ _LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox
 
 
 def _sweep_leftovers(con, t):
-    """(removed [(path, bytes)], locked count). Entries of our uid directly under <tmp> whose name is in the closed list
+    """(removed [(path, bytes)], locked count, blocked). A run blocked by an unreadable pid of an unlisted comm removes
+    nothing and writes one tmp-sweep-blocked event. Entries of our uid directly under <tmp> whose name is in the closed list
     above (real dirs, or plain files), with nothing in the tree touched for 24 h, not containing the cwd of an unfinished
     agent and not held (cwd or open fd) by a process of ours. Symlinks are never followed. A tree that cannot be read or
-    removed completely is skipped and counted as locked, never an error (nothing is chmod-ed); _proc_holds None keeps
-    everything. At most TMP_LEFTOVER_CAP removals per run."""
+    removed completely is skipped and counted as locked, never an error (nothing is chmod-ed); _proc_holds None (an
+    unreadable pid outside TMP_LEFTOVER_IGNORE_COMMS) keeps everything. At most TMP_LEFTOVER_CAP removals per run."""
     base = tmp_dir()
     if not base.is_dir() or base.is_symlink():
-        return [], 0
+        return [], 0, False
     cwds = [os.path.realpath(r["cwd"]) for r in con.execute(
         "SELECT cwd FROM agents WHERE cwd IS NOT NULL AND cwd != '' AND status IN ('live','starting','queued','done')")]
     old = []
@@ -6477,10 +6481,20 @@ def _sweep_leftovers(con, t):
             continue
         old.append((d, isdir, real))
     if not old:
-        return [], locked
-    held = _proc_holds([real for _, _, real in old])
+        return [], locked, False
+    blocker = []
+    held = _proc_holds([real for _, _, real in old], TMP_LEFTOVER_IGNORE_COMMS, blocker)
     if held is None:
-        return [], locked
+        pid, _, comm = (blocker[0] if blocker else "?:?").partition(":")
+        kept_bytes = 0
+        for d, isdir, _ in old:
+            try:
+                kept_bytes += _tree_bytes(d) if isdir else d.lstat().st_size
+            except OSError:
+                pass   # vanished or unreadable: not counted in the MB figure
+        event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-blocked",
+                 {"pid": pid, "comm": comm, "kept": len(old), "mb": round(kept_bytes / 1048576, 1)})
+        return [], locked, True
     out = []
     for d, isdir, real in old:
         if len(out) >= TMP_LEFTOVER_CAP:
@@ -6499,7 +6513,7 @@ def _sweep_leftovers(con, t):
             locked += 1   # partly removed or not removable: counted, not an error
             continue
         out.append((d, size))
-    return out, locked
+    return out, locked, False
 
 
 def tmp_sweep(con):
@@ -6523,13 +6537,13 @@ def tmp_sweep(con):
                     continue
                 freed += size
                 n += 1
-            left, locked = [], 0
+            left, locked, blocked = [], 0, False
             last = con.execute("SELECT ts FROM throttle WHERE key='tmpleftover'").fetchone()
             if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
                 con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
-                left, locked = _sweep_leftovers(con, t)
+                left, locked, blocked = _sweep_leftovers(con, t)
             freed += sum(sz for _, sz in left)
-            if n or left or locked:
+            if n or left or (locked and not blocked):
                 event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
                          {"mb": round(freed / 1048576, 1), "dirs": n, "leftovers": len(left), "locked": locked})
             tmp = tmp_usage() or tmp
@@ -6624,10 +6638,21 @@ def _harness_newest_mtime(d):
     return newest
 
 
-def _proc_holds(roots):
+def _pid_comm(pdir):
+    """/proc/<pid>/comm of an unreadable pid, or None when it cannot be read; FileNotFoundError when the pid has exited."""
+    try:
+        return (pdir / "comm").read_text().strip()
+    except FileNotFoundError:
+        raise
+    except OSError:
+        return None
+
+
+def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
     """The `roots` (realpaths) that a process of our uid has as cwd or an open fd (or holds something inside); None when
     a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
-    unreadable fd dir, which also lands in the keep-everything branch.)"""
+    unreadable fd dir, which also lands in the keep-everything branch.) An unreadable pid whose comm is in `ignore_comms`
+    is skipped; any other unreadable pid is appended to `blocker` as "pid:comm" (comm None if unreadable) before None."""
     held = set()
     uid = os.getuid()
     for pdir in _serve_proc_root().iterdir():
@@ -6641,6 +6666,16 @@ def _proc_holds(roots):
         except FileNotFoundError:
             continue   # the process exited while we looked
         except OSError:
+            if not ignore_comms and blocker is None:
+                return None   # defaults: exactly the old behaviour (tmp_sweep_harness)
+            try:
+                comm = _pid_comm(pdir)
+            except FileNotFoundError:
+                continue   # the process exited while we looked
+            if comm in ignore_comms:
+                continue
+            if blocker is not None:
+                blocker.append(f"{pdir.name}:{comm}")
             return None
         for tg in targets:
             for r in roots:

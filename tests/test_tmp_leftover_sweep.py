@@ -23,9 +23,11 @@ class LeftoverSweep(FactoryTestCase):
         self.proc = self.env.home / "fakeproc"
         self.proc.mkdir()
 
-    def fake_pid(self, pid, fd_target=None, cwd=None):
+    def fake_pid(self, pid, fd_target=None, cwd=None, comm=None):
         p = self.proc / str(pid)
         (p / "fd").mkdir(parents=True)
+        if comm is not None:
+            (p / "comm").write_text(comm + "\n")
         (p / "cwd").symlink_to(cwd or self.env.home)
         if fd_target:
             (p / "fd" / "3").symlink_to(fd_target)
@@ -84,7 +86,7 @@ class LeftoverSweep(FactoryTestCase):
         other = os.getuid() + 1
         with self.env.load_factory() as f:
             f.os = type("OtherUid", (), {"__getattr__": lambda s, n: getattr(os, n), "getuid": staticmethod(lambda: other)})()
-            self.assertEqual(f._sweep_leftovers(f.db(), time.time()), ([], 0))
+            self.assertEqual(f._sweep_leftovers(f.db(), time.time()), ([], 0, False))
         self.assertTrue(d.exists())
 
     def test_symlink_not_followed(self):
@@ -175,16 +177,69 @@ class LeftoverSweep(FactoryTestCase):
         self.assertTrue(held.exists())
         self.assertFalse(free.exists())
 
-    def test_unreadable_pid_keeps_everything(self):
-        d = self.leftover("tmpabcd1234")
-        p = self.fake_pid(103)
+    def unreadable(self, pid, comm):
+        """A same-uid pid whose fd dir gives EACCES (like a non-dumpable daemon); comm None = no comm file."""
+        p = self.fake_pid(pid, comm=comm)
         os.chmod(p / "fd", 0)
-        try:
-            self.tick()
-        finally:
-            os.chmod(p / "fd", 0o700)
+        self.addCleanup(lambda: os.chmod(p / "fd", 0o700))
+        return p
+
+    def blocked(self):
+        return [json.loads(r["detail"]) for r in self.env.sql("SELECT detail FROM events WHERE action='tmp-sweep-blocked'")]
+
+    def test_unreadable_pid_keeps_everything(self):
+        d = self.leftover("tmpabcd1234", kb=1000)
+        self.unreadable(103, "bash")
+        self.tick()
         self.assertTrue(d.exists())
         self.assertEqual(self.env.sql("SELECT 1 FROM events WHERE action='tmp-sweep-failed'"), [])
+        self.assertEqual(self.events(), [])
+        b = self.blocked()
+        self.assertEqual(len(b), 1)
+        self.assertEqual((b[0]["pid"], b[0]["comm"], b[0]["kept"]), ("103", "bash", 1))
+        self.assertGreaterEqual(b[0]["mb"], 0.9)
+
+    def test_unreadable_pid_with_listed_comm_proceeds(self):
+        stale, fresh = self.leftover("tmpabcd1234"), self.leftover("tmpzzzzzzzz", age_h=1)
+        for i, comm in enumerate(("systemd", "(sd-pam)", "ssh-agent", "sshd-session")):
+            self.unreadable(110 + i, comm)
+        self.tick()
+        self.assertFalse(stale.exists())
+        self.assertTrue(fresh.exists())
+        self.assertEqual(self.blocked(), [])
+        self.assertEqual(len(self.events()), 1)
+
+    def test_comm_match_is_exact(self):
+        d = self.leftover("tmpabcd1234")
+        self.unreadable(120, "systemd-logind")
+        self.tick()
+        self.assertTrue(d.exists())
+        self.assertEqual(self.events(), [])
+        self.assertEqual(self.blocked()[0]["comm"], "systemd-logind")
+
+    def test_comm_enoent_means_exited_and_sweep_proceeds(self):
+        d = self.leftover("tmpabcd1234")
+        self.unreadable(130, None)
+        self.tick()
+        self.assertFalse(d.exists())
+        self.assertEqual(self.blocked(), [])
+
+    def test_comm_other_oserror_keeps_all_and_names_none(self):
+        d = self.leftover("tmpabcd1234")
+        p = self.unreadable(131, None)
+        (p / "comm").mkdir()   # reading a directory raises IsADirectoryError (an OSError other than ENOENT)
+        self.tick()
+        self.assertTrue(d.exists())
+        b = self.blocked()
+        self.assertEqual((len(b), b[0]["pid"], b[0]["comm"]), (1, "131", "None"))
+        self.assertEqual(self.events(), [])
+
+    def test_harness_sweep_still_keeps_everything_for_listed_unreadable_pid(self):
+        # tmp_sweep_harness calls _proc_holds unchanged: a listed comm does not make its None go away
+        h = self.leftover("zz-test-factory-abcd1234", age_h=3)
+        self.unreadable(140, "systemd")
+        self.ok("tick", extra_env={"FACTORY_SERVE_PROC_DIR": str(self.proc)})
+        self.assertTrue(h.exists())
 
     @unittest.skipIf(os.getuid() == 0, "root reads mode-000 dirs")
     def test_locked_subdir_counted_not_failed(self):
