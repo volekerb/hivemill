@@ -196,6 +196,7 @@ NETWORK_VERBS = {"push", "fetch", "pull", "clone", "ls-remote", "submodule"}
 # (file, reason): the only modules allowed to spawn network-verb git outside harness.git.
 RAW_GIT_ALLOWLIST = {
     "test_git_env_hermetic.py": "negative control: shows an unguarded git does reach the remote/GIT_DIR",
+    "test_worker_guard_config_oracle.py": "oracle: `git config --file <tmp>/cfg` under a fence harness.git refuses (GIT_CEILING_DIRECTORIES); no network verb, no repo (T-1035, M23527)",
     "test_worker_guard_git.py": "string-only hook fakes; no process is spawned",
     "test_worker_guard_git_data.py": "string-only hook fakes; no process is spawned",
     "test_worker_guard_git_reads.py": "string-only hook fakes; no process is spawned",

@@ -27,7 +27,7 @@ jobs:
   unittest-shard:
     name: unittest-shard (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -234,10 +234,10 @@ jobs:
           if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
           tool="$RUNNER_TEMP/base-tool"
           mkdir -p "$tool"
-          if git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py | tar -x -C "$tool"; then
+          if git archive "$BASE_SHA" ci/guard_diff.py tests/_slot.py systemd/install.sh | tar -x -C "$tool"; then
             gd="$tool/ci/guard_diff.py"; echo "tool: ci/guard_diff.py from base $BASE_SHA"
           else
-            gd=ci/guard_diff.py; echo "tool: base has no ci/guard_diff.py, using the PR copy"
+            gd=ci/guard_diff.py; echo "tool: git archive of ci/guard_diff.py, tests/_slot.py, systemd/install.sh from base failed (a path missing from the base fails all), using the PR copy"
           fi
           # corpus: the base copy too, so a PR cannot delete must_block entries; the PR copy adds its own entries (repeatable, de-duplicated)
           corpus=(--corpus ci/guard_corpus.json)
