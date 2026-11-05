@@ -1,6 +1,7 @@
 """G-028: two orgs (claude, cursor) side by side — goal ownership, org-prefixed names, per-org runtime and models,
 recipient routing inside an org, and the cross-org chain-of-command rule (docs/runtimes.md "Two orgs")."""
 import json
+import time
 import unittest
 
 from harness import FactoryTestCase
@@ -268,18 +269,25 @@ class GoalAlertRoutingTests(FactoryTestCase):
         self.ok("tick")
         self.assertEqual(self.red_pr_mails(), {self.LEAD})
 
-    def blocked_target(self, goal_org):
-        self.env.sql("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
-        self.env.seed_agent("coder-x", "coder", goal="G-001", team=self.TEAM)
-        with self.env.load_factory() as f:
-            con = f.db()
-            return f.blocked_alert_target(con, con.execute("SELECT * FROM agents WHERE name='coder-x'").fetchone())[0]
+    def blocked_alert_mails(self, goal_org):
+        """Drive a real tick: a blocked worker (no task) on a goal of goal_org."""
+        e = self.env
+        e.sql("UPDATE goals SET org=? WHERE id='G-001'", (goal_org,))
+        e.seed_agent("coder-x", "coder", goal="G-001", team=self.TEAM, pane_id="p-c")
+        e.sql("UPDATE agents SET pane_id='p-lead' WHERE name=?", (self.LEAD,))
+        e.sql("UPDATE agents SET blocked_since=? WHERE name='coder-x'", (time.time() - 3600,))
+        e.set_herdr(workspaces=[{"workspace_id": "w1", "label": "w"}],
+                    panes=[{"pane_id": p, "tab_id": "t1", "workspace_id": "w1"} for p in ("p-c", "p-lead")],
+                    agents=[{"name": "coder-x", "agent": "claude", "pane_id": "p-c", "agent_status": "blocked"},
+                            {"name": self.LEAD, "agent": "claude", "pane_id": "p-lead", "agent_status": "idle"}])
+        self.ok("tick")
+        return {r["recipient"] for r in e.sql("SELECT recipient FROM messages WHERE subject='coder-x blocked >10 min'")}
 
     def test_blocked_alert_on_a_cursor_goal_goes_to_the_cursor_director_not_the_claude_lead(self):
-        self.assertEqual(self.blocked_target("cursor"), "director")  # resolved inside the goal's org by send
+        self.assertEqual(self.blocked_alert_mails("cursor"), {"cursor-director"})
 
     def test_blocked_alert_on_a_claude_goal_goes_to_its_claude_lead(self):
-        self.assertEqual(self.blocked_target("claude"), self.LEAD)
+        self.assertEqual(self.blocked_alert_mails("claude"), {self.LEAD})
 
     def review_alert_mails(self, goal_org):
         e = self.env
