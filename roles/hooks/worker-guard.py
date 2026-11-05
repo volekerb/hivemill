@@ -3096,6 +3096,8 @@ class Analyzer:
             if sub == "submodule":
                 while inner and inner[0] in ("--recursive", "--quiet", "-q"):
                     inner = inner[1:]
+            if inner and inner[0] == "--":
+                inner = inner[1:]  # git's option parser consumes a leading `--`; the command follows it
             self.git_inner(f"git {sub} {word}", inner, depth, quote=sub == "bisect")
         elif sub == "rebase":
             self.git_exec_opts(sub, args, "x", "--exec", "XsCS", depth)

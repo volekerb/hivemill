@@ -55,14 +55,6 @@ class CoderGitRunnerTests(unittest.TestCase):
         con.commit()
         con.close()
 
-    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None):
-        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
-        env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home)
-        if agent:
-            env["FACTORY_AGENT"] = agent
-        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
-        return hook_run(payload, ["--role", role], env=env)
-
     def code(self, cmd, role="coder", hq=False):
         env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
         env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home,
@@ -80,7 +72,8 @@ class CoderGitRunnerTests(unittest.TestCase):
         self.assert_all((
             f"git submodule foreach '{P}'", f"git submodule --quiet foreach '{P}'",
             f"git submodule foreach --recursive '{P}'", f"git submodule foreach 'echo a && {P}'",
-            f"git submodule foreach '{OWN}'",
+            f"git submodule foreach '{OWN}'", f"git submodule foreach -- '{P}'", f"git submodule foreach --recursive -- '{P}'",
+            f"git bisect run -- {P}",
             f"git rebase -x '{P}' HEAD~1", f"git rebase -x'{P}' HEAD~1", f"git rebase -ix '{P}' HEAD~1",
             f"git rebase -i -x '{P}' HEAD~1", f"git rebase --exec '{P}' HEAD~1", f"git rebase --exec='{P}' HEAD~1",
             f"git rebase --exe='{P}' HEAD~1", f"git rebase --exec 'echo a; {P}' HEAD~1",
