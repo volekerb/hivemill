@@ -37,7 +37,8 @@ type Analyzer struct {
 	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
 	skipPriv         bool
-	unitRule         bool // HQ mode: block mutating systemctl (workers keep the factory unit rule)
+	shellAssigns     []string // env assignments of the shell command being analysed (T-0331)
+	unitRule         bool     // HQ mode: block mutating systemctl (workers keep the factory unit rule)
 	text             string
 	ranFactory       bool
 	scrubWithFactory string
@@ -425,6 +426,9 @@ func (a *Analyzer) script(text string, depth int) error {
 			for _, r := range reds {
 				if r.idx == n {
 					if err := a.cfgRedirect(r.target); err != nil {
+						return err
+					}
+					if err := a.protRedirect(r.target); err != nil {
 						return err
 					}
 					if err := a.persistRedirect(r.target); err != nil {

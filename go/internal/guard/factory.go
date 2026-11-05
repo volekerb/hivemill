@@ -1,7 +1,11 @@
 package guard
 
 import (
+	"bytes"
+	"io"
 	"os"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -95,6 +99,146 @@ func (a *Analyzer) agentTempHome(assigns []string) bool {
 	return a.outsideLive(v)
 }
 
+// scratchHomes is Analyzer.scratch_homes (T-0331): BOTH HOME and FACTORY_HOME are static absolute paths whose realpath is
+// inside the worker's own scratchpad. Each comes from this command's assignments, else an earlier assignment/export in
+// the same command line, else the hook's environment.
+func (a *Analyzer) scratchHomes(assigns []string) bool {
+	if !a.loneCommand() {
+		return false
+	}
+	for _, name := range []string{"HOME", "FACTORY_HOME"} {
+		var vals []string
+		for _, x := range assigns {
+			if v, ok := strings.CutPrefix(x, name+"="); ok {
+				vals = append(vals, v)
+			}
+		}
+		var v string
+		if len(vals) > 0 {
+			v = vals[len(vals)-1]
+		} else if pv, ok := a.vars[name]; ok {
+			v = pv
+		} else {
+			v = os.Getenv(name)
+		}
+		if v == "" || strings.ContainsAny(v, "$`*?[{~\\\"'") || !strings.HasPrefix(v, "/") {
+			return false
+		}
+		if !inScratchpad(pyRealpath(v)) {
+			return false
+		}
+	}
+	return true
+}
+
+// installDryRun is Analyzer.install_dry_run (T-0331): args is exactly `systemd/install.sh --dry-run`, run by a coder/qa
+// with both homes in the scratchpad, and the script is byte-for-byte the install.sh of a live checkout (which a worker
+// cannot write). Its body is then not parsed; any edited copy goes through the normal script inspection.
+func (a *Analyzer) installDryRun(args, assigns []string) bool {
+	if (a.Role != "coder" && a.Role != "qa") || len(args) != 2 || args[1] != "--dry-run" {
+		return false
+	}
+	if IsDynamic(args[0], true) || !a.scratchHomes(assigns) {
+		return false
+	}
+	p := expandUser(args[0])
+	if !strings.HasPrefix(p, "/") {
+		p = pyJoin(a.Cwd, p)
+	}
+	p = pyRealpath(p)
+	if pyBasename(p) != "install.sh" || pyBasename(pyDirname(p)) != "systemd" {
+		return false
+	}
+	if st, err := os.Stat(p); err != nil || !st.Mode().IsRegular() {
+		return false
+	}
+	h := mustHost()
+	homes := h.liveHomes
+	if o := os.Getenv("WORKER_GUARD_LIVE_HOME"); o != "" {
+		homes = []string{pyRealpath(o)} // as protTrees: never the hook's own repo root
+	}
+	mine, err := readHead(p, 1<<20)
+	if err != nil {
+		return false
+	}
+	seen := map[string]struct{}{}
+	for _, home := range homes {
+		seen[home] = struct{}{}
+	}
+	sorted := make([]string, 0, len(seen))
+	for home := range seen {
+		sorted = append(sorted, home)
+	}
+	sort.Strings(sorted)
+	for _, home := range sorted {
+		live := pyJoin(pyJoin(home, "systemd"), "install.sh")
+		if st, err := os.Lstat(live); err != nil || !st.Mode().IsRegular() {
+			continue
+		}
+		if theirs, err := readHead(live, 1<<20); err == nil && bytes.Equal(theirs, mine) {
+			return true
+		}
+	}
+	return false
+}
+
+// readHead reads at most n bytes of the file at path.
+func readHead(path string, n int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, n))
+}
+
+// loneCommand is Analyzer.lone_command (T-0331): the whole command line is one command, optionally after plain
+// HOME=v / FACTORY_HOME=v / export HOME=v FACTORY_HOME=v; statements, and the command itself is the literal word factory
+// or bash after only HOME= / FACTORY_HOME= prefixes. Nothing before it can edit what it runs or what the guard read.
+// Printable ASCII only (space and tab), so the ASCII-only RE2 classes and strings.Fields agree with Python.
+func (a *Analyzer) loneCommand() bool {
+	for i := 0; i < len(a.text); i++ {
+		if c := a.text[i]; !(c >= ' ' && c < 0x7f || c == '\t') {
+			return false
+		}
+	}
+	if strings.ContainsAny(a.text, "|&<>`$(){}\"'\\") {
+		return false
+	}
+	parts := strings.Split(a.text, ";")
+	for _, x := range parts[:len(parts)-1] {
+		if !reLoneAssign.MatchString(x) {
+			return false
+		}
+	}
+	words := strings.Fields(parts[len(parts)-1])
+	for len(words) > 0 && reLoneHome.MatchString(words[0]) {
+		words = words[1:]
+	}
+	return len(words) > 0 && (words[0] == "factory" || words[0] == "bash")
+}
+
+var (
+	reLoneAssign = regexp.MustCompile(`^[ \t]*(export[ \t]+)?((HOME|FACTORY_HOME)=[^ \t]*[ \t]*)+$`)
+	reLoneHome   = regexp.MustCompile(`^(HOME|FACTORY_HOME)=[^ \t]*$`)
+)
+
+// scratchForm is Analyzer.scratch_form (T-0331): words is exactly one of the commands a qa/coder may run with HOME in the
+// scratchpad: the real factory (not a script merely named so, not a path) init, or bash running
+// systemd/install.sh --dry-run (no other shell).
+func (a *Analyzer) scratchForm(words, assigns []string) bool {
+	if (a.Role != "coder" && a.Role != "qa") || len(words) == 0 {
+		return false
+	}
+	if words[0] == "factory" {
+		return len(words) >= 2 && words[1] == "init" && a.scratchHomes(assigns) // strict: a flag value must not shift the match
+	}
+	if words[0] == "bash" {
+		return a.installDryRun(words[1:], assigns) // no shell option (-s runs stdin, the file is then an argument)
+	}
+	return false
+}
+
 // checkIdentity is a port of Analyzer.check_identity.
 func (a *Analyzer) checkIdentity(assigns []string) error {
 	own := os.Getenv("FACTORY_AGENT")
@@ -171,6 +315,11 @@ func (a *Analyzer) factoryUnit(name string, rest []string, assigns []string) err
 		if err := a.evaluatorFactory(sub, hasSub, nonopt, assigns); err != nil {
 			return err
 		}
+	}
+	if (a.Role == "coder" || a.Role == "qa") && !a.HQ && hasSub &&
+		sub == "init" && !a.scratchHomes(assigns) {
+		return blockf("workers may run `factory init` only with HOME and FACTORY_HOME both set (same command or " +
+			"exported earlier) to absolute paths inside your own scratchpad")
 	}
 	if hasSub {
 		if _, ok := BroadReads[sub]; ok {

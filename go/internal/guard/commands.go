@@ -492,8 +492,7 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 	if mod != "unittest" && mod != "unittest.__main__" {
 		return nil
 	}
-	const advice = "; CI runs the full suite. Locally run `python3 ci/affected.py --base origin/main --quick --run`, or one " +
-		"module: `python3 -m unittest discover -s tests -p test_X.py` (T-0642)"
+	const advice = fullSuiteAdvice
 	if len(args) > 0 && args[0] == "discover" {
 		var pats []string
 		for i := 0; i+1 < len(args); i++ {
@@ -509,6 +508,9 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 		if len(pats) > 0 && allOf(pats, singleModulePattern) { // the last pattern wins, so all must be single-module
 			return nil
 		}
+		if anyOf(args[1:], func(x string) bool { return x == "-k" }) { // T-0435: a -k name filter is targeted
+			return nil
+		}
 		return blockf("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
 	}
 	skip, mods := false, 0
@@ -518,6 +520,9 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 			skip = false
 		case x == "-k" || x == "--start-directory" || x == "-s" || x == "-t" || x == "-p":
 			skip = true
+			if x == "-k" { // T-0435: -k name filters the run
+				mods++
+			}
 		case !strings.HasPrefix(x, "-"):
 			mods++
 		}
@@ -526,6 +531,59 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 		return blockf("`python3 -m unittest` with no test module runs the full suite" + advice)
 	}
 	return nil
+}
+
+const fullSuiteAdvice = "; CI runs the full suite (sharded). Locally run `python3 ci/affected.py --base origin/main --quick --run`, " +
+	"or one module: `python3 -m unittest tests.test_X` or `python3 -m unittest discover -s tests -p test_X.py`" +
+	" (T-0642). QA that needs a merged-tree full run asks its lead (T-0435)"
+
+var pytestValued = map[string]bool{"-m": true, "-c": true, "-p": true, "-o": true, "-W": true, "-n": true, "--rootdir": true,
+	"--maxfail": true, "--deselect": true, "--ignore": true, "--ignore-glob": true, "--confcutdir": true, "--basetemp": true,
+	"--junitxml": true, "--durations": true, "--tb": true, "--log-level": true, "--cov": true, "--cov-report": true,
+	"--import-mode": true, "--color": true, "--capture": true, "--override-ini": true, "--config-file": true,
+	"--junit-xml": true, "--log-file": true}
+
+// pytestTarget: the part before the first `::` ends in .py and has no glob char.
+func pytestTarget(x string) bool {
+	f, _, _ := strings.Cut(x, "::")
+	return strings.HasSuffix(f, ".py") && !strings.ContainsAny(f, "*?[")
+}
+
+// pytestFull is a port of Analyzer.pytest_full (T-0435).
+func (a *Analyzer) pytestFull(name string, rest []string) error {
+	if a.Role != "coder" && a.Role != "qa" && a.Role != "reviewer" || a.HQ {
+		return nil
+	}
+	var args []string
+	switch {
+	case name == "pytest" || name == "py.test":
+		args = rest
+	case pythonName(name):
+		mod, as, _ := pythonMSplit(rest)
+		for mod == "?" {
+			mod, as, _ = pythonMSplit(as)
+		}
+		if mod != "pytest" && mod != "pytest.__main__" {
+			return nil
+		}
+		args = as
+	default:
+		return nil
+	}
+	skip := false
+	for _, x := range args {
+		switch {
+		case skip:
+			skip = false
+		case x == "-k" || (strings.HasPrefix(x, "-k") && !strings.HasPrefix(x, "--")):
+			return nil // a -k filter is targeted
+		case pytestValued[x]:
+			skip = true
+		case !strings.HasPrefix(x, "-") && pytestTarget(x):
+			return nil // a test file or node id; a directory or an option value is never a target
+		}
+	}
+	return blockf("pytest with no test file or -k runs the full suite" + fullSuiteAdvice)
 }
 
 // singleModulePattern is re.fullmatch(r"test_[\w]+\.py", x).
@@ -595,13 +653,23 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	words = stripped
 	if a.noPush() {
-		if err := a.gitConfigEnv(assigns, words); err != nil {
+		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`
+		chk := assigns
+		if a.scratchForm(words, assigns) {
+			chk = nil
+			for _, x := range assigns {
+				if !strings.HasPrefix(x, "HOME=") {
+					chk = append(chk, x)
+				}
+			}
+		}
+		if err := a.gitConfigEnv(chk, words); err != nil {
 			return err
 		}
-		if err := a.builtinAssign(assigns, words, hstrs); err != nil {
+		if err := a.builtinAssign(chk, words, hstrs); err != nil {
 			return err
 		}
-		if err := a.gitLaunch(assigns, words); err != nil {
+		if err := a.gitLaunch(chk, words); err != nil {
 			return err
 		}
 	}
@@ -695,6 +763,9 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if err := a.cfgWrite(name, rest); err != nil {
 		return err
 	}
+	if err := a.protWrite(name, rest); err != nil {
+		return err
+	}
 	if err := a.persistWrite(name, rest); err != nil {
 		return err
 	}
@@ -715,6 +786,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	}
+	if a.noPush() && name == "gh" {
+		if err := a.noPushGhWrite(rest); err != nil {
+			return err
+		}
+	}
 	if in(Copiers, name) { // R3: no copying/encoding/reading the real herdr binary
 		for _, x := range rest {
 			if strings.HasPrefix(x, "if=") || strings.HasPrefix(x, "of=") {
@@ -728,6 +804,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	switch {
 	case in(Shells, name):
 		savedCwd, savedDyn, savedC, savedCK := a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown // a cd inside `sh -c` does not move the caller
+		a.shellAssigns = assigns
 		err := a.shell(rest, depth, piped, hstrs)
 		a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown = savedCwd, savedDyn, savedC, savedCK
 		if err != nil {
@@ -762,10 +839,17 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		if err := a.unittestFull(name, rest); err != nil {
 			return err
 		}
+		if err := a.pytestFull(name, rest); err != nil {
+			return err
+		}
 		for j := 0; j+1 < len(rest); j++ {
 			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && strings.Contains(rest[j+1], "herdr") {
 				return blockf("herdr in inline interpreter code")
 			}
+		}
+	case name == "pytest" || name == "py.test":
+		if err := a.pytestFull(name, rest); err != nil {
+			return err
 		}
 	case in(Awks, name) || in(Editors, name):
 		if anyOf(rest, func(x string) bool { return strings.Contains(x, "herdr") }) {
@@ -804,6 +888,11 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		}
 	case strings.Contains(w, "/") && !inLoose:
 		if err := a.execPath(w, depth); err != nil {
+			return err
+		}
+	}
+	if name == "uv" || name == "uvx" { // T-0880: `uv run CMD` / `uvx CMD` is checked like CMD run directly
+		if err := a.uvCheck(name, rest, depth, piped, inLoose, hstrs, assigns); err != nil {
 			return err
 		}
 	}
@@ -1074,6 +1163,9 @@ loop:
 	}
 	switch {
 	case i < len(rest):
+		if i == 0 && a.installDryRun(rest, a.shellAssigns) { // T-0331: the one unparsed script
+			return nil
+		}
 		return a.file(rest[i], depth)
 	case len(hstrs) > 0:
 		return nil

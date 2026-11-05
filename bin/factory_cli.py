@@ -149,7 +149,9 @@ DEFAULT_CONFIG = {
     "test_slots": "2",           # host-wide full-suite slots (tests/_slot.py); `factory res` shows how many are held
     "min_mem_available_mb": "1024",
     "ci_wake_workers": "4",      # tick_ci_wake runs its gh pr view probes in this many threads (1 = serial)
-    "red_pr_owner_alert": "0",   # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
+    "pr_view_ttl_s": "120",      # tick probes (ci wake, red PR alert, review autospawn) reuse one `gh pr view` per PR for this long; 0 = off (T-1014, docs/gh-quota.md)
+    "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
+    "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -183,6 +185,7 @@ DEFAULT_CONFIG = {
     "public_text_repos": "",     # comma list OWNER/NAME where the public text rule applies (G-021): judge text check, no state push
     "noreply_email": "",         # author email judge merges into a public_text_repos repo with; empty = repo-local git user.email, must end @users.noreply.github.com (G-021)
     "red_main_freeze": "0",      # 1 = the tick watches the latest tests.yml push run on main; red = judges refuse to merge until a green push run (G-022 T-0623)
+    "judge_wait_main_run": "0",  # 1 = judge merges wait while the tests.yml push run for the current main head is not completed+success (G-022 T-1029)
     "red_main_interval_s": "120",  # the red-main monitor asks gh at most this often while main is not red; a red repo is re-checked every tick
     "issue_intake_repos": "",    # comma list OWNER/NAME: the tick messages the director once per new open public issue (G-026 SC5); empty = off
     "frozen_repos": "",        # comma list OWNER/NAME no push or merge by bin/factory may target (G-021)
@@ -235,7 +238,9 @@ DEFAULT_CONFIG = {
     "tick_phase_timers": "0",    # 1 = the tick prints one `tick-phases` timing line per tick (and an event row); log-only, 0 = off
     "orphan_reap_mode": "dry-run",  # tick reaper of orphan processes of ended workers: dry-run (log would-reap events only) | on | off; unknown = dry-run
     "exited_pane_reap_mode": "dry-run",  # tick closes the live pane of a worker row that is 'exited' for >10 min (T-0972): dry-run (would-close events only) | on | off; unknown = dry-run
-    "digest_hour": "8",          # local hour from which the tick sends the daily digest (director → boss), once a day
+    "idle_coder_reap": "off",    # off | dry-run | on: the tick stops a coder idle past idle_coder_reap_s with a clean tree, pushed PR head, no mail, no shell (T-1028, docs/lead-wake.md)
+    "idle_coder_reap_s": "900",  # seconds a coder must be idle/done before idle_coder_reap acts
+    "digest_hour": "8",         # local hour from which the tick sends the daily digest (director → boss), once a day
     "scout_enabled": "1",        # 1 = the tick starts the skill scout at each slot; 0 = no new runs (kill switch)
     "scout_slots": "09,18",      # local hours at which the tick runs the scout, comma-separated; only the latest due slot ever runs
     "scout_max_minutes": "20",   # wall budget of one scout run; over it the tick force-stops the scout
@@ -730,9 +735,10 @@ def evaluator_settings(rdir):
         for group in groups:
             for hook in group.get("hooks", []):
                 cmd = hook.get("command", "")
-                tail = cmd.partition("worker-guard.py")[2]
-                if "worker-guard.py" not in cmd:
-                    die(f"evaluator hook command {cmd!r} does not run worker-guard.py; fix roles/settings/evaluator.json.in", 3)
+                m = re.fullmatch(r"(?:python3|sh) \S*/worker-guard(?:\.py)?( .*)?", cmd)  # the python3 form or the sh shim
+                if not m:
+                    die(f"evaluator hook command {cmd!r} runs neither `python3 .../worker-guard.py` nor `sh .../worker-guard`; fix roles/settings/evaluator.json.in", 3)
+                tail = m.group(1) or ""
                 hook["command"] = f"python3 {shlex.quote(str(guard))}{tail}"
                 n += 1
     if not n:
@@ -1079,6 +1085,25 @@ def herdr_start_error(*args):
 def herdr_agents():
     r = herdr("agent", "list", check=False)
     return (r or {}).get("agents", []) if r is not None else None
+
+
+def close_named_pane(con, name, pane):
+    """T-1007: the one way to close an agent's pane. Ask the host which pane carries the agent's exact name and close
+    THAT pane id (host ids can differ from the row's; a stale row id may now belong to another pane). Returns
+    (state, host_pane): "closed" (close issued on the host's id), "not-found" (the host lists no pane under this name,
+    so nothing of ours is closed; one "pane-close-skipped" event says whether the row's id is held by another name),
+    "unknown" (the host cannot be asked: nothing closed, the caller retries on its next run, no event)."""
+    listed = herdr_agents()
+    if listed is None:
+        return "unknown", None
+    h = next((x for x in listed if x.get("name") == name and x.get("pane_id")), None)
+    if h is None:
+        other = next((x.get("name") for x in listed if pane and x.get("pane_id") == pane), None)
+        event(con, "agent", name, "pane-close-skipped",
+              {"agent": name, "pane": pane, "reason": f"pane held by {other}" if other else "no host pane under this name"})
+        return "not-found", None
+    herdr("pane", "close", h["pane_id"], check=False)
+    return "closed", h["pane_id"]
 
 
 def herdr_workspaces():
@@ -1429,17 +1454,22 @@ def sandbox_escape_close(con, name, pane, pid):
     if mine is None or host is None or mine != host:
         return False
     start = _proc_start(pid)  # before the close: it kills claude and /proc/<pid> goes with it
-    if pane:
-        herdr("pane", "close", pane, check=False)
+    st = close_named_pane(con, name, pane)[0] if pane else "no-pane"
     key = f"sandbox-escaped:{pid}:{start}"  # start time: a reused pid is a new process, a new alert
     if not con.execute("SELECT 1 FROM throttle WHERE key=?", (key,)).fetchone():
         con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(time.time())))
         event(con, "agent", name, "sandbox-escaped", {"name": name, "pid": pid})
         send(con, "director", f"sandbox escaped: {name} closed",
              f"{name} is a sandboxed agent but its claude (pid {pid}) runs in the host user namespace, outside the "
-             "sandbox. Its pane was closed. Check its shell rc and multiplexer auto-resume, then relaunch.",
+             "sandbox. " + {"closed": "Its pane was closed.",
+                            "not-found": "Its pane was NOT closed: the host lists no pane under this name, so the "
+                                         "process may still run outside the sandbox. Find and stop it.",
+                            "unknown": "Its pane was NOT closed: the host could not be asked, so the process may still "
+                                       "run outside the sandbox. Close the pane by hand or retry."
+                            }.get(st, "It has no pane row to close; stop the process.") +
+             " Check its shell rc and multiplexer auto-resume, then relaunch.",
              "alert", sender="tick")
-    return True
+    return st == "closed"
 
 
 ESCAPE_ROW_TTL_S = 7 * 86400
@@ -1792,6 +1822,13 @@ def gate(con, own_slot=False, load_exempt=False, role=None, own_lead=False, runt
             return False, f"5h usage {u['five_hour']:.0f}% ≥ {cfg(con, 'max_five_hour_pct')}%", stats
         if u["fresh"] and u["seven_day"] is not None and u["seven_day"] >= float(cfg(con, "max_seven_day_pct")):
             return False, f"weekly usage {u['seven_day']:.0f}% ≥ {cfg(con, 'max_seven_day_pct')}%", stats
+    if runtime == "cursor" and role:
+        from web import cursor_limits
+        slug = role_model(con, role, org="cursor")
+        ent = cursor_limits.load_state(con).get(slug) or {}
+        if ent.get("status") == "limited":
+            reset = ent.get("reset") or "unknown date"
+            return False, f"Cursor pane limit: {slug} limited until {reset}", stats
     if role == "lead" and cfg(con, "lead_parking") == "1" and not (own_slot or own_lead):
         if leads >= leads_cap:
             return False, f"{leads}/{leads_cap} leads live (max_live_leads)", stats
@@ -3197,13 +3234,19 @@ def resolve_recipient(con, to, org=None):
         to = "boss"  # the boss is the owner's interface; it relays
     if to in orgs.SINGLETON_ROLES:
         cand = oname(con, org, to)
-        if con.execute("SELECT 1 FROM agents WHERE name=?", (cand,)).fetchone():
+        live = ("live", "starting", "queued")
+        if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN (?,?,?)", (cand, *live)).fetchone():
             return cand
-        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN ('live','starting','queued') "
-                        "ORDER BY started DESC", (to,)).fetchall()
+        r = con.execute("SELECT name FROM agents WHERE role=? AND status IN (?,?,?) "
+                        "ORDER BY started DESC", (to, *live)).fetchall()
         for x in r:
             if agent_org(con, x["name"]) == org:
                 return x["name"]
+        if (org == orgs.DEFAULT_ORG and (cfg(con, "org_prefix_default") or "0").strip() == "1"
+                and not orgs.prefix_of(to)):
+            leg = con.execute("SELECT name FROM agents WHERE name=? AND status IN (?,?,?)", (to, *live)).fetchone()
+            if leg and agent_org(con, leg["name"]) == org:
+                return leg["name"]
         return cand  # stored for the org's (future) HQ agent; `factory up` starts it
     if to.startswith("lead:"):
         r = con.execute("SELECT lead_agent FROM teams WHERE id=?", (to[5:],)).fetchone()
@@ -3227,7 +3270,8 @@ def send(con, to, subject, body=None, kind="msg", goal=None, task=None, sender=N
 def release_stale_pane(con, name):
     """A finished (`done`) agent keeps its pane until the next tick reaps it. Reusing the name before then would
     overwrite pane_id and leak that pane, so close it now (same call as the tick reap), confirm with pane_gone and mark
-    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry.
+    the row exited. An already-exited row that still holds a pane the host lists under this name gets the same retry
+    (matched on the row's pane_id; unlike reap_exited_panes it does not follow a renumbered host pane).
     Returns True when the pane is released or there was nothing to release. Returns False when the pane could not be
     confirmed gone: the row is then exited with pane_id KEPT (so reap_exited_panes can still match it), one
     "stale-pane-close-failed" event is logged per attempt (a caller that retries each tick logs one each
@@ -3238,15 +3282,19 @@ def release_stale_pane(con, name):
     pane = r["pane_id"]
     gone = False
     if r["status"] == "done":
-        herdr("pane", "close", pane, check=False)
-        gone = pane_gone(pane) is True
+        st, hp = close_named_pane(con, name, pane)
+        if st == "not-found":  # the host has no pane under this name: nothing of ours to close
+            con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
+            event(con, "agent", name, "reaped", pane)
+            return True
+        gone = st == "closed" and pane_gone(hp) is True
     else:
         listed = herdr_agents()
         if listed is not None and not any(h.get("name") == name and h.get("pane_id") == pane for h in listed):
             return True  # the host does not list that pane under this name: nothing of ours to close (as before)
         if listed is not None:  # never close a pane we cannot attribute to this name
-            herdr("pane", "close", pane, check=False)
-            gone = pane_gone(pane) is True
+            st, hp = close_named_pane(con, name, pane)
+            gone = st == "closed" and pane_gone(hp) is True
     if gone:
         con.execute("UPDATE agents SET status='exited', pane_id=NULL, ended=coalesce(ended,?) WHERE name=?", (now(), name))
         event(con, "agent", name, "reaped", pane)
@@ -3735,6 +3783,29 @@ def combined_name(task, org=None, con=None):
     return oname(con, org, base) if con is not None else (orgs.name(org, base) if org and org != orgs.DEFAULT_ORG else base)
 
 
+def verdict_start_head(con, task, agent):
+    """The full PR head the tick started `agent` on (newest review-autospawn event for it, T-1048), else None. None too when the agent was
+    (re)started after that event (a lead's respawn of the same name records none): the event then describes an earlier worker."""
+    row = con.execute("SELECT started FROM agents WHERE name=?", (agent,)).fetchone()
+    try:
+        began = dt.datetime.fromisoformat(row["started"]) if row and row["started"] else None
+    except ValueError:
+        began = None
+    for e in con.execute("SELECT ts, detail FROM events WHERE entity='task' AND entity_id=? AND action='review-autospawn' ORDER BY id DESC", (task,)):
+        try:
+            d = json.loads(e["detail"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("agent") == agent and re.fullmatch(r"[0-9a-f]{7,40}", str(d.get("sha", ""))):
+            try:
+                if began and dt.datetime.fromisoformat(e["ts"]) < began:
+                    return None
+            except ValueError:
+                return None
+            return d["sha"].lower()
+    return None
+
+
 def cmd_verdict(a):
     con = db()
     role = require_role(con, "qa", "reviewer")
@@ -3755,6 +3826,12 @@ def cmd_verdict(a):
     checked = (a.sha or "").lower()
     if checked and not re.fullmatch(r"[0-9a-f]{7,40}", checked):
         die(f"--sha must be 7-40 hex characters of the commit you checked, got {a.sha!r}", 5)
+    started_at = verdict_start_head(con, a.task, actor())
+    if started_at and not checked and not a.passed:
+        checked = started_at  # a FAIL with no --sha is bound to the head this worker was started on, not to whatever the head is now
+    if a.passed and started_at and checked and not started_at.startswith(checked) and not checked.startswith(started_at):
+        die(f"{role} PASS refused, nothing recorded: the tick started you on head {started_at}, you named {checked}. The PR head moved "
+            "after you started, so this worker's check is not of that head: record a FAIL/finding at the head you tested, or let the tick start a fresh round", 5)
     if a.passed:
         if not checked:
             die(f"{role} PASS refused, nothing recorded: pass --sha <the commit you checked> "
@@ -3867,7 +3944,7 @@ def _judge_wait_limit(con):
 
 
 STRICT_TTL_S = 600  # the live branch-protection answer is cached this long (config key stale_strict:<owner/repo>)
-BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base"
+BEHIND_OK_NOTE = "merged behind main by stale_policy=behind_ok (strict=false on GitHub); tests.yml unchanged on main since the merge-base and no file changed by both main and the PR"
 CI_WORKFLOW = ".github/workflows/tests.yml"
 
 
@@ -3899,18 +3976,38 @@ def stale_behind_ok(con, owner_repo):
     return out == "false"
 
 
-def behind_ok_ci_changed(repo, sha, main_sha):
-    """T-1000: True when behind_ok must NOT apply: the CI workflow changed on main since the merge-base of the PR head `sha`
-    and main (`main_sha`, the verified main commit). The head never ran the jobs main now requires (T-0355 guard-equiv), so
-    it has to refresh and run CI. One definition for the judge and the mechanical merger (both go through cmd_judge's gate).
-    Fail closed: any git error, or an unknown main_sha, reads as changed (the head is refreshed or refused)."""
+def behind_ok_blocker(repo, sha, main_sha):
+    """T-1000 + T-1025: why behind_ok must NOT apply to the PR head `sha`, or None when it may. One definition for the judge
+    and the mechanical merger (both go through cmd_judge's gate). Relative to the merge-base of the head and main
+    (`main_sha`, the verified main commit), two reasons:
+    - the CI workflow changed on main (the head never ran the jobs main now requires, T-0355 guard-equiv);
+    - any file changed on main since the merge-base is also changed by the PR: merge-tree is clean but no CI ever ran the
+      combined tree (T-0435 #369 vs T-0880 #361 on worker-guard.py turned main red).
+    The head must then refresh and run CI (judge) or is refused (mech merger). Fail closed: a git error or an unknown
+    main_sha reads as blocked."""
     if not main_sha:
-        return True
-    rc, base, _ = _git_rc([*HARDENED_GIT_FLAGS, "merge-base", main_sha, sha], repo=repo, env=_carry_env())
+        return "origin/main is unknown"
+
+    def git(*a):
+        return _git_rc([*HARDENED_GIT_FLAGS, *a], repo=repo, env=_carry_env())
+
+    rc, base, _ = git("merge-base", main_sha, sha)
     if rc != 0 or not base:
-        return True
-    rc, _, _ = _git_rc([*HARDENED_GIT_FLAGS, "diff", "--quiet", base, main_sha, "--", CI_WORKFLOW], repo=repo, env=_carry_env())
-    return rc != 0  # 0 = identical, 1 = changed, anything else = could not decide
+        return "the merge-base with main is unknown"
+    rc, _, _ = git("diff", "--quiet", base, main_sha, "--", CI_WORKFLOW)
+    if rc != 0:  # 0 = identical, 1 = changed, anything else = could not decide
+        return f"{CI_WORKFLOW} changed on main since the merge-base"
+    sides = []
+    for tip in (main_sha, sha):
+        rc, out, _ = git("diff", "--name-only", "-z", "--no-renames", base, tip)
+        if rc != 0:
+            return "the changed files since the merge-base could not be listed"
+        sides.append({f for f in out.split("\0") if f})
+    both = sorted(sides[0] & sides[1])
+    if both:
+        more = f" and {len(both) - 3} more" if len(both) > 3 else ""
+        return f"main and the PR both changed {', '.join(both[:3])}{more} since the merge-base"
+    return None
 
 
 def head_has_main(repo, sha, pr_number, repo_url, owner_repo):
@@ -4398,7 +4495,7 @@ def train_merge(con, plan, upto, run, owner_repo):
                     return stop(f"origin/main moved during the gate ({plan['main'][:8]} -> {(m or '?')[:8]}{'; ' + why if why else ''})")
             slugs = _judge_slugs(con, t, owner_repo)
             problems = next(filter(None, (_push_policy(con, x) for x in slugs)), None) or red_main_refusal(con, slugs, tid) \
-                or merge_freeze_refusal(con)
+                or main_run_refusal(con, slugs, tid) or merge_freeze_refusal(con)
             if problems:
                 event(con, "task", tid, "judge-blocked", problems)
                 return stop(problems)
@@ -4444,7 +4541,8 @@ def judge_train_run(con, plan, proj):
     steps, n = plan["steps"], len(plan["steps"])
     t0 = con.execute("SELECT * FROM tasks WHERE id=?", (steps[0]["task"],)).fetchone()
     owner_repo = "/".join(t0["pr_url"].split("/")[3:5])
-    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo))
+    frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo)) \
+        or main_run_refusal(con, _judge_slugs(con, t0, owner_repo))
     if frozen:  # the MAIN-RED hold and the freeze apply to a train like to any merge
         event(con, "task", steps[0]["task"], "judge-blocked", frozen)
         con.commit()
@@ -4682,8 +4780,14 @@ def judge_requeue(con, task, proj, pr_url, new_head):
           "The tick launches the run and a judge is spawned when it passes.")
 
 
+STATUS_ONLY_PREFIX = "status-only: "
+STATUS_ONLY_HELD = STATUS_ONLY_PREFIX + "[head ready] "  # PR was ready when rejected: only a new verdict lifts the hold
+
+
 def cmd_judge(a):
     con = db()
+    if getattr(a, "no_code_change", False) and not a.reject:
+        die("--no-code-change only goes with --reject; nothing was merged or rejected", 2)
     if getattr(a, "train", None):
         if a.task or a.reason is not None:
             die("--train takes only task ids and --dry-run, no task argument or --reason", 2)
@@ -4713,6 +4817,19 @@ def cmd_judge(a):
         # CI still running (and nothing failing): wait for it instead of refusing; the full gate then runs on the fresh state
         pr, waited = judge_wait_ci(con, t["pr_url"], pr)
         sha = pr["headRefOid"]
+    if a.reject and getattr(a, "no_code_change", False):
+        # T-1055: status-only reject (CI wait, missing verdict on head): no code change asked, so the task stays in_review.
+        # The verdict row still counts as a reject in the scorecard; judge autospawn skips the task until a newer
+        # reviewer/QA verdict lands (judge_status_only_hold), and the merge gate is untouched.
+        # CI wait (PR not ready now): no hold; judge_hold keeps a judge queued and one spawns once CI is green.
+        # PR already ready (e.g. verdict missing on head): hold until a newer reviewer/QA verdict, or it would loop.
+        ready, _why = judge_pr_ready(con, t["pr_url"], True)
+        con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+                    (a.task, t["pr_url"], sha, "judge", "reject",
+                     (STATUS_ONLY_HELD if ready else STATUS_ONLY_PREFIX) + reason, actor(), now()))
+        event(con, "task", a.task, "judge-reject-status-only", reason)
+        print(f"{a.task} REJECTED (status-only, stays in_review) @ {sha[:8]}")
+        return
     if a.reject:
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                     (a.task, t["pr_url"], sha, "judge", "reject", reason, actor(), now()))
@@ -4815,16 +4932,16 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             stale = head_has_main(git_repo, sha, pr["number"], repo_url, owner_repo)
         # G-022: a clean BEHIND head is accepted under stale_policy=behind_ok (DIRTY/unknown mergeable: refreshed as before)
         behind_clean = (stale[1] == "STALE" and pr["mergeable"] == "MERGEABLE" and stale_behind_ok(con, owner_repo))
-        ci_changed = behind_clean and behind_ok_ci_changed(git_repo, sha, stale[2])
-        if ci_changed:  # T-1000: the head predates a CI change on main: refresh (judge) or refuse (mech) instead of behind_ok
+        blocker = behind_clean and behind_ok_blocker(git_repo, sha, stale[2])
+        if blocker:  # T-1000/T-1025: CI changed on main, or main touched a file the PR also changes: refresh (judge) or refuse (mech)
             behind_clean = False
         if behind_clean:
             if BEHIND_OK_NOTE not in reason:
                 reason += "; " + BEHIND_OK_NOTE
         elif not stale[0]:
             problems.insert(0, ("STALE-ONLY: head does not contain origin/main"
-                                + (f" ({CI_WORKFLOW} changed on main since the merge-base: behind_ok does not apply, "
-                                   "refresh so CI runs the current jobs)" if ci_changed else "")) if stale[1] == "STALE"
+                                + (f" ({blocker}: behind_ok does not apply, refresh so CI runs the combined tree)"
+                                   if blocker else "")) if stale[1] == "STALE"
                             else f"cannot verify head contains origin/main: {stale[1]}")
         if pr["state"] != "OPEN":
             problems.append(f"PR is {pr['state']}")
@@ -4948,7 +5065,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if frozen:
             event(con, "task", a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
-        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
+        red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task) or main_run_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
         if red:
             event(con, "task", a.task, "judge-blocked", red)
             die(f"merge refused: {red}; nothing merged", 4)
@@ -5061,6 +5178,8 @@ def mech_candidates(con, only=None):
             continue
         if mech_dispute(con, t["id"]):
             continue
+        if task_judge_hold_reason(con, t["id"]):  # a held task is not merged mechanically; judge_autospawn_tick logs the hold
+            continue
         if any((con.execute("SELECT verdict FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
                             (t["id"], role)).fetchone() or {"verdict": None})["verdict"] != "pass" for role in ("reviewer", "qa")):
             continue
@@ -5142,6 +5261,10 @@ def mech_try(con, t, mode, retry_s):
         return block(f"{tier_why}; the judge decides")
     if tier > MECH_MAX_TIER:
         return block(f"tier {tier} ({tier_why}); the judge decides")
+    jhr = task_judge_hold_reason(con, tid)  # the hold may have arrived after the candidate list was built
+    if jhr:
+        log_task_judge_hold(con, tid, jhr)
+        return "skipped"
     reason = "mechanical merge (mech_merge=%s) tier %s (%s); reviewer and QA PASS, %s" % (mode, tier, tier_why, why)
     a = types.SimpleNamespace(task=tid, reason=reason, by="merger", dry_run=(mode == "shadow"), mech=True)
     mark = con.execute("SELECT COALESCE(MAX(id),0) m FROM events").fetchone()["m"]
@@ -5770,6 +5893,42 @@ def red_main_refusal(con, slugs, task_id=None):
     return None
 
 
+def main_head_run(slug):
+    """(head sha, newest tests.yml push run on main whose headSha is that head, or None) for `slug`. Raises OSError,
+    ValueError or subprocess.TimeoutExpired when gh cannot tell (the caller refuses: it cannot decide)."""
+    p = subprocess.run(["gh", "api", f"repos/{slug}/commits/main", "--jq", ".sha"], capture_output=True, text=True, timeout=30, env=gh_git_env())
+    head = p.stdout.strip()
+    if p.returncode != 0 or not head:
+        raise OSError(f"gh api commits/main exit {p.returncode}: {p.stderr.strip()}")
+    p = subprocess.run(["gh", "run", "list", "-R", slug, "--workflow", RED_MAIN_WORKFLOW, "--branch", "main", "--event", "push",
+                        "--limit", "10", "--json", "databaseId,status,conclusion,headSha,url,createdAt"],
+                       capture_output=True, text=True, timeout=30, env=gh_git_env())
+    if p.returncode != 0:
+        raise OSError(f"gh run list exit {p.returncode}: {p.stderr.strip()}")
+    return head, next((r for r in json.loads(p.stdout) if r.get("headSha") == head), None)
+
+
+def main_run_refusal(con, slugs, task_id=None):
+    """Why a judge merge into one of `slugs` must wait (flag judge_wait_main_run, default off): the tests.yml push run for the
+    current main head is not completed+success. A run in progress or no run yet holds every merge; a failed run holds all but
+    the named red-main fix task (it is what lifts the freeze). A gh error refuses (cannot decide). None when the flag is off."""
+    if cfg(con, "judge_wait_main_run") != "1":
+        return None
+    for slug in slugs:
+        st = red_main_state(con, slug)
+        fix = bool(st and task_id and st.get("task") == task_id)
+        try:
+            head, run = main_head_run(slug)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+            return f"main run unknown on {slug}: {e}; merges wait until gh answers (judge_wait_main_run=1)"
+        if run is None or run.get("status") != "completed":
+            state = "has not started" if run is None else f"is {run.get('status') or 'unknown'}"
+            return f"main run {state} for {slug} head {head[:8]} ({(run or {}).get('url') or 'no url'}); merges wait for it to finish (judge_wait_main_run=1)"
+        if run.get("conclusion") != "success" and not fix:
+            return f"main run {run.get('databaseId')} on {slug} head {head[:8]} concluded {run.get('conclusion')} ({run.get('url') or 'no url'}); merges wait for a green run (judge_wait_main_run=1)"
+    return None
+
+
 def _red_main_set(con, slug, st):
     key = f"red_main:{slug}"
     if st is None:
@@ -5866,6 +6025,17 @@ def cmd_redmain(a):
     print(f"{slug}: fix task {a.task} may merge during the red-main freeze (was {old or 'none'})")
 
 
+def _red_main_kept_text(con, tid, slug):
+    """Alert sentence for a stored fix task on a repeat red run. The record clears only on a green push run, so the task
+    may already be done/cancelled while main stays red: then say so and ask for a new fix task (message only)."""
+    row = con.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()
+    st = row["status"] if row else ""
+    if st in ("done", "cancelled"):
+        return (f"Stored fix task {tid} is {st} but main is still red; a new fix task is needed "
+                f"(director: factory redmain fix {slug} NEW_TASK_ID). No task was filed automatically.")
+    return f"Fix task {tid} is still open; no new task filed."
+
+
 def red_main_check(con):
     """Tick hook (flag red_main_freeze, default off): read the latest completed push run of tests.yml on main of each
     project repo, at most every red_main_interval_s while no repo is red. While any red_main:<slug> record exists the
@@ -5899,15 +6069,17 @@ def red_main_check(con):
                 if not old:
                     gr = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
                     tid, merged = _red_main_revert_task(con, slug, run, _red_main_green_at(gr["value"]) if gr else "")
+                kept = (old or {}).get("task") or ""
                 _red_main_set(con, slug, {"run": run["databaseId"], "sha": run.get("headSha") or "", "url": run.get("url") or "",
-                                          "task": tid or (old or {}).get("task") or "",
+                                          "task": tid or kept,
                                           "since": (old or {}).get("since") or now()})
                 event_as(con, "tick", "redmain", slug, "red-main", f"run {run['databaseId']} {run['conclusion']}")
                 send(con, "director", f"RED MAIN {slug}: run {run['databaseId']}",
                      f"The push run {run['databaseId']} of {RED_MAIN_WORKFLOW} on {slug} main is {run['conclusion']} "
                      f"({run.get('url') or 'no url'}). Judges refuse to merge until a green push run (red_main_freeze=1). "
                      + (f"Revert/fix task {tid} filed; merged since the last green: {', '.join(merged) or 'unknown'}."
-                        if tid else "No active goal for the project: file the revert task by hand.")
+                        if tid else _red_main_kept_text(con, kept, slug)
+                        if kept else "No active goal for the project: file the revert task by hand.")
                      + " Rollback: factory config red_main_freeze 0.", "alert", sender="tick")
             elif run["conclusion"] == "success":
                 mark = con.execute("SELECT value FROM config WHERE key=?", (f"red_main_green:{slug}",)).fetchone()
@@ -6786,13 +6958,33 @@ EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before 
 EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
 
 
+def _pane_idle_in_cwd(h, pane, row_cwd):
+    """True when host agent `h` is done or idle (never working) and its pane's cwd equals the row's recorded cwd
+    (a ' (deleted)' suffix ignored). Anything unknown (no row cwd, pane list unavailable) is False: keep the pane."""
+    if h.get("agent_status") not in ("done", "idle") or not row_cwd:
+        return False
+    r = herdr("pane", "list", check=False)
+    if not isinstance(r, dict) or not isinstance(r.get("panes"), list):
+        return False
+
+    def norm(c):
+        return os.path.normpath(c[:-len(" (deleted)")] if c.endswith(" (deleted)") else c)
+    want = norm(row_cwd)
+    return any(p.get("pane_id") == pane and isinstance(p.get(k), str) and p[k] and norm(p[k]) == want
+               for p in r["panes"] for k in ("cwd", "foreground_cwd"))
+
+
 def reap_exited_panes(con, agents):
     """Tick hook (T-0972), at most every 10 min, per config exited_pane_reap_mode: 'dry-run' (default; unknown too) logs
     one "exited-pane-would-close" event per (agent, pane); 'on' closes the pane, confirms the host no longer lists it
     and logs "exited-pane-closed"; a failed close logs one "exited-pane-close-failed" per (agent, pane) and is retried
-    silently on the next run. A pane qualifies only when the host lists it under the exact name AND pane id of an agents
-    row that, re-read just before, is still 'exited' for more than 10 min, has a worker role, and no live/starting/
-    queued/stopped row holds that pane. Panes without an agents row, HQ rows and every non-exited row are never touched.
+    silently on the next run. A pane qualifies only when the host lists it under the exact name of an agents row that,
+    re-read just before, is still 'exited' for more than 10 min and has a worker role, and no live/starting/queued/
+    stopped row holds the HOST's pane id (the row's own pane_id may differ from the host's and is never closed), and
+    the host pane's agent_session, when it names one, is the row's session_id (as relaunch_agent checks). When the host
+    names no session, the pane closes only if its agent_status is done/idle (never working) and its cwd equals the row's
+    recorded cwd (' (deleted)' suffix ignored).
+    Panes without an agents row, HQ rows and every non-exited row are never touched.
     `agents` is the tick's host agent list (None or empty = nothing to do)."""
     try:
         mode = cfg(con, "exited_pane_reap_mode")
@@ -6809,8 +7001,13 @@ def reap_exited_panes(con, agents):
             if not name or not pane:
                 continue
             r = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()  # re-read in this tick, right before acting
-            if not r or r["status"] != "exited" or r["pane_id"] != pane or r["role"] not in EXITED_PANE_ROLES:
-                continue
+            if not r or r["status"] != "exited" or r["role"] not in EXITED_PANE_ROLES:
+                continue  # match on the exact name only: the row's pane_id can be stale, so act on the HOST's pane id
+            sess = (h.get("agent_session") or {}).get("value")
+            if sess and sess != r["session_id"]:
+                continue  # the pane runs another session (a newer agent under this name): never ours to close
+            if not sess and not _pane_idle_in_cwd(h, pane, r["cwd"]):
+                continue  # session unknown: only an idle/done pane sitting in this row's own cwd is provably its leftover
             ended = _ts(r["ended"])
             if ended is None or (dt.datetime.now().astimezone() - ended).total_seconds() <= EXITED_PANE_MIN_AGE_S:
                 continue
@@ -6837,6 +7034,170 @@ def reap_exited_panes(con, agents):
     except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
         try:
             event_as(con, "tick", "tick", "exited-pane-reap", "exited-pane-reap-failed", str(e))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+IDLE_CODER_MAX_PER_TICK = 3
+IDLE_CODER_AGENT_PROCS = ("claude", "node")   # the agent itself; any other foreground process is a running command
+
+
+def _pane_busy(pane):
+    """True when the pane's foreground has a process other than the agent; unreadable = True (fail safe)."""
+    info = herdr("pane", "process-info", "--pane", pane, check=False) if pane else None
+    pi = info.get("process_info") if isinstance(info, dict) else None
+    fg = pi.get("foreground_processes") if isinstance(pi, dict) else None
+    if not isinstance(fg, list):
+        return True
+    for x in fg:
+        argv = x.get("argv") if isinstance(x, dict) else None
+        n = (x.get("name") if isinstance(x, dict) else str(x)) or (argv[0] if isinstance(argv, list) and argv else "")
+        parts = str(n).split()
+        if os.path.basename(parts[0] if parts else "") not in IDLE_CODER_AGENT_PROCS:
+            return True
+    return False
+
+
+IDLE_SHELLS = ("zsh", "bash", "sh", "dash", "fish")
+
+
+def _agent_shells_busy(name):
+    """True when any shell runs under agent `name`'s claude process (Bash-tool shells sit in their own session, so the pane
+    foreground misses them; a CI-watch shell protects too, it ends on its own). No claude process or /proc unreadable = True."""
+    root = _serve_proc_root()
+    try:
+        pids = [int(p.name) for p in root.iterdir() if p.name.isdigit()]
+    except OSError:
+        return True
+    kids, claude = {}, []
+    for pid in pids:
+        st = _orphan_stat(pid)
+        if st:
+            kids.setdefault(st[0], []).append(pid)
+        argv = _serve_argv(pid)
+        if argv and os.path.basename(argv[0]) == "claude" and (_orphan_env(pid) or {}).get("FACTORY_AGENT") == name:
+            claude.append(pid)
+    if not claude:
+        return True
+    todo, seen = list(claude), set()
+    while todo:
+        for c in kids.get(todo.pop(), []):
+            if c in seen:
+                continue
+            seen.add(c)
+            todo.append(c)
+            argv = _serve_argv(c)
+            if argv and os.path.basename(argv[0]).lstrip("-") in IDLE_SHELLS:
+                return True
+    return False
+
+
+def idle_coder_blocker(con, r, t):
+    """Why live coder row `r` (task row `t`) must not be stopped now, or None when it may be."""
+    if r["stop_requested_at"]:
+        return "already stopping"
+    if not t or t["status"] not in ("in_review", "in_progress") or not t["pr_url"]:
+        return "no PR on an in_review/in_progress task"
+    if con.execute("SELECT 1 FROM messages WHERE recipient=? AND read_at IS NULL", (r["name"],)).fetchone():
+        return "unread mail"
+    wt = t["worktree"]
+    if not wt or not Path(wt).is_dir():
+        return "worktree unreadable"
+    rc, dirty = _git_out(wt, "status", "--porcelain")
+    if rc != 0 or dirty:
+        return "dirty or unreadable working tree"
+    rc, head = _git_out(wt, "rev-parse", "HEAD")
+    if rc != 0 or not head:
+        return "HEAD unreadable"
+    ok, why = pr_pushed_head_ok(t["pr_url"], head)
+    if not ok:
+        return why
+    if _pane_busy(r["pane_id"]) or _agent_shells_busy(r["name"]):
+        return "a process runs in the pane"
+    return None
+
+
+def reap_idle_coders(con, agents):
+    """Tick hook (T-1028), per config idle_coder_reap off|dry-run|on (unknown = dry-run): a live coder the host reports
+    idle/done for more than idle_coder_reap_s (first-seen-idle clock kept in `throttle`, reset when it works), on an
+    in_review/in_progress task with a PR, free of unread mail, clean tree, local HEAD == the PR head, nothing running in
+    its pane, is stopped with a reason and a task note (the review autospawn / T-1004 paths bring the work back). dry-run
+    logs one "idle-coder-would-stop" per idle episode and stops nothing. At most 3 stops per tick. Coders only."""
+    try:
+        mode = cfg(con, "idle_coder_reap")
+        mode = mode if mode in ORPHAN_MODES else "dry-run"
+        rows = con.execute("SELECT * FROM agents WHERE status='live' AND role='coder'").fetchall()
+        if mode == "off" or not agents:
+            if mode == "off":  # flag off: forget the clocks so a later switch-on starts from zero
+                con.execute("DELETE FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'")
+            return
+        try:
+            limit = int(cfg(con, "idle_coder_reap_s"))
+        except ValueError:
+            return  # a bad threshold never stops anyone
+        try:
+            clock = digest_clock().timestamp()
+        except FactoryNowError:
+            clock = time.time()
+        by_name = {x.get("name"): x for x in agents if x.get("name")}
+        live_keys = {f"{p}{r['name']}" for r in rows for p in ("idlereap:", "idlereap-dry:")}
+        for k in con.execute("SELECT key FROM throttle WHERE key LIKE 'idlereap:%' OR key LIKE 'idlereap-dry:%'").fetchall():
+            if k["key"] not in live_keys:  # an exited/lost agent's clock must not carry over to a reused name
+                con.execute("DELETE FROM throttle WHERE key=?", (k["key"],))
+        due = []
+        for r in rows:
+            key = f"idlereap:{r['name']}"
+            h = by_name.get(r["name"])
+            if not h or h.get("agent_status") not in ("idle", "done"):
+                con.execute("DELETE FROM throttle WHERE key IN (?,?)", (key, f"idlereap-dry:{r['name']}"))
+                continue
+            since = con.execute("SELECT ts FROM throttle WHERE key=?", (key,)).fetchone()
+            if since is None:
+                con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (key, str(clock)))
+                continue
+            if clock - float(since["ts"]) > limit:
+                due.append((float(since["ts"]), r))
+        stopped = 0
+        for since, r in sorted(due, key=lambda x: x[0]):
+            if mode == "on" and stopped >= IDLE_CODER_MAX_PER_TICK:
+                break
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (r["task_id"],)).fetchone()
+            if idle_coder_blocker(con, r, t) is not None:
+                continue
+            name = r["name"]
+            idle_s = int(clock - since)
+            detail = {"agent": name, "task": r["task_id"], "idle_s": idle_s, "threshold_s": limit}
+            if mode == "dry-run":
+                dkey = f"idlereap-dry:{name}"
+                if con.execute("SELECT 1 FROM throttle WHERE key=?", (dkey,)).fetchone() is None:
+                    con.execute("INSERT INTO throttle(key,ts) VALUES(?,?)", (dkey, str(clock)))
+                    event_as(con, "tick", "agent", name, "idle-coder-would-stop", detail)
+                continue
+            reason = (f"idle_coder_reap: idle {idle_s}s (> {limit}s), working tree clean, PR head pushed, no mail: "
+                      "nothing left for you to do; the tick brings the task back when it needs a coder")
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                if con.execute("UPDATE agents SET stop_requested_at=?, stop_attempt_at=NULL, stop_failed_kind=NULL "
+                               "WHERE name=? AND status='live' AND stop_requested_at IS NULL", (now(), name)).rowcount != 1:
+                    con.execute("ROLLBACK")
+                    continue
+                send(con, name, "STOP", reason + "\nStop work now. Push any work in progress to your branch (a WIP commit "
+                     "is fine), then run factory done '<stopped: pushed sha|nothing; state>'", "decision",
+                     r["goal_id"], r["task_id"], sender="tick")
+                event_as(con, "tick", "agent", name, "stop-requested", {"by": "tick", "reason": reason})
+                event_as(con, "tick", "agent", name, "idle-coder-stopped", detail)
+                event_as(con, "tick", "task", r["task_id"], "note", f"tick stopped idle coder {name}: {reason}")
+                con.execute("COMMIT")
+            except BaseException:
+                if con.in_transaction:
+                    con.execute("ROLLBACK")
+                raise
+            stopped += 1
+            esc_wait_nudge(con, name, "📬 STOP from tick: run factory inbox now and follow the STOP order.", "STOP order",
+                           defer=True)
+    except Exception as e:  # noqa: BLE001 — housekeeping must never stop the tick
+        try:
+            event_as(con, "tick", "tick", "idle-coder-reap", "idle-coder-reap-failed", str(e)[:300])
         except Exception:  # noqa: BLE001
             pass
 
@@ -9393,7 +9754,7 @@ def prcheck_done_refusal(con, r, t):
         "FAIL, commit and push, rerun it, then run factory done again (--force does not skip this)", 3)
 
 
-JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject")  # what cmd_judge records
+JUDGE_RESOLVED_ACTIONS = ("merged", "judge-blocked", "merge-failed", "judge-reject", "judge-reject-status-only")  # what cmd_judge records
 
 
 def judge_done_refusal(con, r):
@@ -9610,15 +9971,25 @@ def force_stop(con, name, how, attempt_seen=_NO_CHECK):
         note = _UNKNOWN_BEFORE
     else:
         gone = pane_gone(pane) if pane else True
+        if gone is True and pane:  # the row's id is not listed, but the host may carry the agent under its name on another id
+            listed = herdr_agents()
+            if listed is None:
+                gone = None
+            elif any(x.get("name") == name and x.get("pane_id") for x in listed):
+                gone = False
         if gone is False:
             # the worker may have run `factory done` in the window: re-read right before the pane close
             cur = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (name,)).fetchone()
             if not cur or cur["status"] != "live" or cur["stop_requested_at"] is None:
                 return "skip", None
-            herdr("pane", "close", pane, check=False)
+            st, hp = close_named_pane(con, name, pane)
+            if st == "unknown":
+                gone = None  # the host cannot be asked: nothing closed, the stop is retried
+            elif st == "not-found":
+                gone = True  # no host pane under this name (today's no-pane path); the process check below decides
             end = time.time() + wait
-            while True:  # confirm: the host must stop listing the pane
-                gone = pane_gone(pane)
+            while st == "closed":  # confirm: the host must stop listing the pane it closed
+                gone = pane_gone(hp)
                 if gone or time.time() >= end:
                     break
                 time.sleep(min(1.0, max(0.05, end - time.time())))
@@ -12157,9 +12528,17 @@ def log_task_judge_hold(con, task, reason):
     event(con, "task", task, "judge-hold", reason[:300])
 
 
+def mech_refused(con, task):
+    """True when the merger's latest verdict on the task is a block ("the judge decides"): the LLM judge owns it from then
+    on, however old the event, so the merger's retry window can never take it back from the judge (T-1025 B1)."""
+    last = con.execute("SELECT action FROM events WHERE entity='task' AND entity_id=? AND action IN (?,?,?) "
+                       "ORDER BY id DESC LIMIT 1", (task, *MECH_EVENTS)).fetchone()
+    return bool(last) and last["action"] == "mech-blocked"
+
+
 def judge_autospawn_candidates(con):
     """In_review PR tasks with reviewer and QA PASS that still need an LLM judge (not handled by mech_merge=on)."""
-    mech_ids = {t["id"] for t in mech_candidates(con)} if mech_mode(con) == "on" else set()
+    mech_ids = {t["id"] for t in mech_candidates(con) if not mech_refused(con, t["id"])} if mech_mode(con) == "on" else set()
     out = []
     for t in con.execute(
             "SELECT t.* FROM tasks t JOIN goals g ON g.id=t.goal_id WHERE t.status='in_review' "
@@ -12174,8 +12553,23 @@ def judge_autospawn_candidates(con):
         if con.execute("SELECT 1 FROM agents WHERE role='judge' AND task_id=? AND status IN ('live','starting','queued')",
                        (t["id"],)).fetchone():
             continue
+        if judge_status_only_hold(con, t["id"]):
+            continue
         out.append(t)
     return out
+
+
+def judge_status_only_hold(con, task_id):
+    """True while the newest judge verdict is a status-only reject made while the PR was ready (T-1055) and no
+    reviewer/QA verdict is newer: a judge would only repeat it. A fresh verdict lifts the hold. A CI-wait reject (PR not
+    ready then) never holds: judge_hold waits for CI and one judge spawns once it is green."""
+    jr = con.execute("SELECT id, summary FROM verdicts WHERE task_id=? AND role='judge' ORDER BY id DESC LIMIT 1",
+                     (task_id,)).fetchone()
+    if not jr or not (jr["summary"] or "").startswith(STATUS_ONLY_HELD):
+        return False
+    newer = con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND role IN ('reviewer','qa') AND id>?",
+                        (task_id, jr["id"])).fetchone()
+    return not newer
 
 
 def judge_autospawn_tick(con):
@@ -12219,8 +12613,8 @@ def tick_judge_ci_prune(con, now=None):
     open_urls = {r["pr_url"] for r in con.execute(
         "SELECT DISTINCT pr_url FROM tasks WHERE pr_url IS NOT NULL AND status NOT IN ('done','cancelled')")}
     dead = []
-    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:'").fetchall():  # LIKE ignores case
-        url = r["key"][len("judge_ci:"):]
+    for r in con.execute("SELECT key, value FROM config WHERE substr(key, 1, 9) = 'judge_ci:' OR substr(key, 1, 7) = 'prview:'").fetchall():  # LIKE ignores case; prview: = tick PR probe cache (T-1014)
+        url = r["key"].split(":", 1)[1]
         try:
             at = float(json.loads(r["value"])["at"])
             stale = not math.isfinite(at) or now - at > JUDGE_CI_PRUNE_AGE_S
@@ -12596,8 +12990,8 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if r["status"] == "done":
-            if r["pane_id"]:
-                herdr("pane", "close", r["pane_id"], check=False)
+            if r["pane_id"] and close_named_pane(con, r["name"], r["pane_id"])[0] == "unknown":
+                continue  # the host cannot be asked: nothing closed, the row stays 'done' and is retried next tick
             con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
             try:
                 reap_agent_tests(con, r["name"], "done")
@@ -12667,6 +13061,8 @@ def cmd_tick(a, locked=False):
     _pt_lap("reap_loop")
     reap_exited_panes(con, agents)
     _pt_lap("exited_panes")
+    reap_idle_coders(con, agents)
+    _pt_lap("idle_coders")
     tick_drift(con)  # after the reap: a just-reaped agent must not make D3 see a task with no agent
     _pt_lap("drift")
 
@@ -13988,7 +14384,15 @@ def _review_dead_recent(con, t, clock):
     return _throttled(con, _review_dead_key(t), clock, max(window, REVIEW_DEAD_RECHECK_MIN_S))
 
 
-def _review_probe(pr_url, timeout):
+def _review_probe(pr_url, timeout, con=None, clock=None, head=None):
+    """The review tick's PR probe: with `con`, through pr_probe (cached per pr_view_ttl_s, same head; never skipped for quota:
+    review start is not optional); else one gh call."""
+    if con is None:
+        return _review_fetch(pr_url, timeout)
+    return pr_probe(con, pr_url, timeout, clock, head=head, fetch=_review_fetch)
+
+
+def _review_fetch(pr_url, timeout):
     """_ci_wake_probe for the review tick. A gh failure that says the PR does not exist stays a SystemExit (dead PR); any other
     gh failure comes back as an OSError (transient: the caller logs a probe error, never a skip)."""
     err = io.StringIO()
@@ -14091,19 +14495,61 @@ def review_rerun_candidates(con):
         "ORDER BY COALESCE(g.priority, 2), t.id").fetchall()
 
 
+def _rerun_name(con, tid, role, head):
+    """The stored agent name of the re-run <role> on head: spawn() keeps the org prefix (claude-qa-t-0001-1234abcd), so every lookup,
+    spawn, event and alert uses this one name (T-1048: unprefixed lookups never found the row)."""
+    return oname(con, org_for(con, None, tid), slug(f"{role}-{tid}-{head[:8]}"))
+
+
 def _rerun_agents(con, tid, head):
-    """The reviewer/qa agent rows the re-run pass started on head, by name (<role>-<task>-<sha8>)."""
-    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (slug(f"{r}-{tid}-{head[:8]}"),)).fetchone()]
+    """The reviewer/qa agent rows the re-run pass started on head, by stored name (<org>-<role>-<task>-<sha8>)."""
+    return [r for r in ("reviewer", "qa") if con.execute("SELECT 1 FROM agents WHERE name=?", (_rerun_name(con, tid, r, head),)).fetchone()]
 
 
 def _rerun_missing(con, tid, head):
     """The roles (reviewer, qa) the re-run pass still has to start on head. A role is done when it has an agent row named <role>-<task>-<sha8>
-    or a verdict of that role on head. A head with a verdict but no re-run agent at all (a round the lead ran) is done as a whole."""
+    or a verdict of that role on head. A verdict of one role never marks the other done (T-1048: a reviewer verdict with a qa that ended
+    without one left the head "done" and nothing started the qa)."""
     started = _rerun_agents(con, tid, head)
-    if not started and con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?)", (tid, head)).fetchone():
-        return []
     return [r for r in ("reviewer", "qa") if r not in started and not con.execute(
         "SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (tid, head, r)).fetchone()]
+
+
+REVIEW_VERDICT_GRACE_S = 300  # a verdict this young may belong to a round whose other half the lead is about to start
+
+
+def _review_hold(con, t, head, clock):
+    """True when review must not start yet (T-1048): a coder agent of the task is queued, starting or live. The prcheck result does not gate review."""
+    return bool(con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='coder' AND status IN ('queued','starting','live')", (t["id"],)).fetchone())
+
+
+def _review_verdict_fresh(con, tid, head, clock):
+    """True when the newest verdict on head is younger than REVIEW_VERDICT_GRACE_S (an unreadable stamp counts as old)."""
+    row = con.execute("SELECT created FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) ORDER BY id DESC", (tid, head)).fetchone()
+    try:
+        return clock - dt.datetime.fromisoformat(row["created"]).timestamp() < REVIEW_VERDICT_GRACE_S
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
+def _review_alert_no_verdict(con, t, head, boss, clock):
+    """A rerun-pass reviewer/qa row on head that has ended without a verdict of its role: one escalation per task, head and role."""
+    for role in _rerun_agents(con, t["id"], head):
+        name = _rerun_name(con, t["id"], role, head)
+        row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
+        if not row or row["status"] in ("queued", "starting", "live"):
+            continue
+        if con.execute("SELECT 1 FROM verdicts WHERE task_id=? AND lower(head_sha)=lower(?) AND role=?", (t["id"], head, role)).fetchone():
+            continue
+        key = f"review-noverdict:{t['id']}:{head}:{role}"
+        if _throttled(con, key, clock, float("inf")):
+            continue
+        _throttle_set(con, key, clock)
+        event(con, "task", t["id"], "review-no-verdict", {"agent": name, "role": role, "head": head[:8]})
+        send(con, boss, f"review autospawn: {role} ended with no verdict on {t['id']} @{head[:8]}",
+             f"{t['title']}\n\n{name} ended (status {row['status']}) without recording a {role} verdict on head {head}. "
+             f"The tick starts no further {role} on this head: spawn one or decide.",
+             kind="request", goal=t["goal_id"], task=t["id"], sender="tick")
 
 
 def _review_head_done(con, tid, head, clock):
@@ -14132,20 +14578,26 @@ def review_rerun_tick(con):
         if _review_dead_recent(con, t, clock):
             continue
         head = _ci_remote_head(t["branch"], batch)
-        if head and _review_head_done(con, tid, head, clock):
+        if head:
+            _review_alert_no_verdict(con, t, head, f"lead:{team}" if team else "director", clock)
+        if head and (_review_head_done(con, tid, head, clock) or _review_hold(con, t, head, clock)):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, head)
         if _review_pr_problem(con, t, pr, batch, clock, head_known=bool(head)):
             continue
         sha = pr["headRefOid"]
         if _review_head_done(con, tid, sha, clock) or ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             continue
+        if _review_hold(con, t, sha, clock):
+            continue
+        if not _rerun_agents(con, tid, sha) and _review_verdict_fresh(con, tid, sha, clock):
+            continue  # a lead-run round on this head that just got its first verdict: its other half may be about to start
         boss = f"lead:{team}" if team else "director"
         brief = REVIEW_BRIEF.format(boss=boss).replace("when the PR opened", f"when PR head {sha[:8]} went green after an earlier review round")
         started = []
         gate_closed = False
         for role in _rerun_missing(con, tid, sha):
-            name = slug(f"{role}-{tid}-{sha[:8]}")
+            name = _rerun_name(con, tid, role, sha)
             if not gate(con, role=role)[0]:
                 gate_closed = True  # the fyi for what did start still goes out; then the tick stops like before
                 break
@@ -14156,7 +14608,7 @@ def review_rerun_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8]})
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "head": sha[:8], "sha": sha})
             started.append(name)
             if status == "queued":
                 break
@@ -14195,11 +14647,13 @@ def review_autospawn_tick(con):
             continue
         if _review_dead_recent(con, t, clock):
             continue
-        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S)
+        pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock, _ci_remote_head(t["branch"], batch) if t["branch"] else None)
         if _review_pr_problem(con, t, pr, batch, clock):
             continue
         if handoff and ci_verdict(pr.get("statusCheckRollup"))[0] != "green":
             continue  # coder_ci_handoff: the coder left at PR open; first-round review waits for green on the head
+        if _review_hold(con, t, pr["headRefOid"], clock):
+            continue  # T-1048: a coder is still live/queued, or the latest prcheck on this head is not ok: retry next tick
         boss = f"lead:{team}" if team else "director"  # a team-less task (director dispatch) reports to the director
         has_reviewer = con.execute("SELECT 1 FROM agents WHERE task_id=? AND role='reviewer'", (tid,)).fetchone()
         # a plain reviewer row (the lead's, or a partial start) cannot record the qa verdict: such a task gets a qa, not a combined agent
@@ -14226,7 +14680,7 @@ def review_autospawn_tick(con):
                 break
             row = con.execute("SELECT status FROM agents WHERE name=?", (name,)).fetchone()
             status = row["status"] if row else "unknown"
-            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status})
+            event(con, "task", tid, "review-autospawn", {"agent": name, "role": role, "tier": t["tier"], "status": status, "sha": pr["headRefOid"]})
             started.append(name)
             if status == "queued":
                 return
@@ -14520,6 +14974,96 @@ def _ci_wake_probe(pr_url, timeout):
         return e
 
 
+PR_VIEW_TTL_S = 120    # default of config pr_view_ttl_s
+PRVIEW_PREFIX = "prview:"  # config key of one PR's cached probe: {"at", "head", "pr"}
+GH_QUOTA_READ_S = 50   # the GraphQL quota is read at most this often: once per (60 s) tick
+GH_QUOTA_ALERT_S = 3600
+GH_QUOTA_QUERY = "query{rateLimit{remaining limit resetAt}}"
+
+
+def _pr_cache_get(con, pr_url, clock, head=None):
+    """The cached probe dict of pr_url when it is younger than pr_view_ttl_s and, if `head` (read from origin with git, no gh)
+    is for that head; else None (an unknown head, ls-remote failed, is a miss). An unreadable entry is a miss. Only optional tick probes call this: the merge
+    gate (pr_state, judge_pr_ready, mech merger) never reads this cache."""
+    ttl = _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S)
+    if ttl <= 0:
+        return None
+    row = con.execute("SELECT value FROM config WHERE key=?", (PRVIEW_PREFIX + pr_url,)).fetchone()
+    try:
+        c = json.loads(row["value"]) if row else None
+        if c and 0 <= clock - float(c["at"]) < ttl and isinstance(c["pr"], dict) and head is not None and c["head"] == head:
+            _pt_count("pr_view_cached")
+            return c["pr"]
+    except (ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _pr_cache_put(con, pr_url, pr, clock):
+    """Store a successful probe (never an error: a failed gh read is retried next tick, not remembered as an answer)."""
+    if _int_cfg(con, "pr_view_ttl_s", PR_VIEW_TTL_S) <= 0 or not isinstance(pr, dict):
+        return
+    con.execute("INSERT INTO config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (PRVIEW_PREFIX + pr_url, json.dumps({"at": clock, "head": pr.get("headRefOid"), "pr": pr})))
+
+
+def gh_quota_low(con, clock):
+    """True when the GraphQL quota is below config gh_quota_min. The rateLimit query runs at most once per GH_QUOTA_READ_S (one tick;
+    the answer is kept in config gh_quota) and only when an optional probe is about to call gh. A failed read is "not low"
+    (these probes are optional; the merge gate does not use it) unless gh says the rate limit is exceeded, which is 0 left.
+    Low: one gh-quota-low event and one director mail per GH_QUOTA_ALERT_S."""
+    floor = _int_cfg(con, "gh_quota_min", 300)
+    if floor <= 0:
+        return False
+    row = con.execute("SELECT value FROM config WHERE key='gh_quota'").fetchone()
+    left = reset = None
+    try:
+        c = json.loads(row["value"]) if row else None
+        fresh = bool(c) and 0 <= clock - float(c["at"]) < GH_QUOTA_READ_S
+        if fresh:
+            left, reset = c["remaining"], c.get("reset")
+    except (ValueError, KeyError, TypeError):
+        fresh = False
+    if not fresh:
+        _pt_count("gh_quota_read")
+        try:
+            p = subprocess.run(["gh", "api", "graphql", "-f", f"query={GH_QUOTA_QUERY}"], capture_output=True, text=True,
+                               timeout=CI_WAKE_GH_TIMEOUT_S)
+            if p.returncode == 0:
+                rl = json.loads(p.stdout)["data"]["rateLimit"]
+                left, reset = int(rl["remaining"]), rl.get("resetAt")
+            elif re.search(r"rate limit", p.stderr or "", re.I):
+                left = 0
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            left = None
+        con.execute("INSERT INTO config(key,value) VALUES('gh_quota',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (json.dumps({"at": clock, "remaining": left, "reset": reset}),))
+    if left is None or left >= floor:
+        return False
+    if not _throttled(con, "gh-quota-low", clock, GH_QUOTA_ALERT_S):
+        _throttle_set(con, "gh-quota-low", clock)
+        msg = (f"GitHub GraphQL quota {left} left (gh_quota_min={floor}), resets {reset or '?'}. Optional tick probes (CI wake, red PR alert) "
+               "are skipped until it recovers; merge-gate reads are not skipped and fail closed. See docs/gh-quota.md.")
+        event(con, "tick", "gh-quota", "gh-quota-low", msg[:300])
+        send(con, "director", f"gh quota low: {left} left", msg, "report", sender="tick")
+    return True
+
+
+def pr_probe(con, pr_url, timeout, clock, head=None, optional=False, fetch=None):
+    """One PR probe for a tick step: the cached answer when fresh (pr_view_ttl_s, same head), else one gh call (`fetch`, default
+    _ci_wake_probe; an exception instance comes back as the answer and is never cached). optional=True: a cache miss while the
+    GraphQL quota is low returns None (skip) instead of calling gh."""
+    hit = _pr_cache_get(con, pr_url, clock, head)
+    if hit is not None:
+        return hit
+    if optional and gh_quota_low(con, clock):
+        return None
+    _pt_count("ci_wake_gh")
+    pr = (fetch or _ci_wake_probe)(pr_url, timeout)
+    _pr_cache_put(con, pr_url, pr, clock)
+    return pr
+
+
 def tick_ci_wake(con):
     """Tick step 1c': message the lead of a parked team when an in_review PR of the team is CLEAN with all checks green
     (or all checks done and one failed), once per (task, head sha); tick_wake_leads then wakes it on the unread mail.
@@ -14550,8 +15094,8 @@ def tick_ci_wake(con):
             if _throttled(con, f"ci-head:{k['id']}", clock, CI_WAKE_RECHECK_S) and (
                     head is None or _throttled(con, f"ci-red:{k['id']}:{head}", clock, float("inf"))):
                 continue  # head unreadable, or a red already mailed for it: re-poll after the window (a rerun may turn it green)
-            _pt_count("ci_wake_gh")
-            todo.append((t, k))
+            # the probe cache is only valid for the head origin has now (git ls-remote, one per tick, no GraphQL)
+            todo.append((t, k, head if head is not None else _ci_remote_head(k["branch"], batch)))
     if not todo:
         return
     try:
@@ -14562,13 +15106,30 @@ def tick_ci_wake(con):
         workers = int(cfg(con, "ci_wake_workers"))
     except (TypeError, ValueError):
         workers = 1
-    urls = [k["pr_url"] for _, k in todo]
+    results = [None] * len(todo)  # None = skipped (quota low); else the cached or probed PR dict, or the error
+    miss = []
+    for i, (_t, k, head) in enumerate(todo):
+        hit = _pr_cache_get(con, k["pr_url"], clock, head)
+        if hit is not None:
+            results[i] = hit
+        else:
+            miss.append(i)
+    if miss and gh_quota_low(con, clock):
+        miss = []  # optional step: no gh call while the GraphQL quota is low
+    for _ in miss:
+        _pt_count("ci_wake_gh")
+    urls = [todo[i][1]["pr_url"] for i in miss]
     if workers < 2 or len(urls) < 2:
-        results = [_ci_wake_probe(u, timeout) for u in urls]
+        probed = [_ci_wake_probe(u, timeout) for u in urls]
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            results = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
-    for (t, k), pr in zip(todo, results):
+            probed = list(pool.map(lambda u: _ci_wake_probe(u, timeout), urls))
+    for i, pr in zip(miss, probed):
+        results[i] = pr
+        _pr_cache_put(con, todo[i][1]["pr_url"], pr, clock)
+    for (t, k, _head), pr in zip(todo, results):
+        if pr is None:
+            continue
         lead = t["lead_agent"]
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
@@ -14628,12 +15189,13 @@ def tick_red_pr_owner(con):
         probe_key = f"red-pr-probe:{k['id']}:{head or ''}"
         if _throttled(con, probe_key, clock, CI_WAKE_RECHECK_S):
             continue  # probed lately: a green/pending/closed head costs one gh call per window, not per tick
-        _pt_count("ci_wake_gh")
         try:
             timeout = float(os.environ.get("FACTORY_CI_WAKE_GH_TIMEOUT_S") or CI_WAKE_GH_TIMEOUT_S)
         except ValueError:
             timeout = float(CI_WAKE_GH_TIMEOUT_S)
-        pr = _ci_wake_probe(k["pr_url"], timeout)
+        pr = pr_probe(con, k["pr_url"], timeout, clock, head=head, optional=True)
+        if pr is None:
+            continue  # quota low: no probe, no throttle mark, so the next tick tries again
         _throttle_set(con, probe_key, clock)
         if isinstance(pr, BaseException):
             event(con, "task", k["id"], "red-pr-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
@@ -15648,6 +16210,7 @@ def main():
     g.add_argument("--record-merged", metavar="SHA", help="record a PR whose squash already landed on origin/main (judge, director)")
     g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
+    x.add_argument("--no-code-change", action="store_true", help="with --reject: no code change is asked (CI wait, missing verdict on head); the task stays in_review")
     x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
     x.set_defaults(fn=cmd_refresh)

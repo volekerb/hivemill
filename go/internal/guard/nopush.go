@@ -279,3 +279,17 @@ func (a *Analyzer) gitConfigEnv(assigns, words []string) error {
 	}
 	return nil
 }
+
+// noPushGhWrite is a port of Analyzer.nopush_gh_write (T-0881): `gh api` with a body flag (gh then uses POST) unless
+// the method is GET, and `gh release create|edit|delete|upload|delete-asset`. Defense in depth, no obfuscation hunting.
+func (a *Analyzer) noPushGhWrite(rest []string) error {
+	pos, method, hasMethod, body := ghParse(rest)
+	if len(pos) > 0 && pos[0] == "api" && body && !(hasMethod && method == "GET") {
+		return blockf("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to " +
+			"GitHub; use -X GET for a read with fields, or ask your lead")
+	}
+	if len(pos) > 1 && pos[0] == "release" && in(set("create", "edit", "delete", "upload", "delete-asset"), pos[1]) {
+		return blockf("gh release " + pos[1] + " is a GitHub write; no-push roles never write to GitHub; ask your lead")
+	}
+	return nil
+}

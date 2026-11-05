@@ -42,3 +42,26 @@ and one failed starts the coder again, once per (task, head sha) (throttle row `
 - Blocked and judge-held tasks start nothing (`red_pr_owner_alert` mails the lead for a blocked one). The task stays `in_review`; `attempts`
   is not bumped; the review rerun on a new head, the scorecard retry count and the worktree are untouched.
 - The lead gets an `fyi` per start (`coder restarted on red CI`); event `coder-ci-resume` on the task records mode and head.
+
+## Idle coder reap (T-1028)
+
+Config `idle_coder_reap` = `off` (default) | `dry-run` | `on` (unknown = dry-run); threshold `idle_coder_reap_s` (default 900).
+Tick step `reap_idle_coders` (after the exited-pane reap) watches every live **coder** row. The host's `agent_status` must be
+`idle` or `done`; the tick keeps a first-seen-idle clock per coder in `throttle` (`idlereap:<name>`), reset the moment the agent
+works again or the flag is off. Past the threshold the coder is stopped (STOP decision message from `tick`, events
+`stop-requested` and `idle-coder-stopped`, a task note, Esc + deferred nudge; the usual `stop_timeout_s` hard fallback applies)
+only when all of these hold:
+
+- the task is `in_review` or `in_progress` and has a PR;
+- no unread mail for the coder;
+- the worktree is clean (`git status --porcelain` empty, untracked files count) and local HEAD is the head of the open PR (pushed);
+- no process other than the agent (`claude`/`node`) is in the pane's foreground, and no shell at all under the agent's `claude`
+  process (found by `FACTORY_AGENT` in `/proc`; Bash-tool shells run in their own session). Every shell protects the coder,
+  a CI-watch shell included: it ends on its own and role guidance says slow checks. No `claude` process found = not stopped
+  (unreadable = not stopped).
+
+The flag stays `off` until T-1004 (resume on red CI) has merged.
+
+Never stopped: judges, reviewers, QA, pm, leads (coders only). At most 3 stops per tick, oldest idle first. `dry-run` logs one
+`idle-coder-would-stop` per idle episode and stops nothing. Work comes back through the existing paths: review autospawn at green
+CI, and the T-1004 resume path on red CI. Roll back: `factory config idle_coder_reap off`.
