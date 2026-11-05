@@ -1568,6 +1568,24 @@ class Analyzer:
         nonopt = [a for a in rest_cmd if not a.startswith("-")]
         return bool(nonopt) and nonopt[0] == "goal"
 
+    def _lead_factory_goal_show_words(self, words):
+        """True when words invoke `factory goal show` (not list or other goal subcommands)."""
+        if not words:
+            return False
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "factory":
+            rest_cmd = rest
+        elif INTERPRETERS.match(name):
+            fi = self.factory_script(name, rest)
+            if fi is None:
+                return False
+            rest_cmd = rest[fi + 1:]
+        else:
+            return False
+        nonopt = [a for a in rest_cmd if not a.startswith("-")]
+        return len(nonopt) >= 2 and nonopt[0] == "goal" and nonopt[1] == "show"
+
     def broad_read(self, sub, rest, assigns):
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
@@ -4752,8 +4770,38 @@ def lead_hq_goal_show_guard(an, cmd):
             raise
 
     def cmd_goal_only(words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
-        if an._lead_factory_goal_words(words):
-            real_cmd(words, depth, piped, in_loose, hstrs, env_assigns, stdin)
+        orig_words = list(words)
+        words = list(words)
+        stripped = strip_prefix(words)
+        assigns = list(env_assigns)
+        assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+        words = stripped
+        if not words:
+            return
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):
+            return
+        if name in SHELLS:
+            saved = (an.gcwd, an.gdyn, an.ccwd)
+            an.shell_assigns = assigns
+            try:
+                an.shell(rest, depth, piped, hstrs)
+            finally:
+                an.gcwd, an.gdyn, an.ccwd = saved
+            return
+        if name == "eval":
+            if "$" in " ".join(rest):
+                raise Block("eval of an expansion: content cannot be inspected")
+            an.script(" ".join(rest), depth + 1)
+            return
+        if name in WRAPPERS and not in_loose:
+            if name == "xargs":
+                an.xargs(rest)
+            an.loose(rest, depth, assigns, stdin)
+            return
+        if an._lead_factory_goal_show_words(words):
+            real_cmd(orig_words, depth, piped, in_loose, hstrs, env_assigns, stdin)
 
     an.soft = soft
     an.cmd = cmd_goal_only

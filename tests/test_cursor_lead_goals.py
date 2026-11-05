@@ -71,6 +71,30 @@ class LeadTeamGoalShowTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertIn("broad factory reads", p.stderr)
 
+    def test_lead_refused_unowned_goal_prefixed_or_wrapped(self):
+        blocked = (
+            "A=1 factory goal show G-001",
+            "command factory goal show G-001",
+            "env factory goal show G-001",
+            "nice factory goal show G-001",
+            "time factory goal show G-001",
+            "bash -c 'factory goal show G-001'",
+            "eval 'factory goal show G-001'",
+        )
+        for cmd in blocked:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd, self._lead_shell_argv())
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("broad factory reads", p.stderr)
+
+    def test_lead_prefixed_show_owned_goal_allowed(self):
+        p = self.run_hook("A=1 factory goal show G-028", self._lead_shell_argv())
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_lead_goal_list_not_denied(self):
+        p = self.run_hook("factory goal list", self._lead_shell_argv())
+        self.assertEqual(p.returncode, 0, p.stderr)
+
     def test_coder_refused_other_team_goal(self):
         p = self.run_hook("factory goal show G-028", ["--role", "coder"], agent=CODER)
         self.assertEqual(p.returncode, 2, p.stderr)
