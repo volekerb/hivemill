@@ -137,13 +137,9 @@ def write_exec(path, text, uid, gid):
     os.chown(path, uid, gid)
 
 
-def user_cmd(home, argv, safe_dir):
-    """argv as the plain user in a clean environment. The git safe.directory entry is passed through the environment
-    (command scope, this process tree only): git refuses a workspace owned by another user and the global git config
-    stays untouched."""
-    env = ["HOME=" + home, "PATH=%s/.local/bin:/usr/local/bin:/usr/bin:/bin" % home, "LANG=C.UTF-8",
-           "GIT_CONFIG_COUNT=2", "GIT_CONFIG_KEY_0=safe.directory", "GIT_CONFIG_VALUE_0=" + safe_dir,
-           "GIT_CONFIG_KEY_1=safe.directory", "GIT_CONFIG_VALUE_1=" + safe_dir + "/.git"]
+def user_cmd(home, argv):
+    """argv as the plain user in a clean environment."""
+    env = ["HOME=" + home, "PATH=%s/.local/bin:/usr/local/bin:/usr/bin:/bin" % home, "LANG=C.UTF-8"]
     return ["runuser", "-u", USER, "--", "env", "-i"] + env + argv
 
 
@@ -187,7 +183,7 @@ def main(argv=None):
     os.chmod(cred, stat.S_IRUSR | stat.S_IWUSR)
 
     def as_user(argv_):
-        return run(user_cmd(home, argv_, ws))
+        return run(user_cmd(home, argv_))
 
     proj = os.path.join(home, "demo-project")
     for g in (["git", "init", "-q", proj],
@@ -204,7 +200,14 @@ def main(argv=None):
     if a.mode == "head":
         sha = a.sha or run(["git", "-C", ws, "-c", "safe.directory=" + ws, "rev-parse", "HEAD"])[1].strip()
         need(re.fullmatch(r"[0-9a-f]{40}", sha) is not None, "head sha is %s" % sha)
-        which = ["--repo-url", "file://" + ws, "--ref", sha]
+        # git refuses to read a repository owned by another user (it also drops per-process config when it spawns
+        # upload-pack for a local clone), so the plain user clones from its own copy: no git config is changed
+        src = os.path.join(home, "workspace-copy")
+        rc, out = run(["cp", "-a", ws, src])
+        need(rc == 0, "copied the workspace for the plain user", out)
+        rc, out = run(["chown", "-R", "%d:%d" % (pw.pw_uid, pw.pw_gid), src])
+        need(rc == 0, "gave the copy to %s" % USER, out)
+        which = ["--repo-url", "file://" + src, "--ref", sha]
     else:
         which = ["--repo-url", a.repo_url, "--ref", "latest"]
     cmd = [py, installer, "--yes", "--no-systemd", "--no-scout", "--project-id", "demo", "--project-name", "Demo",
