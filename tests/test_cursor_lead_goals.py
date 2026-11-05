@@ -49,12 +49,12 @@ class LeadTeamGoalShowTests(unittest.TestCase):
         finally:
             con.close()
 
-    def run_hook(self, cmd, argv, agent=LEAD):
+    def run_hook(self, cmd, argv, agent=LEAD, cwd=None):
         env = {k: v for k, v in os.environ.items() if k not in ("FACTORY_AGENT", "FACTORY_HOME")}
         env["FACTORY_HOME"] = self.home
         env["FACTORY_AGENT"] = agent
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
-        return hook_run(payload, argv, env=env)
+        return hook_run(payload, argv, env=env, cwd=cwd)
 
     def _lead_shell_argv(self):
         """Same flags as lead beforeShellExecution in materialized hooks.json (--hq --role lead)."""
@@ -68,6 +68,16 @@ class LeadTeamGoalShowTests(unittest.TestCase):
 
     def test_lead_refused_unowned_goal(self):
         p = self.run_hook("factory goal show G-001", self._lead_shell_argv())
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("broad factory reads", p.stderr)
+
+    def test_lead_refused_unowned_goal_via_relative_script(self):
+        with tempfile.TemporaryDirectory() as wd:
+            script = os.path.join(wd, "show_g001.sh")
+            with open(script, "w", encoding="utf-8") as f:
+                f.write("#!/bin/sh\nfactory goal show G-001\n")
+            os.chmod(script, 0o755)
+            p = self.run_hook("./show_g001.sh", self._lead_shell_argv(), cwd=wd)
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertIn("broad factory reads", p.stderr)
 

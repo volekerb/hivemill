@@ -4863,6 +4863,9 @@ def lead_hq_goal_show_guard(an, cmd):
             if gid and team_goals is not None and gid in team_goals:
                 return
             real_cmd(orig_words, depth, piped, in_loose, hstrs, env_assigns, stdin)
+            return
+        if "/" in w and not in_loose:
+            an.exec_path(w, depth)
 
     an.soft = soft
     an.cmd = cmd_goal_only
