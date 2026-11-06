@@ -17,7 +17,7 @@ CREATE = ("gh pr create", "gh issue create", "gh release create v1")
 READS = ("gh pr ls", "gh issue ls", "gh workflow ls", "gh release ls", "gh pr co 1")
 # Exit codes of the origin/main hook (a01362e57) for the plain forms, measured through hook_run.
 ORIGIN_WRITE = {"coder": 0, "judge": 0, "cleaner": 0, "hq": 0, "researcher": 2}
-ORIGIN_READ = {"coder": 0, "judge": 0, "cleaner": 0, "hq": 0}
+ORIGIN_READ = {"coder": 0, "judge": 0, "cleaner": 0, "hq": 0, "researcher": 2}
 
 
 def wrappers(cmd):
@@ -82,7 +82,7 @@ class GhNewAliasTests(unittest.TestCase):
         for c in READS:
             for role in NP6:
                 self.assertEqual(self.code(c, role), 0, f"{role}: {c}")
-            for role in ("coder", "judge", "cleaner"):
+            for role in ("coder", "judge", "cleaner", "researcher"):
                 self.assertEqual(self.code(c, role), ORIGIN_READ[role], f"{role}: {c}")
             self.assertEqual(self.code(c, "coder", hq=True), ORIGIN_READ["hq"], f"hq: {c}")
 
