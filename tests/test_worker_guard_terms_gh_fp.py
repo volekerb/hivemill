@@ -135,6 +135,21 @@ class TermsGhFpTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.refused(cmd)
 
+    def test_dash_quoted_words_refused(self):
+        # AC12 (reviewer B1): a single-quoted word whose content starts with a dash may be an option, so nothing is blanked
+        for cmd in (
+            "rg '--glob={s,x}*' a . factory",
+            "rg '-g{s,x}*' a . factory",
+            "rg -n '--glob={s,x}*' a . factory",
+            "rg -e '--glob={s,x}*' a . factory",
+            "grep '--include={s,x}' a . factory",
+            "egrep '--include={s,x}' a . factory",
+            "jq '--arg={a,b}' . factory.json",
+            "jq -r '--arg={a,b}' . factory.json",
+        ):
+            with self.subTest(cmd=cmd):
+                self.refused(cmd)
+
     def test_shell_braces_refused(self):
         for cmd in (
             "grep 'a' " + self.brace,

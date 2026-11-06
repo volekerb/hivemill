@@ -5158,7 +5158,7 @@ def terms_brace_view(cmd):
                 k += 1
             if head != "jq" and k < len(words) and txt[k] in ("-e", "--regexp"):
                 k += 1
-            if k < len(words) and whole(k):
+            if k < len(words) and whole(k) and t[words[k][0] + 1] != "-":  # a quoted word starting with a dash may be an option (rg '--glob=...'): blank nothing
                 blank.append(words[k][:2])
     out = t
     for a, b in sorted(blank, reverse=True):
