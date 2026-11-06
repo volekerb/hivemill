@@ -76,6 +76,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [contributor-flow.md](contributor-flow.md): how external pull requests are gated, and why fork code never runs before a read pass.
 - [STARTER_ISSUES.md](STARTER_ISSUES.md): draft good-first-issue write-ups the owner files once the public repository exists.
 - [tests-and-ci.md](tests-and-ci.md): the offline test suite and what CI runs.
+- [unittest-shard-split.md](unittest-shard-split.md): when one module fills a shard, split its test ids across shards by sorted round-robin.
 - [testing.md](testing.md): local = fast checks, CI = full; the policy for coder, reviewer and QA.
 - [test-cgroups.md](test-cgroups.md): per-run cgroup caps for `factory test` and the user unit the owner installs.
 - [cli-layout.md](cli-layout.md): why `bin/factory` is a stub and the CLI code lives in `bin/factory_cli.py`.
