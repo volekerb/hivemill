@@ -365,6 +365,7 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 /* disclosure: the native marker stays (design guard); the count sits beside the label */
 .disc > summary { font: 600 14px/20px var(--font); }
 .disc-n { margin-left: var(--s2); }
+.disc > summary .gm, .disc > summary .tm, .disc > summary .tscope { font-weight: 400; }
 
 /* data table: rows keep the --row height (40 px on desktop), phone rows stack */
 .dt-wrap { margin: var(--s2) 0; }
@@ -440,12 +441,29 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .nage { color: var(--text-3); font-size: 12px; white-space: nowrap; }
 
 /* goals */
-.goalrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding: var(--s2) 0; }
+.goalrow, .gsum { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding: var(--s2) 0; }
 .gtitle { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gtitle a { color: var(--text-1); }
 .chip-p { margin-left: var(--s2); padding: 0 6px; border-radius: var(--r-full); background: var(--fill); color: var(--text-2); font: 500 11px/16px var(--font); }
 .gm { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding-left: var(--s5); color: var(--text-2); font-size: 13px; }
-.gprs, .gact { white-space: nowrap; }
+.gprs, .gact, .gneeds { white-space: nowrap; }
+.gneeds { font-weight: 600; }
+
+/* overview tree (F-27): goal > team > task, each level a <details>; one column on a phone */
+#needs-you, #goals { grid-column: 1 / -1; }
+.goalrow--tree { display: block; padding: 0; }
+.gnode > summary { padding: var(--s2) 0; }
+.gnode > summary > .gsum, .team > details > summary > .tsum { display: inline-flex; vertical-align: top; width: calc(100% - 24px); }   /* inline-flex keeps the native marker on the first line */
+.teams, .tk { list-style: none; margin: 0; padding: 0 0 var(--s2) var(--s5); }
+.team { border-top: 1px solid var(--hairline); }
+.team > details > summary, .tsum { padding: var(--s2) 0; }
+.tsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+.team > details > summary .tsum { padding: 0; }
+.tscope { flex: 1 1 0; min-width: 12ch; color: var(--text-1); overflow-wrap: anywhere; }
+.tm { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); color: var(--text-2); font-size: 13px; }
+.tkrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding: var(--s1) 0; font-size: 13px; }
+.tkrow .gtitle { white-space: normal; flex: 1 1 12ch; }
+.tkmeta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); color: var(--text-2); }
 .gact { color: var(--text-3); }
 
 /* meter, gauge: geometry is SVG attributes, colour is a class */
@@ -561,6 +579,7 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
   .nage { margin-left: auto; }
   .gtitle { white-space: normal; }
   .gm { padding-left: 0; }
+  .teams, .tk { padding-left: var(--s3); }
   .agentrow .c-who { white-space: normal; }
   .ov-trend { flex-wrap: wrap; }
 }

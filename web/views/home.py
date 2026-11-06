@@ -1,20 +1,23 @@
-"""Overview: the owner's cockpit (G-019 B4). Six sections in a fixed order: needs-you, system, goals, agents, shipped,
-quality. Desktop: two columns (rows needs-you | system, goals | agents, shipped | quality); phone: one column in the
-same order. One query group per section, none per row. /api/home.json keeps its original keys and only adds new ones."""
+"""Overview: the owner's cockpit (G-019 B4, R2 F-27). Sections in a fixed order: needs-you (the strip, only when
+something waits on the owner), goals (the goal, team, task tree), system, agents, shipped, quality. Desktop: two columns;
+phone: one column in the same order. One query group per section, none per row. /api/home.json keeps its original keys and only adds new ones."""
 import statistics
 
 from scout import orgs as _orgs
 from web import charts, queries
 from web.db import has_column
 from web.components import (AGENT_COLS, agent_row, ago, ctx_org, empty_state, feed, feed_row, list_row, needs_you_row, org_badge,
-                            org_href, row_status, tile)
-from web.html import el, glyph, org_dot, status
+                            org_href, pr_label, row_status, tile)
+from web.html import el, glyph, link, org_dot, status
 from web.views import resources
 
 TITLE = "Overview"
 
-NEEDS_MAX = 4
-GOALS_MAX = 4
+NEEDS_MAX = 3
+TEAM_SCOPE_MAX = 120
+TASK_TITLE_MAX = 90
+SHOWN_TASK = ("blocked", "in_review", "in_progress")   # level 3 lists these; todo sits behind "N more"
+COUNTED = ("todo", "in_progress", "in_review", "blocked")
 AGENTS_MAX = 4
 MERGES_MAX = 5
 BOUNCING_MAX = 3
@@ -44,21 +47,21 @@ def _needs(ctx, org=None, op=None):
     items = []
     for t in op["tasks_blocked"]:
         items.append({"kind": "Blocked task", "tone": "danger", "subject": queries._strip_tags(t["title"]), "ref": t["id"],
-                      "href": f"/task/{t['id']}", "age": wait(t["updated"]), "org": g_org(t["goal_id"])})
+                      "href": f"/task/{t['id']}", "age": wait(t["updated"]), "org": g_org(t["goal_id"]), "goal": t["goal_id"]})
     for m in op["escalations"]:
         goal, task = refs.get(m["id"], (None, None))
         ref, href = (task, f"/task/{task}") if task else (goal, f"/goal/{goal}") if goal else (None, None)
         gid = goal or task_goal.get(task)
         o = (g_org(gid) if gid else _orgs.prefix_of(m.get("recipient")) or _orgs.prefix_of(m.get("sender")) or queries.DEFAULT_ORG)
         items.append({"kind": "Escalation" if m["kind"] == "escalation" else "Request", "tone": "warning", "subject": m["subject"],
-                      "ref": ref, "href": href, "message": m["id"], "age": wait(m["created"]), "org": o})
+                      "ref": ref, "href": href, "message": m["id"], "age": wait(m["created"]), "org": o, "goal": gid})
     for t in op["judge_blocked_auto_merge"]:
         items.append({"kind": "Merge needs OK", "tone": "warning", "subject": queries._strip_tags(t["title"]), "ref": t["task_id"],
-                      "href": f"/task/{t['task_id']}", "age": wait(t["ts"]), "org": g_org(t["goal_id"])})
+                      "href": f"/task/{t['task_id']}", "age": wait(t["ts"]), "org": g_org(t["goal_id"]), "goal": t["goal_id"]})
     for g in op["goals"]:
         items.append({"kind": "Blocked goal" if g["status"] == "blocked" else "Proposed goal",
                       "tone": "danger" if g["status"] == "blocked" else "neutral", "subject": g["title"], "ref": g["id"],
-                      "href": f"/goal/{g['id']}", "age": wait(g["updated"]), "org": g_org(g["id"])})
+                      "href": f"/goal/{g['id']}", "age": wait(g["updated"]), "org": g_org(g["id"]), "goal": g["id"]})
     return [i for i in items if org is None or i["org"] == org]
 
 
@@ -89,6 +92,63 @@ def _goals(ctx, all_goals):
     gl.sort(key=lambda g: (99 if g["priority"] is None else g["priority"], g["id"]))
     return [{"id": g["id"], "title": g["title"], "status": g["status"], "priority": g["priority"], "tasks_total": g["tasks_total"],
              "tasks_done": g["tasks_done"], "open_prs": g["open_prs"], "last_activity": last.get(g["id"]), "org": g["org"]} for g in gl]
+
+
+def needs_by_goal(needs):
+    """{goal id: number of owner waits} from _needs() items; an item with no goal counts for no goal."""
+    out = {}
+    for i in needs:
+        if i.get("goal"):
+            out[i["goal"]] = out.get(i["goal"], 0) + 1
+    return out
+
+
+def _task_row(t, rej):
+    return {"id": t["id"], "title": queries._t(queries._strip_tags(t["title"]), TASK_TITLE_MAX), "status": t["status"],
+            "assignee": t["assignee"], "pr_url": t["pr_url"], "rejections": rej.get(t["id"], 0), "attempts": t["attempts"] or 0,
+            "waits": t["waits"]}
+
+
+def _team_node(team, tasks, agents, rej, asked=frozenset()):
+    """One level-2 node. `team` is a goal_teams row or None (the goal's tasks that have no team). Level 3 holds the
+    in review / blocked / in progress tasks (blocked first); `more` holds the open rest (todo). Done and cancelled
+    tasks are history: they count in the goal's progress, not here."""
+    by = {st: [t for t in tasks if t["status"] == st] for st in (*COUNTED, "done", "cancelled")}
+    shown = [_task_row(t, rej) for st in SHOWN_TASK for t in by[st]]
+    lead = team["lead_agent"] if team else None
+    lead_status = next((a["status"] for a in agents if a["name"] == lead), None)
+    return {"id": team["id"] if team else None, "scope": queries._t(team["scope"], TEAM_SCOPE_MAX) if team and team["scope"] else None,
+            "lead": lead, "lead_status": lead_status, "status": team["status"] if team else None,
+            "running": sum(1 for a in agents if a["status"] == "live"),
+            "counts": {st: len(by[st]) for st in COUNTED}, "tasks": shown,
+            "more": [_task_row(t, rej) for t in by["todo"]],
+            "owner_wait": any(t["waits"] == "owner" for t in by["blocked"]) or any(t["id"] in asked for t in tasks)}
+
+
+def _tree(ctx, gl, needs):
+    """Level 1 to 3 of the overview tree for the open goals of `gl`: goals with an owner wait first, then by priority.
+    Reads queries.goal_teams (teams + agents + tasks), criteria_by_goal, last_activity_by_goal, bouncing_tasks: a
+    fixed number of queries, none per goal, team or task."""
+    grouped = queries.goal_teams(ctx.db)
+    crit = queries.criteria_by_goal(ctx.db)
+    last = queries.last_activity_by_goal(ctx.db)
+    rej = {b["task_id"]: b["rejections"] for b in queries.bouncing_tasks(ctx.db, limit=10 ** 9)}
+    wait = needs_by_goal(needs)
+    asked = {i["ref"] for i in needs if i["ref"]}   # task ids named by a Needs-you item (merge needs OK, task-scoped escalation)
+    out = []
+    for g in (g for g in gl if g["status"] in OPEN_GOAL):
+        grp = grouped.get(g["id"]) or {"teams": [], "loose": []}
+        nodes = [_team_node(t, t["tasks"], t["agents"], rej, asked) for t in grp["teams"]]
+        loose = [t for t in grp["loose"] if t["status"] not in ("done", "cancelled")]
+        if loose:
+            nodes.append(_team_node(None, loose, [], rej, asked))
+        nodes.sort(key=lambda n: (not n["owner_wait"], n["id"] is None, n["id"] or ""))
+        out.append({"id": g["id"], "title": g["title"], "status": g["status"], "priority": g["priority"], "org": g["org"],
+                    "tasks_total": g["tasks_total"], "tasks_done": g["tasks_done"], "open_prs": g["open_prs"],
+                    "criteria": list(crit[g["id"]]) if g["id"] in crit else None, "last_activity": last.get(g["id"]) or g["updated"],
+                    "needs": wait.get(g["id"], 0), "teams": nodes})
+    out.sort(key=lambda g: (g["needs"] == 0, 99 if g["priority"] is None else g["priority"], g["id"]))
+    return out
 
 
 def _agents(ctx, ag):
@@ -208,7 +268,7 @@ def data(ctx, **params):
             "owner_pending": sum(len(v) for v in op.values()) if org is None else len(needs),
             "usage": {"five_hour": u.get("five_hour"), "seven_day": u.get("seven_day"),
                       "fresh": u.get("fresh"), "age_min": u.get("age_min")},
-            "needs_you": needs, "system": _system(ctx, all_agents), "goals": _goals(ctx, gl), "agents": _agents(ctx, ag),
+            "needs_you": needs, "tree": _tree(ctx, gl, needs), "system": _system(ctx, all_agents), "goals": _goals(ctx, gl), "agents": _agents(ctx, ag),
             "shipped": {"recent": queries.recent_merges(ctx.db, MERGES_MAX, goals=goal_ids), "per_day": per_day,
                         "total": sum(d["merges"] for d in per_day)},
             "quality": _quality(ctx, goal_ids)}
@@ -261,13 +321,12 @@ def _lanes_section(d):
 
 
 def _needs_section(d, now):
+    """Level 0: the count, the top NEEDS_MAX items and "All N". No section at all when nothing waits on the owner."""
     items = d["needs_you"]
     if not items:
-        return _sect("needs-you", "Needs you", empty_state("Nothing needs you"))
-    more = len(items) - NEEDS_MAX
+        return None
     return _sect("needs-you", "Needs you", el("ul", [needs_you_row(i) for i in items[:NEEDS_MAX]], class_="lrow-list"),
-                 el("a", f"{more} more", href="/goals", class_="more-link") if more > 0 else None,
-                 count=len(items), more=("/goals", "All"))
+                 count=len(items), more=(_o(d, "/goals"), f"All {len(items)}"))
 
 
 def _tone(v, cap):
@@ -315,24 +374,70 @@ def _usage_row(u):
     return resources.usage_row(u)
 
 
+def goal_row(g, now, *, crit=None, last=None, needs=0, extra=None, body=None, opened=False):
+    """The level-1 goal row, shared by the overview tree and /goals: state glyph, id, title, priority chip, org tag,
+    progress (done/total tasks), criteria n/m, open PRs, `extra`, a red "needs you N" when the goal has an owner wait,
+    last activity. With `body` (the level-2 list) the row is a <details> that is open when `opened`."""
+    done, total = g["tasks_done"], g["tasks_total"]
+    prs = f"{g['open_prs']} open PR" + ("s" if g["open_prs"] != 1 else "") if g["open_prs"] else None
+    act = ago(last, now)
+    title = el("span", el("a", g["title"], href=f"/goal/{g['id']}"),
+               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None, " ", org_badge(g.get("org")),
+               class_="gtitle")
+    meta = el("div", charts.meter(done, total, f"{done}/{total} tasks"),
+              el("span", f"criteria {crit[0]}/{crit[1]}", class_="gprs") if crit else None,
+              el("span", prs, class_="gprs") if prs else None, extra,
+              el("span", f"needs you {needs}", class_="gneeds fg-danger") if needs else None,
+              el("span", f"last activity {act}", class_="gact") if act else None, class_="gm")
+    head = [row_status(g["status"]), el("span", g["id"], class_="mono lrow-id"), title, meta]
+    if body is None:
+        return el("li", *head, class_="goalrow")
+    return el("li", el("details", el("summary", el("div", *head, class_="gsum")), body, class_="disc gnode",
+                       data_key=f"ov-goal-{g['id']}", open=opened or None), class_="goalrow goalrow--tree")
+
+
+def _task_li(t):
+    meta = [t["assignee"], link(t["pr_url"], pr_label(t["pr_url"])) if t["pr_url"] else None,
+            _n(t["rejections"], "rejection") if t["rejections"] else None, f"{t['attempts']} {'try' if t['attempts'] == 1 else 'tries'}"
+            if t["attempts"] else None]
+    return el("li", row_status(t["status"]), el("a", t["id"], href=f"/task/{t['id']}", class_="mono lrow-id"),
+              el("span", t["title"], class_="gtitle"),
+              el("span", [el("span", m) for m in meta if m], class_="tkmeta"), class_="tkrow")
+
+
+_COUNT_LABEL = {"todo": "to do", "in_progress": "in progress", "in_review": "in review", "blocked": "blocked"}
+
+
+def _team_el(goal_id, t):
+    """Level 2: team id, scope, lead and its status, running agents, tasks by status. A <details> only when it has
+    level-3 rows; a team with none is a plain row (no empty box)."""
+    lead = None
+    if t["lead"]:
+        lead = el("span", "lead ", el("span", t["lead"], class_="mono"), " ",
+                  status(t["lead_status"]) if t["lead_status"] else el("span", glyph("exited"), "not running", class_="st fg-neutral"))
+    counts = [f"{t['counts'][st]} {_COUNT_LABEL[st]}" for st in COUNTED if t["counts"][st]]
+    meta = el("div", lead, el("span", f"{t['running']} running") if t["running"] else None,
+              el("span", " · ".join(counts) if counts else "no open tasks"), class_="tm")
+    ident = el("span", t["id"] or "no team", class_="mono lrow-id")
+    head = el("div", ident, el("span", t["scope"], class_="tscope") if t["scope"] else None, meta, class_="tsum")
+    if not (t["tasks"] or t["more"]):
+        return el("li", head, class_="team")
+    key = f"ov-team-{goal_id}-{t['id'] or 'none'}"
+    body = [el("ul", [_task_li(x) for x in t["tasks"]], class_="tk") if t["tasks"] else None,
+            el("details", el("summary", f"{len(t['more'])} more"), el("ul", [_task_li(x) for x in t["more"]], class_="tk"),
+               class_="disc", data_key=key + "-more") if t["more"] else None]
+    return el("li", el("details", el("summary", head), *body, class_="disc", data_key=key, open=t["owner_wait"] or None), class_="team")
+
+
 def _goals_section(d, now):
-    gl = d["goals"]
+    gl = d["tree"]
     if not gl:
-        return _sect("goals", "Open goals", empty_state("No open goals"), more=(_o(d, "/goals"), "All goals"))
+        return _sect("goals", "Goals", empty_state("No open goals"), more=(_o(d, "/goals"), "All goals"))
     rows = []
-    for g in gl[:GOALS_MAX]:
-        prs = f"{g['open_prs']} open PR" + ("s" if g["open_prs"] != 1 else "") if g["open_prs"] else "no open PR"
-        act = ago(g["last_activity"], now)
-        rows.append(el("li", row_status(g["status"]), el("span", g["id"], class_="mono lrow-id"),
-                       el("span", el("a", g["title"], href=f"/goal/{g['id']}"), el("span", f"P{g['priority']}", class_="chip-p")
-                          if g["priority"] is not None else None, " ", org_badge(g.get("org")), class_="gtitle"),
-                       el("div", charts.meter(g["tasks_done"], g["tasks_total"], f"{g['tasks_done']}/{g['tasks_total']} tasks"),
-                          el("span", prs, class_="gprs"), el("span", f"last activity {act}" if act else "no activity yet", class_="gact"),
-                          class_="gm"), class_="goalrow"))
-    more = len(gl) - GOALS_MAX
-    return _sect("goals", "Open goals", el("ul", rows, class_="lrow-list"),
-                 el("a", f"{more} more", href=_o(d, "/goals"), class_="more-link") if more > 0 else None,
-                 count=len(gl), more=(_o(d, "/goals"), "All goals"))
+    for g in gl:
+        body = el("ul", [_team_el(g["id"], t) for t in g["teams"]], class_="teams") if g["teams"] else None
+        rows.append(goal_row(g, now, crit=g["criteria"], last=g["last_activity"], needs=g["needs"], body=body, opened=bool(g["needs"])))
+    return _sect("goals", "Goals", el("ul", rows, class_="lrow-list"), count=len(gl), more=(_o(d, "/goals"), "All goals"))
 
 
 def _o(d, path):
@@ -403,5 +508,5 @@ def _quality_section(d):
 
 
 def render(ctx, d):
-    return el("div", _lanes_section(d), _needs_section(d, ctx.now), _system_section(d), _goals_section(d, ctx.now), _agents_section(d, ctx.now),
+    return el("div", _lanes_section(d), _needs_section(d, ctx.now), _goals_section(d, ctx.now), _system_section(d), _agents_section(d, ctx.now),
               _shipped_section(d, ctx.now), _quality_section(d), class_="ov")

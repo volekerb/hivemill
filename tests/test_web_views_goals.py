@@ -66,6 +66,28 @@ class TestGoalsList(ViewCase):
         self.assertLess(html.index("Goal one"), html.index('data-key="goals-done"'))
         self.assertGreater(html.index("Goal two"), html.index('data-key="goals-done"'))
 
+    def test_goal_rows_are_the_shared_goal_row(self):
+        from web.views import home
+        d, html = self.page(goals)
+        g1 = next(g for g in d["goals"] if g["id"] == "G-1")
+        row = re.search(r'<li class="goalrow">.*?G-1.*?</li>', html, re.S).group(0)
+        c = self.ctx()
+        shared = str(home.goal_row(g1, c.now, crit=d["criteria"].get("G-1"), last=d["last_activity"].get("G-1") or g1["updated"],
+                                   needs=d["needs_by_goal"].get("G-1", 0), extra=goals._blocked_cell(g1)))
+        self.assertEqual(row, shared)
+        for needle in ("G-1", "Goal one", ">P1<", "org-claude", "1/5 tasks", "criteria 1/4", "1 open PR", "needs you 2", "last activity"):
+            self.assertIn(needle, row)
+        self.assertNotIn("goalrow--tree", html)       # /goals does not expand levels 2 and 3
+        self.assertNotIn('class="teams"', html)
+
+    def test_every_filter_and_sort_href_is_kept(self):
+        _, html = self.page(goals)
+        for href in ('href="#open-goals"', 'href="#done-goals"', 'href="/goals?org=claude"', 'href="/goals?org=cursor"', 'href="/goals"',
+                     'href="/goals?sort=priority"', 'href="/goals?sort=progress"', 'href="/goals?sort=updated"'):
+            self.assertIn(href, html)
+        self.assertIn("Filters", html)
+        self.assertIn('class="seg seg-links"', html)
+
     def test_priority_zero_sorts_first_within_a_status(self):
         self.w.execute("INSERT INTO goals VALUES('G-8','p1','Goal eight',NULL,NULL,'active',0,'owner',NULL,?,?)", (ts(8, 0), ts(9, 0)))
         d, _html = self.page(goals)
