@@ -1161,6 +1161,9 @@ def close_leftover_shell(con, name, pane):
         return keep("pane id held by another live row")
     if not pane_at_shell(pane):
         return keep("pane foreground is not a plain shell")
+    row = con.execute("SELECT cwd FROM agents WHERE name=?", (name,)).fetchone()
+    if not _pane_cwd_is(pane, row["cwd"] if row else None):
+        return keep("pane cwd is not the stopped row's cwd (the id may belong to another pane)")
     herdr("pane", "close", pane, check=False)
     if pane_gone(pane) is True:
         event(con, "agent", name, "leftover-shell-closed", {"agent": name, "pane": pane})
@@ -7190,6 +7193,21 @@ def reap_orphans(con):
 EXITED_PANE_THROTTLE_S = 600   # same cadence as the orphan reaper
 EXITED_PANE_MIN_AGE_S = 600    # a row must have been 'exited' this long before its pane is touched
 EXITED_PANE_ROLES = ("coder", "qa", "reviewer", "pm", "judge", "cleaner")
+
+
+def _pane_cwd_is(pane, row_cwd):
+    """True when the host lists `pane` with a cwd equal to the row's recorded cwd (' (deleted)' ignored); unknown is False."""
+    if not row_cwd:
+        return False
+    r = herdr("pane", "list", check=False)
+    if not isinstance(r, dict) or not isinstance(r.get("panes"), list):
+        return False
+
+    def norm(c):
+        return os.path.normpath(c[:-len(" (deleted)")] if c.endswith(" (deleted)") else c)
+    want = norm(row_cwd)
+    return any(p.get("pane_id") == pane and isinstance(p.get(k), str) and p[k] and norm(p[k]) == want
+               for p in r["panes"] for k in ("cwd", "foreground_cwd"))
 
 
 def _pane_idle_in_cwd(h, pane, row_cwd):

@@ -5,15 +5,18 @@ import unittest
 
 from test_stop import StopBase
 
+ROW_CWD = "/wt/zz-coder"
 FAST = {"FACTORY_STOP_CONFIRM_S": "0.2"}
 
 
 class LeftoverShell(StopBase):
-    def host(self, fg="zsh"):
+    def host(self, fg="zsh", cwd=None):
         """p1 is still listed (a bare shell) but the host carries no agent named zz-coder."""
+        self.env.sql("UPDATE agents SET cwd=? WHERE name='zz-coder'", (ROW_CWD,))
         self.env.set_herdr(
             workspaces=[{"workspace_id": "w1", "label": "w"}],
-            panes=[{"pane_id": "p1", "tab_id": "t1", "workspace_id": "w1", "fg": fg},
+            panes=[{"pane_id": "p1", "tab_id": "t1", "workspace_id": "w1", "fg": fg,
+                    "cwd": cwd or ROW_CWD},
                    {"pane_id": "p2", "tab_id": "t1", "workspace_id": "w1"}],
             agents=[{"name": "zz-coder-b", "agent": "claude", "pane_id": "p2", "agent_status": "working"}])
 
@@ -47,6 +50,12 @@ class LeftoverShell(StopBase):
         self.stop("zz-coder", "--now", agent="zz-director", extra_env=FAST)
         self.assertEqual(self.closes(), [])
         self.assertIn("another live row", json.loads(self.events("leftover-shell-kept")[0]["detail"])["reason"])
+
+    def test_force_stop_keeps_a_shell_pane_in_another_cwd_and_says_why(self):
+        self.host(cwd="/somewhere/else")
+        self.stop("zz-coder", "--now", agent="zz-director", extra_env=FAST)
+        self.assertEqual(self.closes(), [])
+        self.assertIn("cwd", json.loads(self.events("leftover-shell-kept")[0]["detail"])["reason"])
 
 
 if __name__ == "__main__":
