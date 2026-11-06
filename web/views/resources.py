@@ -12,7 +12,7 @@ from pathlib import Path
 from scout import orgs as _orgs
 from web import charts, queries
 from web import cursor_limits
-from web.components import ctx_org, disclosure, empty_state, org_badge, section
+from web.components import ctx_org, data_table, disclosure, empty_state, org_badge, section
 from web.html import badge, el, glyph, link, table, ts
 from web.views import agents
 
@@ -395,10 +395,16 @@ def _orgs_section(g, org):
     rows = [m for m in g.get("orgs", []) if org is None or m["org"] == org]
     if not rows:
         return None
-    body = table(["Org", "Live", "Workers", "Leads", "HQ", "Queued", "Runtime"], [
-        (org_badge(m["org"]), (m["live"], "num"), (m["workers"], "num"), (m["leads"], "num"), (m["hq"], "num"),
-         (m["queued"], "num"), " · ".join(f"{rt} {n}" for rt, n in sorted(m["runtimes"].items())) or "-") for m in rows],
-        cls="table table--compact")
+    cols = [{"key": "org", "label": "Org", "cls": "c-title"},
+            {"key": "live", "label": "Live", "cls": "num", "phone_label": True},
+            {"key": "workers", "label": "Workers", "cls": "num", "phone_label": True},
+            {"key": "leads", "label": "Leads", "cls": "num", "phone_label": True},
+            {"key": "hq", "label": "HQ", "cls": "num", "phone_label": True},
+            {"key": "queued", "label": "Queued", "cls": "num", "phone_label": True},
+            {"key": "runtime", "label": "Runtime", "phone_label": True}]
+    table_rows = [[org_badge(m["org"]), m["live"], m["workers"], m["leads"], m["hq"], m["queued"],
+                   " · ".join(f"{rt} {n}" for rt, n in sorted(m["runtimes"].items())) or "-"] for m in rows]
+    body = data_table(cols, [{"key": "all", "label": None, "count": len(table_rows), "rows": table_rows}], key="orgs")
     return section("Agents by org", body, el("p", "The agent cap, memory and load are shared by both orgs.", class_="muted"))
 
 
@@ -413,7 +419,8 @@ def _gauges_section(s):
 def _checks_section(g):
     glyphs = {"ok": "done", "over": "blocked", "unknown": "queued"}
     rows = [el("li", glyph(glyphs[r["state"]]), el("span", r["label"], class_="ins-name"), el("span", r["value"], class_="mono"),
-               el("span", r["limit"], class_="muted"), el("b", r["word"], class_="gz"), class_="ins-check") for r in g["rows"]]
+               el("span", r["limit"], class_="muted"), el("b", r["word"], class_="gz"),
+               class_="ins-check ins-check--over" if r["word"] == "Over cap" else "ins-check") for r in g["rows"]]
     return section("Checks", el("ul", rows, class_="lrow-list"))
 
 

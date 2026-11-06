@@ -2,7 +2,7 @@
 import re
 
 from web import queries
-from web.components import ago, chips, ctx_org, empty_state, feed, feed_row, org_href, section, segmented
+from web.components import ago, chips, ctx_org, empty_state, feed, filter_bar, feed_row, org_href, section, segmented
 from web.html import el
 
 TITLE = "Changelog"
@@ -55,11 +55,11 @@ def render(ctx, d):
         items = [("All goals", None, org_href("/changelog", keep, d.get("org")), goal is None)]
         items += [(g["goal_id"], g["count"], org_href("/changelog", {"goal": g["goal_id"], **keep}, d.get("org")), goal == g["goal_id"])
                   for g in d["goals"] if g["goal_id"]]
-        parts.append(chips("Goal", items))
+        parts.append(filter_bar([], [chips("Goal", items)], key="changelog-filters", active=1 if goal else 0))
     if mode == "goal":
         for g in d["groups"]:
             title = f"{g['goal_id']} - {g['goal_title'] or ''}" if g["goal_id"] else "No goal"
-            parts.append(section(title, feed([_row(i, None, now) for i in g["items"]]), count=len(g["items"])))
+            parts.append(section(title, feed([_row(i, None, now) for i in g["items"]], "log"), count=len(g["items"])))
     else:
         items = sorted(((i, g["goal_id"]) for g in d["groups"] for i in g["items"]),
                        key=lambda p: (queries._epoch(p[0]["merged"]) or 0, p[0]["task_id"]), reverse=True)
@@ -67,5 +67,5 @@ def render(ctx, d):
         for i, gid in items:
             days.setdefault(_day(i["merged"], now), []).append(_row(i, gid, now))
         for day, rows in days.items():
-            parts.append(section(day, feed(rows), count=len(rows)))
+            parts.append(section(day, feed(rows, "log"), count=len(rows)))
     return el("div", *parts)

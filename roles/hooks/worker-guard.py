@@ -683,7 +683,9 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|new|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|new|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\b|label\W+create\b|secret\W+set\b|variable\W+set\b|release\W+(?:create|new|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+# T-0995: the issue, workflow and pr write verbs are in INLINE_GH_WRITE above; `gh pr comment` is NOT (reviewer and qa post
+# their summary with it, so the inline scan cannot tell their use from a pm's); see GH_NOPUSH_WRITE_VERBS.
 # T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
 INLINE_GH_API_BODY = re.compile(
     r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
@@ -696,6 +698,19 @@ def inline_gh_api_body(text):
     parts = re.split(r"(?=\bgh\b)", text)
     return any(INLINE_GH_API_BODY.search(c) and not INLINE_GH_GET.search(c) for c in parts if c.lstrip().startswith("gh"))
 
+
+# T-0995: gh subcommand writes refused for NO_PUSH_ROLES. `pr comment` is refused too, except for the roles in
+# GH_PR_COMMENT_ROLES (roles/reviewer.md and roles/qa.md post their summary with it). Read forms stay allowed.
+GH_NOPUSH_WRITE_VERBS = {
+    "issue": ("create", "new", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop"),
+    "workflow": ("run", "enable", "disable"),
+    "pr": ("create", "new", "edit", "close", "reopen", "ready", "review", "merge", "lock", "unlock", "update-branch", "revert", "comment"),
+    "repo": ("create", "new", "fork", "sync"),  # T-1156 (`new` is gh's alias of `create`)
+    "label": ("create",),
+    "secret": ("set",),
+    "variable": ("set",),
+}
+GH_PR_COMMENT_ROLES = {"reviewer", "qa"}
 
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
@@ -1529,10 +1544,88 @@ class Analyzer:
             return None
         return row[0] if row and row[0] else None
 
+    def lead_team_goals(self):
+        """Goal ids for teams whose lead_agent is $FACTORY_AGENT; None when not lead or the DB is unreadable."""
+        if self.role != "lead":
+            return None
+        agent = os.environ.get("FACTORY_AGENT")
+        if not agent:
+            return None
+        db = self.db_path()
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+            try:
+                rows = con.execute(
+                    "SELECT DISTINCT goal_id FROM teams WHERE lead_agent = ? AND goal_id IS NOT NULL",
+                    (agent,),
+                ).fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return None
+        return {r[0] for r in rows if r[0]}
+
+    GOAL_ACTIONS = frozenset({"new", "list", "show", "edit", "status", "audit", "signoff", "close", "org"})
+    GOAL_SHOW_BOOL_OPTS = frozenset({"--", "--all", "--full", "--ready", "--gaps"})
+
+    def _factory_rest_cmd(self, words):
+        """Tokens after `factory` in words, or None when this is not a factory invocation."""
+        if not words:
+            return None
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "factory":
+            return rest
+        if INTERPRETERS.match(name):
+            fi = self.factory_script(name, rest)
+            if fi is None:
+                return None
+            return rest[fi + 1:]
+        return None
+
+    def _lead_factory_goal_words(self, words):
+        """True when words invoke `factory goal ...` (HQ lead panes still run goal-show broad_read)."""
+        rest_cmd = self._factory_rest_cmd(words)
+        if not rest_cmd:
+            return False
+        nonopt = [a for a in rest_cmd if not a.startswith("-")]
+        return bool(nonopt) and nonopt[0] == "goal"
+
+    def _lead_goal_show_index(self, rest):
+        """Index of `show` in a `goal` rest vector, skipping valued/boolean flags before the action."""
+        if not rest or rest[0] != "goal":
+            return None
+        i = 1
+        while i < len(rest):
+            t = rest[i]
+            if t == "show":
+                return i
+            if t.startswith("-"):
+                if t in self.GOAL_SHOW_BOOL_OPTS:
+                    i += 1
+                    continue
+                if "=" in t:
+                    i += 1
+                    continue
+                if i + 1 >= len(rest):
+                    return None
+                if rest[i + 1] in self.GOAL_ACTIONS:
+                    i += 1
+                    continue
+                i += 2
+                continue
+            return None
+        return None
+
+    def _lead_factory_goal_show_words(self, words):
+        """True when words invoke `factory goal show` (not list or other goal subcommands)."""
+        rest_cmd = self._factory_rest_cmd(words)
+        return self._lead_goal_show_index(rest_cmd) is not None
+
     def broad_read(self, sub, rest, assigns):
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
-        --role cleaner, `goal show <own goal>`, a temp FACTORY_HOME.
+        --role cleaner, `goal show <own goal>`, lead `goal show` for goals their teams own, a temp FACTORY_HOME.
         Fail closed on options: we do not model which argparse flags take a value (--goal X, --note x) versus
         flags that do not (--all), so any option token (`-x`, `--x`, `--x=v`, `--`) before the action word (or
         before the id of `goal show`) blocks the command; `factory goal --goal G-005 show G-005` is blocked too."""
@@ -1552,8 +1645,13 @@ class Analyzer:
             elif sub == "goal" and action == "show":
                 gid = after[1] if len(after) > 1 else None
                 own = self.own_goal()
-                if gid is not None and not gid.startswith("-") and own is not None and gid == own:
-                    return
+                if gid is not None and not gid.startswith("-"):
+                    if own is not None and gid == own:
+                        return
+                    if self.role == "lead":
+                        team_goals = self.lead_team_goals()
+                        if team_goals is not None and gid in team_goals:
+                            return
                 shown += " show"
             elif action in seconds:
                 shown += " " + action
@@ -3069,6 +3167,83 @@ class Analyzer:
                 raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
                             f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
 
+    def git_runners(self, rest, depth):
+        """T-0908: a coder's git may run a command through submodule foreach, rebase -x/--exec, bisect run and difftool
+        -x/--extcmd. The inner command is checked as `bash -c <inner>` would be (self.script, one level deeper); a missing,
+        dynamic or unparseable inner command is refused. Coder only."""
+        if self.role != "coder":
+            return
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            i += 2 if rest[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path") else 1
+        if i >= len(rest):
+            return
+        sub, args = rest[i], rest[i + 1:]
+        if sub in ("submodule", "bisect"):
+            j = 0
+            while j < len(args) and args[j].startswith("-"):
+                j += 1
+            if j >= len(args):
+                return
+            word = args[j]
+            if is_dynamic(word, True) or GLOB.search(word):
+                raise Block(f"git {sub} {word}: the {sub} subcommand is dynamic and could run a command; write it literally")
+            if word != ("foreach" if sub == "submodule" else "run"):
+                return
+            inner = args[j + 1:]
+            if sub == "submodule":
+                while inner and inner[0] in ("--recursive", "--quiet", "-q"):
+                    inner = inner[1:]
+            if inner and inner[0] == "--":
+                inner = inner[1:]  # git's option parser consumes a leading `--`; the command follows it
+            self.git_inner(f"git {sub} {word}", inner, depth, quote=sub == "bisect")
+        elif sub == "rebase":
+            self.git_exec_opts(sub, args, "x", "--exec", "XsCS", depth)
+        elif sub == "difftool":
+            self.git_exec_opts(sub, args, "x", "--extcmd", "tOSG", depth)
+
+    def git_inner(self, what, words, depth, quote=False):
+        if not words:
+            raise Block(f"{what} without a command: the inner command cannot be inspected; give it a literal command")
+        dyn = [w for w in words if is_dynamic(w, True)]
+        if dyn:
+            raise Block(f"{what} {dyn[0]!r}: the inner command is built from an expansion and cannot be inspected")
+        try:
+            self.script(" ".join(shlex.quote(w) for w in words) if quote else " ".join(words), depth + 1)
+        except ValueError as e:
+            raise Block(f"{what}: the inner command cannot be parsed ({e})")
+
+    def git_exec_opts(self, sub, args, short, long, valued, depth):
+        """Every -<short>/--<long> (or git-accepted prefix of it) value of a git subcommand: separate, =value, attached,
+        or at the end of a short flag cluster; options in `valued` swallow the rest of their cluster."""
+        k = 0
+        while k < len(args):
+            a = args[k]
+            k += 1
+            if a == "--":
+                return
+            if a.startswith("--"):
+                name, eq, val = a.partition("=")
+                if len(name) > 2 and long.startswith(name):
+                    if not eq:
+                        val = args[k] if k < len(args) else None
+                        k += 1
+                    self.git_inner(f"git {sub} {long}", [val] if val else [], depth)
+                continue
+            if a.startswith("-") and len(a) > 1:
+                for n, c in enumerate(a[1:], 1):
+                    if c == short:
+                        val = a[n + 1:]
+                        if not val:
+                            val = args[k] if k < len(args) else None
+                            k += 1
+                        self.git_inner(f"git {sub} -{short}", [val] if val else [], depth)
+                        break
+                    if c in valued:
+                        if n == len(a) - 1 and c != "S":
+                            k += 1
+                        break
+
     def git_deny(self, why):
         raise Block(f"{self.role} may not run git push, or any git form outside the read-only allow-list ({why}): "
                     "read-only roles only inspect (status, log, diff, show, fetch ...); report results with factory done / "
@@ -3159,7 +3334,7 @@ class Analyzer:
         """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
         POST) unless the method is GET, nor `gh api` with any -X/--method other than GET (T-0987; HEAD, OPTIONS and an
         empty method are refused too, only GET is a read), nor `gh api -H 'X-HTTP-Method-Override: POST|PUT|PATCH|DELETE'`
-        (T-1030), nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        (T-1030), nor `gh release create|new|edit|delete|upload|delete-asset` (`new` is gh's alias of `create`). Defense in depth only,
         no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
         headers = []
         pos, method, body = gh_parse(rest, headers)
@@ -3175,8 +3350,15 @@ class Analyzer:
                 if name.strip().lower() == "x-http-method-override" and val.strip().upper() in GH_MUTATING:
                     raise Block(f"gh api -H X-HTTP-Method-Override: {val.strip()} is a write; no-push roles never write "
                                 "to GitHub; drop the header, or ask your lead")
-        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
+        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "new", "edit", "delete", "upload", "delete-asset"):
             raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
+        # T-0995: issue, workflow and pr writes (narrow verb list; reads stay allowed). Same limits: a verb known only at
+        # run time (`gh issue $X`) and other subcommand groups (run, gist, cache, alias, label edit|delete|clone, secret|variable delete|remove, repo deploy-key|autolink ...) are not seen; repo create|new|fork|sync, label create, secret set and variable set are (T-1156).
+        if len(pos) >= 2 and pos[1] in GH_NOPUSH_WRITE_VERBS.get(pos[0], ()):
+            if not (pos[:2] == ["pr", "comment"] and self.role in GH_PR_COMMENT_ROLES):
+                raise Block(f"gh {pos[0]} {pos[1]} is a GitHub write; no-push roles never write to GitHub"
+                            + ("" if pos[0] != "pr" or pos[1] != "comment" else " (only reviewer and qa post a PR comment)")
+                            + "; ask your lead")
 
     def researcher_cmd(self, name, rest):
         """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
@@ -3477,11 +3659,12 @@ class Analyzer:
             return
         if os.path.basename(words[0]) == "git":
             self.git_push_pin(words[1:])  # before the public-text push check: names the one allowed push
+            self.git_runners(words[1:], depth)
         if self.pt:
             self.pt.command(words, self.hq)
         if not in_loose:
             self.priv(words, depth, piped, hstrs)
-            if self.hq:
+            if self.hq and not (self.role == "lead" and self._lead_factory_goal_words(words)):
                 return
         w, rest = words[0], words[1:]
         name = os.path.basename(w)
@@ -3991,6 +4174,18 @@ class Analyzer:
             if not (main_ok and explicit and config_is_read(cargs)):
                 raise Block("xargs git config: stdin adds arguments, so only a read with an explicit action (`--get`, "
                             "`--get-all`, `--get-regexp`, `--list`, `-l`) and exact options is allowed; run `git config` directly")
+        sub = gargs[i]
+        if sub in ("rebase", "difftool"):
+            raise Block(f"xargs git {sub}: stdin adds arguments, so the -x/--exec command cannot be inspected; run git {sub} directly")
+        if sub in ("submodule", "bisect"):
+            word, run = None, "foreach" if sub == "submodule" else "run"
+            for w in gargs[i + 1:]:
+                if not w.startswith("-"):
+                    word = w
+                    break
+            if word is None or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", word) or word == run:
+                raise Block(f"xargs git {sub}: stdin adds arguments, so without a literal subcommand other than {run} the inner "
+                            f"command cannot be inspected; run git {sub} directly")
         self.git_push_pin(gargs)
 
     def shell(self, rest, depth, piped, hstrs=()):
@@ -4262,12 +4457,12 @@ class PublicBlock(Block):
 PT_TEXT_FLAGS = {"--title", "-t", "--body", "-b", "--subject", "--comment", "-c", "--notes", "-n", "--message", "-m",
                  "--description", "--field-text"}
 PT_FILE_FLAGS = {"--body-file", "-F", "--notes-file", "--file", "--input"}
-PT_GH_WRITES = {"pr": {"create", "edit", "comment", "review", "close", "merge"},
-                "issue": {"create", "edit", "comment", "close"}, "release": {"create", "edit"}}
+PT_GH_WRITES = {"pr": {"create", "new", "edit", "comment", "review", "close", "merge"},
+                "issue": {"create", "new", "edit", "comment", "close"}, "release": {"create", "new", "edit"}}
 PT_GIT_SUBS = {"commit", "tag", "push", "merge", "commit-tree", "notes"}
 PT_DYNAMIC = re.compile(r"`|\$[A-Za-z_{(@*#?!0-9$-]")
 PT_CAT_HEREDOC = re.compile(r"\A\$\(\s*cat\s+<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n[ \t]*\2[ \t]*\n?\s*\)\Z", re.S)
-PT_WRITE_HINT = re.compile(r"\b(?:git\s+(?:-\S+\s+\S+\s+)*(?:commit|tag|push|merge)|gh\s+(?:pr|issue|release|api))\b")
+PT_WRITE_HINT = re.compile(r"\b(?:git\s+(?:-\S+\s+\S+\s+)*(?:commit|tag|push|merge)|gh\s+(?:(?:-R|--repo)\s+\S+\s+)?(?:pr|issue|release|api))\b")
 PT_REMOTE = re.compile(r"^(?:https?://(?:[^/@]+@)?[^/]+/|ssh://(?:[^/@]+@)?[^/]+/|git://[^/]+/|[\w.-]+@[^:/]+:)"
                        r"([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 PT_STDIN_PATH = re.compile(r"^/(?:dev/(?:stdin|fd/\d+)|proc/[^/]+/fd/\d+)$")
@@ -4671,7 +4866,8 @@ class PublicText:
                 repo = x.split("=", 1)[1]
             elif re.fullmatch(r"-R\S+", x):
                 repo = x[2:]
-        pos = [x for x in a if not x.startswith("-")]
+        # T-1156: the value of a separate -R/--repo is not a subcommand word (`gh -R x pr create` reads like `gh pr create -R x`)
+        pos = [x for k, x in enumerate(a) if not x.startswith("-") and not (k and a[k - 1] in ("-R", "--repo"))]
         if len(pos) < 2 and not (pos and pos[0] == "api"):
             return
         if pos[0] == "api":
@@ -4741,6 +4937,96 @@ class PublicText:
 
 
 
+def lead_hq_goal_show_guard(an, cmd):
+    """HQ lead panes: team goal-show allow/deny before the HQ-only return (T-0822)."""
+    real_cmd = an.cmd
+    real_soft = an.soft
+
+    def soft(fn, *args):
+        try:
+            fn(*args)
+        except Block:
+            raise
+        except (PrivBlock, PublicBlock):
+            raise
+
+    def cmd_goal_only(words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
+        orig_words = list(words)
+        words = list(words)
+        stripped = strip_prefix(words)
+        assigns = list(env_assigns)
+        assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+        words = stripped
+        while words and (words[0] in ("noglob", "nocorrect", "-") or words[0] == "repeat" and len(words) > 1):
+            if words[0] == "repeat":
+                words = words[2:]
+            else:
+                words = words[1:]
+            stripped = strip_prefix(words)
+            assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+            words = stripped
+        if not words:
+            return
+        if not in_loose:
+            saved_hq = an.hq
+            an.hq = True
+            try:
+                an.priv(words, depth, piped, hstrs)
+            finally:
+                an.hq = saved_hq
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):
+            return
+        if name in SHELLS:
+            saved = (an.gcwd, an.gdyn, an.ccwd)
+            an.shell_assigns = assigns
+            try:
+                an.shell(rest, depth, piped, hstrs)
+            finally:
+                an.gcwd, an.gdyn, an.ccwd = saved
+            return
+        if name == "eval":
+            if "$" in " ".join(rest):
+                raise Block("eval of an expansion: content cannot be inspected")
+            an.script(" ".join(rest), depth + 1)
+            return
+        if name in ("source", ".") and rest:
+            an.file(rest[0], depth)
+            return
+        if name == "find":
+            for j, a in enumerate(rest):
+                if a in FIND_EXEC:
+                    an.loose(rest[j + 1:], depth)
+            return
+        if name in WRAPPERS and not in_loose:
+            if name == "xargs":
+                an.xargs(rest)
+            an.loose(rest, depth, assigns, stdin)
+            return
+        if "/" in w and not in_loose:
+            an.exec_path(w, depth)
+        if an._lead_factory_goal_show_words(words):
+            rest_cmd = an._factory_rest_cmd(words)
+            show_i = an._lead_goal_show_index(rest_cmd)
+            gid = None
+            if show_i is not None and show_i + 1 < len(rest_cmd) and not rest_cmd[show_i + 1].startswith("-"):
+                gid = rest_cmd[show_i + 1]
+            team_goals = an.lead_team_goals()
+            if gid and team_goals is not None and gid in team_goals:
+                return
+            real_cmd(orig_words, depth, piped, in_loose, hstrs, env_assigns, stdin)
+            return
+
+    an.soft = soft
+    an.cmd = cmd_goal_only
+    try:
+        an.script(cmd)
+    finally:
+        an.soft = real_soft
+        an.cmd = real_cmd
+
+
 def check(cmd, cwd=None, role=None, hq=False):
     pt = PublicText(cwd, Analyzer(cwd).db_path())
     pt.raw = cmd
@@ -4762,6 +5048,11 @@ def check(cmd, cwd=None, role=None, hq=False):
             pt.frozen_hit(slug)
             if pt.applies(slug):
                 raise PublicBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
+    if hq and role == "lead":
+        try:
+            lead_hq_goal_show_guard(Analyzer(cwd, role, hq=False), cmd)
+        except Block:
+            raise
     if hq:
         return
     if role in TERMS_ROLES:
@@ -4964,6 +5255,95 @@ def terms_split(cmd):
     return segs
 
 
+TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh")
+TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("issue", "list"), ("issue", "view"),
+                  ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_FLAGS = {"grep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"), "egrep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"),
+                     "rg": re.compile(r"-[FHILPSUchilnopqsuvwxz]+"), "jq": re.compile(r"-[CMRSaceJjnrst]+")}
+TERMS_BRACE_DOLLAR = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*(?![^ \t;&|])")
+
+
+def terms_brace_view(cmd):
+    """T-1121: the text TERMS_BRACE is searched in (depth 0 only). Gives up (returns cmd) unless the whole command is a plain
+    one-line chain of grep/egrep/rg/jq/gh read-only segments; then blanks only the single-quoted pattern/program/template word."""
+    t = cmd.strip(" \t\n")
+    if not t or any((ord(c) < 32 and c not in " \t") or ord(c) == 127 for c in t):
+        return cmd
+    segs, words = [], []  # a word is (start, end, number of quoted parts)
+    ws, parts, i, n = None, 0, 0, len(t)
+
+    def end_word(at):
+        nonlocal ws, parts
+        if ws is not None:
+            words.append((ws, at, parts))
+        ws, parts = None, 0
+
+    while i < n:
+        c = t[i]
+        if c == "'":
+            j = t.find("'", i + 1)
+            if j < 0:
+                return cmd
+            ws = i if ws is None else ws
+            parts += 1
+            i = j + 1
+        elif c in " \t":
+            end_word(i)
+            i += 1
+        elif c in ";&|":
+            end_word(i)
+            two = t[i:i + 2]
+            if (c == "&" and two != "&&") or two == "|&":
+                return cmd
+            segs.append(words)
+            words = []
+            i += 2 if two in ("&&", "||") else 1
+        elif c in "\"\\`(){}#<>" or ord(c) > 126:
+            return cmd
+        elif c == "$":
+            m = TERMS_BRACE_DOLLAR.match(t, i)
+            if not m:
+                return cmd
+            ws = i if ws is None else ws
+            i = m.end()
+        else:
+            ws = i if ws is None else ws
+            i += 1
+    end_word(n)
+    segs.append(words)
+    blank = []
+    for words in segs:
+        if not words:
+            return cmd
+        txt = [t[a:b] if q == 0 else None for a, b, q in words]  # None: the word has a quoted part
+        head = txt[0]
+        if head not in TERMS_BRACE_HEADS:
+            return cmd
+        if head == "gh" and (len(txt) < 3 or (txt[1], txt[2]) not in TERMS_BRACE_GH):
+            return cmd
+
+        def whole(k):
+            a, b, q = words[k]
+            return q == 1 and t[a] == "'" and t[b - 1] == "'"
+
+        if head == "gh":
+            for k in range(1, len(words) - 1):
+                if txt[k] in ("--jq", "-q", "--template") and whole(k + 1):
+                    blank.append(words[k + 1][:2])
+        else:
+            k = 1
+            while k < len(words) and txt[k] is not None and TERMS_BRACE_FLAGS[head].fullmatch(txt[k]):
+                k += 1
+            if head != "jq" and k < len(words) and txt[k] in ("-e", "--regexp"):
+                k += 1
+            if k < len(words) and whole(k) and t[words[k][0] + 1] != "-":  # a quoted word starting with a dash may be an option (rg '--glob=...'): blank nothing
+                blank.append(words[k][:2])
+    out = t
+    for a, b in sorted(blank, reverse=True):
+        out = out[:a] + "''" + out[b:]
+    return out
+
+
 def terms_bash(cmd, cwd, env=None, depth=0):
     paths = terms_paths(cwd)
     if not paths:
@@ -4973,7 +5353,8 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     env = {} if env is None else env
     home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
-    if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
+    brace_view = terms_brace_view(cmd) if depth == 0 else cmd
+    if ("${!" in cmd or TERMS_BRACE.search(brace_view)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
     for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):

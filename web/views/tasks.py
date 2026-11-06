@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from web import ci, queries
 from web.queries import parse_ts
-from web.components import (data_table, disclosure, empty_state, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
+from web.components import (data_table, disclosure, empty_state, filter_bar, ago, chips, ctx_org, href, org_badge, org_href, pr_label, row_status,
                             GROUP_ORDER, COLLAPSED)
 from web.prices import PRICES_AS_OF
 from web.tokens import attribute, rollup
@@ -110,10 +110,10 @@ COLUMNS = (
     {"key": "status", "label": "", "cls": "c-st"},
     {"key": "id", "label": "ID", "cls": "c-id mono"},
     {"key": "title", "label": "Task", "cls": "c-title", "sortable": True},
-    {"key": "goal", "label": "Goal", "cls": "c-who", "sortable": True},
-    {"key": "assignee", "label": "Assignee", "cls": "c-who", "sortable": True},
-    {"key": "pr", "label": "PR", "cls": "c-who", "sortable": True},
-    {"key": "rejections", "label": "Rejections", "cls": "c-who", "sortable": True},
+    {"key": "goal", "label": "Goal", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "assignee", "label": "Assignee", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "pr", "label": "PR", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "rejections", "label": "Rejections", "cls": "c-who", "sortable": True, "phone_label": True},
     {"key": "updated", "label": "Updated", "cls": "c-age num", "sortable": True},
 )
 
@@ -160,11 +160,11 @@ def _chips(d, q):
         shown.append(more.pop(more.index(f["goal"])))
     goal_items = [("All", None, go(goal=None), not f["goal"])]
     goal_items += [(g, d["goal_counts"][g], go(goal=g), f["goal"] == g) for g in shown]
-    parts = [chips("Status", status_items), chips("Goal", goal_items)]
+    rest = [chips("Goal", goal_items)]
     if more:
-        parts.append(disclosure(f"{len(more)} more goals", chips("More goals", [(g, d["goal_counts"][g], go(goal=g), f["goal"] == g) for g in more]),
-                                key="tasks-goals"))
-    return parts
+        rest.append(disclosure(f"{len(more)} more goals", chips("More goals", [(g, d["goal_counts"][g], go(goal=g), f["goal"] == g) for g in more]),
+                               key="tasks-goals"))
+    return [filter_bar(chips("Status", status_items), rest, key="tasks-filters", active=1 if f["goal"] else 0)]
 
 
 def render(ctx, d):
@@ -466,7 +466,7 @@ def _detail_render(ctx, d):
                class_="tiles")
     blocks = _attempt_blocks(d["steps"])
     cycle = ([_attempt(n, b, n == len(blocks), ctx.now) for n, b in enumerate(blocks, 1)] if blocks else [empty_state("No events yet.")])
-    parts = [crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
+    parts = [el("div", crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), class_="tblock"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
              section("PR cycle", *cycle)]
     fu = [el("span", link(f"/task/{f['id']}", f["id"]), " ", f["title"], " ", task_badge(f["status"], f["waits"]), " ") for f in d["follow_ups"]]
     if d["follow_up_of"]:

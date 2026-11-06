@@ -131,7 +131,7 @@ def run_guard(payload: dict, role: str | None, hq: bool) -> subprocess.Completed
     argv = [sys.executable, GUARD]
     if hq:
         argv.append("--hq")
-    elif role:
+    if role:
         argv.extend(["--role", role])
     return subprocess.run(
         argv,

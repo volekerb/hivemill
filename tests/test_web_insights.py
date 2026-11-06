@@ -434,6 +434,17 @@ class TestResourcesRender(Case):
         self.assertIn("coder-x spawn", html)         # the structured part is still there, inside the disclosure
         self.assertEqual((ROOT / "web/views/resources.py").read_text().count("only structured details are shown"), 1)
 
+    def test_over_cap_row_gets_the_danger_tone_other_words_do_not(self):
+        def row(word, state):
+            return {"label": "Agents", "value": "9", "limit": "cap 8", "state": state, "word": word}
+        html = str(resources._checks_section({"rows": [row("Over cap", "over"), row("At cap", "over"), row("OK", "ok"), row("Stale", "unknown")]}))
+        self.assertEqual(html.count("ins-check--over"), 1)
+        over = re.search(r'<li class="ins-check ins-check--over">.*?</li>', html, re.S).group(0)
+        self.assertIn("Over cap", over)
+        self.assertIn("<svg", over)         # glyph stays
+        for word in ("At cap", "OK", "Stale"):
+            self.assertRegex(html, rf'<li class="ins-check">(?:(?!</li>).)*{word}', word)
+
     def test_more_page_opens_the_events_disclosure(self):
         first, _ = self.page(resources)
         # enough events for a second page
@@ -458,7 +469,7 @@ class TestResourcesRender(Case):
         self.assertEqual(rows["Agents"]["state"], "over")
         self.assertEqual(rows["Memory available"]["state"], "ok")
         self.assertEqual(rows["Claude usage"]["word"], "OK")
-        self.assertGreaterEqual(html.count('class="ins-check"'), 6)
+        self.assertGreaterEqual(len(re.findall(r'class="ins-check[ "]', html)), 6)   # R1: an over-cap row adds ins-check--over
         self.assertNotIn(" · ".join(g["checks"]), html)     # the dot string is replaced by rows
 
     def test_four_gauges_use_the_overview_labels(self):
@@ -477,6 +488,34 @@ class TestResourcesRender(Case):
         rows = {r["label"]: r for r in d["gate"]["rows"]}
         self.assertEqual((rows["Memory available"]["state"], rows["Memory available"]["word"]), ("unknown", "Unknown"))
         self.assertEqual(rows["Claude usage"]["state"], "unknown")
+
+
+class TestResourcesOrgsCards(Case):
+    GATE = {"orgs": [{"org": "claude", "live": 3, "workers": 1, "leads": 1, "hq": 1, "queued": 2, "runtimes": {"claude": 3}},
+                     {"org": "cursor", "live": 4, "workers": 2, "leads": 1, "hq": 1, "queued": 0, "runtimes": {"cursor": 3, "claude": 1}}]}
+
+    def test_all_seven_values_are_labelled_text_and_the_table_is_a_card_table(self):
+        html = str(resources._orgs_section(self.GATE, None))
+        self.assertIn('class="dt-wrap dt-wrap--cards"', html)
+        rows = re.findall(r"<tbody>(.*?)</tbody>", html, re.S)[0].split("</tr>")[:-1]
+        self.assertEqual(len(rows), 2)
+        first = rows[0]
+        self.assertEqual(re.findall(r'<span class="cl">([^<]*)</span>', first), ["Live", "Workers", "Leads", "HQ", "Queued", "Runtime"])
+        self.assertEqual(re.sub(r"<[^>]+>", " ", re.sub(r'<span class="cl">[^<]*</span>', "", first)).split(),
+                         ["Claude", "3", "1", "1", "1", "2", "claude", "3"])
+
+    def test_desktop_headers_order_and_values_are_those_of_the_old_table(self):
+        html = str(resources._orgs_section(self.GATE, None))
+        head = re.search(r"<thead>.*?</thead>", html, re.S).group(0)
+        self.assertEqual(re.findall(r"<th[^>]*>([^<]*)</th>", head), ["Org", "Live", "Workers", "Leads", "HQ", "Queued", "Runtime"])
+        self.assertIn('<td class="num"><span class="cl">Live</span>4</td>', html)
+        self.assertIn("claude 1 · cursor 3", html)
+
+    def test_org_filter_keeps_one_row(self):
+        html = str(resources._orgs_section(self.GATE, "cursor"))
+        self.assertEqual(html.count("<tr><td"), 1)
+        self.assertIn("org-cursor", html)
+        self.assertNotIn("org-claude", html)
 
 
 class TestQueries(Case):

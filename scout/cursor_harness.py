@@ -87,9 +87,8 @@ def adapter_command(hooks_dir: Path, role: str, event: str, hq: bool = False) ->
     parts = ["python3", str(adapter.resolve())]
     if hq:
         parts.append("--hq")
-    # HQ hooks use --hq only, but beforeMCPExecution must still know the role (only boss may use MCP).
-    if not hq or event == "beforeMCPExecution":
-        parts.extend(["--role", role])
+    # HQ hooks pass --role so worker-guard can enforce lead goal-show scope (T-0822); MCP needs role for boss-only MCP.
+    parts.extend(["--role", role])
     parts.extend(["--event", event])
     return " ".join(shlex.quote(p) for p in parts)
 
@@ -172,12 +171,52 @@ def policy_workspace(home: Path | str, name: str, cwd: Path | str) -> Path:
 
 def assert_policy_target_allowed(home: Path | str, target: Path | str) -> None:
     """Refuse to materialize Cursor policy into a shared checkout or task worktree."""
-    if is_factory_worktree_path(home, target):
-        path = Path(target).resolve()
+    home_r = Path(home).resolve()
+    path_r = Path(target).resolve()
+    if is_factory_worktree_path(home_r, path_r):
         raise ValueError(
-            f"cursor policy must not be written into a factory worktree ({path}); "
+            f"cursor policy must not be written into a factory worktree ({path_r}); "
             f"use policy_workspace() and --add-dir for the task tree"
         )
+    if path_r == home_r:
+        raise ValueError(
+            f"cursor policy must not be written into FACTORY_HOME ({path_r}); "
+            f"use run/cursor/<agent> via policy_workspace()"
+        )
+    try:
+        rel = path_r.relative_to(home_r)
+    except ValueError:
+        return
+    parts = rel.parts
+    if len(parts) < 3 or parts[0] != "run" or parts[1] != "cursor":
+        raise ValueError(
+            f"cursor policy must not be written under FACTORY_HOME outside run/cursor/<agent> ({path_r})"
+        )
+
+
+def add_dir_root_has_policy_leak(path: Path | str) -> bool:
+    """True when an --add-dir root would expose .cursor/ or AGENTS.md to Cursor multi-root hooks."""
+    p = Path(path).resolve()
+    return (p / ".cursor").exists() or (p / "AGENTS.md").is_file()
+
+
+def assert_add_dir_roots_clean(add_dirs: list[str]) -> None:
+    """Refuse spawn when any --add-dir root carries pilot policy files (HQ multi-root hook leak)."""
+    for raw in add_dirs:
+        p = Path(raw).resolve()
+        if add_dir_root_has_policy_leak(p):
+            raise ValueError(
+                f"cursor spawn must not --add-dir a root with .cursor/ or AGENTS.md ({p}); "
+                "one-off owner cleanup: remove ~/factory/.cursor and ~/factory/AGENTS.md"
+            )
+
+
+def add_dirs_from_cursor_argv(argv: list[str]) -> list[str]:
+    out = []
+    for i, x in enumerate(argv):
+        if x == "--add-dir" and i + 1 < len(argv):
+            out.append(argv[i + 1])
+    return out
 
 
 def materialize_cursor_policy(

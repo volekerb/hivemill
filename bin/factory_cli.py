@@ -125,6 +125,7 @@ CLAIM_WINDOW_MAX_HERDR_CALLS = 6  # staff-engineer worst case: gate's agent list
 CLAIM_TTL_S = 600
 # a queued evaluator whose spawn keeps failing past validation (one failure per tick) is given up on after this many
 EVALUATOR_SPAWN_RETRY_MAX = 5
+START_FAILED_RETRY_S = 600  # a queued row at the failure cap is retried at most this often (T-1135)
 UTIL_WORKER_ROLES = ("pm", "coder", "qa", "reviewer", "researcher")  # G-018: what counts as a working slot (docs/utilization.md)
 UTIL_GOAL_ROLES = UTIL_WORKER_ROLES + ("judge",)  # roles that keep a goal from being "starved"
 # config keys the owner approved: an agent setting one is a cap breach (cap_breaches); a key absent from DEFAULT_CONFIG never matches
@@ -153,6 +154,7 @@ DEFAULT_CONFIG = {
     "gh_quota_min": "300",       # GraphQL points left below which optional tick probes are skipped and one alert per hour goes out; 0 = never read the quota
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "goal_token_tally_s": "0",   # 0 = off; >0 = seconds between the tick's drained per-goal token tally passes, read by `factory goal tokens` (G-015 SC3, F-74)
+    "owner_alert_send": "0",     # 1 (with owner_alert_feed=1) = the tick sends each open feed row to the owner's phone over ntfy, fixed fields only (G-015 SC3 A3)
     "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
@@ -296,7 +298,7 @@ CREATE INDEX IF NOT EXISTS idx_lesson_links ON lesson_links(lesson_id);
 OWNER_ALERT_DDL = """
 CREATE TABLE IF NOT EXISTS owner_alert_feed (
   id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
-  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT);
+  link TEXT NOT NULL, first_seen TEXT NOT NULL, closed TEXT, sent TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_alert_open ON owner_alert_feed(kind, ref) WHERE closed IS NULL;
 """
 
@@ -509,6 +511,12 @@ def migrate(con):
                     raise
     con.executescript(UTIL_DDL)
     con.executescript(OWNER_ALERT_DDL)
+    if "sent" not in {r["name"] for r in con.execute("PRAGMA table_info(owner_alert_feed)")}:  # G-015 SC3 A3: NULL = unsent
+        try:
+            con.execute("ALTER TABLE owner_alert_feed ADD COLUMN sent TEXT")
+        except sqlite3.OperationalError:  # a concurrent process added it first
+            if "sent" not in {r["name"] for r in con.execute("PRAGMA table_info(owner_alert_feed)")}:
+                raise
     con.executescript(GOAL_TOKEN_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
@@ -3514,7 +3522,7 @@ def inbox_show(con, a):
     m = con.execute("SELECT * FROM messages WHERE id=?", (int(arg),)).fetchone()
     if not m:
         die(f"no message M{arg}")
-    if m["recipient"] != actor() and actor_role(con) not in ("director", "boss", "owner"):
+    if actor() not in (m["recipient"], m["sender"]) and actor_role(con) not in ("director", "boss", "owner"):
         print(f"not your message: M{arg}", file=sys.stderr)
         sys.exit(3)
     print(inbox_header(m))
@@ -6446,9 +6454,101 @@ def _sweep_candidates(con, t):
     return out
 
 
+TMP_LEFTOVER_MIN_AGE_S = 86400   # a listed leftover must be untouched (dir and everything inside) for this long
+TMP_LEFTOVER_CAP = 500           # at most this many leftovers per run
+# Same-uid daemons that are non-dumpable (EACCES on cwd/fd) and never hold /tmp entries. Exact comm match, not prefix.
+# comm can be spoofed via PR_SET_NAME only by our own uid, which can remove the dir anyway; this guards against accidents.
+TMP_LEFTOVER_IGNORE_COMMS = frozenset({"systemd", "(sd-pam)", "ssh-agent", "sshd-session"})
+TMP_LEFTOVER_THROTTLE_S = 600   # the walk of all listed entries (about 1 s on a 15000-entry /tmp) runs at most this often
+# Closed list of top-level <tmp> names that our own code leaves behind (tempfile.mkdtemp names: prefix + 8 chars):
+#   ci/guard_diff.py:615 (guard-diff-) and :293 (guard-diff-seed-), ci/screenshots.py:895 (factory-screenshots-),
+#   ci/freshbox_test.py:188 (freshbox-). Other litter seen in /tmp (go-build*, corp-*, gd-*, cursor-askpass-*) has no
+#   producer in this repo, so it is not listed.
+# Added by M26359 (producer rule waived for these four):
+#   zz-test-<name>-<8>: the test suites' mkdtemp(prefix="zz-test-<name>-") homes (tests/harness.py:272 makes
+#       zz-test-factory-<8>, which tmp_sweep_harness also sweeps after 1 h; whichever runs first wins, same result).
+#   zz-rv-<8>: no producer found in this repo (git grep); seen on the real /tmp, with locked subdirs.
+#   tmp<8> (python mkdtemp default) and tmp.<10> (mktemp default; the real /tmp also holds plain files of this shape):
+#       generic, not ours alone (mkdtemp() callers without a prefix, shell mktemp in docs/CI), so a process of our uid
+#       holding one (cwd or open fd) keeps it (_proc_holds).
+_LEFTOVER_NAME = re.compile(r"(guard-diff-(seed-)?|factory-screenshots-|freshbox-)[a-z0-9_]{8}"
+                            r"|zz-test-[a-z0-9-]+-[a-z0-9_]{8}|zz-rv-[a-z0-9_]{8}|tmp[a-z0-9_]{8}|tmp\.[A-Za-z0-9]{10}")
+
+
+def _sweep_leftovers(con, t):
+    """(removed [(path, bytes)], locked count, blocked). A run blocked by an unreadable pid of an unlisted comm removes
+    nothing and writes one tmp-sweep-blocked event. Entries of our uid directly under <tmp> whose name is in the closed list
+    above (real dirs, or plain files), with nothing in the tree touched for 24 h, not containing the cwd of an unfinished
+    agent and not held (cwd or open fd) by a process of ours. Symlinks are never followed. A tree that cannot be read or
+    removed completely is skipped and counted as locked, never an error (nothing is chmod-ed); _proc_holds None (an
+    unreadable pid outside TMP_LEFTOVER_IGNORE_COMMS) keeps everything. At most TMP_LEFTOVER_CAP removals per run."""
+    base = tmp_dir()
+    if not base.is_dir() or base.is_symlink():
+        return [], 0, False
+    cwds = [os.path.realpath(r["cwd"]) for r in con.execute(
+        "SELECT cwd FROM agents WHERE cwd IS NOT NULL AND cwd != '' AND status IN ('live','starting','queued','done')")]
+    old = []
+    locked = 0
+    for d in sorted(base.iterdir()):
+        if not _LEFTOVER_NAME.fullmatch(d.name):
+            continue
+        try:
+            st = d.lstat()
+            isdir = stat.S_ISDIR(st.st_mode)
+            if not (isdir or stat.S_ISREG(st.st_mode)) or st.st_uid != os.getuid():
+                continue
+            newest = _harness_newest_mtime(d) if isdir else st.st_mtime
+            if t - newest < TMP_LEFTOVER_MIN_AGE_S:
+                continue
+            real = os.path.realpath(d)
+            if any(c == real or c.startswith(real + os.sep) for c in cwds):
+                continue
+        except FileNotFoundError:
+            continue   # vanished while we looked
+        except OSError:
+            locked += 1   # unreadable subdir: cannot be measured, keep it
+            continue
+        old.append((d, isdir, real))
+    if not old:
+        return [], locked, False
+    blocker = []
+    held = _proc_holds([real for _, _, real in old], TMP_LEFTOVER_IGNORE_COMMS, blocker)
+    if held is None:
+        pid, _, comm = (blocker[0] if blocker else "?:?").partition(":")
+        kept_bytes = 0
+        for d, isdir, _ in old:
+            try:
+                kept_bytes += _tree_bytes(d) if isdir else d.lstat().st_size
+            except OSError:
+                pass   # vanished or unreadable: not counted in the MB figure
+        event_as(con, "tick", "tick", "tmp-sweep", "tmp-sweep-blocked",
+                 {"pid": pid, "comm": comm, "kept": len(old), "mb": round(kept_bytes / 1048576, 1)})
+        return [], locked, True
+    out = []
+    for d, isdir, real in old:
+        if len(out) >= TMP_LEFTOVER_CAP:
+            break
+        if real in held:
+            continue
+        try:
+            size = _tree_bytes(d) if isdir else d.lstat().st_size
+            if isdir:
+                shutil.rmtree(d)
+            else:
+                d.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            locked += 1   # partly removed or not removable: counted, not an error
+            continue
+        out.append((d, size))
+    return out, locked, False
+
+
 def tmp_sweep(con):
-    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates),
-    write one tmp-swept event (MB freed, dir count), and alert the director once if /tmp is still over tmp_max_pct.
+    """Tick hook: while /tmp is over tmp_sweep_pct, delete the scratch dirs of finished agents (see _sweep_candidates)
+    and stale leftovers with a listed prefix (see _sweep_leftovers),
+    write one tmp-swept event (MB freed, dir count, leftover count), and alert the director once if /tmp is still over tmp_max_pct.
     No agent involved; any failure is an event, never a stopped tick."""
     try:
         tmp = tmp_usage()
@@ -6466,8 +6566,15 @@ def tmp_sweep(con):
                     continue
                 freed += size
                 n += 1
-            if n:
-                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept", {"mb": round(freed / 1048576, 1), "dirs": n})
+            left, locked, blocked = [], 0, False
+            last = con.execute("SELECT ts FROM throttle WHERE key='tmpleftover'").fetchone()
+            if not (last and t - float(last["ts"]) < TMP_LEFTOVER_THROTTLE_S):
+                con.execute("INSERT INTO throttle(key,ts) VALUES('tmpleftover',?) ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(t),))
+                left, locked, blocked = _sweep_leftovers(con, t)
+            freed += sum(sz for _, sz in left)
+            if n or left or (locked and not blocked):
+                event_as(con, "tick", "tick", "tmp-sweep", "tmp-swept",
+                         {"mb": round(freed / 1048576, 1), "dirs": n, "leftovers": len(left), "locked": locked})
             tmp = tmp_usage() or tmp
         over = tmp["pct"] >= float(cfg(con, "tmp_max_pct"))
         armed = con.execute("SELECT value FROM config WHERE key='tmp_sweep_alerted'").fetchone()
@@ -6560,10 +6667,21 @@ def _harness_newest_mtime(d):
     return newest
 
 
-def _proc_holds(roots):
+def _pid_comm(pdir):
+    """/proc/<pid>/comm of an unreadable pid, or None when it cannot be read; FileNotFoundError when the pid has exited."""
+    try:
+        return (pdir / "comm").read_text().strip()
+    except FileNotFoundError:
+        raise
+    except OSError:
+        return None
+
+
+def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
     """The `roots` (realpaths) that a process of our uid has as cwd or an open fd (or holds something inside); None when
     a pid of ours cannot be read completely, so the caller keeps everything. (A non-dumpable same-uid process has an
-    unreadable fd dir, which also lands in the keep-everything branch.)"""
+    unreadable fd dir, which also lands in the keep-everything branch.) An unreadable pid whose comm is in `ignore_comms`
+    is skipped; any other unreadable pid is appended to `blocker` as "pid:comm" (comm None if unreadable) before None."""
     held = set()
     uid = os.getuid()
     for pdir in _serve_proc_root().iterdir():
@@ -6577,6 +6695,16 @@ def _proc_holds(roots):
         except FileNotFoundError:
             continue   # the process exited while we looked
         except OSError:
+            if not ignore_comms and blocker is None:
+                return None   # defaults: exactly the old behaviour (tmp_sweep_harness)
+            try:
+                comm = _pid_comm(pdir)
+            except FileNotFoundError:
+                continue   # the process exited while we looked
+            if comm in ignore_comms:
+                continue
+            if blocker is not None:
+                blocker.append(f"{pdir.name}:{comm}")
             return None
         for tg in targets:
             for r in roots:
@@ -6588,7 +6716,8 @@ def _proc_holds(roots):
 def tmp_sweep_harness(con):
     """Tick hook, at most hourly: delete stale <tmp>/zz-test-factory-<8 chars> test-harness homes (killed or crashed test
     runs leave them). Only real dirs of our uid directly under <tmp>; kept when anything in the tree is under 1 h old or a
-    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything. At most 500 per pass; one
+    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything unless its comm is in
+    TMP_LEFTOVER_IGNORE_COMMS (skipped); an unlisted one is named in a tmp-harness-blocked event. At most 500 per pass; one
     tmp-harness-swept event per pass that removed something."""
     try:
         t = time.time()
@@ -6619,8 +6748,18 @@ def tmp_sweep_harness(con):
                      {"count": len(unmeasured), "kept": unmeasured[:20]})
         if not old:
             return
-        held = _proc_holds([os.path.realpath(d) for d in old])
+        blocker = []
+        held = _proc_holds([os.path.realpath(d) for d in old], TMP_LEFTOVER_IGNORE_COMMS, blocker)
         if held is None:
+            pid, _, comm = (blocker[0] if blocker else "?:?").partition(":")
+            kept_bytes = 0
+            for d in old:
+                try:
+                    kept_bytes += _tree_bytes(d)
+                except OSError:
+                    pass   # vanished or unreadable: not counted in the MB figure
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-blocked",
+                     {"pid": pid, "comm": comm, "kept": len(old), "mb": round(kept_bytes / 1048576, 1)})
             return
         n = busy = freed = 0
         for d in old:
@@ -8389,6 +8528,15 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
             ok, why = (False, held) if held else (ok, why)
     if not ok:
+        if existing and existing["status"] in ("queued", "starting"):
+            # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
+            try:
+                old = json.loads(existing["spawn_args"] or "{}")
+            except ValueError:
+                old = {}
+            if not isinstance(old, dict):
+                old = {}
+            args.update({k: old[k] for k in ("spawn_failures", "spawn_failed_at") if k in old})
         # `existing` is a snapshot taken before gate(): a dequeue can still cancel the row in the microseconds between
         # that read and this upsert, so a from_queue upsert re-checks the status in the statement itself
         # and leaves a cancelled row alone
@@ -8758,6 +8906,45 @@ def sandbox_drop_queued(con, row, s, e):
         send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory")
 
 
+def start_failed_queued(con, row, s, e):
+    """A queued non-evaluator row whose start died (spawn() restored it to queued): count the failure and its time on the row.
+    The first failure logs one `spawn-start-failed` event and alerts the team's lead once (director with no lead); the
+    failure that reaches EVALUATOR_SPAWN_RETRY_MAX sends one last alert. The row is never cancelled (T-1135, M26136): queued
+    rows are the work, and a pane-server outage must not drop them. At or past the cap the tick attempts the start at most
+    every START_FAILED_RETRY_S (see start_failed_wait); a start that works ends the episode. Gate refusals never reach here."""
+    name, team = row["name"], s.get("team")
+    fails = int(s.get("spawn_failures", 0)) + 1
+    why = f"exit {e.code}" if isinstance(e.code, int) else str(e.code)[:200]
+    cur = con.execute("UPDATE agents SET spawn_args=json_set(spawn_args,'$.spawn_failures',?,'$.spawn_failed_at',?) "
+                      "WHERE name=? AND status='queued'", (fails, digest_clock().timestamp(), name))
+    if cur.rowcount != 1:  # no longer queued (cancelled meanwhile): nothing to retry or report
+        return
+    if fails == 1:
+        event(con, "agent", name, "spawn-start-failed", f"queued {s['role']} start failed ({why}); retried next tick, "
+              f"every {START_FAILED_RETRY_S // 60} min from failure {EVALUATOR_SPAWN_RETRY_MAX}; stays queued")
+    if fails != 1 and fails != EVALUATOR_SPAWN_RETRY_MAX:
+        return
+    capped = fails >= EVALUATOR_SPAWN_RETRY_MAX
+    subject = f"start of queued {s['role']} {name} " + ("keeps failing" if capped else "failed")
+    body = (f"The start of queued {s['role']} {name} died ({why}). " +
+            (f"It failed {fails} times and stays queued, retried every {START_FAILED_RETRY_S // 60} minutes; this is the "
+             "last alert. Fix the cause: it starts on the next retry." if capped else
+             f"The tick retries it each tick; one more alert at failure {EVALUATOR_SPAWN_RETRY_MAX}, then none."))
+    up = {"lead": "director", "director": "boss"}.get(s["role"])  # never alert the failing row itself: one level up
+    try:
+        send(con, up or (f"lead:{team}" if team else "director"), subject, body, "alert", goal=s.get("goal"), org=s.get("org"),
+             task=s.get("task"), sender="factory")
+    except SystemExit:  # the team has no lead any more: the director hears it instead
+        send(con, "director", subject, body, "alert", goal=s.get("goal"), task=s.get("task"), sender="factory", org=s.get("org"))
+
+
+def start_failed_wait(s):
+    """True while a queued row at or past the failure cap is inside its retry window: the tick skips its start."""
+    if int(s.get("spawn_failures", 0)) < EVALUATOR_SPAWN_RETRY_MAX:
+        return False
+    return digest_clock().timestamp() - float(s.get("spawn_failed_at", 0)) < START_FAILED_RETRY_S
+
+
 def sandbox_prepare(con, role, name, cwd):
     """Preflight, then workerbox.prepare_agent; returns the agent dir. Fails closed: any problem refuses the spawn."""
     bad = sandbox_preflight(role, cwd, name, con)
@@ -8957,6 +9144,11 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         plan = agent_runtime.plan_spawn(runtime, ctx)
     except (ValueError, FileNotFoundError) as e:
         die(str(e), 3)
+    if runtime == "cursor":
+        try:
+            cursor_harness.assert_add_dir_roots_clean(cursor_harness.add_dirs_from_cursor_argv(plan.argv))
+        except ValueError as e:
+            die(str(e), 3)
     args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
             "herdr_kind": plan.herdr_kind}
     if plan.workspace:
@@ -11507,10 +11699,112 @@ def owner_alert_feed_tick(con):
         for (kind, ref), i in items.items():
             con.execute("INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES(?,?,?,?,?,?)",
                         (i["org"], kind, ref, i["since"], i["link"], now))
+        cutoff = digest_clock() - dt.timedelta(days=OWNER_ALERT_KEEP_DAYS)  # closed rows age out; an open row is never deleted
+        for r in con.execute("SELECT id, closed FROM owner_alert_feed WHERE closed IS NOT NULL").fetchall():
+            if dt.datetime.fromisoformat(r["closed"]) < cutoff:
+                con.execute("DELETE FROM owner_alert_feed WHERE id=? AND closed IS NOT NULL", (r["id"],))
     except Exception as e:  # noqa: BLE001 — alerting must never break the tick
         try:
             if not _util_throttled(con, "owner-alert-feed-failed", 3600, digest_clock().timestamp()):
                 event(con, "util", "-", "owner-alert-feed-failed", str(e))
+        except Exception:  # noqa: BLE001 — not even the failure log may break the tick
+            pass
+
+
+OWNER_ALERT_KEEP_DAYS = 30
+NTFY_BASE = "https://ntfy.sh/"  # a constant on purpose: no config key or env var may point the feed elsewhere
+NTFY_TOPIC_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+NTFY_TIMEOUT_S = 5
+NTFY_RETRY_S = 300
+OWNER_ALERT_SEND_CAP = 5
+OWNER_ALERT_FLAP_S = 24 * 3600
+
+
+def ntfy_topic():
+    """The topic from the ntfy-topic file under ~/.config/factory, or None when the file is unsafe (_token_file_ok) or
+    malformed. The topic is a secret: it goes to the sender only, never into the DB, an event or a log."""
+    path = os.path.expanduser("~/.config/factory/ntfy-topic")
+    if not _token_file_ok(path):
+        return None
+    try:
+        with open(path) as f:
+            topic = f.read(256).strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return topic if NTFY_TOPIC_RE.match(topic) else None
+
+
+def _ntfy_post(topic, line):
+    """POST one line to NTFY_BASE + topic; returns the HTTP status. No redirects (a 3xx raises HTTPError), timeout 5 s, no ntfy
+    header. urllib is imported here so a tick with the flag off pays nothing."""
+    import urllib.request
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    req = urllib.request.Request(NTFY_BASE + topic, data=line.encode(), method="POST",
+                                 headers={"Content-Type": "text/plain; charset=utf-8"})
+    with urllib.request.build_opener(NoRedirect).open(req, timeout=NTFY_TIMEOUT_S) as r:
+        return r.status
+
+
+def owner_alert_send_tick(con):
+    """Tick hook (G-015 SC3 A3, F-50): with owner_alert_send=1 AND owner_alert_feed=1, send each open, unsent feed row to ntfy,
+    oldest first, at most 5 per tick, `sent` set only after a 2xx. The first failure ends the tick's sending and pauses it 300 s.
+    A row is held while the same kind+ref was sent in the last 24 h. No write transaction is open during the HTTP call. Events
+    carry a fixed word, an exception class name or an HTTP status, never str(e) or the URL (either can hold the topic)."""
+    try:
+        if cfg(con, "owner_alert_send") != "1" or cfg(con, "owner_alert_feed") != "1":
+            return
+        t = digest_clock().timestamp()
+        last = con.execute("SELECT ts FROM throttle WHERE key='owner-alert-send-retry'").fetchone()
+        if last and 0 <= t - float(last["ts"]) < NTFY_RETRY_S:
+            return
+        rows = con.execute("SELECT id, org, kind, ref, since, link FROM owner_alert_feed WHERE closed IS NULL AND sent IS NULL "
+                           "ORDER BY first_seen, id").fetchall()
+        if not rows:
+            return
+        topic = ntfy_topic()
+        if topic is None:
+            if not _util_throttled(con, "owner-alert-send-blocked-ev", 3600, t):
+                event(con, "util", "-", "owner-alert-send-blocked", "topic file missing, unsafe or malformed")
+            con.commit()
+            return
+        now = digest_clock()
+        sent = 0
+        for r in rows:
+            if sent >= OWNER_ALERT_SEND_CAP:
+                break
+            held = any(now - dt.datetime.fromisoformat(x["sent"]) < dt.timedelta(seconds=OWNER_ALERT_FLAP_S)
+                       for x in con.execute("SELECT sent FROM owner_alert_feed WHERE kind=? AND ref=? AND sent IS NOT NULL",
+                                            (r["kind"], r["ref"])))
+            if held:
+                continue
+            line = " ".join(f"{k}={str(r[k]).replace(chr(10), ' ').replace(chr(13), ' ')}"
+                            for k in ("id", "org", "kind", "ref", "since", "link"))
+            con.commit()  # no write transaction may be open across the HTTP call
+            try:
+                status = _ntfy_post(topic, line)
+                fail = None if isinstance(status, int) and 200 <= status < 300 else f"HTTP {status}"
+            except Exception as e:  # noqa: BLE001 — any send failure is a retry, never a tick failure
+                code = getattr(e, "code", None)
+                fail = f"HTTP {code}" if isinstance(code, int) else type(e).__name__
+            if fail:
+                con.execute("INSERT INTO throttle(key,ts) VALUES('owner-alert-send-retry',?) "
+                            "ON CONFLICT(key) DO UPDATE SET ts=excluded.ts", (str(digest_clock().timestamp()),))
+                if not _util_throttled(con, "owner-alert-send-failed-ev", 3600, t):
+                    event(con, "util", "-", "owner-alert-send-failed", fail)
+                con.commit()
+                return
+            con.execute("UPDATE owner_alert_feed SET sent=? WHERE id=?",
+                        (digest_clock().isoformat(timespec="seconds"), r["id"]))
+            con.commit()
+            sent += 1
+    except Exception as e:  # noqa: BLE001 — alerting must never break the tick
+        try:
+            if not _util_throttled(con, "owner-alert-send-error-ev", 3600, digest_clock().timestamp()):
+                event(con, "util", "-", "owner-alert-send-error", type(e).__name__)
         except Exception:  # noqa: BLE001 — not even the failure log may break the tick
             pass
 
@@ -13576,6 +13870,8 @@ def cmd_tick(a, locked=False):
         s = json.loads(cur["spawn_args"])
         if time.time() - s.get("claimed_at", 0) < CLAIM_TTL_S:
             continue  # a msg is spawning this one right now
+        if s["role"] != "evaluator" and start_failed_wait(s):
+            continue  # T-1135: at the failure cap the start is retried every START_FAILED_RETRY_S, not every tick
         if recently_stopped_in(con, s.get("cwd") or queued_worktree(con, s.get("task"))):
             continue  # the stopped agent may still be writing in that worktree: start on a later tick
         if s["role"] == "judge":
@@ -13601,9 +13897,10 @@ def cmd_tick(a, locked=False):
             con.execute("UPDATE skill_trials SET status='cancelled', passed=0, ended=?, check_output=? "
                         "WHERE agent=? AND status='running'", (now(), "queued evaluator no longer validates", q["name"]))
             event(con, "agent", q["name"], "evaluator-spawn-refused", "queued evaluator no longer validates")
-        except SystemExit:
+        except SystemExit as e:
             if s["role"] != "evaluator":
-                raise
+                start_failed_queued(con, q, s, e)  # T-1135: one dying start must not end the tick; later rows and phases run
+                continue
             # a transient failure: spawn() left the row queued and the trial running; the next tick retries, up to
             # EVALUATOR_SPAWN_RETRY_MAX failures; a persistent one ends the trial instead of retrying forever
             fails = int(s.get("spawn_failures", 0)) + 1
@@ -13753,6 +14050,7 @@ def cmd_tick(a, locked=False):
     util_alerts(con)
     owner_blocker_alerts(con)
     owner_alert_feed_tick(con)
+    owner_alert_send_tick(con)
     goal_token_tally_tick(con)
     goal_token_warn_tick(con)
     _pt_lap("util")
