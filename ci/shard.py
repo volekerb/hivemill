@@ -7,11 +7,10 @@
   shard.py timings --dir D [--out F]      merge the reports' per-module seconds into a timing file
 
 Modules are packed greedily, longest first, onto the lightest shard (ties: lowest shard, then module
-name), using the seconds in ci/shard_timings.json; a module missing there gets the median. A module whose
-timing alone exceeds the usual 15% bound is still assigned one whole shard by the packer (T-1168); that
-shard's ``python -m unittest`` step can then hit the workflow cap, so that module's test *ids* are split
-across every shard by round-robin on the sorted id list (same rule as guard-unittest T-1039); other modules
-stay whole. Stdlib only.
+name), using the seconds in ci/shard_timings.json; a module missing there gets the median. A module in
+``SPLIT_TEST_IDS_MODULES`` whose timing alone exceeds the usual 15% bound is excluded from the greedy pack,
+then appended to every shard's module list (T-1168); ``run`` executes only that shard's test-id slice for it,
+by round-robin on the sorted id list (same rule as guard-unittest T-1039). Other modules stay whole. Stdlib only.
 """
 import argparse
 import json

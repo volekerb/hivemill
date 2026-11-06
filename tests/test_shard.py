@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from collections import Counter
 from pathlib import Path
 
@@ -307,6 +308,36 @@ class SplitModuleTest(unittest.TestCase):
             shard.SPLIT_TEST_IDS_MODULES = old_split
         self.assertEqual(n, 7)
         self.assertIn("7 tests across 3 shards", summary)
+
+    def test_verify_split_module_rejects_duplicate_test_id_across_shards(self):
+        uid = uuid.uuid4().hex[:8]
+        mod = "test_split_dup_%s.py" % uid
+        base = mod[:-3]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        tests = os.path.join(tmp.name, "tests")
+        os.mkdir(tests)
+        Path(tests, mod).write_text(
+            "import unittest\nclass T(unittest.TestCase):\n"
+            + "".join("    def test_%d(self): pass\n" % i for i in range(4)))
+        full = shard.collect_test_ids(mod, tests)
+        sys.modules.pop(base, None)
+        old_split = shard.SPLIT_TEST_IDS_MODULES
+        try:
+            shard.SPLIT_TEST_IDS_MODULES = frozenset({mod})
+            good1 = shard.shard_of_test_ids(full, 1, 2)
+            good2 = shard.shard_of_test_ids(full, 2, 2)
+            bad2 = good2 + good1[:1]
+            for i, chunk in ((1, good1), (2, bad2)):
+                Path(os.path.join(tmp.name, "shard-%d.json" % i)).write_text(json.dumps({
+                    "shard": i, "total": 2, "modules": [mod], "tests": len(chunk),
+                    "seconds": {mod: 1.0}, "test_ids": {mod: chunk},
+                }))
+            with self.assertRaisesRegex(shard.ShardError, "id coverage wrong"):
+                shard.verify(tmp.name, 2, tests, only={mod})
+        finally:
+            shard.SPLIT_TEST_IDS_MODULES = old_split
+            sys.modules.pop(base, None)
 
 
 class WorkflowTest(unittest.TestCase):
