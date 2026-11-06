@@ -83,7 +83,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role pm"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role pm",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -92,7 +94,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role pm"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role pm",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -101,7 +105,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role pm"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role pm",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       }
