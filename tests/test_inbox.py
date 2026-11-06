@@ -177,6 +177,13 @@ class InboxTerseTests(FactoryTestCase):
         self.assertIn("not your message", p.stderr)
         self.assertNotIn("line 1", p.stdout)
 
+    def test_show_sender_reads_own_message_keeps_read_at(self):
+        self.ok("msg", "zz-test-coder", "subj", BODY10, agent="zz-test-coder2")
+        mid = self.env.sql("SELECT id FROM messages")[0]["id"]
+        out = self.ok("inbox", "--show", f"M{mid}", agent="zz-test-coder2").stdout
+        self.assertIn("line 10", out)
+        self.assertIsNone(self.env.sql("SELECT read_at FROM messages")[0]["read_at"])
+
     def test_show_director_allowed(self):
         mid = self.send("lead:g-001-a")
         self.assertIn("line 10", self.ok("inbox", "--show", f"M{mid}", agent="zz-test-director").stdout)
