@@ -238,7 +238,21 @@ class EvaluatorRunTests(GuardDiffCase):
                            "        if False:\n            raise Block(\"the evaluator may run factory", 1)
         self.assertNotEqual(hook, src)
         self.write_hook(hook)
-        p = self.run_tool("--mode", "worker", "--role", "evaluator", "--corpus", CORPUS)
+        # Only the one loosened evaluator line: the full seed corpus runs ~5k hook pairs and can hit the 600 s helper
+        # timeout on slow CI; this test only needs that single LOOSENED report.
+        with open(self.corpus, "w") as f:
+            json.dump(
+                {
+                    "must_block": [],
+                    "must_allow": [
+                        # Prefix assignment so the hook sees FACTORY_HOME= in assigns (live path); a compound
+                        # `FACTORY_HOME=…; …` does not, and both sides use guard_diff's temp env only — no LOOSENED.
+                        {"cmd": "FACTORY_HOME=@LIVE_HOME@ factory inbox", "role": "evaluator"},
+                    ],
+                },
+                f,
+            )
+        p = self.run_tool("--mode", "worker", "--role", "evaluator")
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertIn("LOOSENED base=2 pr=0 worker", p.stdout)
 
