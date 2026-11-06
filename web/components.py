@@ -163,7 +163,8 @@ def data_table(columns, groups, sort=None, sort_href=None, key="tbl", empty=None
         if g.get("collapsed"):
             out.append(disclosure(g["label"], _table(columns, [{"rows": g["rows"]}], None, sort_href),
                                   key=f"{key}-{g['key']}", count=g["count"]))
-    return el("div", out, class_="dt-wrap")
+    cards = any(c.get("phone_label") for c in columns)   # opt-in: only tables with a phone-labelled column get the card layout
+    return el("div", out, class_="dt-wrap dt-wrap--cards" if cards else "dt-wrap")
 
 
 # ── C13 feed row ──

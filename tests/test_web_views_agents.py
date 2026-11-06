@@ -72,6 +72,13 @@ class TestAgents(Base):
         for needle in ('<span class="cl">Task</span>', '<span class="cl">Model</span>', '<span class="cl">Last</span>'):
             self.assertIn(needle, html)
         self.assertRegex(html, r'<th scope="col" class="c-title">Agent</th>')   # desktop header stays
+        self.assertEqual(html.count("dt-wrap--cards"), html.count('<div class="dt-wrap dt-wrap--cards">'))
+        when = NOW.isoformat(timespec="seconds")
+        q = str(agents._queued({"queued": [{"name": "q1", "role": "coder", "task_id": "T-1", "queued_at": when, "reason": "", "org": "claude"}]}, NOW))
+        self.assertIn('<span class="cl">Queued</span>', q)
+        e = str(agents._ended({"ended": [{"name": "e1", "role": "coder", "task_id": "", "ended": when, "status": "exited", "org": "claude"}],
+                               "ended_total": 1, "counts": {"exited": 1}}, NOW))
+        self.assertIn('<span class="cl">Ended</span>', e)
         for sect in ("Running", "Queued", "Ended"):
             self.assertIn(f">{sect}", html)
         self.assertIn("t-a", html)   # team grouping

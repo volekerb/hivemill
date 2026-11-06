@@ -40,6 +40,8 @@ class TestComponents(unittest.TestCase):
                          '<span class="grp-n">1</span></th></tr><tr><td class="c-id">T-1</td><td class="c-who">bob</td></tr></tbody></table></div>')
         opt = [plain[0], dict(plain[1], phone_label=True)]
         out = str(wc.data_table(opt, g, key="t"))
+        self.assertIn('<div class="dt-wrap dt-wrap--cards"><table class="dt">', out)   # the card layout is scoped to opted-in tables
+        self.assertNotIn("dt-wrap--cards", str(wc.data_table(plain, g, key="t")))
         self.assertIn('<td class="c-who"><span class="cl">Assignee</span>bob</td>', out)
         self.assertIn('<th scope="col" class="c-who">Assignee</th>', out)   # header semantics intact
         empty = str(wc.data_table(opt, [{"key": "a", "label": "A", "count": 1, "rows": [["T-1", ""]]}], key="t"))

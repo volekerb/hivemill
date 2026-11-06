@@ -381,7 +381,7 @@ def _running(d, now):
 
 def _queued(d, now):
     cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "org", "label": "Org", "cls": "c-who orgrow"}, AGENT_COLS[2],
-            {"key": "since", "label": "Queued", "cls": "c-age num"}, {"key": "why", "label": "Reason", "cls": "c-who"}]
+            {"key": "since", "label": "Queued", "cls": "c-age num", "phone_label": True}, {"key": "why", "label": "Reason", "cls": "c-who"}]
     rows = [[row_status("queued"),
              el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
              org_badge(org_of(a), a.get("runtime")),
@@ -393,7 +393,7 @@ def _queued(d, now):
 
 def _ended(d, now):
     cols = [AGENT_COLS[0], AGENT_COLS[1], {"key": "org", "label": "Org", "cls": "c-who orgrow"}, AGENT_COLS[2],
-            {"key": "ran", "label": "Ran", "cls": "c-age num"}, {"key": "sum", "label": "Summary", "cls": "c-who"}]
+            {"key": "ran", "label": "Ran", "cls": "c-age num", "phone_label": "Ended"}, {"key": "sum", "label": "Summary", "cls": "c-who"}]
     rows = [[row_status(a["status"]),
              el("span", a["name"], " ", el("span", a["role"], class_="agent-role") if a["role"] != a["name"] else None),
              org_badge(org_of(a), a.get("runtime")),
