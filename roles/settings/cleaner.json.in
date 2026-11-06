@@ -100,7 +100,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role cleaner"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role cleaner",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       },
@@ -109,7 +111,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role cleaner"
+            "command": "sh @FACTORY_LIVE_HOME@/roles/hooks/worker-guard --role cleaner",
+            "timeout": 120,
+            "onFailure": "block"
           }
         ]
       }
