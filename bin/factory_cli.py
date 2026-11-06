@@ -9110,6 +9110,11 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
         plan = agent_runtime.plan_spawn(runtime, ctx)
     except (ValueError, FileNotFoundError) as e:
         die(str(e), 3)
+    if runtime == "cursor":
+        try:
+            cursor_harness.assert_add_dir_roots_clean(cursor_harness.add_dirs_from_cursor_argv(plan.argv))
+        except ValueError as e:
+            die(str(e), 3)
     args = {**args, "runtime": runtime, "launch": plan.launch, "notes": plan.notes,
             "herdr_kind": plan.herdr_kind}
     if plan.workspace:

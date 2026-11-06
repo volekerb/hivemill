@@ -1544,10 +1544,88 @@ class Analyzer:
             return None
         return row[0] if row and row[0] else None
 
+    def lead_team_goals(self):
+        """Goal ids for teams whose lead_agent is $FACTORY_AGENT; None when not lead or the DB is unreadable."""
+        if self.role != "lead":
+            return None
+        agent = os.environ.get("FACTORY_AGENT")
+        if not agent:
+            return None
+        db = self.db_path()
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+            try:
+                rows = con.execute(
+                    "SELECT DISTINCT goal_id FROM teams WHERE lead_agent = ? AND goal_id IS NOT NULL",
+                    (agent,),
+                ).fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return None
+        return {r[0] for r in rows if r[0]}
+
+    GOAL_ACTIONS = frozenset({"new", "list", "show", "edit", "status", "audit", "signoff", "close", "org"})
+    GOAL_SHOW_BOOL_OPTS = frozenset({"--", "--all", "--full", "--ready", "--gaps"})
+
+    def _factory_rest_cmd(self, words):
+        """Tokens after `factory` in words, or None when this is not a factory invocation."""
+        if not words:
+            return None
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "factory":
+            return rest
+        if INTERPRETERS.match(name):
+            fi = self.factory_script(name, rest)
+            if fi is None:
+                return None
+            return rest[fi + 1:]
+        return None
+
+    def _lead_factory_goal_words(self, words):
+        """True when words invoke `factory goal ...` (HQ lead panes still run goal-show broad_read)."""
+        rest_cmd = self._factory_rest_cmd(words)
+        if not rest_cmd:
+            return False
+        nonopt = [a for a in rest_cmd if not a.startswith("-")]
+        return bool(nonopt) and nonopt[0] == "goal"
+
+    def _lead_goal_show_index(self, rest):
+        """Index of `show` in a `goal` rest vector, skipping valued/boolean flags before the action."""
+        if not rest or rest[0] != "goal":
+            return None
+        i = 1
+        while i < len(rest):
+            t = rest[i]
+            if t == "show":
+                return i
+            if t.startswith("-"):
+                if t in self.GOAL_SHOW_BOOL_OPTS:
+                    i += 1
+                    continue
+                if "=" in t:
+                    i += 1
+                    continue
+                if i + 1 >= len(rest):
+                    return None
+                if rest[i + 1] in self.GOAL_ACTIONS:
+                    i += 1
+                    continue
+                i += 2
+                continue
+            return None
+        return None
+
+    def _lead_factory_goal_show_words(self, words):
+        """True when words invoke `factory goal show` (not list or other goal subcommands)."""
+        rest_cmd = self._factory_rest_cmd(words)
+        return self._lead_goal_show_index(rest_cmd) is not None
+
     def broad_read(self, sub, rest, assigns):
         """Block broad factory reads (res, agents, goal list, task list, ...) against the live home for workers.
         `rest` = the tokens after `factory` (options included). Exempt: --role staff-engineer, `agents` for
-        --role cleaner, `goal show <own goal>`, a temp FACTORY_HOME.
+        --role cleaner, `goal show <own goal>`, lead `goal show` for goals their teams own, a temp FACTORY_HOME.
         Fail closed on options: we do not model which argparse flags take a value (--goal X, --note x) versus
         flags that do not (--all), so any option token (`-x`, `--x`, `--x=v`, `--`) before the action word (or
         before the id of `goal show`) blocks the command; `factory goal --goal G-005 show G-005` is blocked too."""
@@ -1567,8 +1645,13 @@ class Analyzer:
             elif sub == "goal" and action == "show":
                 gid = after[1] if len(after) > 1 else None
                 own = self.own_goal()
-                if gid is not None and not gid.startswith("-") and own is not None and gid == own:
-                    return
+                if gid is not None and not gid.startswith("-"):
+                    if own is not None and gid == own:
+                        return
+                    if self.role == "lead":
+                        team_goals = self.lead_team_goals()
+                        if team_goals is not None and gid in team_goals:
+                            return
                 shown += " show"
             elif action in seconds:
                 shown += " " + action
@@ -3581,7 +3664,7 @@ class Analyzer:
             self.pt.command(words, self.hq)
         if not in_loose:
             self.priv(words, depth, piped, hstrs)
-            if self.hq:
+            if self.hq and not (self.role == "lead" and self._lead_factory_goal_words(words)):
                 return
         w, rest = words[0], words[1:]
         name = os.path.basename(w)
@@ -4854,6 +4937,96 @@ class PublicText:
 
 
 
+def lead_hq_goal_show_guard(an, cmd):
+    """HQ lead panes: team goal-show allow/deny before the HQ-only return (T-0822)."""
+    real_cmd = an.cmd
+    real_soft = an.soft
+
+    def soft(fn, *args):
+        try:
+            fn(*args)
+        except Block:
+            raise
+        except (PrivBlock, PublicBlock):
+            raise
+
+    def cmd_goal_only(words, depth, piped, in_loose, hstrs=(), env_assigns=(), stdin=None):
+        orig_words = list(words)
+        words = list(words)
+        stripped = strip_prefix(words)
+        assigns = list(env_assigns)
+        assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+        words = stripped
+        while words and (words[0] in ("noglob", "nocorrect", "-") or words[0] == "repeat" and len(words) > 1):
+            if words[0] == "repeat":
+                words = words[2:]
+            else:
+                words = words[1:]
+            stripped = strip_prefix(words)
+            assigns += [x for x in words[:len(words) - len(stripped)] if ASSIGN.match(x)]
+            words = stripped
+        if not words:
+            return
+        if not in_loose:
+            saved_hq = an.hq
+            an.hq = True
+            try:
+                an.priv(words, depth, piped, hstrs)
+            finally:
+                an.hq = saved_hq
+        w, rest = words[0], words[1:]
+        name = os.path.basename(w)
+        if name == "command" and rest[:1] in (["-v"], ["-V"], ["-pv"]):
+            return
+        if name in SHELLS:
+            saved = (an.gcwd, an.gdyn, an.ccwd)
+            an.shell_assigns = assigns
+            try:
+                an.shell(rest, depth, piped, hstrs)
+            finally:
+                an.gcwd, an.gdyn, an.ccwd = saved
+            return
+        if name == "eval":
+            if "$" in " ".join(rest):
+                raise Block("eval of an expansion: content cannot be inspected")
+            an.script(" ".join(rest), depth + 1)
+            return
+        if name in ("source", ".") and rest:
+            an.file(rest[0], depth)
+            return
+        if name == "find":
+            for j, a in enumerate(rest):
+                if a in FIND_EXEC:
+                    an.loose(rest[j + 1:], depth)
+            return
+        if name in WRAPPERS and not in_loose:
+            if name == "xargs":
+                an.xargs(rest)
+            an.loose(rest, depth, assigns, stdin)
+            return
+        if "/" in w and not in_loose:
+            an.exec_path(w, depth)
+        if an._lead_factory_goal_show_words(words):
+            rest_cmd = an._factory_rest_cmd(words)
+            show_i = an._lead_goal_show_index(rest_cmd)
+            gid = None
+            if show_i is not None and show_i + 1 < len(rest_cmd) and not rest_cmd[show_i + 1].startswith("-"):
+                gid = rest_cmd[show_i + 1]
+            team_goals = an.lead_team_goals()
+            if gid and team_goals is not None and gid in team_goals:
+                return
+            real_cmd(orig_words, depth, piped, in_loose, hstrs, env_assigns, stdin)
+            return
+
+    an.soft = soft
+    an.cmd = cmd_goal_only
+    try:
+        an.script(cmd)
+    finally:
+        an.soft = real_soft
+        an.cmd = real_cmd
+
+
 def check(cmd, cwd=None, role=None, hq=False):
     pt = PublicText(cwd, Analyzer(cwd).db_path())
     pt.raw = cmd
@@ -4875,6 +5048,11 @@ def check(cmd, cwd=None, role=None, hq=False):
             pt.frozen_hit(slug)
             if pt.applies(slug):
                 raise PublicBlock("a write command to a public repo cannot be parsed; use plain git/gh commands")
+    if hq and role == "lead":
+        try:
+            lead_hq_goal_show_guard(Analyzer(cwd, role, hq=False), cmd)
+        except Block:
+            raise
     if hq:
         return
     if role in TERMS_ROLES:
