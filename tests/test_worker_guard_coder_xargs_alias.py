@@ -11,8 +11,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 from harness import git  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 TASK = "t-0799"
+
+# No argv after git: subcommand/args would come from stdin (T-1083 Go mirror of xargs_git empty gargs).
+XARGS_GIT_NO_ARGV_DENIED = (
+    "echo push origin main | xargs git",
+    "xargs -0 git",
+    "xargs -n1 git",
+    "printf '%s\\n' config --global core.hooksPath /tmp/x | xargs git",
+)
 
 DENIED = [
     "echo push origin main | xargs git",
@@ -86,6 +93,14 @@ class CoderXargsAliasTests(unittest.TestCase):
                     p = self.run_hook(cmd)
                     self.assertEqual(p.returncode, 2, p.stderr)
                     self.assertTrue(p.stderr.strip(), "refusal needs a message")
+
+    def test_xargs_git_no_argv_denied(self):
+        """GUARD_IMPL=diff: bare `xargs git` must refuse; subcommand would come from stdin."""
+        for cmd in XARGS_GIT_NO_ARGV_DENIED:
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("subcommand would come from stdin", p.stderr)
 
     def test_allowed_for_coder(self):
         for cmd in ALLOWED:
