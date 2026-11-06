@@ -33,8 +33,10 @@ or `cwd`, the check that decided.
 
 Stop leftovers (T-1118): when `factory stop --now` or the tick's force stop finds that the host lists no agent under
 the row's name but still lists the row's pane id, it closes that pane only if no host agent carries the id, no other
-live/starting/queued row holds it and its foreground is a plain shell (`leftover-shell-closed`). Otherwise it keeps the
-pane and logs one `leftover-shell-kept` event naming the reason. Tests: `tests/test_leftover_shell.py`.
+live/starting/queued row holds it, its foreground is a plain shell and its cwd equals the stopped row's `cwd`
+(`leftover-shell-closed`). Otherwise it keeps the pane and logs one `leftover-shell-kept` event naming the reason; a
+failed host read is one of them ("host read failed"), and nothing retries it. Tests: `tests/test_leftover_shell.py`.
+
 Why ids change after spawn was not found. Panes with no agents row (the owner's), boss/director/lead rows and
 non-exited rows are never touched. Tests: `tests/test_exited_pane_reap.py`.
 

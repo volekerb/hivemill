@@ -57,6 +57,34 @@ class LeftoverShell(StopBase):
         self.assertEqual(self.closes(), [])
         self.assertIn("cwd", json.loads(self.events("leftover-shell-kept")[0]["detail"])["reason"])
 
+    def test_force_stop_keeps_a_pane_a_named_host_agent_holds(self):
+        self.env.set_herdr(
+            workspaces=[{"workspace_id": "w1", "label": "w"}],
+            panes=[{"pane_id": "p1", "tab_id": "t1", "workspace_id": "w1", "fg": "zsh", "cwd": ROW_CWD}],
+            agents=[{"name": "zz-other", "agent": "claude", "pane_id": "p1", "agent_status": "working"}])
+        self.env.sql("UPDATE agents SET cwd=? WHERE name='zz-coder'", (ROW_CWD,))
+        self.stop("zz-coder", "--now", agent="zz-director", extra_env=FAST)
+        self.assertEqual(self.closes(), [])
+        self.assertEqual(self.panes(), ["p1"])
+        ev = self.events("leftover-shell-kept")
+        self.assertEqual(len(ev), 1)
+        self.assertIn("pane held by agent zz-other", json.loads(ev[0]["detail"])["reason"])
+
+    def test_a_failed_host_read_keeps_the_pane_and_logs_why(self):
+        self.host()
+        for label, patch in (("agents", "herdr_agents"), ("pane_gone", "pane_gone")):
+            with self.subTest(label), self.env.load_factory() as f:
+                closed = []
+                f.herdr = lambda *a, **k: closed.append(a) if a[:2] == ("pane", "close") else None
+                f.herdr_agents = lambda: []
+                f.pane_gone = lambda p: False
+                setattr(f, patch, lambda *a: None)
+                self.assertEqual(f.close_leftover_shell(f.db(), "zz-coder", "p1"), "kept")
+                self.assertEqual(closed, [])
+        ev = self.events("leftover-shell-kept")
+        self.assertEqual(len(ev), 2)
+        self.assertTrue(all("host read failed" in json.loads(e["detail"])["reason"] for e in ev))
+
 
 if __name__ == "__main__":
     unittest.main()

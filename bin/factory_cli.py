@@ -1143,14 +1143,15 @@ def close_leftover_shell(con, name, pane):
     """T-1118: a stopped agent's pane id is still listed but the host names no agent under it (the agent is gone, a bare
     shell is left; close_named_pane skipped it). Close it only when no agent on the host carries that pane id, its
     foreground is a plain shell and no live/starting/queued row holds the id. Anything else is kept and one
-    "leftover-shell-kept" event names why. Returns "closed", "kept" or "unknown"."""
+    "leftover-shell-kept" event names why, a failed host read included. The pane cwd must also match the stopped
+    row's cwd. Returns "closed" or "kept"."""
     def keep(reason):
         event(con, "agent", name, "leftover-shell-kept", {"agent": name, "pane": pane, "reason": reason})
         return "kept"
     listed = herdr_agents()
     gone = pane_gone(pane)
     if listed is None or gone is None:
-        return "unknown"
+        return keep("host read failed")
     if gone is True:
         return "closed"
     holder = next((x.get("name") for x in listed if x.get("pane_id") == pane), None)
