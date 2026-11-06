@@ -126,7 +126,6 @@ class AddDirLeakSpawnTests(FactoryTestCase):
                         agent="zz-test-director")
         starts = [c for c in self.env.calls("herdr")[before:] if c.get("argv", [])[:2] == ["agent", "start"]]
         self.assertEqual(len(starts), 3)
-        home = str(self.env.home_dir)
         for start in starts:
             argv = start["argv"]
             dash = argv.index("--")
@@ -139,8 +138,6 @@ class AddDirLeakSpawnTests(FactoryTestCase):
                 p = Path(d).resolve()
                 self.assertFalse((p / ".cursor").exists(), d)
                 self.assertFalse((p / "AGENTS.md").exists(), d)
-                if str(p) == home:
-                    continue
 
     def test_spawn_refused_when_add_dir_has_cursor_dir(self):
         home = self.env.home_dir
