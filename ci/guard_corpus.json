@@ -60,13 +60,13 @@
    }
   },
   {
-   "cmd": "uvx pytest　tests",
+   "cmd": "uvx pytest\u3000tests",
    "config": {
     "test_sandbox": "1"
    }
   },
   {
-   "cmd": "uvx pytest tests",
+   "cmd": "uvx pytest\u2028tests",
    "config": {
     "test_sandbox": "1"
    }
@@ -197,9 +197,9 @@
   "cd ~/.local/bin && echo x > git",
   "cd ~/.local/bin && cp /tmp/x git",
   "echo x > $Q/.local/bin",
-  "echo x > $Q/.local/biné",
+  "echo x > $Q/.local/bin\u00e9",
   "python3 -c \"open(1,2).write(0) # .local/bin\"",
-  "python3 -c \"open(1,2).write(0) # .local/biné\"",
+  "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
   "echo go > @LIVE_HOME@/run/guard_impl",
   "cp /tmp/x @LIVE_HOME@/run/guard_impl",
   "rm @LIVE_HOME@/run/guard_impl",
@@ -2005,15 +2005,15 @@
    "role": "qa"
   },
   {
-   "cmd": "echo p | xargs 'a git p'",
+   "cmd": "echo p | xargs 'a\u2003git p'",
    "role": "qa"
   },
   {
-   "cmd": "echo x | xargs 'a　git p'",
+   "cmd": "echo x | xargs 'a\u3000git p'",
    "role": "qa"
   },
   {
-   "cmd": "find . -exec 'a git p' \\;",
+   "cmd": "find . -exec 'a\u00a0git p' \\;",
    "role": "qa"
   },
   {
@@ -3369,27 +3369,27 @@
    "role": "pm"
   },
   {
-   "cmd": "echo p | xargs 'a git p'",
+   "cmd": "echo p | xargs 'a\u2003git p'",
    "role": "reviewer"
   },
   {
-   "cmd": "echo p | xargs 'a git p'",
+   "cmd": "echo p | xargs 'a\u2003git p'",
    "role": "pm"
   },
   {
-   "cmd": "echo x | xargs 'a　git p'",
+   "cmd": "echo x | xargs 'a\u3000git p'",
    "role": "reviewer"
   },
   {
-   "cmd": "echo x | xargs 'a　git p'",
+   "cmd": "echo x | xargs 'a\u3000git p'",
    "role": "pm"
   },
   {
-   "cmd": "find . -exec 'a git p' \\;",
+   "cmd": "find . -exec 'a\u00a0git p' \\;",
    "role": "reviewer"
   },
   {
-   "cmd": "find . -exec 'a git p' \\;",
+   "cmd": "find . -exec 'a\u00a0git p' \\;",
    "role": "pm"
   },
   {
@@ -11498,11 +11498,11 @@
    "role": "qa"
   },
   {
-   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init",
+   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
    "role": "coder"
   },
   {
-   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init",
+   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
    "role": "qa"
   },
   {
@@ -17779,7 +17779,283 @@
   "git config set core.hooksPath -fx",
   "git config unset -fx core.hooksPath /tmp/x",
   "git config unset core.hooksPath /tmp/x -fx",
-  "git config unset core.hooksPath -fx"
+  "git config unset core.hooksPath -fx",
+  {
+   "cmd": "gh api -X DELETE repos/acme/x/issues/1",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X DELETE repos/acme/x/issues/1",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X DELETE repos/acme/x/issues/1",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X PUT repos/acme/x/issues/1/lock",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X PUT repos/acme/x/issues/1/lock",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X PUT repos/acme/x/issues/1/lock",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X POST repos/acme/x/issues/1/comments",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X POST repos/acme/x/issues/1/comments",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X POST repos/acme/x/issues/1/comments",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X PATCH repos/acme/x/issues/1",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X PATCH repos/acme/x/issues/1",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X PATCH repos/acme/x/issues/1",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --method DELETE repos/acme/x/issues/1",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --method DELETE repos/acme/x/issues/1",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --method DELETE repos/acme/x/issues/1",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --method PUT repos/acme/x/issues/1/lock",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --method PUT repos/acme/x/issues/1/lock",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --method PUT repos/acme/x/issues/1/lock",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --method POST repos/acme/x/issues/1/comments",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --method POST repos/acme/x/issues/1/comments",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --method POST repos/acme/x/issues/1/comments",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --method=DELETE repos/acme/x/issues/1",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --method=DELETE repos/acme/x/issues/1",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --method=DELETE repos/acme/x/issues/1",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -XDELETE repos/acme/x/issues/1",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -XDELETE repos/acme/x/issues/1",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -XDELETE repos/acme/x/issues/1",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api repos/acme/x/issues/1 -X delete",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api repos/acme/x/issues/1 -X delete",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api repos/acme/x/issues/1 -X delete",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh -R acme/x api -X POST repos/acme/x/issues",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh -R acme/x api -X POST repos/acme/x/issues",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh -R acme/x api -X POST repos/acme/x/issues",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X HEAD repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X HEAD repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X HEAD repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X OPTIONS repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X OPTIONS repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X OPTIONS repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X '' repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X '' repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X '' repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X $M repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X $M repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X $M repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api repos/acme/x -X",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api repos/acme/x -X",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api repos/acme/x -X",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+   "role": "pm"
+  }
  ],
  "must_allow": [
   "tar -xCf /tmp/x a.tar",
@@ -21842,6 +22118,90 @@
   "git config get alias.x push -f",
   "git config --get alias.x push -f",
   "git config --list alias.x push -f",
-  "git config --get-color color.x push"
+  "git config --get-color color.x push",
+  {
+   "cmd": "gh api repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -X GET repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -X GET repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -X GET repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --method GET repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --method GET repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --method GET repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api --method=get repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api --method=get repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api --method=get repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -XGET repos/acme/x -f per_page=5",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -XGET repos/acme/x -f per_page=5",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -XGET repos/acme/x -f per_page=5",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+   "role": "pm"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+   "role": "qa"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+   "role": "pm"
+  }
  ]
 }

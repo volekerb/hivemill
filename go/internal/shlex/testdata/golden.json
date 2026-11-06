@@ -95664,6 +95664,979 @@
 "src": "corpus"
 },
 {
+"input": "gh api -X DELETE repos/acme/x/issues/1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -X DELETE repos/acme/x/issues/1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -X DELETE repos/acme/x/issues/1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -X DELETE repos/acme/x/issues/1",
+"mode": "quote",
+"quoted": "'gh api -X DELETE repos/acme/x/issues/1'",
+"src": "corpus"
+},
+{
+"input": "gh api -X PUT repos/acme/x/issues/1/lock",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api -X PUT repos/acme/x/issues/1/lock",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api -X PUT repos/acme/x/issues/1/lock",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api -X PUT repos/acme/x/issues/1/lock",
+"mode": "quote",
+"quoted": "'gh api -X PUT repos/acme/x/issues/1/lock'",
+"src": "corpus"
+},
+{
+"input": "gh api -X POST repos/acme/x/issues/1/comments",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+},
+{
+"input": "gh api -X POST repos/acme/x/issues/1/comments",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+},
+{
+"input": "gh api -X POST repos/acme/x/issues/1/comments",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+},
+{
+"input": "gh api -X POST repos/acme/x/issues/1/comments",
+"mode": "quote",
+"quoted": "'gh api -X POST repos/acme/x/issues/1/comments'",
+"src": "corpus"
+},
+{
+"input": "gh api -X PATCH repos/acme/x/issues/1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -X PATCH repos/acme/x/issues/1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -X PATCH repos/acme/x/issues/1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -X PATCH repos/acme/x/issues/1",
+"mode": "quote",
+"quoted": "'gh api -X PATCH repos/acme/x/issues/1'",
+"src": "corpus"
+},
+{
+"input": "gh api --method DELETE repos/acme/x/issues/1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --method DELETE repos/acme/x/issues/1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --method DELETE repos/acme/x/issues/1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --method DELETE repos/acme/x/issues/1",
+"mode": "quote",
+"quoted": "'gh api --method DELETE repos/acme/x/issues/1'",
+"src": "corpus"
+},
+{
+"input": "gh api --method PUT repos/acme/x/issues/1/lock",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api --method PUT repos/acme/x/issues/1/lock",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api --method PUT repos/acme/x/issues/1/lock",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api --method PUT repos/acme/x/issues/1/lock",
+"mode": "quote",
+"quoted": "'gh api --method PUT repos/acme/x/issues/1/lock'",
+"src": "corpus"
+},
+{
+"input": "gh api --method POST repos/acme/x/issues/1/comments",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+},
+{
+"input": "gh api --method POST repos/acme/x/issues/1/comments",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+},
+{
+"input": "gh api --method POST repos/acme/x/issues/1/comments",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+},
+{
+"input": "gh api --method POST repos/acme/x/issues/1/comments",
+"mode": "quote",
+"quoted": "'gh api --method POST repos/acme/x/issues/1/comments'",
+"src": "corpus"
+},
+{
+"input": "gh api --method=DELETE repos/acme/x/issues/1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --method=DELETE repos/acme/x/issues/1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --method=DELETE repos/acme/x/issues/1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=DELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --method=DELETE repos/acme/x/issues/1",
+"mode": "quote",
+"quoted": "'gh api --method=DELETE repos/acme/x/issues/1'",
+"src": "corpus"
+},
+{
+"input": "gh api -XDELETE repos/acme/x/issues/1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XDELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -XDELETE repos/acme/x/issues/1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XDELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -XDELETE repos/acme/x/issues/1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XDELETE",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api -XDELETE repos/acme/x/issues/1",
+"mode": "quote",
+"quoted": "'gh api -XDELETE repos/acme/x/issues/1'",
+"src": "corpus"
+},
+{
+"input": "gh api repos/acme/x/issues/1 -X delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-X",
+"delete"
+]
+},
+{
+"input": "gh api repos/acme/x/issues/1 -X delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-X",
+"delete"
+]
+},
+{
+"input": "gh api repos/acme/x/issues/1 -X delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-X",
+"delete"
+]
+},
+{
+"input": "gh api repos/acme/x/issues/1 -X delete",
+"mode": "quote",
+"quoted": "'gh api repos/acme/x/issues/1 -X delete'",
+"src": "corpus"
+},
+{
+"input": "gh -R acme/x api -X POST repos/acme/x/issues",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"-R",
+"acme/x",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues"
+]
+},
+{
+"input": "gh -R acme/x api -X POST repos/acme/x/issues",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"-R",
+"acme/x",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues"
+]
+},
+{
+"input": "gh -R acme/x api -X POST repos/acme/x/issues",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"-R",
+"acme/x",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues"
+]
+},
+{
+"input": "gh -R acme/x api -X POST repos/acme/x/issues",
+"mode": "quote",
+"quoted": "'gh -R acme/x api -X POST repos/acme/x/issues'",
+"src": "corpus"
+},
+{
+"input": "gh api -X HEAD repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"HEAD",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X HEAD repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"HEAD",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X HEAD repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"HEAD",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X HEAD repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -X HEAD repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api -X OPTIONS repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"OPTIONS",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X OPTIONS repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"OPTIONS",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X OPTIONS repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"OPTIONS",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X OPTIONS repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -X OPTIONS repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api -X '' repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X '' repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X '' repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X '' repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -X '\"'\"''\"'\"' repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api -X $M repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"$M",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X $M repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"$",
+"M",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X $M repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"$M",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X $M repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -X $M repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api repos/acme/x -X",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x",
+"-X"
+]
+},
+{
+"input": "gh api repos/acme/x -X",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x",
+"-X"
+]
+},
+{
+"input": "gh api repos/acme/x -X",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x",
+"-X"
+]
+},
+{
+"input": "gh api repos/acme/x -X",
+"mode": "quote",
+"quoted": "'gh api repos/acme/x -X'",
+"src": "corpus"
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: POST",
+"repos/acme/x/issues"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: POST",
+"repos/acme/x/issues"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: POST",
+"repos/acme/x/issues"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+"mode": "quote",
+"quoted": "'gh api -H '\"'\"'X-HTTP-Method-Override: POST'\"'\"' repos/acme/x/issues'",
+"src": "corpus"
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "quote",
+"quoted": "'gh api -H '\"'\"'X-HTTP-Method-Override: PUT'\"'\"' repos/acme/x/issues/1/lock'",
+"src": "corpus"
+},
+{
+"input": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--header",
+"x-http-method-override: patch",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--header",
+"x-http-method-override: patch",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--header",
+"x-http-method-override: patch",
+"repos/acme/x/issues/1"
+]
+},
+{
+"input": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+"mode": "quote",
+"quoted": "'gh api --header '\"'\"'x-http-method-override: patch'\"'\"' repos/acme/x/issues/1'",
+"src": "corpus"
+},
+{
+"input": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-H",
+"X-HTTP-Method-Override:DELETE"
+]
+},
+{
+"input": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-H",
+"X-HTTP-Method-Override:DELETE"
+]
+},
+{
+"input": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-H",
+"X-HTTP-Method-Override:DELETE"
+]
+},
+{
+"input": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+"mode": "quote",
+"quoted": "'gh api repos/acme/x/issues/1 -H '\"'\"'X-HTTP-Method-Override:DELETE'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"Accept: application/json",
+"-H",
+"X-HTTP-Method-Override: DELETE",
+"repos/acme/x/labels/y"
+]
+},
+{
+"input": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"Accept: application/json",
+"-H",
+"X-HTTP-Method-Override: DELETE",
+"repos/acme/x/labels/y"
+]
+},
+{
+"input": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"Accept: application/json",
+"-H",
+"X-HTTP-Method-Override: DELETE",
+"repos/acme/x/labels/y"
+]
+},
+{
+"input": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "quote",
+"quoted": "'gh api -H '\"'\"'Accept: application/json'\"'\"' -H '\"'\"'X-HTTP-Method-Override: DELETE'\"'\"' repos/acme/x/labels/y'",
+"src": "corpus"
+},
+{
+"input": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--header=X-HTTP-Method-Override: PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--header=X-HTTP-Method-Override: PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--header=X-HTTP-Method-Override: PUT",
+"repos/acme/x/issues/1/lock"
+]
+},
+{
+"input": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mode": "quote",
+"quoted": "'gh api --header='\"'\"'X-HTTP-Method-Override: PUT'\"'\"' repos/acme/x/issues/1/lock'",
+"src": "corpus"
+},
+{
+"input": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"-H",
+"X-HTTP-Method-Override: DELETE",
+"repos/acme/x/labels/y"
+]
+},
+{
+"input": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"-H",
+"X-HTTP-Method-Override: DELETE",
+"repos/acme/x/labels/y"
+]
+},
+{
+"input": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"-H",
+"X-HTTP-Method-Override: DELETE",
+"repos/acme/x/labels/y"
+]
+},
+{
+"input": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mode": "quote",
+"quoted": "'gh api -X GET -H '\"'\"'X-HTTP-Method-Override: DELETE'\"'\"' repos/acme/x/labels/y'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -118528,6 +119501,294 @@
 "src": "corpus"
 },
 {
+"input": "gh api repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api -X GET repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X GET repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X GET repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-X",
+"GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -X GET repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -X GET repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api --method GET repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api --method GET repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api --method GET repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method",
+"GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api --method GET repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api --method GET repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api --method=get repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=get",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api --method=get repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=get",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api --method=get repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"--method=get",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api --method=get repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api --method=get repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api -XGET repos/acme/x -f per_page=5",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XGET",
+"repos/acme/x",
+"-f",
+"per_page=5"
+]
+},
+{
+"input": "gh api -XGET repos/acme/x -f per_page=5",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XGET",
+"repos/acme/x",
+"-f",
+"per_page=5"
+]
+},
+{
+"input": "gh api -XGET repos/acme/x -f per_page=5",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-XGET",
+"repos/acme/x",
+"-f",
+"per_page=5"
+]
+},
+{
+"input": "gh api -XGET repos/acme/x -f per_page=5",
+"mode": "quote",
+"quoted": "'gh api -XGET repos/acme/x -f per_page=5'",
+"src": "corpus"
+},
+{
+"input": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"Accept: application/vnd.github+json",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"Accept: application/vnd.github+json",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"Accept: application/vnd.github+json",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -H '\"'\"'Accept: application/vnd.github+json'\"'\"' repos/acme/x'",
+"src": "corpus"
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gh",
+"api",
+"-H",
+"X-HTTP-Method-Override: GET",
+"repos/acme/x"
+]
+},
+{
+"input": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+"mode": "quote",
+"quoted": "'gh api -H '\"'\"'X-HTTP-Method-Override: GET'\"'\"' repos/acme/x'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -122559,7 +123820,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 2804,
+"corpus_commands": 2834,
 "edge_inputs": 123,
 "python": "3.13"
 }
