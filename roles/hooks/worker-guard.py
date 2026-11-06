@@ -683,7 +683,7 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|new|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|new|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\b|release\W+(?:create|new|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
 # T-0995: the issue, workflow and pr write verbs are in INLINE_GH_WRITE above; `gh pr comment` is NOT (reviewer and qa post
 # their summary with it, so the inline scan cannot tell their use from a pm's); see GH_NOPUSH_WRITE_VERBS.
 # T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
@@ -702,9 +702,9 @@ def inline_gh_api_body(text):
 # T-0995: gh subcommand writes refused for NO_PUSH_ROLES. `pr comment` is refused too, except for the roles in
 # GH_PR_COMMENT_ROLES (roles/reviewer.md and roles/qa.md post their summary with it). Read forms stay allowed.
 GH_NOPUSH_WRITE_VERBS = {
-    "issue": ("create", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop"),
+    "issue": ("create", "new", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop"),
     "workflow": ("run", "enable", "disable"),
-    "pr": ("create", "edit", "close", "reopen", "ready", "review", "merge", "lock", "unlock", "update-branch", "revert", "comment"),
+    "pr": ("create", "new", "edit", "close", "reopen", "ready", "review", "merge", "lock", "unlock", "update-branch", "revert", "comment"),
 }
 GH_PR_COMMENT_ROLES = {"reviewer", "qa"}
 
@@ -3247,7 +3247,7 @@ class Analyzer:
         """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
         POST) unless the method is GET, nor `gh api` with any -X/--method other than GET (T-0987; HEAD, OPTIONS and an
         empty method are refused too, only GET is a read), nor `gh api -H 'X-HTTP-Method-Override: POST|PUT|PATCH|DELETE'`
-        (T-1030), nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        (T-1030), nor `gh release create|new|edit|delete|upload|delete-asset` (`new` is gh's alias of `create`). Defense in depth only,
         no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
         headers = []
         pos, method, body = gh_parse(rest, headers)
@@ -3263,7 +3263,7 @@ class Analyzer:
                 if name.strip().lower() == "x-http-method-override" and val.strip().upper() in GH_MUTATING:
                     raise Block(f"gh api -H X-HTTP-Method-Override: {val.strip()} is a write; no-push roles never write "
                                 "to GitHub; drop the header, or ask your lead")
-        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
+        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "new", "edit", "delete", "upload", "delete-asset"):
             raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
         # T-0995: issue, workflow and pr writes (narrow verb list; reads stay allowed). Same limits: a verb known only at
         # run time (`gh issue $X`) and other subcommand groups (run, label, secret, gist ...) are not seen.
@@ -4370,8 +4370,8 @@ class PublicBlock(Block):
 PT_TEXT_FLAGS = {"--title", "-t", "--body", "-b", "--subject", "--comment", "-c", "--notes", "-n", "--message", "-m",
                  "--description", "--field-text"}
 PT_FILE_FLAGS = {"--body-file", "-F", "--notes-file", "--file", "--input"}
-PT_GH_WRITES = {"pr": {"create", "edit", "comment", "review", "close", "merge"},
-                "issue": {"create", "edit", "comment", "close"}, "release": {"create", "edit"}}
+PT_GH_WRITES = {"pr": {"create", "new", "edit", "comment", "review", "close", "merge"},
+                "issue": {"create", "new", "edit", "comment", "close"}, "release": {"create", "new", "edit"}}
 PT_GIT_SUBS = {"commit", "tag", "push", "merge", "commit-tree", "notes"}
 PT_DYNAMIC = re.compile(r"`|\$[A-Za-z_{(@*#?!0-9$-]")
 PT_CAT_HEREDOC = re.compile(r"\A\$\(\s*cat\s+<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n[ \t]*\2[ \t]*\n?\s*\)\Z", re.S)
