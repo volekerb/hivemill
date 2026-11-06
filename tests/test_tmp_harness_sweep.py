@@ -120,7 +120,7 @@ class HarnessSweep(FactoryTestCase):
         b = self.blocked()
         self.assertEqual(len(b), 1)
         self.assertEqual((b[0]["pid"], b[0]["comm"], b[0]["kept"]), ("321", "systemd-logind", 1))
-        self.assertGreater(b[0]["mb"], -1)
+        self.assertGreaterEqual(b[0]["mb"], 0.0)   # the 1000-byte file rounds to 0.0 MB
 
     def test_non_candidates_kept(self):
         outside = self.env.home / "outside"
