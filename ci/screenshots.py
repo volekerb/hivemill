@@ -69,6 +69,10 @@ PHONE_TABBAR_SHADOW_CSS = 32  # the bar's box-shadow (--e2, blur 16 px) spreads 
 # theme.js follows the OS when no choice is stored, so the browser's preferred colour scheme picks the theme. Blink's
 # PreferredColorScheme enum is {kDark, kLight}: 0 is DARK and 1 is LIGHT (the first owner run had these swapped).
 THEMES = {"light": "1", "dark": "0"}
+# The page background per theme: `--surface-0` in web/static/app.css (the body background); a test pins these to the CSS.
+# Evidence mode measures crop and blank rows against it: the last row of a phone page cut at the window can be inside a
+# card, and `background()` would then take the card colour for the page.
+THEME_BG = {"light": (242, 242, 247), "dark": (0, 0, 0)}
 FC_LIST = "fc-list"
 FC_MATCH = "fc-match"
 FONT_HELP = ("No usable fonts: install fontconfig and fonts-dejavu-core (e.g. sudo apt install fontconfig "
@@ -799,10 +803,13 @@ def capture_all(binary, tmp, port, pages):
 
 
 def capture_evidence(binary, tmp, port, pages):
-    """--evidence: every page, light and dark, at each DEVICES width. The browser runs at 2x (so every check and the
-    crop work exactly as in the normal run), then each cropped capture is downscaled by 2 and saved at device pixel
-    ratio 1: `<page>-<theme>-<device>.png`, 1280 or 390 px wide. No hero, no social preview. Per phone image, whether
-    the capture's content reaches the right edge is NOT measured here: see docs/web-redesign-brief.md."""
+    """--evidence: every page, light and dark, at each DEVICES width. The browser runs at 2x, then each cropped capture
+    is downscaled by 2 and saved at device pixel ratio 1: `<page>-<theme>-<device>.png`, 1280 or 390 px wide. No hero,
+    no social preview. What differs from a normal run: the crop and the blank rows are measured against the theme's
+    true page background (THEME_BG), not the last row's colour; the blank and crop checks run on the 2x rows, but the
+    text and theme checks (MIN_COLOURS, MIN_LUMA_GAP) run on the saved 1x images. The seed and the scrub scan are the
+    same. Per phone image, whether the capture's content reaches the right edge is NOT measured here: see
+    docs/web-redesign-brief.md."""
     outdir = tmp / "out"
     outdir.mkdir()
     env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp / "browser-home"), "LANG": "C.UTF-8"}
@@ -828,7 +835,7 @@ def capture_evidence(binary, tmp, port, pages):
                 x0 = main_x0(w2)
                 bar = rows[-(PHONE_TABBAR_CSS + PHONE_TABBAR_SHADOW_CSS) * SCALE:] if device == "phone" else []
                 rows = rows[:len(rows) - len(bar)]
-                bg = background(rows, x0)
+                bg = THEME_BG[theme]
                 rows, truncated = crop_to_content(rows, x0, bg, window=(height - len(bar) // SCALE) * SCALE,
                                                   sections=device != "phone")
                 rows = rows + bar
