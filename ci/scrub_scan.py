@@ -29,6 +29,14 @@ HARDEN_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_
 LOG_FLAGS = ["--all", "--root", "-m", "-p", "--text", "--no-textconv", "--no-ext-diff", "--no-renames", "--no-color",
              "--no-use-mailmap", "--src-prefix=a/", "--dst-prefix=b/"]
 ENV_OK = {".env.example", ".env.sample"}
+# `git log -p --text` prints binary blobs (PNG/WebP/…) as diff lines; those bytes often contain `@` patterns the email
+# regex treats as addresses. Blob-content hits on tracked images are never real secrets — skip scanning those lines.
+_BINARY_IMAGE_SUFFIXES = (b".png", b".jpg", b".jpeg", b".gif", b".webp", b".bmp", b".ico")
+
+
+def _binary_image_path(path):
+    pl = path.lower()
+    return any(pl.endswith(sfx) for sfx in _BINARY_IMAGE_SUFFIXES)
 
 HOME_RE = re.compile("/ho" + "me/" + r"([^/\s'\"`]+)/")  # split so this line is not a hit itself
 # Bounded so a long run without "@" scans in linear time: local part <= 64, labels <= 63, <= 8 labels.
@@ -555,6 +563,8 @@ def _history_lines(proc, directory, scanner, errf):
             in_header = not body.startswith(b"@@")
             continue
         if body[:1] not in (b"+", b"-"):
+            continue
+        if _binary_image_path(path):
             continue
         content = body[1:]  # the diff marker would otherwise join the local part of an email
         entry = (path.decode("utf-8", "surrogateescape"), hashlib.sha256(content).hexdigest())

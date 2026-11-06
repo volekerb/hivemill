@@ -493,6 +493,16 @@ class HistoryAllowlistTests(Base):
         self.commit(d)
         self.assertEqual(scan("--history", d).returncode, 0)
 
+    def test_h1e_binary_png_diff_lines_are_not_blob_content_hits(self):
+        """`git log -p --text` expands binary PNGs; patch lines often contain `@` sequences the email regex matches."""
+        at = b"@"  # split so the pre-push hook does not see a literal user@domain in this file
+        png = b"\x89PNG\r\n\x1a\n" + b"x" * 120 + b"evil" + at + b"notexample.invalid" + b"y" * 120
+        d = self.repo()
+        (d / "shot.png").write_bytes(png)
+        self.commit(d)
+        r = scan("--history", d)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_h2_same_line_under_another_path_is_a_hit(self):
         d = self.repo(files={"net.txt": LEAK + "\n", "copy.txt": LEAK + "\n"})
         self.commit(d)
