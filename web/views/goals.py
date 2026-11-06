@@ -6,7 +6,7 @@ from web import charts, queries
 from scout import orgs as _orgs
 from web.components import (AGENT_COLS, COLLAPSED, agent_row, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
                             org_badge, org_href, row_status, section, segmented)
-from web.html import CLASSES, LABELS, badge, card, crumbs, el, empty, link, table, ts
+from web.html import CLASSES, LABELS, badge, card, crumbs, el, link, table, ts
 from web.views.home import _needs, goal_row, needs_by_goal
 
 TITLE = "Goals"
