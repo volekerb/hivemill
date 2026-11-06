@@ -194,6 +194,39 @@ class Never(Base):
         self.tick()
         self.assertEqual([c["argv"] for c in self.closes()], [["pane", "close", "p-1"]])
 
+    def test_no_host_session_keeps_pane_when_live_or_starting_peer_shares_the_cwd(self):
+        """T-1118: the cwd cannot tell the panes of one shared worktree apart: a live peer keeps it."""
+        self.agent("qa-old", pane="p-old")
+        self.agent("coder-peer", role="coder", status="live", pane="p-peer", ended=None)
+        self.env.sql("UPDATE agents SET cwd='/w/qa-old', session_id='s-peer' WHERE name='coder-peer'")
+        self._no_session_host()  # the host lists the peer too, so the tick keeps its row live
+        st = json.loads(self.env.herdr_state.read_text())
+        st["panes"].append({"pane_id": "p-peer", "tab_id": "t1", "workspace_id": "w1", "cwd": "/w/qa-old"})
+        st["agents"].append({"name": "coder-peer", "agent": "claude", "pane_id": "p-peer", "agent_status": "working",
+                             "agent_session": {"value": "s-peer"}})
+        self.env.set_herdr(**st)
+        self.tick()
+        self.assertKept("p-1", "p-peer")
+        self.tick(mode="dry-run")
+        self.assertEqual(self.events("exited-pane-would-close"), [])
+        self.assertEqual(self.env.sql("SELECT status FROM agents WHERE name='coder-peer'")[0]["status"], "live")
+
+    def test_no_host_session_stopped_peer_in_same_cwd_does_not_keep_the_pane(self):
+        self.agent("qa-old", pane="p-old")
+        self.agent("coder-peer", role="coder", status="stopped", pane="p-peer")
+        self.env.sql("UPDATE agents SET cwd='/w/qa-old' WHERE name='coder-peer'")
+        self._no_session_host()
+        self.tick(mode="dry-run")
+        ev = self.events("exited-pane-would-close")
+        self.assertEqual([e["entity_id"] for e in ev], ["qa-old"])
+        self.assertEqual(json.loads(ev[0]["detail"])["branch"], "cwd")
+
+    def test_would_close_event_names_the_session_branch(self):
+        self.agent("qa-t-9")
+        self.host(("qa-t-9", "p-1"))
+        self.tick(mode="dry-run")
+        self.assertEqual(json.loads(self.events("exited-pane-would-close")[0]["detail"])["branch"], "session")
+
     def test_stale_pane_id_dry_run_logs_would_close_with_the_host_pane(self):
         self.agent("qa-t-9", pane="p-old")
         self.host(("qa-t-9", "p-1"))
