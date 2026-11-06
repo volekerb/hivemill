@@ -88,6 +88,12 @@ class GhRepoGroupsTests(unittest.TestCase):
                 self.assertEqual(self.code(c, role), ORIGIN_PLAIN.get(role, 0), f"{role}: {c}")
             self.assertEqual(self.code(c, "coder", hq=True), ORIGIN_PLAIN["hq"], f"hq: {c}")
 
+    def test_inline_repo_verbs_stay_refused_for_no_push_roles(self):
+        # INLINE_GH_WRITE keeps its bare `repo` word (accepted false positive on view): exit 2 on origin/main and head.
+        for c in ("gh repo delete a/b --yes", "gh repo edit a/b", "gh repo view a/b"):
+            for role in NP6:
+                self.assertEqual(self.code(wrappers(c)[4], role), 2, f"{role}: {c}")
+
     def test_researcher_python_forms_of_label_secret_variable(self):
         for c in LABEL + SECRET + VARIABLE:
             self.assertEqual(self.code(wrappers(c)[4], "researcher"), RESEARCHER_PY_HEAD, c)

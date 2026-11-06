@@ -683,7 +683,7 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|new|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|new|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\W+(?:create|new|fork|sync)\b|label\W+create\b|secret\W+set\b|variable\W+set\b|release\W+(?:create|new|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|new|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|new|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\b|label\W+create\b|secret\W+set\b|variable\W+set\b|release\W+(?:create|new|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
 # T-0995: the issue, workflow and pr write verbs are in INLINE_GH_WRITE above; `gh pr comment` is NOT (reviewer and qa post
 # their summary with it, so the inline scan cannot tell their use from a pm's); see GH_NOPUSH_WRITE_VERBS.
 # T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
