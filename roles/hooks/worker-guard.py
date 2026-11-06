@@ -683,7 +683,9 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+# T-0995: the issue, workflow and pr write verbs are in INLINE_GH_WRITE above; `gh pr comment` is NOT (reviewer and qa post
+# their summary with it, so the inline scan cannot tell their use from a pm's); see GH_NOPUSH_WRITE_VERBS.
 # T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
 INLINE_GH_API_BODY = re.compile(
     r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
@@ -696,6 +698,15 @@ def inline_gh_api_body(text):
     parts = re.split(r"(?=\bgh\b)", text)
     return any(INLINE_GH_API_BODY.search(c) and not INLINE_GH_GET.search(c) for c in parts if c.lstrip().startswith("gh"))
 
+
+# T-0995: gh subcommand writes refused for NO_PUSH_ROLES. `pr comment` is refused too, except for the roles in
+# GH_PR_COMMENT_ROLES (roles/reviewer.md and roles/qa.md post their summary with it). Read forms stay allowed.
+GH_NOPUSH_WRITE_VERBS = {
+    "issue": ("create", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop"),
+    "workflow": ("run", "enable", "disable"),
+    "pr": ("create", "edit", "close", "reopen", "ready", "review", "merge", "lock", "unlock", "update-branch", "revert", "comment"),
+}
+GH_PR_COMMENT_ROLES = {"reviewer", "qa"}
 
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
@@ -3254,6 +3265,13 @@ class Analyzer:
                                 "to GitHub; drop the header, or ask your lead")
         if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
             raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
+        # T-0995: issue, workflow and pr writes (narrow verb list; reads stay allowed). Same limits: a verb known only at
+        # run time (`gh issue $X`) and other subcommand groups (run, label, secret, gist ...) are not seen.
+        if len(pos) >= 2 and pos[1] in GH_NOPUSH_WRITE_VERBS.get(pos[0], ()):
+            if not (pos[:2] == ["pr", "comment"] and self.role in GH_PR_COMMENT_ROLES):
+                raise Block(f"gh {pos[0]} {pos[1]} is a GitHub write; no-push roles never write to GitHub"
+                            + ("" if pos[0] != "pr" or pos[1] != "comment" else " (only reviewer and qa post a PR comment)")
+                            + "; ask your lead")
 
     def researcher_cmd(self, name, rest):
         """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
