@@ -104,6 +104,43 @@ class AffectedTest(unittest.TestCase):
         self.commit()
         self.assertEqual(self.selected(), sorted(SMOKE + ["test_gamma.py"]))
 
+    def test_tests_change_selects_every_whole_tree_lint(self):
+        """T-1017: any tests/ path selects the modules that scan every test file; never FULL by itself."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("affected_mod", AFFECTED)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        lints = list(mod.TEST_TREE_LINTS)
+        self.assertIn("test_guard_impl_coverage.py", lints)
+        self.assertIn("test_git_env_hermetic.py", lints)
+        for m in ("test_no_duplicate_defs.py", "test_skilleval_vendor.py", "test_skilleval_tasks.py",
+                  "test_scrub_clean.py"):
+            self.assertIn(m, lints)
+        for m in lints:
+            self.assertTrue(os.path.exists(os.path.join(os.path.dirname(AFFECTED), "..", "tests", m)), m)
+        for m in lints:
+            self.write("tests/" + m, "# lint\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "lints on base")
+        self.git("branch", "-f", "base")
+        self.write("tests/test_gamma.py", "# edited\n")
+        self.commit()
+        got = self.selected()
+        self.assertEqual(got, sorted(SMOKE + ["test_gamma.py"] + lints))
+        self.assertNotIn("FULL", got)
+
+    def test_no_tests_path_does_not_select_whole_tree_lints(self):
+        self.write("tests/test_guard_impl_coverage.py", "# lint\n")
+        self.write("tests/test_git_env_hermetic.py", "# lint\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "lints on base")
+        self.git("branch", "-f", "base")
+        self.write("ci/tool.py", "x = 2\n")
+        self.commit()
+        got = self.selected()
+        self.assertNotIn("test_guard_impl_coverage.py", got)
+        self.assertNotIn("test_git_env_hermetic.py", got)
+
     def test_deleted_test_module_selects_test_shard(self):
         """#260: a deleted tests/test_X.py leaves a stale ci/shard_timings.json entry; test_shard.py must run."""
         self.git("rm", "-q", "tests/test_gamma.py")

@@ -397,6 +397,79 @@ class TestChangelog(MetricsCase):
         self.assertIn("Nothing has been merged yet.", self.page(changelog)[1])
 
 
+class TestQualityPerTeamPhone(MetricsCase):
+    def test_merged_rejections_and_rate_carry_real_text_labels_and_the_card_class(self):
+        _, html = self.page(quality)
+        box = html.split("<h2>Per team")[1].split("</section>")[0]
+        self.assertIn('class="dt-wrap dt-wrap--cards"', box)
+        row = re.search(r"<tbody><tr>(.*?)</tr>", box, re.S).group(1)
+        self.assertEqual(re.findall(r'<span class="cl">([^<]*)</span>', row), ["Merged", "Rejections", "Per merged PR"])
+        self.assertNotIn('class="cl"', row.split("</td>")[0])             # the Team cell has no label
+        head = re.search(r"<thead>.*?</thead>", box, re.S).group(0)    # desktop: same four headers and sort links
+        self.assertEqual(re.findall(r"<a href=\"([^\"]*)\" class=\"sortlink\">([^<]*)</a>", head),
+                         [("/quality?sort=team&amp;dir=desc", "Team"), ("/quality?sort=merged&amp;dir=desc", "Merged"),
+                          ("/quality?sort=rejections&amp;dir=desc", "Rejections"), ("/quality?sort=rate&amp;dir=desc", "Rejections per merged PR")])
+
+    def test_the_footnote_sits_between_the_bar_lists_not_inside_one(self):
+        _, html = self.page(quality)
+        box = html.split("<h2>Rejections by source")[1].split("</section>")[0]
+        self.assertEqual(box.count('<div class="ins-list">'), 2)
+        note = box.index("CI counts merges")
+        self.assertEqual(box[:note].count("<div class=\"ins-list\">"), 1)
+        self.assertRegex(box[:note], r'</div></div></div><p class="muted">$')
+
+
+class TestThroughputTiles(MetricsCase):
+    def cost(self, **c):
+        base = {"state": "ready", "figure": None, "priced": 0, "merged": 0, "left_out": 0, "cursor_hours": None,
+                "prices_as_of": "2026-10-25"}
+        return str(throughput._cost_tile({"days": 7, "cost": {**base, **c}}))
+
+    def delta(self, html):
+        return re.search(r'<div class="delta[^"]*">([^<]*)</div>', html).group(1)
+
+    def test_one_grid_of_six_tiles_and_the_limits_note_below_it(self):
+        _, html = self.page(throughput)
+        self.assertEqual(html.count('class="tiles '), 1)
+        self.assertEqual(html.count("tiles--4"), 0)
+        grid = html.split('<div class="tiles tiles--6">')[1].split('</div><p class="muted">Counted from factory records only')[0]
+        self.assertEqual(grid.count('<div class="tile">'), 6)
+        self.assertEqual(re.findall(r'<div class="tile-label"><span>([^<]*)</span>', grid),
+                         ["Merges", "Median spawn to merge", "p90 spawn to merge", "Agents running now", "Unattended share",
+                          "Cost per merged PR"])
+        self.assertIn(throughput.LIMITS, html)
+
+    def test_cost_tile_figure_state_has_a_short_delta_and_keeps_every_fact(self):
+        html = self.cost(figure=20.0, priced=2, merged=5, left_out=3, cursor_hours=1.5)
+        self.assertIn('<div class="metric">$20.00</div>', html)
+        self.assertEqual(self.delta(html), "2 of 5 tasks priced")
+        for fact in ("list-price estimate (as of 2026-10-25)", "3 left out: no tokens or no price", "Cursor: 1.5 agent-hours, no cost"):
+            self.assertIn(fact, html)
+
+    def test_cost_tile_no_figure_state(self):
+        html = self.cost(figure=None, priced=0, merged=2, left_out=2)
+        self.assertIn('<div class="metric">-</div>', html)
+        self.assertEqual(self.delta(html), "0 of 2 tasks priced")
+        self.assertIn("2 left out: no tokens or no price", html)
+        self.assertNotRegex(html, r"\$\d")
+
+    def test_cost_tile_not_ready_and_cursor_states(self):
+        html = self.cost(state="not_ready")
+        self.assertIn('<div class="metric">not ready</div>', html)
+        self.assertEqual(self.delta(html), "The token index is still warming up.")
+        html = self.cost(state="cursor", cursor_hours=2.0)
+        self.assertIn('<div class="metric">-</div>', html)
+        self.assertEqual(self.delta(html), "Cursor: 2.0 agent-hours in 7 days, no cost or tokens reported.")
+
+
+class TestChangelogFeedClass(MetricsCase):
+    def test_both_groupings_use_the_log_modifier(self):
+        for q in ({}, {"group": "goal"}):
+            html = self.page(changelog, **q)[1]
+            self.assertIn('<ul class="feed feed--log">', html, q)
+            self.assertNotIn('<ul class="feed">', html, q)
+
+
 class TestAllPages(MetricsCase):
     VIEWS = (("/throughput", throughput), ("/quality", quality), ("/changelog", changelog))
 

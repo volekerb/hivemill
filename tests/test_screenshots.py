@@ -91,6 +91,9 @@ if mode == "same":
 content = h * 7 // 10
 if mode == "blank":
     fn = lambda y: bytes((bg, bg, bg)) * w
+elif mode == "card":  # text over the top 70%, flat background to 90%, then a card colour to the last row (a page cut inside a card)
+    fn = lambda y: (text_like_row(w, bg, fg, y) if y < content else bytes((bg, bg, bg)) * w if y < h * 9 // 10
+                    else bytes((120, 120, 120)) * w)
 elif mode == "tall":  # content on every row, the last one included
     fn = lambda y: text_like_row(w, bg, fg, 0 if y % 8 == 0 or y == h - 1 else 1)
 else:
@@ -711,6 +714,109 @@ class TestFullRun(ScreenshotsBase):
         self.assert_clean()
 
 
+class TestEvidence(ScreenshotsBase):
+    """--evidence through main(): the real seed, server and scrub, the browser stub."""
+
+    def setUp(self):
+        super().setUp()
+        # the stub page background (245 light, 20 dark) stands in for the theme's real --surface-0
+        p = unittest.mock.patch.object(screenshots, "THEME_BG", {"light": (245, 245, 245), "dark": (20, 20, 20)})
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_page_cut_inside_a_card_is_measured_against_the_true_background(self):
+        self.use_zip("card")
+        seen = {}
+        real = screenshots.check_blank
+        with unittest.mock.patch.object(screenshots, "check_blank", lambda n, pct: (seen.__setitem__(n, pct), real(n, pct))):
+            code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "home")
+        self.assertEqual(code, 0, o + e)
+        # the last row is a card (120), not background: measured against the last row, no row is blank (0.0%).
+        # Against the true background the flat band between text and card is blank: 20% of the window (minus the bar).
+        for name in ("home-light-desktop.png", "home-dark-desktop.png"):
+            self.assertGreater(seen[name], 10.0, (name, seen))
+            self.assertLess(seen[name], 30.0, (name, seen))
+        self.assertIn("INFO home-light-desktop.png: truncated at 250 CSS px", o)  # the page is cut at the window, not at the card
+        self.assertEqual(screenshots.background([bytearray(bytes((120, 120, 120)) * 4)], 0), (120, 120, 120))  # old rule: the card
+
+    def test_writes_every_page_theme_and_device_at_1x_and_no_hero(self):
+        self.use_zip()
+        out = self.images / "before"
+        code, o, e = self.run_main("--evidence", "--out", str(out))
+        self.assertEqual(code, 0, o + e)
+        want = sorted("%s-%s-%s.png" % (p, t, d) for p in screenshots.EVIDENCE_PAGES for t in ("light", "dark")
+                      for d in ("desktop", "phone"))
+        self.assertEqual(len(want), 44)
+        self.assertEqual(sorted(p.name for p in out.iterdir()), want)
+        self.assertFalse((out / "hero.png").exists() or (out / "social-preview.png").exists())
+        self.assertFalse((self.images / "hero.png").exists())
+        for p in out.iterdir():
+            self.assertEqual(struct.unpack(">I", p.read_bytes()[16:20])[0], 390 if p.name.endswith("-phone.png") else 1280, p.name)
+        self.assertIn("scrub task: exit 0", o)
+        self.assertIn("scrub changelog: exit 0", o)
+        self.assert_clean()
+
+    def test_pages_subset_and_unknown_page_exit_2(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "task,tokens")
+        self.assertEqual(code, 0, o + e)
+        self.assertEqual(sorted(p.name for p in (self.images / "x").iterdir()),
+                         ["task-dark-desktop.png", "task-dark-phone.png", "task-light-desktop.png",
+                          "task-light-phone.png", "tokens-dark-desktop.png", "tokens-dark-phone.png",
+                          "tokens-light-desktop.png", "tokens-light-phone.png"])
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "nope")
+        self.assertEqual(code, 2, o + e)
+
+    def test_out_docs_images_itself_is_refused(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images))
+        self.assertEqual(code, 3, o + e)
+        self.assertIn("not %s itself" % self.images.resolve(), e)
+        self.assertFalse(self.images.exists())
+
+    def test_out_outside_docs_images_is_refused_in_evidence_mode(self):
+        code, o, e = self.run_main("--evidence", "--out", str(self.dir / "elsewhere"))
+        self.assertEqual(code, 3, o + e)
+        self.assertIn("outside", e)
+
+    def test_task_page_is_not_available_without_evidence(self):
+        code, o, e = self.run_main("--out", str(self.images), "--pages", "task")
+        self.assertEqual(code, 2, o + e)
+
+    def test_pages_constant_unchanged_and_evidence_adds_four(self):
+        self.assertEqual(list(screenshots.PAGES), ["home", "goals", "goal", "tasks", "agents", "throughput", "quality"])
+        self.assertEqual(list(screenshots.EVIDENCE_EXTRA), ["task", "tokens", "resources", "changelog"])
+        self.assertEqual(len(screenshots.EVIDENCE_PAGES), 11)
+        self.assertEqual(screenshots.DEVICES, {"desktop": 1280, "phone": 390})
+
+    def test_phone_capture_uses_a_390_px_window_and_desktop_1280(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "home")
+        self.assertEqual(code, 0, o + e)
+        sizes = {re.search(r"--window-size=(\d+),", " ".join(c)).group(1) for c, _env in self.spawned if "--screenshot" in " ".join(c)}
+        self.assertEqual(sizes, {"390", "1280"})
+
+    def test_phone_tabbar_height_matches_app_css(self):
+        css = (ROOT / "web" / "static" / "app.css").read_text()
+        self.assertIn("--tabbar: %dpx" % screenshots.PHONE_TABBAR_CSS, css)
+
+    def test_phone_images_are_cropped_and_end_with_the_tab_bar_rows(self):
+        self.use_zip()
+        code, o, e = self.run_main("--evidence", "--out", str(self.images / "x"), "--pages", "home")
+        self.assertEqual(code, 0, o + e)
+        def height(name):
+            return struct.unpack(">I", (self.images / "x" / name).read_bytes()[20:24])[0]
+        # the stub draws content in the top 70% of the window and flat background below: the phone image is cropped
+        # (shorter than the window), and holds the 56 px bar rows
+        self.assertLess(height("home-light-phone.png"), int(250 * screenshots.PHONE_HMAX_MULT))
+        # at least the minimum cropped height (MIN_HEIGHT_CSS, patched to 100 in setUp) plus the appended bar rows
+        bar = screenshots.PHONE_TABBAR_CSS + screenshots.PHONE_TABBAR_SHADOW_CSS
+        self.assertGreaterEqual(height("home-light-phone.png"), 100 + bar)
+
+    def test_size_caps_are_unchanged(self):
+        self.assertEqual((screenshots.MAX_PNG_BYTES, screenshots.MAX_TOTAL_BYTES), (716800, 8388608))
+
+
 class TestFontPreflight(ScreenshotsBase):
     """check_fonts runs right after the checkout/--out refusals: exit 3 before any download, nothing written."""
 
@@ -1079,6 +1185,42 @@ class TestImageProcessing(unittest.TestCase):
         wrong = screenshots.blank_percent(hero, [(x0, 2 * half + 2, LIGHT["bg"])])  # one colour for both halves
         self.assertLess(right, screenshots.BLANK_LIMIT_PCT + 1)
         self.assertEqual(wrong, 0.0)  # the dark half is never "blank" against the light background
+
+    def test_theme_bg_matches_app_css(self):
+        css = (ROOT / "web" / "static" / "app.css").read_text()
+        token = r"[^}]*?--surface-0: #([0-9A-Fa-f]{6});"
+        light = re.search(r":root \{" + token, css).group(1)
+        dark = re.search(r"prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme=light\]\) \{" + token, css).group(1)
+        explicit = re.search(r":root\[data-theme=dark\] \{" + token, css).group(1)
+        rgb = lambda h: tuple(int(h[i:i + 2], 16) for i in range(0, 6, 2))
+        self.assertEqual(rgb(dark), rgb(explicit))
+        self.assertEqual(screenshots.THEME_BG, {"light": rgb(light), "dark": rgb(dark)})
+        self.assertEqual(screenshots.THEME_BG, {"light": (242, 242, 247), "dark": (0, 0, 0)})
+
+    def test_text_less_layout_scores_under_min_colours_after_downscale(self):
+        # flat cards with 1 px (2x) borders at odd offsets and a 16-step shadow ramp: the most colours a page without
+        # text can plausibly reach once downscaled to 1x
+        w, h, bg = 780, 600, (242, 242, 247)
+        rows = []
+        for y in range(h):
+            row = bytearray(bytes(bg) * w)
+            if 60 <= y < 500:
+                for x in range(41, 739):
+                    row[x * 3:x * 3 + 3] = bytes((255, 255, 255))
+                row[41 * 3:41 * 3 + 3] = row[738 * 3:738 * 3 + 3] = bytes((200, 200, 205))
+            if y in (60, 499):
+                row[41 * 3:739 * 3] = bytes((200, 200, 205)) * 698
+            if 500 <= y < 516:
+                v = 242 - (516 - y)
+                row[41 * 3:739 * 3] = bytes((v, v, v + 5)) * 698
+            rows.append(row)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "flat-light-phone.png"
+            screenshots.write_png(path, screenshots.downscale2(rows))
+            colours, _luma = screenshots.image_stats(path)
+        self.assertGreater(colours, 2)
+        self.assertLess(colours, screenshots.MIN_COLOURS)
+        self.assertEqual(screenshots.MIN_COLOURS, 200)
 
     def test_downscale_averages_2x2_boxes(self):
         rows = [bytearray([0, 0, 0, 4, 4, 4]), bytearray([8, 8, 8, 10, 11, 12])]

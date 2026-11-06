@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate the web UI screenshots in docs/images/ (light and dark) from a fictional demo home.
 
-  python3 ci/screenshots.py [--out docs/images] [--pages home,goals,...] [--now ISO]
+  python3 ci/screenshots.py [--out docs/images] [--pages home,goals,...] [--now ISO] [--evidence]
 
 Run it from a factory checkout. Everything happens in one temp dir that is always removed, with every child process
 (server, browser) terminated, on success, error, Ctrl-C and SIGTERM. In order it: downloads the pinned Chrome for
@@ -13,6 +13,8 @@ theme matches its file name, that the image is not mostly empty and the PNG size
 (home light | home dark) and the 1280x640 docs/images/social-preview.png. It first checks
 that fonts are installed (fontconfig and fonts-dejavu-core; the browser draws no text without them). It never installs
 anything and never escalates privileges.
+--evidence (redesign evidence, needs --out inside docs/images, not docs/images itself): 11 pages, each light and dark at
+1280 and 390 CSS px, saved at 1x as <page>-<theme>-<device>.png; no hero, no social preview. See docs/images/README.md.
 See docs/images/README.md. Exit codes: 0 ok, 1 failure, 2 usage error, 3 refused (not a factory checkout, --out outside
 docs/images, no fonts, checksum mismatch, no rendered text, theme mismatch, mostly empty image, size cap). Stdlib only.
 """
@@ -50,9 +52,27 @@ BIN_REL = Path("chrome-headless-shell-linux64") / "chrome-headless-shell"
 LDD = "ldd"
 PAGES = {"home": "/", "goals": "/goals", "goal": "/goal/G-002", "tasks": "/tasks", "agents": "/agents",
          "throughput": "/throughput", "quality": "/quality"}
+# --evidence mode (T-1140): four more pages, each captured light and dark at DEVICES widths. PAGES stays as it is.
+EVIDENCE_EXTRA = {"task": "/task/T-0010", "tokens": "/tokens", "resources": "/resources", "changelog": "/changelog"}
+EVIDENCE_PAGES = {**PAGES, **EVIDENCE_EXTRA}
+PAGE_PATHS = EVIDENCE_PAGES  # name -> URL path for every page either mode can capture
+DEVICES = {"desktop": 1280, "phone": 390}  # CSS px wide; file name `<page>-<theme>-<device>.png`
+# A phone stacks everything in one column, so its page is about 2.5x taller than the desktop one; its window is
+# PHONE_HMAX_MULT * HMAX CSS px high, and a phone page that is still taller is cut at the window (not at a section
+# gap: the narrow layout has no reliable gaps, the first run lost half of /quality that way).
+PHONE_HMAX_MULT = 2.5
+# On a phone the app shell has a position:fixed bottom tab bar (--tabbar in web/static/app.css; a test checks it), so the
+# last rows of every phone capture are the bar, never page background. The page is cropped without it and the bar is
+# appended below the crop.
+PHONE_TABBAR_CSS = 56
+PHONE_TABBAR_SHADOW_CSS = 32  # the bar's box-shadow (--e2, blur 16 px) spreads above it: those rows are not background either
 # theme.js follows the OS when no choice is stored, so the browser's preferred colour scheme picks the theme. Blink's
 # PreferredColorScheme enum is {kDark, kLight}: 0 is DARK and 1 is LIGHT (the first owner run had these swapped).
 THEMES = {"light": "1", "dark": "0"}
+# The page background per theme: `--surface-0` in web/static/app.css (the body background); a test pins these to the CSS.
+# Evidence mode measures crop and blank rows against it: the last row of a phone page cut at the window can be inside a
+# card, and `background()` would then take the card colour for the page.
+THEME_BG = {"light": (242, 242, 247), "dark": (0, 0, 0)}
 FC_LIST = "fc-list"
 FC_MATCH = "fc-match"
 FONT_HELP = ("No usable fonts: install fontconfig and fonts-dejavu-core (e.g. sudo apt install fontconfig "
@@ -126,6 +146,13 @@ def check_out(out):
     if target != allowed and allowed not in target.parents:
         raise Refused("--out %s is outside %s. Use the default or a directory under it." % (target, allowed))
     return target
+
+
+def check_evidence_out(target):
+    """--evidence writes 44 PNGs: Refused for docs/images itself (its own images live there), a subdirectory is fine."""
+    if target == IMAGES.resolve():
+        raise Refused("--evidence needs --out to be a directory inside %s (e.g. %s/before), not %s itself."
+                      % (target, target, target))
 
 
 def check_fonts():
@@ -344,7 +371,7 @@ def scrub(tmp, port, pages):
     for name in pages:
         html = tmp / ("%s.html" % name)
         try:
-            with urllib.request.urlopen("http://127.0.0.1:%d%s" % (port, PAGES[name]), timeout=15) as r:
+            with urllib.request.urlopen("http://127.0.0.1:%d%s" % (port, PAGE_PATHS[name]), timeout=15) as r:
                 html.write_bytes(r.read())
         except (urllib.error.URLError, OSError) as e:
             raise Failed("could not fetch page %s: %s" % (name, e))
@@ -363,11 +390,11 @@ def png_width(path):
     return struct.unpack(">I", head[16:20])[0]
 
 
-def browser_args(binary, theme, dest, url, height, profile, dpr=False):
+def browser_args(binary, theme, dest, url, height, profile, dpr=False, width=WIDTH):
     """The headless browser command line for one page in one theme (light/dark -> THEMES). dpr adds DPR_FLAG."""
     return [str(binary), "--headless", "--disable-gpu", "--no-sandbox", "--hide-scrollbars"]\
         + ([DPR_FLAG] if dpr else []) \
-        + ["--window-size=%d,%d" % (WIDTH, height), "--virtual-time-budget=%d" % SETTLE_MS, "--user-data-dir=" + str(profile),
+        + ["--window-size=%d,%d" % (width, height), "--virtual-time-budget=%d" % SETTLE_MS, "--user-data-dir=" + str(profile),
            "--blink-settings=preferredColorScheme=" + THEMES[theme], "--screenshot=" + str(dest), url]
 
 
@@ -381,7 +408,7 @@ def capture(binary, tmp, port, pages, height, dpr=False):
             dest = shots / ("%s-%s.png" % (name, theme))
             profile = tmp / "profile"
             shutil.rmtree(profile, ignore_errors=True)
-            cmd = browser_args(binary, theme, dest, "http://127.0.0.1:%d%s" % (port, PAGES[name]),
+            cmd = browser_args(binary, theme, dest, "http://127.0.0.1:%d%s" % (port, PAGE_PATHS[name]),
                                min(height, PAGE_HEIGHT.get(name, height)), profile, dpr)
             rc, out, err = run_child(cmd, 120, env=env)  # one browser process at a time
             if rc != 0 or not dest.is_file():
@@ -408,9 +435,9 @@ def check_sizes(files):
                          MAX_PNG_BYTES, total, MAX_TOTAL_BYTES, listing))
 
 
-def check_themes_differ(files, pages):
+def check_themes_differ(files, pages, suffix=""):
     for name in pages:
-        light, dark = [f for f in files if f.name in ("%s-light.png" % name, "%s-dark.png" % name)]
+        light, dark = [f for f in files if f.name in ("%s-light%s.png" % (name, suffix), "%s-dark%s.png" % (name, suffix))]
         if light.read_bytes() == dark.read_bytes():
             raise Failed("%s: light and dark images are identical; the theme was not applied." % name)
 
@@ -479,7 +506,7 @@ def image_stats(path):
     return len(colours), (luma / n if n else 0.0)
 
 
-def check_rendered(files, pages):
+def check_rendered(files, pages, suffix=""):
     """Refused (exit 3) when an image shows no rendered text, or when a page's light image is not clearly brighter
     than its dark one (the themes would not match the file names)."""
     stats = {f.name: image_stats(f) for f in files}
@@ -489,7 +516,7 @@ def check_rendered(files, pages):
             raise Refused("Captured images have no rendered text; check fonts. (%s has only %d distinct colours in "
                           "its top %d px, need %d.)" % (name, colours, CHECK_ROWS, MIN_COLOURS))
     for name in pages:
-        light, dark = stats["%s-light.png" % name][1], stats["%s-dark.png" % name][1]
+        light, dark = stats["%s-light%s.png" % (name, suffix)][1], stats["%s-dark%s.png" % (name, suffix)][1]
         if light < dark + MIN_LUMA_GAP:
             raise Refused("Theme mismatch: %s light/dark images do not match their names. (mean luminance light "
                           "%.1f, dark %.1f, need light > dark + %d.)" % (name, light, dark, MIN_LUMA_GAP))
@@ -775,6 +802,59 @@ def capture_all(binary, tmp, port, pages):
     return allfiles
 
 
+def capture_evidence(binary, tmp, port, pages):
+    """--evidence: every page, light and dark, at each DEVICES width. The browser runs at 2x, then each cropped capture
+    is downscaled by 2 and saved at device pixel ratio 1: `<page>-<theme>-<device>.png`, 1280 or 390 px wide. No hero,
+    no social preview. What differs from a normal run: the crop and the blank rows are measured against the theme's
+    true page background (THEME_BG), not the last row's colour; the blank and crop checks run on the 2x rows, but the
+    text and theme checks (MIN_COLOURS, MIN_LUMA_GAP) run on the saved 1x images. The seed and the scrub scan are the
+    same. Per phone image, whether the capture's content reaches the right edge is NOT measured here: see
+    docs/web-redesign-brief.md."""
+    outdir = tmp / "out"
+    outdir.mkdir()
+    env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp / "browser-home"), "LANG": "C.UTF-8"}
+    (tmp / "browser-home").mkdir(exist_ok=True)
+    files, blank = [], {}
+    for device, width in DEVICES.items():
+        for name in pages:
+            for theme in THEMES:
+                fname = "%s-%s-%s.png" % (name, theme, device)
+                raw = tmp / ("raw-" + fname)
+                profile = tmp / "profile"
+                shutil.rmtree(profile, ignore_errors=True)
+                height = int(HMAX * (PHONE_HMAX_MULT if device == "phone" else 1))
+                cmd = browser_args(binary, theme, raw, "http://127.0.0.1:%d%s" % (port, PAGE_PATHS[name]), height,
+                                   profile, dpr=True, width=width)
+                rc, _out, err = run_child(cmd, 120, env=env)  # one browser process at a time
+                if rc != 0 or not raw.is_file():
+                    raise Failed("capture of %s failed (exit %d): %s" % (fname, rc, err[-500:]))
+                if png_width(raw) != width * SCALE:
+                    raise Failed("%s is %d px wide at 2x, expected %d." % (fname, png_width(raw), width * SCALE))
+                w2, rows = read_rows(raw)
+                raw.unlink()
+                x0 = main_x0(w2)
+                bar = rows[-(PHONE_TABBAR_CSS + PHONE_TABBAR_SHADOW_CSS) * SCALE:] if device == "phone" else []
+                rows = rows[:len(rows) - len(bar)]
+                bg = THEME_BG[theme]
+                rows, truncated = crop_to_content(rows, x0, bg, window=(height - len(bar) // SCALE) * SCALE,
+                                                  sections=device != "phone")
+                rows = rows + bar
+                if truncated:
+                    print("INFO %s: truncated at %d CSS px" % (fname, height))
+                blank[fname] = blank_percent(rows, [(x0, w2, bg)])
+                write_png(outdir / fname, downscale2(rows))
+                files.append(outdir / fname)
+                if png_width(outdir / fname) != width:
+                    raise Failed("%s is %d px wide, expected %d." % (fname, png_width(outdir / fname), width))
+    for device in DEVICES:
+        check_themes_differ([f for f in files if f.name.endswith("-%s.png" % device)], pages, "-" + device)
+        check_rendered([f for f in files if f.name.endswith("-%s.png" % device)], pages, "-" + device)
+    for fname, pct in sorted(blank.items()):
+        check_blank(fname, pct)
+    check_sizes(files)
+    return files
+
+
 def publish(files, out):
     out.mkdir(parents=True, exist_ok=True)
     for f in files:
@@ -787,19 +867,27 @@ def publish(files, out):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", default=str(IMAGES), help="output directory, must be docs/images or inside it")
-    ap.add_argument("--pages", default=",".join(PAGES), help="comma list from: " + ",".join(PAGES))
+    ap.add_argument("--pages", default=None, help="comma list from: " + ",".join(PAGES)
+                    + " (with --evidence also: " + ",".join(EVIDENCE_EXTRA) + "); default: all of them")
+    ap.add_argument("--evidence", action="store_true",
+                    help="redesign evidence: %d pages, light and dark, at %s CSS px, 1x, into --out (a directory "
+                         "inside docs/images, not docs/images itself); no hero, no social preview"
+                         % (len(EVIDENCE_PAGES), "/".join(str(w) for w in DEVICES.values())))
     ap.add_argument("--now", help="demo seed reference time (ISO); default: the current UTC hour, floored")
     args = ap.parse_args(argv)
     try:
         check_checkout()
         out = check_out(args.out)
+        if args.evidence:
+            check_evidence_out(out)
     except Refused as e:
         print("refused: %s" % e, file=sys.stderr)
         return 3
-    pages = [n for n in args.pages.split(",") if n]
-    bad = [n for n in pages if n not in PAGES]
+    known = EVIDENCE_PAGES if args.evidence else PAGES
+    pages = [n for n in (args.pages if args.pages is not None else ",".join(known)).split(",") if n]
+    bad = [n for n in pages if n not in known]
     if bad or not pages:
-        print("unknown page(s) %s; choose from %s" % (bad, ",".join(PAGES)), file=sys.stderr)
+        print("unknown page(s) %s; choose from %s" % (bad, ",".join(known)), file=sys.stderr)
         return 2
     try:
         check_fonts()
@@ -817,7 +905,7 @@ def main(argv=None):
         seed(demo, now)
         port = serve(demo)
         scrub(tmp, port, pages)
-        files = capture_all(binary, tmp, port, pages)
+        files = (capture_evidence if args.evidence else capture_all)(binary, tmp, port, pages)
         publish(files, out)
         print("--now %s" % now)
     except Refused as e:
