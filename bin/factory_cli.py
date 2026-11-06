@@ -210,6 +210,7 @@ DEFAULT_CONFIG = {
     "gate_post_status": "0",     # 1 = mirror each PR gate result as the commit status factory/local-gate (written only, never read back)
     "gate_retry_error": "1",     # error (infra, not a test failure) runs are retried this many times by the T-B tick wiring
     "herdr_socket": "~/.config/herdr/herdr.sock",  # herdr() pins this for every herdr call, whatever the caller env holds
+    "terminal_backend": "auto",  # auto | herdr | hc — which CLI talks to the agent host (herdr TUI vs herdr-core `hc`); auto prefers herdr when both are on PATH
     "stop_timeout_s": "300",     # `factory stop`: the tick force-closes the pane of a stopped agent still live after this long
     # worker sandbox (G-010): comma list of roles whose claude runs in the namespace sandbox, each one of
     # workerbox.SANDBOXABLE (reviewer, qa, coder, researcher). Empty = off = today's behaviour. Read fresh at every spawn.
@@ -650,7 +651,7 @@ def require_known(a):
         return
     if a.cmd == "flags":  # read-only registry listing
         return
-    ro = (a.cmd in ("whoami", "inbox", "agents", "res", "scorecard", "serve")
+    ro = (a.cmd in ("whoami", "inbox", "agents", "res", "doctor", "scorecard", "serve")
           or (a.cmd == "config" and a.value is None)
           or (a.cmd == "project" and a.action == "list")
           or (a.cmd == "gate" and a.action in ("show", "list"))
@@ -1030,6 +1031,59 @@ def herdr_socket():
     return _HERDR_SOCK["sock"]
 
 
+def terminal_backend_config(con):
+    """Config terminal_backend: auto | herdr | hc; invalid values fall back to auto."""
+    v = (cfg(con, "terminal_backend") or "auto").strip().lower()
+    return v if v in ("auto", "herdr", "hc") else "auto"
+
+
+def terminal_backend_effective(con):
+    """(effective_label, host_cli) — which binary factory uses for agent host IPC (herdr TUI vs herdr-core `hc`).
+
+    auto: prefer the TUI (`herdr`) when it is on PATH; otherwise use `hc` if present; if neither is on PATH,
+    keep `herdr` so errors match today's herdr-not-found behaviour.
+    """
+    raw = terminal_backend_config(con)
+    if raw == "herdr":
+        return "herdr", "herdr"
+    if raw == "hc":
+        return "hc", "hc"
+    h_ok = shutil.which("herdr") is not None
+    hc_ok = shutil.which("hc") is not None
+    if h_ok:
+        return "auto→herdr", "herdr"
+    if hc_ok:
+        return "auto→hc", "hc"
+    return "auto→herdr", "herdr"
+
+
+def terminal_backend_summary(con):
+    raw = terminal_backend_config(con)
+    eff, exe = terminal_backend_effective(con)
+    return raw, eff, exe
+
+
+def cmd_doctor(a):
+    """Short host diagnostics: active terminal backend and herdr socket pin."""
+    con = db()
+    try:
+        raw, eff, exe = terminal_backend_summary(con)
+        print(f"terminal backend: {exe} (config={raw}; effective={eff})")
+        print(f"herdr_socket (HERDR_SOCKET_PATH pin): {herdr_socket()}")
+    finally:
+        con.close()
+
+
+def _normalize_agent_list_row(a):
+    """TUI lists omit agent_status sometimes; core may omit it until OSC 7501 — never treat that as idle."""
+    if not isinstance(a, dict):
+        return a
+    st = a.get("agent_status")
+    if st is None or st == "":
+        return {**a, "agent_status": "unknown"}
+    return a
+
+
 HERDR_WORKER_ALLOW = {("agent", "list"), ("agent", "read"), ("pane", "list"), ("pane", "process-info"),
                       ("tab", "list"), ("workspace", "list"), ("pane", "report-metadata"),
                       ("workspace", "report-metadata"), ("agent", "prompt")}
@@ -1078,16 +1132,21 @@ def herdr_gate(args):
 
 def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     herdr_gate(args)
+    con = db()
+    try:
+        _, exe = terminal_backend_effective(con)
+    finally:
+        con.close()
     env = {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
     try:
-        p = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=timeout, env=env)
+        p = subprocess.run([exe, *args], capture_output=True, text=True, timeout=timeout, env=env)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         if check:
-            die(f"herdr {' '.join(args[:2])} failed: {e}")
+            die(f"{exe} {' '.join(args[:2])} failed: {e}")
         return None
     if p.returncode != 0:
         if check:
-            die(f"herdr {' '.join(args[:3])} failed: {p.stderr.strip() or p.stdout.strip()}")
+            die(f"{exe} {' '.join(args[:3])} failed: {p.stderr.strip() or p.stdout.strip()}")
         return None
     out = p.stdout.strip()
     try:
@@ -1099,13 +1158,18 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
 def herdr_start_error(*args):
     """Run a herdr command that may fail; return (result, error text). error is None on success."""
     herdr_gate(args)
+    con = db()
+    try:
+        _, exe = terminal_backend_effective(con)
+    finally:
+        con.close()
     env = {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
     try:
-        p = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
+        p = subprocess.run([exe, *args], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
     except subprocess.TimeoutExpired as e:
         return None, f"timed out: {e}"
     except FileNotFoundError as e:
-        return None, f"herdr not found: {e}"
+        return None, f"{exe} not found: {e}"
     if p.returncode != 0:
         return None, p.stderr.strip() or p.stdout.strip() or f"exit {p.returncode}"
     out = p.stdout.strip()
@@ -1117,7 +1181,12 @@ def herdr_start_error(*args):
 
 def herdr_agents():
     r = herdr("agent", "list", check=False)
-    return (r or {}).get("agents", []) if r is not None else None
+    if r is None or not isinstance(r, dict):
+        return None
+    agents = r.get("agents")
+    if not isinstance(agents, list):
+        return None
+    return [_normalize_agent_list_row(a) for a in agents]
 
 
 def close_named_pane(con, name, pane):
@@ -2181,6 +2250,11 @@ def cmd_config(a):
             a.value = a.value.strip()
             if a.value not in ("0", "1"):
                 die(f"task_clones must be 0 or 1, not {a.value!r}", 2)
+        if a.key == "terminal_backend":
+            v = a.value.strip().lower()
+            if v not in ("auto", "herdr", "hc"):
+                die("terminal_backend must be auto, herdr or hc", 2)
+            a.value = v
         if a.key == "skilleval_root":
             try:
                 scoutvendor.resolve_root(a.value, HOME)
@@ -11085,7 +11159,9 @@ def cmd_clean(a):
     if pane_cwds is None:
         die("cannot verify live panes; refusing to remove anything", 4)
     r = herdr("agent", "list", check=False)  # no usable agents list = None: every task with a live agent row is kept
-    listed = r["agents"] if isinstance(r, dict) and isinstance(r.get("agents"), list) else None
+    listed = None
+    if isinstance(r, dict) and isinstance(r.get("agents"), list):
+        listed = [_normalize_agent_list_row(a) for a in r["agents"]]
     rows = []
     known = set()
     repos = {}
@@ -12606,6 +12682,7 @@ def res_org_mix(con):
 
 def cmd_res(a):
     con = db()
+    tb_raw, tb_eff, tb_exe = terminal_backend_summary(con)
     ok, why, s = gate(con)
     u = s["usage"]
     load = (load1(),)
@@ -12613,6 +12690,7 @@ def cmd_res(a):
             if l.startswith(("SwapTotal", "SwapFree"))}
     q = con.execute("SELECT count(*) c FROM agents WHERE status='queued'").fetchone()["c"]
     print(f"spawn gate: {'OPEN' if ok else 'CLOSED — ' + why}")
+    print(f"terminal backend: {tb_exe} (config={tb_raw}; effective={tb_eff})")
     print(f"load gate: load1 {s['load1']:.1f} vs cap {s['load_cap']:.1f} ({cfg(con, 'gate_max_load_ratio')} x {os.cpu_count()} CPUs): "
           + ("HOLDING spawns" if s["load1"] > s["load_cap"] else "open"))
     held, slots = test_slot_usage(con)
@@ -16860,6 +16938,7 @@ def main():
     x = sp.add_parser("main-unfreeze", help="director/boss: clear the merge freeze set by a non-PR push on public main")
     x.add_argument("--reason", required=True); x.set_defaults(fn=cmd_main_unfreeze)
     sp.add_parser("whoami").set_defaults(fn=cmd_whoami)
+    sp.add_parser("doctor", help="host diagnostics (terminal backend, herdr socket pin)").set_defaults(fn=cmd_doctor)
 
     x = sp.add_parser("project"); x.add_argument("action", choices=["add", "update", "list"]); x.add_argument("id", nargs="?")
     x.add_argument("--name"); x.add_argument("--repo"); x.add_argument("--gh"); x.add_argument("--base", default="main")

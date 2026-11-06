@@ -227,10 +227,11 @@ def assert_hermetic(home_dir, stub_bin, tmp_root=None):
     if not raw or tmp not in home.parents or home != Path(home_dir).resolve():
         raise RuntimeError(f"FACTORY_HOME={raw!r} is not the temp test home {home_dir}; "
                            "a test would act on a real factory home. Use FactoryEnv.")
-    found = shutil.which("herdr")
-    if not found or Path(found).resolve().parent != Path(stub_bin).resolve():
-        raise RuntimeError(f"the binary on PATH is {found!r}, not the stub in {stub_bin}; a test would reach the real one. "
-                           "Put the harness stub_bin first on PATH.")
+    for exe in ("herdr", "hc"):
+        found = shutil.which(exe)
+        if not found or Path(found).resolve().parent != Path(stub_bin).resolve():
+            raise RuntimeError(f"{exe} on PATH is {found!r}, not the stub in {stub_bin}; a test would reach the real one. "
+                               "Put the harness stub_bin first on PATH.")
 
 
 # T-0232: the live factory home(s) as seen at import, before any test patches os.environ.
@@ -295,8 +296,9 @@ class FactoryEnv:
         self.proc_dir = self.home / "fakeproc-host"
         for d in (self.user_home, self.stub_bin, self.home_dir, self.proc_dir):
             d.mkdir()
-        # herdr is a copy: the worker gate exempts only a real tests/stubs path (tests/test_worker_gate.py)
+        # herdr and hc are copies: the worker gate exempts only a real tests/stubs path (tests/test_worker_gate.py)
         shutil.copy2(STUBS / "herdr", self.stub_bin / "herdr")
+        shutil.copy2(STUBS / "hc", self.stub_bin / "hc")
         (self.stub_bin / "gh").symlink_to(STUBS / "gh")
         self.herdr_state = self.home / "herdr.json"
         self.gh_state = self.home / "gh.json"
