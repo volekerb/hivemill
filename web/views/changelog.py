@@ -59,7 +59,7 @@ def render(ctx, d):
     if mode == "goal":
         for g in d["groups"]:
             title = f"{g['goal_id']} - {g['goal_title'] or ''}" if g["goal_id"] else "No goal"
-            parts.append(section(title, feed([_row(i, None, now) for i in g["items"]]), count=len(g["items"])))
+            parts.append(section(title, feed([_row(i, None, now) for i in g["items"]], "log"), count=len(g["items"])))
     else:
         items = sorted(((i, g["goal_id"]) for g in d["groups"] for i in g["items"]),
                        key=lambda p: (queries._epoch(p[0]["merged"]) or 0, p[0]["task_id"]), reverse=True)
@@ -67,5 +67,5 @@ def render(ctx, d):
         for i, gid in items:
             days.setdefault(_day(i["merged"], now), []).append(_row(i, gid, now))
         for day, rows in days.items():
-            parts.append(section(day, feed(rows), count=len(rows)))
+            parts.append(section(day, feed(rows, "log"), count=len(rows)))
     return el("div", *parts)

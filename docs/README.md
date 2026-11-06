@@ -113,6 +113,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [research/cursor-e2e-issues.md](research/cursor-e2e-issues.md): issues found dogfooding Cursor coder, qa, reviewer and judge.
 - [web-design.md](web-design.md): the design pass behind the web UI styling.
 - [web-redesign-brief.md](web-redesign-brief.md): G-015 SC4 redesign brief: page audit from the before screenshots, decisions, F-27 tree, task split.
+- [web-redesign-review.md](web-redesign-review.md): G-015 SC4 design review: before and after screenshots per page, phone layout, contrast, open visual findings.
 - [web-perf.md](web-perf.md): measured cost of the web UI in time, memory and tick impact.
 - [web-tokens.md](web-tokens.md): worker roots and read limits for token accounting.
 - [skill-scout.md](skill-scout.md): how the scout finds and triages new Claude Code skills.

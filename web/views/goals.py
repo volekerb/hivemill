@@ -4,10 +4,10 @@ from types import SimpleNamespace
 
 from web import charts, queries
 from scout import orgs as _orgs
-from web.components import (COLLAPSED, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
+from web.components import (AGENT_COLS, COLLAPSED, agent_row, GROUP_ORDER, ago, chip, chips, ctx_org, data_table, disclosure, empty_state, filter_bar, needs_you_row,
                             org_badge, org_href, row_status, section, segmented)
-from web.html import CLASSES, LABELS, badge, card, crumbs, el, empty, link, table, ts
-from web.views.home import _needs
+from web.html import CLASSES, LABELS, badge, card, crumbs, el, link, table, ts
+from web.views.home import _needs, goal_row, needs_by_goal
 
 TITLE = "Goals"
 
@@ -69,8 +69,9 @@ def data(ctx, sort=None, **params):
     gl = sorted((g for g in every if org is None or g["org"] == org), key=_rank)
     ids = {g["id"] for g in gl}
     internal = [t for t in queries.internal_blocked(ctx.db) if org is None or t["goal_id"] in ids]
+    needs = _needs(ctx, org)
     return {"org": org, "orgs": by_org, "goals": gl, "owner_pending": queries.owner_pending(ctx.db), "internal_blocked": internal,
-            "needs_you": _needs(ctx, org), "criteria": queries.criteria_by_goal(ctx.db), "last_activity": queries.last_activity_by_goal(ctx.db),
+            "needs_you": needs, "needs_by_goal": needs_by_goal(needs), "criteria": queries.criteria_by_goal(ctx.db), "last_activity": queries.last_activity_by_goal(ctx.db),
             "sort": sort if sort in SORTS else None}
 
 
@@ -99,18 +100,8 @@ def _sorted(goals, sort, last):
 
 
 def _goal_row(g, d, now):
-    done, total = g["tasks_done"], g["tasks_total"]
-    prs = f"{g['open_prs']} open PR" + ("s" if g["open_prs"] != 1 else "") if g["open_prs"] else None
-    crit = d["criteria"].get(g["id"])
-    act = ago(d["last_activity"].get(g["id"]) or g["updated"], now)
-    title = el("span", el("a", g["title"], href=f"/goal/{g['id']}"),
-               el("span", f"P{g['priority']}", class_="chip-p") if g["priority"] is not None else None, " ", org_badge(g.get("org")),
-               class_="gtitle")
-    meta = el("div", charts.meter(done, total, f"{done}/{total} tasks"),
-              el("span", f"criteria {crit[0]}/{crit[1]}", class_="gprs") if crit else None,
-              el("span", prs, class_="gprs") if prs else None, _blocked_cell(g),
-              el("span", f"last activity {act}", class_="gact") if act else None, class_="gm")
-    return el("li", row_status(g["status"]), el("span", g["id"], class_="mono lrow-id"), title, meta, class_="goalrow")
+    return goal_row(g, now, crit=d["criteria"].get(g["id"]), last=d["last_activity"].get(g["id"]) or g["updated"],
+                    needs=d["needs_by_goal"].get(g["id"], 0), extra=_blocked_cell(g))
 
 
 def _goal_list(goals, d, now):
@@ -161,7 +152,7 @@ def _detail_data(ctx, id=None, **params):
     if g is None:
         return {"id": id, "found": False}
     g["found"] = True
-    g["teams_detail"] = [dict(t, scope=queries._t(t["scope"], TEAM_SCOPE_MAX)) for t in queries.teams(ctx.db) if t["goal_id"] == id]
+    g["teams_detail"] = [dict(t, scope=queries._t(t["scope"], TEAM_SCOPE_MAX)) for t in queries.goal_teams(ctx.db).get(id, {}).get("teams", [])]
     g["tasks"] = queries.tasks(ctx.db, goal=id)
     p = ctx.db.execute("SELECT version, created FROM plans WHERE goal_id=? ORDER BY version DESC LIMIT 1", (id,)).fetchone()
     g["plan"] = {"version": p["version"], "created": p["created"]} if p else None
@@ -237,14 +228,23 @@ def _intent(d):
     return section("Intent", body)
 
 
+def _teams(d, now):
+    """Teams of the goal, each with its running agents (agent_row cells), directly under Intent. None when the goal has
+    no team: no empty box. A team with no agents is a plain row."""
+    rows = []
+    for t in d["teams_detail"]:
+        head = el("div", el("span", t["id"], class_="mono lrow-id"), " ", el("span", t["lead_agent"]), " ", status_badge(t["status"]),
+                  el("span", t["scope"], class_="tscope") if t["scope"] else None, class_="tsum")
+        ags = [el("li", [el("span", c, class_=k["cls"]) for k, c in zip(AGENT_COLS, agent_row(a, now))], class_="agentrow") for a in t["agents"]]
+        rows.append(el("li", head, el("ul", ags, class_="lrow-list") if ags else None, class_="team"))
+    return section("Teams", el("ul", rows, class_="teams"), count=len(rows)) if rows else None
+
+
 def _rail(d):
-    teams = [el("li", el("span", t["id"], class_="mono"), " ", el("span", t["lead_agent"]), " ", status_badge(t["status"]),
-                el("div", t["scope"], class_="muted") if t["scope"] else None) for t in d["teams_detail"]]
     p = d["plan"]
     defs = [("Plan", f"v{p['version']} · " if p else "No plan yet", ts(p["created"]) if p else None),
             ("Created", ts(d["created"]), None), ("Updated", ts(d["updated"]), None)]
-    return el("aside", el("h2", "Teams"), el("ul", teams, class_="rail-list") if teams else empty("No team yet."),
-              el("dl", [[el("dt", k), el("dd", a, b)] for k, a, b in defs], class_="rail-dl"), class_="rail", aria_label="Goal details")
+    return el("aside", el("dl", [[el("dt", k), el("dd", a, b)] for k, a, b in defs], class_="rail-dl"), class_="rail", aria_label="Goal details")
 
 
 def _detail_render(ctx, d):
@@ -258,7 +258,7 @@ def _detail_render(ctx, d):
     meta = el("p", status_badge(d["status"]), " ", org_badge(d.get("org")), " · ",
               f"P{d['priority']}" if d["priority"] is not None else "no priority",
               " · ", team or "no team", " · updated ", ts(d["updated"]), class_="metarow")
-    main = el("div", meta, charts.meter(done, total, summary), _blocking(d, ctx.now), _criteria(d), _tasks_table(d, ctx.now), _intent(d),
+    main = el("div", meta, _intent(d), _teams(d, ctx.now), charts.meter(done, total, summary), _blocking(d, ctx.now), _criteria(d), _tasks_table(d, ctx.now),
               class_="gd-main")
     return el("div", _crumb(d["id"]), el("div", main, _rail(d), class_="gd"))
 

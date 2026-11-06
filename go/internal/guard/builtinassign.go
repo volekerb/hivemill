@@ -271,75 +271,22 @@ func (a *Analyzer) builtinAssign(assigns, words, extra []string) error {
 	return nil
 }
 
-// envUnset ports the `env` branch of Analyzer.builtin_assign (T-0788): env -u/--unset NAME of a protected or dynamic
-// name, and env -i / --ignore-environment / - (which clear every name), are refused. -S/--split-string re-parses its
-// string as env options; -C/--chdir skips its directory argument.
+// envUnset ports the `env` branch of Analyzer.builtin_assign (T-0788/T-0964): env -u/--unset NAME of a protected or
+// dynamic name, and env -i / --ignore-environment / - (which clear every name), are refused. T-1037 split forms are
+// denied in checkScrub; env_options stops at split without yielding unset from a re-parsed -S string.
 func (a *Analyzer) envUnset(rest []string, bad, dyn func(string) bool, denyAs func(verb, what, name string) error) error {
-	q := append([]string(nil), rest...)
-	next := func() (string, bool) {
-		if len(q) == 0 {
-			return "", false
-		}
-		w := q[0]
-		q = q[1:]
-		return w, true
-	}
 	const clearEnv = "the whole environment"
-	for {
-		w, ok := next()
-		if !ok {
-			return nil
-		}
-		if w == "-C" || w == "--chdir" {
-			next()
-			continue
-		}
-		if w == "-S" || w == "--split-string" || strings.HasPrefix(w, "--split-string=") || (strings.HasPrefix(w, "-S") && !strings.HasPrefix(w, "--")) {
-			var sval string
-			switch {
-			case strings.HasPrefix(w, "--") && strings.Contains(w, "="):
-				sval = w[strings.Index(w, "=")+1:]
-			case strings.HasPrefix(w, "-S") && w != "-S":
-				sval = w[2:]
-			default:
-				sval, _ = next()
-			}
-			q = append(pyFields(sval), q...)
-			continue
-		}
-		if w == "-i" || w == "--ignore-environment" || w == "-" {
-			return denyAs("clear or unset", "env "+w, clearEnv)
-		}
-		var names []string
-		switch {
-		case w == "-u" || w == "--unset":
-			n, _ := next()
-			names = []string{n}
-		case strings.HasPrefix(w, "--unset="):
-			names = []string{w[len("--unset="):]}
-		case strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && len(w) > 1:
-			for k, c := range w[1:] {
-				if c == 'i' {
-					return denyAs("clear or unset", "env "+w, clearEnv)
-				}
-				if c == 'u' { // -uNAME, or the next word
-					n := w[1+k+utf8.RuneLen(c):]
-					if n == "" {
-						n, _ = next()
-					}
-					names = []string{n}
-					break
-				}
-			}
-		case strings.HasPrefix(w, "--") || IsAssign(w):
-			continue
-		default:
-			return nil // the command word
-		}
-		for _, n := range names {
-			if bad(n) || dyn(n) {
-				return denyAs("unset", "env -u", n)
+	for _, opt := range envOptions(rest) {
+		switch opt.kind {
+		case "clear":
+			return denyAs("clear or unset", "env "+opt.value, clearEnv)
+		case "unknown":
+			return denyAs("run", "env "+opt.value, "an env option this guard does not model")
+		case "unset":
+			if bad(opt.value) || dyn(opt.value) {
+				return denyAs("unset", "env -u", opt.value)
 			}
 		}
 	}
+	return nil
 }

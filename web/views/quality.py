@@ -195,9 +195,10 @@ def _teams(ctx, d):
         flip = "asc" if key == col and direction == "desc" else "desc" if key == col else SORTS[col]
         return org_href("/quality", {"sort": col, "dir": flip}, d.get("org"))
     cols = [{"key": "team", "label": "Team", "cls": "c-title", "sortable": True},
-            {"key": "merged", "label": "Merged", "cls": "num", "sortable": True},
-            {"key": "rejections", "label": "Rejections", "cls": "num", "sortable": True},
-            {"key": "rate", "label": "Rejections per merged PR", "cls": "num", "sortable": True}]
+            {"key": "merged", "label": "Merged", "cls": "num", "sortable": True, "phone_label": True},
+            {"key": "rejections", "label": "Rejections", "cls": "num", "sortable": True, "phone_label": True},
+            {"key": "rate", "label": "Rejections per merged PR", "cls": "num", "sortable": True,
+             "phone_label": "Per merged PR"}]
     table = [[t["team_id"], t["merged"], t["rejections"], _rpm(t["rejections_per_merged"])] for t in rows]
     return section("Per team", data_table(cols, [{"key": "all", "label": None, "count": len(table), "rows": table}],
                                           sort=(key, direction), sort_href=sort_href, key="teams"))

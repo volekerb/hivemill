@@ -683,7 +683,9 @@ INLINE_GIT_PUSH = (re.compile(r"\bgit\b"), re.compile(r"\bpush\b"))  # both word
 # known false positives (accepted): `gh repo view`, and a `-X POST` text after an unrelated `gh api` in the same code;
 # optional gh global flags (-R a/b) may sit before the subcommand
 INLINE_GH_WRITE = re.compile(
-    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create)\b|repo\b|release\W+(?:create|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+    r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+(?:pr\W+(?:merge|create|new|edit|close|reopen|ready|review|lock|unlock|update-branch|revert)\b|issue\W+(?:create|new|edit|close|reopen|comment|delete|transfer|pin|unpin|lock|unlock|develop)\b|workflow\W+(?:run|enable|disable)\b|repo\b|label\W+create\b|secret\W+set\b|variable\W+set\b|release\W+(?:create|new|edit|delete|upload|delete-asset)\b|api\b[\s\S]*?(?<!\w)(?:-X|--method)\W*(?i:POST|PUT|PATCH|DELETE)\b)")
+# T-0995: the issue, workflow and pr write verbs are in INLINE_GH_WRITE above; `gh pr comment` is NOT (reviewer and qa post
+# their summary with it, so the inline scan cannot tell their use from a pm's); see GH_NOPUSH_WRITE_VERBS.
 # T-0881: `gh api` with a body flag defaults to POST, so it is a gh write unless the method is GET. Same scan, same limits.
 INLINE_GH_API_BODY = re.compile(
     r"\bgh\b(?:\W+-{1,2}[A-Za-z][\w-]*(?:\W+[\w./:-]+)?)*?\W+api\b[\s\S]*?(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
@@ -696,6 +698,19 @@ def inline_gh_api_body(text):
     parts = re.split(r"(?=\bgh\b)", text)
     return any(INLINE_GH_API_BODY.search(c) and not INLINE_GH_GET.search(c) for c in parts if c.lstrip().startswith("gh"))
 
+
+# T-0995: gh subcommand writes refused for NO_PUSH_ROLES. `pr comment` is refused too, except for the roles in
+# GH_PR_COMMENT_ROLES (roles/reviewer.md and roles/qa.md post their summary with it). Read forms stay allowed.
+GH_NOPUSH_WRITE_VERBS = {
+    "issue": ("create", "new", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop"),
+    "workflow": ("run", "enable", "disable"),
+    "pr": ("create", "new", "edit", "close", "reopen", "ready", "review", "merge", "lock", "unlock", "update-branch", "revert", "comment"),
+    "repo": ("create", "new", "fork", "sync"),  # T-1156 (`new` is gh's alias of `create`)
+    "label": ("create",),
+    "secret": ("set",),
+    "variable": ("set",),
+}
+GH_PR_COMMENT_ROLES = {"reviewer", "qa"}
 
 SHARED_ADVICE = ("workers never change the shared checkout ~/factory (branch main); work in your own worktree "
                  "(your cwd under ~/factory/worktrees/)")
@@ -3319,7 +3334,7 @@ class Analyzer:
         """T-0881: NO_PUSH_ROLES may not run `gh api` with a body flag (-f -F --field --raw-field --input: gh then uses
         POST) unless the method is GET, nor `gh api` with any -X/--method other than GET (T-0987; HEAD, OPTIONS and an
         empty method are refused too, only GET is a read), nor `gh api -H 'X-HTTP-Method-Override: POST|PUT|PATCH|DELETE'`
-        (T-1030), nor `gh release create|edit|delete|upload|delete-asset`. Defense in depth only,
+        (T-1030), nor `gh release create|new|edit|delete|upload|delete-asset` (`new` is gh's alias of `create`). Defense in depth only,
         no obfuscation hunting: the boundary is the G-010 sandbox plus the worker PAT (M15349)."""
         headers = []
         pos, method, body = gh_parse(rest, headers)
@@ -3335,8 +3350,15 @@ class Analyzer:
                 if name.strip().lower() == "x-http-method-override" and val.strip().upper() in GH_MUTATING:
                     raise Block(f"gh api -H X-HTTP-Method-Override: {val.strip()} is a write; no-push roles never write "
                                 "to GitHub; drop the header, or ask your lead")
-        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "edit", "delete", "upload", "delete-asset"):
+        if pos[:1] == ["release"] and pos[1:2] and pos[1] in ("create", "new", "edit", "delete", "upload", "delete-asset"):
             raise Block(f"gh release {pos[1]} is a GitHub write; no-push roles never write to GitHub; ask your lead")
+        # T-0995: issue, workflow and pr writes (narrow verb list; reads stay allowed). Same limits: a verb known only at
+        # run time (`gh issue $X`) and other subcommand groups (run, gist, cache, alias, label edit|delete|clone, secret|variable delete|remove, repo deploy-key|autolink ...) are not seen; repo create|new|fork|sync, label create, secret set and variable set are (T-1156).
+        if len(pos) >= 2 and pos[1] in GH_NOPUSH_WRITE_VERBS.get(pos[0], ()):
+            if not (pos[:2] == ["pr", "comment"] and self.role in GH_PR_COMMENT_ROLES):
+                raise Block(f"gh {pos[0]} {pos[1]} is a GitHub write; no-push roles never write to GitHub"
+                            + ("" if pos[0] != "pr" or pos[1] != "comment" else " (only reviewer and qa post a PR comment)")
+                            + "; ask your lead")
 
     def researcher_cmd(self, name, rest):
         """G-029 T-0846: a researcher runs `gh` only to read and `factory` only to report (whoami, inbox, msg, done,
@@ -4435,12 +4457,12 @@ class PublicBlock(Block):
 PT_TEXT_FLAGS = {"--title", "-t", "--body", "-b", "--subject", "--comment", "-c", "--notes", "-n", "--message", "-m",
                  "--description", "--field-text"}
 PT_FILE_FLAGS = {"--body-file", "-F", "--notes-file", "--file", "--input"}
-PT_GH_WRITES = {"pr": {"create", "edit", "comment", "review", "close", "merge"},
-                "issue": {"create", "edit", "comment", "close"}, "release": {"create", "edit"}}
+PT_GH_WRITES = {"pr": {"create", "new", "edit", "comment", "review", "close", "merge"},
+                "issue": {"create", "new", "edit", "comment", "close"}, "release": {"create", "new", "edit"}}
 PT_GIT_SUBS = {"commit", "tag", "push", "merge", "commit-tree", "notes"}
 PT_DYNAMIC = re.compile(r"`|\$[A-Za-z_{(@*#?!0-9$-]")
 PT_CAT_HEREDOC = re.compile(r"\A\$\(\s*cat\s+<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n[ \t]*\2[ \t]*\n?\s*\)\Z", re.S)
-PT_WRITE_HINT = re.compile(r"\b(?:git\s+(?:-\S+\s+\S+\s+)*(?:commit|tag|push|merge)|gh\s+(?:pr|issue|release|api))\b")
+PT_WRITE_HINT = re.compile(r"\b(?:git\s+(?:-\S+\s+\S+\s+)*(?:commit|tag|push|merge)|gh\s+(?:(?:-R|--repo)\s+\S+\s+)?(?:pr|issue|release|api))\b")
 PT_REMOTE = re.compile(r"^(?:https?://(?:[^/@]+@)?[^/]+/|ssh://(?:[^/@]+@)?[^/]+/|git://[^/]+/|[\w.-]+@[^:/]+:)"
                        r"([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 PT_STDIN_PATH = re.compile(r"^/(?:dev/(?:stdin|fd/\d+)|proc/[^/]+/fd/\d+)$")
@@ -4844,7 +4866,8 @@ class PublicText:
                 repo = x.split("=", 1)[1]
             elif re.fullmatch(r"-R\S+", x):
                 repo = x[2:]
-        pos = [x for x in a if not x.startswith("-")]
+        # T-1156: the value of a separate -R/--repo is not a subcommand word (`gh -R x pr create` reads like `gh pr create -R x`)
+        pos = [x for k, x in enumerate(a) if not x.startswith("-") and not (k and a[k - 1] in ("-R", "--repo"))]
         if len(pos) < 2 and not (pos and pos[0] == "api"):
             return
         if pos[0] == "api":
@@ -5232,6 +5255,95 @@ def terms_split(cmd):
     return segs
 
 
+TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh")
+TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("issue", "list"), ("issue", "view"),
+                  ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_FLAGS = {"grep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"), "egrep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"),
+                     "rg": re.compile(r"-[FHILPSUchilnopqsuvwxz]+"), "jq": re.compile(r"-[CMRSaceJjnrst]+")}
+TERMS_BRACE_DOLLAR = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*(?![^ \t;&|])")
+
+
+def terms_brace_view(cmd):
+    """T-1121: the text TERMS_BRACE is searched in (depth 0 only). Gives up (returns cmd) unless the whole command is a plain
+    one-line chain of grep/egrep/rg/jq/gh read-only segments; then blanks only the single-quoted pattern/program/template word."""
+    t = cmd.strip(" \t\n")
+    if not t or any((ord(c) < 32 and c not in " \t") or ord(c) == 127 for c in t):
+        return cmd
+    segs, words = [], []  # a word is (start, end, number of quoted parts)
+    ws, parts, i, n = None, 0, 0, len(t)
+
+    def end_word(at):
+        nonlocal ws, parts
+        if ws is not None:
+            words.append((ws, at, parts))
+        ws, parts = None, 0
+
+    while i < n:
+        c = t[i]
+        if c == "'":
+            j = t.find("'", i + 1)
+            if j < 0:
+                return cmd
+            ws = i if ws is None else ws
+            parts += 1
+            i = j + 1
+        elif c in " \t":
+            end_word(i)
+            i += 1
+        elif c in ";&|":
+            end_word(i)
+            two = t[i:i + 2]
+            if (c == "&" and two != "&&") or two == "|&":
+                return cmd
+            segs.append(words)
+            words = []
+            i += 2 if two in ("&&", "||") else 1
+        elif c in "\"\\`(){}#<>" or ord(c) > 126:
+            return cmd
+        elif c == "$":
+            m = TERMS_BRACE_DOLLAR.match(t, i)
+            if not m:
+                return cmd
+            ws = i if ws is None else ws
+            i = m.end()
+        else:
+            ws = i if ws is None else ws
+            i += 1
+    end_word(n)
+    segs.append(words)
+    blank = []
+    for words in segs:
+        if not words:
+            return cmd
+        txt = [t[a:b] if q == 0 else None for a, b, q in words]  # None: the word has a quoted part
+        head = txt[0]
+        if head not in TERMS_BRACE_HEADS:
+            return cmd
+        if head == "gh" and (len(txt) < 3 or (txt[1], txt[2]) not in TERMS_BRACE_GH):
+            return cmd
+
+        def whole(k):
+            a, b, q = words[k]
+            return q == 1 and t[a] == "'" and t[b - 1] == "'"
+
+        if head == "gh":
+            for k in range(1, len(words) - 1):
+                if txt[k] in ("--jq", "-q", "--template") and whole(k + 1):
+                    blank.append(words[k + 1][:2])
+        else:
+            k = 1
+            while k < len(words) and txt[k] is not None and TERMS_BRACE_FLAGS[head].fullmatch(txt[k]):
+                k += 1
+            if head != "jq" and k < len(words) and txt[k] in ("-e", "--regexp"):
+                k += 1
+            if k < len(words) and whole(k) and t[words[k][0] + 1] != "-":  # a quoted word starting with a dash may be an option (rg '--glob=...'): blank nothing
+                blank.append(words[k][:2])
+    out = t
+    for a, b in sorted(blank, reverse=True):
+        out = out[:a] + "''" + out[b:]
+    return out
+
+
 def terms_bash(cmd, cwd, env=None, depth=0):
     paths = terms_paths(cwd)
     if not paths:
@@ -5241,7 +5353,8 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     env = {} if env is None else env
     home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
-    if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
+    brace_view = terms_brace_view(cmd) if depth == 0 else cmd
+    if ("${!" in cmd or TERMS_BRACE.search(brace_view)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
     for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):

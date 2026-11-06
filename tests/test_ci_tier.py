@@ -77,10 +77,29 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(self.tier({"README.md": "changed\n", "docs/a.md": "# b\n", "docs/img/x.png": "bin"}), "docs")
 
     def test_roles_markdown_is_not_docs(self):
+        self.repo.write("roles/existing.md", "old\n")
+        git(self.repo.root, "add", "-A")
+        git(self.repo.root, "commit", "-q", "-m", "roles base")
+        self.repo.base = self.repo.rev()
         self.assertEqual(self.tier({"roles/coder.md": "x\n"}), "normal")
 
     def test_normal(self):
         self.assertEqual(self.tier({"web/app.py": "x = 2\n"}), "normal")
+
+    def test_new_top_level_directory_is_risky_and_names_it(self):
+        tier, why = self.repo.classify({".claude-plugin/manifest.json": "{}\n"})
+        self.assertEqual(tier, "risky")
+        self.assertIn(".claude-plugin", why)
+
+    def test_new_top_level_file_is_risky_and_names_it(self):
+        tier, why = self.repo.classify({"NEW_TOP.txt": "x\n"})
+        self.assertEqual(tier, "risky")
+        self.assertIn("NEW_TOP.txt", why)
+
+    def test_change_inside_existing_top_level_not_new_entry_rule(self):
+        tier, why = self.repo.classify({"web/nested/deep.py": "x = 1\n"})
+        self.assertEqual(tier, "normal")
+        self.assertNotIn("new top-level", why)
 
     def test_docs_plus_code_is_normal(self):
         self.assertEqual(self.tier({"README.md": "c\n", "web/app.py": "x = 3\n"}), "normal")
@@ -160,6 +179,11 @@ class PlanTest(unittest.TestCase):
     def test_risky_is_full_with_go(self):
         p = self.plan({".github/CODEOWNERS": "x\n"})
         self.assertEqual((p["mode"], p["go"]), ("full", "true"))
+
+    def test_new_top_level_directory_plan_is_full(self):
+        p = self.plan({"plugins/widget/README": "x\n"})
+        self.assertEqual((p["tier"], p["mode"], p["go"]), ("risky", "full", "true"))
+        self.assertIn("plugins", p["reason"])
 
     def test_affected_full_selection_is_full_mode(self):
         p = self.plan({"tests/harness.py": ""})

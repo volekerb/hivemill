@@ -110,10 +110,10 @@ COLUMNS = (
     {"key": "status", "label": "", "cls": "c-st"},
     {"key": "id", "label": "ID", "cls": "c-id mono"},
     {"key": "title", "label": "Task", "cls": "c-title", "sortable": True},
-    {"key": "goal", "label": "Goal", "cls": "c-who", "sortable": True},
-    {"key": "assignee", "label": "Assignee", "cls": "c-who", "sortable": True},
-    {"key": "pr", "label": "PR", "cls": "c-who", "sortable": True},
-    {"key": "rejections", "label": "Rejections", "cls": "c-who", "sortable": True},
+    {"key": "goal", "label": "Goal", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "assignee", "label": "Assignee", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "pr", "label": "PR", "cls": "c-who", "sortable": True, "phone_label": True},
+    {"key": "rejections", "label": "Rejections", "cls": "c-who", "sortable": True, "phone_label": True},
     {"key": "updated", "label": "Updated", "cls": "c-age num", "sortable": True},
 )
 
@@ -466,7 +466,7 @@ def _detail_render(ctx, d):
                class_="tiles")
     blocks = _attempt_blocks(d["steps"])
     cycle = ([_attempt(n, b, n == len(blocks), ctx.now) for n, b in enumerate(blocks, 1)] if blocks else [empty_state("No events yet.")])
-    parts = [crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
+    parts = [el("div", crumb, _meta(d), el("p", _cost_line(d["cost"]), class_="muted"), class_="tblock"), section("Verdicts", _verdict_summary(d) or empty_state("No verdicts yet.")), tiles,
              section("PR cycle", *cycle)]
     fu = [el("span", link(f"/task/{f['id']}", f["id"]), " ", f["title"], " ", task_badge(f["status"], f["waits"]), " ") for f in d["follow_ups"]]
     if d["follow_up_of"]:

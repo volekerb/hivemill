@@ -62,9 +62,14 @@ captures 11 pages, each light and dark at desktop (1280 CSS px) and phone (390 C
 (`/task/T-0010`, a task the demo seed creates), `tokens`, `resources` and `changelog` (constant `EVIDENCE_EXTRA`; `PAGES`
 is unchanged). Files are `<page>-<theme>-<device>.png`, e.g. `task-dark-phone.png`: 44 PNGs. `--out` must be a directory
 strictly inside `docs/images` (`docs/images` itself exits 3). It builds no `hero.png` and no `social-preview.png`.
-The seed, the scrub scan, the crop and every check above run unchanged. The browser captures at 2x and each cropped
-image is then downscaled by 2, so the PNGs are at device pixel ratio 1 (1280 and 390 px wide) and the size caps
-(`MAX_PNG_BYTES`, `MAX_TOTAL_BYTES`) apply to them as before. Without `--evidence` nothing changes. The tool does not
+The seed and the scrub scan run unchanged. What differs from a normal run:
+
+- The page background used for the crop and the blank-row check is the theme's `--surface-0` (`THEME_BG`: light 242,242,247, dark 0,0,0; a test pins it to `web/static/app.css`), not the colour of the capture's last row. A phone page cut at the window can end inside a card, and the last-row rule then took the card colour for the background (before R3, `tasks-light-phone.png` reported 0.0% blank for a true 47.1%).
+- The blank and crop checks run on the 2x rows, as in a normal run. The text check (`MIN_COLOURS`) and the theme check run on the saved 1x images. `MIN_COLOURS` (200) was calibrated on 2x images: the 44 real 1x images of the T-1164 run score 982 to 2816 distinct colours in the top 400 px (min `agents-light-phone.png`, max `home-light-desktop.png`), and a test shows a synthetic text-less layout scores under 200 after `downscale2`.
+
+Pages cut at the window in the `after` run (INFO lines of the run): desktop `home`, `agents`, `throughput`, `changelog` (light and dark, 1600 CSS px); phone `tasks`, `agents`, `changelog` (light and dark, 4000 CSS px). What lies below the cut is not in the evidence.
+
+The browser captures at 2x and each cropped image is then downscaled by 2, so the PNGs are at device pixel ratio 1 (1280 and 390 px wide) and the size caps (`MAX_PNG_BYTES`, `MAX_TOTAL_BYTES`) apply to them as before. Without `--evidence` nothing changes. The tool does not
 measure sideways scrolling; read it from the phone images.
 
 ## Pinned browser

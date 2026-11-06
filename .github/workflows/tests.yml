@@ -192,7 +192,7 @@ jobs:
   guard-diff:
     name: guard-diff
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
