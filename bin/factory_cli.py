@@ -13293,6 +13293,7 @@ def judge_autospawn_tick(con):
         clock = digest_clock().timestamp()
     except FactoryNowError:
         clock = time.time()
+    batch = []  # T-1153: one ls-remote per tick for the red-main wait key
     for t in judge_autospawn_candidates(con):
         tid = t["id"]
         jhr = task_judge_hold_reason(con, tid)
@@ -13305,6 +13306,18 @@ def judge_autospawn_tick(con):
         name = oname(con, _o, slug(f"judge-{tid}"))
         if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
             continue  # cheap DB check first: the stale check below costs gh calls
+        slugs = _judge_slugs(con, t, "/".join((t["pr_url"] or "").split("/")[3:5]))
+        red = red_main_refusal(con, slugs, tid)
+        if red:  # T-1153: the judge would only end in a status-only reject while the freeze refuses merges
+            try:
+                head = _ci_remote_head(t["branch"], batch)  # None: no branch or unreadable; no gh call
+            except (OSError, subprocess.SubprocessError):  # a probe failure must not end the tick
+                head = None
+            rkey = f"judge-redmain:{tid}:{head}" if head else f"judge-redmain:{tid}:head"  # fixed shape: tid + PR head
+            if not _throttled(con, rkey, clock, float("inf") if head else REVIEW_WAIT_EVERY_S):  # one event per head; unknown head hourly
+                _throttle_set(con, rkey, clock)
+                event(con, "task", tid, "judge-autospawn-wait", f"{red} (head {head[:8]})" if head else red)
+            continue
         stale = judge_verdicts_stale(con, t, clock)
         if stale:  # T-1098: both verdicts must hold on the current head; the review pass starts what is missing
             key = f"judge-stale:{tid}:{stale[0]}"  # fixed-shape key: no free-form reason text
