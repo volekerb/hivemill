@@ -3493,7 +3493,7 @@ def inbox_show(con, a):
     m = con.execute("SELECT * FROM messages WHERE id=?", (int(arg),)).fetchone()
     if not m:
         die(f"no message M{arg}")
-    if m["recipient"] != actor() and actor_role(con) not in ("director", "boss", "owner"):
+    if actor() not in (m["recipient"], m["sender"]) and actor_role(con) not in ("director", "boss", "owner"):
         print(f"not your message: M{arg}", file=sys.stderr)
         sys.exit(3)
     print(inbox_header(m))
