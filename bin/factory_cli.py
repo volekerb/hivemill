@@ -6687,7 +6687,8 @@ def _proc_holds(roots, ignore_comms=frozenset(), blocker=None):
 def tmp_sweep_harness(con):
     """Tick hook, at most hourly: delete stale <tmp>/zz-test-factory-<8 chars> test-harness homes (killed or crashed test
     runs leave them). Only real dirs of our uid directly under <tmp>; kept when anything in the tree is under 1 h old or a
-    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything. At most 500 per pass; one
+    process of ours has its cwd or an fd inside; an unreadable pid of ours keeps everything unless its comm is in
+    TMP_LEFTOVER_IGNORE_COMMS (skipped); an unlisted one is named in a tmp-harness-blocked event. At most 500 per pass; one
     tmp-harness-swept event per pass that removed something."""
     try:
         t = time.time()
@@ -6718,8 +6719,18 @@ def tmp_sweep_harness(con):
                      {"count": len(unmeasured), "kept": unmeasured[:20]})
         if not old:
             return
-        held = _proc_holds([os.path.realpath(d) for d in old])
+        blocker = []
+        held = _proc_holds([os.path.realpath(d) for d in old], TMP_LEFTOVER_IGNORE_COMMS, blocker)
         if held is None:
+            pid, _, comm = (blocker[0] if blocker else "?:?").partition(":")
+            kept_bytes = 0
+            for d in old:
+                try:
+                    kept_bytes += _tree_bytes(d)
+                except OSError:
+                    pass   # vanished or unreadable: not counted in the MB figure
+            event_as(con, "tick", "tick", "tmp-harness", "tmp-harness-blocked",
+                     {"pid": pid, "comm": comm, "kept": len(old), "mb": round(kept_bytes / 1048576, 1)})
             return
         n = busy = freed = 0
         for d in old:

@@ -235,11 +235,12 @@ class LeftoverSweep(FactoryTestCase):
         self.assertEqual(self.events(), [])
 
     def test_harness_sweep_still_keeps_everything_for_listed_unreadable_pid(self):
-        # tmp_sweep_harness calls _proc_holds unchanged: a listed comm does not make its None go away
+        # T-1150: pin updated. tmp_sweep_harness now passes the same closed comm list, so a listed unreadable pid
+        # no longer keeps everything (the old assertTrue(h.exists()) was the T-1146 pin of the dead 1 h rule).
         h = self.leftover("zz-test-factory-abcd1234", age_h=3)
         self.unreadable(140, "systemd")
         self.ok("tick", extra_env={"FACTORY_SERVE_PROC_DIR": str(self.proc)})
-        self.assertTrue(h.exists())
+        self.assertFalse(h.exists())
 
     @unittest.skipIf(os.getuid() == 0, "root reads mode-000 dirs")
     def test_locked_subdir_counted_not_failed(self):
