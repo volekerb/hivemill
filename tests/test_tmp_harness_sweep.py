@@ -1,5 +1,6 @@
 """T-0233: the tick sweeps stale <tmp>/zz-test-factory-<8 chars> harness homes (older than 1 h, no process inside, at most
 500 per pass, hourly); everything else under <tmp> stays. Runs against FACTORY_TMP_DIR and a fake proc root only."""
+import json
 import os
 import time
 import unittest
@@ -31,9 +32,11 @@ class HarnessSweep(FactoryTestCase):
     def events(self):
         return self.env.sql("SELECT detail FROM events WHERE action='tmp-harness-swept'")
 
-    def fake_pid(self, pid, fd_target=None, cwd=None):
+    def fake_pid(self, pid, fd_target=None, cwd=None, comm=None):
         p = self.proc / str(pid)
         (p / "fd").mkdir(parents=True)
+        if comm is not None:
+            (p / "comm").write_text(comm + "\n")
         (p / "cwd").symlink_to(cwd or self.env.home)
         if fd_target:
             (p / "fd" / "3").symlink_to(fd_target)
@@ -75,13 +78,49 @@ class HarnessSweep(FactoryTestCase):
     @unittest.skipIf(os.getuid() == 0, "root reads any dir")
     def test_unreadable_fd_dir_removes_nothing(self):
         d = self.home_dir()
-        p = self.fake_pid(4244)
+        p = self.fake_pid(4244, comm="bash")
         (p / "fd").chmod(0)
         try:
             self.tick()
             self.assertTrue(d.exists())
         finally:
             (p / "fd").chmod(0o700)
+
+    def blocked(self):
+        return [json.loads(r["detail"]) for r in self.env.sql("SELECT detail FROM events WHERE action='tmp-harness-blocked'")]
+
+    def unreadable(self, pid, comm):
+        """A same-uid pid whose fd dir gives EACCES (like a non-dumpable daemon)."""
+        p = self.fake_pid(pid, comm=comm)
+        os.chmod(p / "fd", 0)
+        self.addCleanup(lambda: os.chmod(p / "fd", 0o700))
+        return p
+
+    @unittest.skipIf(os.getuid() == 0, "root reads any dir")
+    def test_unreadable_listed_pids_do_not_block_sweep(self):
+        d = self.home_dir()
+        held = self.home_dir("zz-test-factory-wxyz5678")
+        for i, comm in enumerate(("systemd", "(sd-pam)", "ssh-agent", "sshd-session")):
+            self.unreadable(300 + i, comm)
+        self.fake_pid(310, cwd=held / "sub")
+        self.tick()
+        self.assertFalse(d.exists())
+        self.assertTrue(held.exists())
+        self.assertEqual(self.blocked(), [])
+        self.assertIn('"kept_busy": 1', self.events()[0]["detail"])
+
+    @unittest.skipIf(os.getuid() == 0, "root reads any dir")
+    def test_unreadable_unlisted_pid_keeps_all_and_is_named(self):
+        d = self.home_dir()
+        self.unreadable(320, "systemd")
+        self.unreadable(321, "systemd-logind")
+        self.tick()
+        self.assertTrue(d.exists())
+        self.assertEqual(self.events(), [])
+        b = self.blocked()
+        self.assertEqual(len(b), 1)
+        self.assertEqual((b[0]["pid"], b[0]["comm"], b[0]["kept"]), ("321", "systemd-logind", 1))
+        self.assertGreater(b[0]["mb"], -1)
 
     def test_non_candidates_kept(self):
         outside = self.env.home / "outside"
