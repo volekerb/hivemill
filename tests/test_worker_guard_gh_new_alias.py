@@ -106,6 +106,8 @@ class GhNewAliasTests(unittest.TestCase):
         new = create.replace("pr create", "pr new")
         self.assertEqual(self.code(create, "judge"), 2)
         self.assertEqual(self.code(new, "judge"), 2)
+        clean = "gh pr create -R acme/pub --title t --body clean"
+        self.assertEqual(self.code(clean.replace("pr create", "pr new"), "judge"), self.code(clean, "judge"))
 
 
 if __name__ == "__main__":
