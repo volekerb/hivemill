@@ -119,6 +119,10 @@ class TestColumns(unittest.TestCase):
         self.assertEqual(len(x), 7)
         self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
 
+    def test_compact_rolls_over_to_M_at_the_unit_boundary(self):
+        self.assertEqual([charts.compact(n) for n in (999, 1000, 999949, 999950, 999999, 1_000_000)],
+                         ["999", "1.0k", "999.9k", "1.0M", "1.0M", "1.0M"])
+
     def test_small_integer_output_is_unchanged(self):
         c = str(charts.columns(DAYS, "merges"))
         self.assertIn('viewBox="0 0 336 96"', c)

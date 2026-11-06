@@ -54,7 +54,8 @@ def compact(n):
     if abs(n) >= 1_000_000:
         return f"{n / 1_000_000:.1f}M"
     if abs(n) >= 1_000:
-        return f"{n / 1_000:.1f}k"
+        k = f"{n / 1_000:.1f}"
+        return f"{k}k" if abs(float(k)) < 1000 else f"{n / 1_000_000:.1f}M"   # 999,999 is 1.0M, not 1000.0k
     return f"{n:g}"
 
 
