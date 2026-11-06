@@ -34,7 +34,7 @@ CLASSES = frozenset({
     "spark-cap", "spark-last", "cols", "cols-wrap", "col", "col--zero", "col-val", "col-x", "tiles", "tile", "tile-label", "tile-def",
     "metric", "delta",
     "gchips", "gblk", "crit-text", "crit-tasks", "intent", "gd", "gd-main", "rail", "rail-dl", "metarow", "attempt",
-    "cl", "dt-wrap--cards", "tblock", "tblock--wide", "metric-val", "metric--stack", "tile-unit", "tiles--4", "tiles--6", "feed--log", "changelog-meta",
+    "cl", "dt-wrap--cards", "tblock", "tblock--wide", "metric-val", "metric--stack", "tile-unit", "tiles--4", "tiles--6", "feed--log", "changelog-meta", "changelog-line-note",
     "ins-list", "ins-row", "ins-name", "ins-gauges", "ins-check", "ins-check--over", "ins-key", "ins-wide",
     "only-phone", "table--id-col", "per-day-grid",
     *(f"{p}-{t}" for p in ("fg", "gs", "tone") for t in _TONES),
