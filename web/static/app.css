@@ -375,6 +375,7 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .dt thead th { color: var(--text-3); font: 500 12px/16px var(--font); white-space: nowrap; padding-top: var(--s2); padding-bottom: var(--s2); }
 .dt tbody tr:hover { background: var(--fill); }
 .dt .grp, .dt .grp:hover { background: transparent; }
+.cl { display: none; }
 .dt .grp th { color: var(--text-1); font: 600 13px/18px var(--font); padding-top: var(--s4); border-bottom: 1px solid var(--hairline); }
 .dt .num, .dt th.num { text-align: right; }
 .c-st { width: 24px; }
@@ -409,6 +410,9 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
   .dt, .dt tbody { display: block; }
   .dt thead { display: none; }
   .dt tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--hairline); }
+  .dt-wrap--cards .dt tbody tr:not(.grp) { gap: var(--s1) var(--s3); padding: var(--s2) var(--s3); margin: 0 0 var(--s2); border-bottom: 0; background: var(--surface-1); border-radius: var(--r-md); }
+  .sect-box .dt-wrap--cards .dt tbody tr:not(.grp) { background: var(--surface-0); }
+  .cl { display: inline; color: var(--text-3); font-size: 12px; margin-right: var(--s1); }
   .dt td { border: 0; padding: 0; height: auto; }
   .dt .grp { display: block; }
   .dt .grp th { display: block; border: 0; padding: var(--s3) 0 var(--s1); }
@@ -593,9 +597,6 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .gd-main { min-width: 0; }
 .gd-main > .meter { margin: 0 0 var(--s3); }
 .rail { min-width: 0; color: var(--text-2); }
-.rail h2 { font: 600 15px/20px var(--font); margin: 0 0 var(--s2); color: var(--text-1); }
-.rail-list { list-style: none; margin: 0 0 var(--s4); padding: 0; }
-.rail-list > li { padding: var(--s1) 0; }
 .rail-dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s1) var(--s3); margin: 0; }
 .rail-dl dt { color: var(--text-3); }
 .rail-dl dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -606,6 +607,11 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .attempt > .timeline { margin: var(--s2) 0 var(--s2) var(--s2); }
 .timeline-item { list-style: none; }
 .page > .crumbs { margin-bottom: var(--s3); }
+.tblock { margin: 0 0 var(--s4); }
+.tblock > .crumbs, .tblock > .metarow { margin: 0 0 var(--s1); }
+.tblock > .muted { margin: 0; }
+.sect-box > .teams { padding-left: 0; }
+.sect-box > .teams > .team:first-child { border-top: 0; }
 
 @media (min-width: 1280px) {
   .gd { grid-template-columns: minmax(0, 1fr) 16rem; }
