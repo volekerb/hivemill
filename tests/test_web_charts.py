@@ -111,11 +111,11 @@ class TestColumns(unittest.TestCase):
             x = [float(v) for v in re.findall(r'class="col-val" x="([^"]+)"', c)]
             return c, x
         c, x = labels(7)                                  # 7 bars: 36 px columns, every bar labelled
-        self.assertIn('viewBox="0 0 252 96"', c)
+        self.assertIn('viewBox="0 0 288 96"', c)
         self.assertEqual(len(x), 7)
         self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
         c, x = labels(14)                                 # 14 bars would pass 336 px: 24 px columns, every 2nd bar labelled
-        self.assertIn('viewBox="0 0 336 96"', c)
+        self.assertIn('viewBox="0 0 372 96"', c)
         self.assertEqual(len(x), 7)
         self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
 
@@ -125,7 +125,7 @@ class TestColumns(unittest.TestCase):
 
     def test_small_integer_output_is_unchanged(self):
         c = str(charts.columns(DAYS, "merges"))
-        self.assertIn('viewBox="0 0 336 96"', c)
+        self.assertIn('viewBox="0 0 372 96"', c)
         self.assertIn("<title>10-17: 3 merges</title>", c)
         self.assertIn('aria-label="12 merges in 14 days, peak 3 on 10-17"', c)
         self.assertIn("<tr><td>2026-10-17</td><td>3</td></tr>", c)

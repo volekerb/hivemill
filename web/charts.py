@@ -21,6 +21,9 @@ SPARK_W, SPARK_H, SPARK_PAD = 120, 24, 3
 COL_W = 24
 MAX_W = 336   # widest chart that still fits a phone card at 1:1, so its labels keep their size
 COL_TOP, COL_BOTTOM = 14, 16
+# Horizontal padding inside the SVG so 5-character date labels (middle-anchored ~±15 user units) stay inside the viewBox
+# when the chart scales to the card (see web-redesign-review finding: first col-x clipped left of viewBox 0).
+LABEL_PAD = 18.0
 
 
 def _svg(inner, view_box, **attrs):
@@ -149,17 +152,23 @@ def columns(points, label, height=96, unit="day"):
     label_w = 6 * max((len(compact(v)) for _, v in points if v), default=0) + 6
     col_w = COL_W if label_w <= COL_W else min(label_w, max(COL_W, MAX_W // n))
     stride = 1 if label_w <= col_w else -(-label_w // col_w)
+    plot_left = LABEL_PAD
+    inner_w = n * col_w
+    last_i = n - 1
     bars, texts = [], []
     for i, (day, v) in enumerate(points):
         bh = max(1.0, v / top * plot) if v else 1.0
-        x = i * col_w + 4
+        x = plot_left + i * col_w + 4
         bars.append(el("rect", el("title", f"{_day(day)}: {_exact(v)} {label}"), class_="col col--zero" if not v else "col",
                        x=x, y=_num(height - COL_BOTTOM - bh), width=col_w - 8, height=_num(bh)))
         if v and n <= 14 and i % stride == 0:
             texts.append(el("text", compact(v), class_="col-val", x=_num(x + (col_w - 8) / 2), y=_num(height - COL_BOTTOM - bh - 3),
                             text_anchor="middle"))
         if i % 7 == 0:
-            texts.append(el("text", _day(day), class_="col-x", x=_num(x + (col_w - 8) / 2), y=height - 3, text_anchor="middle"))
-    svg = _svg([*bars, *texts], f"0 0 {n * col_w} {height}", height=height, role="img", focusable="false",
+            cx = x + (col_w - 8) / 2
+            ta = "start" if i == 0 else "end" if i == last_i else "middle"
+            texts.append(el("text", _day(day), class_="col-x", x=_num(cx), y=height - 3, text_anchor=ta))
+    vb_w = inner_w + 2 * LABEL_PAD
+    svg = _svg([*bars, *texts], f"0 0 {int(vb_w)} {height}", height=height, role="img", focusable="false",
                preserveAspectRatio="xMidYMin meet", **{"aria-label": _summary(points, label, unit)}, **{"class": "cols"})
     return el("div", svg, _data_table(points, label, f"{label.capitalize()} per {unit}, last {n} {unit}s", unit), class_="cols-wrap")

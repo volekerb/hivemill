@@ -18,11 +18,11 @@ CLASSES = frozenset({
     "table", "table--compact", "num",
     "badge", "badge--ok", "badge--warn", "badge--bad", "badge--info", "badge--muted",
     "bar", "timeline", "timeline-item", "empty", "muted", "mono", "stale",
-    "app", "skip", "topbar", "topbar-right", "wordmark", "main", "shellbar", "titlebar", "crumbs", "sep", "cluster",
+    "app", "skip", "topbar", "topbar-right", "wordmark", "main", "shellbar", "shellbar--task", "titlebar", "crumbs", "sep", "cluster",
     "updated", "pill", "pill-dot", "hide-phone", "count", "count--bad", "navgroup", "themebox", "seg", "seg-fill",
     "tabbar", "tab", "is-current", "more", "sr-only", "g", "st", "st--pill",
     "dt", "dt-wrap", "grp", "grp-n", "sortlink", "c-st", "c-id", "c-title", "c-who", "c-age", "chips", "chip", "chip--zero", "chip-n",
-    "facet", "facet-label", "seg-links", "disc", "disc--i", "disc-n", "sect", "sect-n", "sect-box", "emptybox", "summary", "summary-line",
+    "facet", "facet-label", "seg-links", "seg-links--scroll", "disc", "disc--i", "disc-n", "sect", "sect-n", "sect-box", "emptybox", "summary", "summary-line",
     "summary-line--warn", "lrow", "lrow-id", "lrow-meta", "feed", "feed-row", "feed-title", "feed-goal", "feed-sha", "feed-when",
     "agent-who", "agent-role", "agent-task", "rt", "rt-claude", "rt-cursor",
     "org", "org-dot", "orgseg", "lanes", "lane", "lane-head", "lane-title", "lane-health", "lane-hq",
@@ -34,7 +34,8 @@ CLASSES = frozenset({
     "spark-cap", "spark-last", "cols", "cols-wrap", "col", "col--zero", "col-val", "col-x", "tiles", "tile", "tile-label", "tile-def",
     "metric", "delta",
     "gchips", "gblk", "crit-text", "crit-tasks", "intent", "gd", "gd-main", "rail", "rail-dl", "metarow", "attempt",
-    "cl", "dt-wrap--cards", "tblock", "tblock--wide", "metric-val", "metric--stack", "tile-unit", "tiles--4", "tiles--6", "feed--log", "ins-list", "ins-row", "ins-name", "ins-gauges", "ins-check", "ins-check--over", "ins-key", "ins-wide",
+    "cl", "dt-wrap--cards", "tblock", "tblock--wide", "metric-val", "metric--stack", "tile-unit", "tiles--4", "tiles--6", "feed--log", "changelog-meta",
+    "ins-list", "ins-row", "ins-name", "ins-gauges", "ins-check", "ins-check--over", "ins-key", "ins-wide",
     "only-phone", "table--id-col", "per-day-grid",
     *(f"{p}-{t}" for p in ("fg", "gs", "tone") for t in _TONES),
     *(f"status--{s}" for s in _STATUSES),
@@ -269,7 +270,7 @@ def org_filter(path, query, current):
     return el("nav", items, class_="seg seg-links orgseg", aria_label="Org")
 
 
-def shell_header(title, shell, crumb_trail=None, org_nav=None):
+def shell_header(title, shell, crumb_trail=None, org_nav=None, path=None):
     """Global status header: breadcrumb + h1 left; org filter, Updated hh:mm, health pill and Needs-you badge right."""
     cluster = [org_nav] if org_nav else []
     if shell:
@@ -296,8 +297,9 @@ def shell_header(title, shell, crumb_trail=None, org_nav=None):
                     title="Cursor usage today",
                 )
             )
+    shell_cls = "shellbar shellbar--task" if path and str(path).startswith("/task/") else "shellbar"
     return el("header", el("div", crumb_trail, el("h1", title), class_="titlebar"), el("div", cluster, class_="cluster"),
-              class_="shellbar")
+              class_=shell_cls)
 
 
 def _topbar(shell, org=None):
@@ -361,7 +363,7 @@ def page(title, body, active="/", refresh=True, shell=None, crumb_trail=None, or
               el("link", rel="stylesheet", href="/static/app.css"),
               el("script", src="/static/theme.js", defer=True))
     org_nav = org_filter(path, query, org) if path and shell else None
-    main = el("div", shell_header(title, shell, crumb_trail, org_nav), el("main", Safe(body) if not isinstance(body, Safe) else body, id="content", class_="page"),
+    main = el("div", shell_header(title, shell, crumb_trail, org_nav, path), el("main", Safe(body) if not isinstance(body, Safe) else body, id="content", class_="page"),
               more, class_="main")
     shell_el = el("div", _topbar(shell, org), side, main, class_="app")
     return "<!doctype html>\n" + str(el("html", head, el("body", el("a", "Skip to content", href="#content", class_="skip"), shell_el, tabs), lang="en"))

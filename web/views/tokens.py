@@ -373,7 +373,7 @@ def _cursor_section(d):
 
 def _breakdown(d):
     by = d["by"]
-    seg = segmented("Breakdown", [(BY_LABEL[b], _href(d["period"], d["goal"], d["model"], b, d.get("org")), b == by) for b in BY])
+    seg = segmented("Breakdown", [(BY_LABEL[b], _href(d["period"], d["goal"], d["model"], b, d.get("org")), b == by) for b in BY], scroll_strip=True)
     if by == "org":
         return _org_breakdown(d, seg)
     items, more = d[f"by_{by}"]

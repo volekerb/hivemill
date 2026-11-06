@@ -615,7 +615,8 @@ class TestBreakdownColumns(unittest.TestCase):
         src = (ROOT / "web" / "views" / "tokens.py").read_text()
         wide = re.findall(r'\{"key": "(\w+)",[^\}]*"cls": "num ins-wide"', src)
         self.assertEqual(wide, ["req", "cs", "io", "req", "cost"])   # By org table first, then the main breakdown
-        self.assertIn(".dt .ins-wide { display: none; }", (ROOT / "web" / "static" / "app.css").read_text())
+        css = (ROOT / "web" / "static" / "app.css").read_text()
+        self.assertNotIn(".dt .ins-wide { display: none; }", css)
 
 
 if __name__ == "__main__":

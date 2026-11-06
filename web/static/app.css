@@ -196,11 +196,19 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .page { padding: 0 var(--gutter); overflow-wrap: break-word; min-width: 0; }
 .shellbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px var(--gutter) 12px; }
 .titlebar { min-width: 0; flex: 1; max-width: 100%; }
+@media (min-width: 640px) {
+  .shellbar--task { flex-wrap: wrap; align-items: flex-end; }
+  .shellbar--task .titlebar { flex: 1 1 100%; min-width: 0; }
+  .shellbar--task .cluster { flex: 1 1 100%; justify-content: flex-end; }
+  .shellbar--task .titlebar h1 { overflow-wrap: anywhere; word-break: normal; }
+}
 .tblock--wide { max-width: 100%; }
 .tblock--wide .crumbs + .metarow { max-width: 100%; }
-.tblock--wide h1 { max-width: 100%; overflow-wrap: anywhere; word-break: normal; }
 .only-phone { display: none; }
 .hide-phone { display: inline; }
+@media (min-width: 640px) {
+  .hide-phone.changelog-line-note { display: block; }
+}
 @media (max-width: 639px) {
   .only-phone { display: block; }
   .hide-phone { display: none; }
@@ -367,9 +375,12 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .seg-links { max-width: 100%; overflow-x: auto; }
 .seg-links a { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; flex: 1; min-height: var(--tap); padding: 0 var(--s3);
                border-radius: 4px; color: var(--text-2); font: 400 13px/18px var(--font); }
+.seg-links--scroll { flex-wrap: nowrap; justify-content: flex-start; }
+.seg-links--scroll a { flex: 0 0 auto; }
 .seg-links a:hover { text-decoration: none; }
 .seg-links a:focus-visible { outline-offset: -2px; }
 .seg-links a[aria-current=true] { background: var(--surface-1); color: var(--text-1); box-shadow: var(--e1); }
+.changelog-meta { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2); max-width: 100%; }
 
 /* disclosure: the native marker stays (design guard); the count sits beside the label */
 .disc > summary { font: 600 14px/20px var(--font); }
@@ -387,6 +398,8 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .cl { display: none; }
 .dt .grp th { color: var(--text-1); font: 600 13px/18px var(--font); padding-top: var(--s4); border-bottom: 1px solid var(--hairline); }
 .dt .num, .dt th.num { text-align: right; }
+.dt .ins-wide { }
+/* marker: wide breakdown numerics (tokens); phone card layout uses .cl labels instead of hiding columns */
 .c-st { width: 24px; }
 .c-id { white-space: nowrap; color: var(--text-3); }
 .c-title a { color: var(--text-1); }
@@ -663,5 +676,4 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
   .ins-gauges { grid-template-columns: minmax(0, 1fr); }
   .ins-row { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
   .ins-check .gz { margin-left: 0; }
-  .dt .ins-wide { display: none; }
 }

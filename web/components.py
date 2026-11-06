@@ -97,10 +97,12 @@ def filter_bar(main, rest=(), *, key="filters", active=0):
     return el("div", *parts)
 
 
-def segmented(label, items):
-    """Capsule of 2-4 exclusive options, links with aria-current on the selected one. items: (text, href, current)."""
-    return el("nav", [el("a", t, href=h_, aria_current="true" if cur else None) for t, h_, cur in items],
-              class_="seg seg-links", aria_label=label)
+def segmented(label, items, scroll_strip=False):
+    """Capsule of 2-4 exclusive options, links with aria-current on the selected one. items: (text, href, current).
+    When scroll_strip is True (many short tabs on a narrow card), links stay inline and the row scrolls instead of
+    stretching each tab to fill the width (which clips the last label)."""
+    cls = "seg seg-links" + (" seg-links--scroll" if scroll_strip else "")
+    return el("nav", [el("a", t, href=h_, aria_current="true" if cur else None) for t, h_, cur in items], class_=cls, aria_label=label)
 
 
 # ── C4 list row and data table ──
