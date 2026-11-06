@@ -28,12 +28,13 @@ class JudgeRedMainTests(FactoryTestCase):
         if on:
             self.env.sql("INSERT INTO config(key,value) VALUES('red_main:zz-test/repo',?)", (RED,))
 
-    def tick(self):
+    def tick(self, head=SHA_A, at=NOW):
         spawned = []
         with self.env.load_factory() as f:
             con = f.db()
+            f._ci_remote_head = lambda branch, batch=None: head
             f.gate = lambda con, **k: (True, "", {})
-            f.digest_clock = lambda: f.dt.datetime.fromtimestamp(NOW, f.dt.timezone.utc)
+            f.digest_clock = lambda: f.dt.datetime.fromtimestamp(at, f.dt.timezone.utc)
             f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA_A, "statusCheckRollup": GREEN,
                                                      "mergeStateStatus": "CLEAN"}
             f.judge_pr_ready = lambda con, url, behind_ok=False: (True, "CI green")
@@ -58,6 +59,27 @@ class JudgeRedMainTests(FactoryTestCase):
         self.assertEqual([self.tick() for _ in range(3)], [[], [], []])
         self.assertEqual(len(self.waits()), 1)
         self.assertIn("red main: run 9", self.waits()[0]["detail"])
+
+    def test_new_pr_head_logs_a_wait_per_head_not_per_red_run(self):
+        self.env.run("config", "red_main_freeze", "1")
+        self.red()
+        for head in (SHA_A, SHA_A, "b" * 40):
+            self.assertEqual(self.tick(head), [])
+        self.assertEqual(len(self.waits()), 2)
+
+    def test_new_red_run_on_the_same_head_logs_no_extra_wait(self):
+        self.env.run("config", "red_main_freeze", "1")
+        self.red()
+        self.tick()
+        self.env.sql("UPDATE config SET value=? WHERE key='red_main:zz-test/repo'", (RED.replace('"9"', '"10"'),))
+        self.assertEqual(self.tick(), [])
+        self.assertEqual(len(self.waits()), 1)
+
+    def test_unreadable_head_starts_no_judge_and_logs_one_wait_per_hour(self):
+        self.env.run("config", "red_main_freeze", "1")
+        self.red()
+        self.assertEqual([self.tick(None) for _ in range(3)], [[], [], []])
+        self.assertEqual(len(self.waits()), 1)
 
     def test_green_main_again_starts_the_judge(self):
         self.env.run("config", "red_main_freeze", "1")
