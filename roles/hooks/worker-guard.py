@@ -5077,6 +5077,95 @@ def terms_split(cmd):
     return segs
 
 
+TERMS_BRACE_HEADS = ("grep", "egrep", "rg", "jq", "gh")
+TERMS_BRACE_GH = {("pr", "list"), ("pr", "view"), ("pr", "checks"), ("pr", "status"), ("issue", "list"), ("issue", "view"),
+                  ("issue", "status"), ("run", "list"), ("run", "view"), ("repo", "view")}
+TERMS_BRACE_FLAGS = {"grep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"), "egrep": re.compile(r"-[EFGHIPRUZachilnoqrsvwxz]+"),
+                     "rg": re.compile(r"-[FHILPSUchilnopqsuvwxz]+"), "jq": re.compile(r"-[CMRSaceJjnrst]+")}
+TERMS_BRACE_DOLLAR = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*(?![^ \t;&|])")
+
+
+def terms_brace_view(cmd):
+    """T-1121: the text TERMS_BRACE is searched in (depth 0 only). Gives up (returns cmd) unless the whole command is a plain
+    one-line chain of grep/egrep/rg/jq/gh read-only segments; then blanks only the single-quoted pattern/program/template word."""
+    t = cmd.strip(" \t\n")
+    if not t or any((ord(c) < 32 and c not in " \t") or ord(c) == 127 for c in t):
+        return cmd
+    segs, words = [], []  # a word is (start, end, number of quoted parts)
+    ws, parts, i, n = None, 0, 0, len(t)
+
+    def end_word(at):
+        nonlocal ws, parts
+        if ws is not None:
+            words.append((ws, at, parts))
+        ws, parts = None, 0
+
+    while i < n:
+        c = t[i]
+        if c == "'":
+            j = t.find("'", i + 1)
+            if j < 0:
+                return cmd
+            ws = i if ws is None else ws
+            parts += 1
+            i = j + 1
+        elif c in " \t":
+            end_word(i)
+            i += 1
+        elif c in ";&|":
+            end_word(i)
+            two = t[i:i + 2]
+            if (c == "&" and two != "&&") or two == "|&":
+                return cmd
+            segs.append(words)
+            words = []
+            i += 2 if two in ("&&", "||") else 1
+        elif c in "\"\\`(){}#<>" or ord(c) > 126:
+            return cmd
+        elif c == "$":
+            m = TERMS_BRACE_DOLLAR.match(t, i)
+            if not m:
+                return cmd
+            ws = i if ws is None else ws
+            i = m.end()
+        else:
+            ws = i if ws is None else ws
+            i += 1
+    end_word(n)
+    segs.append(words)
+    blank = []
+    for words in segs:
+        if not words:
+            return cmd
+        txt = [t[a:b] if q == 0 else None for a, b, q in words]  # None: the word has a quoted part
+        head = txt[0]
+        if head not in TERMS_BRACE_HEADS:
+            return cmd
+        if head == "gh" and (len(txt) < 3 or (txt[1], txt[2]) not in TERMS_BRACE_GH):
+            return cmd
+
+        def whole(k):
+            a, b, q = words[k]
+            return q == 1 and t[a] == "'" and t[b - 1] == "'"
+
+        if head == "gh":
+            for k in range(1, len(words) - 1):
+                if txt[k] in ("--jq", "-q", "--template") and whole(k + 1):
+                    blank.append(words[k + 1][:2])
+        else:
+            k = 1
+            while k < len(words) and txt[k] is not None and TERMS_BRACE_FLAGS[head].fullmatch(txt[k]):
+                k += 1
+            if head != "jq" and k < len(words) and txt[k] in ("-e", "--regexp"):
+                k += 1
+            if k < len(words) and whole(k):
+                blank.append(words[k][:2])
+    out = t
+    for a, b in sorted(blank, reverse=True):
+        out = out[:a] + "''" + out[b:]
+    return out
+
+
 def terms_bash(cmd, cwd, env=None, depth=0):
     paths = terms_paths(cwd)
     if not paths:
@@ -5086,7 +5175,8 @@ def terms_bash(cmd, cwd, env=None, depth=0):
     env = {} if env is None else env
     home = os.environ.get("HOME") or os.path.expanduser("~")
     names = {"scrub", "terms"} | {n.lower() for p in paths for n in (os.path.basename(p), os.path.basename(os.path.dirname(p))) if n}
-    if ("${!" in cmd or TERMS_BRACE.search(cmd)) and any(n in cmd.lower() for n in names):
+    brace_view = terms_brace_view(cmd) if depth == 0 else cmd
+    if ("${!" in cmd or TERMS_BRACE.search(brace_view)) and any(n in cmd.lower() for n in names):
         raise PublicBlock(f"variable indirection or brace expansion next to the owner-terms file is refused: {TERMS_WHY}")
     for raw_seg in terms_split(re.sub(r"(?:\d*>&\d*-?|&>)", " ", cmd)):
         if (TERMS_VAR in raw_seg or any(p in raw_seg for p in paths)) and not terms_segment_ok(raw_seg):
