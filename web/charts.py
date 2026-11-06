@@ -19,6 +19,7 @@ from web.html import Safe, el, h
 TONES = ("success", "warning", "danger", "neutral")
 SPARK_W, SPARK_H, SPARK_PAD = 120, 24, 3
 COL_W = 24
+MAX_W = 336   # widest chart that still fits a phone card at 1:1, so its labels keep their size
 COL_TOP, COL_BOTTOM = 14, 16
 
 
@@ -46,12 +47,28 @@ def _num(v):
     return f"{v:.1f}"
 
 
+def compact(n):
+    """Short figure for a count: 1500 -> "1.5k", 48567200 -> "48.6M"; below 1000 the number as it is. Bar labels, the
+    aria-label and web.views.tokens use it, so no figure ever prints as 4.85672e+07."""
+    n = n or 0
+    if abs(n) >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if abs(n) >= 1_000:
+        return f"{n / 1_000:.1f}k"
+    return f"{n:g}"
+
+
+def _exact(v):
+    """Exact value for a tooltip or table cell: whole numbers with thousands separators (48,567,200), never an exponent."""
+    return f"{int(v):,}" if float(v).is_integer() else compact(v)
+
+
 def _day(iso):
     return iso[5:10] if len(iso) >= 10 else iso
 
 
 def _data_table(points, label, caption, unit="day"):
-    rows = [el("tr", el("td", d), el("td", n)) for d, n in points]
+    rows = [el("tr", el("td", d), el("td", _exact(n))) for d, n in points]
     return el("table", el("caption", caption), el("thead", el("tr", el("th", unit.capitalize(), scope="col"), el("th", label.capitalize(), scope="col"))),
               el("tbody", rows), class_="sr-only")
 
@@ -90,10 +107,10 @@ def gauge(label, value_text, pct, thresholds, zone, caption=None):
 def _summary(points, label, unit="day"):
     total = sum(n for _, n in points)
     peak = max((n for _, n in points), default=0)
-    text = f"{total:g} {label} in {len(points)} {unit}s"
+    text = f"{compact(total)} {label} in {len(points)} {unit}s"
     if peak > 0:
         day = [d for d, n in points if n == peak][-1]
-        text += f", peak {peak:g} on {_day(day)}"
+        text += f", peak {compact(peak)} on {_day(day)}"
     return text
 
 
@@ -126,17 +143,22 @@ def columns(points, label, height=96, unit="day"):
     n = len(points)
     top = max(v for _, v in points)
     plot = height - COL_TOP - COL_BOTTOM
+    # A value label is about 6 px per character at 10 px. Longer labels (48.6M) widen the column while the chart still fits
+    # a phone (MAX_W); beyond that every k-th bar is labelled, so labels never overlap. Short labels keep COL_W.
+    label_w = 6 * max((len(compact(v)) for _, v in points if v), default=0) + 6
+    col_w = COL_W if label_w <= COL_W else min(label_w, max(COL_W, MAX_W // n))
+    stride = 1 if label_w <= col_w else -(-label_w // col_w)
     bars, texts = [], []
     for i, (day, v) in enumerate(points):
         bh = max(1.0, v / top * plot) if v else 1.0
-        x = i * COL_W + 4
-        bars.append(el("rect", el("title", f"{_day(day)}: {v:g} {label}"), class_="col col--zero" if not v else "col",
-                       x=x, y=_num(height - COL_BOTTOM - bh), width=COL_W - 8, height=_num(bh)))
-        if v and n <= 14:
-            texts.append(el("text", f"{v:g}", class_="col-val", x=_num(x + (COL_W - 8) / 2), y=_num(height - COL_BOTTOM - bh - 3),
+        x = i * col_w + 4
+        bars.append(el("rect", el("title", f"{_day(day)}: {_exact(v)} {label}"), class_="col col--zero" if not v else "col",
+                       x=x, y=_num(height - COL_BOTTOM - bh), width=col_w - 8, height=_num(bh)))
+        if v and n <= 14 and i % stride == 0:
+            texts.append(el("text", compact(v), class_="col-val", x=_num(x + (col_w - 8) / 2), y=_num(height - COL_BOTTOM - bh - 3),
                             text_anchor="middle"))
         if i % 7 == 0:
-            texts.append(el("text", _day(day), class_="col-x", x=_num(x + (COL_W - 8) / 2), y=height - 3, text_anchor="middle"))
-    svg = _svg([*bars, *texts], f"0 0 {n * COL_W} {height}", width=n * COL_W, height=height, role="img", focusable="false",
+            texts.append(el("text", _day(day), class_="col-x", x=_num(x + (col_w - 8) / 2), y=height - 3, text_anchor="middle"))
+    svg = _svg([*bars, *texts], f"0 0 {n * col_w} {height}", width=n * col_w, height=height, role="img", focusable="false",
                **{"aria-label": _summary(points, label, unit)}, **{"class": "cols"})
     return el("div", svg, _data_table(points, label, f"{label.capitalize()} per {unit}, last {n} {unit}s", unit), class_="cols-wrap")

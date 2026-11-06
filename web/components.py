@@ -178,9 +178,10 @@ def feed_row(title, url, goal=None, pr_url=None, sha=None, when=None, when_title
               el("span", when, title=when_title, class_="feed-when") if when else None, class_="feed-row")
 
 
-def feed(rows):
-    """<ul> wrapper for feed_row items."""
-    return el("ul", rows, class_="feed")
+def feed(rows, modifier=None):
+    """<ul> wrapper for feed_row items. `modifier` ("log") adds the class feed--log (a bounded line length on desktop);
+    without it the markup is what every other page already renders."""
+    return el("ul", rows, class_=f"feed feed--{modifier}" if modifier else "feed")
 
 
 # ── C17 agent row ──

@@ -632,11 +632,13 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .ins-check .gz { margin-left: auto; }
 .ins-check--over { background: var(--danger-bg); color: var(--danger-fg); padding: 0 var(--s2); border-radius: var(--r-sm); }
 .ins-key { margin-left: var(--s2); color: var(--text-3); font-size: 12px; }
+.tiles--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.feed--log { max-width: 44rem; }
 .disc > .table { display: block; overflow-x: auto; max-width: 100%; }
 .sect-box .st--pill { margin-right: var(--s2); }
 
 @media (max-width: 639px) {
-  .tiles--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles--4, .tiles--6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ins-gauges { grid-template-columns: minmax(0, 1fr); }
   .ins-row { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
   .ins-check .gz { margin-left: 0; }

@@ -306,6 +306,16 @@ class TestCounts(PageCase):
         self.assertIn(">4 tasks<", t)
 
 
+class TestFeedModifier(unittest.TestCase):
+    def test_feed_without_the_modifier_is_byte_identical_and_log_only_adds_a_class(self):
+        from web.components import feed, feed_row
+        rows = [feed_row("A title", "/task/T-1", goal="G-1", pr_url="https://github.com/o/r/pull/5", sha="deadbeefcafe", when="2 h ago")]
+        plain = str(feed(rows))
+        self.assertTrue(plain.startswith('<ul class="feed"><li class="feed-row">'), plain)
+        log = str(feed(rows, "log"))
+        self.assertEqual(log, plain.replace('<ul class="feed">', '<ul class="feed feed--log">'))
+
+
 class TestStatic(unittest.TestCase):
     def test_theme_js_keys_details_by_data_key_and_stays_small(self):
         js = (ROOT / "web" / "static" / "theme.js").read_text()
