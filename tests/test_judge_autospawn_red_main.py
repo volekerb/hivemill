@@ -32,7 +32,12 @@ class JudgeRedMainTests(FactoryTestCase):
         spawned = []
         with self.env.load_factory() as f:
             con = f.db()
-            f._ci_remote_head = lambda branch, batch=None: head
+            def remote_head(branch, batch=None):
+                if isinstance(head, Exception):
+                    raise head
+                return head
+
+            f._ci_remote_head = remote_head
             f.gate = lambda con, **k: (True, "", {})
             f.digest_clock = lambda: f.dt.datetime.fromtimestamp(at, f.dt.timezone.utc)
             f._ci_wake_probe = lambda url, timeout: {"number": 1, "state": "OPEN", "headRefOid": SHA_A, "statusCheckRollup": GREEN,
@@ -79,6 +84,12 @@ class JudgeRedMainTests(FactoryTestCase):
         self.env.run("config", "red_main_freeze", "1")
         self.red()
         self.assertEqual([self.tick(None) for _ in range(3)], [[], [], []])
+        self.assertEqual(len(self.waits()), 1)
+
+    def test_failing_head_probe_does_not_end_the_tick(self):
+        self.env.run("config", "red_main_freeze", "1")
+        self.red()
+        self.assertEqual([self.tick(OSError("git missing")) for _ in range(2)], [[], []])
         self.assertEqual(len(self.waits()), 1)
 
     def test_green_main_again_starts_the_judge(self):

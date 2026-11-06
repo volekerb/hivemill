@@ -13255,7 +13255,10 @@ def judge_autospawn_tick(con):
         slugs = _judge_slugs(con, t, "/".join((t["pr_url"] or "").split("/")[3:5]))
         red = red_main_refusal(con, slugs, tid)
         if red:  # T-1153: the judge would only end in a status-only reject while the freeze refuses merges
-            head = _ci_remote_head(t["branch"], batch)  # None: no branch or unreadable; no gh call
+            try:
+                head = _ci_remote_head(t["branch"], batch)  # None: no branch or unreadable; no gh call
+            except (OSError, subprocess.SubprocessError):  # a probe failure must not end the tick
+                head = None
             rkey = f"judge-redmain:{tid}:{head}" if head else f"judge-redmain:{tid}:head"  # fixed shape: tid + PR head
             if not _throttled(con, rkey, clock, float("inf") if head else REVIEW_WAIT_EVERY_S):  # one event per head; unknown head hourly
                 _throttle_set(con, rkey, clock)
