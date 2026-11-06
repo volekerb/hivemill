@@ -17902,7 +17902,10 @@
   "factory whoami",
   "git commit -m \"$(cat <<'EOF'\nfix: don't call herdr directly\n\nmore herdr text\nEOF\n)\"",
   "factory plan G-001 - <<'EOF'\nthe herdr binary is stubbed in tests\nEOF",
-  "gh pr create --title t --body 'herdr is stubbed in tests'",
+  {
+   "cmd": "gh pr create --title t --body 'herdr is stubbed in tests'",
+   "role": "coder"
+  },
   "git commit -m 'T-0016: block herdr'",
   "PATH=$PWD/tests/stubs:$PATH python3 -m unittest discover -s tests -p test_x.py -v",
   "tests/stubs/herdr agent list",
@@ -17939,14 +17942,28 @@
   "cat README.md",
   "less README.md",
   "git commit -m 'guard: block herdr server stop'",
-  "gh pr comment 11 --body 'herdr server stop is blocked'",
+  {
+   "cmd": "gh pr comment 11 --body 'herdr server stop is blocked'",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr comment 11 --body 'herdr server stop is blocked'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh pr comment 11 --body 'herdr server stop is blocked'",
+   "role": "qa"
+  },
   "factory msg lead-g-001-a x 'herdr server stop blocked'",
   "sed -i 's/old/new/' tests/test_worker_guard.py",
   "echo 'HERDR_SOCKET_PATH is pinned' >> README.md",
   "factory task update T-0016 --status in_review --pr https://x/pull/1",
   "factory msg lead:g-001-a \"s\" \"b\"",
   "factory verdict T-1 pass \"ok\"",
-  "gh pr create --fill",
+  {
+   "cmd": "gh pr create --fill",
+   "role": "coder"
+  },
   "gh pr view 1 --json state",
   "python3 -m py_compile bin/factory",
   "env -i PATH=tests/stubs:/usr/bin python3 -m unittest discover -s tests -p test_x.py",
@@ -17974,7 +17991,18 @@
   "cat ~/.claude/settings.json",
   "ls ~/.claude",
   "git commit -m \"mention claude -p\"",
-  "gh pr comment --body 'claude'",
+  {
+   "cmd": "gh pr comment --body 'claude'",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr comment --body 'claude'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh pr comment --body 'claude'",
+   "role": "qa"
+  },
   "echo claude",
   "python3 -W ignore -m unittest tests.test_x",
   "python3 -X dev bin/other.py",
@@ -17995,7 +18023,10 @@
   "factory msg lead 'x' 'never run `sudo -n true`'",
   "echo 'a $(sudo id) b'",
   "echo '`sudo id`'",
-  "gh pr create --body 'use `docker ps` and $(su -)'",
+  {
+   "cmd": "gh pr create --body 'use `docker ps` and $(su -)'",
+   "role": "coder"
+  },
   "echo 'x' 'y $(docker ps)'",
   "factory msg lead s 'a `sudo` b' --kind report",
   "ls /usr/bin/s?do",
@@ -18033,7 +18064,18 @@
   "ps aux | grep unittest",
   "git commit -m \"no pkill\"",
   "echo 'killall and kill 1234 are blocked'",
-  "gh pr comment 5 --body 'pkill is refused'",
+  {
+   "cmd": "gh pr comment 5 --body 'pkill is refused'",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr comment 5 --body 'pkill is refused'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh pr comment 5 --body 'pkill is refused'",
+   "role": "qa"
+  },
   "systemctl --user",
   "systemctl --user list-timers",
   "systemctl --user status factory-tick.timer",
@@ -18043,12 +18085,21 @@
   "git commit -m \"no systemctl restart\"",
   "cat docs/systemd-run.md",
   "factory report - <<'EOF'\nthe owner ran `systemctl --user restart factory-serve` (ok)\nEOF",
-  "gh pr create --body-file - <<'EOF'\nsystemd-run (never) and systemctl start\nEOF",
+  {
+   "cmd": "gh pr create --body-file - <<'EOF'\nsystemd-run (never) and systemctl start\nEOF",
+   "role": "coder"
+  },
   "git commit -m 'T-0148: document herdr and claude guard rules; sudo is blocked'",
   "git commit -F msg.txt",
   "git commit -m \"$(cat <<'EOF'\nT-1: mention herdr, claude and sudo in prose\n\nBody says: never run herdr or claude, no sudo.\nEOF\n)\"",
-  "gh pr create --title 'T-1 guard' --body-file body.txt",
-  "gh pr create --fill --body \"$(cat <<'EOF'\nUses herdr stubs; claude is spawned by factory only; sudo denied.\nEOF\n)\"",
+  {
+   "cmd": "gh pr create --title 'T-1 guard' --body-file body.txt",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr create --fill --body \"$(cat <<'EOF'\nUses herdr stubs; claude is spawned by factory only; sudo denied.\nEOF\n)\"",
+   "role": "coder"
+  },
   "gh pr checks https://github.com/o/r/pull/12 --watch",
   "gh pr view 12 --json state",
   "grep -rn herdr roles/",
@@ -18147,7 +18198,8 @@
    "cmd": "gh pr create --repo other/repo --title t --body \"$(date)\"",
    "config": {
     "public_text_repos": "acme/widgets"
-   }
+   },
+   "role": "coder"
   },
   {
    "cmd": "gh pr list --repo acme/widgets",

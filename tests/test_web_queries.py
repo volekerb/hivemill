@@ -320,6 +320,43 @@ class TeamAgentTaskTests(QueryCase):
         self.assertEqual([t["id"] for t in q.tasks(self.con, goal="G-1", status="blocked")], ["T-4"])
 
 
+class GoalTeamsTests(QueryCase):
+    """queries.goal_teams: teams, agents and tasks joined by (goal, team) in three reads."""
+
+    def test_goal_with_two_teams_a_goal_with_no_team_and_a_task_with_no_team(self):
+        g = q.goal_teams(self.con)
+        g1 = g["G-1"]
+        self.assertEqual([t["id"] for t in g1["teams"]], ["t-a", "t-b"])
+        ta, tb = g1["teams"]
+        self.assertEqual([t["id"] for t in ta["tasks"]], ["T-1", "T-2", "T-3", "T-4"])
+        self.assertEqual([a["name"] for a in ta["agents"]], ["coder-2", "lead-a", "queued-x"])    # ended agents are not live work
+        self.assertEqual([t["id"] for t in tb["tasks"]], ["T-6"])
+        self.assertEqual(tb["agents"], [])
+        self.assertEqual(g1["loose"], [])
+        self.assertEqual((ta["scope"], ta["lead_agent"], ta["org"]), ("scope A", "lead-a", "claude"))
+        self.assertEqual(g["G-2"], {"teams": [], "loose": g["G-2"]["loose"]})   # no team: its task is loose
+        self.assertEqual([t["id"] for t in g["G-2"]["loose"]], ["T-5"])
+        self.assertNotIn("G-3", g)                                                                 # no team, no task: absent
+
+    def test_task_whose_team_belongs_to_another_goal_is_loose(self):
+        self.writer.execute("UPDATE tasks SET team_id='t-a' WHERE id='T-5'")   # T-5 is on G-2, team t-a is G-1's
+        g = q.goal_teams(self.con)
+        self.assertEqual([t["id"] for t in g["G-2"]["loose"]], ["T-5"])
+        self.assertNotIn("T-5", [t["id"] for t in g["G-1"]["teams"][0]["tasks"]])
+
+    def test_three_reads_whatever_the_size(self):
+        n = []
+        self.con.set_trace_callback(n.append)
+        q.goal_teams(self.con)
+        small = len([x for x in n if x.lstrip().upper().startswith("SELECT")])
+        for i in range(20, 30):
+            self.writer.execute("INSERT INTO goals(id,project_id,title,status,priority,created,updated) VALUES(?,'p1','x','active',1,'a','b')", (f"G-{i}",))
+            self.writer.execute("INSERT INTO teams(id,goal_id,scope,lead_agent,status,created) VALUES(?,?,'s','l','active','a')", (f"t-{i}", f"G-{i}"))
+        n.clear()
+        q.goal_teams(self.con)
+        self.assertEqual(len([x for x in n if x.lstrip().upper().startswith("SELECT")]), small)
+
+
 class PrCycleTests(QueryCase):
     def test_timeline(self):
         c = q.pr_cycle(self.con, "T-1")

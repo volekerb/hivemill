@@ -69,6 +69,22 @@ def changed_lines(root, base, head):
     return total
 
 
+def base_top_level_names(root, base):
+    """Top-level entry names in `base` (git ls-tree --name-only)."""
+    out = affected.git(root, "ls-tree", "--name-only", base)
+    return {line for line in out.splitlines() if line}
+
+
+def new_top_level_risk(root, base, files):
+    """The first path component absent from the base tree, else None."""
+    known = base_top_level_names(root, base)
+    for path in files:
+        top = path.split("/", 1)[0]
+        if top not in known:
+            return top
+    return None
+
+
 def bin_factory_risk(root, base, head):
     """The first risky top-level name changed in bin/factory, else None."""
     base_src = affected.git(root, "show", "%s:%s" % (base, BIN)) if affected._exists(root, base, BIN) else ""
@@ -89,6 +105,9 @@ def classify(root, base, head):
     for p in files:
         if risky_path(p):
             return "risky", "%s is on the risky path list" % p
+    top = new_top_level_risk(root, base, files)
+    if top:
+        return "risky", "new top-level entry %s" % top
     if BIN in files:
         why = bin_factory_risk(root, base, head)
         if why:
