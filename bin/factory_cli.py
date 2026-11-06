@@ -1130,6 +1130,69 @@ def herdr_gate(args):
     die(f"workers may not run `herdr {verb}` (role {w})", 3)
 
 
+def _host_ipc_env(exe):
+    """Subprocess env for host IPC: TUI pins HERDR_SOCKET_PATH; hc uses its own HC_SOCKET — never alias the two."""
+    if exe == "hc":
+        return {**os.environ}
+    return {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
+
+
+def _hc_translate_args(args):
+    """Map TUI herdr IPC verbs to herdr-core `hc` CLI. None means no hc equivalent (fail this step only)."""
+    a = list(args)
+    if not a:
+        return None
+    if a[0] == "agent" and len(a) >= 2:
+        verb = a[1]
+        if verb == "list":
+            return ["ls"]
+        if verb == "start" and len(a) >= 3:
+            name = a[2]
+            out = ["run", "--bg", "--name", name]
+            i = 3
+            while i < len(a):
+                if a[i] == "--":
+                    out.extend(a[i + 1:])
+                    break
+                if a[i] in ("--kind", "--pane", "--session-id") and i + 1 < len(a):
+                    out.extend([a[i], a[i + 1]])
+                    i += 2
+                    continue
+                if a[i] == "--timeout" and i + 1 < len(a):
+                    i += 2
+                    continue
+                i += 1
+            return out
+        if verb == "prompt" and len(a) >= 4:
+            return ["send", a[2], a[3]]
+        if verb == "read" and len(a) >= 3:
+            out = ["read", a[2]]
+            i = 3
+            while i < len(a):
+                if a[i] in ("--source", "--lines", "--timeout") and i + 1 < len(a):
+                    out.extend([a[i], a[i + 1]])
+                    i += 2
+                else:
+                    i += 1
+            return out
+        if verb == "send-keys" and len(a) >= 3:
+            return ["keys", a[2], *a[3:]]
+        if verb == "wait":
+            return None
+    if a[0] in ("pane", "workspace", "tab", "worktree"):
+        if a[0] == "pane" and len(a) >= 2 and a[1] in ("close", "report-metadata", "run", "split", "process-info"):
+            return None
+        if a[0] in ("workspace", "tab"):
+            return None
+    return None
+
+
+def _host_ipc_argv(exe, args):
+    if exe != "hc":
+        return list(args)
+    return _hc_translate_args(args)
+
+
 def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     herdr_gate(args)
     con = db()
@@ -1137,9 +1200,14 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
         _, exe = terminal_backend_effective(con)
     finally:
         con.close()
-    env = {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
+    ipc_argv = _host_ipc_argv(exe, args)
+    if ipc_argv is None:
+        if check:
+            die(f"hc has no equivalent for herdr {' '.join(str(x) for x in args[:3])}")
+        return None
+    env = _host_ipc_env(exe)
     try:
-        p = subprocess.run([exe, *args], capture_output=True, text=True, timeout=timeout, env=env)
+        p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=timeout, env=env)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         if check:
             die(f"{exe} {' '.join(args[:2])} failed: {e}")
@@ -1163,9 +1231,12 @@ def herdr_start_error(*args):
         _, exe = terminal_backend_effective(con)
     finally:
         con.close()
-    env = {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
+    ipc_argv = _host_ipc_argv(exe, args)
+    if ipc_argv is None:
+        return None, f"hc has no equivalent for herdr {' '.join(str(x) for x in args[:3])}"
+    env = _host_ipc_env(exe)
     try:
-        p = subprocess.run([exe, *args], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
+        p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
     except subprocess.TimeoutExpired as e:
         return None, f"timed out: {e}"
     except FileNotFoundError as e:

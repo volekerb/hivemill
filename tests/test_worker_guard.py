@@ -43,6 +43,9 @@ class WorkerGuardTests(unittest.TestCase):
     def test_spec_blocked(self):
         for cmd in (
             "herdr server stop",
+            "hc server stop",
+            "herdr-core server stop",
+            "HC_SOCKET=/tmp/x hc server stop",
             "HOME=x herdr server stop",
             "FOO=1 BAR=2 herdr agent list",
             "env HOME=x herdr pane list",
@@ -460,9 +463,11 @@ class WorkerGuardTests(unittest.TestCase):
             "find / -name herdr -exec {} pane close 1 \\;",
             "echo herdr | xargs -I{} {} agent \\\n  start x",
             # R2: socket re-target, session, config paths, unsetting alongside herdr
-            "export HERDR_SOCKET_PATH=/x", "HERDR_SESSION=default true", "declare -x HERDR_SOCKET_PATH",
+            "export HERDR_SOCKET_PATH=/x", "export HC_SOCKET=/x", "HC_SOCKET=/tmp/x hc server stop",
+            "HERDR_SESSION=default true", "declare -x HERDR_SOCKET_PATH", "declare -x HC_SOCKET",
             "ls ~/.config/herdr", "ls $HOME/.config/herdr", "cat herdr.sock",
             "env -u HERDR_SOCKET_PATH herdr pane list", "unset HERDR_SOCKET_PATH; herdr pane list",
+            "env -u HC_SOCKET hc pane list", "unset HC_SOCKET; hc pane list",
             "env -i herdr pane list",
             # R3: binary copy / read
             "cat ~/.local/bin/herdr > /tmp/x", "dd if=" + HOME_DIR + "/.local/bin/herdr of=/tmp/x",

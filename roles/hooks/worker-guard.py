@@ -569,21 +569,26 @@ COPIERS = {"cat", "dd", "cp", "install", "rsync", "tee", "ln", "mv", "base64", "
 # R1: herdr word, then (same line, any tokens between) a mutating sequence; only fires together with an
 # exec-capable launcher in a command position on that line (see launcher_in_command_position)
 R1 = re.compile(
-    r"(?<!tests/stubs/)\bherdr\b.*?"
+    r"(?<!tests/stubs/)\b(?:herdr|hc|herdr-core)\b.*?"
     r"(?:\bserver\s+\S|\b(?:agent|pane|tab|workspace|worktree)[\"'\\\s]+"
     r"(?:start|stop|kill|close|prompt|split|new|run|send|create|move|swap|remove|rename)\b)")
 # R2: re-targeting the socket/session, or pointing at herdr's config dir / socket file
-R2_SET = re.compile(r"\bHERDR_(?:SOCKET_PATH|SESSION)\s*\+?=|\bexport\s+(?:-\w+\s+)*HERDR_(?:SOCKET_PATH|SESSION)\b"
-                    r"|\b(?:declare|typeset)\s+-\w*x\w*\s+HERDR_(?:SOCKET_PATH|SESSION)\b")
+R2_SET = re.compile(
+    r"\b(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\s*\+?=|"
+    r"\bexport\s+(?:-\w+\s+)*(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b|"
+    r"\b(?:declare|typeset)\s+-\w*x\w*\s+(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b")
 R2_PATH = re.compile(r"herdr\.sock|\.config/herdr")
 # commands that only print/search/record text: a quoted herdr.sock / .config/herdr there is data, not a target
 FACTORY_NAMES = ("factory", "factory_cli.py", "factory_cli")  # script basenames that run the factory CLI
 DATA_CMDS = {"git", "gh", "grep", "rg", "cat", "less", "echo", "printf", "factory"}
 LAUNCHERS = {"env", "sudo", "nohup", "timeout", "command", "exec", "nice", "ionice", "setsid", "stdbuf", "xargs"}
 FIND_EXEC = {"-exec", "-execdir", "-ok", "-okdir"}
-R2_UNSET = re.compile(r"\bunset\b[^\n]*\bHERDR_SOCKET_PATH\b|\benv\b[^\n]*\s(?:-u\s*HERDR_SOCKET_PATH|-[A-Za-z]*i[A-Za-z]*|--ignore-environment|--unset[= ]HERDR_SOCKET_PATH)(?:\s|$)")
-R3_REDIR = re.compile(r"<\s*[\"']?(?!\S*tests/stubs/)\S*(?:/herdr\b|\$\{?HERDR_BIN_PATH)")
-HERDR_WORD = re.compile(r"(?<!tests/stubs/)\bherdr\b")
+R2_UNSET = re.compile(
+    r"\bunset\b[^\n]*\b(?:HERDR_SOCKET_PATH|HC_SOCKET)\b|"
+    r"\benv\b[^\n]*\s(?:-u\s*(?:HERDR_SOCKET_PATH|HC_SOCKET)|-[A-Za-z]*i[A-Za-z]*|--ignore-environment|--unset[= ](?:HERDR_SOCKET_PATH|HC_SOCKET))(?:\s|$)")
+R3_REDIR = re.compile(r"<\s*[\"']?(?!\S*tests/stubs/)\S*(?:/(?:herdr|hc|herdr-core)\b|\$\{?HERDR_BIN_PATH)")
+HOST_CLI_WORD = re.compile(r"(?<!tests/stubs/)\b(?:herdr|hc|herdr-core)\b")
+HERDR_WORD = HOST_CLI_WORD  # legacy name for R2 unset + host mention check
 AWKS = {"awk", "gawk", "mawk", "nawk", "busybox-awk"}
 EDITORS = {"vim", "vi", "nvim", "view", "ex", "emacs", "nano", "ed", "less", "more", "man"}
 SHELL_LIKE = SHELLS | {"source", ".", "eval"}
@@ -1021,12 +1026,15 @@ def is_stub(path):
 
 
 def is_herdr(word):
-    """True when the word, as a command, is or may expand to the herdr binary (stub paths excepted)."""
+    """True when the word is or may expand to herdr, hc or herdr-core (stub paths excepted)."""
     base = os.path.basename(word.rstrip("/"))
-    if base == "herdr":
+    if base in ("herdr", "hc", "herdr-core"):
         return not is_stub(word)
     if base not in ("[", "[[") and GLOB.search(base):
-        return fnmatch.fnmatchcase("herdr", base)
+        for target in ("herdr", "hc", "herdr-core"):
+            if fnmatch.fnmatchcase(target, base):
+                return True
+        return False
     return False
 
 
@@ -3682,7 +3690,7 @@ class Analyzer:
                 name in SHELLS and next((os.path.basename(x) for x in rest if not x.startswith("-")), None) == "factory"):
             self.ran_factory = True
         if is_dynamic(w, strict=not in_loose):
-            raise DynamicBlock(f"dynamic command word {w!r} could expand to herdr or claude")
+            raise DynamicBlock(f"dynamic command word {w!r} could expand to herdr, hc or claude")
         if is_herdr(w):
             raise Block("direct herdr invocation")
         if is_claude(w):

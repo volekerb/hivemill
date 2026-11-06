@@ -452,9 +452,12 @@ func TestCommandsClaudeRule(t *testing.T) {
 func TestCommandsRawBackstop(t *testing.T) {
 	clearTermsEnv(t)
 	for _, c := range []string{
-		"export HERDR_SOCKET_PATH=/tmp/x", "HERDR_SESSION=x true", "cat ~/.config/herdr/config", "ls herdr.sock",
-		"unset HERDR_SOCKET_PATH; herdr list", "env -i herdr pane list", "cat < /usr/bin/herdr", "dd if=/usr/bin/herdr of=/tmp/h",
-		"xargs herdr", "find . -exec herdr server stop \\;", "env herdr agent start", "bash -c 'x' herdr pane close",
+		"export HERDR_SOCKET_PATH=/tmp/x", "export HC_SOCKET=/tmp/x", "HERDR_SESSION=x true",
+		"cat ~/.config/herdr/config", "ls herdr.sock",
+		"unset HERDR_SOCKET_PATH; herdr list", "unset HC_SOCKET; hc list", "env -i herdr pane list",
+		"cat < /usr/bin/herdr", "dd if=/usr/bin/herdr of=/tmp/h",
+		"xargs herdr", "find . -exec herdr server stop \\;", "hc server stop", "herdr-core server stop",
+		"env herdr agent start", "bash -c 'x' herdr pane close",
 	} {
 		if err := checkRole(c, "coder"); err == nil {
 			t.Errorf("%q allowed", c)

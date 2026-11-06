@@ -53,6 +53,41 @@ def new_tab(ws, label):
     return tab, pane
 
 
+# herdr-core native verbs (factory translates TUI calls when terminal_backend=hc)
+if argv[:1] == ["ls"]:
+    out({"agents": st["agents"]})
+    with open(STATE, "w") as f:
+        json.dump(st, f)
+    sys.exit(0)
+if argv[:1] == ["run"] and "--bg" in argv:
+    name = opt("--name")
+    if name and st.get("start_fail"):
+        print("hc: " + (st["start_fail"] if isinstance(st["start_fail"], str) else "agent_not_ready"), file=sys.stderr)
+        sys.exit(1)
+    agent = {"name": name, "agent": "claude", "pane_id": opt("--pane"), "agent_status": "idle",
+             "agent_session": {"value": opt("--session-id") or "sess-" + name}}
+    if name and not st.get("slow_list"):
+        st["agents"] = [a for a in st["agents"] if a.get("name") != name] + [agent]
+    out({"agent": agent})
+    with open(STATE, "w") as f:
+        json.dump(st, f)
+    sys.exit(0)
+if argv[:1] == ["send"] and len(argv) >= 3:
+    out({})
+    with open(STATE, "w") as f:
+        json.dump(st, f)
+    sys.exit(0)
+if argv[:1] == ["read"] and len(argv) >= 2:
+    out({"text": st.get("read_text", {}).get(argv[1], "")})
+    with open(STATE, "w") as f:
+        json.dump(st, f)
+    sys.exit(0)
+if argv[:1] == ["keys"] and len(argv) >= 2:
+    out({})
+    with open(STATE, "w") as f:
+        json.dump(st, f)
+    sys.exit(0)
+
 cmd = tuple(argv[:2])
 if " ".join(cmd) in st.get("fail_cmds", []):
     print("hc: " + " ".join(cmd) + " failed", file=sys.stderr)

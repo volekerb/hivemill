@@ -10,7 +10,7 @@ Hivemill talks to agent panes through one of two **terminal backends**:
 Config `terminal_backend` selects which CLI factory runs:
 
 - **`herdr`** — always use the TUI binary (`herdr`).
-- **`hc`** — always use herdr-core (`hc`). The Hivemill **socket pin** stays `config herdr_socket` (same env var `HERDR_SOCKET_PATH` for subprocesses); do **not** point `herdr_socket` at a core-only socket unless you intend to — core and TUI servers are separate.
+- **`hc`** — always use herdr-core (`hc`). Factory maps TUI verbs to `hc ls` / `run` / `send` / `read` / `keys` and does **not** set `HERDR_SOCKET_PATH` on those subprocesses (core uses `HC_SOCKET`). Do **not** point `herdr_socket` at the core socket — the two servers are separate.
 - **`auto`** (default) — if both `herdr` and `hc` are on `PATH`, prefer **`herdr`** (TUI). If only one exists, use that one. If neither exists, factory still invokes `herdr` so errors match the historical “herdr missing” behaviour.
 
 `factory doctor` and `factory res` print the configured value and the **effective** backend (after `auto` resolution).

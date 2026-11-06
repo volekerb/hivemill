@@ -41,14 +41,23 @@ func matchR2Set(s string) bool {
 	return false
 }
 
-// herdrVarEnd is the end of HERDR_SOCKET_PATH or HERDR_SESSION at i (no trailing \b check).
+// herdrVarEnd is the end of HERDR_SOCKET_PATH, HERDR_SESSION or HC_SOCKET at i (no trailing \b check).
 func herdrVarEnd(s string, i int) (int, bool) {
-	for _, v := range []string{"HERDR_SOCKET_PATH", "HERDR_SESSION"} {
+	for _, v := range []string{"HERDR_SOCKET_PATH", "HERDR_SESSION", "HC_SOCKET"} {
 		if hasAt(s, i, v) {
 			return i + len(v), true
 		}
 	}
 	return 0, false
+}
+
+func socketVarAt(s string, p int) bool {
+	for _, v := range []string{"HERDR_SOCKET_PATH", "HC_SOCKET"} {
+		if hasAt(s, p, v) && boundary(s, p) && boundary(s, p+len(v)) && !wordBefore(s, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // exportTail matches (?:-\w+\s+)*HERDR_(?:SOCKET_PATH|SESSION)\b at i.
@@ -109,8 +118,8 @@ func matchR2Unset(s string) bool {
 			if k := strings.IndexByte(s[i+5:], '\n'); k >= 0 {
 				eol = i + 5 + k
 			}
-			for p := i + 5; p+len("HERDR_SOCKET_PATH") <= eol; p++ {
-				if hasAt(s, p, "HERDR_SOCKET_PATH") && boundary(s, p) && boundary(s, p+len("HERDR_SOCKET_PATH")) && !wordBefore(s, p) {
+			for p := i + 5; p < eol; p++ {
+				if socketVarAt(s, p) {
 					return true
 				}
 			}
@@ -138,8 +147,10 @@ func envOption(s string, i int) bool {
 	switch {
 	case hasAt(s, i, "-u"):
 		j := skipSpace(s, i+2)
-		if hasAt(s, j, "HERDR_SOCKET_PATH") && tail(j+len("HERDR_SOCKET_PATH")) {
-			return true
+		for _, v := range []string{"HERDR_SOCKET_PATH", "HC_SOCKET"} {
+			if hasAt(s, j, v) && tail(j+len(v)) {
+				return true
+			}
 		}
 	case hasAt(s, i, "--ignore-environment"):
 		if tail(i + len("--ignore-environment")) {
@@ -149,8 +160,10 @@ func envOption(s string, i int) bool {
 		j := i + len("--unset")
 		if j < len(s) && (s[j] == '=' || s[j] == ' ') {
 			j++
-			if hasAt(s, j, "HERDR_SOCKET_PATH") && tail(j+len("HERDR_SOCKET_PATH")) {
-				return true
+			for _, v := range []string{"HERDR_SOCKET_PATH", "HC_SOCKET"} {
+				if hasAt(s, j, v) && tail(j+len(v)) {
+					return true
+				}
 			}
 		}
 	}

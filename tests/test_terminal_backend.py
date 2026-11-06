@@ -22,7 +22,7 @@ class TerminalBackendTests(FactoryTestCase):
         self.ok("config", "terminal_backend", "hc", agent="owner")
         self.env.set_herdr(agents=[])
         self.ok("tick", agent="owner")
-        hc_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["agent", "list"]]
+        hc_calls = [c for c in self.env.calls("hc") if c["argv"][:1] == ["ls"]]
         herdr_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "list"]]
         self.assertTrue(hc_calls, hc_calls)
         self.assertFalse(herdr_calls, herdr_calls)
