@@ -13235,6 +13235,14 @@ def judge_autospawn_tick(con):
         name = oname(con, _o, slug(f"judge-{tid}"))
         if con.execute("SELECT 1 FROM agents WHERE name=? AND status IN ('live','starting','queued')", (name,)).fetchone():
             continue  # cheap DB check first: the stale check below costs gh calls
+        slugs = _judge_slugs(con, t, "/".join((t["pr_url"] or "").split("/")[3:5]))
+        red = red_main_refusal(con, slugs, tid)
+        if red:  # T-1153: the judge would only end in a status-only reject while the freeze refuses merges
+            rkey = f"judge-redmain:{tid}:" + ":".join(str((red_main_state(con, x) or {}).get("run", "")) for x in slugs)  # fixed shape: tid + red run ids
+            if not _throttled(con, rkey, clock, float("inf")):
+                _throttle_set(con, rkey, clock)
+                event(con, "task", tid, "judge-autospawn-wait", red)
+            continue
         stale = judge_verdicts_stale(con, t, clock)
         if stale:  # T-1098: both verdicts must hold on the current head; the review pass starts what is missing
             key = f"judge-stale:{tid}:{stale[0]}"  # fixed-shape key: no free-form reason text
