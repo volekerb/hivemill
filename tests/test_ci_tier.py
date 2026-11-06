@@ -1,4 +1,8 @@
-"""Tests for ci/ci_tier.py: PR tier classification, affected mode plan, docs check, and the tests.yml wiring."""
+"""Tests for ci/ci_tier.py: PR tier classification, affected mode plan, docs check, and the tests.yml wiring.
+
+T-1166 (binary trigger): a changed file whose ``git diff --numstat`` added/deleted field is not a decimal line count
+(e.g. ``-`` for binary) must classify as risky with that path in the reason, before the all-docs path.
+"""
 import os
 import re
 import subprocess
@@ -50,7 +54,10 @@ class Repo:
     def write(self, rel, text):
         p = self.root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(text)
+        if isinstance(text, bytes):
+            p.write_bytes(text)
+        else:
+            p.write_text(text)
 
     def change(self, files):
         for rel, text in files.items():
@@ -75,6 +82,17 @@ class ClassifyTest(unittest.TestCase):
 
     def test_docs_only(self):
         self.assertEqual(self.tier({"README.md": "changed\n", "docs/a.md": "# b\n", "docs/img/x.png": "bin"}), "docs")
+
+    def test_binary_under_docs_is_risky_and_names_path(self):
+        tier, why = self.repo.classify({"docs/x.bin": b"\x00\x01"})
+        self.assertEqual(tier, "risky")
+        self.assertIn("docs/x.bin", why)
+        self.assertIn("numstat", why)
+
+    def test_markdown_only_under_docs_stays_docs(self):
+        tier, why = self.repo.classify({"docs/note.md": "# only\n"})
+        self.assertEqual(tier, "docs")
+        self.assertIn("only docs", why)
 
     def test_roles_markdown_is_not_docs(self):
         self.repo.write("roles/existing.md", "old\n")
@@ -179,6 +197,11 @@ class PlanTest(unittest.TestCase):
     def test_risky_is_full_with_go(self):
         p = self.plan({".github/CODEOWNERS": "x\n"})
         self.assertEqual((p["mode"], p["go"]), ("full", "true"))
+
+    def test_binary_under_docs_plan_is_full(self):
+        p = self.plan({"docs/y.bin": b"\x00\x02"})
+        self.assertEqual((p["tier"], p["mode"], p["go"]), ("risky", "full", "true"))
+        self.assertIn("docs/y.bin", p["reason"])
 
     def test_new_top_level_directory_plan_is_full(self):
         p = self.plan({"plugins/widget/README": "x\n"})
