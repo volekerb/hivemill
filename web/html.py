@@ -34,7 +34,7 @@ CLASSES = frozenset({
     "spark-cap", "spark-last", "cols", "cols-wrap", "col", "col--zero", "col-val", "col-x", "tiles", "tile", "tile-label", "tile-def",
     "metric", "delta",
     "gchips", "gblk", "crit-text", "crit-tasks", "intent", "gd", "gd-main", "rail", "rail-list", "rail-dl", "metarow", "attempt",
-    "tiles--4", "ins-list", "ins-row", "ins-name", "ins-gauges", "ins-check", "ins-check--over", "ins-key", "ins-wide",
+    "cl", "tblock", "tiles--4", "ins-list", "ins-row", "ins-name", "ins-gauges", "ins-check", "ins-check--over", "ins-key", "ins-wide",
     *(f"{p}-{t}" for p in ("fg", "gs", "tone") for t in _TONES),
     *(f"status--{s}" for s in _STATUSES),
     *(f"{p}-{o}" for p in ("org", "org-dot", "lane-") for o in _orgs.NAMES),

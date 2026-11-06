@@ -350,7 +350,7 @@ def _org_rank(org):
     return _orgs.NAMES.index(org) if org in _orgs.NAMES else len(_orgs.NAMES)
 
 
-COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "model", "label": "Model", "cls": "c-who"}, AGENT_COLS[3])
+COLS = (AGENT_COLS[0], AGENT_COLS[1], AGENT_COLS[2], {"key": "model", "label": "Model", "cls": "c-who", "phone_label": True}, AGENT_COLS[3])
 
 
 def _cells(a, now):

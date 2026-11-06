@@ -165,6 +165,69 @@ class TestGoalDetail(ViewCase):
         self.assertIn('href="/goals"', html)
 
 
+class TestR3Pages(ViewCase):
+    def test_tasks_phone_labels_only_on_filled_fields(self):
+        d, html = self.page(tasks)
+        row = lambda tid: next(c for c in html.split("<tr>") if f">{tid}<" in c)   # noqa: E731
+        r1 = row("T-1")
+        self.assertIn('<span class="cl">Goal</span>', r1)
+        self.assertIn('<span class="cl">Assignee</span>', r1)
+        self.assertIn('<span class="cl">PR</span>', r1)
+        self.assertIn('<span class="cl">Rejections</span>', r1)
+        r4 = row("T-4")   # no PR, no rejections
+        self.assertNotIn('<span class="cl">PR</span>', r4)
+        self.assertNotIn('<span class="cl">Rejections</span>', r4)
+        self.assertIn('<th scope="col" class="c-who">', html)   # desktop headers stay
+
+    def test_task_title_and_meta_are_one_block_and_verdicts_precede_pr_cycle(self):
+        d, html = self.page(tasks.detail, id="T-1")
+        m = re.search(r'<div class="tblock">(.*?)</div>', html, re.S).group(1)
+        self.assertIn('class="crumbs"', m)
+        self.assertIn('class="metarow"', m)
+        self.assertLess(html.index('class="tblock"'), html.index("<h2>Verdicts"))
+        self.assertLess(html.index("<h2>Verdicts"), html.index('class="tiles"'))
+        self.assertLess(html.index('class="tiles"'), html.index("<h2>PR cycle"))
+
+    def test_goal_intent_then_teams_with_agents_and_rail_keeps_plan(self):
+        d, html = self.page(goals.detail, id="G-1")
+        main, rail = html.split('<aside', 1)
+        self.assertLess(main.index("<span>Intent</span>"), main.index("<h2>Teams"))
+        self.assertLess(main.index("<h2>Teams"), main.index("<h2>Success criteria"))
+        self.assertLess(main.index("<h2>Teams"), main.index('class="meter'))
+        for needle in ("t-a", "lead-a", "coder-2", "scope A"):
+            self.assertIn(needle, main)
+        self.assertNotIn("<h2>Teams", rail)
+        for needle in ("Plan", "Created", "Updated"):
+            self.assertIn(needle, rail)
+        self.assertNotIn("scope A", rail)
+
+    def test_goal_without_team_has_no_teams_box_and_team_without_agents_renders(self):
+        d, html = self.page(goals.detail, id="G-9")   # no team
+        self.assertNotIn("<h2>Teams", html)
+        self.assertIn("Intent", html)
+        self.w.execute("INSERT INTO teams VALUES('t-solo','G-9','solo scope','lead-solo',NULL,'active',?)", (ts(8, 0),))
+        d, html = self.page(goals.detail, id="G-9")
+        self.assertIn("<h2>Teams", html)
+        self.assertIn("t-solo", html)
+        self.assertNotIn('class="agentrow"', html)
+        self.assertNotIn('<ul class="lrow-list"></ul>', html)
+
+    def test_goal_page_query_count_does_not_grow_with_teams(self):
+        def count():
+            c = self.ctx()
+            n = []
+            c.db.set_trace_callback(n.append)
+            goals.detail.render(c, goals.detail.data(c, id="G-9"))
+            return len(n)
+        self.w.execute("INSERT INTO teams VALUES('t-n0','G-9','s','l0',NULL,'active',?)", (ts(8, 0),))
+        base = count()
+        for i in range(1, 6):
+            self.w.execute("INSERT INTO teams VALUES(?,'G-9','s','l',NULL,'active',?)", (f"t-n{i}", ts(8, 0)))
+            self.w.execute("INSERT INTO agents(name,role,goal_id,team_id,status,started) VALUES(?,'coder','G-9',?,'live',?)",
+                           (f"ag-{i}", f"t-n{i}", ts(9, 0)))
+        self.assertEqual(count(), base)
+
+
 class TestHostileText(ViewCase):
     def test_titles_escaped_everywhere(self):
         self.w.execute("UPDATE goals SET title=? WHERE id='G-1'", (XSS,))

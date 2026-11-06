@@ -122,6 +122,16 @@ def _th(col, sort, sort_href):
     return el("th", el("a", col["label"], href=sort_href(col["key"]), class_="sortlink"), scope="col", class_=cls, aria_sort=arrow)
 
 
+def _labelled(col, cell):
+    """Cell content. A column with `phone_label` (True = its header label, or a text) gets a `cl` span before a
+    non-empty cell: real text, shown by the phone card layout and hidden on desktop where the <th> names the column.
+    Empty cells get no label. Columns without the key are unchanged."""
+    want = col.get("phone_label")
+    if not want or cell in ("", None):
+        return cell
+    return [el("span", want if isinstance(want, str) else col["label"], class_="cl"), cell]
+
+
 def _table(columns, groups, sort, sort_href, with_header=True):
     head = el("thead", el("tr", [_th(c, sort, sort_href) for c in columns]))
     bodies = []
@@ -131,13 +141,13 @@ def _table(columns, groups, sort, sort_href, with_header=True):
             rows.append(el("tr", el("th", g["label"], " ", el("span", g["count"], class_="grp-n"), colspan=len(columns), scope="colgroup"),
                            class_="grp"))
         for r in g["rows"]:
-            rows.append(el("tr", [el("td", cell, class_=c.get("cls")) for c, cell in zip(columns, r)]))
+            rows.append(el("tr", [el("td", _labelled(c, cell), class_=c.get("cls")) for c, cell in zip(columns, r)]))
         bodies.append(el("tbody", rows))
     return el("table", head, bodies, class_="dt")
 
 
 def data_table(columns, groups, sort=None, sort_href=None, key="tbl", empty=None):
-    """Real <table>, sortable headers, groups by status. columns: dicts {key, label, cls?, sortable?}.
+    """Real <table>, sortable headers, groups by status. columns: dicts {key, label, cls?, sortable?, phone_label?}.
     groups: dicts {key, label, count, rows, collapsed?}; rows are lists of cells (str escaped, Safe kept), one per
     column. `sort` is the effective (column key, "asc"|"desc") and gets aria-sort; `sort_href(col_key)` builds the
     header link. Open groups share one table (group header row "In review 1"); collapsed groups follow as
@@ -177,8 +187,8 @@ def feed(rows):
 AGENT_COLS = (
     {"key": "status", "label": "", "cls": "c-st"},
     {"key": "agent", "label": "Agent", "cls": "c-title"},
-    {"key": "task", "label": "Task", "cls": "c-who"},
-    {"key": "last", "label": "Last event", "cls": "c-age num"},
+    {"key": "task", "label": "Task", "cls": "c-who", "phone_label": True},
+    {"key": "last", "label": "Last event", "cls": "c-age num", "phone_label": "Last"},
 )
 
 

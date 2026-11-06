@@ -67,6 +67,17 @@ class Base(unittest.TestCase):
 
 
 class TestAgents(Base):
+    def test_phone_labels_and_grouping_survive(self):
+        d, html = self.page(agents)
+        for needle in ('<span class="cl">Task</span>', '<span class="cl">Model</span>', '<span class="cl">Last</span>'):
+            self.assertIn(needle, html)
+        self.assertRegex(html, r'<th scope="col" class="c-title">Agent</th>')   # desktop header stays
+        for sect in ("Running", "Queued", "Ended"):
+            self.assertIn(f">{sect}", html)
+        self.assertIn("t-a", html)   # team grouping
+        row = re.search(r"<tr>(?:(?!</tr>).)*lead-a(?:(?!</tr>).)*</tr>", html, re.S).group(0)
+        self.assertNotIn('<span class="cl">Task</span>', row)   # lead-a has no task: no label, no gap
+
     def test_team_scope_cut_to_120_and_escaped(self):
         self.w.execute("UPDATE teams SET scope=? WHERE id='t-a'", (XSS + "x" * 500,))
         d, html = self.page(agents)
