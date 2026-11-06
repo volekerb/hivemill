@@ -30,6 +30,26 @@ def text_of(html):
 
 
 class TestComponents(unittest.TestCase):
+    def test_r3_phone_label_is_opt_in_and_skips_empty_cells(self):
+        plain = [{"key": "id", "label": "ID", "cls": "c-id"}, {"key": "who", "label": "Assignee", "cls": "c-who"}]
+        g = [{"key": "a", "label": "A", "count": 1, "rows": [["T-1", "bob"]]}]
+        # without the opt-in the HTML is exactly the pre-R3 markup
+        self.assertEqual(str(wc.data_table(plain, g, key="t")),
+                         '<div class="dt-wrap"><table class="dt"><thead><tr><th scope="col" class="c-id">ID</th>'
+                         '<th scope="col" class="c-who">Assignee</th></tr></thead><tbody><tr class="grp"><th colspan="2" scope="colgroup">A '
+                         '<span class="grp-n">1</span></th></tr><tr><td class="c-id">T-1</td><td class="c-who">bob</td></tr></tbody></table></div>')
+        opt = [plain[0], dict(plain[1], phone_label=True)]
+        out = str(wc.data_table(opt, g, key="t"))
+        self.assertIn('<div class="dt-wrap dt-wrap--cards"><table class="dt">', out)   # the card layout is scoped to opted-in tables
+        self.assertNotIn("dt-wrap--cards", str(wc.data_table(plain, g, key="t")))
+        self.assertIn('<td class="c-who"><span class="cl">Assignee</span>bob</td>', out)
+        self.assertIn('<th scope="col" class="c-who">Assignee</th>', out)   # header semantics intact
+        empty = str(wc.data_table(opt, [{"key": "a", "label": "A", "count": 1, "rows": [["T-1", ""]]}], key="t"))
+        self.assertNotIn('class="cl"', empty)
+        self.assertIn('<td class="c-who"></td>', empty)
+        custom = str(wc.data_table([dict(plain[1], phone_label="By")], [{"key": "a", "label": "A", "count": 1, "rows": [["x"]]}], key="t"))
+        self.assertIn('<span class="cl">By</span>x', custom)
+
     def test_c4_data_table_groups_sorting_and_collapsed_disclosure(self):
         cols = [{"key": "id", "label": "ID"}, {"key": "title", "label": "Task", "sortable": True},
                 {"key": "updated", "label": "Updated", "sortable": True}]
@@ -284,6 +304,16 @@ class TestCounts(PageCase):
         t = self.text("/tasks?goal=G-1")
         self.assertIn('<span>To do</span> <span class="chip-n">1</span>', t)
         self.assertIn(">4 tasks<", t)
+
+
+class TestFeedModifier(unittest.TestCase):
+    def test_feed_without_the_modifier_is_byte_identical_and_log_only_adds_a_class(self):
+        from web.components import feed, feed_row
+        rows = [feed_row("A title", "/task/T-1", goal="G-1", pr_url="https://github.com/o/r/pull/5", sha="deadbeefcafe", when="2 h ago")]
+        plain = str(feed(rows))
+        self.assertTrue(plain.startswith('<ul class="feed"><li class="feed-row">'), plain)
+        log = str(feed(rows, "log"))
+        self.assertEqual(log, plain.replace('<ul class="feed">', '<ul class="feed feed--log">'))
 
 
 class TestStatic(unittest.TestCase):

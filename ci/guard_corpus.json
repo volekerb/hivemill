@@ -60,13 +60,13 @@
    }
   },
   {
-   "cmd": "uvx pytest\u3000tests",
+   "cmd": "uvx pytest　tests",
    "config": {
     "test_sandbox": "1"
    }
   },
   {
-   "cmd": "uvx pytest\u2028tests",
+   "cmd": "uvx pytest tests",
    "config": {
     "test_sandbox": "1"
    }
@@ -197,9 +197,9 @@
   "cd ~/.local/bin && echo x > git",
   "cd ~/.local/bin && cp /tmp/x git",
   "echo x > $Q/.local/bin",
-  "echo x > $Q/.local/bin\u00e9",
+  "echo x > $Q/.local/biné",
   "python3 -c \"open(1,2).write(0) # .local/bin\"",
-  "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
+  "python3 -c \"open(1,2).write(0) # .local/biné\"",
   "echo go > @LIVE_HOME@/run/guard_impl",
   "cp /tmp/x @LIVE_HOME@/run/guard_impl",
   "rm @LIVE_HOME@/run/guard_impl",
@@ -2005,15 +2005,15 @@
    "role": "qa"
   },
   {
-   "cmd": "echo p | xargs 'a\u2003git p'",
+   "cmd": "echo p | xargs 'a git p'",
    "role": "qa"
   },
   {
-   "cmd": "echo x | xargs 'a\u3000git p'",
+   "cmd": "echo x | xargs 'a　git p'",
    "role": "qa"
   },
   {
-   "cmd": "find . -exec 'a\u00a0git p' \\;",
+   "cmd": "find . -exec 'a git p' \\;",
    "role": "qa"
   },
   {
@@ -3369,27 +3369,27 @@
    "role": "pm"
   },
   {
-   "cmd": "echo p | xargs 'a\u2003git p'",
+   "cmd": "echo p | xargs 'a git p'",
    "role": "reviewer"
   },
   {
-   "cmd": "echo p | xargs 'a\u2003git p'",
+   "cmd": "echo p | xargs 'a git p'",
    "role": "pm"
   },
   {
-   "cmd": "echo x | xargs 'a\u3000git p'",
+   "cmd": "echo x | xargs 'a　git p'",
    "role": "reviewer"
   },
   {
-   "cmd": "echo x | xargs 'a\u3000git p'",
+   "cmd": "echo x | xargs 'a　git p'",
    "role": "pm"
   },
   {
-   "cmd": "find . -exec 'a\u00a0git p' \\;",
+   "cmd": "find . -exec 'a git p' \\;",
    "role": "reviewer"
   },
   {
-   "cmd": "find . -exec 'a\u00a0git p' \\;",
+   "cmd": "find . -exec 'a git p' \\;",
    "role": "pm"
   },
   {
@@ -10699,7 +10699,6 @@
   "echo x > ~/**/factory_cli.py",
   "echo x > ~/**/go.env",
   "echo x > @SHARED@/**/factory_cli.py",
-  "echo x > ~/.local/bin/git",
   "curl -o ~/.local/bin/git URL",
   "tar -C ~/.local/bin -xf a.tar",
   "cd ~/.local/bin && tar -xf a.tar",
@@ -11499,11 +11498,11 @@
    "role": "qa"
   },
   {
-   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init",
    "role": "coder"
   },
   {
-   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
+   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init",
    "role": "qa"
   },
   {
@@ -14853,6 +14852,2182 @@
   {
    "cmd": "git <<- x push origin main\nbody\nx",
    "role": "coder"
+  },
+  {
+   "cmd": "env --split-s '-u FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split='-u FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --sp='-u FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --sp='ls -l'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '\"-u\" FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S'-u\\_FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S\"-u 'FACTORY_ROLE'\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '-u ${NOPE_T1037}FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '-u ${NOPE_T1037}GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S '-u FACTORY_ROLE\\c ls' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '\"-u FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '\"-u\" GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S'-u\\_GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-s '-u GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S '-u ${X} git status'",
+   "role": "qa"
+  },
+  {
+   "cmd": "X=GIT_DIR env -S '-u ${X} git status'",
+   "role": "qa"
+  },
+  {
+   "cmd": "X=GIT_DIR; export X; env -S '-u ${X} git status'",
+   "role": "qa"
+  },
+  {
+   "cmd": "X=FACTORY_ROLE env -S '-u ${X} ls'",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=ROLE env -S '-u FACTORY_${X} ls'",
+   "role": "coder"
+  },
+  {
+   "cmd": "export X=FACTORY_ROLE; env -S '-u ${X} ls'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '-u ${NOPE} GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S '-${X} GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S '\"-i\"' factory task show T-1",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=FACTORY_ROLE env -S '-v -u${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=ROLE env -S '-v -uFACTORY_${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=FACTORY_ROLE env -S '--debug --unset=${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=FACTORY_ROLE env -S '-a foo -u${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "export X=FACTORY_ROLE; env -S '-v -u${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=uFACTORY_ROLE env -S '-0 -${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=i env -S '-v -${X}' factory task show T-1",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=-uFACTORY_ROLE env -S '-v ${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "X=-i env -S '-v ${X}' factory task show T-1",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"-v -u$X\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"-u $X\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"-v $X\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"-v -u$(echo FACTORY_ROLE)\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --sp=\"-v -$X\" factory task show T-1",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"-v\" -u\"$X\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '-v ${A}${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '-v \"${X}\"' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --sp='-v ${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -vS'-v ${X}' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"-v $X\" git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S '# -u FACTORY_ROLE' ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '# -i' factory task show T-1",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S 'ls \\c -u FACTORY_ROLE'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S 'ls # -u FACTORY_ROLE'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"x' -u FACTORY_ROLE '\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '# -u GIT_DIR' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S '# -i' git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S \"x' -u GIT_DIR '\" git status",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S 'ls -l'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S '\"ls\" -l'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S \"'-u FACTORY_ROLE'\" ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S 'git status'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "judge"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "cleaner"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -S 'ls'",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -Sls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -vS ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -iS ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -0S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -aS ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --debug -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -a foo -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -u FOO -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --unset=FOO --sp=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "/usr/bin/env -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "FOO=1 env -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env FOO=1 -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "timeout 5 env -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "nice env -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "command env -S ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "zsh -c 'env -S ls'",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --s=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --s ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --sp=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --sp ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --spl=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --spl ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --spli=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --spli ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split- ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-s=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-s ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-st=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-st ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-str=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-str ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-stri=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-stri ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-strin=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-strin ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-string=ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-string ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env -Suxi factory task show T-1",
+   "role": "coder"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S-uPATH ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "zsh -c 'env -S-uPATH ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -S-uPATH ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "zsh -c 'env -S-uPATH ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -S-uPATH ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "zsh -c 'env -S-uPATH ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -S-uPATH ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "zsh -c 'env -S-uPATH ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -S-uPATH ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "zsh -c 'env -S-uPATH ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -S-uPATH ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "zsh -c 'env -S-uPATH ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "qa"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "qa"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "pm"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "pm"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "staff-engineer"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "scout"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "scout"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "evaluator"
+  },
+  {
+   "cmd": "env -S\"-u PATH\" ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "cd /x && env -S\"-u PATH\" ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "zsh -c 'env -S\"-u PATH\" ls'",
+   "role": "researcher"
+  },
+  {
+   "cmd": "bash -c 'env -S\"-u PATH\" ls'",
+   "role": "researcher"
+  },
+  {
+   "cmd": "env --split-string=-i ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "cd /x && env --split-string=-i ls",
+   "role": "researcher"
+  },
+  {
+   "cmd": "zsh -c 'env --split-string=-i ls'",
+   "role": "researcher"
+  },
+  {
+   "cmd": "bash -c 'env --split-string=-i ls'",
+   "role": "researcher"
   },
   "git config --comment --get alias.x push",
   "git config --comm --get alias.x push",
@@ -15727,7 +17902,10 @@
   "factory whoami",
   "git commit -m \"$(cat <<'EOF'\nfix: don't call herdr directly\n\nmore herdr text\nEOF\n)\"",
   "factory plan G-001 - <<'EOF'\nthe herdr binary is stubbed in tests\nEOF",
-  "gh pr create --title t --body 'herdr is stubbed in tests'",
+  {
+   "cmd": "gh pr create --title t --body 'herdr is stubbed in tests'",
+   "role": "coder"
+  },
   "git commit -m 'T-0016: block herdr'",
   "PATH=$PWD/tests/stubs:$PATH python3 -m unittest discover -s tests -p test_x.py -v",
   "tests/stubs/herdr agent list",
@@ -15764,14 +17942,28 @@
   "cat README.md",
   "less README.md",
   "git commit -m 'guard: block herdr server stop'",
-  "gh pr comment 11 --body 'herdr server stop is blocked'",
+  {
+   "cmd": "gh pr comment 11 --body 'herdr server stop is blocked'",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr comment 11 --body 'herdr server stop is blocked'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh pr comment 11 --body 'herdr server stop is blocked'",
+   "role": "qa"
+  },
   "factory msg lead-g-001-a x 'herdr server stop blocked'",
   "sed -i 's/old/new/' tests/test_worker_guard.py",
   "echo 'HERDR_SOCKET_PATH is pinned' >> README.md",
   "factory task update T-0016 --status in_review --pr https://x/pull/1",
   "factory msg lead:g-001-a \"s\" \"b\"",
   "factory verdict T-1 pass \"ok\"",
-  "gh pr create --fill",
+  {
+   "cmd": "gh pr create --fill",
+   "role": "coder"
+  },
   "gh pr view 1 --json state",
   "python3 -m py_compile bin/factory",
   "env -i PATH=tests/stubs:/usr/bin python3 -m unittest discover -s tests -p test_x.py",
@@ -15799,7 +17991,18 @@
   "cat ~/.claude/settings.json",
   "ls ~/.claude",
   "git commit -m \"mention claude -p\"",
-  "gh pr comment --body 'claude'",
+  {
+   "cmd": "gh pr comment --body 'claude'",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr comment --body 'claude'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh pr comment --body 'claude'",
+   "role": "qa"
+  },
   "echo claude",
   "python3 -W ignore -m unittest tests.test_x",
   "python3 -X dev bin/other.py",
@@ -15820,7 +18023,10 @@
   "factory msg lead 'x' 'never run `sudo -n true`'",
   "echo 'a $(sudo id) b'",
   "echo '`sudo id`'",
-  "gh pr create --body 'use `docker ps` and $(su -)'",
+  {
+   "cmd": "gh pr create --body 'use `docker ps` and $(su -)'",
+   "role": "coder"
+  },
   "echo 'x' 'y $(docker ps)'",
   "factory msg lead s 'a `sudo` b' --kind report",
   "ls /usr/bin/s?do",
@@ -15858,7 +18064,18 @@
   "ps aux | grep unittest",
   "git commit -m \"no pkill\"",
   "echo 'killall and kill 1234 are blocked'",
-  "gh pr comment 5 --body 'pkill is refused'",
+  {
+   "cmd": "gh pr comment 5 --body 'pkill is refused'",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr comment 5 --body 'pkill is refused'",
+   "role": "reviewer"
+  },
+  {
+   "cmd": "gh pr comment 5 --body 'pkill is refused'",
+   "role": "qa"
+  },
   "systemctl --user",
   "systemctl --user list-timers",
   "systemctl --user status factory-tick.timer",
@@ -15868,12 +18085,21 @@
   "git commit -m \"no systemctl restart\"",
   "cat docs/systemd-run.md",
   "factory report - <<'EOF'\nthe owner ran `systemctl --user restart factory-serve` (ok)\nEOF",
-  "gh pr create --body-file - <<'EOF'\nsystemd-run (never) and systemctl start\nEOF",
+  {
+   "cmd": "gh pr create --body-file - <<'EOF'\nsystemd-run (never) and systemctl start\nEOF",
+   "role": "coder"
+  },
   "git commit -m 'T-0148: document herdr and claude guard rules; sudo is blocked'",
   "git commit -F msg.txt",
   "git commit -m \"$(cat <<'EOF'\nT-1: mention herdr, claude and sudo in prose\n\nBody says: never run herdr or claude, no sudo.\nEOF\n)\"",
-  "gh pr create --title 'T-1 guard' --body-file body.txt",
-  "gh pr create --fill --body \"$(cat <<'EOF'\nUses herdr stubs; claude is spawned by factory only; sudo denied.\nEOF\n)\"",
+  {
+   "cmd": "gh pr create --title 'T-1 guard' --body-file body.txt",
+   "role": "coder"
+  },
+  {
+   "cmd": "gh pr create --fill --body \"$(cat <<'EOF'\nUses herdr stubs; claude is spawned by factory only; sudo denied.\nEOF\n)\"",
+   "role": "coder"
+  },
   "gh pr checks https://github.com/o/r/pull/12 --watch",
   "gh pr view 12 --json state",
   "grep -rn herdr roles/",
@@ -15972,7 +18198,8 @@
    "cmd": "gh pr create --repo other/repo --title t --body \"$(date)\"",
    "config": {
     "public_text_repos": "acme/widgets"
-   }
+   },
+   "role": "coder"
   },
   {
    "cmd": "gh pr list --repo acme/widgets",
@@ -16895,14 +19122,6 @@
   },
   {
    "cmd": "gh api --method GET x -F per_page=5",
-   "role": "qa"
-  },
-  {
-   "cmd": "gh release list",
-   "role": "qa"
-  },
-  {
-   "cmd": "gh release view v1",
    "role": "qa"
   },
   {
@@ -18000,19 +20219,11 @@
    "role": "evaluator"
   },
   {
-   "cmd": "git status",
-   "role": "coder"
-  },
-  {
    "cmd": "git log -1",
    "role": "coder"
   },
   {
    "cmd": "git diff $(git merge-base origin/main HEAD)..HEAD",
-   "role": "coder"
-  },
-  {
-   "cmd": "git merge-tree --write-tree origin/main HEAD",
    "role": "coder"
   },
   {
@@ -19469,7 +21680,6 @@
   "wget --output-doc=/tmp/x URL",
   "tar --dir=/tmp/x -xf a.tar",
   "echo x > /tmp/**/y",
-  "ls ~/.local/bin",
   "cat ~/.local/bin/git",
   "echo x > ~/.local/binx/y",
   "tar -tf ~/.local/bin/a.tar",
@@ -19536,6 +21746,31 @@
   "cat > note.md <<'EOF'\ngit push origin main\nEOF",
   "git <<- push\nbody\npush",
   "factory <<- res\nbody\nres",
+  "env ls",
+  {
+   "cmd": "env ls",
+   "role": "qa"
+  },
+  "env ls -S",
+  {
+   "cmd": "env ls -S",
+   "role": "qa"
+  },
+  "env -a foo ls",
+  {
+   "cmd": "env -a foo ls",
+   "role": "qa"
+  },
+  "env -C /tmp ls",
+  {
+   "cmd": "env -C /tmp ls",
+   "role": "qa"
+  },
+  "env FOO=1 ls",
+  "FOO=$X env ls",
+  "env -u FOO ls",
+  "env -uSOMEVAR ls",
+  "env --unset=SOMEVAR ls",
   "git config --get alias.x",
   "git config --type bool --get core.bare",
   "git config --get-all --default x user.name",

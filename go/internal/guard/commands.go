@@ -135,39 +135,19 @@ func checkScrub(name string, rest []string) (string, error) {
 		return "", nil
 	}
 	scrub := ""
-	for j, x := range rest {
-		if !strings.HasPrefix(x, "-") && !IsAssign(x) {
-			break
-		}
-		if (x == "-u" || x == "--unset") && j+1 < len(rest) && in(ScrubVars, rest[j+1]) {
-			return "", blockf("env -u FACTORY_ROLE/HERDR_PANE_ID")
-		}
-		if strings.HasPrefix(x, "-u") && in(ScrubVars, x[2:]) || strings.HasPrefix(x, "--unset=") && in(ScrubVars, x[8:]) {
-			return "", blockf("env -u FACTORY_ROLE/HERDR_PANE_ID")
-		}
-		if x == "-" || x == "--ignore-environment" || isEnvIFlag(x) {
+	for _, opt := range envOptions(rest) {
+		switch opt.kind {
+		case "split":
+			return "", blockf(envSplitMsg)
+		case "unset":
+			if in(ScrubVars, opt.value) {
+				return "", blockf("env -u FACTORY_ROLE/HERDR_PANE_ID")
+			}
+		case "clear", "clear-attached":
 			scrub = "env -i"
 		}
 	}
 	return scrub, nil
-}
-
-// isEnvIFlag is re.match(r"^-[A-Za-z]*i[A-Za-z]*$", a).
-func isEnvIFlag(a string) bool {
-	a = strings.TrimSuffix(a, "\n")
-	if len(a) < 2 || a[0] != '-' {
-		return false
-	}
-	seen := false
-	for i := 1; i < len(a); i++ {
-		c := a[i]
-		if c == 'i' {
-			seen = true
-		} else if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z') {
-			return false
-		}
-	}
-	return seen
 }
 
 // factoryScript is a port of Analyzer.factory_script: the index of the `factory` script word in an

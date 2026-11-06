@@ -140,8 +140,10 @@ def _range(d):
 
 
 def _tiles(d):
+    """One grid of six tiles (3 x 2 on desktop, 2 x 3 on a phone): no orphan tile. The note on the limits follows it."""
     a = d["agents"]
-    return el("div",
+    unattended = f"{d['unattended']} of {d['merges']}" if d["merges"] else "-"
+    grid = el("div",
               tile("Merges", d["merges"], unit=f"in {d['days']} days",
                    definition="Tasks merged in the selected period. A task counts once, on the day of its last merge."),
               tile("Median spawn to merge", dur(d["median_s"]),
@@ -151,19 +153,17 @@ def _tiles(d):
               tile("Agents running now", a["running"],
                    delta=f"{a['workers']} workers · {a['leads']} leads · {a['hq']} HQ",
                    definition="Agents with a live pane right now: workers, team leads and HQ (boss, director, staff engineer)."),
-              class_="tiles tiles--4")
-
-
-def _unattended(d):
-    value = f"{d['unattended']} of {d['merges']}" if d["merges"] else "-"
-    row = el("div", tile("Unattended share", value,
-                         definition="Merged tasks in the selected period with no owner involvement: no owner wait, "
-                                    "no auto-merge block, no boss decision about the task."),
-             class_="tiles tiles--4")
-    return el("div", row, el("p", LIMITS, class_="muted"))
+              tile("Unattended share", unattended,
+                   definition="Merged tasks in the selected period with no owner involvement: no owner wait, "
+                              "no auto-merge block, no boss decision about the task."),
+              _cost_tile(d),
+              class_="tiles tiles--6")
+    return el("div", grid, el("p", LIMITS, class_="muted"))
 
 
 def _cost_tile(d):
+    """The Cost per merged PR tile. The delta line is short (the figure's basis); the rest of the facts (price date, tasks
+    left out, Cursor hours) sit in the (i) definition, so none is lost."""
     c = d["cost"]
     definition = (f"Average estimated API-equivalent cost of a merged PR at list prices as of {c['prices_as_of']}: the whole cost of each "
                   "merged Claude-org task in the period (not cut to the period), divided by the tasks with a known cost. "
@@ -174,13 +174,14 @@ def _cost_tile(d):
         value, delta = "-", f"Cursor: {c['cursor_hours']} agent-hours in {d['days']} days, no cost or tokens reported."
     else:
         value = f"${c['figure']:.2f}" if c["figure"] is not None else "-"
-        parts = [f"list-price estimate (as of {c['prices_as_of']})", f"{c['priced']} of {c['merged']} tasks priced"]
+        delta = f"{c['priced']} of {c['merged']} tasks priced"
+        more = [f"The figure is a list-price estimate (as of {c['prices_as_of']})."]
         if c["left_out"]:
-            parts.append(f"{c['left_out']} left out: no tokens or no price")
+            more.append(f"{c['left_out']} left out: no tokens or no price.")
         if c["cursor_hours"] is not None:
-            parts.append(f"Cursor: {c['cursor_hours']} agent-hours, no cost")
-        delta = " · ".join(parts)
-    return el("div", tile("Cost per merged PR", value, delta=delta, definition=definition), class_="tiles tiles--4")
+            more.append(f"Cursor: {c['cursor_hours']} agent-hours, no cost.")
+        definition += " " + " ".join(more)
+    return tile("Cost per merged PR", value, delta=delta, definition=definition)
 
 
 def _per_day(d):
@@ -235,4 +236,4 @@ def _slowest(ctx, d):
 def render(ctx, d):
     open_note = el("p", f"{d['open_tasks']} tasks open now (in progress or in review), {d['live_workers']} agents working on a task.",
                    class_="muted")
-    return el("div", _range(d), _tiles(d), _unattended(d), _cost_tile(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))
+    return el("div", _range(d), _tiles(d), open_note, _per_day(d), _stage_card(d), _goals(d), _slowest(ctx, d))

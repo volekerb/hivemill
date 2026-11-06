@@ -365,6 +365,7 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 /* disclosure: the native marker stays (design guard); the count sits beside the label */
 .disc > summary { font: 600 14px/20px var(--font); }
 .disc-n { margin-left: var(--s2); }
+.disc > summary .gm, .disc > summary .tm, .disc > summary .tscope { font-weight: 400; }
 
 /* data table: rows keep the --row height (40 px on desktop), phone rows stack */
 .dt-wrap { margin: var(--s2) 0; }
@@ -374,6 +375,7 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .dt thead th { color: var(--text-3); font: 500 12px/16px var(--font); white-space: nowrap; padding-top: var(--s2); padding-bottom: var(--s2); }
 .dt tbody tr:hover { background: var(--fill); }
 .dt .grp, .dt .grp:hover { background: transparent; }
+.cl { display: none; }
 .dt .grp th { color: var(--text-1); font: 600 13px/18px var(--font); padding-top: var(--s4); border-bottom: 1px solid var(--hairline); }
 .dt .num, .dt th.num { text-align: right; }
 .c-st { width: 24px; }
@@ -408,6 +410,9 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
   .dt, .dt tbody { display: block; }
   .dt thead { display: none; }
   .dt tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--hairline); }
+  .dt-wrap--cards .dt tbody tr:not(.grp) { gap: var(--s1) var(--s3); padding: var(--s2) var(--s3); margin: 0 0 var(--s2); border-bottom: 0; background: var(--surface-1); border-radius: var(--r-md); }
+  .sect-box .dt-wrap--cards .dt tbody tr:not(.grp) { background: var(--surface-0); }
+  .cl { display: inline; color: var(--text-3); font-size: 12px; margin-right: var(--s1); }
   .dt td { border: 0; padding: 0; height: auto; }
   .dt .grp { display: block; }
   .dt .grp th { display: block; border: 0; padding: var(--s3) 0 var(--s1); }
@@ -440,12 +445,29 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .nage { color: var(--text-3); font-size: 12px; white-space: nowrap; }
 
 /* goals */
-.goalrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding: var(--s2) 0; }
+.goalrow, .gsum { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding: var(--s2) 0; }
 .gtitle { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gtitle a { color: var(--text-1); }
 .chip-p { margin-left: var(--s2); padding: 0 6px; border-radius: var(--r-full); background: var(--fill); color: var(--text-2); font: 500 11px/16px var(--font); }
 .gm { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding-left: var(--s5); color: var(--text-2); font-size: 13px; }
-.gprs, .gact { white-space: nowrap; }
+.gprs, .gact, .gneeds { white-space: nowrap; }
+.gneeds { font-weight: 600; }
+
+/* overview tree (F-27): goal > team > task, each level a <details>; one column on a phone */
+#needs-you, #goals { grid-column: 1 / -1; }
+.goalrow--tree { display: block; padding: 0; }
+.gnode > summary { padding: var(--s2) 0; }
+.gnode > summary > .gsum, .team > details > summary > .tsum { display: inline-flex; vertical-align: top; width: calc(100% - 24px); }   /* inline-flex keeps the native marker on the first line */
+.teams, .tk { list-style: none; margin: 0; padding: 0 0 var(--s2) var(--s5); }
+.team { border-top: 1px solid var(--hairline); }
+.team > details > summary, .tsum { padding: var(--s2) 0; }
+.tsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+.team > details > summary .tsum { padding: 0; }
+.tscope { flex: 1 1 0; min-width: 12ch; color: var(--text-1); overflow-wrap: anywhere; }
+.tm { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); color: var(--text-2); font-size: 13px; }
+.tkrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); padding: var(--s1) 0; font-size: 13px; }
+.tkrow .gtitle { white-space: normal; flex: 1 1 12ch; }
+.tkmeta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); color: var(--text-2); }
 .gact { color: var(--text-3); }
 
 /* meter, gauge: geometry is SVG attributes, colour is a class */
@@ -561,6 +583,7 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
   .nage { margin-left: auto; }
   .gtitle { white-space: normal; }
   .gm { padding-left: 0; }
+  .teams, .tk { padding-left: var(--s3); }
   .agentrow .c-who { white-space: normal; }
   .ov-trend { flex-wrap: wrap; }
 }
@@ -574,9 +597,6 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .gd-main { min-width: 0; }
 .gd-main > .meter { margin: 0 0 var(--s3); }
 .rail { min-width: 0; color: var(--text-2); }
-.rail h2 { font: 600 15px/20px var(--font); margin: 0 0 var(--s2); color: var(--text-1); }
-.rail-list { list-style: none; margin: 0 0 var(--s4); padding: 0; }
-.rail-list > li { padding: var(--s1) 0; }
 .rail-dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s1) var(--s3); margin: 0; }
 .rail-dl dt { color: var(--text-3); }
 .rail-dl dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -587,6 +607,11 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .attempt > .timeline { margin: var(--s2) 0 var(--s2) var(--s2); }
 .timeline-item { list-style: none; }
 .page > .crumbs { margin-bottom: var(--s3); }
+.tblock { margin: 0 0 var(--s4); }
+.tblock > .crumbs, .tblock > .metarow { margin: 0 0 var(--s1); }
+.tblock > .muted { margin: 0; }
+.sect-box > .teams { padding-left: 0; }
+.sect-box > .teams > .team:first-child { border-top: 0; }
 
 @media (min-width: 1280px) {
   .gd { grid-template-columns: minmax(0, 1fr) 16rem; }
@@ -607,11 +632,14 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .ins-check .gz { margin-left: auto; }
 .ins-check--over { background: var(--danger-bg); color: var(--danger-fg); padding: 0 var(--s2); border-radius: var(--r-sm); }
 .ins-key { margin-left: var(--s2); color: var(--text-3); font-size: 12px; }
+.tiles--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sect:has(.feed--log) { max-width: 48rem; }   /* changelog: a bounded line length, so the meta stays near the title */
+.ins-list + .muted { margin: var(--s3) 0 var(--s2); }   /* a footnote between two bar lists is not a bar row */
 .disc > .table { display: block; overflow-x: auto; max-width: 100%; }
 .sect-box .st--pill { margin-right: var(--s2); }
 
 @media (max-width: 639px) {
-  .tiles--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles--4, .tiles--6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ins-gauges { grid-template-columns: minmax(0, 1fr); }
   .ins-row { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
   .ins-check .gz { margin-left: 0; }
