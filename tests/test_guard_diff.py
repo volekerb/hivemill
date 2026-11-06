@@ -225,12 +225,7 @@ class EvaluatorRunTests(GuardDiffCase):
 
     def test_real_hook_against_itself_under_evaluator_role(self):
         self.commit_real_hook()
-        # Full ci/guard_corpus.json has hundreds of evaluator-tagged rows; guard-diff compares base vs PR for
-        # each (worker parallelism still times caller work × per-hook timeout) and can exceed this test's
-        # 600s subprocess cap (T-1038). Same coverage with a tiny corpus.
-        with open(self.corpus, "w", encoding="utf-8") as f:
-            json.dump({"must_block": ["sudo ls", "herdr x"], "must_allow": ["ls"]}, f)
-        p = self.run_tool("--mode", "worker", "--role", "evaluator")
+        p = self.run_tool("--mode", "worker", "--role", "evaluator", "--corpus", CORPUS)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn(" 0 loosened, 0 tightened", p.stdout)
 
@@ -243,12 +238,7 @@ class EvaluatorRunTests(GuardDiffCase):
                            "        if False:\n            raise Block(\"the evaluator may run factory", 1)
         self.assertNotEqual(hook, src)
         self.write_hook(hook)
-        with open(self.corpus, "w", encoding="utf-8") as f:
-            json.dump(
-                {"must_block": [{"cmd": "FACTORY_HOME=@LIVE_HOME@ factory inbox", "role": "evaluator"}], "must_allow": []},
-                f,
-            )
-        p = self.run_tool("--mode", "worker", "--role", "evaluator")
+        p = self.run_tool("--mode", "worker", "--role", "evaluator", "--corpus", CORPUS)
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertIn("LOOSENED base=2 pr=0 worker", p.stdout)
 
