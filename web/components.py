@@ -249,16 +249,21 @@ def agent_row(a, now=None):
 
 # ── C7 metric tile, C18 needs-you row (G-019 B4) ──
 
-def tile(label, value, unit=None, delta=None, definition=None, href=None):
+def tile(label, value, unit=None, delta=None, definition=None, href=None, unit_nl=False):
     """C7 metric tile: label, big value (+ small `unit`), optional `delta` line and an (i) definition disclosure.
     `delta` is a text or a (text, tone) pair, tone success|warning|danger|neutral (default neutral); `definition`
-    opens as a short paragraph under the label; `href` makes the label a link (to the detail page)."""
+    opens as a short paragraph under the label; `href` makes the label a link (to the detail page).
+    `unit_nl`: when True, `unit` renders on its own line under the value so a long unit does not touch the figure."""
     text, tone = (delta if isinstance(delta, tuple) else (delta, "neutral"))
     name = el("a", label, href=href) if href else el("span", label)
     info = (el("details", el("summary", "i", aria_label=f"What is {label}?"), el("p", definition, class_="tile-def"),
                class_="disc--i") if definition else None)
+    if unit_nl and unit:
+        metric = el("div", el("div", value, class_="metric-val"), el("small", unit, class_="tile-unit"), class_="metric metric--stack")
+    else:
+        metric = el("div", value, el("small", unit) if unit else None, class_="metric")
     return el("div", el("div", name, " ", info, class_="tile-label"),
-              el("div", value, el("small", unit) if unit else None, class_="metric"),
+              metric,
               el("div", text, class_=f"delta fg-{tone}") if text else None, class_="tile")
 
 

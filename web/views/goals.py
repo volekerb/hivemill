@@ -80,7 +80,7 @@ def _internal_card(tasks):
     if not tasks:
         return None
     rows = [(link(f"/task/{t['id']}", t["id"]), t["title"], badge("queued/deferred", "muted")) for t in tasks]
-    return card(f"Blocked (internal): {len(tasks)}", table(["Item", "What", "State"], rows, cls="table table--compact"))
+    return card(f"Blocked (internal): {len(tasks)}", table(["Item", "What", "State"], rows, cls="table table--compact table--id-col"))
 
 
 def _blocked_cell(g):
@@ -131,8 +131,13 @@ def render(ctx, d):
     org = d.get("org")
     parts = [filter_bar(_chips(goals), [_org_chips(d)], key="goals-filters", active=1 if org else 0)]
     needs = d["needs_you"]
-    parts.append(section("Needs you", el("ul", [needs_you_row(i) for i in needs], class_="lrow-list") if needs
-                         else empty_state("Nothing is waiting on the owner."), count=len(needs) or None))
+    if needs:
+        n = len(needs)
+        summary = el("p", (f"{n} items need you" if n != 1 else "1 item needs you") + " — same list as on the ",
+                       link("/#needs-you", "Overview"), ".", class_="summary-line")
+        parts.append(section("Needs you", summary, el("ul", [needs_you_row(i) for i in needs], class_="lrow-list"), count=n))
+    else:
+        parts.append(section("Needs you", empty_state("Nothing is waiting on the owner.")))
     internal = _internal_card(d["internal_blocked"])
     if internal:
         parts.append(internal)

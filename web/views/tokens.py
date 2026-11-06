@@ -341,10 +341,13 @@ def _org_breakdown(d, seg):
     if not items:
         return section("Breakdown", seg, empty_state("no data yet"))
     grand = sum(_all(e) for e in items)
-    cols = [{"key": "name", "label": "Org", "cls": "c-title"}, {"key": "tokens", "label": "Claude tokens", "cls": "num"},
-            {"key": "share", "label": "Share", "cls": "num"}, {"key": "req", "label": "Requests", "cls": "num ins-wide"},
-            {"key": "cost", "label": "Cost", "cls": "num"}, {"key": "cs", "label": "Cursor sessions", "cls": "num ins-wide"},
-            {"key": "ch", "label": "Cursor agent-hours", "cls": "num"}]
+    cols = [{"key": "name", "label": "Org", "cls": "c-title"},
+            {"key": "tokens", "label": "Claude tokens", "cls": "num", "phone_label": True},
+            {"key": "share", "label": "Share", "cls": "num", "phone_label": True},
+            {"key": "req", "label": "Requests", "cls": "num ins-wide", "phone_label": True},
+            {"key": "cost", "label": "Cost", "cls": "num", "phone_label": True},
+            {"key": "cs", "label": "Cursor sessions", "cls": "num ins-wide", "phone_label": "Cursor sess."},
+            {"key": "ch", "label": "Cursor agent-hours", "cls": "num", "phone_label": "Cursor h"}]
     rows = []
     for e in items:
         tot = _all(e)
@@ -377,10 +380,13 @@ def _breakdown(d):
     grand = _all(d["totals"])
     if not items:
         return section("Breakdown", seg, empty_state("no data yet"))
-    cols = [{"key": "name", "label": BY_LABEL[by].removeprefix("By ").capitalize(), "cls": "c-title"},
-            {"key": "tokens", "label": "Tokens", "cls": "num"}, {"key": "share", "label": "Share", "cls": "num"},
-            {"key": "io", "label": "In / out", "cls": "num ins-wide"}, {"key": "req", "label": "Requests", "cls": "num ins-wide"},
-            {"key": "cost", "label": "Cost", "cls": "num ins-wide"}]
+    name_lbl = BY_LABEL[by].removeprefix("By ").capitalize()
+    cols = [{"key": "name", "label": name_lbl, "cls": "c-title"},
+            {"key": "tokens", "label": "Tokens", "cls": "num", "phone_label": True},
+            {"key": "share", "label": "Share", "cls": "num", "phone_label": True},
+            {"key": "io", "label": "In / out", "cls": "num ins-wide", "phone_label": "In / out"},
+            {"key": "req", "label": "Requests", "cls": "num ins-wide", "phone_label": True},
+            {"key": "cost", "label": "Cost", "cls": "num ins-wide", "phone_label": True}]
     rows = []
     for e in _pin_last(items):
         tot = _all(e)

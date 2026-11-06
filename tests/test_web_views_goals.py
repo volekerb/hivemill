@@ -181,10 +181,10 @@ class TestR3Pages(ViewCase):
 
     def test_task_title_and_meta_are_one_block_and_verdicts_precede_pr_cycle(self):
         d, html = self.page(tasks.detail, id="T-1")
-        m = re.search(r'<div class="tblock">(.*?)</div>', html, re.S).group(1)
+        m = re.search(r'<div class="tblock[^"]*">(.*?)</div>', html, re.S).group(1)
         self.assertIn('class="crumbs"', m)
         self.assertIn('class="metarow"', m)
-        self.assertLess(html.index('class="tblock"'), html.index("<h2>Verdicts"))
+        self.assertLess(html.index("tblock"), html.index("<h2>Verdicts"))
         self.assertLess(html.index("<h2>Verdicts"), html.index('class="tiles"'))
         self.assertLess(html.index('class="tiles"'), html.index("<h2>PR cycle"))
 

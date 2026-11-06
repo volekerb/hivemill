@@ -47,9 +47,11 @@ def render(ctx, d):
     if not d["groups"]:
         return section("Shipped", empty_state("Nothing has been merged yet."))
     now, goal, mode = ctx.now, d["goal"], d["group"]
+    line_note = el("p", "Entries use a bounded line length on desktop so titles stay readable; meta stays near the title.",
+                   class_="muted hide-phone")
     seg = segmented("Group changelog", [("By date", org_href("/changelog", {"goal": goal}, d.get("org")), mode == "date"),
                                         ("By goal", org_href("/changelog", {"goal": goal, "group": "goal"}, d.get("org")), mode == "goal")])
-    parts = [seg]
+    parts = [line_note, seg]
     if len(d["goals"]) > 1 or goal:
         keep = {"group": "goal" if mode == "goal" else None}
         items = [("All goals", None, org_href("/changelog", keep, d.get("org")), goal is None)]

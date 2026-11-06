@@ -160,6 +160,6 @@ def columns(points, label, height=96, unit="day"):
                             text_anchor="middle"))
         if i % 7 == 0:
             texts.append(el("text", _day(day), class_="col-x", x=_num(x + (col_w - 8) / 2), y=height - 3, text_anchor="middle"))
-    svg = _svg([*bars, *texts], f"0 0 {n * col_w} {height}", width=n * col_w, height=height, role="img", focusable="false",
-               **{"aria-label": _summary(points, label, unit)}, **{"class": "cols"})
+    svg = _svg([*bars, *texts], f"0 0 {n * col_w} {height}", height=height, role="img", focusable="false",
+               preserveAspectRatio="xMidYMin meet", **{"aria-label": _summary(points, label, unit)}, **{"class": "cols"})
     return el("div", svg, _data_table(points, label, f"{label.capitalize()} per {unit}, last {n} {unit}s", unit), class_="cols-wrap")

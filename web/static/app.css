@@ -195,7 +195,16 @@ summary { cursor: pointer; min-height: var(--tap); display: list-item; list-styl
 .main { padding-bottom: calc(var(--tabbar) + 24px); min-width: 0; }
 .page { padding: 0 var(--gutter); overflow-wrap: break-word; min-width: 0; }
 .shellbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px var(--gutter) 12px; }
-.titlebar { min-width: 0; flex: 1; }
+.titlebar { min-width: 0; flex: 1; max-width: 100%; }
+.tblock--wide { max-width: 100%; }
+.tblock--wide .crumbs + .metarow { max-width: 100%; }
+.tblock--wide h1 { max-width: 100%; overflow-wrap: anywhere; word-break: normal; }
+.only-phone { display: none; }
+.hide-phone { display: inline; }
+@media (max-width: 639px) {
+  .only-phone { display: block; }
+  .hide-phone { display: none; }
+}
 .crumbs { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; line-height: 18px; color: var(--text-3); margin-bottom: 4px; }
 .crumbs a { color: var(--text-3); }
 .crumbs [aria-current] { color: var(--text-2); }
@@ -457,7 +466,7 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 #needs-you, #goals { grid-column: 1 / -1; }
 .goalrow--tree { display: block; padding: 0; }
 .gnode > summary { padding: var(--s2) 0; }
-.gnode > summary > .gsum, .team > details > summary > .tsum { display: inline-flex; vertical-align: top; width: calc(100% - 24px); }   /* inline-flex keeps the native marker on the first line */
+.gnode > summary > .gsum, .team > details > summary > .tsum { display: inline-flex; align-items: center; vertical-align: middle; width: calc(100% - 24px); }   /* inline-flex keeps the native marker on the first line */
 .teams, .tk { list-style: none; margin: 0; padding: 0 0 var(--s2) var(--s5); }
 .team { border-top: 1px solid var(--hairline); }
 .team > details > summary, .tsum { padding: var(--s2) 0; }
@@ -498,7 +507,15 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .spark-last { fill: var(--data-1); }
 .spark-cap { color: var(--text-3); font-size: 12px; }
 .cols-wrap { max-width: 100%; }
-.cols { display: block; max-width: 100%; height: auto; }
+.cols { display: block; width: 100%; max-width: 100%; height: auto; }
+@media (min-width: 1024px) {
+  .cols-wrap { width: 100%; }
+}
+.per-day-grid th:nth-child(n+2), .per-day-grid td:nth-child(n+2) { text-align: right; }
+.table--id-col td:first-child { white-space: nowrap; max-width: 8.5rem; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 639px) {
+  .table--id-col td:first-child { max-width: none; }
+}
 .col { fill: var(--data-1); }
 .col--zero { fill: var(--track); }
 .col-val, .col-x { fill: var(--text-3); font: 400 10px/12px var(--font); }
@@ -566,7 +583,10 @@ th[aria-sort=descending] .sortlink::after { content: " \2193"; }
 .tile-label .disc--i > summary:hover, .tile-label .disc--i[open] > summary { color: var(--info-fg); border-color: var(--info-fg); }
 .tile-def { margin-top: var(--s1); color: var(--text-2); font-weight: 400; }
 .metric { font: 600 22px/28px var(--font); font-variant-numeric: tabular-nums; }
+.metric--stack { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s1); }
+.metric-val { font: inherit; line-height: 1.15; }
 .metric small { color: var(--text-2); font: 500 13px/16px var(--font); }
+.tile-unit { display: block; line-height: 1.25; }
 .delta { font-size: 12px; line-height: 16px; }
 .ov .lrow-id, .ov .lrow-meta span { white-space: nowrap; }
 .ov-bounce h3 { font: 600 13px/18px var(--font); margin: var(--s3) 0 var(--s1); }

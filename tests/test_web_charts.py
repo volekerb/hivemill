@@ -135,6 +135,11 @@ class TestColumns(unittest.TestCase):
                   charts.columns(DAYS, "m")):
             self.assertNotRegex(str(m), r'style=|fill="#|stroke="#')
 
+    def test_column_svg_scales_to_container_without_fixed_pixel_width(self):
+        c = str(charts.columns(DAYS, "merges"))
+        self.assertIn('preserveAspectRatio="xMidYMin meet"', c)
+        self.assertNotRegex(c, r'<svg[^>]*\swidth="')
+
 
 class TestTile(unittest.TestCase):
     def test_tile_has_value_unit_delta_and_definition_disclosure(self):
@@ -143,6 +148,12 @@ class TestTile(unittest.TestCase):
         self.assertIn('class="delta fg-success">up 12 pts<', t)
         self.assertIn("<details", t)
         self.assertIn("Share never rejected.", t)
+
+    def test_tile_unit_nl_stacks_unit_under_value(self):
+        t = str(tile("Merges", "55", unit="in 14 days", unit_nl=True))
+        self.assertIn('class="metric metric--stack"', t)
+        self.assertIn('<div class="metric-val">55</div>', t)
+        self.assertIn('<small class="tile-unit">in 14 days</small>', t)
 
     def test_tile_without_extras_and_with_href(self):
         t = str(tile("Open PRs", 4, href="/tasks"))
