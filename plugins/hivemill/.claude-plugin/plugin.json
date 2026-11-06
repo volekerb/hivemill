@@ -1,0 +1,13 @@
+{
+  "name": "hivemill",
+  "displayName": "Hivemill",
+  "description": "Guided install of Hivemill over a deterministic, CI-tested installer.",
+  "author": {
+    "name": "volekerb",
+    "url": "https://github.com/volekerb"
+  },
+  "homepage": "https://github.com/volekerb/hivemill",
+  "repository": "https://github.com/volekerb/hivemill",
+  "license": "MIT",
+  "keywords": ["hivemill", "setup", "installer"]
+}

@@ -6,7 +6,7 @@ Light and dark screenshots of the factory web UI, taken from fictional demo data
 ## Regenerate
 
 ```
-python3 ci/screenshots.py [--out docs/images] [--pages home,goals,...] [--now ISO]
+python3 ci/screenshots.py [--out docs/images] [--pages home,goals,...] [--now ISO] [--evidence]
 ```
 
 Run it from a factory checkout. **Prerequisite: fonts.** The headless browser draws no text without them, so install
@@ -54,6 +54,18 @@ file name. In order, it:
     8388608 bytes for all together (director M6655), listing every file's size. Nothing is written to `docs/images/`
     on any failure above (everything is built in the temp dir first);
 11. copies the images into `docs/images/` and prints a summary and the exact list of files written (`files: ...`).
+
+## Evidence mode (`--evidence`)
+
+For design reviews (G-015 SC4, `docs/web-redesign-brief.md`). `python3 ci/screenshots.py --evidence --out docs/images/before`
+captures 11 pages, each light and dark at desktop (1280 CSS px) and phone (390 CSS px): the seven pages above plus `task`
+(`/task/T-0010`, a task the demo seed creates), `tokens`, `resources` and `changelog` (constant `EVIDENCE_EXTRA`; `PAGES`
+is unchanged). Files are `<page>-<theme>-<device>.png`, e.g. `task-dark-phone.png`: 44 PNGs. `--out` must be a directory
+strictly inside `docs/images` (`docs/images` itself exits 3). It builds no `hero.png` and no `social-preview.png`.
+The seed, the scrub scan, the crop and every check above run unchanged. The browser captures at 2x and each cropped
+image is then downscaled by 2, so the PNGs are at device pixel ratio 1 (1280 and 390 px wide) and the size caps
+(`MAX_PNG_BYTES`, `MAX_TOTAL_BYTES`) apply to them as before. Without `--evidence` nothing changes. The tool does not
+measure sideways scrolling; read it from the phone images.
 
 ## Pinned browser
 
