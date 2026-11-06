@@ -256,6 +256,28 @@ def teams(con):
             for r in con.execute("SELECT id, goal_id, scope, lead_agent, status, created FROM teams ORDER BY id")]
 
 
+def goal_teams(con):
+    """{goal id: {"teams": [team + agents + tasks], "loose": [tasks of the goal with no team]}}: teams(), agents() and
+    tasks() joined by (goal, team), three reads whatever the number of goals. A team row has `agents` (its non-ended
+    agents) and `tasks`, both sorted by id/name. Goals with no team or task are absent; callers use .get(gid)."""
+    out = {}
+    by_team = {}
+    for t in teams(con):
+        row = dict(t, agents=[], tasks=[])
+        by_team[t["id"]] = row
+        out.setdefault(t["goal_id"], {"teams": [], "loose": []})["teams"].append(row)
+    for a in agents(con):
+        if a["team_id"] in by_team:
+            by_team[a["team_id"]]["agents"].append(a)
+    for t in tasks(con):
+        team = by_team.get(t["team_id"]) if t["team_id"] else None
+        if team is not None and team["goal_id"] == t["goal_id"]:
+            team["tasks"].append(t)
+        else:
+            out.setdefault(t["goal_id"], {"teams": [], "loose": []})["loose"].append(t)
+    return out
+
+
 def _spawn_runtime(spawn_args):
     """The runtime spawn_args names explicitly (claude|cursor), else None. Never returns kickoff text."""
     if not spawn_args:

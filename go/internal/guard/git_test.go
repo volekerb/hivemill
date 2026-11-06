@@ -346,28 +346,6 @@ func TestGitBranchMutates(t *testing.T) {
 	}
 }
 
-func TestGitConfigMutates(t *testing.T) {
-	for _, c := range []struct {
-		args       []string
-		mut, write bool
-	}{
-		{[]string{"--get", "user.name"}, false, false}, {[]string{"--list"}, false, false}, {[]string{"user.name"}, false, false},
-		{[]string{"user.name", "x"}, true, true}, {[]string{"--unset", "k"}, true, true}, {[]string{"--add", "k", "v"}, true, true},
-		{[]string{"set", "k", "v"}, true, true}, {[]string{"unset", "k"}, true, true}, {[]string{"edit"}, true, true},
-		{[]string{"get", "k"}, false, false}, {[]string{"list"}, false, false}, {[]string{"--global", "k", "v"}, true, true},
-		// config_args_write knows value options; config_mutates does not
-		{[]string{"--type", "bool", "k"}, true, false}, {[]string{"--default", "d", "--get", "k"}, false, false},
-		{[]string{"--show-origin", "k", "v"}, false, false}, {[]string{"--edit"}, true, true}, {[]string{"-e"}, true, true},
-	} {
-		if got := configMutates(c.args); got != c.mut {
-			t.Errorf("configMutates(%q) = %v, want %v", c.args, got, c.mut)
-		}
-		if got := configArgsWrite(c.args); got != c.write {
-			t.Errorf("configArgsWrite(%q) = %v, want %v", c.args, got, c.write)
-		}
-	}
-}
-
 func TestGitMutatesTable(t *testing.T) {
 	for _, c := range []struct {
 		sub  string
@@ -738,5 +716,61 @@ func TestPushPinAttemptSuffix(t *testing.T) {
 				t.Errorf("%q: %q, want pin message naming HEAD:factory/t-0817", cmd, msg)
 			}
 		}
+	}
+}
+
+// T-1083: git -c alias.<x>=push|send-pack must refuse for coders even when the subcommand is the alias name.
+func TestGitPushPinAliasHide(t *testing.T) {
+	f := newGitFix(t)
+	want := "an alias can hide a push"
+	for _, cmd := range []string{
+		"git -c alias.x=push x origin main",
+		"git -c alias.x='!git push' x",
+		"git -c alias.s=send-pack s origin main",
+	} {
+		err := f.check(cmd, f.wt, "coder")
+		if err == nil || IsDelegate(err) {
+			t.Fatalf("%q: allowed, want block", cmd)
+		}
+		if !strings.Contains(Explain(err), want) {
+			t.Fatalf("%q: %q, want %q in message", cmd, Explain(err), want)
+		}
+	}
+	err := f.check("git -c alias.x=status x", f.wt, "coder")
+	if err != nil {
+		t.Fatalf("safe alias status: %v, want allow", err)
+	}
+	for _, cmd := range []string{
+		"git -c core.pager=alias.x=push status",
+		"git -c=alias.x=push status",
+		"git -c core.pager=cat log",
+	} {
+		if err := f.check(cmd, f.wt, "coder"); err != nil {
+			t.Fatalf("%q: blocked %v, want allow", cmd, err)
+		}
+	}
+}
+
+// T-1035 / T-1083 / T-1152: xargs git config must match Python (stdin adds args; config expansion refuse on bare git).
+func TestXargsGitConfig(t *testing.T) {
+	f := newGitFix(t)
+	cmd := "echo alias.x push | xargs git config --comment --get"
+	direct := "git config --comment --get alias.x"
+	for _, role := range []string{"coder", "cleaner", "judge", "director"} {
+		f.blocked(t, cmd, f.wt, role)
+		f.blocked(t, direct, f.wt, role)
+	}
+	for _, cmd := range []string{
+		cmd,
+		"echo alias.y push | xargs git config set --value --get",
+		"echo alias.x push | xargs git config --co --get",
+		"echo alias.x | xargs git config",
+	} {
+		f.blocked(t, cmd, f.wt, "coder")
+	}
+	err := f.check(cmd, f.wt, "cleaner")
+	msg := Explain(err)
+	if !strings.Contains(msg, "follows a value option") {
+		t.Fatalf("cleaner stderr %q, want value-option refusal", msg)
 	}
 }

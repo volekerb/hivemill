@@ -93,6 +93,43 @@ class TestColumns(unittest.TestCase):
             self.assertIn("No merges in this range", c)
             self.assertNotIn("<svg", c)
 
+    def test_token_sized_values_never_print_an_exponent_and_the_bar_label_is_formatted(self):
+        pts = [(f"2026-10-{d:02d}", v) for d, v in zip(range(21, 28), (48567200.0, 97300000.0, 4.85672e+07 / 3, 0.0, 1500.0, 999.0, 12.0))]
+        c = str(charts.columns(pts, "tokens"))
+        self.assertNotIn("e+", c)
+        labels = re.findall(r'class="col-val"[^>]*>([^<]*)<', c)
+        self.assertEqual(labels, ["48.6M", "97.3M", "16.2M", "1.5k", "999", "12"])
+        self.assertIn("<title>10-21: 48,567,200 tokens</title>", c)
+        aria = re.search(r'aria-label="([^"]*)"', c).group(1)
+        self.assertEqual(aria, "162.1M tokens in 7 days, peak 97.3M on 10-22")
+        self.assertIn("<td>48,567,200</td>", c)
+        self.assertIn("<td>97,300,000</td>", c)
+
+    def test_long_labels_widen_the_columns_or_skip_labels_so_none_overlap(self):
+        def labels(n):
+            c = str(charts.columns([(f"2026-10-{d:02d}", 48_000_000 + d) for d in range(1, n + 1)], "tokens"))
+            x = [float(v) for v in re.findall(r'class="col-val" x="([^"]+)"', c)]
+            return c, x
+        c, x = labels(7)                                  # 7 bars: 36 px columns, every bar labelled
+        self.assertIn('viewBox="0 0 252 96"', c)
+        self.assertEqual(len(x), 7)
+        self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
+        c, x = labels(14)                                 # 14 bars would pass 336 px: 24 px columns, every 2nd bar labelled
+        self.assertIn('viewBox="0 0 336 96"', c)
+        self.assertEqual(len(x), 7)
+        self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
+
+    def test_compact_rolls_over_to_M_at_the_unit_boundary(self):
+        self.assertEqual([charts.compact(n) for n in (999, 1000, 999949, 999950, 999999, 1_000_000)],
+                         ["999", "1.0k", "999.9k", "1.0M", "1.0M", "1.0M"])
+
+    def test_small_integer_output_is_unchanged(self):
+        c = str(charts.columns(DAYS, "merges"))
+        self.assertIn('viewBox="0 0 336 96"', c)
+        self.assertIn("<title>10-17: 3 merges</title>", c)
+        self.assertIn('aria-label="12 merges in 14 days, peak 3 on 10-17"', c)
+        self.assertIn("<tr><td>2026-10-17</td><td>3</td></tr>", c)
+
     def test_chart_markup_is_csp_safe(self):
         for m in (charts.meter(1, 2, "x"), charts.gauge("a", "b", 1, [1], ("success", "OK")), charts.sparkline(DAYS, "m"),
                   charts.columns(DAYS, "m")):

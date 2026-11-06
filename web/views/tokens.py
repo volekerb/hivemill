@@ -29,13 +29,7 @@ VIA = ("session", "event", "name", "worktree", "unattributed")
 GOAL_RE = re.compile(r"^(G-\d+|unattributed)$")
 
 
-def _fmt(n):
-    n = n or 0
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}k"
-    return str(n)
+_fmt = charts.compact   # one formatter for the page figures and the chart labels (views import charts, not the reverse)
 
 
 def _money(c):
