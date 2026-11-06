@@ -148,7 +148,8 @@ def collect_ids(names, tests_dir=TESTS):
                 continue
             good.append(t)
         if not good:
-            problems.append("%s: no tests found" % base)
+            if not any(p.startswith("%s: ModuleSkipped (import-time SkipTest)" % base) for p in problems):
+                problems.append("%s: no tests found" % base)
         tests += good
     by_id = {}
     for t in tests:
