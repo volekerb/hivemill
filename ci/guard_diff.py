@@ -301,7 +301,7 @@ def run_hook(hook, argv_extra, cmd, timeout, env=None, exe=None, cwd=None):
     return p.returncode
 
 
-def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, pr_exe=None, pr_extra=(), roles=None):
+def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=None, pr_exe=None, pr_extra=(), roles=None):
     """Return (lines, loosened_cmds, bad_cmds, tightened): report lines and the commands that fail the gate.
 
     items are (cmd, role-or-None). A role-tagged item runs in worker mode only, under its own role; the
@@ -318,6 +318,8 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
         elif "worker" in modes:
             work.append(("worker", r, c, seed, xenv))
     work = list(dict.fromkeys(work))
+    if jobs is None:
+        jobs = min(32, max(4, (os.cpu_count() or 1) * 2))
     seed_tmp = tempfile.TemporaryDirectory(prefix="guard-diff-seed-")
     try:
         # one temp home per distinct (config seed, task of the entry's FACTORY_AGENT); a task adds its tasks row
@@ -350,8 +352,20 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
             label += " " + seed_label(seed)
         if xenv:
             label += " env=" + ",".join(f"{k}:{v}" for k, v in xenv)
-        return (label, c, run_hook(base_hook, argv, c, timeout, env, cwd=cwd),
-                run_hook(pr_hook, [*argv, *pr_extra], c, timeout, env, pr_exe, cwd=cwd))
+        # Run base vs PR hook in parallel: each corpus entry does two subprocess calls; pairing saves wall time
+        # under the unittest helper timeout (tests/test_guard_diff.py).
+        out = [None, None]
+
+        def run_side(i, hook, argv_e, exe):
+            out[i] = run_hook(hook, argv_e, c, timeout, env, exe, cwd=cwd)
+
+        t0 = threading.Thread(target=run_side, args=(0, base_hook, argv, None))
+        t1 = threading.Thread(target=run_side, args=(1, pr_hook, [*argv, *pr_extra], pr_exe))
+        t0.start()
+        t1.start()
+        t0.join()
+        t1.join()
+        return (label, c, out[0], out[1])
 
     try:
         with ThreadPoolExecutor(max_workers=jobs) as ex:

@@ -133,8 +133,13 @@ class UtilCase(Base):
         self.assertEqual(out[i + 3], RES2)
         # Skip org claude / org cursor lines (same block as workers live + utilization pair above blocked tasks).
         old = out[:i + 1] + out[i + 6:]
-        self.assertTrue(old.pop(5).startswith("blocked tasks:"))
-        for want, got in zip(["spawn gate:", "load gate:", "test runs:", "gate runs:", "agents live ", "mem available", "tmp used"], old):
+        # After workers/org block, `blocked tasks:` is immediately after `agents live` in `old` (index i+1; was 5 before
+        # the terminal_backend line shifted indices).
+        self.assertTrue(old.pop(i + 1).startswith("blocked tasks:"))
+        for want, got in zip(
+            ["spawn gate:", "terminal backend:", "load gate:", "test runs:", "gate runs:", "agents live ", "mem available", "tmp used"],
+            old,
+        ):
             self.assertTrue(got.startswith(want), (want, got))
 
     def test_res_no_flags_when_healthy(self):

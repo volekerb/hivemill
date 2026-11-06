@@ -27,6 +27,16 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertTrue(hc_calls, hc_calls)
         self.assertFalse(herdr_calls, herdr_calls)
 
+    def test_herdr_config_routes_through_herdr_stub_not_hc(self):
+        """Explicit herdr keeps the TUI path even when `hc` is also on PATH (harness stubs)."""
+        self.ok("config", "terminal_backend", "herdr", agent="owner")
+        self.env.set_herdr(agents=[])
+        self.ok("tick", agent="owner")
+        herdr_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "list"]]
+        hc_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["agent", "list"]]
+        self.assertTrue(herdr_calls, herdr_calls)
+        self.assertFalse(hc_calls, hc_calls)
+
     def test_res_names_active_backend(self):
         out = self.ok("res", agent="owner").stdout
         self.assertRegex(out, r"terminal backend: herdr \(config=auto; effective=auto→herdr\)")
