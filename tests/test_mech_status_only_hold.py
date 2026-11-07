@@ -68,6 +68,7 @@ class MechStatusOnlyHoldTests(Base):
     def test_newer_qa_verdict_lifts_hold(self):
         self.rq_pass()
         self.status_only_hold()
+        self.assertNotIn(T, self.mech_ids())
         self.seed_verdict("qa", "pass", "fresh pass")
         self.assertIn(T, self.mech_ids())
 
