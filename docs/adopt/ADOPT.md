@@ -7,8 +7,6 @@ description: Use when setting up this factory (the multi-agent Claude Code facto
 
 This file is written to you, a Claude Code session on the user's machine. The user asked you to set the factory up for them. Follow the steps in order. It mirrors [../SETUP.md](../SETUP.md), which has the full reference (config keys, troubleshooting); read it when a step fails.
 
-The shorter path is the plugin: `/plugin marketplace add volekerb/hivemill`, `/plugin install hivemill`, `/hivemill:setup` (see [One-prompt install](../SETUP.md#one-prompt-install)). Use this file when you want each step checked by hand.
-
 It lives here, and not in a `.claude/skills` directory or a `CLAUDE.md` of this repository, on purpose: every factory agent works in this repository and would load it automatically. If the user wants it as a skill, they copy it to `~/.claude/skills/adopt-factory/SKILL.md` themselves.
 
 ## Rules
