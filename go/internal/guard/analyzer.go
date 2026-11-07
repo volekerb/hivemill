@@ -34,6 +34,7 @@ type Analyzer struct {
 	vars      map[string]string // NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
 	ccwd      string            // like gcwd, for the CFG_DIR write detector
 	fsChanged bool              // T-0783: an earlier command on this line may have changed the filesystem
+	cwdUnres  bool              // N3: after `cd ~nosuchuser`: ccwd stays the known path, the real directory is not known
 	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
 	skipPriv         bool
@@ -316,7 +317,7 @@ func (a *Analyzer) script(text string, depth int) error {
 			return blockf("herdr in an interpreter heredoc")
 		}
 	}
-	toks, err := ScriptTokens(text)
+	toks, pwords, err := ScriptTokensMarked(text)
 	if err != nil {
 		return err
 	}
@@ -346,6 +347,14 @@ func (a *Analyzer) script(text string, depth int) error {
 		nxt, hasNxt := "", false
 		if i+1 < len(toks) {
 			nxt, hasNxt = toks[i+1], true
+		}
+		if v, ok := pwords[tok]; ok { // a quoted or escaped word made only of punctuation: data to find, as before for the rest
+			tok = v
+			if anyOf(cur, func(w string) bool { return pyBasename(w) == "find" }) {
+				cur = append(cur, tok) // find's expression goes on: -exec ls {} ';' -delete, \( -name x \) -delete
+				i++
+				continue
+			}
 		}
 		if tok == "$" && hasNxt && nxt == "(" && allOf(cur, assignOrReserved) {
 			depthP, hit, hitSet := 0, "", false

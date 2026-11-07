@@ -819,7 +819,7 @@ func (a *Analyzer) repoCfgRefuse(what, cwd string, cwdOK bool, gitDir, workTree 
 
 // cfgInScratch is a port of Analyzer.cfg_in_scratch.
 func (a *Analyzer) cfgInScratch(word string) bool {
-	t := expandUser(substVars(cfgExpand(word), a.vars))
+	t := expandUser(substVars(a.cfgExpand(word), a.vars))
 	if t == "" || strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
 		return false
 	}

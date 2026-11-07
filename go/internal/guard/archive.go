@@ -106,7 +106,7 @@ func lastOf(xs []string) []string {
 
 // archiveTarget is a port of Analyzer.archive_target.
 func (a *Analyzer) archiveTarget(name, d string) error {
-	t := cfgExpand(substVars(d, a.vars))
+	t := a.cfgExpand(substVars(d, a.vars))
 	if strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
 		return blockf("`" + name + "` into " + pyRepr(d) + ": the target cannot be resolved, so it may be a .git dir; " +
 			"give a literal directory in your scratchpad")

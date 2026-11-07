@@ -783,10 +783,10 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	}
 	switch {
 	case in(Shells, name):
-		savedCwd, savedDyn, savedC, savedCK := a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown // a cd inside `sh -c` does not move the caller
+		savedCwd, savedDyn, savedC, savedCK, savedU := a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown, a.cwdUnres // a cd inside `sh -c` does not move the caller
 		a.shellAssigns = assigns
 		err := a.shell(rest, depth, piped, hstrs)
-		a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown = savedCwd, savedDyn, savedC, savedCK
+		a.gcwd, a.gdyn, a.ccwd, a.ccwdKnown, a.cwdUnres = savedCwd, savedDyn, savedC, savedCK, savedU
 		if err != nil {
 			return err
 		}

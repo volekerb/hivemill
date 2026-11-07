@@ -290,7 +290,7 @@ class NoPushGitFileTests(unittest.TestCase):
         s = self.scratch
         for role in ("coder", "judge", "cleaner"):
             for c in (f"echo 'gitdir: x' > {s}/n/.git", f"tar -xf a.tar -C {self.repo}/.git", "tar -xf a.tar",
-                      f"unzip a.zip -d {self.repo}/.git", f"unzip a.zip -d {self.home}", f"python3 -m zipfile -e a.zip {self.home}",
+                      f"unzip a.zip -d {self.repo}/.git", f"unzip a.zip -d {s}/n", f"python3 -m zipfile -e a.zip {self.home}",
                       f"ar x --output={self.home} a.a"):
                 with self.subTest(role=role, cmd=c):
                     self.allowed(c, role)

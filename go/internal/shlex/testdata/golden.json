@@ -98105,6 +98105,5049 @@
 "src": "corpus"
 },
 {
+"input": "echo x > ~nosuchuser123/.local/bin/git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/bin/git"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.local/bin/git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/bin/git"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.local/bin/git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/bin/git"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.local/bin/git",
+"mode": "quote",
+"quoted": "'echo x > ~nosuchuser123/.local/bin/git'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~nosuchuser123/.local/lib/factory/x"
+]
+},
+{
+"input": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~nosuchuser123/.local/lib/factory/x"
+]
+},
+{
+"input": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~nosuchuser123/.local/lib/factory/x"
+]
+},
+{
+"input": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~nosuchuser123/.local/lib/factory/x'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~nosuchuser123/.config/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.config/factory/x"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.config/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.config/factory/x"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.config/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.config/factory/x"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.config/factory/x",
+"mode": "quote",
+"quoted": "'echo x > ~nosuchuser123/.config/factory/x'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~nosuchuser123/.local/go/go.env",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/go/go.env"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.local/go/go.env",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/go/go.env"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.local/go/go.env",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/go/go.env"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/.local/go/go.env",
+"mode": "quote",
+"quoted": "'echo x > ~nosuchuser123/.local/go/go.env'",
+"src": "corpus"
+},
+{
+"input": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~nosuchuser123/.local/lib/factory",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~nosuchuser123/.local/lib/factory",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~nosuchuser123/.local/lib/factory",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~-/.local/bin/git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~-/.local/bin/git"
+]
+},
+{
+"input": "echo x > ~-/.local/bin/git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~-/.local/bin/git"
+]
+},
+{
+"input": "echo x > ~-/.local/bin/git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~-/.local/bin/git"
+]
+},
+{
+"input": "echo x > ~-/.local/bin/git",
+"mode": "quote",
+"quoted": "'echo x > ~-/.local/bin/git'",
+"src": "corpus"
+},
+{
+"input": "cd ~ && echo x > ~+/.local/bin/git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~",
+"&&",
+"echo",
+"x",
+">",
+"~+/.local/bin/git"
+]
+},
+{
+"input": "cd ~ && echo x > ~+/.local/bin/git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~",
+"&&",
+"echo",
+"x",
+">",
+"~",
+"+",
+"/.local/bin/git"
+]
+},
+{
+"input": "cd ~ && echo x > ~+/.local/bin/git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~",
+"&&",
+"echo",
+"x",
+">",
+"~+/.local/bin/git"
+]
+},
+{
+"input": "cd ~ && echo x > ~+/.local/bin/git",
+"mode": "quote",
+"quoted": "'cd ~ && echo x > ~+/.local/bin/git'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/bin ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/bin ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/bin ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/bin ~/.local/",
+"mode": "quote",
+"quoted": "'cp /tmp/bin ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin ~/.local",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin ~/.local'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/go ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/go",
+"~/.local/"
+]
+},
+{
+"input": "cp -r /tmp/go ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/go",
+"~/.local/"
+]
+},
+{
+"input": "cp -r /tmp/go ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/go",
+"~/.local/"
+]
+},
+{
+"input": "cp -r /tmp/go ~/.local/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/go ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "mv /tmp/bin ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "mv /tmp/bin ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "mv /tmp/bin ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "mv /tmp/bin ~/.local/",
+"mode": "quote",
+"quoted": "'mv /tmp/bin ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/bin ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib"
+]
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib"
+]
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib"
+]
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib",
+"mode": "quote",
+"quoted": "'cp -r /tmp/factory ~/.local/lib'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib/"
+]
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib/"
+]
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib/"
+]
+},
+{
+"input": "cp -r /tmp/factory ~/.local/lib/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/factory ~/.local/lib/'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local && cp -r /tmp/bin .",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local",
+"&&",
+"cp",
+"-r",
+"/tmp/bin",
+"."
+]
+},
+{
+"input": "cd ~/.local && cp -r /tmp/bin .",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local",
+"&&",
+"cp",
+"-r",
+"/tmp/bin",
+"."
+]
+},
+{
+"input": "cd ~/.local && cp -r /tmp/bin .",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local",
+"&&",
+"cp",
+"-r",
+"/tmp/bin",
+"."
+]
+},
+{
+"input": "cd ~/.local && cp -r /tmp/bin .",
+"mode": "quote",
+"quoted": "'cd ~/.local && cp -r /tmp/bin .'",
+"src": "corpus"
+},
+{
+"input": "tar -C ~/.local -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"~/.local",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C ~/.local -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C ~/.local -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd ~/.local && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd ~/.local && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/x/. ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x/.",
+"~/.local/"
+]
+},
+{
+"input": "cp -r /tmp/x/. ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x/.",
+"~/.local/"
+]
+},
+{
+"input": "cp -r /tmp/x/. ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x/.",
+"~/.local/"
+]
+},
+{
+"input": "cp -r /tmp/x/. ~/.local/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/x/. ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp -rT /tmp/x ~/.local",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rT",
+"/tmp/x",
+"~/.local"
+]
+},
+{
+"input": "cp -rT /tmp/x ~/.local",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rT",
+"/tmp/x",
+"~/.local"
+]
+},
+{
+"input": "cp -rT /tmp/x ~/.local",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-rT",
+"/tmp/x",
+"~/.local"
+]
+},
+{
+"input": "cp -rT /tmp/x ~/.local",
+"mode": "quote",
+"quoted": "'cp -rT /tmp/x ~/.local'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ ~/.local/",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/x/ ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/* ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/*",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/* ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/*",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/* ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/*",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/* ~/.local/",
+"mode": "quote",
+"quoted": "'cp /tmp/* ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "unzip a.zip -d ~/.local",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"~/.local"
+]
+},
+{
+"input": "unzip a.zip -d ~/.local",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"~/.local"
+]
+},
+{
+"input": "unzip a.zip -d ~/.local",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"a.zip",
+"-d",
+"~/.local"
+]
+},
+{
+"input": "unzip a.zip -d ~/.local",
+"mode": "quote",
+"quoted": "'unzip a.zip -d ~/.local'",
+"src": "corpus"
+},
+{
+"input": "unzip -d ~/.local a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"~/.local",
+"a.zip"
+]
+},
+{
+"input": "unzip -d ~/.local a.zip",
+"mode": "quote",
+"quoted": "'unzip -d ~/.local a.zip'",
+"src": "corpus"
+},
+{
+"input": "ln -s /tmp/bin ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "ln -s /tmp/bin ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "ln -s /tmp/bin ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ln",
+"-s",
+"/tmp/bin",
+"~/.local/"
+]
+},
+{
+"input": "ln -s /tmp/bin ~/.local/",
+"mode": "quote",
+"quoted": "'ln -s /tmp/bin ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "install -t ~/.local /tmp/bin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"-t",
+"~/.local",
+"/tmp/bin"
+]
+},
+{
+"input": "install -t ~/.local /tmp/bin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"-t",
+"~/.local",
+"/tmp/bin"
+]
+},
+{
+"input": "install -t ~/.local /tmp/bin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"-t",
+"~/.local",
+"/tmp/bin"
+]
+},
+{
+"input": "install -t ~/.local /tmp/bin",
+"mode": "quote",
+"quoted": "'install -t ~/.local /tmp/bin'",
+"src": "corpus"
+},
+{
+"input": "cp --parents /tmp/x ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"--parents",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "cp --parents /tmp/x ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"--parents",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "cp --parents /tmp/x ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"--parents",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "cp --parents /tmp/x ~/.local/",
+"mode": "quote",
+"quoted": "'cp --parents /tmp/x ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin ~/.local/lib/../",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/lib/../"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local/lib/../",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/lib/../"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local/lib/../",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/lib/../"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local/lib/../",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin ~/.local/lib/../'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin @SHARED@/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/bin @SHARED@/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"@",
+"SHARED",
+"@",
+"/"
+]
+},
+{
+"input": "cp -r /tmp/bin @SHARED@/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/bin @SHARED@/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin @SHARED@/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/go @SHARED@/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/go",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/go @SHARED@/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/go",
+"@",
+"SHARED",
+"@",
+"/"
+]
+},
+{
+"input": "cp -r /tmp/go @SHARED@/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/go",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/go @SHARED@/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/go @SHARED@/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/roles @SHARED@/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/roles",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/roles @SHARED@/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/roles",
+"@",
+"SHARED",
+"@",
+"/"
+]
+},
+{
+"input": "cp -r /tmp/roles @SHARED@/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/roles",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/roles @SHARED@/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/roles @SHARED@/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/hooks @SHARED@/roles/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/hooks",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "cp -r /tmp/hooks @SHARED@/roles/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/hooks",
+"@",
+"SHARED",
+"@",
+"/roles/"
+]
+},
+{
+"input": "cp -r /tmp/hooks @SHARED@/roles/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/hooks",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "cp -r /tmp/hooks @SHARED@/roles/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/hooks @SHARED@/roles/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/settings @SHARED@/roles/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/settings",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "cp -r /tmp/settings @SHARED@/roles/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/settings",
+"@",
+"SHARED",
+"@",
+"/roles/"
+]
+},
+{
+"input": "cp -r /tmp/settings @SHARED@/roles/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/settings",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "cp -r /tmp/settings @SHARED@/roles/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/settings @SHARED@/roles/'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/x/ @SHARED@/roles/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ @SHARED@/roles/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"@",
+"SHARED",
+"@",
+"/roles/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ @SHARED@/roles/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x/",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "rsync -a /tmp/x/ @SHARED@/roles/",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/x/ @SHARED@/roles/'",
+"src": "corpus"
+},
+{
+"input": "mv /tmp/bin @SHARED@/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/bin",
+"@SHARED@/"
+]
+},
+{
+"input": "mv /tmp/bin @SHARED@/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/bin",
+"@",
+"SHARED",
+"@",
+"/"
+]
+},
+{
+"input": "mv /tmp/bin @SHARED@/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/bin",
+"@SHARED@/"
+]
+},
+{
+"input": "mv /tmp/bin @SHARED@/",
+"mode": "quote",
+"quoted": "'mv /tmp/bin @SHARED@/'",
+"src": "corpus"
+},
+{
+"input": "tar -C @SHARED@ -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@SHARED@",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @SHARED@ -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@",
+"SHARED",
+"@",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @SHARED@ -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@SHARED@",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @SHARED@ -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C @SHARED@ -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "tar -C @SHARED@/roles -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@SHARED@/roles",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @SHARED@/roles -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@",
+"SHARED",
+"@",
+"/roles",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @SHARED@/roles -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"tar",
+"-C",
+"@SHARED@/roles",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "tar -C @SHARED@/roles -xf a.tar",
+"mode": "quote",
+"quoted": "'tar -C @SHARED@/roles -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "unzip -d @SHARED@/roles a.zip",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"@SHARED@/roles",
+"a.zip"
+]
+},
+{
+"input": "unzip -d @SHARED@/roles a.zip",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"@",
+"SHARED",
+"@",
+"/roles",
+"a.zip"
+]
+},
+{
+"input": "unzip -d @SHARED@/roles a.zip",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"unzip",
+"-d",
+"@SHARED@/roles",
+"a.zip"
+]
+},
+{
+"input": "unzip -d @SHARED@/roles a.zip",
+"mode": "quote",
+"quoted": "'unzip -d @SHARED@/roles a.zip'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name git -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name git -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name git -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name git -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name git -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/go -name go.env -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-name",
+"go.env",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/go -name go.env -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-name",
+"go.env",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/go -name go.env -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-name",
+"go.env",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/go -name go.env -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/go -name go.env -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/factory/bin -name x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/factory/bin",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find ~/factory/bin -name x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/factory/bin",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find ~/factory/bin -name x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/factory/bin",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find ~/factory/bin -name x -delete",
+"mode": "quote",
+"quoted": "'find ~/factory/bin -name x -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/factory/run/settings -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/factory/run/settings",
+"-delete"
+]
+},
+{
+"input": "find ~/factory/run/settings -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/factory/run/settings",
+"-delete"
+]
+},
+{
+"input": "find ~/factory/run/settings -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/factory/run/settings",
+"-delete"
+]
+},
+{
+"input": "find ~/factory/run/settings -delete",
+"mode": "quote",
+"quoted": "'find ~/factory/run/settings -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name git -exec rm {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name git -exec rm {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"rm",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name git -exec rm {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name git -exec rm {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name git -exec rm {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -name x -exec rm {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-name",
+"x",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -name x -exec rm {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-name",
+"x",
+"-exec",
+"rm",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -name x -exec rm {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-name",
+"x",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -name x -exec rm {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -name x -exec rm {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local -name git -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local",
+"-name",
+"git",
+"-delete"
+]
+},
+{
+"input": "find ~/.local -name git -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local",
+"-name",
+"git",
+"-delete"
+]
+},
+{
+"input": "find ~/.local -name git -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local",
+"-name",
+"git",
+"-delete"
+]
+},
+{
+"input": "find ~/.local -name git -delete",
+"mode": "quote",
+"quoted": "'find ~/.local -name git -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~ -name x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find ~ -name x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find ~ -name x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find ~ -name x -delete",
+"mode": "quote",
+"quoted": "'find ~ -name x -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -fprint ~/.local/bin/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-fprint",
+"~/.local/bin/x"
+]
+},
+{
+"input": "find ~/.local/bin -fprint ~/.local/bin/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-fprint",
+"~/.local/bin/x"
+]
+},
+{
+"input": "find ~/.local/bin -fprint ~/.local/bin/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-fprint",
+"~/.local/bin/x"
+]
+},
+{
+"input": "find ~/.local/bin -fprint ~/.local/bin/x",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -fprint ~/.local/bin/x'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name x -execdir rm {} \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-execdir",
+"rm",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name x -execdir rm {} \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-execdir",
+"rm",
+"{",
+"}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name x -execdir rm {} \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-execdir",
+"rm",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name x -execdir rm {} \\;",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name x -execdir rm {} \\;'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name x -ok rm {} \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-ok",
+"rm",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name x -ok rm {} \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-ok",
+"rm",
+"{",
+"}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name x -ok rm {} \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-ok",
+"rm",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name x -ok rm {} \\;",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name x -ok rm {} \\;'",
+"src": "corpus"
+},
+{
+"input": "find ~/.config/go -fls ~/.config/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.config/go",
+"-fls",
+"~/.config/go/x"
+]
+},
+{
+"input": "find ~/.config/go -fls ~/.config/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.config/go",
+"-fls",
+"~/.config/go/x"
+]
+},
+{
+"input": "find ~/.config/go -fls ~/.config/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.config/go",
+"-fls",
+"~/.config/go/x"
+]
+},
+{
+"input": "find ~/.config/go -fls ~/.config/go/x",
+"mode": "quote",
+"quoted": "'find ~/.config/go -fls ~/.config/go/x'",
+"src": "corpus"
+},
+{
+"input": "find -H ~/.local/bin -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"-H",
+"~/.local/bin",
+"-delete"
+]
+},
+{
+"input": "find -H ~/.local/bin -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"-H",
+"~/.local/bin",
+"-delete"
+]
+},
+{
+"input": "find -H ~/.local/bin -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"-H",
+"~/.local/bin",
+"-delete"
+]
+},
+{
+"input": "find -H ~/.local/bin -delete",
+"mode": "quote",
+"quoted": "'find -H ~/.local/bin -delete'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && find -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"find",
+"-delete"
+]
+},
+{
+"input": "cd ~/.local/bin && find -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"find",
+"-delete"
+]
+},
+{
+"input": "cd ~/.local/bin && find -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"find",
+"-delete"
+]
+},
+{
+"input": "cd ~/.local/bin && find -delete",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && find -delete'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && find . -name x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"find",
+".",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "cd ~/.local/bin && find . -name x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"find",
+".",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "cd ~/.local/bin && find . -name x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"find",
+".",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "cd ~/.local/bin && find . -name x -delete",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && find . -name x -delete'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/bin -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/bin",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/bin -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/bin",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/bin -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/bin",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/bin -delete",
+"mode": "quote",
+"quoted": "'find @SHARED@/bin -delete'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/go -name x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/go",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/go -name x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/go",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/go -name x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/go",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/go -name x -delete",
+"mode": "quote",
+"quoted": "'find @SHARED@/go -name x -delete'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/roles/hooks -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/roles/hooks",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/roles/hooks -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/roles/hooks",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/roles/hooks -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/roles/hooks",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/roles/hooks -delete",
+"mode": "quote",
+"quoted": "'find @SHARED@/roles/hooks -delete'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/roles/settings",
+"-name",
+"x",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/roles/settings",
+"-name",
+"x",
+"-exec",
+"rm",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/roles/settings",
+"-name",
+"x",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"mode": "quote",
+"quoted": "'find @SHARED@/roles/settings -name x -exec rm {} +'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@ -name x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@ -name x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@ -name x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@",
+"-name",
+"x",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@ -name x -delete",
+"mode": "quote",
+"quoted": "'find @SHARED@ -name x -delete'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/roles -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/roles",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/roles -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/roles",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/roles -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/roles",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/roles -delete",
+"mode": "quote",
+"quoted": "'find @SHARED@/roles -delete'",
+"src": "corpus"
+},
+{
+"input": "cd @SHARED@/bin && find -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/bin",
+"&&",
+"find",
+"-delete"
+]
+},
+{
+"input": "cd @SHARED@/bin && find -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SHARED",
+"@",
+"/bin",
+"&&",
+"find",
+"-delete"
+]
+},
+{
+"input": "cd @SHARED@/bin && find -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/bin",
+"&&",
+"find",
+"-delete"
+]
+},
+{
+"input": "cd @SHARED@/bin && find -delete",
+"mode": "quote",
+"quoted": "'cd @SHARED@/bin && find -delete'",
+"src": "corpus"
+},
+{
+"input": "git init ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/go/x"
+]
+},
+{
+"input": "git init ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/go/x"
+]
+},
+{
+"input": "git init ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/go/x"
+]
+},
+{
+"input": "git init ~/.local/go/x",
+"mode": "quote",
+"quoted": "'git init ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "git worktree add ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"~/.local/go/x"
+]
+},
+{
+"input": "git worktree add ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"~/.local/go/x"
+]
+},
+{
+"input": "git worktree add ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"~/.local/go/x"
+]
+},
+{
+"input": "git worktree add ~/.local/go/x",
+"mode": "quote",
+"quoted": "'git worktree add ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "git init ~/.config/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git init ~/.config/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git init ~/.config/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.config/factory/x"
+]
+},
+{
+"input": "git init ~/.config/factory/x",
+"mode": "quote",
+"quoted": "'git init ~/.config/factory/x'",
+"src": "corpus"
+},
+{
+"input": "git init ~/.local/lib/factory/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git init ~/.local/lib/factory/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git init ~/.local/lib/factory/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/lib/factory/x"
+]
+},
+{
+"input": "git init ~/.local/lib/factory/x",
+"mode": "quote",
+"quoted": "'git init ~/.local/lib/factory/x'",
+"src": "corpus"
+},
+{
+"input": "git init ~/.config/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.config/go/x"
+]
+},
+{
+"input": "git init ~/.config/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.config/go/x"
+]
+},
+{
+"input": "git init ~/.config/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.config/go/x"
+]
+},
+{
+"input": "git init ~/.config/go/x",
+"mode": "quote",
+"quoted": "'git init ~/.config/go/x'",
+"src": "corpus"
+},
+{
+"input": "git init ~/.local/bin/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/bin/x"
+]
+},
+{
+"input": "git init ~/.local/bin/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/bin/x"
+]
+},
+{
+"input": "git init ~/.local/bin/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"~/.local/bin/x"
+]
+},
+{
+"input": "git init ~/.local/bin/x",
+"mode": "quote",
+"quoted": "'git init ~/.local/bin/x'",
+"src": "corpus"
+},
+{
+"input": "git init @SHARED@/bin/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/bin/x"
+]
+},
+{
+"input": "git init @SHARED@/bin/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@",
+"SHARED",
+"@",
+"/bin/x"
+]
+},
+{
+"input": "git init @SHARED@/bin/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/bin/x"
+]
+},
+{
+"input": "git init @SHARED@/bin/x",
+"mode": "quote",
+"quoted": "'git init @SHARED@/bin/x'",
+"src": "corpus"
+},
+{
+"input": "git init @SHARED@/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/go/x"
+]
+},
+{
+"input": "git init @SHARED@/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@",
+"SHARED",
+"@",
+"/go/x"
+]
+},
+{
+"input": "git init @SHARED@/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/go/x"
+]
+},
+{
+"input": "git init @SHARED@/go/x",
+"mode": "quote",
+"quoted": "'git init @SHARED@/go/x'",
+"src": "corpus"
+},
+{
+"input": "git init @SHARED@/roles/hooks/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/roles/hooks/x"
+]
+},
+{
+"input": "git init @SHARED@/roles/hooks/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@",
+"SHARED",
+"@",
+"/roles/hooks/x"
+]
+},
+{
+"input": "git init @SHARED@/roles/hooks/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"@SHARED@/roles/hooks/x"
+]
+},
+{
+"input": "git init @SHARED@/roles/hooks/x",
+"mode": "quote",
+"quoted": "'git init @SHARED@/roles/hooks/x'",
+"src": "corpus"
+},
+{
+"input": "git worktree add -b nb ~/.local/go/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"-b",
+"nb",
+"~/.local/go/x"
+]
+},
+{
+"input": "git worktree add -b nb ~/.local/go/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"-b",
+"nb",
+"~/.local/go/x"
+]
+},
+{
+"input": "git worktree add -b nb ~/.local/go/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"-b",
+"nb",
+"~/.local/go/x"
+]
+},
+{
+"input": "git worktree add -b nb ~/.local/go/x",
+"mode": "quote",
+"quoted": "'git worktree add -b nb ~/.local/go/x'",
+"src": "corpus"
+},
+{
+"input": "git worktree add @SHARED@/roles/settings/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"@SHARED@/roles/settings/x"
+]
+},
+{
+"input": "git worktree add @SHARED@/roles/settings/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"@",
+"SHARED",
+"@",
+"/roles/settings/x"
+]
+},
+{
+"input": "git worktree add @SHARED@/roles/settings/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"@SHARED@/roles/settings/x"
+]
+},
+{
+"input": "git worktree add @SHARED@/roles/settings/x",
+"mode": "quote",
+"quoted": "'git worktree add @SHARED@/roles/settings/x'",
+"src": "corpus"
+},
+{
+"input": "git -C ~/.local/go init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"~/.local/go",
+"init"
+]
+},
+{
+"input": "git -C ~/.local/go init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"~/.local/go",
+"init"
+]
+},
+{
+"input": "git -C ~/.local/go init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"~/.local/go",
+"init"
+]
+},
+{
+"input": "git -C ~/.local/go init",
+"mode": "quote",
+"quoted": "'git -C ~/.local/go init'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/go && git init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"git",
+"init"
+]
+},
+{
+"input": "cd ~/.local/go && git init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"git",
+"init"
+]
+},
+{
+"input": "cd ~/.local/go && git init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"git",
+"init"
+]
+},
+{
+"input": "cd ~/.local/go && git init",
+"mode": "quote",
+"quoted": "'cd ~/.local/go && git init'",
+"src": "corpus"
+},
+{
+"input": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"--separate-git-dir",
+"~/.local/go/g",
+"/tmp/z"
+]
+},
+{
+"input": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"--separate-git-dir",
+"~/.local/go/g",
+"/tmp/z"
+]
+},
+{
+"input": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"--separate-git-dir",
+"~/.local/go/g",
+"/tmp/z"
+]
+},
+{
+"input": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"mode": "quote",
+"quoted": "'git init --separate-git-dir ~/.local/go/g /tmp/z'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"init",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"init",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"init",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/go -maxdepth 0 -exec git init {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"zip",
+"-m",
+"/tmp/a.zip",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"zip",
+"-m",
+"/tmp/a.zip",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"zip",
+"-m",
+"/tmp/a.zip",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"./x.sh",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"./x.sh",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"./x.sh",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -exec ./x.sh {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~ -name x -exec make {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~",
+"-name",
+"x",
+"-exec",
+"make",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~ -name x -exec make {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~",
+"-name",
+"x",
+"-exec",
+"make",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~ -name x -exec make {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~",
+"-name",
+"x",
+"-exec",
+"make",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~ -name x -exec make {} +",
+"mode": "quote",
+"quoted": "'find ~ -name x -exec make {} +'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/",
+"--exclude",
+"x"
+]
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/",
+"--exclude",
+"x"
+]
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/",
+"--exclude",
+"x"
+]
+},
+{
+"input": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/bin ~/.local/ --exclude x'",
+"src": "corpus"
+},
+{
+"input": "install /tmp/bin ~/.local/ -m 755",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/bin",
+"~/.local/",
+"-m",
+"755"
+]
+},
+{
+"input": "install /tmp/bin ~/.local/ -m 755",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/bin",
+"~/.local/",
+"-m",
+"755"
+]
+},
+{
+"input": "install /tmp/bin ~/.local/ -m 755",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"install",
+"/tmp/bin",
+"~/.local/",
+"-m",
+"755"
+]
+},
+{
+"input": "install /tmp/bin ~/.local/ -m 755",
+"mode": "quote",
+"quoted": "'install /tmp/bin ~/.local/ -m 755'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin ~/.local/ -S .bak",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/",
+"-S",
+".bak"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local/ -S .bak",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/",
+"-S",
+".bak"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local/ -S .bak",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/",
+"-S",
+".bak"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.local/ -S .bak",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin ~/.local/ -S .bak'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin ~/.{local,x}/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.{local,x}/"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.{local,x}/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.",
+"{",
+"local",
+",",
+"x",
+"}",
+"/"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.{local,x}/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"~/.{local,x}/"
+]
+},
+{
+"input": "cp -r /tmp/bin ~/.{local,x}/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin ~/.{local,x}/'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} \\; -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"cat",
+"{}",
+";",
+"-fprint",
+"/tmp/x"
+]
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"cat",
+"{",
+"}",
+";",
+"-fprint",
+"/tmp/x"
+]
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"cat",
+"{}",
+";",
+"-fprint",
+"/tmp/x"
+]
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec cat {} \\; -fprint /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-exec",
+"rm",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} \\; -exec rm {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-name",
+"x",
+"-exec",
+"grep",
+"y",
+"{}",
+";",
+"-exec",
+"git",
+"init",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-name",
+"x",
+"-exec",
+"grep",
+"y",
+"{",
+"}",
+";",
+"-exec",
+"git",
+"init",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/go",
+"-name",
+"x",
+"-exec",
+"grep",
+"y",
+"{}",
+";",
+"-exec",
+"git",
+"init",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name x -exec ./cat {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"./cat",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec ./cat {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"./cat",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec ./cat {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"./cat",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec ./cat {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name x -exec ./cat {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"/tmp/grep",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"/tmp/grep",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"/tmp/grep",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name x -exec /tmp/grep {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ./ls {} \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"./ls",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec ./ls {} \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"./ls",
+"{",
+"}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec ./ls {} \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"./ls",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec ./ls {} \\;",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ./ls {} \\;'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/local/bin/cat",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/local/bin/cat",
+"{",
+"}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/local/bin/cat",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec /usr/local/bin/cat {} \\;'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"cd",
+"~nosuchuser123",
+"&&",
+"echo",
+"x",
+">",
+"git"
+]
+},
+{
+"input": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"cd",
+"~nosuchuser123",
+"&&",
+"echo",
+"x",
+">",
+"git"
+]
+},
+{
+"input": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"cd",
+"~nosuchuser123",
+"&&",
+"echo",
+"x",
+">",
+"git"
+]
+},
+{
+"input": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && cd ~nosuchuser123 && echo x > git'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"cd",
+"~-",
+"&&",
+"cp",
+"/tmp/x",
+"y"
+]
+},
+{
+"input": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"cd",
+"~-",
+"&&",
+"cp",
+"/tmp/x",
+"y"
+]
+},
+{
+"input": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/go",
+"&&",
+"cd",
+"~-",
+"&&",
+"cp",
+"/tmp/x",
+"y"
+]
+},
+{
+"input": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"mode": "quote",
+"quoted": "'cd ~/.local/go && cd ~- && cp /tmp/x y'",
+"src": "corpus"
+},
+{
+"input": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/bin",
+"&&",
+"cd",
+"~nosuchuser123",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SHARED",
+"@",
+"/bin",
+"&&",
+"cd",
+"~nosuchuser123",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/bin",
+"&&",
+"cd",
+"~nosuchuser123",
+"&&",
+"tar",
+"-xf",
+"a.tar"
+]
+},
+{
+"input": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"mode": "quote",
+"quoted": "'cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} '\"'\"';'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} \";\" -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} '\"'\"';'\"'\"' -fprint /tmp/y'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -exec rm {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -exec rm {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-exec",
+"rm",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -exec rm {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -exec rm {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} '\"'\"';'\"'\"' -exec rm {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-exec",
+"rm",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-exec",
+"rm",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} \";\" -exec rm {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -exec ls {} \\;\"\" -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -exec ls {} \"\"\\; -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin \\( -name x \\) -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin \\( -name x \\) -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin \\( -name x \\) -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin \\( -name x \\) -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin \\( -name x \\) -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin '\"'\"'('\"'\"' -name x '\"'\"')'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name ';' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name ';' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name ';' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+";",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name ';' -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name '\"'\"';'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name '&' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"&",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '&' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"&",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '&' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"&",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '&' -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name '\"'\"'&'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name '|' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"|",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '|' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"|",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '|' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"|",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '|' -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name '\"'\"'|'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name '>' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+">",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '>' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+">",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '>' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+">",
+"-delete"
+]
+},
+{
+"input": "find ~/.local/bin -name '>' -delete",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name '\"'\"'>'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/bin -exec ls {} ';' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/bin -exec ls {} ';' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/bin -exec ls {} ';' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find @SHARED@/bin -exec ls {} ';' -delete",
+"mode": "quote",
+"quoted": "'find @SHARED@/bin -exec ls {} '\"'\"';'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && echo x > ~nosuchuser123'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && touch ~nosuchuser123",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"touch",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.local/bin && touch ~nosuchuser123",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"touch",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.local/bin && touch ~nosuchuser123",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"touch",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.local/bin && touch ~nosuchuser123",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && touch ~nosuchuser123'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/lib/factory && echo x >> ~-",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"echo",
+"x",
+">>",
+"~-"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && echo x >> ~-",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"echo",
+"x",
+">>",
+"~-"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && echo x >> ~-",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/lib/factory",
+"&&",
+"echo",
+"x",
+">>",
+"~-"
+]
+},
+{
+"input": "cd ~/.local/lib/factory && echo x >> ~-",
+"mode": "quote",
+"quoted": "'cd ~/.local/lib/factory && echo x >> ~-'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.config/factory && rm ~nosuchuser123",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.config/factory",
+"&&",
+"rm",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.config/factory && rm ~nosuchuser123",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.config/factory",
+"&&",
+"rm",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.config/factory && rm ~nosuchuser123",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.config/factory",
+"&&",
+"rm",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd ~/.config/factory && rm ~nosuchuser123",
+"mode": "quote",
+"quoted": "'cd ~/.config/factory && rm ~nosuchuser123'",
+"src": "corpus"
+},
+{
+"input": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/bin",
+"&&",
+"cp",
+"/tmp/x",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SHARED",
+"@",
+"/bin",
+"&&",
+"cp",
+"/tmp/x",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/bin",
+"&&",
+"cp",
+"/tmp/x",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"mode": "quote",
+"quoted": "'cd @SHARED@/bin && cp /tmp/x ~nosuchuser123'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && curl -o ~- URL",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"curl",
+"-o",
+"~-",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/bin && curl -o ~- URL",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"curl",
+"-o",
+"~-",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/bin && curl -o ~- URL",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"curl",
+"-o",
+"~-",
+"URL"
+]
+},
+{
+"input": "cd ~/.local/bin && curl -o ~- URL",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && curl -o ~- URL'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -121461,6 +126504,1689 @@
 "src": "corpus"
 },
 {
+"input": "cp /tmp/x ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/share/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/share/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/share/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/share/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/share/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/share/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/share/",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/share/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/"
+]
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/"
+]
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/"
+]
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin /tmp/y/'",
+"src": "corpus"
+},
+{
+"input": "cp /tmp/x ~/.local/lib/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"/tmp/x",
+"~/.local/lib/"
+]
+},
+{
+"input": "cp /tmp/x ~/.local/lib/",
+"mode": "quote",
+"quoted": "'cp /tmp/x ~/.local/lib/'",
+"src": "corpus"
+},
+{
+"input": "mv /tmp/x ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"mv",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "mv /tmp/x ~/.local/",
+"mode": "quote",
+"quoted": "'mv /tmp/x ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/x ~/.local/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/x ~/.local/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/x ~/.local/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/x",
+"~/.local/"
+]
+},
+{
+"input": "rsync -a /tmp/x ~/.local/",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/x ~/.local/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/x @SHARED@/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/x @SHARED@/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"@",
+"SHARED",
+"@",
+"/"
+]
+},
+{
+"input": "cp -r /tmp/x @SHARED@/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/"
+]
+},
+{
+"input": "cp -r /tmp/x @SHARED@/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/x @SHARED@/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/x @SHARED@/roles/",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "cp -r /tmp/x @SHARED@/roles/",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"@",
+"SHARED",
+"@",
+"/roles/"
+]
+},
+{
+"input": "cp -r /tmp/x @SHARED@/roles/",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/roles/"
+]
+},
+{
+"input": "cp -r /tmp/x @SHARED@/roles/",
+"mode": "quote",
+"quoted": "'cp -r /tmp/x @SHARED@/roles/'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/ -f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/",
+"-f"
+]
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/ -f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/",
+"-f"
+]
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/ -f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/",
+"-f"
+]
+},
+{
+"input": "cp -r /tmp/bin /tmp/y/ -f",
+"mode": "quote",
+"quoted": "'cp -r /tmp/bin /tmp/y/ -f'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -delete",
+"mode": "quote",
+"quoted": "'find /tmp/x -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git"
+]
+},
+{
+"input": "find ~/.local/bin -name git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git"
+]
+},
+{
+"input": "find ~/.local/bin -name git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git"
+]
+},
+{
+"input": "find ~/.local/bin -name git",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name git'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -type f",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-type",
+"f"
+]
+},
+{
+"input": "find ~/.local/lib/factory -type f",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-type",
+"f"
+]
+},
+{
+"input": "find ~/.local/lib/factory -type f",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-type",
+"f"
+]
+},
+{
+"input": "find ~/.local/lib/factory -type f",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -type f'",
+"src": "corpus"
+},
+{
+"input": "find ~/.cache/x -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.cache/x",
+"-delete"
+]
+},
+{
+"input": "find ~/.cache/x -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.cache/x",
+"-delete"
+]
+},
+{
+"input": "find ~/.cache/x -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.cache/x",
+"-delete"
+]
+},
+{
+"input": "find ~/.cache/x -delete",
+"mode": "quote",
+"quoted": "'find ~/.cache/x -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name git -exec ls {} \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"ls",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name git -exec ls {} \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"ls",
+"{",
+"}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name git -exec ls {} \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"ls",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -name git -exec ls {} \\;",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name git -exec ls {} \\;'",
+"src": "corpus"
+},
+{
+"input": "find @SHARED@/bin -name x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/bin",
+"-name",
+"x"
+]
+},
+{
+"input": "find @SHARED@/bin -name x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"@",
+"SHARED",
+"@",
+"/bin",
+"-name",
+"x"
+]
+},
+{
+"input": "find @SHARED@/bin -name x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"@SHARED@/bin",
+"-name",
+"x"
+]
+},
+{
+"input": "find @SHARED@/bin -name x",
+"mode": "quote",
+"quoted": "'find @SHARED@/bin -name x'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local -name git",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local",
+"-name",
+"git"
+]
+},
+{
+"input": "find ~/.local -name git",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local",
+"-name",
+"git"
+]
+},
+{
+"input": "find ~/.local -name git",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local",
+"-name",
+"git"
+]
+},
+{
+"input": "find ~/.local -name git",
+"mode": "quote",
+"quoted": "'find ~/.local -name git'",
+"src": "corpus"
+},
+{
+"input": "echo x > ~nosuchuser123/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/y"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/y"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"x",
+">",
+"~nosuchuser123/y"
+]
+},
+{
+"input": "echo x > ~nosuchuser123/y",
+"mode": "quote",
+"quoted": "'echo x > ~nosuchuser123/y'",
+"src": "corpus"
+},
+{
+"input": "ls ~nosuchuser123/.local/bin",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"ls",
+"~nosuchuser123/.local/bin"
+]
+},
+{
+"input": "ls ~nosuchuser123/.local/bin",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"ls",
+"~nosuchuser123/.local/bin"
+]
+},
+{
+"input": "ls ~nosuchuser123/.local/bin",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"ls",
+"~nosuchuser123/.local/bin"
+]
+},
+{
+"input": "ls ~nosuchuser123/.local/bin",
+"mode": "quote",
+"quoted": "'ls ~nosuchuser123/.local/bin'",
+"src": "corpus"
+},
+{
+"input": "git init /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"/tmp/x"
+]
+},
+{
+"input": "git init /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"/tmp/x"
+]
+},
+{
+"input": "git init /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"/tmp/x"
+]
+},
+{
+"input": "git init /tmp/x",
+"mode": "quote",
+"quoted": "'git init /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "quote",
+"quoted": "'git worktree add /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "git -C /tmp/x init",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp/x",
+"init"
+]
+},
+{
+"input": "git -C /tmp/x init",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp/x",
+"init"
+]
+},
+{
+"input": "git -C /tmp/x init",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"-C",
+"/tmp/x",
+"init"
+]
+},
+{
+"input": "git -C /tmp/x init",
+"mode": "quote",
+"quoted": "'git -C /tmp/x init'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -name x -exec ls {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"ls",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec ls {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"ls",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec ls {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"ls",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -name x -exec ls {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -name x -exec ls {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-type",
+"f",
+"-exec",
+"grep",
+"y",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-type",
+"f",
+"-exec",
+"grep",
+"y",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/lib/factory",
+"-type",
+"f",
+"-exec",
+"grep",
+"y",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/lib/factory -type f -exec grep y {} +'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x -exec git init {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"git",
+"init",
+"{}",
+"+"
+]
+},
+{
+"input": "find /tmp/x -exec git init {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"git",
+"init",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find /tmp/x -exec git init {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"git",
+"init",
+"{}",
+"+"
+]
+},
+{
+"input": "find /tmp/x -exec git init {} +",
+"mode": "quote",
+"quoted": "'find /tmp/x -exec git init {} +'",
+"src": "corpus"
+},
+{
+"input": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"/tmp/y/",
+"--exclude",
+"x"
+]
+},
+{
+"input": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"/tmp/y/",
+"--exclude",
+"x"
+]
+},
+{
+"input": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"rsync",
+"-a",
+"/tmp/bin",
+"/tmp/y/",
+"--exclude",
+"x"
+]
+},
+{
+"input": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"mode": "quote",
+"quoted": "'rsync -a /tmp/bin /tmp/y/ --exclude x'",
+"src": "corpus"
+},
+{
+"input": "cp -r /tmp/x ~/.local/ -S .bak",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"~/.local/",
+"-S",
+".bak"
+]
+},
+{
+"input": "cp -r /tmp/x ~/.local/ -S .bak",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"~/.local/",
+"-S",
+".bak"
+]
+},
+{
+"input": "cp -r /tmp/x ~/.local/ -S .bak",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cp",
+"-r",
+"/tmp/x",
+"~/.local/",
+"-S",
+".bak"
+]
+},
+{
+"input": "cp -r /tmp/x ~/.local/ -S .bak",
+"mode": "quote",
+"quoted": "'cp -r /tmp/x ~/.local/ -S .bak'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -name y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-name",
+"y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -name y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-name",
+"y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -name y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-name",
+"y"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} \\; -name y",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} \\; -name y'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x -exec ls {} \\; -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} \\; -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} \\; -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} \\; -delete",
+"mode": "quote",
+"quoted": "'find /tmp/x -exec ls {} \\; -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/bin/cat",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/bin/cat",
+"{",
+"}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/bin/cat",
+"{}",
+";"
+]
+},
+{
+"input": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec /usr/bin/cat {} \\;'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec /bin/ls {} +",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/bin/ls",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec /bin/ls {} +",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/bin/ls",
+"{",
+"}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec /bin/ls {} +",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"/bin/ls",
+"{}",
+"+"
+]
+},
+{
+"input": "find ~/.local/bin -exec /bin/ls {} +",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec /bin/ls {} +'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -print",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"cat",
+"{}",
+";",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -print",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"cat",
+"{",
+"}",
+";",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -print",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"cat",
+"{}",
+";",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin -exec cat {} \\; -print",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec cat {} \\; -print'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x -exec ls {} ';' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} ';' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} ';' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{}",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} ';' -delete",
+"mode": "quote",
+"quoted": "'find /tmp/x -exec ls {} '\"'\"';'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-exec",
+"ls",
+"{}",
+";",
+"-fprint",
+"/tmp/y"
+]
+},
+{
+"input": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y",
+"mode": "quote",
+"quoted": "'find /tmp/x -exec ls {} \";\" -fprint /tmp/y'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -print",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -print",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{",
+"}",
+";",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -print",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"-exec",
+"ls",
+"{}",
+";",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin -exec ls {} ';' -print",
+"mode": "quote",
+"quoted": "'find ~/.local/bin -exec ls {} '\"'\"';'\"'\"' -print'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x \\( -name x \\) -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x \\( -name x \\) -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x \\( -name x \\) -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"(",
+"-name",
+"x",
+")",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x \\( -name x \\) -delete",
+"mode": "quote",
+"quoted": "'find /tmp/x \\( -name x \\) -delete'",
+"src": "corpus"
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -print",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -print",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -print",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"~/.local/bin",
+"(",
+"-name",
+"x",
+")",
+"-print"
+]
+},
+{
+"input": "find ~/.local/bin '(' -name x ')' -print",
+"mode": "quote",
+"quoted": "'find ~/.local/bin '\"'\"'('\"'\"' -name x '\"'\"')'\"'\"' -print'",
+"src": "corpus"
+},
+{
+"input": "find /tmp/x -name ';' -delete",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-name",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -name ';' -delete",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-name",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -name ';' -delete",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"find",
+"/tmp/x",
+"-name",
+";",
+"-delete"
+]
+},
+{
+"input": "find /tmp/x -name ';' -delete",
+"mode": "quote",
+"quoted": "'find /tmp/x -name '\"'\"';'\"'\"' -delete'",
+"src": "corpus"
+},
+{
+"input": "cd /tmp && echo x > ~nosuchuser123",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp",
+"&&",
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd /tmp && echo x > ~nosuchuser123",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp",
+"&&",
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd /tmp && echo x > ~nosuchuser123",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp",
+"&&",
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+},
+{
+"input": "cd /tmp && echo x > ~nosuchuser123",
+"mode": "quote",
+"quoted": "'cd /tmp && echo x > ~nosuchuser123'",
+"src": "corpus"
+},
+{
+"input": "cd /tmp && touch ~-",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp",
+"&&",
+"touch",
+"~-"
+]
+},
+{
+"input": "cd /tmp && touch ~-",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp",
+"&&",
+"touch",
+"~-"
+]
+},
+{
+"input": "cd /tmp && touch ~-",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/tmp",
+"&&",
+"touch",
+"~-"
+]
+},
+{
+"input": "cd /tmp && touch ~-",
+"mode": "quote",
+"quoted": "'cd /tmp && touch ~-'",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -125492,7 +132218,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 2870,
+"corpus_commands": 3023,
 "edge_inputs": 123,
 "python": "3.13"
 }

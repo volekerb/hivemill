@@ -178,7 +178,7 @@ func substVars(s string, vars map[string]string) string {
 func (a *Analyzer) persistHit(word string, ancestor, gitfile bool) bool {
 	h := mustHost()
 	for _, w := range uniq([]string{word, valueOf(word)}) {
-		t := cfgExpand(substVars(w, a.vars))
+		t := a.cfgExpand(substVars(w, a.vars))
 		if strings.ContainsAny(t, "$`") {
 			// an expansion we cannot resolve: refuse when it spells a protected name or sits under the home
 			if PersistCode(t) || strings.HasPrefix(t, "~") || strings.HasPrefix(t, h.pwDir) || strings.Contains(t, "~") || strings.Contains(t, "HOME") {

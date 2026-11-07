@@ -147,7 +147,8 @@ func TestNoPushGitFileOtherRolesUnchanged(t *testing.T) {
 	a := newArchiveFix(t)
 	s := a.scratch
 	cmds := []string{"echo 'gitdir: x' > " + s + "/n/.git", "tar -xf a.tar -C " + a.repo + "/.git", "tar -xf a.tar",
-		"unzip a.zip -d " + a.home, "python3 -m zipfile -e a.zip " + a.home, "ar x --output=" + a.home + " a.a"}
+		"unzip a.zip -d " + s + "/n", // T-0983: was <live home>, which the protected-tree rule now refuses (it holds bin/ and go/)
+		"python3 -m zipfile -e a.zip " + a.home, "ar x --output=" + a.home + " a.a"}
 	a.expect(t, []string{"coder", "cleaner", "judge"}, s, 0, cmds...)
 	for _, role := range []string{"boss", "director", "lead"} {
 		for _, c := range cmds[:3] {
