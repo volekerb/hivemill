@@ -641,6 +641,12 @@ class MechMergeTests(FactoryTestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(len(self.merges()), 1)
 
+    def test_main_run_fix_task_holds_when_failure_is_for_another_sha(self):
+        self.fix_task()
+        self.main_run(conclusion="failure", headSha="0" * 40)
+        main = git(self.wt, "rev-parse", "refs/remotes/origin/main")
+        self.assert_held(self.mech("on"), f"no push run yet for main {main[:8]}")
+
     def test_main_run_fix_task_still_waits_for_a_running_run(self):
         self.fix_task()
         self.main_run(status="in_progress", conclusion="")
