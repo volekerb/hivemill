@@ -112,7 +112,7 @@ jobs:
           python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # No go/** change (and not a full run): the job reports success without building.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.tier.outputs.go == 'true'
         with:
           go-version-file: go/go.mod
@@ -157,7 +157,7 @@ jobs:
           python-version: "3.13"
       - name: Install zsh
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
@@ -206,7 +206,7 @@ jobs:
           python-version: "3.13"
       - name: Install zsh
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
@@ -329,7 +329,7 @@ jobs:
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
           go-version-file: go/go.mod
@@ -407,7 +407,7 @@ jobs:
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
           go-version-file: go/go.mod
