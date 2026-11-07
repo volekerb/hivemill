@@ -5880,6 +5880,9 @@ def mech_try(con, t, mode, retry_s):
         return block(f"{tier_why}; the judge decides")
     if tier > MECH_MAX_TIER:
         return block(f"tier {tier} ({tier_why}); the judge decides")
+    held = mech_main_run_refusal(con, _judge_slugs(con, t, "/".join(url.split("/")[3:5])), git_repo, tid)
+    if held:
+        return block(held)
     jhr = task_judge_hold_reason(con, tid)  # the hold may have arrived after the candidate list was built
     if jhr:
         log_task_judge_hold(con, tid, jhr)
