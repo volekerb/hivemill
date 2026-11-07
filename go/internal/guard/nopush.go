@@ -292,13 +292,31 @@ func (a *Analyzer) gitConfigEnv(assigns, words []string) error {
 	return nil
 }
 
-// noPushGhWrite is a port of Analyzer.nopush_gh_write (T-0881): `gh api` with a body flag (gh then uses POST) unless
-// the method is GET, and `gh release create|edit|delete|upload|delete-asset`. Defense in depth, no obfuscation hunting.
+// noPushGhWrite is a port of Analyzer.nopush_gh_write (T-0881, T-0987, T-1030): `gh api` with a body flag (gh then
+// uses POST) unless the method is GET, `gh api` with any -X/--method other than GET, `gh api -H X-HTTP-Method-Override:
+// POST|PUT|PATCH|DELETE`, and `gh release create|edit|delete|upload|delete-asset`. Defense in depth, no obfuscation hunting.
 func (a *Analyzer) noPushGhWrite(rest []string) error {
-	pos, method, hasMethod, body := ghParse(rest)
+	pos, method, hasMethod, body, headers := ghParse(rest)
 	if len(pos) > 0 && pos[0] == "api" && body && !(hasMethod && method == "GET") {
 		return blockf("gh api with -f/-F/--field/--raw-field/--input is a write (POST); no-push roles never write to " +
 			"GitHub; use -X GET for a read with fields, or ask your lead")
+	}
+	if len(pos) > 0 && pos[0] == "api" && hasMethod && method != "GET" { // T-0987: a non-GET method is a write even without a body
+		return blockf("gh api -X/--method " + pyRepr(method) + " is not GET; no-push roles only read GitHub through gh api " +
+			"(GET); use GET, or ask your lead")
+	}
+	if len(pos) > 0 && pos[0] == "api" { // T-1030: a method-override header turns a POST into a write on the server side
+		for _, h := range headers {
+			name, val, ok := strings.Cut(h, ":")
+			if !ok {
+				continue
+			}
+			val = strings.TrimSpace(val)
+			if strings.EqualFold(strings.TrimSpace(name), "x-http-method-override") && in(ghMutating, strings.ToUpper(val)) {
+				return blockf("gh api -H X-HTTP-Method-Override: " + val + " is a write; no-push roles never write to " +
+					"GitHub; drop the header, or ask your lead")
+			}
+		}
 	}
 	if len(pos) > 1 && pos[0] == "release" && in(set("create", "edit", "delete", "upload", "delete-asset"), pos[1]) {
 		return blockf("gh release " + pos[1] + " is a GitHub write; no-push roles never write to GitHub; ask your lead")

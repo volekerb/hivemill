@@ -18,14 +18,17 @@ var (
 	ghRepoVerbs = set("edit", "rename", "archive", "unarchive", "delete")
 )
 
-// ghParse is the option reader of gh_parse: positionals, the last -X/--method (upper-cased) and whether a body flag is set.
-func ghParse(args []string) (pos []string, method string, hasMethod, body bool) {
+// ghParse is the option reader of gh_parse: positionals, the last -X/--method (upper-cased), whether a body flag is set,
+// and every -H/--header value (T-1030).
+func ghParse(args []string) (pos []string, method string, hasMethod, body bool, headers []string) {
 	note := func(opt, val string) {
 		switch opt {
 		case "-X", "--method":
 			method, hasMethod = strings.ToUpper(val), true
 		case "-f", "--raw-field", "-F", "--field", "--input":
 			body = true
+		case "-H", "--header":
+			headers = append(headers, val)
 		}
 	}
 	next := func(j int) string {
@@ -69,13 +72,13 @@ func ghParse(args []string) (pos []string, method string, hasMethod, body bool) 
 			pos = append(pos, x)
 		}
 	}
-	return pos, method, hasMethod, body
+	return pos, method, hasMethod, body, headers
 }
 
 // ghAPIIsGet: `gh <args>` is a `gh api` call whose method resolves to GET (none or an explicit GET in any spelling or case)
 // and which has no body flag (gh then uses POST).
 func ghAPIIsGet(args []string) bool {
-	pos, method, hasMethod, body := ghParse(args)
+	pos, method, hasMethod, body, _ := ghParse(args)
 	return len(pos) > 0 && pos[0] == "api" && !body && (!hasMethod || method == "GET")
 }
 
@@ -83,7 +86,7 @@ func ghAPIIsGet(args []string) bool {
 // T-0638), else "": `gh repo edit|rename|archive|unarchive|delete`, and `gh api` with a mutating method (or a body,
 // which makes gh use POST) on repos/<o>/<r>, its branches/*/protection or its rulesets. A read (GET, no body) is fine.
 func ghRepoChange(args []string) string {
-	pos, method, hasMethod, body := ghParse(args)
+	pos, method, hasMethod, body, _ := ghParse(args)
 	if len(pos) > 1 && pos[0] == "repo" && in(ghRepoVerbs, pos[1]) {
 		return "gh repo " + pos[1]
 	}

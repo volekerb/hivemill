@@ -116918,6 +116918,1114 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api -X DELETE repos/acme/x/issues/1",
+"mask_quotes_pre": "gh api -X DELETE repos/acme/x/issues/1",
+"mask_quotes_raw": "gh api -X DELETE repos/acme/x/issues/1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X DELETE repos/acme/x/issues/1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X DELETE repos/acme/x/issues/1"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"gh",
+"api",
+"-X",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"gh",
+"api",
+"-X",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X PUT repos/acme/x/issues/1/lock",
+"mask_quotes_pre": "gh api -X PUT repos/acme/x/issues/1/lock",
+"mask_quotes_raw": "gh api -X PUT repos/acme/x/issues/1/lock",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PUT repos/acme/x/issues/1/lock"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PUT repos/acme/x/issues/1/lock"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"gh",
+"api",
+"-X",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X POST repos/acme/x/issues/1/comments",
+"mask_quotes_pre": "gh api -X POST repos/acme/x/issues/1/comments",
+"mask_quotes_raw": "gh api -X POST repos/acme/x/issues/1/comments",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X POST repos/acme/x/issues/1/comments"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X POST repos/acme/x/issues/1/comments"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"gh",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"gh",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X PATCH repos/acme/x/issues/1",
+"mask_quotes_pre": "gh api -X PATCH repos/acme/x/issues/1",
+"mask_quotes_raw": "gh api -X PATCH repos/acme/x/issues/1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PATCH repos/acme/x/issues/1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X PATCH repos/acme/x/issues/1"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/x/issues/1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"gh",
+"api",
+"-X",
+"PATCH",
+"repos/acme/x/issues/1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method DELETE repos/acme/x/issues/1",
+"mask_quotes_pre": "gh api --method DELETE repos/acme/x/issues/1",
+"mask_quotes_raw": "gh api --method DELETE repos/acme/x/issues/1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method DELETE repos/acme/x/issues/1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method DELETE repos/acme/x/issues/1"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"gh",
+"api",
+"--method",
+"DELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method PUT repos/acme/x/issues/1/lock",
+"mask_quotes_pre": "gh api --method PUT repos/acme/x/issues/1/lock",
+"mask_quotes_raw": "gh api --method PUT repos/acme/x/issues/1/lock",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method PUT repos/acme/x/issues/1/lock"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method PUT repos/acme/x/issues/1/lock"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"gh",
+"api",
+"--method",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"gh",
+"api",
+"--method",
+"PUT",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method POST repos/acme/x/issues/1/comments",
+"mask_quotes_pre": "gh api --method POST repos/acme/x/issues/1/comments",
+"mask_quotes_raw": "gh api --method POST repos/acme/x/issues/1/comments",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method POST repos/acme/x/issues/1/comments"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method POST repos/acme/x/issues/1/comments"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"gh",
+"api",
+"--method",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"gh",
+"api",
+"--method",
+"POST",
+"repos/acme/x/issues/1/comments"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method=DELETE repos/acme/x/issues/1",
+"mask_quotes_pre": "gh api --method=DELETE repos/acme/x/issues/1",
+"mask_quotes_raw": "gh api --method=DELETE repos/acme/x/issues/1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=DELETE repos/acme/x/issues/1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=DELETE repos/acme/x/issues/1"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"gh",
+"api",
+"--method=DELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"gh",
+"api",
+"--method=DELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -XDELETE repos/acme/x/issues/1",
+"mask_quotes_pre": "gh api -XDELETE repos/acme/x/issues/1",
+"mask_quotes_raw": "gh api -XDELETE repos/acme/x/issues/1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XDELETE repos/acme/x/issues/1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XDELETE repos/acme/x/issues/1"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"gh",
+"api",
+"-XDELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"gh",
+"api",
+"-XDELETE",
+"repos/acme/x/issues/1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api repos/acme/x/issues/1 -X delete",
+"mask_quotes_pre": "gh api repos/acme/x/issues/1 -X delete",
+"mask_quotes_raw": "gh api repos/acme/x/issues/1 -X delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x/issues/1 -X delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x/issues/1 -X delete"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-X",
+"delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-X",
+"delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh -R acme/x api -X POST repos/acme/x/issues",
+"mask_quotes_pre": "gh -R acme/x api -X POST repos/acme/x/issues",
+"mask_quotes_raw": "gh -R acme/x api -X POST repos/acme/x/issues",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh -R acme/x api -X POST repos/acme/x/issues"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh -R acme/x api -X POST repos/acme/x/issues"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"gh",
+"-R",
+"acme/x",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"gh",
+"-R",
+"acme/x",
+"api",
+"-X",
+"POST",
+"repos/acme/x/issues"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X HEAD repos/acme/x",
+"mask_quotes_pre": "gh api -X HEAD repos/acme/x",
+"mask_quotes_raw": "gh api -X HEAD repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X HEAD repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X HEAD repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"gh",
+"api",
+"-X",
+"HEAD",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"gh",
+"api",
+"-X",
+"HEAD",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X OPTIONS repos/acme/x",
+"mask_quotes_pre": "gh api -X OPTIONS repos/acme/x",
+"mask_quotes_raw": "gh api -X OPTIONS repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X OPTIONS repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X OPTIONS repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"gh",
+"api",
+"-X",
+"OPTIONS",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"gh",
+"api",
+"-X",
+"OPTIONS",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X '' repos/acme/x",
+"mask_quotes_pre": "gh api -X '' repos/acme/x",
+"mask_quotes_raw": "gh api -X '' repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X '' repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X '' repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"gh",
+"api",
+"-X",
+"''",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"gh",
+"api",
+"-X",
+"''",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X $M repos/acme/x",
+"mask_quotes_pre": "gh api -X $M repos/acme/x",
+"mask_quotes_raw": "gh api -X $M repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X $M repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X $M repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"gh",
+"api",
+"-X",
+"$M",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"gh",
+"api",
+"-X",
+"$M",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api repos/acme/x -X",
+"mask_quotes_pre": "gh api repos/acme/x -X",
+"mask_quotes_raw": "gh api repos/acme/x -X",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x -X"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x -X"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"gh",
+"api",
+"repos/acme/x",
+"-X"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"gh",
+"api",
+"repos/acme/x",
+"-X"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues",
+"mask_quotes_pre": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues",
+"mask_quotes_raw": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'X-HTTP-Method-Override: POST' repos/acme/x/issues"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mask_quotes_pre": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues/1/lock",
+"mask_quotes_raw": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues/1/lock",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1",
+"mask_quotes_pre": "gh api --header 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues/1",
+"mask_quotes_raw": "gh api --header 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues/1",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --header 'x-http-method-override: patch' repos/acme/x/issues/1"
+},
+"segments_pre": [
+[
+0,
+69,
+[
+"gh",
+"api",
+"--header",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues/1"
+]
+]
+],
+"segments_raw": [
+[
+0,
+69,
+[
+"gh",
+"api",
+"--header",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues/1"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'",
+"mask_quotes_pre": "gh api repos/acme/x/issues/1 -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "gh api repos/acme/x/issues/1 -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x/issues/1 -H 'X-HTTP-Method-Override:DELETE'"
+},
+"segments_pre": [
+[
+0,
+63,
+[
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+63,
+[
+"gh",
+"api",
+"repos/acme/x/issues/1",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mask_quotes_pre": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQ' -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/labels/y",
+"mask_quotes_raw": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQ' -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/labels/y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'Accept: application/json' -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y"
+},
+"segments_pre": [
+[
+0,
+94,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQ'",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/labels/y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+94,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQ'",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/labels/y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock",
+"mask_quotes_pre": "gh api --header='QQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues/1/lock",
+"mask_quotes_raw": "gh api --header='QQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/issues/1/lock",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --header='X-HTTP-Method-Override: PUT' repos/acme/x/issues/1/lock"
+},
+"segments_pre": [
+[
+0,
+72,
+[
+"gh",
+"api",
+"--header='QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"segments_raw": [
+[
+0,
+72,
+[
+"gh",
+"api",
+"--header='QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/issues/1/lock"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y",
+"mask_quotes_pre": "gh api -X GET -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/labels/y",
+"mask_quotes_raw": "gh api -X GET -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x/labels/y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X GET -H 'X-HTTP-Method-Override: DELETE' repos/acme/x/labels/y"
+},
+"segments_pre": [
+[
+0,
+71,
+[
+"gh",
+"api",
+"-X",
+"GET",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/labels/y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+71,
+[
+"gh",
+"api",
+"-X",
+"GET",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x/labels/y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -145053,6 +146161,338 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "gh api repos/acme/x",
+"mask_quotes_pre": "gh api repos/acme/x",
+"mask_quotes_raw": "gh api repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"gh",
+"api",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"gh",
+"api",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -X GET repos/acme/x",
+"mask_quotes_pre": "gh api -X GET repos/acme/x",
+"mask_quotes_raw": "gh api -X GET repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X GET repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -X GET repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"gh",
+"api",
+"-X",
+"GET",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"gh",
+"api",
+"-X",
+"GET",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method GET repos/acme/x",
+"mask_quotes_pre": "gh api --method GET repos/acme/x",
+"mask_quotes_raw": "gh api --method GET repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method GET repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method GET repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"gh",
+"api",
+"--method",
+"GET",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"gh",
+"api",
+"--method",
+"GET",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api --method=get repos/acme/x",
+"mask_quotes_pre": "gh api --method=get repos/acme/x",
+"mask_quotes_raw": "gh api --method=get repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=get repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api --method=get repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"gh",
+"api",
+"--method=get",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"gh",
+"api",
+"--method=get",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -XGET repos/acme/x -f per_page=5",
+"mask_quotes_pre": "gh api -XGET repos/acme/x -f per_page=5",
+"mask_quotes_raw": "gh api -XGET repos/acme/x -f per_page=5",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XGET repos/acme/x -f per_page=5"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -XGET repos/acme/x -f per_page=5"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"gh",
+"api",
+"-XGET",
+"repos/acme/x",
+"-f",
+"per_page=5"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"gh",
+"api",
+"-XGET",
+"repos/acme/x",
+"-f",
+"per_page=5"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x",
+"mask_quotes_pre": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x",
+"mask_quotes_raw": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'Accept: application/vnd.github+json' repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+60,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+60,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
+"mask_quotes_pre": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x",
+"mask_quotes_raw": "gh api -H 'QQQQQQQQQQQQQQQQQQQQQQQQQQQ' repos/acme/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x"
+},
+"segments_pre": [
+[
+0,
+52,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+52,
+[
+"gh",
+"api",
+"-H",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"repos/acme/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -152165,7 +153605,7 @@
 ]
 }
 },
-"corpus_commands": 2804,
+"corpus_commands": 2834,
 "edge_inputs": 97,
 "python": "3.13"
 }
