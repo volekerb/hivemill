@@ -19,7 +19,7 @@ Config `terminal_backend` selects which CLI factory runs:
 
 - **Missing status is never idle**: if an agent row from `agent list` has no `agent_status` (or it is empty), factory treats it as **`unknown`**. That blocks nudges, idle-coder reap, and other logic that would treat **idle** or **done** as safe.
 - **Known finding (G-031)**: `hc wait <task> --output <path>` printed the expected output but **did not return** in one on-box trial. Do not rely on `wait` for automation until that is understood; document any new observations in goal notes.
-- **Spawn on `hc`**: `factory spawn` **refuses** while `terminal_backend=hc` (live worker spawn is T-1188). List, read, send, and keys still use `hc`; the tick still runs export, but **does not reconcile agent rows or close panes** until T-1188 (use `herdr` or `auto` for normal tick behavior).
+- **Spawn on `hc`**: `factory spawn` maps `herdr agent start` to `hc run --bg` via a spawn script under `run/<agent>.hc-spawn.sh`. The script uses `env -i` plus explicit exports so the child sees role settings (for example `FACTORY_ROLE`) but not the core messaging credential (`CLAUDE_CODE_MESSAGING_TOKEN`), `HC_SOCKET`, live `HERDR_SOCKET_PATH`, `HERDR_PANE_ID`, or `SSH_AUTH_SOCK`. No secret values appear on the hc argv. Legacy TUI rows (pane ids that are not the agent name) are left alone when `terminal_backend=hc`.
 - **Default for production**: keep `terminal_backend` at **`herdr`** or **`auto`** while the live factory stays on the TUI. A separate pilot can set `hc` per org/role once worker-guard parity, interfaces, and spawn are complete.
 
 ## CI and tests
