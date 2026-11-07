@@ -20715,7 +20715,7 @@
    "role": "qa"
   },
   {
-   "cmd": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean",
+   "cmd": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
    "role": "qa"
   },
   {

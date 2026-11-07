@@ -114177,7 +114177,7 @@
 "src": "corpus"
 },
 {
-"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean",
+"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
 "mode": "script",
 "src": "corpus",
 "tokens": [
@@ -114186,11 +114186,11 @@
 "zipfile.__main__",
 "-e",
 "a.zip",
-"@SCRATCH@/clean"
+"@SCRATCH@/out"
 ]
 },
 {
-"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean",
+"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
 "mode": "default",
 "src": "corpus",
 "tokens": [
@@ -114202,11 +114202,11 @@
 "@",
 "SCRATCH",
 "@",
-"/clean"
+"/out"
 ]
 },
 {
-"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean",
+"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
 "mode": "split",
 "src": "corpus",
 "tokens": [
@@ -114215,13 +114215,13 @@
 "zipfile.__main__",
 "-e",
 "a.zip",
-"@SCRATCH@/clean"
+"@SCRATCH@/out"
 ]
 },
 {
-"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean",
+"input": "python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out",
 "mode": "quote",
-"quoted": "'python3 -m zipfile.__main__ -e a.zip @SCRATCH@/clean'",
+"quoted": "'python3 -m zipfile.__main__ -e a.zip @SCRATCH@/out'",
 "src": "corpus"
 },
 {
