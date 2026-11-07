@@ -36,6 +36,26 @@ def shard_run(tests_dir, modules, i, n):
                           capture_output=True, text=True, cwd=ROOT)
 
 
+class CollectIdsTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.d = self._tmp.name
+
+    def test_import_time_skip_is_module_skipped_and_is_a_problem(self):
+        """Import-time SkipTest must not leave the id list trustworthy without the real test ids (T-1172)."""
+        write(self.d, "test_skipimp.py", "import unittest\nraise unittest.SkipTest('import skip')\n")
+        ids, _, problems = g.collect_ids(["test_skipimp.py"], self.d)
+        self.assertEqual(ids, [])
+        self.assertTrue(any("ModuleSkipped (import-time SkipTest)" in p for p in problems), problems)
+
+    def test_duplicate_test_id_is_reported(self):
+        """Same id discovered twice must fail collect_ids and name the id (duplicate branch)."""
+        write(self.d, "test_dup.py", GOOD)
+        _, _, problems = g.collect_ids(["test_dup.py", "test_dup.py"], self.d)
+        self.assertIn("duplicate test id test_dup.A.test_a", problems)
+
+
 class AssignmentTest(unittest.TestCase):
     def test_real_id_set_is_partitioned_exactly_once_and_deterministically(self):
         ids, _, problems = g.collect_ids(g.diff_module_names())
@@ -89,6 +109,13 @@ class ShardRunTest(unittest.TestCase):
             r = shard_run(self.d, "test_good.py,test_broken.py", i, 3)
             self.assertEqual(r.returncode, 1, r.stdout)
             self.assertIn("test_broken.py", r.stdout)
+
+    def test_import_time_skip_fails_every_shard(self):
+        write(self.d, "test_skipimp.py", "import unittest\nraise unittest.SkipTest('at import')\n")
+        for i in (1, 2, 3):
+            r = shard_run(self.d, "test_skipimp.py", i, 3)
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("ModuleSkipped (import-time SkipTest)", r.stdout)
 
     def test_syntax_error_module_fails(self):
         write(self.d, "test_syn.py", "def (:\n")

@@ -89,6 +89,7 @@ Every page under `docs/`, grouped by what you want to do. New to the factory? St
 - [planning-rules.md](planning-rules.md): planning and retry rules carried by per-role skills.
 - [test-first-pilot.md](test-first-pilot.md): the pilot where QA writes the failing test first.
 - [guard-diff.md](guard-diff.md): compare the worker-guard hook against main before changing it.
+- [guard-unittest-shard.md](guard-unittest-shard.md): how guard unittest ids are sharded in CI and when a shard step fails the list check.
 - [scrub-scan.md](scrub-scan.md): the scanner that catches owner-specific or sensitive data.
 - [go-toolchain.md](go-toolchain.md): how the Go code is built and tested.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (not wired; section status, golden data, lookaround map).
