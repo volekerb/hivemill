@@ -186,14 +186,20 @@ func pyNormpath(p string) string {
 	return out
 }
 
-// IsHerdr is a port of worker-guard.py:is_herdr.
+// IsHerdr is a port of worker-guard.py:is_herdr (herdr, hc, herdr-core).
 func IsHerdr(word string) bool {
 	base := pyBasename(strings.TrimRight(word, "/"))
-	if base == "herdr" {
-		return !IsStub(word)
+	for _, name := range []string{"herdr", "hc", "herdr-core"} {
+		if base == name {
+			return !IsStub(word)
+		}
 	}
 	if base != "[" && base != "[[" && strings.ContainsAny(base, "*?[") {
-		return fnmatchCase("herdr", base)
+		for _, target := range []string{"herdr", "hc", "herdr-core"} {
+			if fnmatchCase(target, base) {
+				return true
+			}
+		}
 	}
 	return false
 }
