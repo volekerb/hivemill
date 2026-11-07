@@ -13845,18 +13845,27 @@ def judge_verdicts_stale(con, t, clock):
     owner_repo = "/".join(t["pr_url"].split("/")[3:5])
     repo_url, carry = None, {}
     for role in ("reviewer", "qa"):
-        try:
-            repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
-            kind, info = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, number, git_repo, repo_url,
-                                                       owner_repo, carry)
-        except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
-            last = con.execute("SELECT head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                               (t["id"], role)).fetchone()
-            x = (last["head_sha"] or "") if last else ""
-            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} (cannot verify: {e})"[:300]
-        if kind == "stale":
-            x, why = info
-            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({why})"[:300]
+        kind, info = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, number, git_repo, repo_url,
+                                                   owner_repo, carry)
+        if kind in ("holds", "carry"):
+            continue
+        if kind == "missing":
+            return f"{role}:missing:{sha[:8]}", f"no {role} PASS"[:300]
+        x, why = info
+        if repo_url is None and x:
+            try:
+                repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+                carry.pop(x, None)  # the no-repo_url probe must not stick once we have a URL
+                kind, info = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, number, git_repo, repo_url,
+                                                           owner_repo, carry)
+                if kind in ("holds", "carry"):
+                    continue
+                if kind == "missing":
+                    return f"{role}:missing:{sha[:8]}", f"no {role} PASS"[:300]
+                x, why = info
+            except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
+                return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} (cannot verify: {e})"[:300]
+        return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({why})"[:300]
     return None
 
 

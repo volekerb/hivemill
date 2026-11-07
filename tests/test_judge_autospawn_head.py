@@ -136,6 +136,48 @@ class JudgeHeadTests(FactoryTestCase):
         self.assertIn("judge-t-0835", spawned[0])
         self.assertEqual(calls, [])  # no carry check needed when the heads match
 
+    def test_both_on_head_spawns_even_when_gh_repo_view_would_hang(self):
+        """Exact-head PASS must spawn without calling gh repo view (no 120s stall on match)."""
+        self.verdict("reviewer", SHA_B)
+        self.verdict("qa", SHA_B)
+        gh_calls = []
+
+        def gh(*a, **k):
+            gh_calls.append(a)
+            raise subprocess.TimeoutExpired("gh", 120)
+
+        spawned, calls = self.tick(SHA_B, gh=gh)
+        self.assertEqual(len(spawned), 1)
+        self.assertEqual(calls, [])
+        self.assertEqual(gh_calls, [])
+
+    def test_latest_non_pass_verdict_counts_as_stale_not_fresh(self):
+        """A newest row that is not PASS must block autospawn like the gate (no {role} PASS)."""
+        self.verdict("reviewer", SHA_B)
+        self.env.sql(
+            "INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
+            (T, PR_URL, SHA_A, "qa", "fail", "nope", "zz", "t2"),
+        )
+        with self.env.load_factory() as f:
+            con = f.db()
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (T,)).fetchone()
+            f._review_probe = lambda url, timeout, con, clock: {
+                "number": 1, "headRefOid": SHA_B, "state": "OPEN",
+            }
+            stale = f.judge_verdicts_stale(con, t, NOW)
+        self.assertIsNotNone(stale)
+        self.assertIn("no qa PASS", stale[1])
+        kinds = []
+        with self.env.load_factory() as f:
+            con = f.db()
+            carry = {}
+            repo = "https://example.invalid/zz/repo"
+            for role in ("reviewer", "qa"):
+                kinds.append(
+                    f.verdict_pass_holds_for_pr_head(con, T, role, SHA_B, 1, f.HOME, repo, "zz-test/repo", carry)[0]
+                )
+        self.assertEqual(kinds, ["holds", "missing"])
+
     def test_verdicts_that_carry_to_the_current_head_start_a_judge(self):
         self.verdict("reviewer", SHA_A)
         self.verdict("qa", SHA_A)
