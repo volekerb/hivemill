@@ -1,6 +1,14 @@
 package guard
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+var (
+	configGlobChar   = regexp.MustCompile(`[*?\[]`)
+	configKeyZshGlob = regexp.MustCompile(`[()|<>^~#]`)
+)
 
 // T-1035 / T-1064: `git config` read classifier (ports worker-guard.py config_parse / config_is_read). Exact tables
 // only; anything not proven a read is a write (fail closed).
@@ -130,14 +138,49 @@ func configValueOptAbbrev(a string) bool {
 	return false
 }
 
-// configExpansionRefuse mirrors worker-guard.py config_expansion_refuse; T-1103 and T-1137 extend it.
-// T-1152: only the swallowed-flag clause — a token after a value option must not be a config flag or write word.
+func configTokenExpansionBuilt(t string) bool {
+	if strings.Contains(t, "`") || strings.Contains(t, "{") {
+		return true
+	}
+	for i := 0; i+1 < len(t); i++ {
+		if t[i] == '$' {
+			return true
+		}
+	}
+	return false
+}
+
+// configExpansionValueOpt matches config_expansion_refuse value-option detection (includes --file abbreviations).
+func configExpansionValueOpt(t string) bool {
+	if in(configParseValueOpts, t) {
+		return true
+	}
+	if len(t) >= 3 && strings.HasPrefix(t, "--") && !strings.Contains(t, "=") {
+		for _, o := range []string{"--type", "--default", "--comment", "--blob", "--value", "--file"} {
+			if strings.HasPrefix(o, t) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// configExpansionRefuse mirrors worker-guard.py config_expansion_refuse.
 func (a *Analyzer) configExpansionRefuse(toks []string) error {
 	if a.HQ {
 		return nil
 	}
-	skip := false
-	for _, t := range toks {
+	read, unsure, skip := false, false, false
+	var key string
+	hasKey := false
+	expansionRefuse := func(t string) error {
+		return blockf("git config: argument " + t + " is built from an expansion, so it could be a write; " +
+			"write the arguments literally (T-1063)")
+	}
+	for n, t := range toks {
+		if configTokenExpansionBuilt(t) || (configGlobChar.MatchString(t) && !read) {
+			return expansionRefuse(t)
+		}
 		if skip {
 			skip = false
 			if in(configFlags, t) || in(configWordWrite, t) {
@@ -146,9 +189,41 @@ func (a *Analyzer) configExpansionRefuse(toks []string) error {
 			}
 			continue
 		}
-		if in(configParseValueOpts, t) || configValueOptAbbrev(t) {
+		name, _, _ := strings.Cut(t, "=")
+		switch {
+		case configExpansionValueOpt(t):
 			skip = true
+		case strings.HasPrefix(t, "-") && t != "-" && !in(configFlags, t) && !in(configActionFlags, t) &&
+			!in(configParseValueOpts, name):
+			unsure = true
+		case (in(configActionFlags, t) || (n == 0 && (t == "get" || t == "list"))) && !unsure:
+			read = true
+		case !hasKey && !strings.HasPrefix(t, "-"):
+			hasKey = true
+			key = t
 		}
+	}
+	if read {
+		return nil
+	}
+	if skip {
+		return blockf("git config: a value option has no value, so zsh may have expanded a glob away from it and " +
+			"the command could be a write; write the arguments literally (T-1063, T-1097)")
+	}
+	if (!unsure && !hasKey) || (hasKey && configKeyZshGlob.MatchString(key)) {
+		scope := ""
+		for _, t := range toks {
+			if t == "--global" || t == "--system" {
+				scope = t
+				break
+			}
+		}
+		if scope != "" {
+			return blockf("`git config " + scope + "` write: " + persistWhy)
+		}
+		return blockf("git config: no read action flag is proven and no literal key is given (a zsh glob such as " +
+			"(a|b), <->, ^z, a~b or al# expands into more arguments, or the key is missing), so it could " +
+			"be a write; write the arguments literally (T-1063, T-1097)")
 	}
 	return nil
 }

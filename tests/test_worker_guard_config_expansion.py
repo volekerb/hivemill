@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 from harness import git  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 TASK = "t-1063"
 WRITERS = ("coder", "judge", "cleaner")
 TEXT = "is built from an expansion, so it could be a write; write the arguments literally (T-1063)"
