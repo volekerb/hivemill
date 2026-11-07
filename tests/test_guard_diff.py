@@ -238,7 +238,7 @@ class EvaluatorRunTests(GuardDiffCase):
         block = _job_block(wf, "guard-self-compare")
         self.assertRegex(block, r"(?m)^    name: guard-self-compare\n")
         self.assertIn("timeout-minutes: 30", block)
-        self.assertIn("git diff --exit-code -- roles/hooks/worker-guard.py", block)
+        self.assertIn("git diff --exit-code -- roles/hooks/worker-guard.py || exit 1", block)
         self.assertRegex(block, r'-le 100 \]')
         self.assertIn(
             "python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator",

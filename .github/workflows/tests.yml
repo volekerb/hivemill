@@ -296,7 +296,7 @@ jobs:
           lines=$(wc -l < ci/guard_corpus.json)
           echo "corpus: ci/guard_corpus.json has $lines lines"
           if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
-          git diff --exit-code -- roles/hooks/worker-guard.py
+          git diff --exit-code -- roles/hooks/worker-guard.py || exit 1
           rc=0
           python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
           if ! grep -F ' 0 loosened, 0 tightened' "$RUNNER_TEMP/gd-self.txt"; then
