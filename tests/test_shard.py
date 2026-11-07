@@ -349,8 +349,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual([int(x) for x in matrix.split(",")], list(range(1, total + 1)))
 
     def test_required_check_name_and_timeouts(self):
-        self.assertRegex(self.wf, r"(?m)^  unittest:\n    name: unittest\n    needs: \[unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest\]\n    if: always\(\)")
-        self.assertEqual(re.findall(r"timeout-minutes: (\d+)", self.wf), ["30", "10", "30", "5", "30", "30", "30", "5"])
+        self.assertRegex(self.wf, r"(?m)^  unittest:\n    name: unittest\n    needs: \[unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-equiv, guard-equiv-rest\]\n    if: always\(\)")
+        self.assertEqual(re.findall(r"timeout-minutes: (\d+)", self.wf), ["30", "10", "30", "5", "30", "30", "30", "30", "5"])
 
     def test_edited_trigger_is_not_used(self):
         # An `edited` run would put a second `unittest` check (or a skipped one, which counts as
@@ -364,6 +364,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("needs.unittest-shard.result", self.wf)
         self.assertIn("needs.guard-unittest.result", self.wf)
         self.assertIn("needs.guard-diff.result", self.wf)
+        self.assertIn("needs.guard-self-compare.result", self.wf)
         self.assertIn("GOTOOLCHAIN: local", self.wf)
 
 

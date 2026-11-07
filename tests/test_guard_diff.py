@@ -5,6 +5,7 @@ import io
 import json
 import os
 import pwd
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,14 @@ sys.path.insert(0, os.path.join(ROOT, "ci"))
 import guard_diff  # noqa: E402
 
 HOOK_REL = "roles/hooks/worker-guard.py"
+_TESTS_YML = os.path.join(ROOT, ".github", "workflows", "tests.yml")
+
+
+def _job_block(text, name):
+    m = re.search(r"(?ms)^  %s:\n(.*?)(?=^  [a-z][a-z-]*:\n|\Z)" % re.escape(name), text)
+    if not m:
+        raise AssertionError("tests.yml has no %s job" % name)
+    return m.group(1)
 
 BAD = "danger-cmd"
 # stub hook: blocks (exit 2) BAD, allows everything else; the PR variants differ from it
@@ -224,10 +233,19 @@ class EvaluatorRunTests(GuardDiffCase):
         git(self.repo, "commit", "-q", "-m", "real hook")
 
     def test_real_hook_against_itself_under_evaluator_role(self):
-        self.commit_real_hook()
-        p = self.run_tool("--mode", "worker", "--role", "evaluator", "--corpus", CORPUS)
-        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertIn(" 0 loosened, 0 tightened", p.stdout)
+        with open(_TESTS_YML, encoding="utf-8") as f:
+            wf = f.read()
+        block = _job_block(wf, "guard-self-compare")
+        self.assertRegex(block, r"(?m)^    name: guard-self-compare\n")
+        self.assertIn("timeout-minutes: 30", block)
+        self.assertIn("git diff --exit-code -- roles/hooks/worker-guard.py", block)
+        self.assertRegex(block, r'-le 100 \]')
+        self.assertIn(
+            "python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator",
+            block,
+        )
+        self.assertIn(" 0 loosened, 0 tightened", block)
+        self.assertNotRegex(block, r"--jobs\b")
 
     def test_removed_evaluator_home_check_is_loosened(self):
         self.commit_real_hook()
