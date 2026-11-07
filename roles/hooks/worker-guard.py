@@ -5631,6 +5631,8 @@ def terms_brace_view(cmd):
             return cmd
         txt = [t[a:b] if q == 0 else None for a, b, q in words]  # None: the word has a quoted part
         head = txt[0]
+        if head in ("cd", "pushd"):
+            continue
         if head not in TERMS_BRACE_HEADS:
             return cmd
         if head == "gh" and (len(txt) < 3 or (txt[1], txt[2]) not in TERMS_BRACE_GH):
