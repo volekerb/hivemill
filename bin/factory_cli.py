@@ -4467,6 +4467,35 @@ def verdict_carries(repo, x, y, pr_number, repo_url, owner_repo):
     return False, f"not a pure main merge: {x[:8]} is not a first-parent ancestor within {CARRY_MAX_COMMITS} commits", None, []
 
 
+def verdict_pass_holds_for_pr_head(con, task_id, role, pr_head, pr_number, git_repo, repo_url, owner_repo, carry,
+                                 *, carry_unavailable=None):
+    """Whether the latest PASS for `role` still counts at PR head `pr_head` (exact or case-folded match, else T-0095
+    carry-over). Shared by _judge_gate_and_merge, train_ready and judge_verdicts_stale; autospawn may be stricter in
+    callers but never looser than this rule. `carry` is a memo from verdict head -> verdict_carries result.
+    `carry_unavailable` is used when `repo_url` could not be read (gate) instead of calling verdict_carries. Returns one
+    of (\"missing\", None), (\"holds\", None), (\"carry\", (verdict_head, main_sha, merges)), (\"stale\", (verdict_head, why))."""
+    last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                       (task_id, role)).fetchone()
+    if not last or last["verdict"] != "pass":
+        return "missing", None
+    x = last["head_sha"] or ""
+    if x == pr_head or x.lower() == pr_head.lower():
+        return "holds", None
+    if x not in carry:
+        if carry_unavailable is not None:
+            carry[x] = carry_unavailable
+        elif not repo_url:
+            carry[x] = (False, "cannot verify, gh repo view failed", None, [])
+        elif x:
+            carry[x] = verdict_carries(git_repo, x, pr_head, pr_number, repo_url, owner_repo)
+        else:
+            carry[x] = (False, "verdict has no head", None, [])
+    ok, why, main_sha, merges = carry[x]
+    if ok:
+        return "carry", (x, main_sha, merges)
+    return "stale", (x, why)
+
+
 JUDGE_POLL_S = 30  # seconds between pr_state polls while CI is pending; $FACTORY_JUDGE_POLL_S overrides (tests)
 
 
@@ -4889,15 +4918,14 @@ def train_ready(con, tid, git_repo):
         repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
     except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: cannot verify, drop the task
         return sha, pr["number"], None, owner_repo, [f"cannot verify, gh repo view failed: {e}"]
+    carry = {}
     for role in ("reviewer", "qa"):
-        last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                           (tid, role)).fetchone()
-        if not last or last["verdict"] != "pass":
+        kind, info = verdict_pass_holds_for_pr_head(con, tid, role, sha, pr["number"], git_repo, repo_url, owner_repo, carry)
+        if kind == "missing":
             problems.append(f"no {role} PASS")
-        elif last["head_sha"] != sha:
-            ok, why, _, _ = verdict_carries(git_repo, last["head_sha"], sha, pr["number"], repo_url, owner_repo)
-            if not ok:
-                problems.append(f"{role} PASS is for {last['head_sha'][:8]}, head is {sha[:8]} ({why})")
+        elif kind == "stale":
+            x, why = info
+            problems.append(f"{role} PASS is for {x[:8]}, head is {sha[:8]} ({why})")
     if pr["state"] != "OPEN":
         problems.append(f"PR is {pr['state']}")
     if pr["isDraft"]:
@@ -5478,27 +5506,24 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
     while True:
         # Gate: both verdicts must be PASS on this exact head, CI green, PR open & mergeable.
         problems, carry, carried = [], {}, []
-        for role in ("reviewer", "qa"):
-            last = con.execute("SELECT verdict,head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
-                               (a.task, role)).fetchone()
-            if not last or last["verdict"] != "pass":
-                problems.append(f"no {role} PASS")
-            elif last["head_sha"] != sha:
-                x = last["head_sha"]
-                if x not in carry:
-                    owner_repo = "/".join(t["pr_url"].split("/")[3:5])
-                    try:
-                        repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
-                    except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: refuse the carry instead
-                        carry[x] = (False, f"cannot verify, gh repo view failed: {e}", None, [])
-                    else:
-                        carry[x] = verdict_carries(git_repo, x, sha, pr["number"], repo_url, owner_repo)
-                ok, why, main_sha, merges = carry[x]
-                if ok:
-                    carried.append((role, x, main_sha, merges))
-                else:
-                    problems.append(f"{role} PASS is for {x[:8]}, head is now {sha[:8]} ({why})")
         owner_repo = "/".join(t["pr_url"].split("/")[3:5])
+        try:
+            repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+            carry_unavail = None
+        except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: refuse the carry instead
+            repo_url = None
+            carry_unavail = (False, f"cannot verify, gh repo view failed: {e}", None, [])
+        for role in ("reviewer", "qa"):
+            kind, info = verdict_pass_holds_for_pr_head(con, a.task, role, sha, pr["number"], git_repo, repo_url,
+                                                       owner_repo, carry, carry_unavailable=carry_unavail)
+            if kind == "missing":
+                problems.append(f"no {role} PASS")
+            elif kind == "carry":
+                x, main_sha, merges = info
+                carried.append((role, x, main_sha, merges))
+            elif kind == "stale":
+                x, why = info
+                problems.append(f"{role} PASS is for {x[:8]}, head is now {sha[:8]} ({why})")
         try:
             repo_url = gh_json("repo", "view", owner_repo, "--json", "url")["url"]
         except (SystemExit, ValueError, KeyError) as e:  # gh_json dies on a gh failure: cannot verify, refuse
@@ -13806,10 +13831,9 @@ def judge_status_only_hold(con, task_id):
 
 
 def judge_verdicts_stale(con, t, clock):
-    """T-1098: (throttle key part, why) when the latest reviewer and QA PASS do not both hold for the PR's CURRENT head, else None. A PASS recorded on an older head
-    counts only when the T-0095 carry rule does (pure origin/main merges since): the same test the merge gate applies, so a judge
-    never starts only to reject on head. Fails closed: an unreadable PR or an unverifiable carry is a reason. Local-gate projects
-    (gate_cmd, decided from gate_runs) are not checked here."""
+    """T-1098/T-0969: (throttle key part, why) when the latest reviewer and QA PASS do not both hold for the PR's CURRENT head,
+    else None. Uses verdict_pass_holds_for_pr_head (same rule as _judge_gate_and_merge and train_ready). Fails closed: an
+    unreadable PR or an unverifiable carry is a reason. Local-gate projects (gate_cmd) are not checked here."""
     if gate_project_for(con, t["pr_url"]):
         return None
     pr = _review_probe(t["pr_url"], CI_WAKE_GH_TIMEOUT_S, con, clock)
@@ -13821,18 +13845,18 @@ def judge_verdicts_stale(con, t, clock):
     owner_repo = "/".join(t["pr_url"].split("/")[3:5])
     repo_url, carry = None, {}
     for role in ("reviewer", "qa"):
-        last = con.execute("SELECT head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1", (t["id"], role)).fetchone()
-        x = (last["head_sha"] or "") if last else ""
-        if x.lower() == sha.lower():
-            continue
-        if x not in carry:
-            try:
-                repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
-                carry[x] = verdict_carries(git_repo, x, sha, number, repo_url, owner_repo) if x else (False, "verdict has no head", None, [])
-            except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
-                carry[x] = (False, f"cannot verify: {e}", None, [])
-        if not carry[x][0]:
-            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({carry[x][1]})"[:300]
+        try:
+            repo_url = repo_url or gh_json("repo", "view", owner_repo, "--json", "url")["url"]
+            kind, info = verdict_pass_holds_for_pr_head(con, t["id"], role, sha, number, git_repo, repo_url,
+                                                       owner_repo, carry)
+        except (SystemExit, ValueError, KeyError, subprocess.TimeoutExpired, OSError) as e:  # a hung gh must not end the tick
+            last = con.execute("SELECT head_sha FROM verdicts WHERE task_id=? AND role=? ORDER BY id DESC LIMIT 1",
+                               (t["id"], role)).fetchone()
+            x = (last["head_sha"] or "") if last else ""
+            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} (cannot verify: {e})"[:300]
+        if kind == "stale":
+            x, why = info
+            return f"{role}:{x[:8]}:{sha[:8]}", f"{role} PASS is for {x[:8] or '?'}, head is {sha[:8]} ({why})"[:300]
     return None
 
 

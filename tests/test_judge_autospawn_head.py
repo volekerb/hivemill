@@ -1,4 +1,4 @@
-"""T-1098: the tick starts a judge only when the latest reviewer AND QA PASS both hold for the PR's current head (or carry to it)."""
+"""T-0969/T-1098: judge autospawn_tick only when reviewer and QA PASS hold on the PR head (verdict_pass_holds_for_pr_head, same as the merge gate)."""
 import io
 import subprocess
 import unittest
@@ -142,6 +142,36 @@ class JudgeHeadTests(FactoryTestCase):
         spawned, calls = self.tick(SHA_B, carries=True)
         self.assertEqual(len(spawned), 1)
         self.assertEqual(calls, [(SHA_A, SHA_B)])  # one carry check for the shared old head
+
+    def test_pure_main_merge_carry_matches_train_ready(self):
+        """T-0969: verdict_pass_holds_for_pr_head is the shared rule — train_ready and autospawn stale agree on carry/no-carry."""
+        self.verdict("reviewer", SHA_A)
+        self.verdict("qa", SHA_A)
+        repo_url, owner = "https://example.invalid/zz/repo", "zz-test/repo"
+        with self.env.load_factory() as f:
+            con = f.db()
+            t = con.execute("SELECT * FROM tasks WHERE id=?", (T,)).fetchone()
+            f._review_probe = lambda url, timeout, con, clock: {
+                "number": 1, "headRefOid": SHA_B, "state": "OPEN", "statusCheckRollup": GREEN, "mergeStateStatus": "CLEAN"}
+            f.pr_state = lambda url: {"number": 1, "headRefOid": SHA_B, "state": "OPEN", "isDraft": False, "baseRefName": "main",
+                                      "statusCheckRollup": GREEN, "mergeable": "MERGEABLE"}
+            f.gh_json = lambda *a, **k: {"url": repo_url}
+            for carries in (False, True):
+                f.verdict_carries = lambda *a, **k: (True, "", "m" * 40, []) if carries else (
+                    False, "head moved by a real change", None, [])
+                train_probs = f.train_ready(con, T, f.HOME)[4]
+                stale = f.judge_verdicts_stale(con, t, NOW)
+                carry = {}
+                kinds = [f.verdict_pass_holds_for_pr_head(con, T, role, SHA_B, 1, f.HOME, repo_url, owner, carry)[0]
+                         for role in ("reviewer", "qa")]
+                if carries:
+                    self.assertFalse(any("PASS is for" in p for p in train_probs), carries)
+                    self.assertIsNone(stale, carries)
+                    self.assertEqual(kinds, ["carry", "carry"], carries)
+                else:
+                    self.assertTrue(any("PASS is for" in p for p in train_probs), carries)
+                    self.assertIsNotNone(stale, carries)
+                    self.assertEqual(kinds, ["stale", "stale"], carries)
 
 
 if __name__ == "__main__":
