@@ -1,9 +1,21 @@
 """T-1084: terminal_backend (herdr | hc | auto), doctor/res lines, missing agent_status -> unknown."""
+import importlib.util
 import json
 import os
 import unittest
+from pathlib import Path
 
 from harness import FactoryTestCase
+
+ROOT = Path(__file__).resolve().parents[1]
+_FACTORY_CLI = ROOT / "bin" / "factory_cli.py"
+
+
+def _load_factory_cli():
+    spec = importlib.util.spec_from_file_location("factory_cli", _FACTORY_CLI)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 class TerminalBackendTests(FactoryTestCase):
@@ -26,6 +38,36 @@ class TerminalBackendTests(FactoryTestCase):
         herdr_calls = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["agent", "list"]]
         self.assertTrue(hc_calls, hc_calls)
         self.assertFalse(herdr_calls, herdr_calls)
+        p = self.ok("tick", agent="owner")
+        self.assertNotIn("herdr unreachable", p.stdout)
+
+    def test_hc_ls_envelope_parses_to_agent_rows(self):
+        f = _load_factory_cli()
+        env = json.dumps({"hidden_finished": 0, "terminals": [
+            {"name": "zz-coder", "agent": "claude", "state": "live"},
+            {"name": "zz-qa", "agent": "claude", "state": "live", "status": "working"},
+        ]})
+        parsed = f._hc_unwrap_result(["ls"], json.loads(env))
+        self.assertEqual(parsed["agents"][0], {"name": "zz-coder", "agent": "claude"})
+        self.assertEqual(parsed["agents"][1]["agent_status"], "working")
+        empty = f._hc_unwrap_result(["ls"], {"hidden_finished": 0, "terminals": []})
+        self.assertEqual(empty, {"agents": []})
+
+    def test_hc_agent_start_argv_drops_tui_only_flags(self):
+        f = _load_factory_cli()
+        argv = ("agent", "start", "zz-coder", "--kind", "claude", "--pane", "p1", "--timeout", "90000",
+                "--", "--model", "opus", "-n", "zz-coder")
+        self.assertEqual(
+            f._hc_translate_args(argv),
+            ["run", "--bg", "--name", "zz-coder", "--model", "opus", "-n", "zz-coder"],
+        )
+
+    def test_hc_agent_read_argv_lines_only(self):
+        f = _load_factory_cli()
+        self.assertEqual(
+            f._hc_translate_args(("agent", "read", "zz-coder", "--source", "recent", "--lines", "60", "--timeout", "5")),
+            ["read", "zz-coder", "--lines", "60"],
+        )
 
     def test_herdr_config_routes_through_herdr_stub_not_hc(self):
         """Explicit herdr keeps the TUI path even when `hc` is also on PATH (harness stubs)."""

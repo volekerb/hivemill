@@ -1696,7 +1696,7 @@ class Analyzer:
                     raise PrivBlock(hit)
                 if not self.hq and persist_code(body):
                     raise Block(f"interpreter code naming a protected config/init file: {PERSIST_WHY}")
-            elif not self.hq and re.search(r"herdr", body):
+            elif not self.hq and HOST_CLI_WORD.search(body):
                 raise Block("herdr in an interpreter heredoc")
         try:
             lex = shlex.shlex(re.sub(r"(?<![\w$])\d+(?=[<>])", " ", text), posix=True, punctuation_chars=True)
@@ -3743,16 +3743,16 @@ class Analyzer:
             self.unittest_full(name, rest)
             self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
-                if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
+                if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and HOST_CLI_WORD.search(rest[j + 1]):
                     raise Block("herdr in inline interpreter code")
         elif name in ("pytest", "py.test"):
             self.pytest_full(name, rest)
         elif name in AWKS or name in EDITORS:
-            if any("herdr" in a for a in rest):
+            if any(HOST_CLI_WORD.search(a) for a in rest):
                 raise Block(f"herdr in {name} program text (can run shell commands)")
         elif name == "sed":
             for a in rest:
-                if "herdr" in a and re.search(r"(?:^|[\s;{}\d$,])e\b|/[gIpmM]*e[gIpmM]*(?:\s|;|$)", a):
+                if HOST_CLI_WORD.search(a) and re.search(r"(?:^|[\s;{}\d$,])e\b|/[gIpmM]*e[gIpmM]*(?:\s|;|$)", a):
                     raise Block("herdr in a sed e command")
         elif name == "git":
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice

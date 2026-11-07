@@ -1137,6 +1137,42 @@ def _host_ipc_env(exe):
     return {**os.environ, "HERDR_SOCKET_PATH": herdr_socket()}
 
 
+def _hc_terminal_to_agent_row(t):
+    """Map one hc ls terminal object into the row shape the tick already normalizes (no invented fields)."""
+    if not isinstance(t, dict):
+        return t
+    row = {}
+    if t.get("name") is not None:
+        row["name"] = t["name"]
+    if t.get("agent") is not None:
+        row["agent"] = t["agent"]
+    st = t.get("status")
+    if st is not None and st != "":
+        row["agent_status"] = st
+    return row
+
+
+def _hc_unwrap_result(ipc_argv, payload):
+    """Convert herdr-core JSON stdout into the dict shape factory expects from the TUI `result` field."""
+    if not isinstance(payload, dict):
+        return payload
+    cmd = ipc_argv[0] if ipc_argv else ""
+    if cmd == "ls":
+        terminals = payload.get("terminals")
+        if not isinstance(terminals, list):
+            return None
+        return {"agents": [_hc_terminal_to_agent_row(t) for t in terminals]}
+    if cmd == "read":
+        if "text" in payload:
+            return {"text": payload["text"]}
+        return payload
+    if cmd == "run":
+        return {"agent": _hc_terminal_to_agent_row(payload)}
+    if cmd in ("send", "keys"):
+        return {}
+    return payload
+
+
 def _hc_translate_args(args):
     """Map TUI herdr IPC verbs to herdr-core `hc` CLI. None means no hc equivalent (fail this step only)."""
     a = list(args)
@@ -1149,19 +1185,8 @@ def _hc_translate_args(args):
         if verb == "start" and len(a) >= 3:
             name = a[2]
             out = ["run", "--bg", "--name", name]
-            i = 3
-            while i < len(a):
-                if a[i] == "--":
-                    out.extend(a[i + 1:])
-                    break
-                if a[i] in ("--kind", "--pane", "--session-id") and i + 1 < len(a):
-                    out.extend([a[i], a[i + 1]])
-                    i += 2
-                    continue
-                if a[i] == "--timeout" and i + 1 < len(a):
-                    i += 2
-                    continue
-                i += 1
+            if "--" in a:
+                out.extend(a[a.index("--") + 1:])
             return out
         if verb == "prompt" and len(a) >= 4:
             return ["send", a[2], a[3]]
@@ -1169,8 +1194,8 @@ def _hc_translate_args(args):
             out = ["read", a[2]]
             i = 3
             while i < len(a):
-                if a[i] in ("--source", "--lines", "--timeout") and i + 1 < len(a):
-                    out.extend([a[i], a[i + 1]])
+                if a[i] == "--lines" and i + 1 < len(a):
+                    out.extend(["--lines", a[i + 1]])
                     i += 2
                 else:
                     i += 1
@@ -1218,6 +1243,21 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
         return None
     out = p.stdout.strip()
     try:
+        if exe == "hc":
+            if ipc_argv[:1] == ["read"]:
+                try:
+                    payload = json.loads(out.splitlines()[-1])
+                except (json.JSONDecodeError, IndexError):
+                    return {"text": out}
+                return _hc_unwrap_result(ipc_argv, payload) or {"text": out}
+            line = out.splitlines()[-1] if out else ""
+            if not line:
+                return {}
+            payload = json.loads(line)
+            parsed = _hc_unwrap_result(ipc_argv, payload)
+            if parsed is None:
+                return {"raw": out}
+            return parsed
         return json.loads(out.splitlines()[-1])["result"] if out else {}
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
@@ -1245,6 +1285,22 @@ def herdr_start_error(*args):
         return None, p.stderr.strip() or p.stdout.strip() or f"exit {p.returncode}"
     out = p.stdout.strip()
     try:
+        if exe == "hc":
+            if ipc_argv[:1] == ["read"]:
+                try:
+                    payload = json.loads(out.splitlines()[-1])
+                except (json.JSONDecodeError, IndexError):
+                    return {"text": out}, None
+                parsed = _hc_unwrap_result(ipc_argv, payload)
+                return (parsed if parsed is not None else {"text": out}), None
+            line = out.splitlines()[-1] if out else ""
+            if not line:
+                return {}, None
+            payload = json.loads(line)
+            parsed = _hc_unwrap_result(ipc_argv, payload)
+            if parsed is None:
+                return {"raw": out}, None
+            return parsed, None
         return (json.loads(out.splitlines()[-1])["result"] if out else {}), None
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}, None
@@ -8063,6 +8119,9 @@ def free_shell_pane(ws_id, tab_id):
 
 def place(con, role, goal, team, name, cwd, env):
     """Find or create the pane an agent will live in. Returns (workspace, tab, pane)."""
+    _, exe = terminal_backend_effective(con)
+    if exe == "hc":
+        return None, None, name
     envs = [x for k, v in env.items() for x in ("--env", f"{k}={v}")]
     if role in ("boss", "director") or not goal:
         ws = ensure_hq(con)

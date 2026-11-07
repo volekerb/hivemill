@@ -53,9 +53,23 @@ def new_tab(ws, label):
     return tab, pane
 
 
+def hc_ls_envelope():
+    terminals = []
+    for a in st["agents"]:
+        t = {"name": a.get("name"), "agent": a.get("agent", "claude"), "state": "live"}
+        if a.get("agent_status"):
+            t["status"] = a["agent_status"]
+        terminals.append(t)
+    return {"hidden_finished": 0, "terminals": terminals}
+
+
+def hc_print(obj):
+    print(json.dumps(obj))
+
+
 # herdr-core native verbs (factory translates TUI calls when terminal_backend=hc)
 if argv[:1] == ["ls"]:
-    out({"agents": st["agents"]})
+    hc_print(hc_ls_envelope())
     with open(STATE, "w") as f:
         json.dump(st, f)
     sys.exit(0)
@@ -68,7 +82,7 @@ if argv[:1] == ["run"] and "--bg" in argv:
              "agent_session": {"value": opt("--session-id") or "sess-" + name}}
     if name and not st.get("slow_list"):
         st["agents"] = [a for a in st["agents"] if a.get("name") != name] + [agent]
-    out({"agent": agent})
+    hc_print({"name": name, "agent": "claude", "state": "live"})
     with open(STATE, "w") as f:
         json.dump(st, f)
     sys.exit(0)
@@ -78,7 +92,11 @@ if argv[:1] == ["send"] and len(argv) >= 3:
         json.dump(st, f)
     sys.exit(0)
 if argv[:1] == ["read"] and len(argv) >= 2:
-    out({"text": st.get("read_text", {}).get(argv[1], "")})
+    text = st.get("read_text", {}).get(argv[1], "")
+    if "--json" in argv:
+        hc_print({"complete": True, "how": "history", "text": text})
+    else:
+        print(text)
     with open(STATE, "w") as f:
         json.dump(st, f)
     sys.exit(0)

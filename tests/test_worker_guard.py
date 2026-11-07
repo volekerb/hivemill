@@ -40,6 +40,18 @@ class WorkerGuardTests(unittest.TestCase):
         p = run_hook(cmd)
         self.assertEqual(p.returncode, 0, f"should allow: {cmd!r}\n{p.stderr}")
 
+    def test_hc_in_interpreter_sinks_blocked_like_herdr(self):
+        for cmd in (
+            'python3 -c \'import os; os.system("hc server stop")\'',
+            'perl -e \'system("hc server stop")\'',
+            'awk \'BEGIN{system("hc server stop")}\'',
+            'vim -c \'!hc server stop\'',
+            "sed -n 'e hc server stop'",
+            "python3 <<'EOF'\nimport os\nos.system('hc server stop')\nEOF",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assertBlocked(cmd)
+
     def test_spec_blocked(self):
         for cmd in (
             "herdr server stop",

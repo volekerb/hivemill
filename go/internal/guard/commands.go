@@ -836,7 +836,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 		for j := 0; j+1 < len(rest); j++ {
-			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && strings.Contains(rest[j+1], "herdr") {
+			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && HasHerdrWord(rest[j+1]) {
 				return blockf("herdr in inline interpreter code")
 			}
 		}
@@ -845,12 +845,12 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	case in(Awks, name) || in(Editors, name):
-		if anyOf(rest, func(x string) bool { return strings.Contains(x, "herdr") }) {
+		if anyOf(rest, func(x string) bool { return HasHerdrWord(x) }) {
 			return blockf("herdr in " + name + " program text (can run shell commands)")
 		}
 	case name == "sed":
 		for _, x := range rest {
-			if strings.Contains(x, "herdr") && sedHerdr(x) {
+			if HasHerdrWord(x) && sedHerdr(x) {
 				return blockf("herdr in a sed e command")
 			}
 		}
