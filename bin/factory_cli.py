@@ -3618,12 +3618,13 @@ def cmd_task(a):
         why = task_note_refuse_id(a)
         if why:
             die(why, 2)
-        if not con.execute("SELECT 1 FROM tasks WHERE id=?", (a.id,)).fetchone():
-            die(f"no task {a.id}. Nothing was written.", 2)
+        tid = (a.id or "").strip()
+        if not con.execute("SELECT 1 FROM tasks WHERE id=?", (tid,)).fetchone():
+            die(f"no task {tid}. Nothing was written.", 2)
         text = read_text(a.text)
         if not (text or "").strip():
             die("task note text is empty; pass the note as an argument or on stdin with '-'. Nothing was written.", 2)
-        event(con, "task", a.id, "note", text)
+        event(con, "task", tid, "note", text)
         print("noted")
     elif a.action == "tier":
         task_tier_cmd(con, a)
