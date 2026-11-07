@@ -177,10 +177,22 @@ func CfgCode(word string) bool {
 	}, word))
 }
 
-// HasHerdrWord ports HERDR_WORD (worker-guard.py:268): (?<!tests/stubs/)\bherdr\b
+// HasHerdrWord ports HOST_CLI_WORD (worker-guard.py): herdr | hc | herdr-core.
 func HasHerdrWord(s string) bool {
-	for i := 0; i+5 <= len(s); i++ {
-		if herdrAt(s, i) {
+	for i := 0; i < len(s); i++ {
+		if hostCLIAt(s, i) {
+			return true
+		}
+	}
+	return false
+}
+
+func hostCLIAt(s string, i int) bool {
+	for _, w := range []string{"herdr-core", "herdr", "hc"} {
+		if hasAt(s, i, w) && boundary(s, i) && boundary(s, i+len(w)) {
+			if i >= 12 && s[i-12:i] == "tests/stubs/" {
+				return false
+			}
 			return true
 		}
 	}
@@ -188,7 +200,19 @@ func HasHerdrWord(s string) bool {
 }
 
 func herdrAt(s string, i int) bool {
-	return hasAt(s, i, "herdr") && !(i >= 12 && s[i-12:i] == "tests/stubs/") && boundary(s, i) && boundary(s, i+5)
+	return hostCLIAt(s, i)
+}
+
+func hostCLIWordLen(s string, i int) int {
+	for _, w := range []string{"herdr-core", "herdr", "hc"} {
+		if hasAt(s, i, w) && boundary(s, i) && boundary(s, i+len(w)) {
+			if i >= 12 && s[i-12:i] == "tests/stubs/" {
+				return 0
+			}
+			return len(w)
+		}
+	}
+	return 0
 }
 
 var r1Nouns = []string{"agent", "pane", "tab", "workspace", "worktree"}
@@ -200,15 +224,16 @@ var r1Verbs = []string{"start", "stop", "kill", "close", "prompt", "split", "new
 //
 // (`.` does not match a newline; the mutating sequence itself may continue past one).
 func MatchR1(s string) bool {
-	for i := 0; i+5 <= len(s); i++ {
-		if !herdrAt(s, i) {
+	for i := 0; i < len(s); i++ {
+		wlen := hostCLIWordLen(s, i)
+		if wlen == 0 {
 			continue
 		}
 		eol := len(s)
-		if k := strings.IndexByte(s[i+5:], '\n'); k >= 0 {
-			eol = i + 5 + k
+		if k := strings.IndexByte(s[i+wlen:], '\n'); k >= 0 {
+			eol = i + wlen + k
 		}
-		for p := i + 5; p <= eol; p++ {
+		for p := i + wlen; p <= eol; p++ {
 			if r1Sequence(s, p) {
 				return true
 			}
@@ -250,7 +275,7 @@ func r1Sequence(s string, p int) bool {
 
 // MatchR3Redir ports R3_REDIR (worker-guard.py:267).search(s):
 //
-//	<\s*["']?(?!\S*tests/stubs/)\S*(?:/herdr\b|\$\{?HERDR_BIN_PATH)
+//	<\s*["']?(?!\S*tests/stubs/)\S*(?:/(?:herdr|hc|herdr-core)\b|\$\{?HERDR_BIN_PATH)
 func MatchR3Redir(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] != '<' {
@@ -273,15 +298,17 @@ func MatchR3Redir(s string) bool {
 			if strings.Contains(run, "$HERDR_BIN_PATH") || strings.Contains(run, "${HERDR_BIN_PATH") {
 				return true
 			}
-			for k := strings.Index(run, "/herdr"); k >= 0; {
-				if boundary(s, st+k+len("/herdr")) {
-					return true
+			for _, needle := range []string{"/herdr-core", "/herdr", "/hc"} {
+				for k := strings.Index(run, needle); k >= 0; {
+					if boundary(s, st+k+len(needle)) {
+						return true
+					}
+					nx := strings.Index(run[k+1:], needle)
+					if nx < 0 {
+						break
+					}
+					k += 1 + nx
 				}
-				nx := strings.Index(run[k+1:], "/herdr")
-				if nx < 0 {
-					break
-				}
-				k += 1 + nx
 			}
 		}
 	}
