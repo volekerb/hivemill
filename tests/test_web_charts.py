@@ -111,11 +111,11 @@ class TestColumns(unittest.TestCase):
             x = [float(v) for v in re.findall(r'class="col-val" x="([^"]+)"', c)]
             return c, x
         c, x = labels(7)                                  # 7 bars: 36 px columns, every bar labelled
-        self.assertIn('viewBox="0 0 252 96"', c)
+        self.assertIn('viewBox="0 0 288 96"', c)
         self.assertEqual(len(x), 7)
         self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
         c, x = labels(14)                                 # 14 bars would pass 336 px: 24 px columns, every 2nd bar labelled
-        self.assertIn('viewBox="0 0 336 96"', c)
+        self.assertIn('viewBox="0 0 372 96"', c)
         self.assertEqual(len(x), 7)
         self.assertTrue(all(b - a >= 36 for a, b in zip(x, x[1:])), x)
 
@@ -125,7 +125,7 @@ class TestColumns(unittest.TestCase):
 
     def test_small_integer_output_is_unchanged(self):
         c = str(charts.columns(DAYS, "merges"))
-        self.assertIn('viewBox="0 0 336 96"', c)
+        self.assertIn('viewBox="0 0 372 96"', c)
         self.assertIn("<title>10-17: 3 merges</title>", c)
         self.assertIn('aria-label="12 merges in 14 days, peak 3 on 10-17"', c)
         self.assertIn("<tr><td>2026-10-17</td><td>3</td></tr>", c)
@@ -135,6 +135,11 @@ class TestColumns(unittest.TestCase):
                   charts.columns(DAYS, "m")):
             self.assertNotRegex(str(m), r'style=|fill="#|stroke="#')
 
+    def test_column_svg_scales_to_container_without_fixed_pixel_width(self):
+        c = str(charts.columns(DAYS, "merges"))
+        self.assertIn('preserveAspectRatio="xMidYMin meet"', c)
+        self.assertNotRegex(c, r'<svg[^>]*\swidth="')
+
 
 class TestTile(unittest.TestCase):
     def test_tile_has_value_unit_delta_and_definition_disclosure(self):
@@ -143,6 +148,12 @@ class TestTile(unittest.TestCase):
         self.assertIn('class="delta fg-success">up 12 pts<', t)
         self.assertIn("<details", t)
         self.assertIn("Share never rejected.", t)
+
+    def test_tile_unit_nl_stacks_unit_under_value(self):
+        t = str(tile("Merges", "55", unit="in 14 days", unit_nl=True))
+        self.assertIn('class="metric metric--stack"', t)
+        self.assertIn('<div class="metric-val">55</div>', t)
+        self.assertIn('<small class="tile-unit">in 14 days</small>', t)
 
     def test_tile_without_extras_and_with_href(self):
         t = str(tile("Open PRs", 4, href="/tasks"))

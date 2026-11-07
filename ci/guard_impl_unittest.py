@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.loader
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -117,11 +118,18 @@ class CountingResult(unittest.TextTestResult):
         self._cur = None
 
 
+def _is_module_skipped_placeholder(t):
+    """True if discover turned import-time SkipTest into unittest.loader.ModuleSkipped (stdlib 3.11+)."""
+    cls = type(t)
+    return cls.__name__ == "ModuleSkipped" and cls.__module__ == unittest.loader.__name__
+
+
 def collect_ids(names, tests_dir=TESTS):
     """Load every module in `names`; return (sorted test ids, id -> test, problems).
 
     problems lists loader errors, _FailedTest ids (a module that fails to import) and modules that yield no test, so an
-    import failure can never shrink the id set unnoticed (T-1039). Loading puts tests_dir on sys.path, as discover does.
+    import failure can never shrink the id set unnoticed (T-1039). Import-time SkipTest becomes unittest.loader.ModuleSkipped;
+    that is a problem: the shard must not green with real ids missing (T-1172). Loading puts tests_dir on sys.path, as discover does.
     """
     problems, tests = [], []
     for base in names:
@@ -130,9 +138,18 @@ def collect_ids(names, tests_dir=TESTS):
         problems += ["%s: loader error: %s" % (base, e.strip().splitlines()[-1] if e.strip() else e) for e in loader.errors]
         bad = [t.id() for t in found if type(t).__name__ == "_FailedTest"]
         problems += ["%s: failed to load: %s" % (base, i) for i in bad]
-        good = [t for t in found if type(t).__name__ != "_FailedTest"]
+        good = []
+        for t in found:
+            if type(t).__name__ == "_FailedTest":
+                continue
+            if _is_module_skipped_placeholder(t):
+                problems.append(
+                    "%s: ModuleSkipped (import-time SkipTest): %s" % (base, t.id()))
+                continue
+            good.append(t)
         if not good:
-            problems.append("%s: no tests found" % base)
+            if not any(p.startswith("%s: ModuleSkipped (import-time SkipTest)" % base) for p in problems):
+                problems.append("%s: no tests found" % base)
         tests += good
     by_id = {}
     for t in tests:

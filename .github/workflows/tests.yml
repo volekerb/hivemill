@@ -33,10 +33,10 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Tier (rules from the base commit)
@@ -88,10 +88,10 @@ jobs:
       run:
         working-directory: go
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Tier (rules from the base commit)
@@ -112,7 +112,7 @@ jobs:
           python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # No go/** change (and not a full run): the job reports success without building.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.tier.outputs.go == 'true'
         with:
           go-version-file: go/go.mod
@@ -149,15 +149,15 @@ jobs:
       GOFLAGS: -mod=readonly
       GOPROXY: "off"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install zsh
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
@@ -198,15 +198,15 @@ jobs:
       GOFLAGS: -mod=readonly
       GOPROXY: "off"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Install zsh
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
@@ -269,6 +269,43 @@ jobs:
           echo "guard_diff failing runs: $rc"
           exit $rc
 
+  guard-self-compare:
+    name: guard-self-compare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install zsh
+        run: sudo apt-get install -y zsh
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
+      - name: evaluator self-compare (real corpus)
+        run: |
+          set -o pipefail
+          lines=$(wc -l < ci/guard_corpus.json)
+          echo "corpus: ci/guard_corpus.json has $lines lines"
+          if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
+          git diff --exit-code -- roles/hooks/worker-guard.py || exit 1
+          rc=0
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
+          if ! grep -F ' 0 loosened, 0 tightened' "$RUNNER_TEMP/gd-self.txt"; then
+            echo "evaluator self-compare: expected summary ' 0 loosened, 0 tightened' in stdout" >&2
+            rc=1
+          fi
+          echo "guard_diff evaluator self-compare: rc=$rc"
+          exit $rc
+
   # G-016 T-0355: the Go/Python equivalence gate, strict part: the strict Go-vs-Python guard_diff gate (corpus x every role x both modes).
   # Real steps run on guard-path PRs and pushes to main; otherwise the job succeeds as skipped. The routed unittest modules run in guard-equiv-rest.
   guard-equiv:
@@ -280,7 +317,7 @@ jobs:
       GOFLAGS: -mod=readonly
       GOPROXY: "off"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Guard paths changed?
@@ -322,14 +359,14 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.paths.outputs.run == 'true'
         with:
           python-version: "3.13"
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
           go-version-file: go/go.mod
@@ -358,7 +395,7 @@ jobs:
       GOFLAGS: -mod=readonly
       GOPROXY: "off"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Guard paths changed?
@@ -400,14 +437,14 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.paths.outputs.run == 'true'
         with:
           python-version: "3.13"
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
         run: sudo apt-get install -y zsh
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
           go-version-file: go/go.mod
@@ -437,7 +474,7 @@ jobs:
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-equiv, guard-equiv-rest]
+    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-equiv, guard-equiv-rest]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -448,6 +485,7 @@ jobs:
           GO_RESULT: ${{ needs.go.result }}
           GUARD_UNITTEST_RESULT: ${{ needs.guard-unittest.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
+          GUARD_SELF_COMPARE_RESULT: ${{ needs.guard-self-compare.result }}
           GUARD_EQUIV_RESULT: ${{ needs.guard-equiv.result }}
           GUARD_EQUIV_REST_RESULT: ${{ needs.guard-equiv-rest.result }}
         run: |
@@ -468,6 +506,10 @@ jobs:
             echo "guard-diff result: $GUARD_DIFF_RESULT (the real-corpus step must succeed)" >&2
             fail=1
           fi
+          if [ "$GUARD_SELF_COMPARE_RESULT" != "success" ]; then
+            echo "guard-self-compare result: $GUARD_SELF_COMPARE_RESULT (the evaluator self-compare step must succeed)" >&2
+            fail=1
+          fi
           if [ "$GUARD_EQUIV_RESULT" != "success" ]; then
             echo "guard-equiv result: $GUARD_EQUIV_RESULT (Go/Python equivalence must succeed)" >&2
             fail=1
@@ -477,10 +519,10 @@ jobs:
             fail=1
           fi
           exit $fail
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Tier (rules from the base commit)
@@ -525,7 +567,7 @@ jobs:
       # Test-count gate (ci/test_count_gate.py): discovery counts, PR merge ref vs base sha.
       - name: Checkout base commit
         if: github.event_name == 'pull_request'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
