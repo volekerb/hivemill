@@ -719,7 +719,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		a.ranFactory = true
 	}
 	if IsDynamic(w, !inLoose) {
-		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr or claude"}
+		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr, hc or claude"}
 	}
 	if IsHerdr(w) {
 		return blockf("direct herdr invocation")

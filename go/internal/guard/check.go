@@ -2,25 +2,23 @@ package guard
 
 import "strings"
 
-// matchR2Set is a port of R2_SET.search(s) (worker-guard.py:258-259):
+// matchR2Set is a port of R2_SET.search(s) (worker-guard.py:576-579):
 //
-//	\bHERDR_(?:SOCKET_PATH|SESSION)\s*\+?=
-//	|\bexport\s+(?:-\w+\s+)*HERDR_(?:SOCKET_PATH|SESSION)\b
-//	|\b(?:declare|typeset)\s+-\w*x\w*\s+HERDR_(?:SOCKET_PATH|SESSION)\b
+//	\b(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\s*\+?=
+//	|\bexport\s+(?:-\w+\s+)*(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b
+//	|\b(?:declare|typeset)\s+-\w*x\w*\s+(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b
 func matchR2Set(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if !boundary(s, i) || wordBefore(s, i) {
 			continue // \b before a word character needs a non-word character (or the start) in front
 		}
-		if hasAt(s, i, "HERDR_") {
-			if j, ok := herdrVarEnd(s, i); ok {
-				k := skipSpace(s, j)
-				if hasAt(s, k, "+") {
-					k++
-				}
-				if hasAt(s, k, "=") {
-					return true
-				}
+		if j, ok := herdrVarEnd(s, i); ok {
+			k := skipSpace(s, j)
+			if hasAt(s, k, "+") {
+				k++
+			}
+			if hasAt(s, k, "=") {
+				return true
 			}
 		}
 		if hasAt(s, i, "export") {
