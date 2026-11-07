@@ -14473,6 +14473,18 @@ def cmd_tick(a, locked=False):
                             "WHERE name=? AND status='queued'", (fails, q["name"]))
                 event(con, "agent", q["name"], "evaluator-spawn-retry",
                       f"queued evaluator spawn failed ({fails}/{EVALUATOR_SPAWN_RETRY_MAX}); retried next tick")
+        except Exception as e:  # noqa: BLE001 — one start that dies outside SystemExit must not end the tick (T-1184)
+            try:
+                clock = digest_clock().timestamp()
+            except FactoryNowError:
+                clock = time.time()
+            label = s.get("task") or q["name"]
+            entity = "task" if s.get("task") else "agent"
+            key = f"dequeue-spawn-error:{label}"
+            if not _throttled(con, key, clock, 3600):
+                _throttle_set(con, key, clock)
+                event(con, entity, label, "dequeue-spawn-error", type(e).__name__)
+            continue
     _pt_lap("dequeue")
     
     # 2b. lead-less dispatch: start workers for ready tasks of parked teams (config lead_less_dispatch; default off)
