@@ -345,8 +345,8 @@ jobs:
           p.write_text(src.replace(old, new, 1))
           PY
           out="$RUNNER_TEMP/gd-home-loosen.txt"
-          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator >"$out" 2>&1
-          rc=$?
+          rc=0
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator >"$out" 2>&1 || rc=$?
           cat "$out"
           if [ "$rc" -eq 0 ]; then
             echo "evaluator home-check loosen probe: expected non-zero exit from guard_diff" >&2
