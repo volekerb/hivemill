@@ -139,6 +139,29 @@ class TerminalBackendTests(FactoryTestCase):
         lost = [e for e in self.env.sql("SELECT action FROM events WHERE entity_id='zz-pm' AND action='lost'")]
         self.assertEqual(lost, [])
 
+    def test_hc_tick_keeps_done_tui_row_absent_from_hc_ls(self):
+        """hc tick must not reap a done TUI agent missing from hc ls (no exited, no pane close)."""
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.env.seed_agent("zz-done", "coder", goal="G-001", team="g-001-a", pane_id="p-tui", status="done")
+        self.env.seed_agent("zz-live", "coder", goal="G-001", team="g-001-a", pane_id="p2", status="live")
+        self.env.set_herdr(agents=[{"name": "zz-hc-term", "agent": "claude", "agent_status": "idle"}])
+        p = self.ok("tick", agent="owner")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rows = {r["name"]: r["status"] for r in self.env.sql("SELECT name, status FROM agents")}
+        self.assertEqual(rows["zz-done"], "done")
+        self.assertEqual(rows["zz-live"], "live")
+        exited_ev = [
+            e for e in self.env.sql(
+                "SELECT action FROM events WHERE entity_id='zz-done' AND action IN ('reaped','pane-close-skipped')"
+            )
+        ]
+        self.assertEqual(exited_ev, [])
+        close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
+        herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertEqual(close_calls + herdr_close, [])
+
     def test_missing_agent_status_is_unknown_not_idle_for_nudge(self):
         """Missing host status must not count as idle (nudge step requires idle or done)."""
         self.env.seed_goal()

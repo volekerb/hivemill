@@ -13949,6 +13949,8 @@ def cmd_tick(a, locked=False):
     for r in con.execute("SELECT * FROM agents WHERE status IN ('live','done')").fetchall():
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if r["status"] == "done":
+            if _hc_tick_skips_lost_on_absent(con) and not by_name.get(r["name"]):
+                continue  # hc ls omits TUI panes; stay done until a herdr tick can close the pane
             if r["pane_id"] and close_named_pane(con, r["name"], r["pane_id"])[0] == "unknown":
                 continue  # the host cannot be asked: nothing closed, the row stays 'done' and is retried next tick
             con.execute("UPDATE agents SET status='exited', ended=coalesce(ended,?) WHERE name=?", (now(), r["name"]))
