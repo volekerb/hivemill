@@ -144,7 +144,7 @@ def _tiles(d):
     a = d["agents"]
     unattended = f"{d['unattended']} of {d['merges']}" if d["merges"] else "-"
     grid = el("div",
-              tile("Merges", d["merges"], unit=f"in {d['days']} days",
+              tile("Merges", d["merges"], unit=f"in {d['days']} days", unit_nl=True,
                    definition="Tasks merged in the selected period. A task counts once, on the day of its last merge."),
               tile("Median spawn to merge", dur(d["median_s"]),
                    definition="Median time from a task's first agent spawn to its merge. Tasks without a recorded spawn are left out."),

@@ -232,7 +232,8 @@ def _week_points(ctx, d):
 def _weeks(ctx, d):
     if not d["weeks"]:
         return section("Per week", empty_state("No rejections recorded."))
-    return section("Per week", charts.columns(_week_points(ctx, d), "rejections", unit="week"))
+    note = el("p", "Bars scale to the card width on desktop (weeks with more rejections are taller).", class_="muted only-phone")
+    return section("Per week", note, charts.columns(_week_points(ctx, d), "rejections", unit="week"))
 
 
 def render(ctx, d):
