@@ -992,8 +992,9 @@ def table(rows, cols):
 
 _HERDR_SOCK = {}  # per-process cache of the configured socket
 _HC_RUN_CWD = None  # spawn worktree for the next hc `run` translation (TUI path unchanged)
-_HC_RUN_ENV = None  # agent env for the next hc `run` child (via env(1), not the hc client)
+_HC_RUN_ENV = None  # agent env written into the hc spawn script (never on the hc argv)
 _HC_RUN_PROGRAM = None  # resolved program for hc `run` (cursor: agent/cursor-agent, not the cursor shim)
+_HC_RUN_NAME = None  # agent name for the hc spawn script under run/
 
 
 def _is_live_socket(val):
@@ -1195,13 +1196,30 @@ def _hc_parse_host_stdout(ipc_argv, out):
     return parsed
 
 
+def _hc_spawn_script_path(name):
+    """Where the hc spawn wrapper is written; tests may set FACTORY_HC_SPAWN_SCRIPT_ROOT."""
+    root = os.environ.get("FACTORY_HC_SPAWN_SCRIPT_ROOT")
+    base = Path(root) if root else RUN
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"{name}.hc-spawn.sh"
+
+
+def _hc_write_spawn_script(name, env, program, post):
+    """Shell wrapper: export spawn env, then exec the agent. Secrets stay off the hc argv."""
+    script = _hc_spawn_script_path(name)
+    body = "#!/bin/sh\n" + export_cmd(env).replace(" && hash -r", "\nhash -r\n") + f"exec {shlex.join([program, *post])}\n"
+    script.write_text(body)
+    os.chmod(script, 0o700)
+    return script
+
+
 def _hc_run_argv_tail(program, post):
-    """Tail of hc `run`: spawn pins via env(1), then the program and its flags."""
-    tail = [program, *post]
-    if _HC_RUN_ENV:
-        pairs = [f"{k}={v}" for k, v in sorted(_HC_RUN_ENV.items())]
-        tail = ["env", *pairs, "--", *tail]
-    return tail
+    """Tail of hc `run`: `sh <spawn script>` when spawn env is set (no env vars on the hc argv)."""
+    if not _HC_RUN_ENV:
+        return [program, *post]
+    name = _HC_RUN_NAME or "hc-spawn"
+    script = _hc_write_spawn_script(name, _HC_RUN_ENV, program, post)
+    return ["sh", str(script)]
 
 
 def _hc_translate_args(args):
@@ -9464,13 +9482,13 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     task_auto_start(con, task, f"spawn {name}", role)
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
                   "--", *plan.argv)
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
-    _HC_RUN_PROGRAM = plan.binary
+    _HC_RUN_PROGRAM, _HC_RUN_NAME = plan.binary, name
     try:
         r = herdr(*start_args, check=False)
     finally:
-        _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = None
+        _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
     if r is None:
         event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
@@ -9653,9 +9671,9 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             env.setdefault(k, v)
     except (OSError, json.JSONDecodeError, ValueError):
         pass
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM
+    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
     _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
-    _HC_RUN_PROGRAM = None
+    _HC_RUN_PROGRAM, _HC_RUN_NAME = None, name
     start_err = None
     try:
         if async_start:
@@ -9663,7 +9681,7 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
         else:
             r = herdr(*start_args, check=False)
     finally:
-        _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = None
+        _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})

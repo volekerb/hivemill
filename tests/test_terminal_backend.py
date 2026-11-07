@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -82,26 +83,37 @@ class TerminalBackendTests(FactoryTestCase):
         finally:
             f._HC_RUN_CWD = f._HC_RUN_PROGRAM = None
 
-    def test_hc_agent_start_wraps_spawn_env_for_child(self):
+    def test_hc_agent_start_spawn_script_not_argv_env(self):
         f = _load_factory_cli()
         argv = ("agent", "start", "zz-coder", "--kind", "claude", "--pane", "p1", "--timeout", "90000",
                 "--", "-n", "zz-coder")
+        root = Path(tempfile.mkdtemp(prefix="hc-spawn-scripts-"))
+        tok = root / "tok"
         f._HC_RUN_CWD = "/tmp/wt"
-        f._HC_RUN_ENV = {
-            "FACTORY_AGENT": "zz-coder",
-            "HERDR_SOCKET_PATH": "/proc/nonexistent/worker-no-herdr.sock",
-        }
+        f._HC_RUN_NAME = "zz-coder"
+        dead = f.DEAD_SOCKET
+        f._HC_RUN_ENV = {"FACTORY_AGENT": "zz-coder", "FACTORY_ROLE": "coder", "HERDR_SOCKET_PATH": dead,
+                         "FACTORY_GH_TOKEN_FILE": str(tok)}
+        old = os.environ.get("FACTORY_HC_SPAWN_SCRIPT_ROOT")
+        os.environ["FACTORY_HC_SPAWN_SCRIPT_ROOT"] = str(root)
         try:
-            self.assertEqual(
-                f._hc_translate_args(argv),
-                ["run", "--bg", "--name", "zz-coder", "--cwd", "/tmp/wt",
-                 "env",
-                 "FACTORY_AGENT=zz-coder",
-                 "HERDR_SOCKET_PATH=/proc/nonexistent/worker-no-herdr.sock",
-                 "--", "claude", "-n", "zz-coder"],
-            )
+            run_argv = f._hc_translate_args(argv)
+            self.assertEqual(run_argv[:6], ["run", "--bg", "--name", "zz-coder", "--cwd", "/tmp/wt"])
+            self.assertEqual(run_argv[6:8], ["sh", str(root / "zz-coder.hc-spawn.sh")])
+            flat = " ".join(run_argv)
+            self.assertNotIn("FACTORY_GH", flat)
+            self.assertNotIn("=", flat)
+            body = (root / "zz-coder.hc-spawn.sh").read_text()
+            self.assertRegex(body, r"FACTORY_ROLE=(?:'coder'|coder)\b")
+            self.assertIn("FACTORY_GH_TOKEN_FILE", body)
+            self.assertIn(str(tok), body)
+            self.assertIn("exec claude -n zz-coder", body)
         finally:
-            f._HC_RUN_CWD = f._HC_RUN_ENV = None
+            if old is None:
+                os.environ.pop("FACTORY_HC_SPAWN_SCRIPT_ROOT", None)
+            else:
+                os.environ["FACTORY_HC_SPAWN_SCRIPT_ROOT"] = old
+            f._HC_RUN_CWD = f._HC_RUN_ENV = f._HC_RUN_NAME = None
 
     def test_hc_piped_read_keeps_jsonish_screen_as_text(self):
         f = _load_factory_cli()
