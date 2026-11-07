@@ -489,7 +489,7 @@ class JudgeRefreshTests(FactoryTestCase):
 
     def test_e_other_problem_plus_stale_refuses_as_today(self):
         self.main_commit()
-        p = self.run_cli("verdict", "T-0001", "--fail", "--summary", "broken", agent="zz-test-qa")
+        p = self.run_cli("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "broken", agent="zz-test-qa")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         p = self.judge()
         self.assertEqual(p.returncode, 4, p.stdout + p.stderr)

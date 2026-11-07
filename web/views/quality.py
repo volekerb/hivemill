@@ -108,7 +108,8 @@ def data(ctx, **params):
         teams = [t for t in teams if t["tasks"]]
     return {"org": org, "overall": q["overall"], "teams": teams, "weeks": _weekly(ctx.db, goals=goals), "formula": FORMULA,
             "windows": queries.quality_windows(ctx.db, DELTA_DAYS, now=ctx.now, goals=goals),
-            "bouncing": queries.bouncing_tasks(ctx.db, BOUNCING_MAX, goals=goals)}
+            "bouncing": queries.bouncing_tasks(ctx.db, BOUNCING_MAX, goals=goals),
+            "rejections_by_cause": q.get("rejections_by_cause") or {}}
 
 
 def _delta(cur, prev, fmt, lower_is_better, days):
@@ -151,6 +152,18 @@ def _median_attempts(d):
     return "-" if m is None else _num(m)
 
 
+_CAUSE_DEF = "Recorded causes on reviewer, QA and judge rejections and gate refusals (counts incidents, not events)."
+
+
+def _rejections_by_cause_tile(by_cause):
+    if not by_cause:
+        return tile("Rejections by cause", "Not measured yet",
+                    definition="No cause is stored yet (counts incidents, not events).")
+    total = sum(by_cause.values())
+    lines = ", ".join(f"{c.replace('_', ' ')} {n}" for c, n in sorted(by_cause.items(), key=lambda x: (-x[1], x[0])))
+    return tile("Rejections by cause", str(total), definition=f"{_CAUSE_DEF} {lines}.")
+
+
 def _more_metrics(d):
     o = d["overall"]
     scored = [t for t in d["teams"] if t["score"] is not None]
@@ -167,7 +180,7 @@ def _more_metrics(d):
         tile("Rejections per merged PR", _rpm(o["rejections_per_merged"]), definition="Rejections divided by merged PRs."),
         tile("Gate refusals", o["gate_refusals"],
              definition="Judge-blocked and merge-failed events: stale verdict, red or pending CI, conflicts."),
-        tile("Rejections by cause", "Not measured yet", definition="No cause is stored yet (counts incidents, not events)."),
+        _rejections_by_cause_tile(d.get("rejections_by_cause") or {}),
         tile("Retries per merged task", "-" if retries is None else f"{retries:.2f}",
              definition="Attempts beyond the first, per merged task."),
         tile("CI pass rate", _pct(o["ci_pass_rate"]), definition="Merged / (merged + tasks the judge blocked for red checks)."),

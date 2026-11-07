@@ -728,7 +728,10 @@ class ReviewOrderingTests(Base):
         self.env.seed_agent("qa-t-0001", "qa", goal="G-001", team=TEAM, task="T-0001", status="live")
 
     def run_verdict(self, *args):
-        return self.env.run("verdict", "T-0001", *args, "--summary", GOOD, agent="qa-t-0001")
+        a = list(args)
+        if "--fail" in a and "--cause" not in a:
+            a += ("--cause", "bug")
+        return self.env.run("verdict", "T-0001", *a, "--summary", GOOD, agent="qa-t-0001")
 
     def test_pass_naming_a_head_other_than_the_one_started_on_is_refused(self):
         self.spawned_verdict_env(SHA_A, "b" * 40)

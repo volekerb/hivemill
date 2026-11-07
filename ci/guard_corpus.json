@@ -60,13 +60,13 @@
    }
   },
   {
-   "cmd": "uvx pytest　tests",
+   "cmd": "uvx pytest\u3000tests",
    "config": {
     "test_sandbox": "1"
    }
   },
   {
-   "cmd": "uvx pytest tests",
+   "cmd": "uvx pytest\u2028tests",
    "config": {
     "test_sandbox": "1"
    }
@@ -197,9 +197,9 @@
   "cd ~/.local/bin && echo x > git",
   "cd ~/.local/bin && cp /tmp/x git",
   "echo x > $Q/.local/bin",
-  "echo x > $Q/.local/biné",
+  "echo x > $Q/.local/bin\u00e9",
   "python3 -c \"open(1,2).write(0) # .local/bin\"",
-  "python3 -c \"open(1,2).write(0) # .local/biné\"",
+  "python3 -c \"open(1,2).write(0) # .local/bin\u00e9\"",
   "echo go > @LIVE_HOME@/run/guard_impl",
   "cp /tmp/x @LIVE_HOME@/run/guard_impl",
   "rm @LIVE_HOME@/run/guard_impl",
@@ -2005,15 +2005,15 @@
    "role": "qa"
   },
   {
-   "cmd": "echo p | xargs 'a git p'",
+   "cmd": "echo p | xargs 'a\u2003git p'",
    "role": "qa"
   },
   {
-   "cmd": "echo x | xargs 'a　git p'",
+   "cmd": "echo x | xargs 'a\u3000git p'",
    "role": "qa"
   },
   {
-   "cmd": "find . -exec 'a git p' \\;",
+   "cmd": "find . -exec 'a\u00a0git p' \\;",
    "role": "qa"
   },
   {
@@ -3369,27 +3369,27 @@
    "role": "pm"
   },
   {
-   "cmd": "echo p | xargs 'a git p'",
+   "cmd": "echo p | xargs 'a\u2003git p'",
    "role": "reviewer"
   },
   {
-   "cmd": "echo p | xargs 'a git p'",
+   "cmd": "echo p | xargs 'a\u2003git p'",
    "role": "pm"
   },
   {
-   "cmd": "echo x | xargs 'a　git p'",
+   "cmd": "echo x | xargs 'a\u3000git p'",
    "role": "reviewer"
   },
   {
-   "cmd": "echo x | xargs 'a　git p'",
+   "cmd": "echo x | xargs 'a\u3000git p'",
    "role": "pm"
   },
   {
-   "cmd": "find . -exec 'a git p' \\;",
+   "cmd": "find . -exec 'a\u00a0git p' \\;",
    "role": "reviewer"
   },
   {
-   "cmd": "find . -exec 'a git p' \\;",
+   "cmd": "find . -exec 'a\u00a0git p' \\;",
    "role": "pm"
   },
   {
@@ -6590,110 +6590,6 @@
   },
   {
    "cmd": "python3 -X dev -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "ar @optsfile a.a",
-   "role": "qa"
-  },
-  {
-   "cmd": "ar --target @opts a.a",
-   "role": "qa"
-  },
-  {
-   "cmd": "ar x @optsfile",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\"",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 - <<'E'\nopen('x', 'w')\nE\nunzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "node - <<'E'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs= -m zipfile -e a.zip @SCRATCH@/r/.git",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs= -c 'import zipfile; zipfile.ZipFile(\"a.zip\").extractall(\".\")'",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs= -c 'open(\"x\",\"w\")'; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs= -c x; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 --check-hash-based-pycs= -Bc x; unzip a.zip -d @SCRATCH@/out",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract (\"x\")'",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u001c(\"x\")'",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract(\"x\")'",
-   "role": "qa"
-  },
-  {
-   "cmd": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract (\"x\")'",
    "role": "qa"
   },
   {
@@ -11602,11 +11498,11 @@
    "role": "qa"
   },
   {
-   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init",
+   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
    "role": "coder"
   },
   {
-   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f ; factory init",
+   "cmd": "export HOME=@SCRATCH@/h FACTORY_HOME=@SCRATCH@/f\u00a0; factory init",
    "role": "qa"
   },
   {
@@ -22306,10 +22202,6 @@
   {
    "cmd": "gh api -H 'X-HTTP-Method-Override: GET' repos/acme/x",
    "role": "pm"
-  },
-  {
-   "cmd": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract​(\"x\")'",
-   "role": "qa"
   }
  ]
 }

@@ -37,7 +37,7 @@ class Base(FactoryTestCase):
             self.ok("verdict", T, "--pass", "--summary", gates_summary(), agent=agent)
 
     def reject(self):
-        return self.ok("judge", T, "--reject", "--reason", "scope", agent=JUDGE)
+        return self.ok("judge", T, "--reject", "--cause", "unclear_spec", "--reason", "scope", agent=JUDGE)
 
     def judge_autospawn_calls(self):
         calls = []
@@ -108,7 +108,8 @@ class StatusOnlyRejectTests(Base):
     """T-1055: judge --reject --no-code-change keeps the task in_review; the default reject is unchanged."""
 
     def status_only(self):
-        return self.env.run("judge", T, "--reject", "--no-code-change", "--reason", "CI still running", agent=JUDGE)
+        return self.env.run("judge", T, "--reject", "--no-code-change", "--cause", "gate_refusal",
+                            "--reason", "CI still running", agent=JUDGE)
 
     def test_status_only_reject_stays_in_review_and_merge_reaches_gate(self):
         p = self.status_only()
