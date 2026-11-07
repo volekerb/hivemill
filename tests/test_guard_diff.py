@@ -248,17 +248,26 @@ class EvaluatorRunTests(GuardDiffCase):
         self.assertNotRegex(block, r"--jobs\b")
 
     def test_removed_evaluator_home_check_is_loosened(self):
-        self.commit_real_hook()
-        src = real_hook_text()
-        line = "ok = bool(env) and os.path.realpath(env) not in self.live_homes() and self.outside_live(env)"
-        self.assertEqual(src.count(line), 1)
-        hook = src.replace("        if not ok:\n            raise Block(\"the evaluator may run factory",
-                           "        if False:\n            raise Block(\"the evaluator may run factory", 1)
-        self.assertNotEqual(hook, src)
-        self.write_hook(hook)
-        p = self.run_tool("--mode", "worker", "--role", "evaluator", "--corpus", CORPUS)
-        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
-        self.assertIn("LOOSENED base=2 pr=0 worker", p.stdout)
+        with open(_TESTS_YML, encoding="utf-8") as f:
+            wf = f.read()
+        block = _job_block(wf, "guard-evaluator-home-loosen")
+        self.assertRegex(block, r"(?m)^    name: guard-evaluator-home-loosen\n")
+        self.assertIn("timeout-minutes: 30", block)
+        self.assertRegex(block, r'-le 100 \]')
+        self.assertIn(
+            "old = '        if not ok:\\n            raise Block(\"the evaluator may run factory'",
+            block,
+        )
+        self.assertIn(
+            "new = '        if False:\\n            raise Block(\"the evaluator may run factory'",
+            block,
+        )
+        self.assertIn(
+            "python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator",
+            block,
+        )
+        self.assertIn("LOOSENED base=2 pr=0 worker", block)
+        self.assertNotRegex(block, r"--jobs\b")
 
     def test_default_run_covers_role_tagged_entries(self):
         # no --role flag: an evaluator-tagged entry still runs, under the evaluator role with a temp home
