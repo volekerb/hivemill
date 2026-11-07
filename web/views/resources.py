@@ -418,10 +418,11 @@ def _gauges_section(s):
 
 def _checks_section(g):
     glyphs = {"ok": "done", "over": "blocked", "unknown": "queued"}
+    intro = el("p", "Gate inputs (read-only snapshot). The Capacity gauges above are the live view.", class_="muted")
     rows = [el("li", glyph(glyphs[r["state"]]), el("span", r["label"], class_="ins-name"), el("span", r["value"], class_="mono"),
                el("span", r["limit"], class_="muted"), el("b", r["word"], class_="gz"),
                class_="ins-check ins-check--over" if r["word"] == "Over cap" else "ins-check") for r in g["rows"]]
-    return section("Checks", el("ul", rows, class_="lrow-list"))
+    return section("Checks", intro, el("ul", rows, class_="lrow-list"))
 
 
 def _days_section(days):
@@ -429,7 +430,11 @@ def _days_section(days):
         return section("Per day", empty_state("No data yet."))
     rows = [(d["day"][5:], (d["spawns"], "num"), (d["queued"], "num"), (d["merges"], "num"), (d["escalations"], "num"))
             for d in days]
-    return section("Per day", table(["Day", "Spawns", "Queued", "Merges", "Escalations"], rows, cls="table table--compact"))
+    return section(
+        "Per day",
+        el("p", "Numbers align under each column (day labels stay left).", class_="muted only-phone"),
+        table(["Day", "Spawns", "Queued", "Merges", "Escalations"], rows, cls="table table--compact per-day-grid"),
+    )
 
 
 def _config_disclosure(rows):
