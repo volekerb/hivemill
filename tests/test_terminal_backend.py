@@ -1,6 +1,7 @@
 """T-1084: terminal_backend (herdr | hc | auto), doctor/res lines, missing agent_status -> unknown."""
 import importlib.util
 import json
+import os
 import unittest
 from pathlib import Path
 
@@ -113,6 +114,44 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertEqual(row["status"], "done")
         self.assertEqual(row["pane_id"], "p-tui")
         reaped = self.env.sql("SELECT action FROM events WHERE entity_id='zz-done' AND action='reaped'")
+        self.assertEqual(reaped, [])
+        close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
+        herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertEqual(close_calls + herdr_close, [])
+
+    def test_hc_spawn_refused_keeps_done_row_pane_when_load_gate_closed(self):
+        """hc backend: a closed load gate must not queue over a done row before the T-1188 refusal."""
+        high_load = str(10 * (os.cpu_count() or 1))
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.env.seed_task("T-0003", goal="G-001", team="g-001-a", role="coder")
+        self.env.seed_agent("zz-done-gate", "coder", goal="G-001", team="g-001-a", pane_id="p-tui", status="done")
+        self.ok("config", "max_live_agents", "99", agent="owner")
+        self.env.set_herdr(agents=[])
+        p = self.refused(
+            2,
+            "spawn",
+            "coder",
+            "--goal",
+            "G-001",
+            "--team",
+            "g-001-a",
+            "--task",
+            "T-0003",
+            "--name",
+            "zz-done-gate",
+            agent="owner",
+            extra_env={"FACTORY_LOADAVG": high_load},
+        )
+        self.assertIn("T-1188", p.stderr)
+        self.assertNotIn("QUEUED", p.stdout)
+        row = self.env.sql("SELECT status, pane_id FROM agents WHERE name='zz-done-gate'")[0]
+        self.assertEqual(row["status"], "done")
+        self.assertEqual(row["pane_id"], "p-tui")
+        queued = self.env.sql("SELECT action FROM events WHERE entity_id='zz-done-gate' AND action='queued'")
+        self.assertEqual(queued, [])
+        reaped = self.env.sql("SELECT action FROM events WHERE entity_id='zz-done-gate' AND action='reaped'")
         self.assertEqual(reaped, [])
         close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
         herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]

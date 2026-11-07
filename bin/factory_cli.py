@@ -8766,6 +8766,10 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             held = judge_hold(con, task)  # the tick applies the same hold to rows it dequeues
             ok, why = (False, held) if held else (ok, why)
     if not ok:
+        if terminal_backend_effective(con)[1] == "hc":
+            fin = con.execute("SELECT status, pane_id FROM agents WHERE name=?", (name,)).fetchone()
+            if fin and fin["pane_id"] and fin["status"] in ("done", "exited"):
+                die("terminal_backend=hc: live agent spawn is not wired yet (T-1188); use herdr or auto", 2)
         if existing and existing["status"] in ("queued", "starting"):
             # T-1135 B3: a gate requeue must not wipe the tick's start-failure count and window (spawn_failures/spawn_failed_at)
             try:
