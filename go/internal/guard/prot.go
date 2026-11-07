@@ -338,7 +338,7 @@ func unzipListingOpts(args []string) bool {
 }
 
 // protWrite is Analyzer.prot_write.
-func (a *Analyzer) protWrite(name string, rest []string) error {
+func (a *Analyzer) protWrite(name string, rest []string, assigns []string) error {
 	args := dropDashDash(rest)
 	block := func(what string) error { return blockf("`" + name + "` on " + what + ": " + protWhy) }
 	const tree = "a protected tree"
@@ -484,6 +484,15 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 					return err
 				}
 			}
+			if sub == "install" {
+				for _, asn := range assigns {
+					if v, ok := strings.CutPrefix(asn, "GOBIN="); ok {
+						if err := hit(v, false, base, known); err != nil {
+							return err
+						}
+					}
+				}
+			}
 		}
 	case in(protCCNames, name):
 		for k, x := range args {
@@ -499,6 +508,104 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			case strings.HasPrefix(x, "-o") && len(x) > 2:
 				if err := hitc(x[2:]); err != nil {
 					return err
+				}
+			}
+			if name == "gcc" {
+				switch {
+				case x == "-MF" && k+1 < len(args):
+					if err := hitc(args[k+1]); err != nil {
+						return err
+					}
+				case strings.HasPrefix(x, "-MF") && len(x) > 3:
+					if err := hitc(x[3:]); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	case name == "gzip":
+		stdout := false
+		decompress := false
+		for _, x := range args {
+			if x == "-c" || x == "--stdout" || x == "--to-stdout" || (reSymShort.MatchString(x) && strings.Contains(x, "c")) {
+				stdout = true
+			}
+			if x == "-d" || x == "--decompress" || longOpt(x, "--decompress") ||
+				(reSymShort.MatchString(x) && strings.Contains(x, "d")) {
+				decompress = true
+			}
+		}
+		if decompress {
+			if stdout {
+				break
+			}
+			var pos []string
+			for _, x := range args {
+				if !strings.HasPrefix(x, "-") {
+					pos = append(pos, x)
+				}
+			}
+			for _, f := range pos {
+				if err := hitc(f); err != nil {
+					return err
+				}
+				if strings.HasSuffix(f, ".gz") {
+					if err := hitc(f[:len(f)-3]); err != nil {
+						return err
+					}
+				}
+			}
+			if len(pos) == 0 {
+				break
+			}
+		}
+	case name == "cpio":
+		extract, listMode := false, false
+		var dirs []string
+		for j, x := range args {
+			short := reSymShort.MatchString(x)
+			if x == "--extract" || (short && strings.Contains(x, "i")) {
+				extract = true
+			}
+			if x == "-t" || x == "--list" || (short && strings.Contains(x, "t")) {
+				listMode = true
+			}
+			if (x == "-D" || x == "--directory") && j+1 < len(args) {
+				dirs = append(dirs, args[j+1])
+			} else if strings.HasPrefix(x, "--directory=") {
+				dirs = append(dirs, x[len("--directory="):])
+			}
+		}
+		if extract && !listMode {
+			for _, d := range dirs {
+				if err := hit(d, true, a.ccwd, a.ccwdKnown); err != nil {
+					return err
+				}
+			}
+			if len(dirs) == 0 {
+				return cwdWrite(true, a.ccwd, a.ccwdKnown, true)
+			}
+		}
+	case name == "cargo":
+		sub := ""
+		for k := 0; k < len(args); k++ {
+			if !strings.HasPrefix(args[k], "-") {
+				sub = args[k]
+				break
+			}
+		}
+		if sub == "build" || sub == "install" || sub == "run" || sub == "doc" || sub == "test" || sub == "bench" {
+			for _, v := range optValues(args, "", "--target-dir") {
+				if err := hit(v, true, a.ccwd, a.ccwdKnown); err != nil {
+					return err
+				}
+			}
+			for _, x := range args {
+				opt, val, eq := strings.Cut(x, "=")
+				if eq && longOpt(opt, "--target-dir") {
+					if err := hit(val, true, a.ccwd, a.ccwdKnown); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -597,6 +704,31 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		for _, v := range optValues(args, "C", "--chdir") {
 			if err := hitc(v); err != nil {
 				return err
+			}
+		}
+		var gobin []string
+		i := 0
+		for i < len(args) {
+			if IsAssign(args[i]) {
+				if v, ok := strings.CutPrefix(args[i], "GOBIN="); ok {
+					gobin = append(gobin, v)
+				}
+				i++
+			} else if args[i] == "--" {
+				i++
+				break
+			} else if strings.HasPrefix(args[i], "-") {
+				i++
+			} else {
+				break
+			}
+		}
+		sub := args[i:]
+		if len(gobin) > 0 && len(sub) >= 2 && pyBasename(sub[0]) == "go" && sub[1] == "install" {
+			for _, g := range gobin {
+				if err := hitc(g); err != nil {
+					return err
+				}
 			}
 		}
 	case name == "find":

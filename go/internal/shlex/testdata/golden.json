@@ -51179,6 +51179,467 @@
 "src": "corpus"
 },
 {
+"input": "gzip -d ~/.local/bin/x.gz",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-d",
+"~/.local/bin/x.gz"
+]
+},
+{
+"input": "gzip -d ~/.local/bin/x.gz",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-d",
+"~/.local/bin/x.gz"
+]
+},
+{
+"input": "gzip -d ~/.local/bin/x.gz",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-d",
+"~/.local/bin/x.gz"
+]
+},
+{
+"input": "gzip -d ~/.local/bin/x.gz",
+"mode": "quote",
+"quoted": "'gzip -d ~/.local/bin/x.gz'",
+"src": "corpus"
+},
+{
+"input": "gzip --decompress ~/.local/lib/factory/x.gz",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gzip",
+"--decompress",
+"~/.local/lib/factory/x.gz"
+]
+},
+{
+"input": "gzip --decompress ~/.local/lib/factory/x.gz",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gzip",
+"--decompress",
+"~/.local/lib/factory/x.gz"
+]
+},
+{
+"input": "gzip --decompress ~/.local/lib/factory/x.gz",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gzip",
+"--decompress",
+"~/.local/lib/factory/x.gz"
+]
+},
+{
+"input": "gzip --decompress ~/.local/lib/factory/x.gz",
+"mode": "quote",
+"quoted": "'gzip --decompress ~/.local/lib/factory/x.gz'",
+"src": "corpus"
+},
+{
+"input": "cd ~/.local/bin && gzip -d x.gz",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"gzip",
+"-d",
+"x.gz"
+]
+},
+{
+"input": "cd ~/.local/bin && gzip -d x.gz",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"gzip",
+"-d",
+"x.gz"
+]
+},
+{
+"input": "cd ~/.local/bin && gzip -d x.gz",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"~/.local/bin",
+"&&",
+"gzip",
+"-d",
+"x.gz"
+]
+},
+{
+"input": "cd ~/.local/bin && gzip -d x.gz",
+"mode": "quote",
+"quoted": "'cd ~/.local/bin && gzip -d x.gz'",
+"src": "corpus"
+},
+{
+"input": "cpio -id -D ~/.local/lib/factory < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"~/.local/lib/factory",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D ~/.local/lib/factory < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"~/.local/lib/factory",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D ~/.local/lib/factory < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cpio",
+"-id",
+"-D",
+"~/.local/lib/factory",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cpio -id -D ~/.local/lib/factory < a.cpio",
+"mode": "quote",
+"quoted": "'cpio -id -D ~/.local/lib/factory < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "cd @SHARED@/roles/hooks && cpio -id < a.cpio",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/roles/hooks",
+"&&",
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cd @SHARED@/roles/hooks && cpio -id < a.cpio",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"@",
+"SHARED",
+"@",
+"/roles/hooks",
+"&&",
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cd @SHARED@/roles/hooks && cpio -id < a.cpio",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"@SHARED@/roles/hooks",
+"&&",
+"cpio",
+"-id",
+"<",
+"a.cpio"
+]
+},
+{
+"input": "cd @SHARED@/roles/hooks && cpio -id < a.cpio",
+"mode": "quote",
+"quoted": "'cd @SHARED@/roles/hooks && cpio -id < a.cpio'",
+"src": "corpus"
+},
+{
+"input": "GOBIN=~/.local/bin go install ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOBIN=~/.local/bin",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "GOBIN=~/.local/bin go install ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOBIN=~/.local/bin",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "GOBIN=~/.local/bin go install ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOBIN=~/.local/bin",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "GOBIN=~/.local/bin go install ./cmd/x",
+"mode": "quote",
+"quoted": "'GOBIN=~/.local/bin go install ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "env GOBIN=@SHARED@/bin go install ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"env",
+"GOBIN=@SHARED@/bin",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "env GOBIN=@SHARED@/bin go install ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"env",
+"GOBIN=",
+"@",
+"SHARED",
+"@",
+"/bin",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "env GOBIN=@SHARED@/bin go install ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"env",
+"GOBIN=@SHARED@/bin",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "env GOBIN=@SHARED@/bin go install ./cmd/x",
+"mode": "quote",
+"quoted": "'env GOBIN=@SHARED@/bin go install ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "gcc -MF ~/.local/bin/x.d -c a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MF",
+"~/.local/bin/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MF ~/.local/bin/x.d -c a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MF",
+"~/.local/bin/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MF ~/.local/bin/x.d -c a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MF",
+"~/.local/bin/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MF ~/.local/bin/x.d -c a.c",
+"mode": "quote",
+"quoted": "'gcc -MF ~/.local/bin/x.d -c a.c'",
+"src": "corpus"
+},
+{
+"input": "gcc -MD -MF~/.local/go/x.d -c a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MD",
+"-MF~/.local/go/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MD -MF~/.local/go/x.d -c a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MD",
+"-MF~/.local/go/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MD -MF~/.local/go/x.d -c a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MD",
+"-MF~/.local/go/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MD -MF~/.local/go/x.d -c a.c",
+"mode": "quote",
+"quoted": "'gcc -MD -MF~/.local/go/x.d -c a.c'",
+"src": "corpus"
+},
+{
+"input": "cargo build --target-dir ~/.local/lib/factory",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "cargo build --target-dir ~/.local/lib/factory",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "cargo build --target-dir ~/.local/lib/factory",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir",
+"~/.local/lib/factory"
+]
+},
+{
+"input": "cargo build --target-dir ~/.local/lib/factory",
+"mode": "quote",
+"quoted": "'cargo build --target-dir ~/.local/lib/factory'",
+"src": "corpus"
+},
+{
+"input": "cargo build --target-dir=@SHARED@/go",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir=@SHARED@/go"
+]
+},
+{
+"input": "cargo build --target-dir=@SHARED@/go",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir=",
+"@",
+"SHARED",
+"@",
+"/go"
+]
+},
+{
+"input": "cargo build --target-dir=@SHARED@/go",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir=@SHARED@/go"
+]
+},
+{
+"input": "cargo build --target-dir=@SHARED@/go",
+"mode": "quote",
+"quoted": "'cargo build --target-dir=@SHARED@/go'",
+"src": "corpus"
+},
+{
 "input": "unzip -d ~/.local/bin a.zip",
 "mode": "script",
 "src": "corpus",
@@ -107479,6 +107940,321 @@
 "src": "corpus"
 },
 {
+"input": "patch -o /tmp/x a b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"patch",
+"-o",
+"/tmp/x",
+"a",
+"b"
+]
+},
+{
+"input": "patch -o /tmp/x a b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"patch",
+"-o",
+"/tmp/x",
+"a",
+"b"
+]
+},
+{
+"input": "patch -o /tmp/x a b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"patch",
+"-o",
+"/tmp/x",
+"a",
+"b"
+]
+},
+{
+"input": "patch -o /tmp/x a b",
+"mode": "quote",
+"quoted": "'patch -o /tmp/x a b'",
+"src": "corpus"
+},
+{
+"input": "gzip -d /tmp/x.gz",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-d",
+"/tmp/x.gz"
+]
+},
+{
+"input": "gzip -d /tmp/x.gz",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-d",
+"/tmp/x.gz"
+]
+},
+{
+"input": "gzip -d /tmp/x.gz",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-d",
+"/tmp/x.gz"
+]
+},
+{
+"input": "gzip -d /tmp/x.gz",
+"mode": "quote",
+"quoted": "'gzip -d /tmp/x.gz'",
+"src": "corpus"
+},
+{
+"input": "gzip -dc ~/.local/bin/x.gz > /tmp/y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-dc",
+"~/.local/bin/x.gz",
+">",
+"/tmp/y"
+]
+},
+{
+"input": "gzip -dc ~/.local/bin/x.gz > /tmp/y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-dc",
+"~/.local/bin/x.gz",
+">",
+"/tmp/y"
+]
+},
+{
+"input": "gzip -dc ~/.local/bin/x.gz > /tmp/y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gzip",
+"-dc",
+"~/.local/bin/x.gz",
+">",
+"/tmp/y"
+]
+},
+{
+"input": "gzip -dc ~/.local/bin/x.gz > /tmp/y",
+"mode": "quote",
+"quoted": "'gzip -dc ~/.local/bin/x.gz > /tmp/y'",
+"src": "corpus"
+},
+{
+"input": "GOBIN=/tmp/b go install ./cmd/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"GOBIN=/tmp/b",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "GOBIN=/tmp/b go install ./cmd/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"GOBIN=/tmp/b",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "GOBIN=/tmp/b go install ./cmd/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"GOBIN=/tmp/b",
+"go",
+"install",
+"./cmd/x"
+]
+},
+{
+"input": "GOBIN=/tmp/b go install ./cmd/x",
+"mode": "quote",
+"quoted": "'GOBIN=/tmp/b go install ./cmd/x'",
+"src": "corpus"
+},
+{
+"input": "gcc -MF /tmp/x.d -c a.c",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MF",
+"/tmp/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MF /tmp/x.d -c a.c",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MF",
+"/tmp/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MF /tmp/x.d -c a.c",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"gcc",
+"-MF",
+"/tmp/x.d",
+"-c",
+"a.c"
+]
+},
+{
+"input": "gcc -MF /tmp/x.d -c a.c",
+"mode": "quote",
+"quoted": "'gcc -MF /tmp/x.d -c a.c'",
+"src": "corpus"
+},
+{
+"input": "cargo build --target-dir /tmp/t",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir",
+"/tmp/t"
+]
+},
+{
+"input": "cargo build --target-dir /tmp/t",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir",
+"/tmp/t"
+]
+},
+{
+"input": "cargo build --target-dir /tmp/t",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cargo",
+"build",
+"--target-dir",
+"/tmp/t"
+]
+},
+{
+"input": "cargo build --target-dir /tmp/t",
+"mode": "quote",
+"quoted": "'cargo build --target-dir /tmp/t'",
+"src": "corpus"
+},
+{
+"input": "git init /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"/tmp/x"
+]
+},
+{
+"input": "git init /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"/tmp/x"
+]
+},
+{
+"input": "git init /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"init",
+"/tmp/x"
+]
+},
+{
+"input": "git init /tmp/x",
+"mode": "quote",
+"quoted": "'git init /tmp/x'",
+"src": "corpus"
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+},
+{
+"input": "git worktree add /tmp/x",
+"mode": "quote",
+"quoted": "'git worktree add /tmp/x'",
+"src": "corpus"
+},
+{
 "input": "env -C /tmp/x ls",
 "mode": "script",
 "src": "corpus",
@@ -131460,81 +132236,6 @@
 "src": "corpus"
 },
 {
-"input": "git init /tmp/x",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"git",
-"init",
-"/tmp/x"
-]
-},
-{
-"input": "git init /tmp/x",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"git",
-"init",
-"/tmp/x"
-]
-},
-{
-"input": "git init /tmp/x",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"git",
-"init",
-"/tmp/x"
-]
-},
-{
-"input": "git init /tmp/x",
-"mode": "quote",
-"quoted": "'git init /tmp/x'",
-"src": "corpus"
-},
-{
-"input": "git worktree add /tmp/x",
-"mode": "script",
-"src": "corpus",
-"tokens": [
-"git",
-"worktree",
-"add",
-"/tmp/x"
-]
-},
-{
-"input": "git worktree add /tmp/x",
-"mode": "default",
-"src": "corpus",
-"tokens": [
-"git",
-"worktree",
-"add",
-"/tmp/x"
-]
-},
-{
-"input": "git worktree add /tmp/x",
-"mode": "split",
-"src": "corpus",
-"tokens": [
-"git",
-"worktree",
-"add",
-"/tmp/x"
-]
-},
-{
-"input": "git worktree add /tmp/x",
-"mode": "quote",
-"quoted": "'git worktree add /tmp/x'",
-"src": "corpus"
-},
-{
 "input": "git -C /tmp/x init",
 "mode": "script",
 "src": "corpus",
@@ -137766,7 +138467,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3153,
+"corpus_commands": 3170,
 "edge_inputs": 123,
 "python": "3.13"
 }

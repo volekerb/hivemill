@@ -514,6 +514,41 @@ class TildeMatrix(ProtTreesCase):
         self.blocked(["echo x > ~nosuchuser123/.local/bin/git", "echo x > ~-/.config/factory/x"], cwds=("/tmp",))
 
 
+class ClosedListWritersT0988(ProtTreesCase):
+    """T-0988: the eight closed-list writer forms into protected trees (patch and git were already closed on main)."""
+
+    def test_blocked_into_protected_trees(self):
+        p = paths()
+        libd = os.path.join(os.path.expanduser("~"), ".local", "lib", "factory")
+        bind = os.path.join(os.path.expanduser("~"), ".local", "bin")
+        hooksd = os.path.join(p["live"], "roles", "hooks")
+        bind_x = os.path.join(bind, "x")
+        self.blocked([
+            f"gzip -d {bind_x}.gz", f"gzip --decompress {bind_x}.gz", f"cd {bind} && gzip -d x.gz",
+            f"cd {libd} && cpio -id < a.cpio", f"cpio -id -D {libd} < a.cpio",
+            f"GOBIN={bind} go install ./cmd/x", f"env GOBIN={hooksd} go install ./cmd/x",
+            f"gcc -MF {bind_x}.d -c a.c", f"gcc -MD -MF{bind_x}.d -c a.c",
+            f"cargo build --target-dir {bind}", f"cargo build --target-dir={bind}",
+            f"patch -o {bind_x} a b", f"patch -d {hooksd} -p1 -i a.diff",
+            f"git init {bind_x}", f"git worktree add {os.path.join(p['live'], 'bin', 'y')}",
+        ])
+
+    def test_allowed_in_scratch_and_worktree(self):
+        p = paths()
+        bind = os.path.join(os.path.expanduser("~"), ".local", "bin")
+        bind_x = os.path.join(bind, "x")
+        self.allowed([
+            "patch -o /tmp/x a b", "gzip -d /tmp/x.gz", "gzip -dc ~/.local/bin/x.gz > /tmp/y",
+            f"gzip -d --to-stdout {bind_x}.gz", f"cd {bind} && gzip -d", f"cd {bind} && cpio -i -t < a.cpio",
+            "cpio -id < a.cpio", "git init /tmp/x", "git worktree add /tmp/x",
+            "GOBIN=/tmp/b go install ./cmd/x", "gcc -MF /tmp/x.d -c a.c", "cargo build --target-dir /tmp/t",
+        ], cwds=("other",))
+        self.allowed([
+            "patch -d bin -p1 -i a.diff", "gcc -MF go/x.d -c a.c", "cargo build --target-dir bin/t",
+            "GOBIN=$PWD/bin go install ./cmd/x",
+        ], cwds=("wt",))
+
+
 class GitInitWorktreeAdd(ProtTreesCase):
     """G1: `git init <dir>` and `git worktree add <dir>` create a repository (hooks included) inside a protected tree."""
 

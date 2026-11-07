@@ -242,6 +242,11 @@ are refused, because the archive content is unknown. A worktree is not an ancest
 is a write to each start path (the cwd when there is none): refused when a start path is a tree, inside one or holds one.
 (G1) `git init <dir>` and `git worktree add|move|repair <dir>` into a tree are refused like `git clone`.
 
+**Closed-list writers (T-0988).** Both guards also refuse the remaining lead-listed writer forms into any protected tree:
+`patch` (every output spelling), `gzip -d` (not `gzip -dc` / `--to-stdout` to stdout; `gunzip` is a known gap), `cpio -id` (into `-D` or the cwd; `-i -t` list stays allowed),
+`GOBIN=<dir> go install` and `env GOBIN=<dir> go install`, `gcc -MF` (including glued `-MF<path>`), and
+`cargo build --target-dir`. Similar spellings outside that list are known gaps (see `docs/worker-guard.md`).
+
 **Rollback.** Write `python` (or remove `run/guard_impl`): the next call uses Python, no relaunch.
 
 **Debugging.** `WORKER_GUARD_SHIM_TRACE=1` prints `impl=<python|go|shadow>` to stderr (used by tests/test_guard_shim.py).
