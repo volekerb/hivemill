@@ -87,6 +87,14 @@
       "Factory merge gate: the judge running `factory judge <task> --merge|--reject --reason \u2026` is routine and allowed; the CLI performs the squash-merge with its own checks."
     ]
   },
+  "enabledPlugins": {
+    "caveman@caveman": false,
+    "engineering@synced": false,
+    "design@synced": false,
+    "product-management@synced": false,
+    "productivity@synced": false,
+    "cowork-plugin-management@synced": false
+  },
   "env": {
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
     "HERDR_SOCKET_PATH": "/proc/nonexistent/worker-no-herdr.sock",

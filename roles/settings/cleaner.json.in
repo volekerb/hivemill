@@ -86,6 +86,14 @@
       "Factory housekeeping: the cleaner running `factory clean` and deleting /tmp/qa-* directories and /tmp/claude-<uid>/ scratchpads of agents that `factory agents` shows as exited or lost is routine and allowed. Anything under ~/factory other than through `factory clean` is NOT covered."
     ]
   },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "engineering@synced": false,
+    "design@synced": false,
+    "product-management@synced": false,
+    "productivity@synced": false,
+    "cowork-plugin-management@synced": false
+  },
   "env": {
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
     "HERDR_SOCKET_PATH": "/proc/nonexistent/worker-no-herdr.sock",
