@@ -17,6 +17,13 @@ A `factory verdict <T> --pass --sha <sha> --summary ...` summary can carry a mac
 
 Source: Verdict Gates lines: idea from gAmUssA/coding-policy ADR 0005 @7a25169 (declares MIT, no LICENSE file); our own code and wording.
 
+## Stop and hold before merge (T-1085)
+
+Immediately before `gh pr merge`, after every other gate and `lock_and_recheck`, the judge re-reads
+`tasks.judge_hold_reason` and (for an LLM judge, not the mechanical merger) the merging agent row: merge is refused
+(exit 4, `judge-blocked`) when the hold is set or the judge agent has `stop_requested_at` set or status `stopped`,
+so a long `--merge` run cannot land after `factory stop` or a lead/director hold.
+
 ## Pending CI and merge races
 
 `factory judge --merge` no longer refuses just because CI is still running.

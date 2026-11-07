@@ -5047,6 +5047,10 @@ def train_merge(con, plan, upto, run, owner_repo):
                 return stop(msg)
             with contextlib.ExitStack() as stack:
                 lock_and_recheck(stack, con, t, tid)
+                refused = pre_gh_merge_refusal(con, tid, None, check_agent_stop=False)
+                if refused:
+                    rejection_gate_refusal(con, tid, "judge-blocked", refused)
+                    return stop(refused + "; nothing merged")
                 try:
                     p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit",
                                         s["head"], *author_args], capture_output=True, text=True, timeout=180, env=gh_git_env())
@@ -5409,6 +5413,33 @@ def lock_and_recheck(stack, con, t, task):
         die("merge refused: the PR is no longer OPEN (merged by another run); nothing merged", 4)
 
 
+def judge_agent_stop_refusal(con, agent_name):
+    """None, or a reason to refuse `gh pr merge` when the judge agent was stopped after the gate started."""
+    if not agent_name:
+        return None
+    r = con.execute("SELECT status, stop_requested_at FROM agents WHERE name=?", (agent_name,)).fetchone()
+    if not r:
+        return None
+    if r["status"] == "stopped":
+        return f"judge agent {agent_name} is stopped"
+    if r["stop_requested_at"]:
+        return f"judge agent {agent_name} has stop requested"
+    return None
+
+
+def pre_gh_merge_refusal(con, task, agent_name, *, check_agent_stop):
+    """Re-read judge hold and (for an LLM judge) the agent stop flag immediately before `gh pr merge`; None if allowed."""
+    jhr = task_judge_hold_reason(con, task)
+    if jhr:
+        log_task_judge_hold(con, task, jhr)
+        return f"judge hold: {jhr}"
+    if check_agent_stop:
+        why = judge_agent_stop_refusal(con, agent_name)
+        if why:
+            return why
+    return None
+
+
 def judge_author_args(con, t, owner_repo):
     """Extra `gh pr merge` args for a merge: [] for a private repo; for a public one (G-021) the squash commit must not
     carry a real email, so --author-email and an explicit --body. Returns (args, refusal): refusal is the message when the
@@ -5626,6 +5657,10 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
         if not locked:
             lock_and_recheck(stack, con, t, a.task)
             locked = True
+        refused = pre_gh_merge_refusal(con, a.task, actor(), check_agent_stop=not mech)
+        if refused:
+            rejection_gate_refusal(con, a.task, "judge-blocked", refused)
+            die(f"merge refused: {refused}; nothing merged", 4)
         try:
             p = subprocess.run(["gh", "pr", "merge", t["pr_url"], "--squash", "--delete-branch", "--match-head-commit", sha, *author_args],
                                capture_output=True, text=True, timeout=180, env=gh_git_env())
