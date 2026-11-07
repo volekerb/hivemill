@@ -596,10 +596,31 @@ class TokenLimitTests(Base):
         alerts = self.env.sql("SELECT recipient, task_id FROM messages WHERE kind='alert'")
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0]["task_id"], "T-0001")
+        self.assertEqual(alerts[0]["recipient"], LEAD)
+
+    def test_limit_raised_at_new_limit_gets_second_alert_same_task(self):
+        self.task("T-0001")
+        self.env.sql("UPDATE goals SET token_limit=1000 WHERE id='G-001'")
+        self.env.sql("INSERT INTO goal_token_tally(goal_id,input,output,cache_read,cache_write_5m,cache_write_1h,cost,computed_at)"
+                     " VALUES('G-001',1000,0,0,0,0,0,'t')")
+        self.mode()
+        for _ in range(5):
+            self.dispatch()
+        self.assertEqual(len(self.events("goal-token-limit-refused")), 1)
+        alerts = self.env.sql("SELECT 1 FROM messages WHERE kind='alert' AND subject LIKE 'dispatch refused%'")
+        self.assertEqual(len(alerts), 1)
+        self.env.sql("UPDATE goals SET token_limit=2000 WHERE id='G-001'")
+        self.env.sql("UPDATE goal_token_tally SET input=2000 WHERE goal_id='G-001'")
+        self.dispatch()
+        self.assertEqual(len(self.events("goal-token-limit-refused")), 2)
+        alerts = self.env.sql("SELECT 1 FROM messages WHERE kind='alert' AND subject LIKE 'dispatch refused%'")
+        self.assertEqual(len(alerts), 2)
 
     def test_under_limit_coder_is_dispatched(self):
         self.task("T-0001")
         self.env.sql("UPDATE goals SET token_limit=1000 WHERE id='G-001'")
+        self.env.sql("INSERT INTO goal_token_tally(goal_id,input,output,cache_read,cache_write_5m,cache_write_1h,cost,computed_at)"
+                     " VALUES('G-001',500,0,0,0,0,0,'t')")
         self.mode()
         self.assertEqual([c["task"] for c in self.dispatch()], ["T-0001"])
         self.assertEqual(self.events("goal-token-limit-refused"), [])

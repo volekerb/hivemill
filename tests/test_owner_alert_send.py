@@ -141,6 +141,23 @@ class Sending(SendCase):
         self.assertEqual({k.lower() for k in req.headers}, {"content-type"})  # no Title, Tags, Click or other ntfy header
         self.assertIsNotNone(self.sent()[1])
 
+    def test_https_proxy_env_does_not_route_the_request(self):
+        built = []
+        real = urllib.request.build_opener
+
+        def capture(*handlers):
+            built.append(handlers)
+            return real(*handlers)
+
+        with mock.patch.dict(os.environ, {"HTTPS_PROXY": "http://evil:9"}), \
+                mock.patch.object(urllib.request, "build_opener", capture), \
+                mock.patch.object(urllib.request.OpenerDirector, "open", lambda *a, **k: Ok()):
+            self.mod._ntfy_post(TOPIC, "x")
+        self.assertEqual(len(built), 1)
+        proxies = [h for h in built[0] if isinstance(h, urllib.request.ProxyHandler)]
+        self.assertEqual(len(proxies), 1)
+        self.assertEqual(proxies[0].proxies, {})
+
     def test_redirect_is_not_followed(self):
         # a 3xx from the server surfaces as HTTPError (no redirect handler), so it is a failure
         self.row()
@@ -291,23 +308,34 @@ class Rows(SendCase):
         self.assertEqual([c[1].split()[3] for c in self.calls], ["ref=T-2"])
 
     def test_no_transaction_open_and_a_second_connection_can_write(self):
+        """Guards the con.commit() immediately before _ntfy_post."""
         self.row()
-        db = self.con.execute("PRAGMA database_list").fetchone()["file"]
-        wrote = []
+        commits_at_http = []
 
-        def post(topic, line):
-            self.assertFalse(self.con.in_transaction)
-            other = sqlite3.connect(db, timeout=0)
-            try:
-                other.execute("INSERT INTO config(key,value) VALUES('probe','1') ON CONFLICT(key) DO UPDATE SET value='1'")
-                other.commit()
-                wrote.append(True)
-            finally:
-                other.close()
-            return 200
-        self.send(post=post)
-        self.assertEqual(wrote, [True])
-        self.assertIsNotNone(self.sent()[1])
+        class ConProxy:
+            def __init__(self, con):
+                self._con = con
+                self.commits = 0
+
+            def commit(self):
+                self.commits += 1
+                return self._con.commit()
+
+            def __getattr__(self, name):
+                return getattr(self._con, name)
+
+        proxy = ConProxy(self.con)
+
+        def fake_open(opener, req, data=None, timeout=None):
+            commits_at_http.append(proxy.commits)
+            self.assertFalse(proxy.in_transaction)
+            return Ok()
+
+        with mock.patch.dict(os.environ, {"FACTORY_NOW": at()}), \
+                mock.patch.object(urllib.request.OpenerDirector, "open", fake_open):
+            self.mod.owner_alert_send_tick(proxy)
+        self.assertEqual(commits_at_http, [1], "con.commit() must run once before the HTTP call")
+        self.assertIsNotNone({r["id"]: r["sent"] for r in proxy.execute("SELECT id, sent FROM owner_alert_feed")}[1])
 
     def test_flap_guard_24h(self):
         self.row(kind="goal-blocked", ref="G-2", closed=at(100), sent=at(50), first_seen=at(0))

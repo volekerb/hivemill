@@ -155,7 +155,7 @@ DEFAULT_CONFIG = {
     "red_pr_owner_alert": "0",  # 1 = the tick mails the lead (director if no team) once per (task, head) of an open PR that is red or conflicted with no coder (G-022 SC3)
     "goal_token_tally_s": "0",   # 0 = off; >0 = seconds between the tick's drained per-goal token tally passes, read by `factory goal tokens` (G-015 SC3, F-74)
     "owner_alert_send": "0",     # 1 (with owner_alert_feed=1) = the tick sends each open feed row to the owner's phone over ntfy, fixed fields only (G-015 SC3 A3)
-    "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; nothing is sent (G-015 SC3)
+    "owner_alert_feed": "0",     # 1 = the tick records owner_attention() as a dark, deduped feed read by `factory alerts`; ntfy send needs owner_alert_send=1 (G-015 SC3)
     "lead_parking": "0",         # 1 = leads may `factory park` and the tick wakes them on mail; 0 = off, leads stay persistent (G-014)
     "max_live_leads": "4",       # cap on live leads woken from parking (G-014)
     # G-022: behind_ok = a clean BEHIND PR is not refreshed (judge, spawn pre-check) when GitHub's branch protection of
@@ -8959,7 +8959,7 @@ def spawn(con, role, goal=None, team=None, task=None, name=None, cwd=None, promp
             raise EvaluatorInvalid(e.code) from None  # the tick cancels on this one only; other exits are retried
         raise
     if not relaunch:  # a relaunch restarts an agent that already runs: not new work
-        goal_token_gate(con, role, goal, task, org, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
+        goal_token_gate(con, role, goal, task, from_queue)  # G-015 SC3 F-74 L3: before the gate and any queue row
     existing = con.execute("SELECT * FROM agents WHERE name=?", (name,)).fetchone()
     if existing and existing["status"] == "live" and not relaunch:
         # also for from_queue: run/<name>.prompt.md is read live by the running agent; never rewrite it under it
@@ -9305,7 +9305,7 @@ class GoalTokenRefused(SandboxRefused):
 GOAL_TOKEN_REFUSED_ROLES = ("coder", "pm")  # new-work roles; judge, reviewer, qa, lead, cleaner still get PRs to main
 
 
-def goal_token_refusal(con, role, goal, org):
+def goal_token_refusal(con, role, goal):
     """Why a `role` spawn for `goal` is refused at the goal's token limit, else None. Reads the goals row and the cached
     goal_token_tally row only, never a log. No limit, no tally row, an unreadable table or a non-Claude org: None (fails open,
     on purpose: no figure, no refusal; the tally can also read low, which refuses less, never more)."""
@@ -9330,10 +9330,10 @@ def goal_token_refusal(con, role, goal, org):
             f"factory goal edit {goal} --token-limit N")
 
 
-def goal_token_gate(con, role, goal, task, org, from_queue):
+def goal_token_gate(con, role, goal, task, from_queue):
     """spawn()'s limit check (the one place every coder/pm start passes). Direct: one event on the task, exit 3. Queued row:
     raise GoalTokenRefused, the tick cancels it once and alerts the lead. Never leaves an agents row behind."""
-    why = goal_token_refusal(con, role, goal, org)
+    why = goal_token_refusal(con, role, goal)
     if not why:
         return
     if not from_queue:
@@ -12233,7 +12233,8 @@ def _ntfy_post(topic, line):
 
     req = urllib.request.Request(NTFY_BASE + topic, data=line.encode(), method="POST",
                                  headers={"Content-Type": "text/plain; charset=utf-8"})
-    with urllib.request.build_opener(NoRedirect).open(req, timeout=NTFY_TIMEOUT_S) as r:
+    opener = urllib.request.build_opener(NoRedirect, urllib.request.ProxyHandler({}))
+    with opener.open(req, timeout=NTFY_TIMEOUT_S) as r:
         return r.status
 
 
@@ -15557,13 +15558,15 @@ def dispatch_tick(con):
                      f"would start in the shared checkout. Create a worktree, then `factory spawn qa --task {tid} --cwd <worktree>`, "
                      "or cancel the task. The tick will not retry it. This mail wakes you.", kind="report", goal=t["goal_id"], task=tid, sender="tick")
             continue
-        why = goal_token_refusal(con, role, t["goal_id"], None)  # G-015 F-74: same check as spawn(), before it can log per tick
+        why = goal_token_refusal(con, role, t["goal_id"])  # G-015 F-74: same check as spawn(), before it can log per tick
         if why:
             try:
                 clock = digest_clock().timestamp()
             except FactoryNowError:
                 clock = time.time()
-            key = f"dispatch-token-limit:{tid}"
+            gl = con.execute("SELECT token_limit FROM goals WHERE id=?", (t["goal_id"],)).fetchone()
+            glim = gl["token_limit"] if gl else None
+            key = f"dispatch-token-limit:{tid}:{glim}"
             if not _throttled(con, key, clock, 10 * 365 * 86400):  # once per task: one event, one alert, never retried per tick
                 _throttle_set(con, key, clock)
                 event(con, "task", tid, "goal-token-limit-refused", f"{role}: {why}")
