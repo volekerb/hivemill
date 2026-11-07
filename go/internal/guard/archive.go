@@ -70,6 +70,18 @@ func alphaCluster(s string, dashOptional bool) bool {
 	return true
 }
 
+// archivePyModuleSuffix is worker-guard.py archive_extract unknown-option scan:
+// any(a.endswith(("zipfile", "tarfile", "zipfile.__main__", "tarfile.__main__")) for a in args[k:]).
+func archivePyModuleSuffix(a string) bool {
+	return strings.HasSuffix(a, "zipfile") || strings.HasSuffix(a, "tarfile") ||
+		strings.HasSuffix(a, "zipfile.__main__") || strings.HasSuffix(a, "tarfile.__main__")
+}
+
+// isArchivePyModule is the -m module names treated like zipfile/tarfile (T-0945).
+func isArchivePyModule(mod string) bool {
+	return mod == "zipfile" || mod == "tarfile" || mod == "zipfile.__main__" || mod == "tarfile.__main__"
+}
+
 // isPythonName is re.match(r"^python[\d.]*$", s).
 func isPythonName(s string) bool {
 	s = strings.TrimSuffix(s, "\n")
@@ -187,7 +199,7 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 					}
 				case !in(pyLongFlag, base):
 					// unknown arity: block only when a later argument names an archive module (`--bogus -m pytest` stays allowed)
-					if anyOf(args[min(k, len(args)):], func(x string) bool { return strings.HasSuffix(x, "zipfile") || strings.HasSuffix(x, "tarfile") }) {
+					if anyOf(args[min(k, len(args)):], archivePyModuleSuffix) {
 						return false, blockf("`" + name + "` with the unknown option " + pyRepr(args[k-1]) + " before -m zipfile/tarfile: the target " +
 							"cannot be bounded; drop the option or extract with unzip -d")
 					}
@@ -234,7 +246,7 @@ func (a *Analyzer) archiveExtract(name string, rest []string) (bool, error) {
 			return false, blockf("`" + name + " -c` code that extracts an archive cannot be bounded (it may write .git/config or hooks): " +
 				why + "; use unzip -d or tar -C")
 		}
-		if modSet && (mod == "zipfile" || mod == "tarfile") {
+		if modSet && isArchivePyModule(mod) {
 			for j := k; j < len(args); j++ {
 				if args[j] == "-e" || args[j] == "--extract" {
 					extract = true
