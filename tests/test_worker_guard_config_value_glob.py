@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 from harness import git  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 TASK = "t-1097"
 WRITERS = ("coder", "judge", "cleaner")
 OTHERS = ("reviewer", "qa", "pm")
@@ -132,6 +131,10 @@ class ConfigValueGlobTests(unittest.TestCase):
 
     def test_changed_from_attempt_2_refused(self):
         self.check(NOW_REFUSED, 2, WRITERS)
+
+    # T-1137: bare scope-only write; Go was exit 0 on origin/main before configExpansionRefuse rule 6 (pre-007748cd).
+    def test_bare_git_config_global_refused(self):
+        self.check(["git config --global"], 2, WRITERS, text="`git config --global` write:")
 
     def test_abbreviation_and_unknown_option_stay_refused(self):
         self.check(OLDER, 2, WRITERS + OTHERS)

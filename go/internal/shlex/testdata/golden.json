@@ -104440,6 +104440,2967 @@
 "src": "corpus"
 },
 {
+"input": "git config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config"
+]
+},
+{
+"input": "git config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config"
+]
+},
+{
+"input": "git config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config"
+]
+},
+{
+"input": "git config",
+"mode": "quote",
+"quoted": "'git config'",
+"src": "corpus"
+},
+{
+"input": "git config --global",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--global"
+]
+},
+{
+"input": "git config --global",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--global"
+]
+},
+{
+"input": "git config --global",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--global"
+]
+},
+{
+"input": "git config --global",
+"mode": "quote",
+"quoted": "'git config --global'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --comment --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --comment --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --comment --get al*",
+"mode": "quote",
+"quoted": "'git config --comment --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --file --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --file --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --file --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --file --get al*",
+"mode": "quote",
+"quoted": "'git config --file --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --fil --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--fil",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --fil --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--fil",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --fil --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--fil",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --fil --get al*",
+"mode": "quote",
+"quoted": "'git config --fil --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --type --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --type --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --type --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --type --get al*",
+"mode": "quote",
+"quoted": "'git config --type --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --list al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--list",
+"al*"
+]
+},
+{
+"input": "git config --comment --list al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--list",
+"al*"
+]
+},
+{
+"input": "git config --comment --list al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--list",
+"al*"
+]
+},
+{
+"input": "git config --comment --list al*",
+"mode": "quote",
+"quoted": "'git config --comment --list al*'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get 'x y'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"x y"
+]
+},
+{
+"input": "git config --comment --get 'x y'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"x y"
+]
+},
+{
+"input": "git config --comment --get 'x y'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"x y"
+]
+},
+{
+"input": "git config --comment --get 'x y'",
+"mode": "quote",
+"quoted": "'git config --comment --get '\"'\"'x y'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get '(a|b)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(a|b)"
+]
+},
+{
+"input": "git config --comment --get '(a|b)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(a|b)"
+]
+},
+{
+"input": "git config --comment --get '(a|b)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(a|b)"
+]
+},
+{
+"input": "git config --comment --get '(a|b)'",
+"mode": "quote",
+"quoted": "'git config --comment --get '\"'\"'(a|b)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git config (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config <->",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"<",
+"-",
+">"
+]
+},
+{
+"input": "git config <->",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"<",
+"-",
+">"
+]
+},
+{
+"input": "git config <->",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"<->"
+]
+},
+{
+"input": "git config <->",
+"mode": "quote",
+"quoted": "'git config <->'",
+"src": "corpus"
+},
+{
+"input": "git config ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"^z"
+]
+},
+{
+"input": "git config ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"^",
+"z"
+]
+},
+{
+"input": "git config ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"^z"
+]
+},
+{
+"input": "git config ^z",
+"mode": "quote",
+"quoted": "'git config ^z'",
+"src": "corpus"
+},
+{
+"input": "git config a~b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"a~b"
+]
+},
+{
+"input": "git config a~b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"a~b"
+]
+},
+{
+"input": "git config a~b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"a~b"
+]
+},
+{
+"input": "git config a~b",
+"mode": "quote",
+"quoted": "'git config a~b'",
+"src": "corpus"
+},
+{
+"input": "git config al#",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"al#"
+]
+},
+{
+"input": "git config al#",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"al"
+]
+},
+{
+"input": "git config al#",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"al#"
+]
+},
+{
+"input": "git config al#",
+"mode": "quote",
+"quoted": "'git config al#'",
+"src": "corpus"
+},
+{
+"input": "git config --comment c (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --comment c (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --comment c (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config --comment c (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config --comment c (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --comment --get (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --comment --get (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config --comment --get (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config --comment --get (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get x#",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"x#"
+]
+},
+{
+"input": "git config --comment --get x#",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"x"
+]
+},
+{
+"input": "git config --comment --get x#",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"x#"
+]
+},
+{
+"input": "git config --comment --get x#",
+"mode": "quote",
+"quoted": "'git config --comment --get x#'",
+"src": "corpus"
+},
+{
+"input": "git config --file (.git/config|alias.x) y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"(",
+".git/config",
+"|",
+"alias.x",
+")",
+"y"
+]
+},
+{
+"input": "git config --file (.git/config|alias.x) y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"(",
+".git/config",
+"|",
+"alias.x",
+")",
+"y"
+]
+},
+{
+"input": "git config --file (.git/config|alias.x) y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"(.git/config|alias.x)",
+"y"
+]
+},
+{
+"input": "git config --file (.git/config|alias.x) y",
+"mode": "quote",
+"quoted": "'git config --file (.git/config|alias.x) y'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get <->",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"<",
+"-",
+">"
+]
+},
+{
+"input": "git config --comment --get <->",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"<",
+"-",
+">"
+]
+},
+{
+"input": "git config --comment --get <->",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"<->"
+]
+},
+{
+"input": "git config --comment --get <->",
+"mode": "quote",
+"quoted": "'git config --comment --get <->'",
+"src": "corpus"
+},
+{
+"input": "eval 'git config --comment --get (alias.x|y)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "eval 'git config --comment --get (alias.x|y)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "eval 'git config --comment --get (alias.x|y)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "eval 'git config --comment --get (alias.x|y)'",
+"mode": "quote",
+"quoted": "'eval '\"'\"'git config --comment --get (alias.x|y)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "zsh -c 'git config --comment --get (alias.x|y)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "zsh -c 'git config --comment --get (alias.x|y)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "zsh -c 'git config --comment --get (alias.x|y)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "zsh -c 'git config --comment --get (alias.x|y)'",
+"mode": "quote",
+"quoted": "'zsh -c '\"'\"'git config --comment --get (alias.x|y)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "echo alias.x push | xargs git config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "echo alias.x push | xargs git config",
+"mode": "quote",
+"quoted": "'echo alias.x push | xargs git config'",
+"src": "corpus"
+},
+{
+"input": "printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"printf",
+"alias.x\\npush\\n",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"printf",
+"alias.x\\npush\\n",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"printf",
+"alias.x\\npush\\n",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "quote",
+"quoted": "'printf '\"'\"'alias.x\\npush\\n'\"'\"' | xargs git config'",
+"src": "corpus"
+},
+{
+"input": "git config 'branch.fix#12.remote'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"branch.fix#12.remote"
+]
+},
+{
+"input": "git config 'branch.fix#12.remote'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"branch.fix#12.remote"
+]
+},
+{
+"input": "git config 'branch.fix#12.remote'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"branch.fix#12.remote"
+]
+},
+{
+"input": "git config 'branch.fix#12.remote'",
+"mode": "quote",
+"quoted": "'git config '\"'\"'branch.fix#12.remote'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git config --com --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--com",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --com --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--com",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --com --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--com",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --com --get al*",
+"mode": "quote",
+"quoted": "'git config --com --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --unknown-opt --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--unknown-opt",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --unknown-opt --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--unknown-opt",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --unknown-opt --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--unknown-opt",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --unknown-opt --get al*",
+"mode": "quote",
+"quoted": "'git config --unknown-opt --get al*'",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "# it's\ngit config --comment --get (alias.x|y)",
+"mode": "script",
+"src": "corpus"
+},
+{
+"input": "# it's\ngit config --comment --get (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"error": "No closing quotation",
+"input": "# it's\ngit config --comment --get (alias.x|y)",
+"mode": "split",
+"src": "corpus"
+},
+{
+"input": "# it's\ngit config --comment --get (alias.x|y)",
+"mode": "quote",
+"quoted": "'# it'\"'\"'s\ngit config --comment --get (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "builtin eval 'git config --comment --get (alias.x|y)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"builtin",
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "builtin eval 'git config --comment --get (alias.x|y)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"builtin",
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "builtin eval 'git config --comment --get (alias.x|y)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"builtin",
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "builtin eval 'git config --comment --get (alias.x|y)'",
+"mode": "quote",
+"quoted": "'builtin eval '\"'\"'git config --comment --get (alias.x|y)'\"'\"''",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "cat <<EOF\nit's\nEOF\ngit config --comment --get (alias.x|y)",
+"mode": "script",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "cat <<EOF\nit's\nEOF\ngit config --comment --get (alias.x|y)",
+"mode": "default",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "cat <<EOF\nit's\nEOF\ngit config --comment --get (alias.x|y)",
+"mode": "split",
+"src": "corpus"
+},
+{
+"input": "cat <<EOF\nit's\nEOF\ngit config --comment --get (alias.x|y)",
+"mode": "quote",
+"quoted": "'cat <<EOF\nit'\"'\"'s\nEOF\ngit config --comment --get (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "command eval 'git config --comment --get (alias.x|y)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"command",
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "command eval 'git config --comment --get (alias.x|y)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"command",
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "command eval 'git config --comment --get (alias.x|y)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"command",
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "command eval 'git config --comment --get (alias.x|y)'",
+"mode": "quote",
+"quoted": "'command eval '\"'\"'git config --comment --get (alias.x|y)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "emulate -L zsh -o extended_glob; git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"emulate",
+"-L",
+"zsh",
+"-o",
+"extended_glob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "emulate -L zsh -o extended_glob; git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"emulate",
+"-L",
+"zsh",
+"-o",
+"extended_glob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "emulate -L zsh -o extended_glob; git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"emulate",
+"-L",
+"zsh",
+"-o",
+"extended_glob;",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "emulate -L zsh -o extended_glob; git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'emulate -L zsh -o extended_glob; git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "emulate zsh -o extendedglob; git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"emulate",
+"zsh",
+"-o",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "emulate zsh -o extendedglob; git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"emulate",
+"zsh",
+"-o",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "emulate zsh -o extendedglob; git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"emulate",
+"zsh",
+"-o",
+"extendedglob;",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "emulate zsh -o extendedglob; git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'emulate zsh -o extendedglob; git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "eval 'setopt extendedglob; git config --comment --get ^z'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"eval",
+"setopt extendedglob; git config --comment --get ^z"
+]
+},
+{
+"input": "eval 'setopt extendedglob; git config --comment --get ^z'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"eval",
+"setopt extendedglob; git config --comment --get ^z"
+]
+},
+{
+"input": "eval 'setopt extendedglob; git config --comment --get ^z'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"eval",
+"setopt extendedglob; git config --comment --get ^z"
+]
+},
+{
+"input": "eval 'setopt extendedglob; git config --comment --get ^z'",
+"mode": "quote",
+"quoted": "'eval '\"'\"'setopt extendedglob; git config --comment --get ^z'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "eval 'git config --comment --get <->'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get <->"
+]
+},
+{
+"input": "eval 'git config --comment --get <->'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get <->"
+]
+},
+{
+"input": "eval 'git config --comment --get <->'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get <->"
+]
+},
+{
+"input": "eval 'git config --comment --get <->'",
+"mode": "quote",
+"quoted": "'eval '\"'\"'git config --comment --get <->'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "eval git config --comment --get '(alias.x|y)'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"eval",
+"git",
+"config",
+"--comment",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "eval git config --comment --get '(alias.x|y)'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"eval",
+"git",
+"config",
+"--comment",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "eval git config --comment --get '(alias.x|y)'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"eval",
+"git",
+"config",
+"--comment",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "eval git config --comment --get '(alias.x|y)'",
+"mode": "quote",
+"quoted": "'eval git config --comment --get '\"'\"'(alias.x|y)'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git config --blob --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--blob",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --blob --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--blob",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --blob --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--blob",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --blob --get al*",
+"mode": "quote",
+"quoted": "'git config --blob --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get a?ias.x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a?ias.x"
+]
+},
+{
+"input": "git config --comment --get a?ias.x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a?ias.x"
+]
+},
+{
+"input": "git config --comment --get a?ias.x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a?ias.x"
+]
+},
+{
+"input": "git config --comment --get a?ias.x",
+"mode": "quote",
+"quoted": "'git config --comment --get a?ias.x'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get a[l]*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a[l]*"
+]
+},
+{
+"input": "git config --comment --get a[l]*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a",
+"[",
+"l",
+"]",
+"*"
+]
+},
+{
+"input": "git config --comment --get a[l]*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a[l]*"
+]
+},
+{
+"input": "git config --comment --get a[l]*",
+"mode": "quote",
+"quoted": "'git config --comment --get a[l]*'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get-all al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get-all",
+"al*"
+]
+},
+{
+"input": "git config --comment --get-all al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get-all",
+"al*"
+]
+},
+{
+"input": "git config --comment --get-all al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get-all",
+"al*"
+]
+},
+{
+"input": "git config --comment --get-all al*",
+"mode": "quote",
+"quoted": "'git config --comment --get-all al*'",
+"src": "corpus"
+},
+{
+"input": "git config --comment c ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"^z"
+]
+},
+{
+"input": "git config --comment c ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"^",
+"z"
+]
+},
+{
+"input": "git config --comment c ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"^z"
+]
+},
+{
+"input": "git config --comment c ^z",
+"mode": "quote",
+"quoted": "'git config --comment c ^z'",
+"src": "corpus"
+},
+{
+"input": "git config --default --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--default",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --default --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--default",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --default --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--default",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --default --get al*",
+"mode": "quote",
+"quoted": "'git config --default --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --file --get (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --file --get (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --file --get (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config --file --get (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config --file --get (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config --type --get (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --type --get (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --type --get (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config --type --get (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config --type --get (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config --type bool (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"bool",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --type bool (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"bool",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --type bool (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type",
+"bool",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config --type bool (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config --type bool (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config --value --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--value",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --value --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--value",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --value --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--value",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --value --get al*",
+"mode": "quote",
+"quoted": "'git config --value --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config -c a=b --comment --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-c",
+"a=b",
+"--comment",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -c a=b --comment --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-c",
+"a=b",
+"--comment",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -c a=b --comment --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-c",
+"a=b",
+"--comment",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -c a=b --comment --get al*",
+"mode": "quote",
+"quoted": "'git config -c a=b --comment --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config -f --get (a|b)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-f",
+"--get",
+"(",
+"a",
+"|",
+"b",
+")"
+]
+},
+{
+"input": "git config -f --get (a|b)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-f",
+"--get",
+"(",
+"a",
+"|",
+"b",
+")"
+]
+},
+{
+"input": "git config -f --get (a|b)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-f",
+"--get",
+"(a|b)"
+]
+},
+{
+"input": "git config -f --get (a|b)",
+"mode": "quote",
+"quoted": "'git config -f --get (a|b)'",
+"src": "corpus"
+},
+{
+"input": "git config -f --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-f",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -f --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-f",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -f --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-f",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -f --get al*",
+"mode": "quote",
+"quoted": "'git config -f --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config -t --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-t",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -t --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-t",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -t --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-t",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config -t --get al*",
+"mode": "quote",
+"quoted": "'git config -t --get al*'",
+"src": "corpus"
+},
+{
+"input": "set -o extendedglob; git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"set",
+"-o",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "set -o extendedglob; git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"set",
+"-o",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "set -o extendedglob; git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"set",
+"-o",
+"extendedglob;",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "set -o extendedglob; git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'set -o extendedglob; git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "setopt EXTENDEDGLOB; git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"setopt",
+"EXTENDEDGLOB",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt EXTENDEDGLOB; git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"setopt",
+"EXTENDEDGLOB",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "setopt EXTENDEDGLOB; git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"setopt",
+"EXTENDEDGLOB;",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt EXTENDEDGLOB; git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'setopt EXTENDEDGLOB; git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "setopt extended_glob; git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extended_glob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt extended_glob; git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extended_glob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "setopt extended_glob; git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extended_glob;",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt extended_glob; git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'setopt extended_glob; git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "setopt extendedglob && git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+"&&",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt extendedglob && git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+"&&",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "setopt extendedglob && git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+"&&",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt extendedglob && git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'setopt extendedglob && git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "setopt extendedglob; git config --comment --get ^z",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get ^z",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"^",
+"z"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get ^z",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob;",
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get ^z",
+"mode": "quote",
+"quoted": "'setopt extendedglob; git config --comment --get ^z'",
+"src": "corpus"
+},
+{
+"input": "setopt extendedglob; git config --comment --get al#",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"al#"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get al#",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"al"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get al#",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob;",
+"git",
+"config",
+"--comment",
+"--get",
+"al#"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get al#",
+"mode": "quote",
+"quoted": "'setopt extendedglob; git config --comment --get al#'",
+"src": "corpus"
+},
+{
+"input": "setopt extendedglob; git config --comment --get a~b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"a~b"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get a~b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob",
+";",
+"git",
+"config",
+"--comment",
+"--get",
+"a~b"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get a~b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"setopt",
+"extendedglob;",
+"git",
+"config",
+"--comment",
+"--get",
+"a~b"
+]
+},
+{
+"input": "setopt extendedglob; git config --comment --get a~b",
+"mode": "quote",
+"quoted": "'setopt extendedglob; git config --comment --get a~b'",
+"src": "corpus"
+},
+{
+"input": "zsh -o extendedglob -c 'git config --comment --get ^z'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-o",
+"extendedglob",
+"-c",
+"git config --comment --get ^z"
+]
+},
+{
+"input": "zsh -o extendedglob -c 'git config --comment --get ^z'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-o",
+"extendedglob",
+"-c",
+"git config --comment --get ^z"
+]
+},
+{
+"input": "zsh -o extendedglob -c 'git config --comment --get ^z'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-o",
+"extendedglob",
+"-c",
+"git config --comment --get ^z"
+]
+},
+{
+"input": "zsh -o extendedglob -c 'git config --comment --get ^z'",
+"mode": "quote",
+"quoted": "'zsh -o extendedglob -c '\"'\"'git config --comment --get ^z'\"'\"''",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get <1-2>",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"<",
+"1-2",
+">"
+]
+},
+{
+"input": "git config --comment --get <1-2>",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"<",
+"1-2",
+">"
+]
+},
+{
+"input": "git config --comment --get <1-2>",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"<1-2>"
+]
+},
+{
+"input": "git config --comment --get <1-2>",
+"mode": "quote",
+"quoted": "'git config --comment --get <1-2>'",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get a~b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a~b"
+]
+},
+{
+"input": "git config --comment --get a~b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a~b"
+]
+},
+{
+"input": "git config --comment --get a~b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"a~b"
+]
+},
+{
+"input": "git config --comment --get a~b",
+"mode": "quote",
+"quoted": "'git config --comment --get a~b'",
+"src": "corpus"
+},
+{
+"error": "No closing quotation",
+"input": "git config --comment --get (alias.x|y)\n# it's",
+"mode": "script",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get (alias.x|y)\n# it's",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"error": "No closing quotation",
+"input": "git config --comment --get (alias.x|y)\n# it's",
+"mode": "split",
+"src": "corpus"
+},
+{
+"input": "git config --comment --get (alias.x|y)\n# it's",
+"mode": "quote",
+"quoted": "'git config --comment --get (alias.x|y)\n# it'\"'\"'s'",
+"src": "corpus"
+},
+{
+"input": "git config --file --get x.y",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"x.y"
+]
+},
+{
+"input": "git config --file --get x.y",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"x.y"
+]
+},
+{
+"input": "git config --file --get x.y",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file",
+"--get",
+"x.y"
+]
+},
+{
+"input": "git config --file --get x.y",
+"mode": "quote",
+"quoted": "'git config --file --get x.y'",
+"src": "corpus"
+},
+{
+"input": "eval \"git config --comment --get (alias.x|y)\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "eval \"git config --comment --get (alias.x|y)\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "eval \"git config --comment --get (alias.x|y)\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"eval",
+"git config --comment --get (alias.x|y)"
+]
+},
+{
+"input": "eval \"git config --comment --get (alias.x|y)\"",
+"mode": "quote",
+"quoted": "'eval \"git config --comment --get (alias.x|y)\"'",
+"src": "corpus"
+},
+{
+"input": "cd /x && echo alias.x push | xargs git config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "cd /x && echo alias.x push | xargs git config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "cd /x && echo alias.x push | xargs git config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"echo",
+"alias.x",
+"push",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "cd /x && echo alias.x push | xargs git config",
+"mode": "quote",
+"quoted": "'cd /x && echo alias.x push | xargs git config'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"echo alias.x push | xargs git config\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo alias.x push | xargs git config"
+]
+},
+{
+"input": "bash -c \"echo alias.x push | xargs git config\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo alias.x push | xargs git config"
+]
+},
+{
+"input": "bash -c \"echo alias.x push | xargs git config\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"echo alias.x push | xargs git config"
+]
+},
+{
+"input": "bash -c \"echo alias.x push | xargs git config\"",
+"mode": "quote",
+"quoted": "'bash -c \"echo alias.x push | xargs git config\"'",
+"src": "corpus"
+},
+{
+"input": "zsh -c \"echo alias.x push | xargs git config\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"echo alias.x push | xargs git config"
+]
+},
+{
+"input": "zsh -c \"echo alias.x push | xargs git config\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"echo alias.x push | xargs git config"
+]
+},
+{
+"input": "zsh -c \"echo alias.x push | xargs git config\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"echo alias.x push | xargs git config"
+]
+},
+{
+"input": "zsh -c \"echo alias.x push | xargs git config\"",
+"mode": "quote",
+"quoted": "'zsh -c \"echo alias.x push | xargs git config\"'",
+"src": "corpus"
+},
+{
+"input": "cd /x && printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"printf",
+"alias.x\\npush\\n",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "cd /x && printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"printf",
+"alias.x\\npush\\n",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "cd /x && printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"cd",
+"/x",
+"&&",
+"printf",
+"alias.x\\npush\\n",
+"|",
+"xargs",
+"git",
+"config"
+]
+},
+{
+"input": "cd /x && printf 'alias.x\\npush\\n' | xargs git config",
+"mode": "quote",
+"quoted": "'cd /x && printf '\"'\"'alias.x\\npush\\n'\"'\"' | xargs git config'",
+"src": "corpus"
+},
+{
+"input": "bash -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"printf 'alias.x\\npush\\n' | xargs git config"
+]
+},
+{
+"input": "bash -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"printf 'alias.x\\npush\\n' | xargs git config"
+]
+},
+{
+"input": "bash -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"bash",
+"-c",
+"printf 'alias.x\\npush\\n' | xargs git config"
+]
+},
+{
+"input": "bash -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "quote",
+"quoted": "'bash -c \"printf '\"'\"'alias.x\\\\npush\\\\n'\"'\"' | xargs git config\"'",
+"src": "corpus"
+},
+{
+"input": "zsh -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"printf 'alias.x\\npush\\n' | xargs git config"
+]
+},
+{
+"input": "zsh -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"printf 'alias.x\\npush\\n' | xargs git config"
+]
+},
+{
+"input": "zsh -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"zsh",
+"-c",
+"printf 'alias.x\\npush\\n' | xargs git config"
+]
+},
+{
+"input": "zsh -c \"printf 'alias.x\\\\npush\\\\n' | xargs git config\"",
+"mode": "quote",
+"quoted": "'zsh -c \"printf '\"'\"'alias.x\\\\npush\\\\n'\"'\"' | xargs git config\"'",
+"src": "corpus"
+},
+{
 "input": "tar -xCf /tmp/x a.tar",
 "mode": "script",
 "src": "corpus",
@@ -129752,6 +132713,1028 @@
 "src": "corpus"
 },
 {
+"input": "git config --comment c --get alias.x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"alias.x"
+]
+},
+{
+"input": "git config --comment c --get alias.x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"alias.x"
+]
+},
+{
+"input": "git config --comment c --get alias.x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"alias.x"
+]
+},
+{
+"input": "git config --comment c --get alias.x",
+"mode": "quote",
+"quoted": "'git config --comment c --get alias.x'",
+"src": "corpus"
+},
+{
+"input": "git config --get (a|b)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"(",
+"a",
+"|",
+"b",
+")"
+]
+},
+{
+"input": "git config --get (a|b)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"(",
+"a",
+"|",
+"b",
+")"
+]
+},
+{
+"input": "git config --get (a|b)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"(a|b)"
+]
+},
+{
+"input": "git config --get (a|b)",
+"mode": "quote",
+"quoted": "'git config --get (a|b)'",
+"src": "corpus"
+},
+{
+"input": "git config --get <->",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"<",
+"-",
+">"
+]
+},
+{
+"input": "git config --get <->",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"<",
+"-",
+">"
+]
+},
+{
+"input": "git config --get <->",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"<->"
+]
+},
+{
+"input": "git config --get <->",
+"mode": "quote",
+"quoted": "'git config --get <->'",
+"src": "corpus"
+},
+{
+"input": "git config --comment c --get (alias.x|y)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --comment c --get (alias.x|y)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"(",
+"alias.x",
+"|",
+"y",
+")"
+]
+},
+{
+"input": "git config --comment c --get (alias.x|y)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"(alias.x|y)"
+]
+},
+{
+"input": "git config --comment c --get (alias.x|y)",
+"mode": "quote",
+"quoted": "'git config --comment c --get (alias.x|y)'",
+"src": "corpus"
+},
+{
+"input": "git config --comment '(a|b)' --get alias.x",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"(a|b)",
+"--get",
+"alias.x"
+]
+},
+{
+"input": "git config --comment '(a|b)' --get alias.x",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"(a|b)",
+"--get",
+"alias.x"
+]
+},
+{
+"input": "git config --comment '(a|b)' --get alias.x",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"(a|b)",
+"--get",
+"alias.x"
+]
+},
+{
+"input": "git config --comment '(a|b)' --get alias.x",
+"mode": "quote",
+"quoted": "'git config --comment '\"'\"'(a|b)'\"'\"' --get alias.x'",
+"src": "corpus"
+},
+{
+"input": "git config --get-regexp ^alias",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get-regexp",
+"^alias"
+]
+},
+{
+"input": "git config --get-regexp ^alias",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get-regexp",
+"^",
+"alias"
+]
+},
+{
+"input": "git config --get-regexp ^alias",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get-regexp",
+"^alias"
+]
+},
+{
+"input": "git config --get-regexp ^alias",
+"mode": "quote",
+"quoted": "'git config --get-regexp ^alias'",
+"src": "corpus"
+},
+{
+"input": "git config -l",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-l"
+]
+},
+{
+"input": "git config -l",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-l"
+]
+},
+{
+"input": "git config -l",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"-l"
+]
+},
+{
+"input": "git config -l",
+"mode": "quote",
+"quoted": "'git config -l'",
+"src": "corpus"
+},
+{
+"input": "git config get user.name",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"get",
+"user.name"
+]
+},
+{
+"input": "git config get user.name",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"get",
+"user.name"
+]
+},
+{
+"input": "git config get user.name",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"get",
+"user.name"
+]
+},
+{
+"input": "git config get user.name",
+"mode": "quote",
+"quoted": "'git config get user.name'",
+"src": "corpus"
+},
+{
+"input": "git config core.bare < /dev/null",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"core.bare",
+"<",
+"/dev/null"
+]
+},
+{
+"input": "git config core.bare < /dev/null",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"core.bare",
+"<",
+"/dev/null"
+]
+},
+{
+"input": "git config core.bare < /dev/null",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"core.bare",
+"<",
+"/dev/null"
+]
+},
+{
+"input": "git config core.bare < /dev/null",
+"mode": "quote",
+"quoted": "'git config core.bare < /dev/null'",
+"src": "corpus"
+},
+{
+"input": "git config user.name 2>/dev/null",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+"2",
+">",
+"/dev/null"
+]
+},
+{
+"input": "git config user.name 2>/dev/null",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+"2",
+">",
+"/dev/null"
+]
+},
+{
+"input": "git config user.name 2>/dev/null",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+"2>/dev/null"
+]
+},
+{
+"input": "git config user.name 2>/dev/null",
+"mode": "quote",
+"quoted": "'git config user.name 2>/dev/null'",
+"src": "corpus"
+},
+{
+"input": "git config --default -1 --get a.b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--default",
+"-1",
+"--get",
+"a.b"
+]
+},
+{
+"input": "git config --default -1 --get a.b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--default",
+"-1",
+"--get",
+"a.b"
+]
+},
+{
+"input": "git config --default -1 --get a.b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--default",
+"-1",
+"--get",
+"a.b"
+]
+},
+{
+"input": "git config --default -1 --get a.b",
+"mode": "quote",
+"quoted": "'git config --default -1 --get a.b'",
+"src": "corpus"
+},
+{
+"input": "git config --type=bool core.bare",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type=bool",
+"core.bare"
+]
+},
+{
+"input": "git config --type=bool core.bare",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type=bool",
+"core.bare"
+]
+},
+{
+"input": "git config --type=bool core.bare",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--type=bool",
+"core.bare"
+]
+},
+{
+"input": "git config --type=bool core.bare",
+"mode": "quote",
+"quoted": "'git config --type=bool core.bare'",
+"src": "corpus"
+},
+{
+"input": "git config --file=f a.b",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file=f",
+"a.b"
+]
+},
+{
+"input": "git config --file=f a.b",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file=f",
+"a.b"
+]
+},
+{
+"input": "git config --file=f a.b",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file=f",
+"a.b"
+]
+},
+{
+"input": "git config --file=f a.b",
+"mode": "quote",
+"quoted": "'git config --file=f a.b'",
+"src": "corpus"
+},
+{
+"input": "git config --comment c --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --comment c --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --comment c --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--comment",
+"c",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --comment c --get al*",
+"mode": "quote",
+"quoted": "'git config --comment c --get al*'",
+"src": "corpus"
+},
+{
+"input": "git config --file=f --get al*",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file=f",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --file=f --get al*",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file=f",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --file=f --get al*",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--file=f",
+"--get",
+"al*"
+]
+},
+{
+"input": "git config --file=f --get al*",
+"mode": "quote",
+"quoted": "'git config --file=f --get al*'",
+"src": "corpus"
+},
+{
+"input": "x=$(git config user.name)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"x=$",
+"(",
+"git",
+"config",
+"user.name",
+")"
+]
+},
+{
+"input": "x=$(git config user.name)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"x=",
+"$",
+"(",
+"git",
+"config",
+"user.name",
+")"
+]
+},
+{
+"input": "x=$(git config user.name)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"x=$(git",
+"config",
+"user.name)"
+]
+},
+{
+"input": "x=$(git config user.name)",
+"mode": "quote",
+"quoted": "'x=$(git config user.name)'",
+"src": "corpus"
+},
+{
+"input": "echo $(git config user.name)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"echo",
+"$",
+"(",
+"git",
+"config",
+"user.name",
+")"
+]
+},
+{
+"input": "echo $(git config user.name)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"echo",
+"$",
+"(",
+"git",
+"config",
+"user.name",
+")"
+]
+},
+{
+"input": "echo $(git config user.name)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"echo",
+"$(git",
+"config",
+"user.name)"
+]
+},
+{
+"input": "echo $(git config user.name)",
+"mode": "quote",
+"quoted": "'echo $(git config user.name)'",
+"src": "corpus"
+},
+{
+"input": "(git config user.name)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"(",
+"git",
+"config",
+"user.name",
+")"
+]
+},
+{
+"input": "(git config user.name)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"(",
+"git",
+"config",
+"user.name",
+")"
+]
+},
+{
+"input": "(git config user.name)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"(git",
+"config",
+"user.name)"
+]
+},
+{
+"input": "(git config user.name)",
+"mode": "quote",
+"quoted": "'(git config user.name)'",
+"src": "corpus"
+},
+{
+"input": "git config user.name; (ls)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+";",
+"(",
+"ls",
+")"
+]
+},
+{
+"input": "git config user.name; (ls)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+";",
+"(",
+"ls",
+")"
+]
+},
+{
+"input": "git config user.name; (ls)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name;",
+"(ls)"
+]
+},
+{
+"input": "git config user.name; (ls)",
+"mode": "quote",
+"quoted": "'git config user.name; (ls)'",
+"src": "corpus"
+},
+{
+"input": "git config user.name && echo $(date)",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+"&&",
+"echo",
+"$",
+"(",
+"date",
+")"
+]
+},
+{
+"input": "git config user.name && echo $(date)",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+"&&",
+"echo",
+"$",
+"(",
+"date",
+")"
+]
+},
+{
+"input": "git config user.name && echo $(date)",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"user.name",
+"&&",
+"echo",
+"$(date)"
+]
+},
+{
+"input": "git config user.name && echo $(date)",
+"mode": "quote",
+"quoted": "'git config user.name && echo $(date)'",
+"src": "corpus"
+},
+{
+"input": "f() { ls; }; git config user.name",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"f",
+"()",
+"{",
+"ls",
+";",
+"}",
+";",
+"git",
+"config",
+"user.name"
+]
+},
+{
+"input": "f() { ls; }; git config user.name",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"f",
+"()",
+"{",
+"ls",
+";",
+"}",
+";",
+"git",
+"config",
+"user.name"
+]
+},
+{
+"input": "f() { ls; }; git config user.name",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"f()",
+"{",
+"ls;",
+"};",
+"git",
+"config",
+"user.name"
+]
+},
+{
+"input": "f() { ls; }; git config user.name",
+"mode": "quote",
+"quoted": "'f() { ls; }; git config user.name'",
+"src": "corpus"
+},
+{
+"input": "for i in $(ls); do git config user.name; done",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"for",
+"i",
+"in",
+"$",
+"(",
+"ls",
+");",
+"do",
+"git",
+"config",
+"user.name",
+";",
+"done"
+]
+},
+{
+"input": "for i in $(ls); do git config user.name; done",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"for",
+"i",
+"in",
+"$",
+"(",
+"ls",
+");",
+"do",
+"git",
+"config",
+"user.name",
+";",
+"done"
+]
+},
+{
+"input": "for i in $(ls); do git config user.name; done",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"for",
+"i",
+"in",
+"$(ls);",
+"do",
+"git",
+"config",
+"user.name;",
+"done"
+]
+},
+{
+"input": "for i in $(ls); do git config user.name; done",
+"mode": "quote",
+"quoted": "'for i in $(ls); do git config user.name; done'",
+"src": "corpus"
+},
+{
+"input": "git config --get 'branch.fix#12.remote'",
+"mode": "script",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"branch.fix#12.remote"
+]
+},
+{
+"input": "git config --get 'branch.fix#12.remote'",
+"mode": "default",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"branch.fix#12.remote"
+]
+},
+{
+"input": "git config --get 'branch.fix#12.remote'",
+"mode": "split",
+"src": "corpus",
+"tokens": [
+"git",
+"config",
+"--get",
+"branch.fix#12.remote"
+]
+},
+{
+"input": "git config --get 'branch.fix#12.remote'",
+"mode": "quote",
+"quoted": "'git config --get '\"'\"'branch.fix#12.remote'\"'\"''",
+"src": "corpus"
+},
+{
 "input": "",
 "mode": "script",
 "src": "edge",
@@ -133783,7 +137766,7 @@
 "src": "edge"
 }
 ],
-"corpus_commands": 3061,
+"corpus_commands": 3153,
 "edge_inputs": 123,
 "python": "3.13"
 }

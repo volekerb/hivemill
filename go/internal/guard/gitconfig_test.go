@@ -99,6 +99,44 @@ func TestConfigExpansionRefuseBuiltArgs(t *testing.T) {
 	}
 }
 
+func TestConfigExpansionRefuseT1097(t *testing.T) {
+	a, err := NewAnalyzer("/tmp/wt", "coder", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scopeMsg := "`git config --global` write:"
+	noKey := "no literal key is given"
+	for _, c := range []struct {
+		toks []string
+		sub  string
+	}{
+		{[]string{"--global"}, scopeMsg},
+		{[]string{"--system"}, "`git config --system` write:"},
+		{[]string{}, noKey},
+		{[]string{"(alias.x|y)"}, noKey},
+		{[]string{"^z"}, noKey},
+		{[]string{"--comment", "--get", "al*"}, "follows a value option"},
+		{[]string{"--comment"}, "a value option has no value"},
+	} {
+		err := a.configExpansionRefuse(c.toks)
+		if err == nil {
+			t.Fatalf("configExpansionRefuse(%v): want refusal", c.toks)
+		}
+		if !strings.Contains(err.Error(), c.sub) {
+			t.Fatalf("configExpansionRefuse(%v): %q, want substring %q", c.toks, err.Error(), c.sub)
+		}
+	}
+	for _, toks := range [][]string{
+		{"--get", "user.name"},
+		{"--list"},
+		{"--global", "--get", "user.name"},
+	} {
+		if err := a.configExpansionRefuse(toks); err != nil {
+			t.Fatalf("configExpansionRefuse(%v): want allow, got %v", toks, err)
+		}
+	}
+}
+
 func TestGitConfigMutates(t *testing.T) {
 	for _, c := range []struct {
 		args       []string
