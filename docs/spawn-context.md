@@ -32,10 +32,23 @@ the claude.ai connectors there. All spawns, including `relaunch`, resume and the
 |---|---|---|---|
 | User/project MCP servers (e.g. `unifi` in `~/.claude.json`) | `--strict-mcp-config --mcp-config '{"mcpServers":{}}'` | `claude_args` in `_spawn_start`, every role but boss | Claude Code CLI reference: `--mcp-config`, `--strict-mcp-config` ("only use MCP servers from `--mcp-config`") |
 | claude.ai account connectors (Gmail, Google Calendar, Google Drive, Claude Docs, ...) | env `ENABLE_CLAUDEAI_MCP_SERVERS=false` | `env` of `roles/settings/<role>.json.in`, every role but boss | Claude Code MCP docs, "Use MCP servers from Claude.ai" (`ENABLE_CLAUDEAI_MCP_SERVERS=false`) |
-| Account/user plugins (`design`, `engineering`, `product-management`, `caveman`, ...) and the MCP servers they bundle | **not removed yet, see T-0305** (the ids were wrong in the first attempt; this PR adds no `enabledPlugins`) | n/a | `code.claude.com/docs/en/plugins/loading` |
+| Account/user plugins and the MCP servers they bundle | `enabledPlugins` in `roles/settings/<role>.json.in` (every role but boss) | `roles/settings/*.json.in` | `code.claude.com/docs/en/plugins/loading` |
 | Role plugin dir `roles/plugins/<role>` | kept: `--plugin-dir` | `_spawn_start` | `claude --help`: `--plugin-dir` |
 | Goal plugin dir `roles/plugins/goals/G-nnn` (coders only) | kept: `--plugin-dir` | `_spawn_start` | same |
 | `anthropic-skills:*` (built-in Anthropic skills) and the built-in `init`, `loop`, `schedule`, ... skills | **cannot be removed per session** by any mechanism found; they are part of the client | n/a | n/a |
+
+### Account plugin ids (director decision M24599)
+
+Owner `claude plugin list`, relayed by cursor-boss. These are the only ids in `enabledPlugins`; each is `false` on every non-boss role except `caveman@caveman` on director, lead, and cleaner (those roles keep `CAVEMAN_DEFAULT_MODE=caveman`).
+
+- `caveman@caveman`
+- `engineering@synced`
+- `design@synced`
+- `product-management@synced`
+- `productivity@synced`
+- `cowork-plugin-management@synced`
+
+`tests/test_spawn_strict_mcp.py` asserts the same list. `syncClaudeAiPlugins` / `syncClaudeAiSkills` are not used (machine-wide; would hit boss).
 
 Notes:
 - `syncClaudeAiPlugins` / `syncClaudeAiSkills` are machine-wide (they would also hit boss and trash synced plugins and skills) and must NOT be used.

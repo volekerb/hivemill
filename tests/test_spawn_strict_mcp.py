@@ -7,6 +7,17 @@ from harness import REPO, ROLES, rendered_settings
 
 spawn_cmd, CLI_SPAWNABLE = test_plugins.spawn_cmd, test_plugins.CLI_SPAWNABLE
 
+# Owner list via director M24599 (cursor-boss relay); no other ids in role settings.
+ACCOUNT_PLUGIN_IDS = (
+    "caveman@caveman",
+    "engineering@synced",
+    "design@synced",
+    "product-management@synced",
+    "productivity@synced",
+    "cowork-plugin-management@synced",
+)
+CAVEMAN_PLUGIN_ON_ROLES = frozenset({"director", "lead", "cleaner"})
+
 
 def flag_value(argv, flag):
     return argv[argv.index(flag) + 1]
@@ -63,14 +74,20 @@ class SettingsKeysTests(unittest.TestCase):
     def load(self, role):
         return json.loads(rendered_settings(role).read_text())
 
-    def test_non_boss_settings_disable_connectors_only(self):
+    def test_non_boss_settings_disable_connectors_and_account_plugins(self):
         for role in ROLES:
             if role == "boss":
                 continue
             with self.subTest(role=role):
                 d = self.load(role)
                 self.assertEqual(d["env"]["ENABLE_CLAUDEAI_MCP_SERVERS"], "false")
-                self.assertNotIn("enabledPlugins", d)  # plugins are T-0305
+                ep = d["enabledPlugins"]
+                self.assertEqual(tuple(ep), ACCOUNT_PLUGIN_IDS, role)
+                for pid in ACCOUNT_PLUGIN_IDS:
+                    if pid == "caveman@caveman":
+                        self.assertEqual(ep[pid], role in CAVEMAN_PLUGIN_ON_ROLES, role)
+                    else:
+                        self.assertFalse(ep[pid], (role, pid))
 
     def test_boss_settings_do_not_disable_connectors(self):
         d = self.load("boss")

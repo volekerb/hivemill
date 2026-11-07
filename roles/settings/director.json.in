@@ -132,6 +132,14 @@
       "Factory orchestration: the director running `factory spawn` (pm, coder, qa, reviewer, judge, cleaner), `factory stop`, `factory relaunch`, `factory dequeue`, `factory task|team|goal` updates, `factory project update <id> --gh OWNER/NAME` and `factory config` on non-cap tuning keys is routine and allowed. Changing owner caps (max_live_*, max_total_claude, *_pct, min_mem_available_mb, reserved_worker_slots, lead_parking, gate_max_load_ratio) is NOT covered."
     ]
   },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "engineering@synced": false,
+    "design@synced": false,
+    "product-management@synced": false,
+    "productivity@synced": false,
+    "cowork-plugin-management@synced": false
+  },
   "env": {
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
     "FACTORY_ROLE": "director",
