@@ -4266,7 +4266,7 @@ class Analyzer:
         if not units:
             raise Block(f"systemctl {verbs[0]} without a unit")
         for u in units:
-            if re.match(r"^(factory|herdr)", u) or GLOB.search(u) or "$" in u or "`" in u:
+            if re.match(r"^(factory|herdr|hc-)", u) or GLOB.search(u) or "$" in u or "`" in u:
                 raise Block(f"systemctl {verbs[0]} {u}")
 
 

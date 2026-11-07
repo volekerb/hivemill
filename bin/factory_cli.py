@@ -991,6 +991,8 @@ def table(rows, cols):
 # ───────────────────────────── herdr ─────────────────────────────
 
 _HERDR_SOCK = {}  # per-process cache of the configured socket
+_HC_RUN_CWD = None  # spawn worktree for the next hc `run` translation (TUI path unchanged)
+_HC_RUN_ENV = None  # agent env merged into hc subprocess only during that start
 
 
 def _is_live_socket(val):
@@ -1155,7 +1157,7 @@ def _hc_terminal_to_agent_row(t):
 def _hc_unwrap_result(ipc_argv, payload):
     """Convert herdr-core JSON stdout into the dict shape factory expects from the TUI `result` field."""
     if not isinstance(payload, dict):
-        return payload
+        return None
     cmd = ipc_argv[0] if ipc_argv else ""
     if cmd == "ls":
         terminals = payload.get("terminals")
@@ -1165,12 +1167,31 @@ def _hc_unwrap_result(ipc_argv, payload):
     if cmd == "read":
         if "text" in payload:
             return {"text": payload["text"]}
-        return payload
+        return None
     if cmd == "run":
+        if payload.get("name") is None and "state" not in payload:
+            return None
         return {"agent": _hc_terminal_to_agent_row(payload)}
     if cmd in ("send", "keys"):
         return {}
-    return payload
+    return None
+
+
+def _hc_parse_host_stdout(ipc_argv, out):
+    """Parse hc stdout: piped read is plain text; only unwrap real hc list/run envelopes on other verbs."""
+    if ipc_argv[:1] == ["read"]:
+        return {"text": out}
+    line = out.splitlines()[-1] if out else ""
+    if not line:
+        return {}
+    try:
+        payload = json.loads(line)
+    except (json.JSONDecodeError, IndexError):
+        return {"raw": out}
+    parsed = _hc_unwrap_result(ipc_argv, payload)
+    if parsed is None:
+        return {"raw": out}
+    return parsed
 
 
 def _hc_translate_args(args):
@@ -1184,9 +1205,33 @@ def _hc_translate_args(args):
             return ["ls"]
         if verb == "start" and len(a) >= 3:
             name = a[2]
+            kind = "claude"
+            post = []
+            i = 3
+            while i < len(a):
+                if a[i] == "--kind" and i + 1 < len(a):
+                    kind = a[i + 1]
+                    i += 2
+                elif a[i] == "--pane" and i + 1 < len(a):
+                    i += 2
+                elif a[i] == "--timeout" and i + 1 < len(a):
+                    i += 2
+                elif a[i] == "--":
+                    post = list(a[i + 1:])
+                    break
+                else:
+                    i += 1
             out = ["run", "--bg", "--name", name]
-            if "--" in a:
-                out.extend(a[a.index("--") + 1:])
+            cwd = _HC_RUN_CWD
+            if not cwd:
+                for j, tok in enumerate(post):
+                    if tok == "--workspace" and j + 1 < len(post):
+                        cwd = post[j + 1]
+                        break
+            if cwd:
+                out.extend(["--cwd", cwd])
+            out.append(kind)
+            out.extend(post)
             return out
         if verb == "prompt" and len(a) >= 4:
             return ["send", a[2], a[3]]
@@ -1231,6 +1276,8 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
             die(f"hc has no equivalent for herdr {' '.join(str(x) for x in args[:3])}")
         return None
     env = _host_ipc_env(exe)
+    if exe == "hc" and _HC_RUN_ENV and ipc_argv[:1] == ["run"]:
+        env = {**env, **_HC_RUN_ENV}
     try:
         p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=timeout, env=env)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
@@ -1244,20 +1291,7 @@ def herdr(*args, check=True, timeout=HERDR_TIMEOUT_S):
     out = p.stdout.strip()
     try:
         if exe == "hc":
-            if ipc_argv[:1] == ["read"]:
-                try:
-                    payload = json.loads(out.splitlines()[-1])
-                except (json.JSONDecodeError, IndexError):
-                    return {"text": out}
-                return _hc_unwrap_result(ipc_argv, payload) or {"text": out}
-            line = out.splitlines()[-1] if out else ""
-            if not line:
-                return {}
-            payload = json.loads(line)
-            parsed = _hc_unwrap_result(ipc_argv, payload)
-            if parsed is None:
-                return {"raw": out}
-            return parsed
+            return _hc_parse_host_stdout(ipc_argv, out)
         return json.loads(out.splitlines()[-1])["result"] if out else {}
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}
@@ -1275,6 +1309,8 @@ def herdr_start_error(*args):
     if ipc_argv is None:
         return None, f"hc has no equivalent for herdr {' '.join(str(x) for x in args[:3])}"
     env = _host_ipc_env(exe)
+    if exe == "hc" and _HC_RUN_ENV and ipc_argv[:1] == ["run"]:
+        env = {**env, **_HC_RUN_ENV}
     try:
         p = subprocess.run([exe, *ipc_argv], capture_output=True, text=True, timeout=HERDR_TIMEOUT_S, env=env)
     except subprocess.TimeoutExpired as e:
@@ -1286,21 +1322,7 @@ def herdr_start_error(*args):
     out = p.stdout.strip()
     try:
         if exe == "hc":
-            if ipc_argv[:1] == ["read"]:
-                try:
-                    payload = json.loads(out.splitlines()[-1])
-                except (json.JSONDecodeError, IndexError):
-                    return {"text": out}, None
-                parsed = _hc_unwrap_result(ipc_argv, payload)
-                return (parsed if parsed is not None else {"text": out}), None
-            line = out.splitlines()[-1] if out else ""
-            if not line:
-                return {}, None
-            payload = json.loads(line)
-            parsed = _hc_unwrap_result(ipc_argv, payload)
-            if parsed is None:
-                return {"raw": out}, None
-            return parsed, None
+            return _hc_parse_host_stdout(ipc_argv, out), None
         return (json.loads(out.splitlines()[-1])["result"] if out else {}), None
     except (json.JSONDecodeError, KeyError, IndexError):
         return {"raw": out}, None
@@ -1430,6 +1452,13 @@ def export_cmd(env):
 def export_in_shell(pane, env, cwd):
     """An idle shell lacks the agent's env: export it before the agent launches. hash -r: a PATH set after the
     shell's startup files (~/.zshenv may prepend ~/.local/bin) must win over what the shell already resolved."""
+    con = db()
+    try:
+        _, exe = terminal_backend_effective(con)
+    finally:
+        con.close()
+    if exe == "hc":
+        return
     herdr("pane", "run", pane, export_cmd(env) + f" && cd {shlex.quote(cwd)} && clear")
     time.sleep(float(os.environ.get("FACTORY_SHELL_SETTLE_S") or 1))  # tests set a tiny value
 
@@ -9429,7 +9458,12 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     task_auto_start(con, task, f"spawn {name}", role)
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
                   "--", *plan.argv)
-    r = herdr(*start_args, check=False)
+    global _HC_RUN_CWD, _HC_RUN_ENV
+    _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
+    try:
+        r = herdr(*start_args, check=False)
+    finally:
+        _HC_RUN_CWD = _HC_RUN_ENV = None
     if r is None:
         event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
@@ -9607,11 +9641,16 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     async_start = cfg(con, "tick_async_start") == "1" and not sandboxed and not evaluator
     start_args = ("agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout",
                   ASYNC_START_TIMEOUT_MS if async_start else "90000", "--", *claude_args)
+    global _HC_RUN_CWD, _HC_RUN_ENV
+    _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
     start_err = None
-    if async_start:
-        r, start_err = herdr_start_error(*start_args)
-    else:
-        r = herdr(*start_args, check=False)
+    try:
+        if async_start:
+            r, start_err = herdr_start_error(*start_args)
+        else:
+            r = herdr(*start_args, check=False)
+    finally:
+        _HC_RUN_CWD = _HC_RUN_ENV = None
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})

@@ -1314,7 +1314,8 @@ func (a *Analyzer) systemctl(rest []string) error {
 		return blockf("systemctl " + verbs[0] + " without a unit")
 	}
 	for _, u := range units {
-		if strings.HasPrefix(u, "factory") || strings.HasPrefix(u, "herdr") || strings.ContainsAny(u, "*?[") ||
+		if strings.HasPrefix(u, "factory") || strings.HasPrefix(u, "herdr") || strings.HasPrefix(u, "hc-") ||
+			strings.ContainsAny(u, "*?[") ||
 			strings.Contains(u, "$") || strings.Contains(u, "`") {
 			return blockf("systemctl " + verbs[0] + " " + u)
 		}

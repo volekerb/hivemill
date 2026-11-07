@@ -28,10 +28,10 @@ type pyCase struct {
 // casesPerModule is the number of distinct cases ported from each Python test module (a silent loss of cases
 // would otherwise pass).
 var casesPerModule = map[string]int{
-	"test_worker_guard":         327,
+	"test_worker_guard":         330,
 	"test_priv_guard":           572,
 	"test_worker_guard_heredoc": 101,
-	"test_worker_guard_units":   111,
+	"test_worker_guard_units":   113,
 	"test_worker_guard_reads":   152,
 }
 
@@ -582,7 +582,8 @@ func TestCommandsOwnerTermsFile(t *testing.T) {
 
 func TestCommandsSystemctlAndXargs(t *testing.T) {
 	clearTermsEnv(t)
-	for _, c := range []string{"systemctl --user stop herdr.service", "systemctl --user daemon-reload", "systemctl --user enable factory-up.service",
+	for _, c := range []string{"systemctl --user stop herdr.service", "systemctl --user stop hc-serve-dfa32408.service",
+		"systemctl --user daemon-reload", "systemctl --user enable factory-up.service",
 		"systemctl --user kill 'factory-*'", "systemctl isolate x", "systemctl restart", "systemctl stop $UNIT", "xargs -I{} {} x", "xargs -I X X"} {
 		if err := checkRole(c, "coder"); err == nil {
 			t.Errorf("%q allowed", c)

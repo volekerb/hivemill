@@ -57,10 +57,22 @@ class TerminalBackendTests(FactoryTestCase):
         f = _load_factory_cli()
         argv = ("agent", "start", "zz-coder", "--kind", "claude", "--pane", "p1", "--timeout", "90000",
                 "--", "--model", "opus", "-n", "zz-coder")
-        self.assertEqual(
-            f._hc_translate_args(argv),
-            ["run", "--bg", "--name", "zz-coder", "--model", "opus", "-n", "zz-coder"],
-        )
+        f._HC_RUN_CWD = "/tmp/wt"
+        try:
+            self.assertEqual(
+                f._hc_translate_args(argv),
+                ["run", "--bg", "--name", "zz-coder", "--cwd", "/tmp/wt", "claude",
+                 "--model", "opus", "-n", "zz-coder"],
+            )
+        finally:
+            f._HC_RUN_CWD = None
+
+    def test_hc_piped_read_keeps_jsonish_screen_as_text(self):
+        f = _load_factory_cli()
+        for screen in ('line\n{"ok": true}', "hello\n[1, 2]", "done\ntrue"):
+            with self.subTest(screen=screen):
+                tail = f._hc_parse_host_stdout(["read", "zz-coder"], screen)
+                self.assertEqual(tail, {"text": screen})
 
     def test_hc_agent_read_argv_lines_only(self):
         f = _load_factory_cli()
