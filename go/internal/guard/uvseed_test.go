@@ -45,11 +45,16 @@ func hookPath(t *testing.T) string {
 // exitThroughBinaryPath is what main does for a Bash payload: Check, and the Python hook for a delegation.
 func exitThroughBinaryPath(t *testing.T, cmd, role string) int {
 	t.Helper()
-	err := Check(cmd, "", role, false)
+	return exitThroughBinaryPathCwd(t, cmd, "", role)
+}
+
+func exitThroughBinaryPathCwd(t *testing.T, cmd, cwd, role string) int {
+	t.Helper()
+	err := Check(cmd, cwd, role, false)
 	if !IsDelegate(err) {
 		return exitOf(err)
 	}
-	payload, _ := json.Marshal(map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": cmd}})
+	payload, _ := json.Marshal(map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": cmd}, "cwd": cwd})
 	return RunPython([]string{"--role", role}, payload, &bytes.Buffer{}, &bytes.Buffer{})
 }
 

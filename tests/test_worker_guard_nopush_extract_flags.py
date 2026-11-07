@@ -10,8 +10,6 @@ import zipfile
 import _gitenv  # noqa: F401  (hermetic git: tests/_gitenv.py)
 from guard_impl import hook_run
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
-
 NO_PUSH = ("qa", "reviewer", "pm", "staff-engineer", "scout", "evaluator")
 
 
@@ -53,6 +51,21 @@ class ExtractFlagTests(unittest.TestCase):
         self.check([f"python3 --check-hash-based-pycs always -m zipfile -e {s}/a.zip {s}/r/.git",
                     f"python3 --check-hash-based-pycs=always -m zipfile -e {s}/a.zip {s}/r/.git",
                     f"python3 --some-unknown-opt -m zipfile -e {s}/a.zip {s}/r/.git"], 2)
+
+    def test_b1_empty_long_option_value(self):
+        """`--opt=` carries its own empty value; it must not swallow the next argument."""
+        s, z, h = self.scratch, self.zip, "--check-hash-based-pycs="
+        self.check([f"python3 {h} -m zipfile -e {z} {s}/r/.git",
+                    f"python3 {h} -c 'import zipfile; zipfile.ZipFile(\"a.zip\").extractall(\".\")'",
+                    f"python3 {h} -c 'open(\"x\",\"w\")'; unzip {z} -d {s}/clean",
+                    f"python3 {h} -c x; unzip {z} -d {s}/clean",
+                    f"python3 {h} -Bc x; unzip {z} -d {s}/clean"], 2)
+        self.check([f"python3 {h} x.py; unzip {z} -d {s}/clean"], 0)
+
+    def test_b2_unicode_whitespace_before_paren(self):
+        """Python's unicode \\s: U+2028, U+001C, U+0085, U+00A0 count as whitespace; U+200B does not."""
+        self.check([f"python3 -c 'z.extract{c}(1)'" for c in ("\u2028", "\x1c", "\x85", "\xa0")], 2)
+        self.check(["python3 -c 'z.extract\u200b(1)'"], 0)
 
     def test_f1_f2_benign_neighbours(self):
         s = self.scratch
