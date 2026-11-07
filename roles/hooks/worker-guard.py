@@ -1759,7 +1759,8 @@ class Analyzer:
             elif not self.hq and HOST_CLI_WORD.search(body):
                 raise Block("herdr in an interpreter heredoc")
         try:
-            marked, pwords = mark_punct_words(re.sub(r"(?<![\w$])\d+(?=[<>])", " ", text))
+            pre = re.sub(r"(?<![\w$])\d+(?=[<>])", " ", text)
+            marked, pwords = (mark_punct_words(pre) if "find" in text else (pre, {}))
             lex = shlex.shlex(marked, posix=True, punctuation_chars=True)
             lex.whitespace_split = True
             lex.commenters = ""

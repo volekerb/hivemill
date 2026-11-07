@@ -111,7 +111,9 @@ reads the DB and a DB file exists, the test accepts the delegation.
 
 For the no-push roles (not HQ) `nopush.go:noPushGhWrite` mirrors `Analyzer.nopush_gh_write`: a direct `gh api` with a body
 flag (`-f -F --field --raw-field --input`) is refused unless the parsed method is GET (`ghParse`: `--method=GET`, `-XGET`,
-global flags such as `-R`), and so is `gh release create|edit|delete|upload|delete-asset`. Inline interpreter code and
+global flags such as `-R`), and so is `gh release create|new|edit|delete|upload|delete-asset`, plus the narrowed
+`gh issue|workflow|pr` write verbs in `GH_NOPUSH_WRITE_VERBS` (`gh pr comment` stays allowed for reviewer and qa only).
+Inline interpreter code and
 `bash -c` go through `nopush_inline.go`: `INLINE_GH_WRITE` gained the `release` alternative, and `inlineGhAPIBody` ports
 `inline_gh_api_body` (the text is cut at each `gh` word, so a `-X GET` on another gh call exempts nothing). RE2 has no
 lookbehind, so `(?<![\w-])` before the flag and `(?![\w-])` after it are hand-coded (`bodyFlagAt`, `matchInlineGhGet`).

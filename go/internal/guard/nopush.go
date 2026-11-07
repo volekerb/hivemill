@@ -43,6 +43,26 @@ var (
 
 func (a *Analyzer) noPush() bool { return in(noPushRoles, a.Role) && !a.HQ }
 
+// ghNoPushWriteVerbs is worker-guard.py:GH_NOPUSH_WRITE_VERBS (T-0995, T-1156).
+var ghNoPushWriteVerbs = map[string]map[string]struct{}{
+	"issue": {
+		"create": {}, "new": {}, "edit": {}, "close": {}, "reopen": {}, "comment": {}, "delete": {},
+		"transfer": {}, "pin": {}, "unpin": {}, "lock": {}, "unlock": {}, "develop": {},
+	},
+	"workflow": {"run": {}, "enable": {}, "disable": {}},
+	"pr": {
+		"create": {}, "new": {}, "edit": {}, "close": {}, "reopen": {}, "ready": {}, "review": {},
+		"merge": {}, "lock": {}, "unlock": {}, "update-branch": {}, "revert": {}, "comment": {},
+	},
+	"repo":     {"create": {}, "new": {}, "fork": {}, "sync": {}},
+	"label":    {"create": {}},
+	"secret":   {"set": {}},
+	"variable": {"set": {}},
+}
+
+// ghPrCommentRoles is worker-guard.py:GH_PR_COMMENT_ROLES: reviewer and qa may post PR comments.
+var ghPrCommentRoles = set("reviewer", "qa")
+
 // gitHooksPath is a port of worker-guard.py:git_hooks_path: p is <x>/.git/hooks, <x>/.git/info or anything under them,
 // outside the worker's scratchpad when scratchOK (T-0770: the callers pass false, the scratchpad is not exempt).
 func gitHooksPath(p string, scratchOK bool) bool {
@@ -292,9 +312,10 @@ func (a *Analyzer) gitConfigEnv(assigns, words []string) error {
 	return nil
 }
 
-// noPushGhWrite is a port of Analyzer.nopush_gh_write (T-0881, T-0987, T-1030): `gh api` with a body flag (gh then
-// uses POST) unless the method is GET, `gh api` with any -X/--method other than GET, `gh api -H X-HTTP-Method-Override:
-// POST|PUT|PATCH|DELETE`, and `gh release create|edit|delete|upload|delete-asset`. Defense in depth, no obfuscation hunting.
+// noPushGhWrite is a port of Analyzer.nopush_gh_write (T-0881, T-0987, T-0995, T-1030, T-1156): `gh api` with a body
+// flag (gh then uses POST) unless the method is GET, non-GET methods, method-override headers, `gh release` writes,
+// and the narrowed `gh issue|workflow|pr|repo|label|secret|variable` verbs in ghNoPushWriteVerbs (`gh pr comment` only
+// for reviewer and qa). Defense in depth, no obfuscation hunting.
 func (a *Analyzer) noPushGhWrite(rest []string) error {
 	pos, method, hasMethod, body, headers := ghParse(rest)
 	if len(pos) > 0 && pos[0] == "api" && body && !(hasMethod && method == "GET") {
@@ -318,8 +339,20 @@ func (a *Analyzer) noPushGhWrite(rest []string) error {
 			}
 		}
 	}
-	if len(pos) > 1 && pos[0] == "release" && in(set("create", "edit", "delete", "upload", "delete-asset"), pos[1]) {
+	if len(pos) > 1 && pos[0] == "release" && in(set("create", "new", "edit", "delete", "upload", "delete-asset"), pos[1]) {
 		return blockf("gh release " + pos[1] + " is a GitHub write; no-push roles never write to GitHub; ask your lead")
+	}
+	if len(pos) >= 2 {
+		if subs, ok := ghNoPushWriteVerbs[pos[0]]; ok && in(subs, pos[1]) {
+			if pos[0] == "pr" && pos[1] == "comment" && in(ghPrCommentRoles, a.Role) {
+				return nil
+			}
+			msg := "gh " + pos[0] + " " + pos[1] + " is a GitHub write; no-push roles never write to GitHub"
+			if pos[0] == "pr" && pos[1] == "comment" {
+				msg += " (only reviewer and qa post a PR comment)"
+			}
+			return blockf(msg + "; ask your lead")
+		}
 	}
 	return nil
 }

@@ -952,7 +952,14 @@ func ScriptTokens(text string) ([]string, error) {
 // ScriptTokensMarked is ScriptTokens after MarkPunctWords (worker-guard.py: the token loop's lexing): redirect fds
 // blanked, punctuation-only quoted words marked, then shlex.
 func ScriptTokensMarked(text string) ([]string, map[string]string, error) {
-	marked, pw := MarkPunctWords(BlankRedirectFds(text))
+	blanked := BlankRedirectFds(text)
+	var marked string
+	var pw map[string]string
+	if strings.Contains(text, "find") {
+		marked, pw = MarkPunctWords(blanked)
+	} else {
+		marked, pw = blanked, nil
+	}
 	toks, err := shlex.Script(marked)
 	if err != nil {
 		return nil, nil, blockf("cannot parse command (" + err.Error() + ")")
