@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"archive/zip"
 	"os"
 	"testing"
 )
@@ -56,6 +57,20 @@ func TestNoPushExtractFlagsBenignAllowed(t *testing.T) {
 	if err := os.MkdirAll(clean, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	zf, err := os.Create(z)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := zip.NewWriter(zf)
+	if _, err := w.Create("f"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := zf.Close(); err != nil {
+		t.Fatal(err)
+	}
 	cmds := []string{
 		"python3 -Wonce -m json.tool", "python3 --check-hash-based-pycs=always -m json.tool", "python3 -m zipfile -l " + z,
 		"python3 -Wonce -m zipfile -e " + z + " " + clean, "python3 --check-hash-based-pycs always -m zipfile -l " + z,
@@ -69,7 +84,15 @@ func TestNoPushExtractFlagsBenignAllowed(t *testing.T) {
 		"node x.js -c", "node -r x.js", "ruby -c x.rb", "ruby -E utf-8 x.rb", "node -print x", "node -e code", "php -r code"} {
 		cmds = append(cmds, c+" ; unzip "+z+" -d "+clean)
 	}
-	a.expect(t, noPushRolesList, s, 0, cmds...)
+	SetPyHook(hookPath(t))
+	t.Cleanup(func() { SetPyHook("") })
+	for _, role := range noPushRolesList {
+		for _, c := range cmds {
+			if got := exitThroughBinaryPathCwd(t, c, s, role); got != 0 {
+				t.Errorf("role %s: %q: exit %d, want 0", role, c, got)
+			}
+		}
+	}
 }
 
 func TestPyInlineCode(t *testing.T) {
