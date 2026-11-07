@@ -67,9 +67,19 @@ The factory runs on [herdr](https://herdr.dev), the terminal multiplexer that ho
 
 ## Quickstart
 
-Needs Python 3.11+, git, `gh`, `herdr` and a logged-in Claude Code. Full steps and troubleshooting: [docs/SETUP.md](docs/SETUP.md).
+### Install
 
-### 1. Look around without herdr or Claude
+Needs a fresh Debian or Ubuntu machine and a logged-in Claude Code. In Claude Code:
+
+```
+/plugin marketplace add volekerb/hivemill
+/plugin install hivemill
+/hivemill:setup
+```
+
+The full guide, with the installer options and the manual steps, is [docs/SETUP.md](docs/SETUP.md).
+
+### Look around without installing
 
 Seeded fictional data, nothing real runs ([docs/demo-data.md](docs/demo-data.md)). Run from the repository root:
 
@@ -80,43 +90,6 @@ HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo bin/factory serve --bind 127.0.0.
 ```
 
 Open <http://127.0.0.1:18624/> to see the read-only web UI on the demo data. In another shell, put `HOME=$TRIAL/demo/home FACTORY_HOME=$TRIAL/demo` in front of `factory goal list` to see the demo goals as a table.
-
-### 2. Run the real factory
-
-Put the CLI on your `PATH` (`~/.local/bin` must exist and be on it), initialise, register a project, bring up the headquarters and open the web UI:
-
-```
-git clone https://github.com/volekerb/hivemill.git ~/factory
-cd ~/factory
-git checkout "$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
-ln -s "$PWD/bin/factory" ~/.local/bin/factory
-factory init
-factory project add myapp --name "My app" --repo ~/src/myapp --gh example-org/myapp
-factory up
-factory serve --bind 127.0.0.1
-```
-
-This checks out the latest release. Contributors who want unreleased work use `git checkout main`.
-
-`project add` and `up` need a plain shell (workers are refused), a running herdr server and a logged-in Claude Code; the walk-through is in [docs/SETUP.md](docs/SETUP.md). Then open the boss's pane in herdr and describe what you want built.
-
-<details>
-<summary>Let Claude set it up</summary>
-
-[docs/adopt/ADOPT.md](docs/adopt/ADOPT.md) is an instruction file for your own Claude Code. It installs the factory step by step, checks each command's output against an expected result, and stops to ask before anything that touches GitHub, git config or your machine outside the checkout. In a fresh checkout, paste this into Claude Code:
-
-```
-Read docs/adopt/ADOPT.md in this checkout and set up Hivemill step by step; stop before anything outside the checkout.
-```
-
-</details>
-
-<details>
-<summary>Try the full CLI against a stub herdr</summary>
-
-[docs/SETUP.md#try-it-without-herdr](docs/SETUP.md#try-it-without-herdr) runs the real CLI and web UI against the stub `herdr` in `tests/stubs/`, including `factory up` and `factory agents`, under a throwaway home. This is also what the fresh-install test follows.
-
-</details>
 
 ## A task's life in commands
 
