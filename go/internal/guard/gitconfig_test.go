@@ -68,6 +68,37 @@ func TestConfigExpansionRefuseValueOpt(t *testing.T) {
 	}
 }
 
+func TestConfigExpansionRefuseBuiltArgs(t *testing.T) {
+	a, err := NewAnalyzer("/tmp/wt", "coder", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "is built from an expansion, so it could be a write; write the arguments literally (T-1063)"
+	for _, toks := range [][]string{
+		{"$X"},
+		{"al*"},
+		{"$(echo", "alias.x)"},
+		{"--get", "alias.$K"},
+	} {
+		err := a.configExpansionRefuse(toks)
+		if err == nil {
+			t.Fatalf("configExpansionRefuse(%v): want refusal", toks)
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("configExpansionRefuse(%v): %q", toks, err.Error())
+		}
+	}
+	if err := a.configExpansionRefuse([]string{"--get", "al*"}); err != nil {
+		t.Fatalf("--get al* is a read: %v", err)
+	}
+	if err := a.configExpansionRefuse([]string{"section.key$"}); err != nil {
+		t.Fatalf("trailing $ alone in token allowed: %v", err)
+	}
+	if err := a.configExpansionRefuse([]string{"--get-regexp", `^remote\..*\.url$`}); err != nil {
+		t.Fatalf("--get-regexp with regexp token allowed: %v", err)
+	}
+}
+
 func TestGitConfigMutates(t *testing.T) {
 	for _, c := range []struct {
 		args       []string
