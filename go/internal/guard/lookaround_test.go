@@ -303,6 +303,9 @@ func TestLookaroundR3Redir(t *testing.T) {
 func TestLookaroundHerdrWord(t *testing.T) {
 	runBool(t, "HasHerdrWord", HasHerdrWord, []strCase{
 		{"herdr", true},
+		{"hc", true},
+		{"herdr-core", true},
+		{"hc server stop", true},
 		{"xherdr", false},
 		{"herdrx", false},
 		{"herdr_", false},

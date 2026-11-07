@@ -157,6 +157,43 @@ class TerminalBackendTests(FactoryTestCase):
         herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
         self.assertEqual(close_calls + herdr_close, [])
 
+    def test_hc_relaunch_live_refused_keeps_pane_when_load_gate_closed(self):
+        """hc backend: closed-gate relaunch of a live row must not queue or clear pane_id (T-1188)."""
+        high_load = str(10 * (os.cpu_count() or 1))
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.env.seed_agent("zz-test-director", "director", goal="G-001", status="live")
+        self.env.seed_agent(
+            "zz-live-gate",
+            "pm",
+            goal="G-001",
+            team="g-001-a",
+            pane_id="p-tui",
+            status="live",
+        )
+        self.env.sql("UPDATE agents SET session_id='sess-pm' WHERE name='zz-live-gate'")
+        self.ok("config", "max_live_agents", "99", agent="owner")
+        self.env.set_herdr(agents=[])
+        p = self.refused(
+            2,
+            "relaunch",
+            "zz-live-gate",
+            "--force",
+            agent="zz-test-director",
+            extra_env={"FACTORY_LOADAVG": high_load},
+        )
+        self.assertIn("T-1188", p.stderr)
+        self.assertNotIn("QUEUED", p.stdout)
+        row = self.env.sql("SELECT status, pane_id FROM agents WHERE name='zz-live-gate'")[0]
+        self.assertEqual(row["status"], "live")
+        self.assertEqual(row["pane_id"], "p-tui")
+        queued = self.env.sql("SELECT action FROM events WHERE entity_id='zz-live-gate' AND action='queued'")
+        self.assertEqual(queued, [])
+        close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
+        herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertEqual(close_calls + herdr_close, [])
+
     def test_hc_piped_read_keeps_jsonish_screen_as_text(self):
         f = _load_factory_cli()
         for screen in ('line\n{"ok": true}', "hello\n[1, 2]", "done\ntrue"):
