@@ -97,8 +97,8 @@ func protGlob(p string, ancestor bool) bool {
 }
 
 // protEditPath is prot_edit_path (persist_edit side, gap g).
-func protEditPath(p string) bool {
-	if strings.ContainsAny(p, "$`") {
+func protEditPath(p string, spelled bool) bool {
+	if spelled || strings.ContainsAny(p, "$`") {
 		for _, m := range protMarkers {
 			if strings.Contains(p, m) {
 				return true
@@ -255,8 +255,20 @@ func inStrs(xs []string, s string) bool {
 // protHit is Analyzer.prot_hit. base is the directory a relative word is joined to; baseKnown=false is Python's None.
 func (a *Analyzer) protHit(word string, ancestor bool, base string, baseKnown bool) bool {
 	for _, w := range uniq([]string{word, valueOf(word)}) {
-		t := cfgExpand(substVars(w, a.vars))
+		w = substVars(w, a.vars)
+		t := a.cfgExpand(w)
+		unres := tildeUnres(w, baseKnown)
 		for _, e := range braceExpand(t) {
+			if unres {
+				for _, m := range protMarkers {
+					if strings.Contains(e, m) {
+						return true // rule A: an unresolvable `~name/...` that spells a protected tree name counts
+					}
+				}
+				if hasLocalBin(e) {
+					return true
+				}
+			}
 			if strings.ContainsAny(e, "$`") {
 				for _, m := range protMarkers {
 					if strings.Contains(e, m) {
@@ -338,12 +350,18 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		return nil
 	}
 	hitc := func(w string) error { return hit(w, false, a.ccwd, a.ccwdKnown) }
-	cwdWrite := func(strict bool, base string, known bool) error {
+	cwdWrite := func(strict bool, base string, known bool, anc ...bool) error {
+		if strict && a.cwdUnres && base == a.ccwd && known == a.ccwdKnown { // N3: the cwd is only the known stand-in of an unresolved `cd`
+			return block(unknownDir)
+		}
 		if !known {
 			if strict {
 				return block(unknownDir)
 			}
-		} else if protPath(base, false) {
+		} else if protPath(base, len(anc) > 0 && anc[0]) {
+			if len(anc) > 0 && anc[0] {
+				return block("the working directory, which is in a protected tree or holds one (the archive content is unknown)")
+			}
 			return block("the working directory, which is in a protected tree")
 		}
 		return nil
@@ -365,7 +383,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 						return err
 					}
 				}
-				return nil
+				return a.protParentCopy(name, args, tvals)
 			}
 		}
 		var dests map[int]bool
@@ -379,6 +397,9 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			if err := hit(x, in(CfgRemovers, name) || (name == "mv" && j < len(args)-1), a.ccwd, a.ccwdKnown); err != nil {
 				return err
 			}
+		}
+		if name == "cp" || name == "mv" || name == "ln" || name == "install" || name == "rsync" {
+			return a.protParentCopy(name, args, nil)
 		}
 	case (name == "sed" || name == "perl" || name == "gawk") && protInPlace(args):
 		for _, x := range args {
@@ -448,7 +469,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			if err := hitc(cdir); err != nil {
 				return err
 			}
-			cdir = cfgExpand(cdir)
+			cdir = a.cfgExpand(cdir)
 			if !strings.HasPrefix(cdir, "/") && known {
 				base = pyJoin(a.ccwd, cdir)
 			} else if strings.HasPrefix(cdir, "/") {
@@ -512,27 +533,27 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			}
 		}
 		if extract {
-			base, known := a.ccwd, a.ccwdKnown
+			base, known, unres := a.ccwd, a.ccwdKnown, a.cwdUnres
 			for _, d := range tarDirs(targs) {
-				if err := hit(d, false, base, known); err != nil {
+				if err := hit(d, true, base, known); err != nil { // T-0983: an ancestor of a tree too
 					return err
 				}
-				d = cfgExpand(d)
+				d = a.cfgExpand(d)
 				if strings.HasPrefix(d, "/") {
-					base, known = d, true
+					base, known, unres = d, true, false
 				} else if known {
 					base = pyJoin(base, d)
 				}
 			}
 			for _, v := range top {
-				if err := hit(v, false, base, known); err != nil {
+				if err := hit(v, true, base, known); err != nil {
 					return err
 				}
 			}
-			if !known {
+			if !known || unres {
 				return block(unknownDir)
 			}
-			return hit(base, false, base, true)
+			return hit(base, true, base, true)
 		}
 		if writesArchive { // B3: create, append and update write the archive; list and diff only read it
 			fargs := targs
@@ -564,12 +585,12 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 		dirs := unzipDirs(args)
 		if !unzipListingOpts(rest) {
 			for _, d := range dirs {
-				if err := hitc(d); err != nil {
+				if err := hit(d, true, a.ccwd, a.ccwdKnown); err != nil {
 					return err
 				}
 			}
 			if len(dirs) == 0 {
-				return cwdWrite(true, a.ccwd, a.ccwdKnown)
+				return cwdWrite(true, a.ccwd, a.ccwdKnown, true)
 			}
 		}
 	case name == "env":
@@ -578,6 +599,9 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 				return err
 			}
 		}
+	case name == "find":
+		return a.protFind(args, func(w string) error { return hit(w, true, a.ccwd, a.ccwdKnown) },
+			func() error { return cwdWrite(false, a.ccwd, a.ccwdKnown, true) })
 	case name == "7z" || name == "7za" || name == "7zr":
 		first := ""
 		for _, x := range args {
@@ -594,12 +618,12 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 				}
 			}
 			for _, v := range outs {
-				if err := hitc(v); err != nil {
+				if err := hit(v, true, a.ccwd, a.ccwdKnown); err != nil {
 					return err
 				}
 			}
 			if len(outs) == 0 {
-				return cwdWrite(true, a.ccwd, a.ccwdKnown)
+				return cwdWrite(true, a.ccwd, a.ccwdKnown, true)
 			}
 		}
 	case name == "git":
@@ -608,7 +632,7 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			x := args[k]
 			k++
 			if x == "-C" && k < len(args) {
-				args[k] = cfgExpand(args[k])
+				args[k] = a.cfgExpand(args[k])
 				switch {
 				case strings.HasPrefix(args[k], "/"):
 					base, known = args[k], true
@@ -621,6 +645,55 @@ func (a *Analyzer) protWrite(name string, rest []string) error {
 			} else if in(protGitOpt, x) && !strings.Contains(x, "=") {
 				k++
 			}
+		}
+		if k < len(args) && args[k] == "init" { // G1: `git init <dir>` creates a repository (and its hooks) there
+			valued := set("--template", "-b", "--initial-branch", "--object-format", "--ref-format", "--separate-git-dir")
+			var pos []string
+			j := k + 1
+			for j < len(args) {
+				x := args[j]
+				j++
+				switch {
+				case in(valued, x):
+					if x == "--separate-git-dir" && j < len(args) {
+						if err := hit(args[j], false, base, known); err != nil {
+							return err
+						}
+					}
+					j++
+				case strings.Contains(x, "=") && longOpt(strings.SplitN(x, "=", 2)[0], "--separate-git-dir"):
+					if err := hit(x, false, base, known); err != nil {
+						return err
+					}
+				case !strings.HasPrefix(x, "-"):
+					pos = append(pos, x)
+				}
+			}
+			for _, d := range pos {
+				if err := hit(d, false, base, known); err != nil {
+					return err
+				}
+			}
+			if len(pos) == 0 {
+				return cwdWrite(false, base, known)
+			}
+			return nil
+		}
+		if k+1 < len(args) && args[k] == "worktree" && (args[k+1] == "add" || args[k+1] == "move" || args[k+1] == "repair") {
+			// G1: the new worktree's directory (and the existing ones `move`/`repair` name)
+			j := k + 2
+			for j < len(args) {
+				x := args[j]
+				j++
+				if x == "-b" || x == "-B" || x == "--reason" {
+					j++
+				} else if !strings.HasPrefix(x, "-") {
+					if err := hit(x, false, base, known); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		}
 		if k < len(args) && args[k] == "clone" {
 			var pos []string
@@ -725,4 +798,183 @@ func unzipDirs(args []string) []string {
 		}
 	}
 	return out
+}
+
+// isFindReader: a bare read-only name or its /usr/bin or /bin path (N2: never judged by the basename).
+func isFindReader(w string) bool {
+	if findReaders[w] {
+		return true
+	}
+	for _, d := range []string{"/usr/bin/", "/bin/"} {
+		if strings.HasPrefix(w, d) && findReaders[w[len(d):]] {
+			return true
+		}
+	}
+	return false
+}
+
+var findReaders = map[string]bool{"ls": true, "cat": true, "grep": true, "wc": true, "stat": true, "file": true}
+
+// protParentCopy is Analyzer.prot_parent_copy (T-0983 form B): cp/mv/ln/install/rsync into a directory that holds a
+// protected tree is blocked when the source's basename is the next component toward one, or cannot be known.
+func (a *Analyzer) protParentCopy(name string, args, tvals []string) error {
+	var nonopt []int
+	for j, x := range args {
+		if !(strings.HasPrefix(x, "-") && len(x) > 1) {
+			nonopt = append(nonopt, j)
+		}
+	}
+	var destWords []string
+	var srcIdx []int
+	switch {
+	case len(tvals) > 0:
+		destWords = tvals
+		for _, j := range nonopt {
+			if !inStrs(tvals, args[j]) {
+				srcIdx = append(srcIdx, j)
+			}
+		}
+	case len(nonopt) >= 2:
+		di := protDestIndexes(args) // an option value may trail the destination (`cp a dest -S .bak`)
+		for j := range args {
+			if di[j] {
+				destWords = append(destWords, args[j])
+			}
+		}
+		for _, j := range nonopt {
+			if !di[j] {
+				srcIdx = append(srcIdx, j)
+			}
+		}
+	default:
+		return nil
+	}
+	notarget := false
+	for _, x := range args {
+		if !strings.HasPrefix(x, "-") {
+			continue
+		}
+		if longOpt(x, "--no-target-directory", "--parents", "--relative") ||
+			(reSymShort.MatchString(x) && (strings.Contains(x, "T") || (name == "rsync" && strings.Contains(x, "R")))) {
+			notarget = true
+		}
+	}
+	for _, d := range destWords {
+		if d == "" || strings.HasPrefix(d, "of=") {
+			continue
+		}
+		t0 := a.cfgExpand(substVars(d, a.vars))
+		for _, t := range braceExpand(t0) {
+			if strings.ContainsAny(t, "$`") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
+				continue // the unresolvable destination keeps main's rule (protHit above)
+			}
+			full := t
+			if !strings.HasPrefix(t, "/") {
+				full = pyJoin(a.ccwd, t)
+			}
+			nxt, anyName := protNextNames(full)
+			if !anyName && len(nxt) == 0 {
+				continue // not a strict ancestor of any protected tree
+			}
+			for _, j := range srcIdx {
+				src := a.cfgExpand(substVars(args[j], a.vars))
+				base := pyBasename(strings.TrimRight(src, "/"))
+				unknown := notarget || anyName || base == "" || base == "." || base == ".." || strings.HasSuffix(src, "/.") ||
+					strings.ContainsAny(src, "$`*?[{") || (name == "rsync" && (strings.HasSuffix(src, "/") || strings.Contains(src, "/./")))
+				if unknown || in(nxt, base) {
+					what := "not known"
+					if !unknown {
+						what = pyRepr(base)
+					}
+					return blockf("`" + name + "` on a directory that holds a protected tree, with the source " + pyRepr(args[j]) +
+						" (it is, or can contain, one of them: the name of what it creates there is " + what + "): " + protWhy)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// protNextNames is prot_next_names: the names an entry created directly inside p would need to have to be, or hold, a
+// protected tree. anyName=true when that cannot be told (a `**` in p).
+func protNextNames(p string) (map[string]struct{}, bool) {
+	out := map[string]struct{}{}
+	cands := []string{pyNormpath(p)}
+	if !hasGlob(p) {
+		cands = append(cands, pyRealpath(p))
+	}
+	for _, c := range uniq(cands) {
+		var pat []string
+		if c != "/" {
+			pat = strings.Split(strings.Trim(c, "/"), "/")
+		}
+		if containsStr(pat, "**") {
+			return nil, true
+		}
+		for _, d := range protTrees() {
+			parts := strings.Split(strings.Trim(d, "/"), "/")
+			if len(parts) <= len(pat) {
+				continue
+			}
+			ok := true
+			for i, y := range pat {
+				if !fnmatchCase(parts[i], y) {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				out[parts[len(pat)]] = struct{}{}
+			}
+		}
+	}
+	return out, false
+}
+
+// protFind is Analyzer.prot_find (T-0983 form C): a find that deletes, runs a writer or deleter or writes a file writes
+// to every start path.
+func (a *Analyzer) protFind(args []string, hit func(string) error, cwdHit func() error) error {
+	i := 0
+	for i < len(args) && (args[i] == "-H" || args[i] == "-L" || args[i] == "-P" || strings.HasPrefix(args[i], "-O") || strings.HasPrefix(args[i], "-D")) {
+		if args[i] == "-D" {
+			i += 2
+		} else {
+			i++
+		}
+	}
+	var starts, files []string
+	for i < len(args) && !(strings.HasPrefix(args[i], "-") || args[i] == "(" || args[i] == "!" || args[i] == ")" || args[i] == ",") {
+		starts = append(starts, args[i])
+		i++
+	}
+	expr := args[min(i, len(args)):]
+	writes := false
+	for k, x := range expr {
+		switch {
+		case x == "-delete":
+			writes = true
+		case (x == "-fprint" || x == "-fprint0" || x == "-fls" || x == "-fprintf") && k+1 < len(expr):
+			writes = true
+			files = append(files, expr[k+1])
+		case (x == "-exec" || x == "-execdir" || x == "-ok" || x == "-okdir") && k+1 < len(expr):
+			cmd := expr[k+1]
+			// B1: against a protected tree any command counts as a writer unless it is on the closed read-only list;
+			// N2: the whole word: a bare listed name or its /usr/bin or /bin path (./cat and /tmp/grep are not readers)
+			if !isFindReader(cmd) {
+				writes = true
+			}
+		}
+	}
+	if !writes {
+		return nil
+	}
+	for _, w := range append(append([]string{}, starts...), files...) {
+		if err := hit(w); err != nil {
+			return err
+		}
+	}
+	if len(starts) == 0 {
+		return cwdHit()
+	}
+	return nil
 }

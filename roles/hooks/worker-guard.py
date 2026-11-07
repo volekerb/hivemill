@@ -378,6 +378,9 @@ def prot_path(p, ancestor=False):
                for d in trees)
 
 
+FIND_READERS = {"ls", "cat", "grep", "wc", "stat", "file"}
+
+
 def prot_dest_indexes(args):
     """B1: indexes of the words that can be the destination of cp/install/ln -s/rsync/dd. Options may trail the
     destination (`cp a dest -f`, `install a dest -m 755`), so the last word is not enough: the last non-option word
@@ -469,9 +472,65 @@ def prot_glob(p, ancestor=False):
     return any(m(0, 0, d.strip("/").split("/")) for d in prot_trees())
 
 
-def prot_edit_path(p):
-    """persist_edit side (T-0925 gap g): p is a file_path of Write/Edit/MultiEdit/NotebookEdit."""
-    if any(c in p for c in "$`"):
+def tilde_expand(w, cwd):
+    """A leading `~`, `$HOME`, `${HOME}` is the passwd home (never $HOME). T-0983: `~name` is that user's passwd home and
+    `~+` is `cwd`. A word that cannot be resolved (no such user, `~-`, a `~+` with an unknown cwd) is returned unchanged,
+    as on main, so every caller joins it to the cwd as before; tilde_unres says which words those are."""
+    w = re.sub(r"^(~|\$HOME|\$\{HOME\})(?=/|$)", lambda m: PW_DIR, w)
+    m = re.match(r"^~([^/$`\\'\"]*)(?=/|$)", w)
+    if not m or not m.group(1):
+        return w
+    name, rest = m.group(1), w[m.end():]
+    if name == "+" and cwd is not None:
+        return cwd + rest
+    if name not in ("+", "-"):
+        try:
+            return pwd.getpwnam(name).pw_dir + rest
+        except (KeyError, ValueError):
+            pass
+    return w
+
+
+def tilde_unres(w, cwd):
+    """T-0983: True when w starts with a `~` form tilde_expand cannot resolve (no such user, `~-`, `~+` with an unknown
+    cwd). Only rule A's extra tightening asks (prot_hit, cfg_hit, the cd tracker, the Edit path)."""
+    w = re.sub(r"^(~|\$HOME|\$\{HOME\})(?=/|$)", lambda m: PW_DIR, w)
+    m = re.match(r"^~([^/$`\\'\"]*)(?=/|$)", w)
+    if not m or not m.group(1):
+        return False
+    name = m.group(1)
+    if name == "+":
+        return cwd is None
+    if name == "-":
+        return True
+    try:
+        pwd.getpwnam(name)
+    except (KeyError, ValueError):
+        return True
+    return False
+
+
+def prot_next_names(p):
+    """T-0983 (form B): the names an entry created directly inside directory `p` (absolute; may be a glob) would need to
+    have to be, or hold, a protected tree: the component after `p` on the way to each protected tree that lies strictly
+    below it. None when that cannot be told (a `**` in `p`): any name counts."""
+    out = set()
+    cands = {os.path.normpath(p)} | (set() if GLOB.search(p) else {os.path.realpath(p)})
+    for c in cands:
+        pat = c.strip("/").split("/") if c != "/" else []
+        if "**" in pat:
+            return None
+        for d in prot_trees():
+            parts = d.strip("/").split("/")
+            if len(parts) > len(pat) and all(fnmatch.fnmatchcase(x, y) for x, y in zip(parts, pat)):
+                out.add(parts[len(pat)])
+    return out
+
+
+def prot_edit_path(p, spelled=False):
+    """persist_edit side (T-0925 gap g): p is a file_path of Write/Edit/MultiEdit/NotebookEdit. `spelled`: judge the
+    names it spells only (an unresolvable `~name/...`)."""
+    if spelled or any(c in p for c in "$`"):
         return any(m in p for m in PROT_MARKERS) or bool(re.search(r"\.local/bin(?![A-Za-z0-9_])", p))
     return prot_path(p)
 
@@ -1321,6 +1380,7 @@ class Analyzer:
         self.vars = {}  # NAME=value assigned earlier in the command: lets the persist detector resolve $NAME
         self.pt = None  # PublicText rule (G-021), set by check() for the one pass that applies it
         self.ccwd = self.cwd  # like gcwd, for the CFG_DIR write detector; None once a `cd` target is only known at run time
+        self.cwd_unres = False  # N3: True after a `cd ~nosuchuser`: ccwd stays the known path, but the real one is not known
 
     def live_homes(self):
         homes = set(LIVE_HOMES)
@@ -1699,7 +1759,8 @@ class Analyzer:
             elif not self.hq and HOST_CLI_WORD.search(body):
                 raise Block("herdr in an interpreter heredoc")
         try:
-            lex = shlex.shlex(re.sub(r"(?<![\w$])\d+(?=[<>])", " ", text), posix=True, punctuation_chars=True)
+            marked, pwords = mark_punct_words(re.sub(r"(?<![\w$])\d+(?=[<>])", " ", text))
+            lex = shlex.shlex(marked, posix=True, punctuation_chars=True)
             lex.whitespace_split = True
             lex.commenters = ""
             toks = fold_mktemp(list(lex))
@@ -1714,6 +1775,12 @@ class Analyzer:
         while i < len(toks):
             tok = toks[i]
             nxt = toks[i + 1] if i + 1 < len(toks) else None
+            if tok in pwords:  # a quoted or escaped word made only of punctuation: data to find, as before for the rest
+                tok = pwords[tok]
+                if any(os.path.basename(w) == "find" for w in cur):
+                    cur.append(tok)  # find's expression goes on: `-exec ls {} ';' -delete`, `\\( -name x \\) -delete`
+                    i += 1
+                    continue
             if tok == "$" and nxt == "(" and all(ASSIGN.match(w) or w in RESERVED for w in cur):
                 depth_p, hit = 0, None
                 for t in toks[i + 1:]:
@@ -1995,17 +2062,19 @@ class Analyzer:
     def cfg_cd(self, name, rest):
         """Track the directory for the CFG_DIR write detector (`~` is the passwd home, never $HOME)."""
         args = [a for a in rest if not a.startswith("-") or a == "-"]
+        self.cwd_unres = False
         if name == "popd" or (args and (args[0] == "-" or self.dynamic_dir(args[0]))):
             self.ccwd = None
         elif not args:
             self.ccwd = PW_DIR
         else:
             p = self.cfg_expand(args[0])
+            if tilde_unres(args[0], self.ccwd):  # `cd ~nosuchuser`, `cd ~-`: as on main, a path relative to the known cwd
+                self.cwd_unres = True  # the extractor / downloader rules still refuse a cwd that is not really known
             self.ccwd = p if os.path.isabs(p) or self.ccwd is None else os.path.join(self.ccwd, p)
 
-    @staticmethod
-    def cfg_expand(w):
-        return re.sub(r"^(~|\$HOME|\$\{HOME\})(?=/|$)", lambda m: PW_DIR, w)
+    def cfg_expand(self, w):
+        return tilde_expand(w, self.ccwd)
 
     @staticmethod
     def cfg_code(word):
@@ -2030,7 +2099,12 @@ class Analyzer:
         something under them (or, with ancestor, a directory that contains one). A word with an expansion we cannot
         resolve counts when it spells `.config/factory` or `run/settings`."""
         for w in {word, word.split("=", 1)[-1]}:
-            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+            w = re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w)
+            t = self.cfg_expand(w)
+            if tilde_unres(w, self.ccwd) and (".config/factory" in w or ".local/lib/factory" in w or "run/settings" in w
+                                              or "run/guard_impl" in w or "guard-export" in w
+                                              or re.search(r"\.local/bin(?![A-Za-z0-9_])", w)):
+                return True  # rule A: an unresolvable `~name/...` that spells a protected name counts
             if any(c in t for c in "$`*?[{"):
                 if (".config/factory" in t or ".local/lib/factory" in t or "run/settings" in t
                         or "run/guard_impl" in t or "guard-export" in t or re.search(r"\.local/bin(?![A-Za-z0-9_])", t)):
@@ -2161,8 +2235,12 @@ class Analyzer:
         resolve counts when it spells a protected tree name."""
         base = self.ccwd if base == "cwd" else base
         for w in {word, word.split("=", 1)[-1]}:
-            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w))
+            w = re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), w)
+            t = self.cfg_expand(w)
+            unres = tilde_unres(w, base)
             for e in brace_expand(t):
+                if unres and (any(m in e for m in PROT_MARKERS) or re.search(r"\.local/bin(?![A-Za-z0-9_])", e)):
+                    return True  # rule A: an unresolvable `~name/...` that spells a protected tree name counts
                 if any(c in e for c in "$`"):
                     if any(m in e for m in PROT_MARKERS) or re.search(r"\.local/bin(?![A-Za-z0-9_])", e):
                         return True
@@ -2194,13 +2272,15 @@ class Analyzer:
             if w and self.prot_hit(w, anc, base):
                 block(w, "a protected tree")
 
-        def cwd_write(strict, base="cwd"):  # the command writes into its working directory
+        def cwd_write(strict, base="cwd", anc=False):  # the command writes into its working directory
             b = self.ccwd if base == "cwd" else base
+            if strict and base == "cwd" and self.cwd_unres:
+                block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
             if b is None:
                 if strict:
                     block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
-            elif prot_path(b):
-                block(b, "the working directory, which is in a protected tree")
+            elif prot_path(b, anc):
+                block(b, "the working directory, which is in a protected tree" + (" or holds one (the archive content is unknown)" if anc else ""))
 
         if name in CFG_WRITERS:
             dest_only = name in ("cp", "install", "rsync", "dd") or (
@@ -2209,6 +2289,7 @@ class Analyzer:
             if tvals:  # N2: -t names the destination; the words after it are sources (reads)
                 for v in tvals:
                     hit(v)
+                self.prot_parent_copy(name, args, tvals, block)
                 return
             dests = prot_dest_indexes(args) if dest_only else None
             for j, a in enumerate(args):
@@ -2216,6 +2297,8 @@ class Analyzer:
                                       or (long_opt(a.partition("=")[0], "--target-directory") and "=" in a)):
                     continue
                 hit(a, name in CFG_REMOVERS or (name == "mv" and j < len(args) - 1))
+            if name in ("cp", "mv", "ln", "install", "rsync"):
+                self.prot_parent_copy(name, args, tvals, block)
         elif name in ("sed", "perl", "gawk") and any(re.match(r"^-[A-Za-z]*i", a) or a.startswith("--in-place") for a in args):
             for a in args:
                 hit(a)
@@ -2284,16 +2367,17 @@ class Analyzer:
             dirs = tar_dirs(targs)
             top = [a.partition("=")[2] for a in targs if long_opt(a.partition("=")[0], "--one-top-level")]
             if extract:
-                base = self.ccwd
+                base, unres = self.ccwd, self.cwd_unres
                 for d in dirs:  # -C chains: each relative one is relative to the one before
-                    hit(d, base=base)
+                    hit(d, True, base=base)  # T-0983: an ancestor of a tree too (the archive content is unknown)
                     d = self.cfg_expand(d)
+                    unres = unres and not os.path.isabs(d)
                     base = d if os.path.isabs(d) else (None if base is None else os.path.join(base, d))
                 for v in top:
-                    hit(v, base=base)
-                if base is None:
+                    hit(v, True, base=base)
+                if base is None or unres:
                     block(None, "a directory known only at run time (a `cd` into an unresolved path, then an extractor)")
-                hit(base)  # no -C: the cwd; with -C: where the last one leads
+                hit(base, True)  # no -C: the cwd; with -C: where the last one leads
             elif writes_archive:
                 for v in opt_values(targs[1:] if old else targs, "f", {"--file"}):  # create/append/update: the archive is written
                     hit(v)
@@ -2306,19 +2390,21 @@ class Analyzer:
             dirs = unzip_dirs(args)
             if not unzip_listing(list(rest)):
                 for d in dirs:
-                    hit(d)
+                    hit(d, True)
                 if not dirs:
-                    cwd_write(True)
+                    cwd_write(True, anc=True)
         elif name == "env":
             for v in opt_values(args, "C", {"--chdir"}):
                 hit(v)
+        elif name == "find":
+            self.prot_find(args, hit, lambda: cwd_write(False, anc=True))
         elif name in ("7z", "7za", "7zr"):
             if [a for a in args if not a.startswith("-")][:1] in (["x"], ["e"]):
                 outs = [a[2:] for a in args if a.startswith("-o") and len(a) > 2]
                 for v in outs:
-                    hit(v)
+                    hit(v, True)
                 if not outs:
-                    cwd_write(True)
+                    cwd_write(True, anc=True)
         elif name == "git":
             base, k = self.ccwd, 0
             while k < len(args) and args[k].startswith("-"):
@@ -2331,6 +2417,35 @@ class Analyzer:
                     k += 1
                 elif a in ("-c", "--attr-source", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix") and "=" not in a:
                     k += 1
+            if k < len(args) and args[k] == "init":  # G1: `git init <dir>` creates a repository (and its hooks) there
+                valued = {"--template", "-b", "--initial-branch", "--object-format", "--ref-format", "--separate-git-dir"}
+                pos, j = [], k + 1
+                while j < len(args):
+                    a = args[j]
+                    j += 1
+                    if a in valued:
+                        if a == "--separate-git-dir" and j < len(args):
+                            hit(args[j], base=base)
+                        j += 1
+                    elif long_opt(a.partition("=")[0], "--separate-git-dir") and "=" in a:
+                        hit(a, base=base)
+                    elif not a.startswith("-"):
+                        pos.append(a)
+                for d in pos:
+                    hit(d, base=base)
+                if not pos:
+                    cwd_write(False, base)
+            elif k + 1 < len(args) and args[k] == "worktree" and args[k + 1] in ("add", "move", "repair"):
+                pos, j = [], k + 2  # G1: the new worktree's directory (and the existing ones `move`/`repair` name)
+                while j < len(args):
+                    a = args[j]
+                    j += 1
+                    if a in ("-b", "-B", "--reason"):
+                        j += 1
+                    elif not a.startswith("-"):
+                        pos.append(a)
+                for d in pos:
+                    hit(d, base=base)
             if k < len(args) and args[k] == "clone":
                 pos, j, unknown = [], k + 1, False
                 valued = {"-b", "--branch", "--depth", "-o", "--origin", "--template", "--reference", "--reference-if-able",
@@ -2353,6 +2468,71 @@ class Analyzer:
                     hit(d, base=base)
                 if len(pos) < 2 or unknown:
                     cwd_write(False, base)
+
+    def prot_parent_copy(self, name, args, tvals, block):
+        """T-0983 form B: cp/mv/ln/install/rsync into a directory that holds a protected tree. The entry the source makes
+        there is the source's basename; it can be, or contain, a protected tree when that name is the next component
+        toward one (`cp -r /tmp/bin ~/.local`). A basename that cannot be known (glob, expansion, `-T`, `--parents`,
+        `/.` or a trailing `/` on an rsync source, `.`/`..`) counts. Any other name keeps main's decision (allowed)."""
+        nonopt = [j for j, a in enumerate(args) if not (a.startswith("-") and len(a) > 1)]
+        if tvals:
+            dest_words, src_idx = tvals, [j for j in nonopt if args[j] not in tvals]
+        elif len(nonopt) >= 2:
+            di = prot_dest_indexes(args)  # an option value may trail the destination (`cp a dest -S .bak`)
+            dest_words, src_idx = [args[j] for j in sorted(di)], [j for j in nonopt if j not in di]
+        else:
+            return
+        notarget = any(long_opt(a, "--no-target-directory", "--parents", "--relative") or (
+            re.match(r"^-[A-Za-z]+$", a) and ("T" in a or (name == "rsync" and "R" in a))) for a in args if a.startswith("-"))
+        for d in dest_words:
+            if not d or d.startswith("of="):
+                continue
+            t = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), d))
+            for t in brace_expand(t):
+                if any(c in t for c in "$`") or (not os.path.isabs(t) and self.ccwd is None):
+                    continue  # the unresolvable destination keeps main's rule (prot_hit above)
+                full = t if os.path.isabs(t) else os.path.join(self.ccwd, t)
+                nxt = prot_next_names(full)
+                if nxt is not None and not nxt:
+                    continue  # not a strict ancestor of any protected tree
+                for j in src_idx:
+                    src = self.cfg_expand(re.sub(r"\$\{?(\w+)\}?", lambda m: self.vars.get(m.group(1), m.group(0)), args[j]))
+                    base = os.path.basename(src.rstrip("/"))
+                    unknown = (notarget or nxt is None or not base or base in (".", "..") or src.endswith("/.") or any(
+                        c in src for c in "$`*?[{") or (name == "rsync" and (src.endswith("/") or "/./" in src)))
+                    if unknown or base in nxt:
+                        block(d, f"a directory that holds a protected tree, with the source {args[j]!r} (it is, or can contain, "
+                                 "one of them: the name of what it creates there is " + ("not known" if unknown else repr(base)) + ")")
+
+    def prot_find(self, args, hit, cwd_hit):
+        """T-0983 form C: `find` that deletes (-delete), runs a writer or deleter (-exec, -execdir, -ok, -okdir) or writes
+        a file (-fprint, -fprint0, -fprintf, -fls) writes to every start path: blocked when one is a protected tree, inside
+        one or holds one. No start path: the cwd."""
+        i = 0
+        while i < len(args) and (args[i] in ("-H", "-L", "-P") or args[i].startswith("-O") or args[i].startswith("-D")):
+            i += 2 if args[i] == "-D" else 1
+        starts = []
+        while i < len(args) and not (args[i].startswith("-") or args[i] in ("(", "!", ")", ",")):
+            starts.append(args[i])
+            i += 1
+        expr, writes, files = args[i:], False, []
+        for k, a in enumerate(expr):
+            if a == "-delete":
+                writes = True
+            elif a in ("-fprint", "-fprint0", "-fls", "-fprintf") and k + 1 < len(expr):
+                writes = True
+                files.append(expr[k + 1])
+            elif a in ("-exec", "-execdir", "-ok", "-okdir") and k + 1 < len(expr):
+                # B1: against a protected tree any command counts as a writer unless it is on the closed read-only list
+                # N2: the whole word: a bare listed name or its /usr/bin or /bin path (./cat and /tmp/grep are not readers)
+                if expr[k + 1] not in FIND_READERS and not any(expr[k + 1] in (f"/usr/bin/{n}", f"/bin/{n}") for n in FIND_READERS):
+                    writes = True
+        if not writes:
+            return
+        for w in starts + files:
+            hit(w, True)
+        if not starts:
+            cwd_hit()
 
     def persist_hit(self, word, ancestor=False, gitfile=False):
         """True when `word` (or the value of --opt=value / of=value) names a protected persistence path (T-0334). A
@@ -3718,12 +3898,12 @@ class Analyzer:
                 if is_herdr(a) or "HERDR_BIN_PATH" in a:
                     raise Block(f"{name} on the herdr binary")
         if name in SHELLS:
-            saved = (self.gcwd, self.gdyn, self.ccwd)  # a cd inside `sh -c` does not move the caller
+            saved = (self.gcwd, self.gdyn, self.ccwd, self.cwd_unres)  # a cd inside `sh -c` does not move the caller
             self.shell_assigns = assigns
             try:
                 self.shell(rest, depth, piped, hstrs)
             finally:
-                self.gcwd, self.gdyn, self.ccwd = saved
+                self.gcwd, self.gdyn, self.ccwd, self.cwd_unres = saved
         elif name == "eval":
             if "$" in " ".join(rest):
                 raise Block("eval of an expansion: content cannot be inspected")
@@ -4273,6 +4453,61 @@ class Analyzer:
 FULL_SUITE_ADVICE = ("; CI runs the full suite (sharded). Locally run `python3 ci/affected.py --base origin/main --quick --run`, "
                      "or one module: `python3 -m unittest tests.test_X` or `python3 -m unittest discover -s tests -p test_X.py`"
                      " (T-0642). QA that needs a merged-tree full run asks its lead (T-0435)")
+
+
+PUNCT_CHARS = "();<>|&"
+
+
+def mark_punct_words(text):
+    """T-0983 (find): shlex in posix mode drops quote state, so a word the shell passes as data (`';'`, `\\;`, `"("`,
+    `\\(`) comes out as a bare operator token and is_punct cuts the command there. This walks the real quote state word
+    by word (words end at whitespace outside quotes): a word that holds a quote or a backslash, whose dequoted value is
+    made only of `();<>|&` and whose every such character is quoted or escaped, becomes a sentinel word. Returns
+    (text, {sentinel: value}). An unquoted `;` stays a separator; every other word is untouched."""
+    sent = "__PUNCT_WORD__"
+    while sent in text:
+        sent += "_"
+    out, vals, i, n = [], {}, 0, len(text)
+    while i < n:
+        if text[i] in " \t\r\n":
+            out.append(text[i])
+            i += 1
+            continue
+        j, q, val, quoted, bare_punct = i, None, [], False, False
+        while j < n and (q or text[j] not in " \t\r\n"):
+            c = text[j]
+            if q == "'":
+                if c == "'":
+                    q = None
+                else:
+                    val.append(c)
+            elif q == '"':
+                if c == '"':
+                    q = None
+                elif c == "\\" and j + 1 < n and text[j + 1] in '"\\$`':
+                    val.append(text[j + 1])
+                    j += 1
+                else:
+                    val.append(c)
+            elif c in "'\"":
+                q, quoted = c, True
+            elif c == "\\" and j + 1 < n:
+                quoted = True
+                val.append(text[j + 1])
+                j += 1
+            else:
+                val.append(c)
+                bare_punct = bare_punct or c in PUNCT_CHARS
+            j += 1
+        v = "".join(val)
+        if q is None and quoted and v and not bare_punct and all(c in PUNCT_CHARS for c in v):
+            key = f"{sent}{len(vals)}__"
+            vals[key] = v
+            out.append(key)
+        else:
+            out.append(text[i:j])
+        i = j
+    return "".join(out), vals
 
 
 def mask_quotes(text):
@@ -5508,20 +5743,21 @@ def persist_edit(data, role=None):
     if not isinstance(path, str) or not path:
         sys.stderr.write("worker-guard: blocked (edit tool call without a readable file_path, failing closed)\n")
         return 2
-    p = re.sub(r"^(~|\$HOME|\$\{HOME\})(?=/|$)", lambda m: PW_DIR, path)
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    p = tilde_expand(path, cwd)
+    unres = tilde_unres(path, cwd)  # rule A: an unresolvable `~name/...` is judged by the protected names it spells
     if not os.path.isabs(p):
         p = os.path.join(cwd, p)
     if export_path(p) or ("$" in p and "guard-export" in p):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {EXPORT_WHY}. Tell your lead if this is wrong.\n")
         return 2
-    if prot_edit_path(p):  # T-0925 gap g: the Edit tools were checked against the persist paths only
+    if prot_edit_path(p) or (unres and prot_edit_path(path, spelled=True)):  # T-0925 gap g: the Edit tools were checked against the persist paths only
         sys.stderr.write(f"worker-guard: blocked ({path!r}): {PROT_WHY}. Tell your lead if this is wrong.\n")
         return 2
     # T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
     # a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
     if any(q == d or under(q, d) for q in (os.path.normpath(p), os.path.realpath(p)) for d in BIN_DIRS) or (
-            "$" in p and re.search(r"\.local/bin(?![A-Za-z0-9_])", p)):
+            ("$" in p or unres) and re.search(r"\.local/bin(?![A-Za-z0-9_])", path if unres else p)):
         sys.stderr.write(f"worker-guard: blocked ({path!r}): ~/.local/bin is first on the tick's PATH, so a file "
                          "planted there runs with the tick's credentials; only the owner changes it. "
                          "Tell your lead if this is wrong.\n")

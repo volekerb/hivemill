@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"os/user"
 	"regexp"
 	"strings"
 )
@@ -23,6 +24,57 @@ func cfgExpand(w string) string {
 	return w
 }
 
+var reTildeName = regexp.MustCompile("^~([^/$`\\\\'\"]*)")
+
+// tildeExpand is a port of tilde_expand (T-0983): cfgExpand, plus `~name` (that user's passwd home) and `~+` (cwd, when
+// cwdKnown). A word that cannot be resolved (no such user, `~-`, a `~+` with an unknown cwd) is returned unchanged, as
+// on main, so every caller joins it to the cwd as before; tildeUnres says which words those are.
+func tildeExpand(w, cwd string, cwdKnown bool) string {
+	w = cfgExpand(w)
+	m := reTildeName.FindStringSubmatch(w)
+	if m == nil || m[1] == "" {
+		return w
+	}
+	name, rest := m[1], w[len(m[0]):]
+	if !(rest == "" || rest[0] == '/' || rest == "\n") {
+		return w
+	}
+	if name == "+" && cwdKnown {
+		return cwd + rest
+	}
+	if name != "+" && name != "-" {
+		if u, err := user.Lookup(name); err == nil && u.HomeDir != "" {
+			return u.HomeDir + rest
+		}
+	}
+	return w
+}
+
+// tildeUnres is a port of tilde_unres (T-0983): w starts with a `~` form tildeExpand cannot resolve. Only rule A's extra
+// tightening asks (protHit, cfgHit, the cd tracker, the Edit path).
+func tildeUnres(w string, cwdKnown bool) bool {
+	w = cfgExpand(w)
+	m := reTildeName.FindStringSubmatch(w)
+	if m == nil || m[1] == "" {
+		return false
+	}
+	name, rest := m[1], w[len(m[0]):]
+	if !(rest == "" || rest[0] == '/' || rest == "\n") {
+		return false
+	}
+	switch name {
+	case "+":
+		return !cwdKnown
+	case "-":
+		return true
+	}
+	u, err := user.Lookup(name)
+	return err != nil || u.HomeDir == ""
+}
+
+// cfgExpand (method) is Analyzer.cfg_expand: tildeExpand against the tracked cwd.
+func (a *Analyzer) cfgExpand(w string) string { return tildeExpand(w, a.ccwd, a.ccwdKnown) }
+
 // cfgCd is a port of Analyzer.cfg_cd: track the directory for the CFG_DIR write detector.
 func (a *Analyzer) cfgCd(name string, rest []string) {
 	var args []string
@@ -31,13 +83,17 @@ func (a *Analyzer) cfgCd(name string, rest []string) {
 			args = append(args, x)
 		}
 	}
+	a.cwdUnres = false
 	switch {
 	case name == "popd" || (len(args) > 0 && (args[0] == "-" || dynamicDir(args[0]))):
 		a.ccwdKnown = false
 	case len(args) == 0:
 		a.ccwd, a.ccwdKnown = mustHost().pwDir, true
 	default:
-		p := cfgExpand(args[0])
+		p := a.cfgExpand(args[0])
+		if tildeUnres(args[0], a.ccwdKnown) { // `cd ~nosuchuser`, `cd ~-`: as on main, a path relative to the known cwd
+			a.cwdUnres = true // the extractor / downloader rules still refuse a cwd that is not really known
+		}
 		if strings.HasPrefix(p, "/") || !a.ccwdKnown {
 			a.ccwd = p
 		} else {
@@ -83,7 +139,13 @@ func (a *Analyzer) exportGlob(t string) bool {
 func (a *Analyzer) cfgHit(word string, ancestor bool) bool {
 	h := mustHost()
 	for _, w := range uniq([]string{word, valueOf(word)}) {
-		t := cfgExpand(substVars(w, a.vars))
+		w = substVars(w, a.vars)
+		t := a.cfgExpand(w)
+		if tildeUnres(w, a.ccwdKnown) && (strings.Contains(w, ".config/factory") || strings.Contains(w, "run/settings") ||
+			strings.Contains(w, "guard-export") || strings.Contains(w, ".local/lib/factory") ||
+			strings.Contains(w, "run/guard_impl") || hasLocalBin(w)) {
+			return true // rule A: an unresolvable `~name/...` that spells a protected name counts
+		}
 		if strings.ContainsAny(t, "$`*?[{") {
 			if strings.Contains(t, ".config/factory") || strings.Contains(t, "run/settings") || strings.Contains(t, "guard-export") ||
 				strings.Contains(t, ".local/lib/factory") || strings.Contains(t, "run/guard_impl") || hasLocalBin(t) {
@@ -140,7 +202,7 @@ func hasLocalBin(s string) bool {
 
 // inBinDir is Python's in_bin_dir (block message only).
 func (a *Analyzer) inBinDir(w string) bool {
-	t := cfgExpand(substVars(w, a.vars))
+	t := a.cfgExpand(substVars(w, a.vars))
 	if t == "" || strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
 		return hasLocalBin(t)
 	}
@@ -171,7 +233,7 @@ func (a *Analyzer) cfgRedirect(target string) error {
 
 // cfgPath is Analyzer.cfg_path: the realpath of a word for the export checks, "", false when unresolvable.
 func (a *Analyzer) cfgPath(w string) (string, bool) {
-	t := cfgExpand(substVars(w, a.vars))
+	t := a.cfgExpand(substVars(w, a.vars))
 	if t == "" || strings.ContainsAny(t, "$`*?[{") || (!strings.HasPrefix(t, "/") && !a.ccwdKnown) {
 		return "", false
 	}
@@ -213,7 +275,7 @@ func (a *Analyzer) exportRule(name string, args []string) bool {
 			words = append(words, m[1])
 		}
 		for _, w := range uniq(words) {
-			for _, e := range braceExpand(cfgExpand(substVars(w, a.vars))) {
+			for _, e := range braceExpand(a.cfgExpand(substVars(w, a.vars))) {
 				if strings.ContainsAny(e, "$`") {
 					if strings.Contains(e, "guard-export") || runDirRe.MatchString(e) {
 						return true

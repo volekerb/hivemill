@@ -226,6 +226,20 @@ target after a `cd` into a tree, and the target is a tree, inside one, or a glob
 A `cd` target that is only known at run time followed by an extractor is refused too. Write/Edit/MultiEdit/NotebookEdit
 on a path in a tree are refused the same way. Reads, runs and look-alikes (`~/.local/gox`, `<live>/binx`) stay allowed.
 
+**Tilde names, copy into a parent, `find`, `git init` (T-0983).** The same list, tightened in both guards (nothing removed):
+(A) a write or `cd` target that starts with `~name` is resolved with the passwd entry (Python `pwd.getpwnam`, Go
+`os/user.Lookup`) and then checked like any path; `~+` is the tracked cwd; a name with no entry and `~-` are not decidable,
+so they follow the unresolved-expansion rule (refused when the word spells a protected tree name, like `$X`); `~` and `~/`
+keep their decisions; the Write/Edit tools get the same expansion. (B) `cp mv ln install rsync` into a directory that is a
+strict ancestor of a protected tree (`~/.local`, `~/.local/lib`, `<live>`, `<live>/roles`) is refused when a source basename
+equals the next component toward a tree (`cp -r /tmp/bin ~/.local`), or when the basename cannot be known (glob, `$`,
+`-T`, `--parents`, a trailing `/.`, `.`/`..`, an rsync source with a trailing `/` or `-R`); any other name keeps its
+decision (`cp /tmp/x ~/.local/` is allowed). `tar`, `unzip` and `7z` whose target or `cd` directory is such an ancestor
+are refused, because the archive content is unknown. A worktree is not an ancestor, so it stays writable. (C) `find` with
+`-delete`, `-exec|-execdir|-ok|-okdir` running a writer, deleter, shell or interpreter, or `-fprint|-fprint0|-fprintf|-fls`
+is a write to each start path (the cwd when there is none): refused when a start path is a tree, inside one or holds one.
+(G1) `git init <dir>` and `git worktree add|move|repair <dir>` into a tree are refused like `git clone`.
+
 **Rollback.** Write `python` (or remove `run/guard_impl`): the next call uses Python, no relaunch.
 
 **Debugging.** `WORKER_GUARD_SHIM_TRACE=1` prints `impl=<python|go|shadow>` to stderr (used by tests/test_guard_shim.py).

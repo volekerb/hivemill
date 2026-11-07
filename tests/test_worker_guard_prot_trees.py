@@ -12,6 +12,7 @@ import unittest
 from guard_impl import hook_run
 
 PW = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)  # the hook only reads the text of a command: nothing is written
+USER = pwd.getpwuid(os.getuid()).pw_name  # T-0983: the login is read at run time, never written into the repo
 _tmp = []
 
 
@@ -37,9 +38,9 @@ def paths():
 def run(cmd=None, cwd="other", tool=None, role="coder", fixture_live=True):
     """Exit code of the hook for a Bash command (or a (tool name, file_path) call) from cwd other|live|wt."""
     p = paths()
-    payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": p[cwd]}
+    payload = {"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": p.get(cwd, cwd)}
     if tool:
-        payload = {"tool_name": tool[0], "tool_input": {"file_path": tool[1]}, "cwd": p[cwd]}
+        payload = {"tool_name": tool[0], "tool_input": {"file_path": tool[1]}, "cwd": p.get(cwd, cwd)}
     env = {**os.environ, "WORKER_GUARD_LIVE_HOME": p["live"]}
     if not fixture_live:
         env.pop("WORKER_GUARD_LIVE_HOME")
@@ -50,13 +51,13 @@ class ProtTreesCase(unittest.TestCase):
     def blocked(self, cmds, cwds=("other", "live", "wt")):
         for cmd in cmds:
             for cwd in cwds:
-                r = run(cmd.replace("@L@", paths()["live"]), cwd)
+                r = run(cmd.replace("@L@", paths()["live"]).replace("@U@", USER), cwd)
                 self.assertEqual(r.returncode, 2, f"{cmd!r} from {cwd}: expected a block, got {r.returncode}")
 
     def allowed(self, cmds, cwds=("other", "live", "wt")):
         for cmd in cmds:
             for cwd in cwds:
-                r = run(cmd.replace("@L@", paths()["live"]), cwd)
+                r = run(cmd.replace("@L@", paths()["live"]).replace("@U@", USER), cwd)
                 self.assertEqual(r.returncode, 0, f"{cmd!r} from {cwd}: expected allow, got {r.returncode}: {r.stderr}")
 
 
@@ -255,6 +256,282 @@ class AttemptTwoFindings(ProtTreesCase):
         self.blocked(["echo x > ~/.local/b*/git", "curl -o ~/.local/bin/git URL", "go build -o ~/.local/bin/x ./cmd/x",
                       "tar -C ~/.local/bin -xf a.tar", "cd ~/.local/bin && tar -xf a.tar", "unzip -d ~/.local/bin a.zip"])
         self.allowed(["ls ~/.local/bin", "echo x > ~/.local/binx/y", "tar -tf ~/.local/bin/a.tar"])
+
+
+class TildeName(ProtTreesCase):
+    """T-0983 form A: `~name` and `~+` resolve as the shell resolves them, then are checked like any other path."""
+
+    def test_tilde_login_reaches_every_home_tree(self):
+        self.blocked(["echo x > ~@U@/.local/bin/git", "cp /tmp/x ~@U@/.local/bin/git", "echo x > ~@U@/.local/lib/factory/x",
+                      "echo x > ~@U@/.config/factory/x", "echo x > ~@U@/.local/go/go.env", "echo x > ~@U@/.config/go/env",
+                      "curl -o ~@U@/.local/lib/factory/x URL", "cd ~@U@/.local/lib/factory && tar -xf a.tar",
+                      "wget -O ~@U@/.local/bin/git URL", "tar -C ~@U@/.local/go -xf a.tar", "rm ~@U@/.local/bin/git",
+                      "cd ~@U@/.local/go && echo x > go.env"], cwds=("other",))
+
+    def test_tilde_login_reaches_the_real_live_checkout(self):
+        # the real live home (no fixture override): <pw_dir>/factory/{bin,go,roles/hooks,roles/settings}
+        for cmd in ("echo x > ~@U@/factory/bin/factory_cli.py", "echo x > ~@U@/factory/go/x.go",
+                    "echo x > ~@U@/factory/roles/hooks/worker-guard.py", "echo x > ~@U@/factory/roles/settings/coder.json.in",
+                    "find ~@U@/factory/bin -name x -delete"):
+            r = run(cmd.replace("@U@", USER), "other", fixture_live=False)
+            self.assertEqual(r.returncode, 2, f"{cmd!r}: got {r.returncode}")
+
+    def test_tilde_plus_is_the_effective_cwd(self):
+        self.blocked(["cd ~ && echo x > ~+/.local/bin/git", "cd ~/.local && cp /tmp/x ~+/bin/git",
+                      "cd ~/.local/bin && echo x > ~+/git"], cwds=("other",))
+        self.allowed(["cd /tmp && echo x > ~+/.local/bin/git"], cwds=("other",))  # that is /tmp/.local/bin/git
+
+    def test_unresolvable_names_follow_the_unresolvable_rule(self):
+        # a name with no passwd entry, and ~-, are not decidable: blocked when they spell a protected name, as for $X
+        self.blocked(["echo x > ~nosuchuser123/.local/bin/git", "echo x > ~-/.local/bin/git",
+                      "cp /tmp/x ~nosuchuser123/.config/factory/x", "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+                      "echo x > ~nosuchuser123/.local/go/go.env"], cwds=("other",))
+        self.allowed(["echo x > ~nosuchuser123/y", "ls ~nosuchuser123/.local/bin"], cwds=("other",))
+
+    def test_reads_look_alikes_and_scratch_allowed(self):
+        self.allowed(["ls ~@U@/.local/bin", "cat ~@U@/.config/factory/x", "cp ~@U@/.local/go/go.env /tmp/x",
+                      "echo x > ~@U@/.local/gox/y", "echo x > /tmp/ok", "~@U@/.local/bin/factory whoami"], cwds=("other",))
+
+    def test_tilde_alone_and_tilde_slash_keep_their_decisions(self):
+        self.blocked(["echo x > ~/.local/bin/git", "cp /tmp/x ~/"], cwds=("other",))
+        self.allowed(["ls ~", "ls ~/", "cat ~/.local/bin/x"], cwds=("other",))
+
+    def test_edit_tool_path_with_a_tilde_name(self):
+        for path in ("~@U@/.local/bin/git", "~@U@/.config/factory/live_home", "~@U@/.local/go/go.env",
+                     "~nosuchuser123/.local/bin/git"):
+            r = run(tool=("Write", path.replace("@U@", USER)), cwd="other")
+            self.assertEqual(r.returncode, 2, f"Write {path}: got {r.returncode}")
+        self.assertEqual(run(tool=("Write", "/tmp/ok"), cwd="other").returncode, 0)
+
+
+class CopyIntoParent(ProtTreesCase):
+    """T-0983 form B: the destination holds a protected tree, and the entry the source makes could be, or contain, one."""
+
+    def test_source_named_like_the_next_component_blocked(self):
+        self.blocked(["cp /tmp/bin ~/.local/", "cp -r /tmp/bin ~/.local", "cp -r /tmp/go ~/.local/", "mv /tmp/bin ~/.local/",
+                      "rsync -a /tmp/bin ~/.local/", "cp -r /tmp/factory ~/.local/lib", "cp -r /tmp/factory ~/.local/lib/",
+                      "ln -s /tmp/bin ~/.local/", "install -t ~/.local /tmp/bin", "cp -t ~/.local -r /tmp/go",
+                      "cp -r /tmp/bin/ ~/.local/",
+                      "cp -r /tmp/bin @L@/", "cp -r /tmp/go @L@/", "cp -r /tmp/roles @L@/", "cp -r /tmp/hooks @L@/roles/",
+                      "cp -r /tmp/settings @L@/roles/", "mv /tmp/bin @L@/", "rsync -a /tmp/hooks @L@/roles/"],
+                     cwds=("other",))
+
+    def test_source_basename_not_known_blocked(self):
+        self.blocked(["cp -r /tmp/x/. ~/.local/", "cp -rT /tmp/x ~/.local", "cp --no-target-directory /tmp/x ~/.local",
+                      "rsync -a /tmp/x/ ~/.local/", "cp /tmp/* ~/.local/", "cp -r /tmp/$X ~/.local/",
+                      "cp -r /tmp/$(ls) ~/.local/", "cp /tmp/?in ~/.local/", "cp --parents /tmp/x ~/.local/",
+                      "rsync -aR /tmp/./bin/x ~/.local/", "cp -r . ~/.local/", "cp -r .. ~/.local/",
+                      "rsync -a /tmp/x/ @L@/roles/", "cp -rT /tmp/x @L@"], cwds=("other",))
+
+    def test_archive_extracted_into_a_parent_blocked(self):
+        self.blocked(["tar -C ~/.local -xf a.tar", "cd ~/.local && tar -xf a.tar", "unzip a.zip -d ~/.local",
+                      "unzip -d ~/.local a.zip", "cd ~/.local && unzip a.zip", "tar --directory=~/.local -xf a.tar",
+                      "tar --one-top-level=~/.local -xf a.tar", "tar -C ~/.config -xf a.tar", "tar -C ~ -xf a.tar",
+                      "tar -C @L@ -xf a.tar", "tar -C @L@/roles -xf a.tar", "unzip -d @L@/roles a.zip",
+                      "cd @L@ && tar -xf a.tar", "7z x a.7z -o@L@/roles"], cwds=("other",))
+
+    def test_cd_into_the_parent_then_copy(self):
+        self.blocked(["cd ~/.local && cp -r /tmp/bin .", "cd ~/.local && cp -r /tmp/go ./",
+                      "cd ~/.local/lib && cp -r /tmp/factory ."], cwds=("other",))
+        self.allowed(["cd ~/.local && cp /tmp/x ."], cwds=("other",))
+
+    def test_other_source_names_keep_main_decision(self):
+        self.allowed(["cp /tmp/x ~/.local/", "cp /tmp/x ~/.local/share/", "cp -r /tmp/bin /tmp/y/", "cp /tmp/x ~/.local/lib/",
+                      "cp -r /tmp/x ~/.local/", "mv /tmp/x ~/.local/", "rsync -a /tmp/x ~/.local/", "cp -r /tmp/x @L@/",
+                      "cp /tmp/x @L@/roles/", "cp -r /tmp/bin /tmp/y/ -f", "cp -r /tmp/bin ~/.local/share/",
+                      "tar -tf a.tar", "tar -C /tmp/x -xf a.tar", "unzip -l a.zip", "tar -C ~/.local/share -xf a.tar"],
+                     cwds=("other",))
+
+    def test_copy_destination_followed_by_an_option_value_or_with_a_brace_blocked(self):
+        # reviewer B2 and nit 1 @275f8f14: the option value must not be taken as the destination; a brace is expanded
+        self.blocked(["rsync -a /tmp/bin ~/.local/ --exclude x", "install /tmp/bin ~/.local/ -m 755",
+                      "cp -r /tmp/bin ~/.local/ -S .bak", "cp -r /tmp/bin ~/.{local,x}/"], cwds=("other",))
+        self.allowed(["rsync -a /tmp/bin /tmp/y/ --exclude x", "cp -r /tmp/x ~/.local/ -S .bak"], cwds=("other",))
+
+    def test_worktree_copies_and_extractions_allowed(self):
+        self.allowed(["cp -r /tmp/bin .", "tar -xf a.tar", "tar -C . -xf a.tar", "cp -r /tmp/bin ./bin", "cp -r /tmp/go go/",
+                      "unzip a.zip", "rsync -a /tmp/x/ ./", "cp -r /tmp/hooks roles/", "cp /tmp/x bin/"], cwds=("wt",))
+
+    def test_extracting_into_the_live_home_is_refused_for_every_worker_role(self):
+        # was allowed by test_worker_guard_nopush_gitfile.test_other_roles_unchanged (edited in T-0983): the live home holds bin/ and go/
+        for role in ("coder", "judge", "cleaner"):
+            r = run("unzip a.zip -d @L@".replace("@L@", paths()["live"]), "other", role=role)
+            self.assertEqual(r.returncode, 2, f"{role}: unzip into the live home: got {r.returncode}")
+            r = run("tar -xf a.tar -C " + paths()["live"], "other", role=role)
+            self.assertEqual(r.returncode, 2, f"{role}: tar into the live home: got {r.returncode}")
+
+    def test_already_blocked_lines_stay_blocked(self):
+        self.blocked(["mv /tmp/factory ~/.config/", "cp -r /tmp/bin ~/factory/", "cp -r /tmp/settings ~/factory/run/",
+                      "find ~/.config/factory -name x -delete", "cp -r /tmp/.local ~/", "cp /tmp/x ~/"], cwds=("other",))
+
+
+class FindDeletes(ProtTreesCase):
+    """T-0983 form C: a find that deletes, runs a writer or writes a file writes to every start path."""
+
+    def test_find_writers_on_a_protected_start_path_blocked(self):
+        self.blocked(["find ~/.local/bin -name git -delete", "find ~/.local/lib/factory -delete",
+                      "find ~/.local/go -name go.env -delete", "find ~/.config/factory -name x -delete",
+                      "find ~/.config/go -delete", "find @L@/bin -name x -delete", "find @L@/go -delete",
+                      "find @L@/roles/hooks -delete", "find @L@/roles/settings -delete", "find @L@/run/settings -delete",
+                      "find ~/.local/bin -name git -exec rm {} +", "find ~/.local/lib/factory -name x -exec rm {} +",
+                      "find ~/.local/bin -name x -execdir rm {} \\;", "find ~/.local/bin -name x -ok rm {} \\;",
+                      "find @L@/bin -name x -okdir mv {} /tmp/y \\;", "find ~/.local/go -exec sh -c 'rm $0' {} \\;",
+                      "find ~/.local/bin -exec chmod 777 {} +", "find -H ~/.local/bin -delete", "find -L ~/.local/go -delete",
+                      "find ~/.local/bin -fprint ~/.local/bin/x", "find ~/.config/go -fls ~/.config/go/x",
+                      "find /tmp/x -fprint ~/.local/bin/x", "find /tmp/x -fprintf ~/.local/go/x %p"], cwds=("other",))
+
+    def test_find_writers_on_an_ancestor_start_path_blocked(self):
+        self.blocked(["find ~/.local -name git -delete", "find ~/.local -exec rm {} +", "find @L@ -name x -delete",
+                      "find @L@/roles -delete", "find ~/.config -name x -delete"], cwds=("other",))
+
+    def test_find_exec_of_any_command_on_a_protected_start_path_blocked(self):
+        # reviewer B1 @275f8f14: git, zip, make and a relative script are writers the old lists left out
+        self.blocked(["find ~/.local/go -maxdepth 0 -exec git init {} +", "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+                      "find ~/.local/lib/factory -exec ./x.sh {} +", "find ~ -name x -exec make {} +"], cwds=("other",))
+
+    def test_find_exec_of_a_read_only_command_or_outside_the_trees_allowed(self):
+        self.allowed(["find ~/.local/bin -name x -exec ls {} +", "find ~/.local/lib/factory -type f -exec grep y {} +",
+                      "find /tmp/x -exec git init {} +"], cwds=("other",))
+        self.allowed(["find . -name '*.py' -exec sed -i s/a/b/ {} +"], cwds=("wt",))
+
+    def test_n1_find_expression_after_an_escaped_semicolon_is_judged(self):
+        """N1: `\\;` ended the command, so -delete, -fprint or a second -exec after it were never judged."""
+        self.blocked(["find ~/.local/bin -exec ls {} \\; -delete", "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+                      "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+                      "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +"], cwds=("other",))
+        self.allowed(["find ~/.local/bin -exec ls {} \\; -name y", "find /tmp/x -exec ls {} \\; -delete",
+                      "find ~/.local/bin -exec cat {} \\; -print"], cwds=("other",))
+
+    def test_n2_exec_read_only_list_compares_the_whole_word(self):
+        """N2: ./cat and /tmp/grep are not the listed readers; a bare name or its /usr/bin, /bin path is."""
+        self.blocked(["find ~/.local/bin -name x -exec ./cat {} +", "find ~/.local/bin -name x -exec /tmp/grep {} +",
+                      "find ~/.local/bin -exec ./ls {} \\;", "find ~/.local/bin -exec /usr/local/bin/cat {} \\;"],
+                     cwds=("other",))
+        self.allowed(["find ~/.local/bin -exec /usr/bin/cat {} \\;", "find ~/.local/bin -exec /bin/ls {} +",
+                      "find ~/.local/bin -exec cat {} +"], cwds=("other",))
+
+    def test_n3_unresolvable_cd_keeps_the_known_cwd(self):
+        """N3: `cd ~nosuchuser` / `cd ~-` stay a path relative to the known cwd (main's decision), so a later relative
+        write from a protected cwd is still judged."""
+        self.blocked(["cd ~/.local/bin && cd ~nosuchuser123 && echo x > git", "cd ~/.local/go && cd ~- && cp /tmp/x y",
+                      "cd @L@/bin && cd ~nosuchuser123 && tar -xf a.tar"], cwds=("other",))
+        self.allowed(["cd /tmp && cd ~nosuchuser123 && echo x > y"], cwds=("other",))
+
+    def test_find_without_a_start_path_uses_the_cwd(self):
+        self.blocked(["find -delete", "find -name x -delete", "find -exec rm {} +"], cwds=("live",))
+        self.blocked(["cd ~/.local/bin && find -delete", "cd ~/.local/go && find -name x -delete",
+                      "cd ~/.local/bin && find . -name x -delete", "cd @L@/bin && find -delete",
+                      "cd @L@/roles/hooks && find -delete"], cwds=("other",))
+        self.allowed(["find -delete", "find . -name '*.pyc' -delete", "find bin -name x -delete", "find go -name x -delete",
+                      "find -name '*.pyc' -exec rm {} +"], cwds=("wt",))
+
+    def test_find_reads_and_other_trees_allowed(self):
+        self.allowed(["find /tmp/x -delete", "find ~/.local/bin -name git", "find ~/.local/lib/factory -type f",
+                      "find ~/.cache/x -delete", "find ~/.local/bin -name git -exec ls {} \\;",
+                      "find ~/.local -name git", "find @L@/bin -name x -print", "find ~/.local/go -name x -exec grep y {} +",
+                      "find /tmp/x -name y -exec rm {} +", "find /tmp/x -fprint /tmp/y"], cwds=("other",))
+
+    def test_find_in_a_worktrees_own_trees_allowed(self):
+        self.allowed(["find @L@/worktrees/G-000-T-0000/bin -name x -delete", "find @L@/worktrees/G-000-T-0000/go -delete",
+                      "find @L@/worktrees/G-000-T-0000 -name '*.pyc' -delete"], cwds=("other",))
+
+
+TERMINATORS = ["\\;", "';'", '";"', '\\;""', '""\\;', "$';'"]
+FIND_TAILS = ["-delete", "-fprint /tmp/y", "-exec rm {} +"]
+# M23269: the one narrow exception to "same cells on /tmp/x exit 0": main already refuses the `$';'` terminator as a
+# dynamic command word on any path, so those cells are expected to exit 2 on main and on the head (M3 wins over M1).
+MAIN_EQUAL_EXCEPTIONS = [f"find /tmp/x -exec ls {{}} $';' {tail}" for tail in FIND_TAILS]
+TILDE_WRITERS = ["echo x > {w}", "echo x >> {w}", "touch {w}", "echo x | tee {w}", "cp /tmp/x {w}", "mv /tmp/x {w}",
+                 "rm {w}", "curl -o {w} URL"]
+TILDE_WORDS = ["~nosuchuser123", "~-"]
+
+
+def matrix_trees():
+    """(spelling for a command, absolute path for a payload cwd) of one tree per family: two home trees, the config tree
+    and the live-checkout fixture."""
+    live = paths()["live"]
+    return [("~/.local/bin", PW + "/.local/bin"), ("~/.local/lib/factory", PW + "/.local/lib/factory"),
+            ("~/.config/factory", PW + "/.config/factory"), (live + "/bin", live + "/bin")]
+
+
+class FindMatrix(ProtTreesCase):
+    """M1 (T-0983 attempt 3): shlex drops quote state, so a quoted or escaped word made only of punctuation was read as an
+    operator and cut the find. Every terminator spelling, grouping and punctuation -name, each followed by a write."""
+
+    def cells(self, tree):
+        for t in TERMINATORS:
+            for tail in FIND_TAILS:
+                yield f"find {tree} -exec ls {{}} {t} {tail}"
+        for g, c in (("\\(", "\\)"), ("'('", "')'")):
+            yield f"find {tree} {g} -name x {c} -delete"
+        for n in (";", "&", "|", ">"):
+            yield f"find {tree} -name '{n}' -delete"
+
+    def test_every_cell_on_a_protected_tree_blocked(self):
+        for tree, _ in matrix_trees():
+            self.blocked(list(self.cells(tree)), cwds=("other",))
+
+    def test_same_cells_outside_the_trees_allowed(self):
+        cells = [c for c in self.cells("/tmp/x") if c not in MAIN_EQUAL_EXCEPTIONS]
+        self.allowed(cells, cwds=("other",))
+        self.blocked(MAIN_EQUAL_EXCEPTIONS, cwds=("other",))  # M23269: main refuses them too, so they stay exit 2
+
+    def test_readers_without_a_write_tail_allowed(self):
+        # `$';'` as above; ~/.config/factory is refused for any find -exec by main's config rules
+        for tree, _ in matrix_trees():
+            if tree.endswith(".config/factory"):
+                continue
+            self.allowed([f"find {tree} -exec ls {{}} {t} -print" for t in TERMINATORS if t != "$';'"] +
+                         [f"find {tree} -name ';' -print", f"find {tree} \\( -name x \\) -print"], cwds=("other",))
+
+    def test_worktree_grouping_allowed(self):
+        self.allowed(["find . \\( -name x \\) -delete", "find . '(' -name x ')' -delete",
+                      "find . -name ';' -delete"], cwds=("wt",))
+
+
+class TildeMatrix(ProtTreesCase):
+    """M2 (T-0983 attempt 3): an unresolvable `~name` or `~-` is a path relative to the cwd, as on main, so a write that
+    reaches a protected tree through the cwd (a `cd`, or the payload cwd) is judged."""
+
+    def test_cd_into_a_tree_then_write_blocked(self):
+        for tree, _ in matrix_trees():
+            for w in TILDE_WORDS:
+                self.blocked([f"cd {tree} && {c.format(w=w)}" for c in TILDE_WRITERS], cwds=("other",))
+
+    def test_payload_cwd_in_a_tree_then_write_blocked(self):
+        for tree, real in matrix_trees():
+            for w in TILDE_WORDS:
+                self.blocked([c.format(w=w) for c in TILDE_WRITERS], cwds=(real,))
+
+    def test_same_writes_from_scratch_allowed(self):
+        for w in TILDE_WORDS:
+            cmds = [c.format(w=w) for c in TILDE_WRITERS]
+            self.allowed(cmds, cwds=("/tmp",))
+            self.allowed(["cd /tmp && " + c for c in cmds], cwds=("other",))
+
+    def test_spelled_names_stay_as_before(self):
+        self.allowed(["echo x > ~nosuchuser123/y"], cwds=("/tmp",))
+        self.blocked(["echo x > ~nosuchuser123/.local/bin/git", "echo x > ~-/.config/factory/x"], cwds=("/tmp",))
+
+
+class GitInitWorktreeAdd(ProtTreesCase):
+    """G1: `git init <dir>` and `git worktree add <dir>` create a repository (hooks included) inside a protected tree."""
+
+    def test_blocked_for_every_family(self):
+        self.blocked(["git init ~/.local/go/x", "git worktree add ~/.local/go/x", "git init ~/.config/factory/x",
+                      "git init ~/.local/lib/factory/x", "git init ~/.config/go/x", "git init ~/.local/bin/x",
+                      "git init @L@/bin/x", "git init @L@/go/x", "git init @L@/roles/hooks/x", "git init @L@/roles/settings/x",
+                      "git init @L@/run/settings/x", "git worktree add -b nb ~/.local/go/x", "git worktree add ~/.local/go/x main",
+                      "git worktree add @L@/roles/settings/x", "git -C ~/.local/go init", "cd ~/.local/go && git init",
+                      "git init --separate-git-dir ~/.local/go/g /tmp/z", "git init --template=/tmp/t ~/.local/go/x",
+                      "git init -b main ~/.local/go/x", "git worktree move /tmp/x ~/.local/go/x", "git init ~@U@/.local/go/x"],
+                     cwds=("other",))
+
+    def test_elsewhere_allowed(self):
+        self.allowed(["git init /tmp/x", "git worktree add /tmp/x", "git -C /tmp/x init", "git worktree list",
+                      "git init -b main /tmp/x", "git worktree add -b nb /tmp/x main", "git init ~/.local/gox/x"],
+                     cwds=("other",))
+        self.allowed(["git init", "git worktree add ../other-wt"], cwds=("wt",))
 
 
 if __name__ == "__main__":

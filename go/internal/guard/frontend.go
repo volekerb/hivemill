@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -781,6 +782,78 @@ func MaskQuotes(text string) string {
 	return string(out)
 }
 
+// punctChars is worker-guard.py:PUNCT_CHARS.
+const punctChars = "();<>|&"
+
+// MarkPunctWords is a port of worker-guard.py:mark_punct_words (T-0983): shlex drops quote state, so a word the shell
+// passes as data (`';'`, `\;`, `"("`) would come out as an operator. A word (it ends at whitespace outside quotes) that
+// holds a quote or a backslash, whose dequoted value is only `();<>|&` and whose every such character is quoted or
+// escaped, becomes a sentinel word. Returns the text and {sentinel: value}.
+func MarkPunctWords(text string) (string, map[string]string) {
+	r := []rune(text)
+	sent := "__PUNCT_WORD__"
+	for strings.Contains(text, sent) {
+		sent += "_"
+	}
+	isSpace := func(c rune) bool { return c == ' ' || c == '\t' || c == '\r' || c == '\n' }
+	vals := map[string]string{}
+	var out strings.Builder
+	for i, n := 0, len(r); i < n; {
+		if isSpace(r[i]) {
+			out.WriteRune(r[i])
+			i++
+			continue
+		}
+		j, q, quoted, barePunct := i, rune(0), false, false
+		var val []rune
+		for j < n && (q != 0 || !isSpace(r[j])) {
+			c := r[j]
+			switch {
+			case q == '\'':
+				if c == '\'' {
+					q = 0
+				} else {
+					val = append(val, c)
+				}
+			case q == '"':
+				if c == '"' {
+					q = 0
+				} else if c == '\\' && j+1 < n && strings.ContainsRune("\"\\$`", r[j+1]) {
+					val = append(val, r[j+1])
+					j++
+				} else {
+					val = append(val, c)
+				}
+			case c == '\'' || c == '"':
+				q, quoted = c, true
+			case c == '\\' && j+1 < n:
+				quoted = true
+				val = append(val, r[j+1])
+				j++
+			default:
+				val = append(val, c)
+				barePunct = barePunct || strings.ContainsRune(punctChars, c)
+			}
+			j++
+		}
+		all := len(val) > 0
+		for _, c := range val {
+			if !strings.ContainsRune(punctChars, c) {
+				all = false
+			}
+		}
+		if q == 0 && quoted && !barePunct && all {
+			key := fmt.Sprintf("%s%d__", sent, len(vals))
+			vals[key] = string(val)
+			out.WriteString(key)
+		} else {
+			out.WriteString(string(r[i:j]))
+		}
+		i = j
+	}
+	return out.String(), vals
+}
+
 // Segment is one (start, end, words) triple of worker-guard.py:segments. Start and End are character
 // (code point) offsets, as in Python; use RuneSlice to cut the original text.
 type Segment struct {
@@ -874,6 +947,17 @@ func ScriptTokens(text string) ([]string, error) {
 		return nil, blockf("cannot parse command (" + err.Error() + ")")
 	}
 	return FoldMktemp(toks), nil
+}
+
+// ScriptTokensMarked is ScriptTokens after MarkPunctWords (worker-guard.py: the token loop's lexing): redirect fds
+// blanked, punctuation-only quoted words marked, then shlex.
+func ScriptTokensMarked(text string) ([]string, map[string]string, error) {
+	marked, pw := MarkPunctWords(BlankRedirectFds(text))
+	toks, err := shlex.Script(marked)
+	if err != nil {
+		return nil, nil, blockf("cannot parse command (" + err.Error() + ")")
+	}
+	return FoldMktemp(toks), pw, nil
 }
 
 // IsPersistEditTool reports whether tool is one of worker-guard.py:PERSIST_EDIT_TOOLS.

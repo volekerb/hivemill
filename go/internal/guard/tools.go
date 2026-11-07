@@ -71,20 +71,21 @@ func PersistEdit(data map[string]any, role string) (int, string) {
 	if !ok || ps == "" {
 		return 2, "worker-guard: blocked (edit tool call without a readable file_path, failing closed)\n"
 	}
-	p := cfgExpand(ps)
 	cwd := payloadCwd(data)
+	p := tildeExpand(ps, cwd, true)
+	unres := tildeUnres(ps, true) // rule A: an unresolvable `~name/...` is judged by the protected names it spells
 	if !strings.HasPrefix(p, "/") {
 		p = pyJoin(cwd, p)
 	}
 	if exportPath(p) || (strings.Contains(p, "$") && strings.Contains(p, "guard-export")) {
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + exportWhy + ". Tell your lead if this is wrong.\n"
 	}
-	if protEditPath(p) { // T-0925 gap g: the Edit tools were checked against the persist paths only
+	if protEditPath(p, false) || (unres && protEditPath(ps, true)) { // T-0925 gap g: the Edit tools were checked against the persist paths only
 		return 2, "worker-guard: blocked (" + pyRepr(ps) + "): " + protWhy + ". Tell your lead if this is wrong.\n"
 	}
 	// T-0957: ~/.local/bin is first on the tick's PATH; matched as written and resolved (its entries are symlinks), and
 	// a path with an unexpanded `$` that names .local/bin cannot be decided, so it is refused too
-	binHit := strings.Contains(p, "$") && hasLocalBin(p)
+	binHit := (strings.Contains(p, "$") && hasLocalBin(p)) || (unres && hasLocalBin(ps))
 	for _, q := range []string{pyNormpath(p), pyRealpath(p)} {
 		for _, d := range mustHost().binDirs {
 			if q == d || Under(q, d) {

@@ -119766,6 +119766,6242 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "echo x > ~nosuchuser123/.local/bin/git",
+"mask_quotes_pre": "echo x > ~nosuchuser123/.local/bin/git",
+"mask_quotes_raw": "echo x > ~nosuchuser123/.local/bin/git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/.local/bin/git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/.local/bin/git"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/bin/git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/bin/git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"mask_quotes_pre": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"mask_quotes_raw": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~nosuchuser123/.local/lib/factory/x"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"cp",
+"/tmp/x",
+"~nosuchuser123/.local/lib/factory/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"cp",
+"/tmp/x",
+"~nosuchuser123/.local/lib/factory/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > ~nosuchuser123/.config/factory/x",
+"mask_quotes_pre": "echo x > ~nosuchuser123/.config/factory/x",
+"mask_quotes_raw": "echo x > ~nosuchuser123/.config/factory/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/.config/factory/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/.config/factory/x"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/.config/factory/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/.config/factory/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > ~nosuchuser123/.local/go/go.env",
+"mask_quotes_pre": "echo x > ~nosuchuser123/.local/go/go.env",
+"mask_quotes_raw": "echo x > ~nosuchuser123/.local/go/go.env",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/.local/go/go.env"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/.local/go/go.env"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/go/go.env"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/.local/go/go.env"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"mask_quotes_pre": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"mask_quotes_raw": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~nosuchuser123/.local/lib/factory && tar -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"cd",
+"~nosuchuser123/.local/lib/factory"
+]
+],
+[
+39,
+53,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"cd",
+"~nosuchuser123/.local/lib/factory"
+]
+],
+[
+39,
+53,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > ~-/.local/bin/git",
+"mask_quotes_pre": "echo x > ~-/.local/bin/git",
+"mask_quotes_raw": "echo x > ~-/.local/bin/git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~-/.local/bin/git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~-/.local/bin/git"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"echo",
+"x",
+">",
+"~-/.local/bin/git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"echo",
+"x",
+">",
+"~-/.local/bin/git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~ && echo x > ~+/.local/bin/git",
+"mask_quotes_pre": "cd ~ && echo x > ~+/.local/bin/git",
+"mask_quotes_raw": "cd ~ && echo x > ~+/.local/bin/git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~ && echo x > ~+/.local/bin/git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~ && echo x > ~+/.local/bin/git"
+},
+"segments_pre": [
+[
+0,
+5,
+[
+"cd",
+"~"
+]
+],
+[
+7,
+34,
+[
+"echo",
+"x",
+">",
+"~+/.local/bin/git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+5,
+[
+"cd",
+"~"
+]
+],
+[
+7,
+34,
+[
+"echo",
+"x",
+">",
+"~+/.local/bin/git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/bin ~/.local/",
+"mask_quotes_pre": "cp /tmp/bin ~/.local/",
+"mask_quotes_raw": "cp /tmp/bin ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/bin ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/bin ~/.local/"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"cp",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"cp",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin ~/.local",
+"mask_quotes_pre": "cp -r /tmp/bin ~/.local",
+"mask_quotes_raw": "cp -r /tmp/bin ~/.local",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.local"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.local"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/go ~/.local/",
+"mask_quotes_pre": "cp -r /tmp/go ~/.local/",
+"mask_quotes_raw": "cp -r /tmp/go ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/go ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/go ~/.local/"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"cp",
+"-r",
+"/tmp/go",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"cp",
+"-r",
+"/tmp/go",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv /tmp/bin ~/.local/",
+"mask_quotes_pre": "mv /tmp/bin ~/.local/",
+"mask_quotes_raw": "mv /tmp/bin ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/bin ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/bin ~/.local/"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"mv",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"mv",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a /tmp/bin ~/.local/",
+"mask_quotes_pre": "rsync -a /tmp/bin ~/.local/",
+"mask_quotes_raw": "rsync -a /tmp/bin ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/bin ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/bin ~/.local/"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/factory ~/.local/lib",
+"mask_quotes_pre": "cp -r /tmp/factory ~/.local/lib",
+"mask_quotes_raw": "cp -r /tmp/factory ~/.local/lib",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/factory ~/.local/lib"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/factory ~/.local/lib"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/factory ~/.local/lib/",
+"mask_quotes_pre": "cp -r /tmp/factory ~/.local/lib/",
+"mask_quotes_raw": "cp -r /tmp/factory ~/.local/lib/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/factory ~/.local/lib/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/factory ~/.local/lib/"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"cp",
+"-r",
+"/tmp/factory",
+"~/.local/lib/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local && cp -r /tmp/bin .",
+"mask_quotes_pre": "cd ~/.local && cp -r /tmp/bin .",
+"mask_quotes_raw": "cd ~/.local && cp -r /tmp/bin .",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local && cp -r /tmp/bin ."
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local && cp -r /tmp/bin ."
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cd",
+"~/.local"
+]
+],
+[
+14,
+31,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"."
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cd",
+"~/.local"
+]
+],
+[
+14,
+31,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"."
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -C ~/.local -xf a.tar",
+"mask_quotes_pre": "tar -C ~/.local -xf a.tar",
+"mask_quotes_raw": "tar -C ~/.local -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -C ~/.local -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -C ~/.local -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"tar",
+"-C",
+"~/.local",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"tar",
+"-C",
+"~/.local",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local && tar -xf a.tar",
+"mask_quotes_pre": "cd ~/.local && tar -xf a.tar",
+"mask_quotes_raw": "cd ~/.local && tar -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local && tar -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local && tar -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+12,
+[
+"cd",
+"~/.local"
+]
+],
+[
+14,
+28,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"cd",
+"~/.local"
+]
+],
+[
+14,
+28,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/x/. ~/.local/",
+"mask_quotes_pre": "cp -r /tmp/x/. ~/.local/",
+"mask_quotes_raw": "cp -r /tmp/x/. ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x/. ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x/. ~/.local/"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"cp",
+"-r",
+"/tmp/x/.",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"cp",
+"-r",
+"/tmp/x/.",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -rT /tmp/x ~/.local",
+"mask_quotes_pre": "cp -rT /tmp/x ~/.local",
+"mask_quotes_raw": "cp -rT /tmp/x ~/.local",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -rT /tmp/x ~/.local"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -rT /tmp/x ~/.local"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"cp",
+"-rT",
+"/tmp/x",
+"~/.local"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"cp",
+"-rT",
+"/tmp/x",
+"~/.local"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a /tmp/x/ ~/.local/",
+"mask_quotes_pre": "rsync -a /tmp/x/ ~/.local/",
+"mask_quotes_raw": "rsync -a /tmp/x/ ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/x/ ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/x/ ~/.local/"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"rsync",
+"-a",
+"/tmp/x/",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/* ~/.local/",
+"mask_quotes_pre": "cp /tmp/* ~/.local/",
+"mask_quotes_raw": "cp /tmp/* ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/* ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/* ~/.local/"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"cp",
+"/tmp/*",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"cp",
+"/tmp/*",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip a.zip -d ~/.local",
+"mask_quotes_pre": "unzip a.zip -d ~/.local",
+"mask_quotes_raw": "unzip a.zip -d ~/.local",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d ~/.local"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip a.zip -d ~/.local"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"unzip",
+"a.zip",
+"-d",
+"~/.local"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"unzip",
+"a.zip",
+"-d",
+"~/.local"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -d ~/.local a.zip",
+"mask_quotes_pre": "unzip -d ~/.local a.zip",
+"mask_quotes_raw": "unzip -d ~/.local a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -d ~/.local a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -d ~/.local a.zip"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"unzip",
+"-d",
+"~/.local",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"unzip",
+"-d",
+"~/.local",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ln -s /tmp/bin ~/.local/",
+"mask_quotes_pre": "ln -s /tmp/bin ~/.local/",
+"mask_quotes_raw": "ln -s /tmp/bin ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ln -s /tmp/bin ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ln -s /tmp/bin ~/.local/"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"ln",
+"-s",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"ln",
+"-s",
+"/tmp/bin",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "install -t ~/.local /tmp/bin",
+"mask_quotes_pre": "install -t ~/.local /tmp/bin",
+"mask_quotes_raw": "install -t ~/.local /tmp/bin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "install -t ~/.local /tmp/bin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "install -t ~/.local /tmp/bin"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"install",
+"-t",
+"~/.local",
+"/tmp/bin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"install",
+"-t",
+"~/.local",
+"/tmp/bin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp --parents /tmp/x ~/.local/",
+"mask_quotes_pre": "cp --parents /tmp/x ~/.local/",
+"mask_quotes_raw": "cp --parents /tmp/x ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp --parents /tmp/x ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp --parents /tmp/x ~/.local/"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"cp",
+"--parents",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"cp",
+"--parents",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin ~/.local/lib/../",
+"mask_quotes_pre": "cp -r /tmp/bin ~/.local/lib/../",
+"mask_quotes_raw": "cp -r /tmp/bin ~/.local/lib/../",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.local/lib/../"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.local/lib/../"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/lib/../"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/lib/../"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin @SHARED@/",
+"mask_quotes_pre": "cp -r /tmp/bin @SHARED@/",
+"mask_quotes_raw": "cp -r /tmp/bin @SHARED@/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin @SHARED@/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin @SHARED@/"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"@SHARED@/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"@SHARED@/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/go @SHARED@/",
+"mask_quotes_pre": "cp -r /tmp/go @SHARED@/",
+"mask_quotes_raw": "cp -r /tmp/go @SHARED@/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/go @SHARED@/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/go @SHARED@/"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"cp",
+"-r",
+"/tmp/go",
+"@SHARED@/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"cp",
+"-r",
+"/tmp/go",
+"@SHARED@/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/roles @SHARED@/",
+"mask_quotes_pre": "cp -r /tmp/roles @SHARED@/",
+"mask_quotes_raw": "cp -r /tmp/roles @SHARED@/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/roles @SHARED@/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/roles @SHARED@/"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"cp",
+"-r",
+"/tmp/roles",
+"@SHARED@/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"cp",
+"-r",
+"/tmp/roles",
+"@SHARED@/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/hooks @SHARED@/roles/",
+"mask_quotes_pre": "cp -r /tmp/hooks @SHARED@/roles/",
+"mask_quotes_raw": "cp -r /tmp/hooks @SHARED@/roles/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/hooks @SHARED@/roles/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/hooks @SHARED@/roles/"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"cp",
+"-r",
+"/tmp/hooks",
+"@SHARED@/roles/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"cp",
+"-r",
+"/tmp/hooks",
+"@SHARED@/roles/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/settings @SHARED@/roles/",
+"mask_quotes_pre": "cp -r /tmp/settings @SHARED@/roles/",
+"mask_quotes_raw": "cp -r /tmp/settings @SHARED@/roles/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/settings @SHARED@/roles/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/settings @SHARED@/roles/"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"cp",
+"-r",
+"/tmp/settings",
+"@SHARED@/roles/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"cp",
+"-r",
+"/tmp/settings",
+"@SHARED@/roles/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a /tmp/x/ @SHARED@/roles/",
+"mask_quotes_pre": "rsync -a /tmp/x/ @SHARED@/roles/",
+"mask_quotes_raw": "rsync -a /tmp/x/ @SHARED@/roles/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/x/ @SHARED@/roles/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/x/ @SHARED@/roles/"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"rsync",
+"-a",
+"/tmp/x/",
+"@SHARED@/roles/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"rsync",
+"-a",
+"/tmp/x/",
+"@SHARED@/roles/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv /tmp/bin @SHARED@/",
+"mask_quotes_pre": "mv /tmp/bin @SHARED@/",
+"mask_quotes_raw": "mv /tmp/bin @SHARED@/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/bin @SHARED@/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/bin @SHARED@/"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"mv",
+"/tmp/bin",
+"@SHARED@/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"mv",
+"/tmp/bin",
+"@SHARED@/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -C @SHARED@ -xf a.tar",
+"mask_quotes_pre": "tar -C @SHARED@ -xf a.tar",
+"mask_quotes_raw": "tar -C @SHARED@ -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -C @SHARED@ -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -C @SHARED@ -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"tar",
+"-C",
+"@SHARED@",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"tar",
+"-C",
+"@SHARED@",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "tar -C @SHARED@/roles -xf a.tar",
+"mask_quotes_pre": "tar -C @SHARED@/roles -xf a.tar",
+"mask_quotes_raw": "tar -C @SHARED@/roles -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "tar -C @SHARED@/roles -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "tar -C @SHARED@/roles -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"tar",
+"-C",
+"@SHARED@/roles",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"tar",
+"-C",
+"@SHARED@/roles",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "unzip -d @SHARED@/roles a.zip",
+"mask_quotes_pre": "unzip -d @SHARED@/roles a.zip",
+"mask_quotes_raw": "unzip -d @SHARED@/roles a.zip",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "unzip -d @SHARED@/roles a.zip"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "unzip -d @SHARED@/roles a.zip"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"unzip",
+"-d",
+"@SHARED@/roles",
+"a.zip"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"unzip",
+"-d",
+"@SHARED@/roles",
+"a.zip"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name git -delete",
+"mask_quotes_pre": "find ~/.local/bin -name git -delete",
+"mask_quotes_raw": "find ~/.local/bin -name git -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -delete",
+"mask_quotes_pre": "find ~/.local/lib/factory -delete",
+"mask_quotes_raw": "find ~/.local/lib/factory -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -delete"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"find",
+"~/.local/lib/factory",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"find",
+"~/.local/lib/factory",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/go -name go.env -delete",
+"mask_quotes_pre": "find ~/.local/go -name go.env -delete",
+"mask_quotes_raw": "find ~/.local/go -name go.env -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/go -name go.env -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/go -name go.env -delete"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"find",
+"~/.local/go",
+"-name",
+"go.env",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"find",
+"~/.local/go",
+"-name",
+"go.env",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/factory/bin -name x -delete",
+"mask_quotes_pre": "find ~/factory/bin -name x -delete",
+"mask_quotes_raw": "find ~/factory/bin -name x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/factory/bin -name x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/factory/bin -name x -delete"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"find",
+"~/factory/bin",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"find",
+"~/factory/bin",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/factory/run/settings -delete",
+"mask_quotes_pre": "find ~/factory/run/settings -delete",
+"mask_quotes_raw": "find ~/factory/run/settings -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/factory/run/settings -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/factory/run/settings -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/factory/run/settings",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/factory/run/settings",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name git -exec rm {} +",
+"mask_quotes_pre": "find ~/.local/bin -name git -exec rm {} +",
+"mask_quotes_raw": "find ~/.local/bin -name git -exec rm {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git -exec rm {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git -exec rm {} +"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"rm"
+]
+],
+[
+39,
+41,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"rm"
+]
+],
+[
+39,
+41,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -name x -exec rm {} +",
+"mask_quotes_pre": "find ~/.local/lib/factory -name x -exec rm {} +",
+"mask_quotes_raw": "find ~/.local/lib/factory -name x -exec rm {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -name x -exec rm {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -name x -exec rm {} +"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"find",
+"~/.local/lib/factory",
+"-name",
+"x",
+"-exec",
+"rm"
+]
+],
+[
+45,
+47,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"find",
+"~/.local/lib/factory",
+"-name",
+"x",
+"-exec",
+"rm"
+]
+],
+[
+45,
+47,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local -name git -delete",
+"mask_quotes_pre": "find ~/.local -name git -delete",
+"mask_quotes_raw": "find ~/.local -name git -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local -name git -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local -name git -delete"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"find",
+"~/.local",
+"-name",
+"git",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"find",
+"~/.local",
+"-name",
+"git",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~ -name x -delete",
+"mask_quotes_pre": "find ~ -name x -delete",
+"mask_quotes_raw": "find ~ -name x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~ -name x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~ -name x -delete"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"find",
+"~",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"find",
+"~",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -fprint ~/.local/bin/x",
+"mask_quotes_pre": "find ~/.local/bin -fprint ~/.local/bin/x",
+"mask_quotes_raw": "find ~/.local/bin -fprint ~/.local/bin/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -fprint ~/.local/bin/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -fprint ~/.local/bin/x"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"find",
+"~/.local/bin",
+"-fprint",
+"~/.local/bin/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"find",
+"~/.local/bin",
+"-fprint",
+"~/.local/bin/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name x -execdir rm {} \\;",
+"mask_quotes_pre": "find ~/.local/bin -name x -execdir rm {} \\;",
+"mask_quotes_raw": "find ~/.local/bin -name x -execdir rm {} \\;",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -execdir rm {} \\;"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -execdir rm {} \\;"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-execdir",
+"rm"
+]
+],
+[
+40,
+42,
+[
+"\\"
+]
+],
+[
+43,
+43,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-execdir",
+"rm"
+]
+],
+[
+40,
+42,
+[
+"\\"
+]
+],
+[
+43,
+43,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name x -ok rm {} \\;",
+"mask_quotes_pre": "find ~/.local/bin -name x -ok rm {} \\;",
+"mask_quotes_raw": "find ~/.local/bin -name x -ok rm {} \\;",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -ok rm {} \\;"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -ok rm {} \\;"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-ok",
+"rm"
+]
+],
+[
+35,
+37,
+[
+"\\"
+]
+],
+[
+38,
+38,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-ok",
+"rm"
+]
+],
+[
+35,
+37,
+[
+"\\"
+]
+],
+[
+38,
+38,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.config/go -fls ~/.config/go/x",
+"mask_quotes_pre": "find ~/.config/go -fls ~/.config/go/x",
+"mask_quotes_raw": "find ~/.config/go -fls ~/.config/go/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.config/go -fls ~/.config/go/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.config/go -fls ~/.config/go/x"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"find",
+"~/.config/go",
+"-fls",
+"~/.config/go/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"find",
+"~/.config/go",
+"-fls",
+"~/.config/go/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find -H ~/.local/bin -delete",
+"mask_quotes_pre": "find -H ~/.local/bin -delete",
+"mask_quotes_raw": "find -H ~/.local/bin -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find -H ~/.local/bin -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find -H ~/.local/bin -delete"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"find",
+"-H",
+"~/.local/bin",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"find",
+"-H",
+"~/.local/bin",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/bin && find -delete",
+"mask_quotes_pre": "cd ~/.local/bin && find -delete",
+"mask_quotes_raw": "cd ~/.local/bin && find -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && find -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && find -delete"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+31,
+[
+"find",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+31,
+[
+"find",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/bin && find . -name x -delete",
+"mask_quotes_pre": "cd ~/.local/bin && find . -name x -delete",
+"mask_quotes_raw": "cd ~/.local/bin && find . -name x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && find . -name x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && find . -name x -delete"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+41,
+[
+"find",
+".",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+41,
+[
+"find",
+".",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/bin -delete",
+"mask_quotes_pre": "find @SHARED@/bin -delete",
+"mask_quotes_raw": "find @SHARED@/bin -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/bin -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/bin -delete"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"find",
+"@SHARED@/bin",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"find",
+"@SHARED@/bin",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/go -name x -delete",
+"mask_quotes_pre": "find @SHARED@/go -name x -delete",
+"mask_quotes_raw": "find @SHARED@/go -name x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/go -name x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/go -name x -delete"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"find",
+"@SHARED@/go",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"find",
+"@SHARED@/go",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/roles/hooks -delete",
+"mask_quotes_pre": "find @SHARED@/roles/hooks -delete",
+"mask_quotes_raw": "find @SHARED@/roles/hooks -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/roles/hooks -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/roles/hooks -delete"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"find",
+"@SHARED@/roles/hooks",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"find",
+"@SHARED@/roles/hooks",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"mask_quotes_pre": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"mask_quotes_raw": "find @SHARED@/roles/settings -name x -exec rm {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/roles/settings -name x -exec rm {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/roles/settings -name x -exec rm {} +"
+},
+"segments_pre": [
+[
+0,
+46,
+[
+"find",
+"@SHARED@/roles/settings",
+"-name",
+"x",
+"-exec",
+"rm"
+]
+],
+[
+48,
+50,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+46,
+[
+"find",
+"@SHARED@/roles/settings",
+"-name",
+"x",
+"-exec",
+"rm"
+]
+],
+[
+48,
+50,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@ -name x -delete",
+"mask_quotes_pre": "find @SHARED@ -name x -delete",
+"mask_quotes_raw": "find @SHARED@ -name x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@ -name x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@ -name x -delete"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"find",
+"@SHARED@",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"find",
+"@SHARED@",
+"-name",
+"x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/roles -delete",
+"mask_quotes_pre": "find @SHARED@/roles -delete",
+"mask_quotes_raw": "find @SHARED@/roles -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/roles -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/roles -delete"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"@SHARED@/roles",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"@SHARED@/roles",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd @SHARED@/bin && find -delete",
+"mask_quotes_pre": "cd @SHARED@/bin && find -delete",
+"mask_quotes_raw": "cd @SHARED@/bin && find -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd @SHARED@/bin && find -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd @SHARED@/bin && find -delete"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"@SHARED@/bin"
+]
+],
+[
+18,
+31,
+[
+"find",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"@SHARED@/bin"
+]
+],
+[
+18,
+31,
+[
+"find",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init ~/.local/go/x",
+"mask_quotes_pre": "git init ~/.local/go/x",
+"mask_quotes_raw": "git init ~/.local/go/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.local/go/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.local/go/x"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"git",
+"init",
+"~/.local/go/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"git",
+"init",
+"~/.local/go/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git worktree add ~/.local/go/x",
+"mask_quotes_pre": "git worktree add ~/.local/go/x",
+"mask_quotes_raw": "git worktree add ~/.local/go/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add ~/.local/go/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add ~/.local/go/x"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"git",
+"worktree",
+"add",
+"~/.local/go/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"git",
+"worktree",
+"add",
+"~/.local/go/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init ~/.config/factory/x",
+"mask_quotes_pre": "git init ~/.config/factory/x",
+"mask_quotes_raw": "git init ~/.config/factory/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.config/factory/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.config/factory/x"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"git",
+"init",
+"~/.config/factory/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"git",
+"init",
+"~/.config/factory/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init ~/.local/lib/factory/x",
+"mask_quotes_pre": "git init ~/.local/lib/factory/x",
+"mask_quotes_raw": "git init ~/.local/lib/factory/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.local/lib/factory/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.local/lib/factory/x"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"git",
+"init",
+"~/.local/lib/factory/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"git",
+"init",
+"~/.local/lib/factory/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init ~/.config/go/x",
+"mask_quotes_pre": "git init ~/.config/go/x",
+"mask_quotes_raw": "git init ~/.config/go/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.config/go/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.config/go/x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"init",
+"~/.config/go/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"init",
+"~/.config/go/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init ~/.local/bin/x",
+"mask_quotes_pre": "git init ~/.local/bin/x",
+"mask_quotes_raw": "git init ~/.local/bin/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.local/bin/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init ~/.local/bin/x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"init",
+"~/.local/bin/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"init",
+"~/.local/bin/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init @SHARED@/bin/x",
+"mask_quotes_pre": "git init @SHARED@/bin/x",
+"mask_quotes_raw": "git init @SHARED@/bin/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init @SHARED@/bin/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init @SHARED@/bin/x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"init",
+"@SHARED@/bin/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"init",
+"@SHARED@/bin/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init @SHARED@/go/x",
+"mask_quotes_pre": "git init @SHARED@/go/x",
+"mask_quotes_raw": "git init @SHARED@/go/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init @SHARED@/go/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init @SHARED@/go/x"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"git",
+"init",
+"@SHARED@/go/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"git",
+"init",
+"@SHARED@/go/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init @SHARED@/roles/hooks/x",
+"mask_quotes_pre": "git init @SHARED@/roles/hooks/x",
+"mask_quotes_raw": "git init @SHARED@/roles/hooks/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init @SHARED@/roles/hooks/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init @SHARED@/roles/hooks/x"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"git",
+"init",
+"@SHARED@/roles/hooks/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"git",
+"init",
+"@SHARED@/roles/hooks/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git worktree add -b nb ~/.local/go/x",
+"mask_quotes_pre": "git worktree add -b nb ~/.local/go/x",
+"mask_quotes_raw": "git worktree add -b nb ~/.local/go/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add -b nb ~/.local/go/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add -b nb ~/.local/go/x"
+},
+"segments_pre": [
+[
+0,
+36,
+[
+"git",
+"worktree",
+"add",
+"-b",
+"nb",
+"~/.local/go/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+36,
+[
+"git",
+"worktree",
+"add",
+"-b",
+"nb",
+"~/.local/go/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git worktree add @SHARED@/roles/settings/x",
+"mask_quotes_pre": "git worktree add @SHARED@/roles/settings/x",
+"mask_quotes_raw": "git worktree add @SHARED@/roles/settings/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add @SHARED@/roles/settings/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add @SHARED@/roles/settings/x"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"git",
+"worktree",
+"add",
+"@SHARED@/roles/settings/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"git",
+"worktree",
+"add",
+"@SHARED@/roles/settings/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C ~/.local/go init",
+"mask_quotes_pre": "git -C ~/.local/go init",
+"mask_quotes_raw": "git -C ~/.local/go init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C ~/.local/go init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C ~/.local/go init"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"-C",
+"~/.local/go",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"-C",
+"~/.local/go",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/go && git init",
+"mask_quotes_pre": "cd ~/.local/go && git init",
+"mask_quotes_raw": "cd ~/.local/go && git init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go && git init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go && git init"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"cd",
+"~/.local/go"
+]
+],
+[
+17,
+26,
+[
+"git",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"cd",
+"~/.local/go"
+]
+],
+[
+17,
+26,
+[
+"git",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"mask_quotes_pre": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"mask_quotes_raw": "git init --separate-git-dir ~/.local/go/g /tmp/z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init --separate-git-dir ~/.local/go/g /tmp/z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init --separate-git-dir ~/.local/go/g /tmp/z"
+},
+"segments_pre": [
+[
+0,
+48,
+[
+"git",
+"init",
+"--separate-git-dir",
+"~/.local/go/g",
+"/tmp/z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+48,
+[
+"git",
+"init",
+"--separate-git-dir",
+"~/.local/go/g",
+"/tmp/z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"mask_quotes_pre": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"mask_quotes_raw": "find ~/.local/go -maxdepth 0 -exec git init {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/go -maxdepth 0 -exec git init {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/go -maxdepth 0 -exec git init {} +"
+},
+"segments_pre": [
+[
+0,
+44,
+[
+"find",
+"~/.local/go",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"init"
+]
+],
+[
+46,
+48,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+44,
+[
+"find",
+"~/.local/go",
+"-maxdepth",
+"0",
+"-exec",
+"git",
+"init"
+]
+],
+[
+46,
+48,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"mask_quotes_pre": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"mask_quotes_raw": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec zip -m /tmp/a.zip {} +"
+},
+"segments_pre": [
+[
+0,
+50,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"zip",
+"-m",
+"/tmp/a.zip"
+]
+],
+[
+52,
+54,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+50,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"zip",
+"-m",
+"/tmp/a.zip"
+]
+],
+[
+52,
+54,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"mask_quotes_pre": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"mask_quotes_raw": "find ~/.local/lib/factory -exec ./x.sh {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -exec ./x.sh {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -exec ./x.sh {} +"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"find",
+"~/.local/lib/factory",
+"-exec",
+"./x.sh"
+]
+],
+[
+41,
+43,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"find",
+"~/.local/lib/factory",
+"-exec",
+"./x.sh"
+]
+],
+[
+41,
+43,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~ -name x -exec make {} +",
+"mask_quotes_pre": "find ~ -name x -exec make {} +",
+"mask_quotes_raw": "find ~ -name x -exec make {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~ -name x -exec make {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~ -name x -exec make {} +"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"find",
+"~",
+"-name",
+"x",
+"-exec",
+"make"
+]
+],
+[
+28,
+30,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"find",
+"~",
+"-name",
+"x",
+"-exec",
+"make"
+]
+],
+[
+28,
+30,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"mask_quotes_pre": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"mask_quotes_raw": "rsync -a /tmp/bin ~/.local/ --exclude x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/bin ~/.local/ --exclude x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/bin ~/.local/ --exclude x"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/",
+"--exclude",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"rsync",
+"-a",
+"/tmp/bin",
+"~/.local/",
+"--exclude",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "install /tmp/bin ~/.local/ -m 755",
+"mask_quotes_pre": "install /tmp/bin ~/.local/ -m 755",
+"mask_quotes_raw": "install /tmp/bin ~/.local/ -m 755",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "install /tmp/bin ~/.local/ -m 755"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "install /tmp/bin ~/.local/ -m 755"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"install",
+"/tmp/bin",
+"~/.local/",
+"-m",
+"755"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"install",
+"/tmp/bin",
+"~/.local/",
+"-m",
+"755"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin ~/.local/ -S .bak",
+"mask_quotes_pre": "cp -r /tmp/bin ~/.local/ -S .bak",
+"mask_quotes_raw": "cp -r /tmp/bin ~/.local/ -S .bak",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.local/ -S .bak"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.local/ -S .bak"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/",
+"-S",
+".bak"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/.local/",
+"-S",
+".bak"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin ~/.{local,x}/",
+"mask_quotes_pre": "cp -r /tmp/bin ~/.{local,x}/",
+"mask_quotes_raw": "cp -r /tmp/bin ~/.{local,x}/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.{local,x}/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin ~/.{local,x}/"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/."
+]
+],
+[
+19,
+26,
+[
+"local,x"
+]
+],
+[
+27,
+28,
+[
+"/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"~/."
+]
+],
+[
+19,
+26,
+[
+"local,x"
+]
+],
+[
+27,
+28,
+[
+"/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} \\; -delete",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} \\; -delete",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} \\; -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \\; -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \\; -delete"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+31,
+[
+"\\"
+]
+],
+[
+32,
+40,
+[
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+31,
+[
+"\\"
+]
+],
+[
+32,
+40,
+[
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"mask_quotes_pre": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"mask_quotes_raw": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec cat {} \\; -fprint /tmp/x"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"cat"
+]
+],
+[
+30,
+32,
+[
+"\\"
+]
+],
+[
+33,
+48,
+[
+"-fprint",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"cat"
+]
+],
+[
+30,
+32,
+[
+"\\"
+]
+],
+[
+33,
+48,
+[
+"-fprint",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} \\; -exec rm {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \\; -exec rm {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \\; -exec rm {} +"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+31,
+[
+"\\"
+]
+],
+[
+32,
+42,
+[
+"-exec",
+"rm"
+]
+],
+[
+44,
+46,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+31,
+[
+"\\"
+]
+],
+[
+32,
+42,
+[
+"-exec",
+"rm"
+]
+],
+[
+44,
+46,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"mask_quotes_pre": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"mask_quotes_raw": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/go -name x -exec grep y {} \\; -exec git init {} +"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"find",
+"~/.local/go",
+"-name",
+"x",
+"-exec",
+"grep",
+"y"
+]
+],
+[
+40,
+42,
+[
+"\\"
+]
+],
+[
+43,
+59,
+[
+"-exec",
+"git",
+"init"
+]
+],
+[
+61,
+63,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"find",
+"~/.local/go",
+"-name",
+"x",
+"-exec",
+"grep",
+"y"
+]
+],
+[
+40,
+42,
+[
+"\\"
+]
+],
+[
+43,
+59,
+[
+"-exec",
+"git",
+"init"
+]
+],
+[
+61,
+63,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name x -exec ./cat {} +",
+"mask_quotes_pre": "find ~/.local/bin -name x -exec ./cat {} +",
+"mask_quotes_raw": "find ~/.local/bin -name x -exec ./cat {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec ./cat {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec ./cat {} +"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"./cat"
+]
+],
+[
+40,
+42,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"./cat"
+]
+],
+[
+40,
+42,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"mask_quotes_pre": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"mask_quotes_raw": "find ~/.local/bin -name x -exec /tmp/grep {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec /tmp/grep {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec /tmp/grep {} +"
+},
+"segments_pre": [
+[
+0,
+42,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"/tmp/grep"
+]
+],
+[
+44,
+46,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+42,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"/tmp/grep"
+]
+],
+[
+44,
+46,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ./ls {} \\;",
+"mask_quotes_pre": "find ~/.local/bin -exec ./ls {} \\;",
+"mask_quotes_raw": "find ~/.local/bin -exec ./ls {} \\;",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ./ls {} \\;"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ./ls {} \\;"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"./ls"
+]
+],
+[
+31,
+33,
+[
+"\\"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"./ls"
+]
+],
+[
+31,
+33,
+[
+"\\"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"mask_quotes_pre": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"mask_quotes_raw": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec /usr/local/bin/cat {} \\;"
+},
+"segments_pre": [
+[
+0,
+43,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/local/bin/cat"
+]
+],
+[
+45,
+47,
+[
+"\\"
+]
+],
+[
+48,
+48,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+43,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/local/bin/cat"
+]
+],
+[
+45,
+47,
+[
+"\\"
+]
+],
+[
+48,
+48,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"mask_quotes_pre": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"mask_quotes_raw": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && cd ~nosuchuser123 && echo x > git"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+37,
+[
+"cd",
+"~nosuchuser123"
+]
+],
+[
+39,
+52,
+[
+"echo",
+"x",
+">",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+37,
+[
+"cd",
+"~nosuchuser123"
+]
+],
+[
+39,
+52,
+[
+"echo",
+"x",
+">",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"mask_quotes_pre": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"mask_quotes_raw": "cd ~/.local/go && cd ~- && cp /tmp/x y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go && cd ~- && cp /tmp/x y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/go && cd ~- && cp /tmp/x y"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"cd",
+"~/.local/go"
+]
+],
+[
+17,
+24,
+[
+"cd",
+"~-"
+]
+],
+[
+26,
+38,
+[
+"cp",
+"/tmp/x",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"cd",
+"~/.local/go"
+]
+],
+[
+17,
+24,
+[
+"cd",
+"~-"
+]
+],
+[
+26,
+38,
+[
+"cp",
+"/tmp/x",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"mask_quotes_pre": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"mask_quotes_raw": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd @SHARED@/bin && cd ~nosuchuser123 && tar -xf a.tar"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"@SHARED@/bin"
+]
+],
+[
+18,
+37,
+[
+"cd",
+"~nosuchuser123"
+]
+],
+[
+39,
+53,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"@SHARED@/bin"
+]
+],
+[
+18,
+37,
+[
+"cd",
+"~nosuchuser123"
+]
+],
+[
+39,
+53,
+[
+"tar",
+"-xf",
+"a.tar"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} ';' -delete",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} 'Q' -delete",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -delete"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+41,
+[
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+41,
+[
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} \";\" -delete",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} \"Q\" -delete",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} \"Q\" -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \";\" -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \";\" -delete"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+41,
+[
+"\"Q\"",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+41,
+[
+"\"Q\"",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} 'Q' -fprint /tmp/y",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} 'Q' -fprint /tmp/y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -fprint /tmp/y"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+48,
+[
+"'Q'",
+"-fprint",
+"/tmp/y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+48,
+[
+"'Q'",
+"-fprint",
+"/tmp/y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} \"Q\" -fprint /tmp/y",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} \"Q\" -fprint /tmp/y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \";\" -fprint /tmp/y"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+48,
+[
+"\"Q\"",
+"-fprint",
+"/tmp/y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+48,
+[
+"\"Q\"",
+"-fprint",
+"/tmp/y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} ';' -exec rm {} +",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} 'Q' -exec rm {} +",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} 'Q' -exec rm {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -exec rm {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -exec rm {} +"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+43,
+[
+"'Q'",
+"-exec",
+"rm"
+]
+],
+[
+45,
+47,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+43,
+[
+"'Q'",
+"-exec",
+"rm"
+]
+],
+[
+45,
+47,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} \"Q\" -exec rm {} +",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} \"Q\" -exec rm {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \";\" -exec rm {} +"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+43,
+[
+"\"Q\"",
+"-exec",
+"rm"
+]
+],
+[
+45,
+47,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+43,
+[
+"\"Q\"",
+"-exec",
+"rm"
+]
+],
+[
+45,
+47,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"mask_quotes_pre": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"mask_quotes_raw": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -exec ls {} \\;\"\" -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls"
+]
+],
+[
+37,
+39,
+[
+"\\"
+]
+],
+[
+40,
+50,
+[
+"\"\"",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls"
+]
+],
+[
+37,
+39,
+[
+"\\"
+]
+],
+[
+40,
+50,
+[
+"\"\"",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"mask_quotes_pre": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"mask_quotes_raw": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -exec ls {} \"\"\\; -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls"
+]
+],
+[
+37,
+41,
+[
+"\"\"\\"
+]
+],
+[
+42,
+50,
+[
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/lib/factory",
+"-exec",
+"ls"
+]
+],
+[
+37,
+41,
+[
+"\"\"\\"
+]
+],
+[
+42,
+50,
+[
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin \\( -name x \\) -delete",
+"mask_quotes_pre": "find ~/.local/bin \\( -name x \\) -delete",
+"mask_quotes_raw": "find ~/.local/bin \\( -name x \\) -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin \\( -name x \\) -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin \\( -name x \\) -delete"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"find",
+"~/.local/bin",
+"\\"
+]
+],
+[
+20,
+30,
+[
+"-name",
+"x",
+"\\"
+]
+],
+[
+31,
+39,
+[
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"find",
+"~/.local/bin",
+"\\"
+]
+],
+[
+20,
+30,
+[
+"-name",
+"x",
+"\\"
+]
+],
+[
+31,
+39,
+[
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin '(' -name x ')' -delete",
+"mask_quotes_pre": "find ~/.local/bin 'Q' -name x 'Q' -delete",
+"mask_quotes_raw": "find ~/.local/bin 'Q' -name x 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin '(' -name x ')' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin '(' -name x ')' -delete"
+},
+"segments_pre": [
+[
+0,
+41,
+[
+"find",
+"~/.local/bin",
+"'Q'",
+"-name",
+"x",
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+41,
+[
+"find",
+"~/.local/bin",
+"'Q'",
+"-name",
+"x",
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name ';' -delete",
+"mask_quotes_pre": "find ~/.local/bin -name 'Q' -delete",
+"mask_quotes_raw": "find ~/.local/bin -name 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name ';' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name ';' -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name '&' -delete",
+"mask_quotes_pre": "find ~/.local/bin -name 'Q' -delete",
+"mask_quotes_raw": "find ~/.local/bin -name 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name '&' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name '&' -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name '|' -delete",
+"mask_quotes_pre": "find ~/.local/bin -name 'Q' -delete",
+"mask_quotes_raw": "find ~/.local/bin -name 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name '|' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name '|' -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name '>' -delete",
+"mask_quotes_pre": "find ~/.local/bin -name 'Q' -delete",
+"mask_quotes_raw": "find ~/.local/bin -name 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name '>' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name '>' -delete"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/bin -exec ls {} ';' -delete",
+"mask_quotes_pre": "find @SHARED@/bin -exec ls {} 'Q' -delete",
+"mask_quotes_raw": "find @SHARED@/bin -exec ls {} 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/bin -exec ls {} ';' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/bin -exec ls {} ';' -delete"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"@SHARED@/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+41,
+[
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"@SHARED@/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+41,
+[
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"mask_quotes_pre": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"mask_quotes_raw": "cd ~/.local/bin && echo x > ~nosuchuser123",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && echo x > ~nosuchuser123"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && echo x > ~nosuchuser123"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+42,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+42,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/bin && touch ~nosuchuser123",
+"mask_quotes_pre": "cd ~/.local/bin && touch ~nosuchuser123",
+"mask_quotes_raw": "cd ~/.local/bin && touch ~nosuchuser123",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && touch ~nosuchuser123"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && touch ~nosuchuser123"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+39,
+[
+"touch",
+"~nosuchuser123"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+39,
+[
+"touch",
+"~nosuchuser123"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/lib/factory && echo x >> ~-",
+"mask_quotes_pre": "cd ~/.local/lib/factory && echo x >> ~-",
+"mask_quotes_raw": "cd ~/.local/lib/factory && echo x >> ~-",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/lib/factory && echo x >> ~-"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/lib/factory && echo x >> ~-"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"cd",
+"~/.local/lib/factory"
+]
+],
+[
+26,
+39,
+[
+"echo",
+"x",
+">>",
+"~-"
+]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"cd",
+"~/.local/lib/factory"
+]
+],
+[
+26,
+39,
+[
+"echo",
+"x",
+">>",
+"~-"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.config/factory && rm ~nosuchuser123",
+"mask_quotes_pre": "cd ~/.config/factory && rm ~nosuchuser123",
+"mask_quotes_raw": "cd ~/.config/factory && rm ~nosuchuser123",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.config/factory && rm ~nosuchuser123"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.config/factory && rm ~nosuchuser123"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"cd",
+"~/.config/factory"
+]
+],
+[
+23,
+41,
+[
+"rm",
+"~nosuchuser123"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"cd",
+"~/.config/factory"
+]
+],
+[
+23,
+41,
+[
+"rm",
+"~nosuchuser123"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"mask_quotes_pre": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"mask_quotes_raw": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd @SHARED@/bin && cp /tmp/x ~nosuchuser123"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"@SHARED@/bin"
+]
+],
+[
+18,
+43,
+[
+"cp",
+"/tmp/x",
+"~nosuchuser123"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"@SHARED@/bin"
+]
+],
+[
+18,
+43,
+[
+"cp",
+"/tmp/x",
+"~nosuchuser123"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd ~/.local/bin && curl -o ~- URL",
+"mask_quotes_pre": "cd ~/.local/bin && curl -o ~- URL",
+"mask_quotes_raw": "cd ~/.local/bin && curl -o ~- URL",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && curl -o ~- URL"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd ~/.local/bin && curl -o ~- URL"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+33,
+[
+"curl",
+"-o",
+"~-",
+"URL"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"cd",
+"~/.local/bin"
+]
+],
+[
+18,
+33,
+[
+"curl",
+"-o",
+"~-",
+"URL"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -148467,6 +154703,2114 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "cp /tmp/x ~/.local/",
+"mask_quotes_pre": "cp /tmp/x ~/.local/",
+"mask_quotes_raw": "cp /tmp/x ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"cp",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"cp",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/x ~/.local/share/",
+"mask_quotes_pre": "cp /tmp/x ~/.local/share/",
+"mask_quotes_raw": "cp /tmp/x ~/.local/share/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/share/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/share/"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"cp",
+"/tmp/x",
+"~/.local/share/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"cp",
+"/tmp/x",
+"~/.local/share/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin /tmp/y/",
+"mask_quotes_pre": "cp -r /tmp/bin /tmp/y/",
+"mask_quotes_raw": "cp -r /tmp/bin /tmp/y/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin /tmp/y/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin /tmp/y/"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp /tmp/x ~/.local/lib/",
+"mask_quotes_pre": "cp /tmp/x ~/.local/lib/",
+"mask_quotes_raw": "cp /tmp/x ~/.local/lib/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/lib/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp /tmp/x ~/.local/lib/"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"cp",
+"/tmp/x",
+"~/.local/lib/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"cp",
+"/tmp/x",
+"~/.local/lib/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "mv /tmp/x ~/.local/",
+"mask_quotes_pre": "mv /tmp/x ~/.local/",
+"mask_quotes_raw": "mv /tmp/x ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/x ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "mv /tmp/x ~/.local/"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"mv",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"mv",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a /tmp/x ~/.local/",
+"mask_quotes_pre": "rsync -a /tmp/x ~/.local/",
+"mask_quotes_raw": "rsync -a /tmp/x ~/.local/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/x ~/.local/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/x ~/.local/"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"rsync",
+"-a",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"rsync",
+"-a",
+"/tmp/x",
+"~/.local/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/x @SHARED@/",
+"mask_quotes_pre": "cp -r /tmp/x @SHARED@/",
+"mask_quotes_raw": "cp -r /tmp/x @SHARED@/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x @SHARED@/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x @SHARED@/"
+},
+"segments_pre": [
+[
+0,
+22,
+[
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+22,
+[
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/x @SHARED@/roles/",
+"mask_quotes_pre": "cp -r /tmp/x @SHARED@/roles/",
+"mask_quotes_raw": "cp -r /tmp/x @SHARED@/roles/",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x @SHARED@/roles/"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x @SHARED@/roles/"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/roles/"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"cp",
+"-r",
+"/tmp/x",
+"@SHARED@/roles/"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/bin /tmp/y/ -f",
+"mask_quotes_pre": "cp -r /tmp/bin /tmp/y/ -f",
+"mask_quotes_raw": "cp -r /tmp/bin /tmp/y/ -f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin /tmp/y/ -f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/bin /tmp/y/ -f"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/",
+"-f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"cp",
+"-r",
+"/tmp/bin",
+"/tmp/y/",
+"-f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x -delete",
+"mask_quotes_pre": "find /tmp/x -delete",
+"mask_quotes_raw": "find /tmp/x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -delete"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"find",
+"/tmp/x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"find",
+"/tmp/x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name git",
+"mask_quotes_pre": "find ~/.local/bin -name git",
+"mask_quotes_raw": "find ~/.local/bin -name git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -type f",
+"mask_quotes_pre": "find ~/.local/lib/factory -type f",
+"mask_quotes_raw": "find ~/.local/lib/factory -type f",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -type f"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -type f"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"find",
+"~/.local/lib/factory",
+"-type",
+"f"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"find",
+"~/.local/lib/factory",
+"-type",
+"f"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.cache/x -delete",
+"mask_quotes_pre": "find ~/.cache/x -delete",
+"mask_quotes_raw": "find ~/.cache/x -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.cache/x -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.cache/x -delete"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"find",
+"~/.cache/x",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"find",
+"~/.cache/x",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name git -exec ls {} \\;",
+"mask_quotes_pre": "find ~/.local/bin -name git -exec ls {} \\;",
+"mask_quotes_raw": "find ~/.local/bin -name git -exec ls {} \\;",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git -exec ls {} \\;"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name git -exec ls {} \\;"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"ls"
+]
+],
+[
+39,
+41,
+[
+"\\"
+]
+],
+[
+42,
+42,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"find",
+"~/.local/bin",
+"-name",
+"git",
+"-exec",
+"ls"
+]
+],
+[
+39,
+41,
+[
+"\\"
+]
+],
+[
+42,
+42,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find @SHARED@/bin -name x",
+"mask_quotes_pre": "find @SHARED@/bin -name x",
+"mask_quotes_raw": "find @SHARED@/bin -name x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/bin -name x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find @SHARED@/bin -name x"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"find",
+"@SHARED@/bin",
+"-name",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"find",
+"@SHARED@/bin",
+"-name",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local -name git",
+"mask_quotes_pre": "find ~/.local -name git",
+"mask_quotes_raw": "find ~/.local -name git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local -name git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local -name git"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"find",
+"~/.local",
+"-name",
+"git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"find",
+"~/.local",
+"-name",
+"git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x > ~nosuchuser123/y",
+"mask_quotes_pre": "echo x > ~nosuchuser123/y",
+"mask_quotes_raw": "echo x > ~nosuchuser123/y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x > ~nosuchuser123/y"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123/y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ls ~nosuchuser123/.local/bin",
+"mask_quotes_pre": "ls ~nosuchuser123/.local/bin",
+"mask_quotes_raw": "ls ~nosuchuser123/.local/bin",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ls ~nosuchuser123/.local/bin"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ls ~nosuchuser123/.local/bin"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"ls",
+"~nosuchuser123/.local/bin"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"ls",
+"~nosuchuser123/.local/bin"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git init /tmp/x",
+"mask_quotes_pre": "git init /tmp/x",
+"mask_quotes_raw": "git init /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git init /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git init /tmp/x"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"git",
+"init",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"git",
+"init",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git worktree add /tmp/x",
+"mask_quotes_pre": "git worktree add /tmp/x",
+"mask_quotes_raw": "git worktree add /tmp/x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add /tmp/x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git worktree add /tmp/x"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"worktree",
+"add",
+"/tmp/x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git -C /tmp/x init",
+"mask_quotes_pre": "git -C /tmp/x init",
+"mask_quotes_raw": "git -C /tmp/x init",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp/x init"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git -C /tmp/x init"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"-C",
+"/tmp/x",
+"init"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"-C",
+"/tmp/x",
+"init"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -name x -exec ls {} +",
+"mask_quotes_pre": "find ~/.local/bin -name x -exec ls {} +",
+"mask_quotes_raw": "find ~/.local/bin -name x -exec ls {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec ls {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -name x -exec ls {} +"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"ls"
+]
+],
+[
+37,
+39,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"find",
+"~/.local/bin",
+"-name",
+"x",
+"-exec",
+"ls"
+]
+],
+[
+37,
+39,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"mask_quotes_pre": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"mask_quotes_raw": "find ~/.local/lib/factory -type f -exec grep y {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -type f -exec grep y {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/lib/factory -type f -exec grep y {} +"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"find",
+"~/.local/lib/factory",
+"-type",
+"f",
+"-exec",
+"grep",
+"y"
+]
+],
+[
+49,
+51,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"find",
+"~/.local/lib/factory",
+"-type",
+"f",
+"-exec",
+"grep",
+"y"
+]
+],
+[
+49,
+51,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x -exec git init {} +",
+"mask_quotes_pre": "find /tmp/x -exec git init {} +",
+"mask_quotes_raw": "find /tmp/x -exec git init {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec git init {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec git init {} +"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"/tmp/x",
+"-exec",
+"git",
+"init"
+]
+],
+[
+29,
+31,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"/tmp/x",
+"-exec",
+"git",
+"init"
+]
+],
+[
+29,
+31,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"mask_quotes_pre": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"mask_quotes_raw": "rsync -a /tmp/bin /tmp/y/ --exclude x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/bin /tmp/y/ --exclude x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "rsync -a /tmp/bin /tmp/y/ --exclude x"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"rsync",
+"-a",
+"/tmp/bin",
+"/tmp/y/",
+"--exclude",
+"x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"rsync",
+"-a",
+"/tmp/bin",
+"/tmp/y/",
+"--exclude",
+"x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cp -r /tmp/x ~/.local/ -S .bak",
+"mask_quotes_pre": "cp -r /tmp/x ~/.local/ -S .bak",
+"mask_quotes_raw": "cp -r /tmp/x ~/.local/ -S .bak",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x ~/.local/ -S .bak"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cp -r /tmp/x ~/.local/ -S .bak"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"cp",
+"-r",
+"/tmp/x",
+"~/.local/",
+"-S",
+".bak"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"cp",
+"-r",
+"/tmp/x",
+"~/.local/",
+"-S",
+".bak"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} \\; -name y",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} \\; -name y",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} \\; -name y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \\; -name y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} \\; -name y"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+31,
+[
+"\\"
+]
+],
+[
+32,
+40,
+[
+"-name",
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+31,
+[
+"\\"
+]
+],
+[
+32,
+40,
+[
+"-name",
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x -exec ls {} \\; -delete",
+"mask_quotes_pre": "find /tmp/x -exec ls {} \\; -delete",
+"mask_quotes_raw": "find /tmp/x -exec ls {} \\; -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec ls {} \\; -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec ls {} \\; -delete"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"find",
+"/tmp/x",
+"-exec",
+"ls"
+]
+],
+[
+23,
+25,
+[
+"\\"
+]
+],
+[
+26,
+34,
+[
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"find",
+"/tmp/x",
+"-exec",
+"ls"
+]
+],
+[
+23,
+25,
+[
+"\\"
+]
+],
+[
+26,
+34,
+[
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"mask_quotes_pre": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"mask_quotes_raw": "find ~/.local/bin -exec /usr/bin/cat {} \\;",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec /usr/bin/cat {} \\;"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec /usr/bin/cat {} \\;"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/bin/cat"
+]
+],
+[
+39,
+41,
+[
+"\\"
+]
+],
+[
+42,
+42,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"/usr/bin/cat"
+]
+],
+[
+39,
+41,
+[
+"\\"
+]
+],
+[
+42,
+42,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec /bin/ls {} +",
+"mask_quotes_pre": "find ~/.local/bin -exec /bin/ls {} +",
+"mask_quotes_raw": "find ~/.local/bin -exec /bin/ls {} +",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec /bin/ls {} +"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec /bin/ls {} +"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"/bin/ls"
+]
+],
+[
+34,
+36,
+[
+"+"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"/bin/ls"
+]
+],
+[
+34,
+36,
+[
+"+"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec cat {} \\; -print",
+"mask_quotes_pre": "find ~/.local/bin -exec cat {} \\; -print",
+"mask_quotes_raw": "find ~/.local/bin -exec cat {} \\; -print",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec cat {} \\; -print"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec cat {} \\; -print"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"cat"
+]
+],
+[
+30,
+32,
+[
+"\\"
+]
+],
+[
+33,
+40,
+[
+"-print"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"cat"
+]
+],
+[
+30,
+32,
+[
+"\\"
+]
+],
+[
+33,
+40,
+[
+"-print"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x -exec ls {} ';' -delete",
+"mask_quotes_pre": "find /tmp/x -exec ls {} 'Q' -delete",
+"mask_quotes_raw": "find /tmp/x -exec ls {} 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec ls {} ';' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec ls {} ';' -delete"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"find",
+"/tmp/x",
+"-exec",
+"ls"
+]
+],
+[
+23,
+35,
+[
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"find",
+"/tmp/x",
+"-exec",
+"ls"
+]
+],
+[
+23,
+35,
+[
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y",
+"mask_quotes_pre": "find /tmp/x -exec ls {} \"Q\" -fprint /tmp/y",
+"mask_quotes_raw": "find /tmp/x -exec ls {} \"Q\" -fprint /tmp/y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -exec ls {} \";\" -fprint /tmp/y"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"find",
+"/tmp/x",
+"-exec",
+"ls"
+]
+],
+[
+23,
+42,
+[
+"\"Q\"",
+"-fprint",
+"/tmp/y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"find",
+"/tmp/x",
+"-exec",
+"ls"
+]
+],
+[
+23,
+42,
+[
+"\"Q\"",
+"-fprint",
+"/tmp/y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin -exec ls {} ';' -print",
+"mask_quotes_pre": "find ~/.local/bin -exec ls {} 'Q' -print",
+"mask_quotes_raw": "find ~/.local/bin -exec ls {} 'Q' -print",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -print"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin -exec ls {} ';' -print"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+40,
+[
+"'Q'",
+"-print"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"find",
+"~/.local/bin",
+"-exec",
+"ls"
+]
+],
+[
+29,
+40,
+[
+"'Q'",
+"-print"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x \\( -name x \\) -delete",
+"mask_quotes_pre": "find /tmp/x \\( -name x \\) -delete",
+"mask_quotes_raw": "find /tmp/x \\( -name x \\) -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x \\( -name x \\) -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x \\( -name x \\) -delete"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"find",
+"/tmp/x",
+"\\"
+]
+],
+[
+14,
+24,
+[
+"-name",
+"x",
+"\\"
+]
+],
+[
+25,
+33,
+[
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"find",
+"/tmp/x",
+"\\"
+]
+],
+[
+14,
+24,
+[
+"-name",
+"x",
+"\\"
+]
+],
+[
+25,
+33,
+[
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find ~/.local/bin '(' -name x ')' -print",
+"mask_quotes_pre": "find ~/.local/bin 'Q' -name x 'Q' -print",
+"mask_quotes_raw": "find ~/.local/bin 'Q' -name x 'Q' -print",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin '(' -name x ')' -print"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find ~/.local/bin '(' -name x ')' -print"
+},
+"segments_pre": [
+[
+0,
+40,
+[
+"find",
+"~/.local/bin",
+"'Q'",
+"-name",
+"x",
+"'Q'",
+"-print"
+]
+]
+],
+"segments_raw": [
+[
+0,
+40,
+[
+"find",
+"~/.local/bin",
+"'Q'",
+"-name",
+"x",
+"'Q'",
+"-print"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "find /tmp/x -name ';' -delete",
+"mask_quotes_pre": "find /tmp/x -name 'Q' -delete",
+"mask_quotes_raw": "find /tmp/x -name 'Q' -delete",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -name ';' -delete"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "find /tmp/x -name ';' -delete"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"find",
+"/tmp/x",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"find",
+"/tmp/x",
+"-name",
+"'Q'",
+"-delete"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /tmp && echo x > ~nosuchuser123",
+"mask_quotes_pre": "cd /tmp && echo x > ~nosuchuser123",
+"mask_quotes_raw": "cd /tmp && echo x > ~nosuchuser123",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /tmp && echo x > ~nosuchuser123"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /tmp && echo x > ~nosuchuser123"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"cd",
+"/tmp"
+]
+],
+[
+10,
+34,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"cd",
+"/tmp"
+]
+],
+[
+10,
+34,
+[
+"echo",
+"x",
+">",
+"~nosuchuser123"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cd /tmp && touch ~-",
+"mask_quotes_pre": "cd /tmp && touch ~-",
+"mask_quotes_raw": "cd /tmp && touch ~-",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "cd /tmp && touch ~-"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "cd /tmp && touch ~-"
+},
+"segments_pre": [
+[
+0,
+8,
+[
+"cd",
+"/tmp"
+]
+],
+[
+10,
+19,
+[
+"touch",
+"~-"
+]
+]
+],
+"segments_raw": [
+[
+0,
+8,
+[
+"cd",
+"/tmp"
+]
+],
+[
+10,
+19,
+[
+"touch",
+"~-"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -155579,7 +163923,7 @@
 ]
 }
 },
-"corpus_commands": 2870,
+"corpus_commands": 3023,
 "edge_inputs": 97,
 "python": "3.13"
 }
