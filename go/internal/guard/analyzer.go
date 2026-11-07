@@ -312,7 +312,7 @@ func (a *Analyzer) script(text string, depth int) error {
 			if !a.HQ && PersistCode(x.Body) {
 				return blockf("interpreter code naming a protected config/init file: " + persistWhy)
 			}
-		case !a.HQ && strings.Contains(x.Body, "herdr"):
+		case !a.HQ && HasHerdrWord(x.Body):
 			return blockf("herdr in an interpreter heredoc")
 		}
 	}
