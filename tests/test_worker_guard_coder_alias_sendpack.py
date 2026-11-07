@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from guard_impl import hook_run  # noqa: E402
 from harness import git  # noqa: E402
 
-GUARD_IMPL_PYTHON_ONLY = "Go mirror follow-up in G-016"
 TASK = "t-0907"
 
 DENIED = [

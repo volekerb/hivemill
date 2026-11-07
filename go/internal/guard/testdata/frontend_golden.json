@@ -127606,6 +127606,4237 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "git config",
+"mask_quotes_pre": "git config",
+"mask_quotes_raw": "git config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"git",
+"config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+10,
+[
+"git",
+"config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --global",
+"mask_quotes_pre": "git config --global",
+"mask_quotes_raw": "git config --global",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --global"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --global"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"git",
+"config",
+"--global"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"git",
+"config",
+"--global"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get al*",
+"mask_quotes_pre": "git config --comment --get al*",
+"mask_quotes_raw": "git config --comment --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get al*"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --file --get al*",
+"mask_quotes_pre": "git config --file --get al*",
+"mask_quotes_raw": "git config --file --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --file --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --file --get al*"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--file",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--file",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --fil --get al*",
+"mask_quotes_pre": "git config --fil --get al*",
+"mask_quotes_raw": "git config --fil --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --fil --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --fil --get al*"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"git",
+"config",
+"--fil",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"git",
+"config",
+"--fil",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --type --get al*",
+"mask_quotes_pre": "git config --type --get al*",
+"mask_quotes_raw": "git config --type --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --type --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --type --get al*"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--type",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--type",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --list al*",
+"mask_quotes_pre": "git config --comment --list al*",
+"mask_quotes_raw": "git config --comment --list al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --list al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --list al*"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"git",
+"config",
+"--comment",
+"--list",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"git",
+"config",
+"--comment",
+"--list",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get 'x y'",
+"mask_quotes_pre": "git config --comment --get 'QQQ'",
+"mask_quotes_raw": "git config --comment --get 'QQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get 'x y'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get 'x y'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"'QQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"'QQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get '(a|b)'",
+"mask_quotes_pre": "git config --comment --get 'QQQQQ'",
+"mask_quotes_raw": "git config --comment --get 'QQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get '(a|b)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get '(a|b)'"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"'QQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"'QQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config (alias.x|y)",
+"mask_quotes_pre": "git config (alias.x|y)",
+"mask_quotes_raw": "git config (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+11,
+[
+"git",
+"config"
+]
+],
+[
+12,
+19,
+[
+"alias.x"
+]
+],
+[
+20,
+21,
+[
+"y"
+]
+],
+[
+22,
+22,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+11,
+[
+"git",
+"config"
+]
+],
+[
+12,
+19,
+[
+"alias.x"
+]
+],
+[
+20,
+21,
+[
+"y"
+]
+],
+[
+22,
+22,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config <->",
+"mask_quotes_pre": "git config <->",
+"mask_quotes_raw": "git config <->",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config <->"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config <->"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"git",
+"config",
+"<->"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"git",
+"config",
+"<->"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config ^z",
+"mask_quotes_pre": "git config ^z",
+"mask_quotes_raw": "git config ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config ^z"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"git",
+"config",
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+13,
+[
+"git",
+"config",
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config a~b",
+"mask_quotes_pre": "git config a~b",
+"mask_quotes_raw": "git config a~b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config a~b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config a~b"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"git",
+"config",
+"a~b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"git",
+"config",
+"a~b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config al#",
+"mask_quotes_pre": "git config al#",
+"mask_quotes_raw": "git config al#",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config al#"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config al#"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"git",
+"config",
+"al#"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"git",
+"config",
+"al#"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment c (alias.x|y)",
+"mask_quotes_pre": "git config --comment c (alias.x|y)",
+"mask_quotes_raw": "git config --comment c (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment c (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment c (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"config",
+"--comment",
+"c"
+]
+],
+[
+24,
+31,
+[
+"alias.x"
+]
+],
+[
+32,
+33,
+[
+"y"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"config",
+"--comment",
+"c"
+]
+],
+[
+24,
+31,
+[
+"alias.x"
+]
+],
+[
+32,
+33,
+[
+"y"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get (alias.x|y)",
+"mask_quotes_pre": "git config --comment --get (alias.x|y)",
+"mask_quotes_raw": "git config --comment --get (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--comment",
+"--get"
+]
+],
+[
+28,
+35,
+[
+"alias.x"
+]
+],
+[
+36,
+37,
+[
+"y"
+]
+],
+[
+38,
+38,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--comment",
+"--get"
+]
+],
+[
+28,
+35,
+[
+"alias.x"
+]
+],
+[
+36,
+37,
+[
+"y"
+]
+],
+[
+38,
+38,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get ^z",
+"mask_quotes_pre": "git config --comment --get ^z",
+"mask_quotes_raw": "git config --comment --get ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get ^z"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get x#",
+"mask_quotes_pre": "git config --comment --get x#",
+"mask_quotes_raw": "git config --comment --get x#",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get x#"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get x#"
+},
+"segments_pre": [
+[
+0,
+29,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"x#"
+]
+]
+],
+"segments_raw": [
+[
+0,
+29,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"x#"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --file (.git/config|alias.x) y",
+"mask_quotes_pre": "git config --file (.git/config|alias.x) y",
+"mask_quotes_raw": "git config --file (.git/config|alias.x) y",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --file (.git/config|alias.x) y"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --file (.git/config|alias.x) y"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"git",
+"config",
+"--file"
+]
+],
+[
+19,
+30,
+[
+".git/config"
+]
+],
+[
+31,
+38,
+[
+"alias.x"
+]
+],
+[
+39,
+41,
+[
+"y"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"git",
+"config",
+"--file"
+]
+],
+[
+19,
+30,
+[
+".git/config"
+]
+],
+[
+31,
+38,
+[
+"alias.x"
+]
+],
+[
+39,
+41,
+[
+"y"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get <->",
+"mask_quotes_pre": "git config --comment --get <->",
+"mask_quotes_raw": "git config --comment --get <->",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get <->"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get <->"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"<->"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"<->"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "eval 'git config --comment --get (alias.x|y)'",
+"mask_quotes_pre": "eval 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "eval 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "eval 'git config --comment --get (alias.x|y)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "eval 'git config --comment --get (alias.x|y)'"
+},
+"segments_pre": [
+[
+0,
+45,
+[
+"eval",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+45,
+[
+"eval",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c 'git config --comment --get (alias.x|y)'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'git config --comment --get (alias.x|y)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c 'git config --comment --get (alias.x|y)'"
+},
+"segments_pre": [
+[
+0,
+47,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+47,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo alias.x push | xargs git config",
+"mask_quotes_pre": "echo alias.x push | xargs git config",
+"mask_quotes_raw": "echo alias.x push | xargs git config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x push | xargs git config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo alias.x push | xargs git config"
+},
+"segments_pre": [
+[
+0,
+18,
+[
+"echo",
+"alias.x",
+"push"
+]
+],
+[
+19,
+36,
+[
+"xargs",
+"git",
+"config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+18,
+[
+"echo",
+"alias.x",
+"push"
+]
+],
+[
+19,
+36,
+[
+"xargs",
+"git",
+"config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "printf 'alias.x\\npush\\n' | xargs git config",
+"mask_quotes_pre": "printf 'QQQQQQQQQQQQQQQ' | xargs git config",
+"mask_quotes_raw": "printf 'QQQQQQQQQQQQQQQ' | xargs git config",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "printf 'alias.x\\npush\\n' | xargs git config"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "printf 'alias.x\\npush\\n' | xargs git config"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"printf",
+"'QQQQQQQQQQQQQQQ'"
+]
+],
+[
+26,
+43,
+[
+"xargs",
+"git",
+"config"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"printf",
+"'QQQQQQQQQQQQQQQ'"
+]
+],
+[
+26,
+43,
+[
+"xargs",
+"git",
+"config"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config 'branch.fix#12.remote'",
+"mask_quotes_pre": "git config 'QQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "git config 'QQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config 'branch.fix#12.remote'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config 'branch.fix#12.remote'"
+},
+"segments_pre": [
+[
+0,
+33,
+[
+"git",
+"config",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+33,
+[
+"git",
+"config",
+"'QQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --com --get al*",
+"mask_quotes_pre": "git config --com --get al*",
+"mask_quotes_raw": "git config --com --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --com --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --com --get al*"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"git",
+"config",
+"--com",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"git",
+"config",
+"--com",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --unknown-opt --get al*",
+"mask_quotes_pre": "git config --unknown-opt --get al*",
+"mask_quotes_raw": "git config --unknown-opt --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --unknown-opt --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --unknown-opt --get al*"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--unknown-opt",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--unknown-opt",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "# it's\n{CH} {ALT}",
+"mask_quotes_pre": " ; {CH} {ALT}",
+"mask_quotes_raw": "# it'Q\nQQQQQQQQQQ",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": " ; {CH} {ALT}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": " ; {CH} {ALT}"
+},
+"segments_pre": [
+[
+0,
+1,
+[]
+],
+[
+2,
+3,
+[]
+],
+[
+4,
+6,
+[
+"CH"
+]
+],
+[
+7,
+8,
+[]
+],
+[
+9,
+12,
+[
+"ALT"
+]
+],
+[
+13,
+13,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+6,
+[
+"#",
+"it'Q"
+]
+],
+[
+7,
+17,
+[
+"QQQQQQQQQQ"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "builtin eval '{CH} {ALT}'",
+"mask_quotes_pre": "builtin eval 'QQQQQQQQQQ'",
+"mask_quotes_raw": "builtin eval 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "builtin eval '{CH} {ALT}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "builtin eval '{CH} {ALT}'"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"builtin",
+"eval",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"builtin",
+"eval",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "cat <<EOF\nit's\nEOF\n{CH} {ALT}",
+"mask_quotes_pre": "cat <<EOF ; {CH} {ALT}",
+"mask_quotes_raw": "cat <<EOF\nit'Q\nQQQ\nQQQQQQQQQQ",
+"preprocess": {
+"bodies": [
+[
+"cat <<EOF",
+"it's"
+]
+],
+"extras": [],
+"text": "cat <<EOF ; {CH} {ALT}"
+},
+"preprocess_fold": {
+"bodies": [
+[
+"cat <<EOF",
+"it's"
+]
+],
+"extras": [],
+"text": "cat <<EOF ; {CH} {ALT}"
+},
+"segments_pre": [
+[
+0,
+10,
+[
+"cat",
+"<<EOF"
+]
+],
+[
+11,
+12,
+[]
+],
+[
+13,
+15,
+[
+"CH"
+]
+],
+[
+16,
+17,
+[]
+],
+[
+18,
+21,
+[
+"ALT"
+]
+],
+[
+22,
+22,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+9,
+[
+"cat",
+"<<EOF"
+]
+],
+[
+10,
+14,
+[
+"it'Q"
+]
+],
+[
+15,
+18,
+[
+"QQQ"
+]
+],
+[
+19,
+29,
+[
+"QQQQQQQQQQ"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "command eval '{CH} {ALT}'",
+"mask_quotes_pre": "command eval 'QQQQQQQQQQ'",
+"mask_quotes_raw": "command eval 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "command eval '{CH} {ALT}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "command eval '{CH} {ALT}'"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"command",
+"eval",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"command",
+"eval",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "emulate -L zsh -o extended_glob; {CH} ^z",
+"mask_quotes_pre": "emulate -L zsh -o extended_glob; {CH} ^z",
+"mask_quotes_raw": "emulate -L zsh -o extended_glob; {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "emulate -L zsh -o extended_glob; {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "emulate -L zsh -o extended_glob; {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+31,
+[
+"emulate",
+"-L",
+"zsh",
+"-o",
+"extended_glob"
+]
+],
+[
+32,
+33,
+[]
+],
+[
+34,
+36,
+[
+"CH"
+]
+],
+[
+37,
+40,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+31,
+[
+"emulate",
+"-L",
+"zsh",
+"-o",
+"extended_glob"
+]
+],
+[
+32,
+33,
+[]
+],
+[
+34,
+36,
+[
+"CH"
+]
+],
+[
+37,
+40,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "emulate zsh -o extendedglob; {CH} ^z",
+"mask_quotes_pre": "emulate zsh -o extendedglob; {CH} ^z",
+"mask_quotes_raw": "emulate zsh -o extendedglob; {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "emulate zsh -o extendedglob; {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "emulate zsh -o extendedglob; {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"emulate",
+"zsh",
+"-o",
+"extendedglob"
+]
+],
+[
+28,
+29,
+[]
+],
+[
+30,
+32,
+[
+"CH"
+]
+],
+[
+33,
+36,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"emulate",
+"zsh",
+"-o",
+"extendedglob"
+]
+],
+[
+28,
+29,
+[]
+],
+[
+30,
+32,
+[
+"CH"
+]
+],
+[
+33,
+36,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "eval 'setopt extendedglob; {CH} ^z'",
+"mask_quotes_pre": "eval 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "eval 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "eval 'setopt extendedglob; {CH} ^z'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "eval 'setopt extendedglob; {CH} ^z'"
+},
+"segments_pre": [
+[
+0,
+35,
+[
+"eval",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+35,
+[
+"eval",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "eval '{CH} <->'",
+"mask_quotes_pre": "eval 'QQQQQQQQ'",
+"mask_quotes_raw": "eval 'QQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "eval '{CH} <->'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "eval '{CH} <->'"
+},
+"segments_pre": [
+[
+0,
+15,
+[
+"eval",
+"'QQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"eval",
+"'QQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "eval '{CH} {ALT}'",
+"mask_quotes_pre": "eval 'QQQQQQQQQQ'",
+"mask_quotes_raw": "eval 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "eval '{CH} {ALT}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "eval '{CH} {ALT}'"
+},
+"segments_pre": [
+[
+0,
+17,
+[
+"eval",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+17,
+[
+"eval",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "eval git config --comment --get '{ALT}'",
+"mask_quotes_pre": "eval git config --comment --get 'QQQQQ'",
+"mask_quotes_raw": "eval git config --comment --get 'QQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "eval git config --comment --get '{ALT}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "eval git config --comment --get '{ALT}'"
+},
+"segments_pre": [
+[
+0,
+39,
+[
+"eval",
+"git",
+"config",
+"--comment",
+"--get",
+"'QQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+39,
+[
+"eval",
+"git",
+"config",
+"--comment",
+"--get",
+"'QQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --blob --get al*",
+"mask_quotes_pre": "git config --blob --get al*",
+"mask_quotes_raw": "git config --blob --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --blob --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --blob --get al*"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--blob",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"git",
+"config",
+"--blob",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get a?ias.x",
+"mask_quotes_pre": "git config --comment --get a?ias.x",
+"mask_quotes_raw": "git config --comment --get a?ias.x",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get a?ias.x"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get a?ias.x"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"a?ias.x"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"a?ias.x"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get a[l]*",
+"mask_quotes_pre": "git config --comment --get a[l]*",
+"mask_quotes_raw": "git config --comment --get a[l]*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get a[l]*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get a[l]*"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"a[l]*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"git",
+"config",
+"--comment",
+"--get",
+"a[l]*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment --get-all al*",
+"mask_quotes_pre": "git config --comment --get-all al*",
+"mask_quotes_raw": "git config --comment --get-all al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get-all al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment --get-all al*"
+},
+"segments_pre": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--comment",
+"--get-all",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+34,
+[
+"git",
+"config",
+"--comment",
+"--get-all",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --comment c ^z",
+"mask_quotes_pre": "git config --comment c ^z",
+"mask_quotes_raw": "git config --comment c ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment c ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --comment c ^z"
+},
+"segments_pre": [
+[
+0,
+25,
+[
+"git",
+"config",
+"--comment",
+"c",
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+25,
+[
+"git",
+"config",
+"--comment",
+"c",
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --default --get al*",
+"mask_quotes_pre": "git config --default --get al*",
+"mask_quotes_raw": "git config --default --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --default --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --default --get al*"
+},
+"segments_pre": [
+[
+0,
+30,
+[
+"git",
+"config",
+"--default",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+30,
+[
+"git",
+"config",
+"--default",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --file --get (alias.x|y)",
+"mask_quotes_pre": "git config --file --get (alias.x|y)",
+"mask_quotes_raw": "git config --file --get (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --file --get (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --file --get (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"git",
+"config",
+"--file",
+"--get"
+]
+],
+[
+25,
+32,
+[
+"alias.x"
+]
+],
+[
+33,
+34,
+[
+"y"
+]
+],
+[
+35,
+35,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"git",
+"config",
+"--file",
+"--get"
+]
+],
+[
+25,
+32,
+[
+"alias.x"
+]
+],
+[
+33,
+34,
+[
+"y"
+]
+],
+[
+35,
+35,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --type --get (alias.x|y)",
+"mask_quotes_pre": "git config --type --get (alias.x|y)",
+"mask_quotes_raw": "git config --type --get (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --type --get (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --type --get (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+24,
+[
+"git",
+"config",
+"--type",
+"--get"
+]
+],
+[
+25,
+32,
+[
+"alias.x"
+]
+],
+[
+33,
+34,
+[
+"y"
+]
+],
+[
+35,
+35,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+24,
+[
+"git",
+"config",
+"--type",
+"--get"
+]
+],
+[
+25,
+32,
+[
+"alias.x"
+]
+],
+[
+33,
+34,
+[
+"y"
+]
+],
+[
+35,
+35,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --type bool (alias.x|y)",
+"mask_quotes_pre": "git config --type bool (alias.x|y)",
+"mask_quotes_raw": "git config --type bool (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --type bool (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --type bool (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"config",
+"--type",
+"bool"
+]
+],
+[
+24,
+31,
+[
+"alias.x"
+]
+],
+[
+32,
+33,
+[
+"y"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"config",
+"--type",
+"bool"
+]
+],
+[
+24,
+31,
+[
+"alias.x"
+]
+],
+[
+32,
+33,
+[
+"y"
+]
+],
+[
+34,
+34,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config --value --get al*",
+"mask_quotes_pre": "git config --value --get al*",
+"mask_quotes_raw": "git config --value --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config --value --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config --value --get al*"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"git",
+"config",
+"--value",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"git",
+"config",
+"--value",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config -c a=b --comment --get al*",
+"mask_quotes_pre": "git config -c a=b --comment --get al*",
+"mask_quotes_raw": "git config -c a=b --comment --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config -c a=b --comment --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config -c a=b --comment --get al*"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"git",
+"config",
+"-c",
+"a=b",
+"--comment",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"git",
+"config",
+"-c",
+"a=b",
+"--comment",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config -f --get (a|b)",
+"mask_quotes_pre": "git config -f --get (a|b)",
+"mask_quotes_raw": "git config -f --get (a|b)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config -f --get (a|b)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config -f --get (a|b)"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"git",
+"config",
+"-f",
+"--get"
+]
+],
+[
+21,
+22,
+[
+"a"
+]
+],
+[
+23,
+24,
+[
+"b"
+]
+],
+[
+25,
+25,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"git",
+"config",
+"-f",
+"--get"
+]
+],
+[
+21,
+22,
+[
+"a"
+]
+],
+[
+23,
+24,
+[
+"b"
+]
+],
+[
+25,
+25,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config -f --get al*",
+"mask_quotes_pre": "git config -f --get al*",
+"mask_quotes_raw": "git config -f --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config -f --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config -f --get al*"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"config",
+"-f",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"config",
+"-f",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "git config -t --get al*",
+"mask_quotes_pre": "git config -t --get al*",
+"mask_quotes_raw": "git config -t --get al*",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "git config -t --get al*"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "git config -t --get al*"
+},
+"segments_pre": [
+[
+0,
+23,
+[
+"git",
+"config",
+"-t",
+"--get",
+"al*"
+]
+]
+],
+"segments_raw": [
+[
+0,
+23,
+[
+"git",
+"config",
+"-t",
+"--get",
+"al*"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "set -o extendedglob; {CH} ^z",
+"mask_quotes_pre": "set -o extendedglob; {CH} ^z",
+"mask_quotes_raw": "set -o extendedglob; {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "set -o extendedglob; {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "set -o extendedglob; {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"set",
+"-o",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+28,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"set",
+"-o",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+28,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "setopt EXTENDEDGLOB; {CH} ^z",
+"mask_quotes_pre": "setopt EXTENDEDGLOB; {CH} ^z",
+"mask_quotes_raw": "setopt EXTENDEDGLOB; {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "setopt EXTENDEDGLOB; {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "setopt EXTENDEDGLOB; {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"setopt",
+"EXTENDEDGLOB"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+28,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"setopt",
+"EXTENDEDGLOB"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+28,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "setopt extended_glob; {CH} ^z",
+"mask_quotes_pre": "setopt extended_glob; {CH} ^z",
+"mask_quotes_raw": "setopt extended_glob; {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "setopt extended_glob; {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "setopt extended_glob; {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"setopt",
+"extended_glob"
+]
+],
+[
+21,
+22,
+[]
+],
+[
+23,
+25,
+[
+"CH"
+]
+],
+[
+26,
+29,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"setopt",
+"extended_glob"
+]
+],
+[
+21,
+22,
+[]
+],
+[
+23,
+25,
+[
+"CH"
+]
+],
+[
+26,
+29,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "setopt extendedglob && {CH} ^z",
+"mask_quotes_pre": "setopt extendedglob && {CH} ^z",
+"mask_quotes_raw": "setopt extendedglob && {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob && {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob && {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+20,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+22,
+23,
+[]
+],
+[
+24,
+26,
+[
+"CH"
+]
+],
+[
+27,
+30,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+20,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+22,
+23,
+[]
+],
+[
+24,
+26,
+[
+"CH"
+]
+],
+[
+27,
+30,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "setopt extendedglob; {CH} ^z",
+"mask_quotes_pre": "setopt extendedglob; {CH} ^z",
+"mask_quotes_raw": "setopt extendedglob; {CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob; {CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob; {CH} ^z"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+28,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+28,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "setopt extendedglob; {CH} al#",
+"mask_quotes_pre": "setopt extendedglob; {CH} al#",
+"mask_quotes_raw": "setopt extendedglob; {CH} al#",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob; {CH} al#"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob; {CH} al#"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+29,
+[
+"al#"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+29,
+[
+"al#"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "setopt extendedglob; {CH} a~b",
+"mask_quotes_pre": "setopt extendedglob; {CH} a~b",
+"mask_quotes_raw": "setopt extendedglob; {CH} a~b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob; {CH} a~b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "setopt extendedglob; {CH} a~b"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+29,
+[
+"a~b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"setopt",
+"extendedglob"
+]
+],
+[
+20,
+21,
+[]
+],
+[
+22,
+24,
+[
+"CH"
+]
+],
+[
+25,
+29,
+[
+"a~b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -c '{CH} {ALT}'",
+"mask_quotes_pre": "zsh -c 'QQQQQQQQQQ'",
+"mask_quotes_raw": "zsh -c 'QQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c '{CH} {ALT}'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -c '{CH} {ALT}'"
+},
+"segments_pre": [
+[
+0,
+19,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+19,
+[
+"zsh",
+"-c",
+"'QQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "zsh -o extendedglob -c '{CH} ^z'",
+"mask_quotes_pre": "zsh -o extendedglob -c 'QQQQQQQ'",
+"mask_quotes_raw": "zsh -o extendedglob -c 'QQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "zsh -o extendedglob -c '{CH} ^z'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "zsh -o extendedglob -c '{CH} ^z'"
+},
+"segments_pre": [
+[
+0,
+32,
+[
+"zsh",
+"-o",
+"extendedglob",
+"-c",
+"'QQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+32,
+[
+"zsh",
+"-o",
+"extendedglob",
+"-c",
+"'QQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} '(a|b)'",
+"mask_quotes_pre": "{CH} 'QQQQQ'",
+"mask_quotes_raw": "{CH} 'QQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} '(a|b)'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} '(a|b)'"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+12,
+[
+"'QQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+12,
+[
+"'QQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} 'x y'",
+"mask_quotes_pre": "{CH} 'QQQ'",
+"mask_quotes_raw": "{CH} 'QQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} 'x y'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} 'x y'"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+10,
+[
+"'QQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+10,
+[
+"'QQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} (alias.x|y)",
+"mask_quotes_pre": "{CH} (alias.x|y)",
+"mask_quotes_raw": "{CH} (alias.x|y)",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} (alias.x|y)"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} (alias.x|y)"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+5,
+[]
+],
+[
+6,
+13,
+[
+"alias.x"
+]
+],
+[
+14,
+15,
+[
+"y"
+]
+],
+[
+16,
+16,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+5,
+[]
+],
+[
+6,
+13,
+[
+"alias.x"
+]
+],
+[
+14,
+15,
+[
+"y"
+]
+],
+[
+16,
+16,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} <->",
+"mask_quotes_pre": "{CH} <->",
+"mask_quotes_raw": "{CH} <->",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} <->"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} <->"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+8,
+[
+"<->"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+8,
+[
+"<->"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} <1-2>",
+"mask_quotes_pre": "{CH} <1-2>",
+"mask_quotes_raw": "{CH} <1-2>",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} <1-2>"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} <1-2>"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+10,
+[
+"<1-2>"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+10,
+[
+"<1-2>"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} ^z",
+"mask_quotes_pre": "{CH} ^z",
+"mask_quotes_raw": "{CH} ^z",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} ^z"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} ^z"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+7,
+[
+"^z"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+7,
+[
+"^z"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} a~b",
+"mask_quotes_pre": "{CH} a~b",
+"mask_quotes_raw": "{CH} a~b",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} a~b"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} a~b"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+8,
+[
+"a~b"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+8,
+[
+"a~b"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} x#",
+"mask_quotes_pre": "{CH} x#",
+"mask_quotes_raw": "{CH} x#",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} x#"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} x#"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+7,
+[
+"x#"
+]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+7,
+[
+"x#"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} {ALT}",
+"mask_quotes_pre": "{CH} {ALT}",
+"mask_quotes_raw": "{CH} {ALT}",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} {ALT}"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} {ALT}"
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+5,
+[]
+],
+[
+6,
+9,
+[
+"ALT"
+]
+],
+[
+10,
+10,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+5,
+[]
+],
+[
+6,
+9,
+[
+"ALT"
+]
+],
+[
+10,
+10,
+[]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "{CH} {ALT}\n# it's",
+"mask_quotes_pre": "{CH} {ALT} ; ",
+"mask_quotes_raw": "{CH} {ALT}\n# it'Q",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "{CH} {ALT} ; "
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "{CH} {ALT} ; "
+},
+"segments_pre": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+5,
+[]
+],
+[
+6,
+9,
+[
+"ALT"
+]
+],
+[
+10,
+11,
+[]
+],
+[
+12,
+13,
+[]
+]
+],
+"segments_raw": [
+[
+0,
+0,
+[]
+],
+[
+1,
+3,
+[
+"CH"
+]
+],
+[
+4,
+5,
+[]
+],
+[
+6,
+9,
+[
+"ALT"
+]
+],
+[
+11,
+17,
+[
+"#",
+"it'Q"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "tar -xCf /tmp/x a.tar",
 "mask_quotes_pre": "tar -xCf /tmp/x a.tar",
 "mask_quotes_raw": "tar -xCf /tmp/x a.tar",
@@ -165849,7 +170080,7 @@
 ]
 }
 },
-"corpus_commands": 3061,
+"corpus_commands": 3131,
 "edge_inputs": 97,
 "python": "3.13"
 }
