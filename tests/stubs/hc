@@ -105,6 +105,13 @@ if argv[:1] == ["keys"] and len(argv) >= 2:
     with open(STATE, "w") as f:
         json.dump(st, f)
     sys.exit(0)
+if argv[:1] == ["kill"] and len(argv) >= 2:
+    term = argv[1]
+    st["agents"] = [a for a in st["agents"] if a.get("name") != term]
+    out({})
+    with open(STATE, "w") as f:
+        json.dump(st, f)
+    sys.exit(0)
 
 cmd = tuple(argv[:2])
 if " ".join(cmd) in st.get("fail_cmds", []):
