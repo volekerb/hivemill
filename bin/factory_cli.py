@@ -991,10 +991,6 @@ def table(rows, cols):
 # ───────────────────────────── herdr ─────────────────────────────
 
 _HERDR_SOCK = {}  # per-process cache of the configured socket
-_HC_RUN_CWD = None  # spawn worktree for the next hc `run` translation (TUI path unchanged)
-_HC_RUN_ENV = None  # agent env written into the hc spawn script (never on the hc argv)
-_HC_RUN_PROGRAM = None  # resolved program for hc `run` (cursor: agent/cursor-agent, not the cursor shim)
-_HC_RUN_NAME = None  # agent name for the hc spawn script under run/
 
 
 def _is_live_socket(val):
@@ -1196,32 +1192,6 @@ def _hc_parse_host_stdout(ipc_argv, out):
     return parsed
 
 
-def _hc_spawn_script_path(name):
-    """Where the hc spawn wrapper is written; tests may set FACTORY_HC_SPAWN_SCRIPT_ROOT."""
-    root = os.environ.get("FACTORY_HC_SPAWN_SCRIPT_ROOT")
-    base = Path(root) if root else RUN
-    base.mkdir(parents=True, exist_ok=True)
-    return base / f"{name}.hc-spawn.sh"
-
-
-def _hc_write_spawn_script(name, env, program, post):
-    """Shell wrapper: export spawn env, then exec the agent. Secrets stay off the hc argv."""
-    script = _hc_spawn_script_path(name)
-    body = "#!/bin/sh\n" + export_cmd(env).replace(" && hash -r", "\nhash -r\n") + f"exec {shlex.join([program, *post])}\n"
-    script.write_text(body)
-    os.chmod(script, 0o700)
-    return script
-
-
-def _hc_run_argv_tail(program, post):
-    """Tail of hc `run`: `sh <spawn script>` when spawn env is set (no env vars on the hc argv)."""
-    if not _HC_RUN_ENV:
-        return [program, *post]
-    name = _HC_RUN_NAME or "hc-spawn"
-    script = _hc_write_spawn_script(name, _HC_RUN_ENV, program, post)
-    return ["sh", str(script)]
-
-
 def _hc_translate_args(args):
     """Map TUI herdr IPC verbs to herdr-core `hc` CLI. None means no hc equivalent (fail this step only)."""
     a = list(args)
@@ -1231,36 +1201,8 @@ def _hc_translate_args(args):
         verb = a[1]
         if verb == "list":
             return ["ls"]
-        if verb == "start" and len(a) >= 3:
-            name = a[2]
-            kind = "claude"
-            post = []
-            i = 3
-            while i < len(a):
-                if a[i] == "--kind" and i + 1 < len(a):
-                    kind = a[i + 1]
-                    i += 2
-                elif a[i] == "--pane" and i + 1 < len(a):
-                    i += 2
-                elif a[i] == "--timeout" and i + 1 < len(a):
-                    i += 2
-                elif a[i] == "--":
-                    post = list(a[i + 1:])
-                    break
-                else:
-                    i += 1
-            out = ["run", "--bg", "--name", name]
-            cwd = _HC_RUN_CWD
-            if not cwd:
-                for j, tok in enumerate(post):
-                    if tok == "--workspace" and j + 1 < len(post):
-                        cwd = post[j + 1]
-                        break
-            if cwd:
-                out.extend(["--cwd", cwd])
-            program = _HC_RUN_PROGRAM or kind
-            out.extend(_hc_run_argv_tail(program, post))
-            return out
+        if verb == "start":
+            return None  # live hc spawn is T-1188; factory spawn refuses before this runs
         if verb == "prompt" and len(a) >= 4:
             return ["send", a[2], a[3]]
         if verb == "read" and len(a) >= 3:
@@ -9482,13 +9424,7 @@ def _spawn_start_external(con, role, goal, team, task, name, cwd, prompt, model,
     task_auto_start(con, task, f"spawn {name}", role)
     start_args = ("agent", "start", name, "--kind", plan.herdr_kind, "--pane", pane, "--timeout", "90000",
                   "--", *plan.argv)
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
-    _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
-    _HC_RUN_PROGRAM, _HC_RUN_NAME = plan.binary, name
-    try:
-        r = herdr(*start_args, check=False)
-    finally:
-        _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+    r = herdr(*start_args, check=False)
     if r is None:
         event(con, "agent", name, "start-uncertain", {"pane": pane, "runtime": runtime, "kind": plan.herdr_kind})
     herdr("pane", "report-metadata", pane, "--source", "factory", "--display-agent",
@@ -9563,6 +9499,8 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
     # every launch re-renders (a tampered rendered file never survives a relaunch); first, so a bad template
     # leaves no worktree, agent dir, pane or row behind
     settings = render_settings_early(role)
+    if terminal_backend_effective(con)[1] == "hc":
+        die("terminal_backend=hc: live agent spawn is not wired yet (T-1188); use herdr or auto", 2)
     ghcred_on = gh_cred_wanted(con, role, sandbox_wanted(con, role, optin))
     if ghcred_on:  # before any worktree, pane or row: a refused spawn leaves nothing behind
         gh_cred_preflight(con, role, name)
@@ -9671,17 +9609,11 @@ def _spawn_start(con, role, goal, team, task, name, cwd, prompt, model, resume, 
             env.setdefault(k, v)
     except (OSError, json.JSONDecodeError, ValueError):
         pass
-    global _HC_RUN_CWD, _HC_RUN_ENV, _HC_RUN_PROGRAM, _HC_RUN_NAME
-    _HC_RUN_CWD, _HC_RUN_ENV = cwd, {k: str(v) for k, v in env.items()}
-    _HC_RUN_PROGRAM, _HC_RUN_NAME = None, name
     start_err = None
-    try:
-        if async_start:
-            r, start_err = herdr_start_error(*start_args)
-        else:
-            r = herdr(*start_args, check=False)
-    finally:
-        _HC_RUN_CWD = _HC_RUN_ENV = _HC_RUN_PROGRAM = _HC_RUN_NAME = None
+    if async_start:
+        r, start_err = herdr_start_error(*start_args)
+    else:
+        r = herdr(*start_args, check=False)
     if async_start and start_err and not any(m in start_err.lower() for m in START_PENDING_ERRORS):
         # a real failure (bad args, no such pane): do not wait START_CONFIRM_S for an agent that will never be ready
         event(con, "agent", name, "start-failed", {"pane": pane, "error": start_err[:300]})
