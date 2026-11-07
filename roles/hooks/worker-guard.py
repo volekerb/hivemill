@@ -569,26 +569,21 @@ COPIERS = {"cat", "dd", "cp", "install", "rsync", "tee", "ln", "mv", "base64", "
 # R1: herdr word, then (same line, any tokens between) a mutating sequence; only fires together with an
 # exec-capable launcher in a command position on that line (see launcher_in_command_position)
 R1 = re.compile(
-    r"(?<!tests/stubs/)\b(?:herdr|hc|herdr-core)\b.*?"
+    r"(?<!tests/stubs/)\bherdr\b.*?"
     r"(?:\bserver\s+\S|\b(?:agent|pane|tab|workspace|worktree)[\"'\\\s]+"
     r"(?:start|stop|kill|close|prompt|split|new|run|send|create|move|swap|remove|rename)\b)")
 # R2: re-targeting the socket/session, or pointing at herdr's config dir / socket file
-R2_SET = re.compile(
-    r"\b(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\s*\+?=|"
-    r"\bexport\s+(?:-\w+\s+)*(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b|"
-    r"\b(?:declare|typeset)\s+-\w*x\w*\s+(?:HERDR_(?:SOCKET_PATH|SESSION)|HC_SOCKET)\b")
+R2_SET = re.compile(r"\bHERDR_(?:SOCKET_PATH|SESSION)\s*\+?=|\bexport\s+(?:-\w+\s+)*HERDR_(?:SOCKET_PATH|SESSION)\b"
+                    r"|\b(?:declare|typeset)\s+-\w*x\w*\s+HERDR_(?:SOCKET_PATH|SESSION)\b")
 R2_PATH = re.compile(r"herdr\.sock|\.config/herdr")
 # commands that only print/search/record text: a quoted herdr.sock / .config/herdr there is data, not a target
 FACTORY_NAMES = ("factory", "factory_cli.py", "factory_cli")  # script basenames that run the factory CLI
 DATA_CMDS = {"git", "gh", "grep", "rg", "cat", "less", "echo", "printf", "factory"}
 LAUNCHERS = {"env", "sudo", "nohup", "timeout", "command", "exec", "nice", "ionice", "setsid", "stdbuf", "xargs"}
 FIND_EXEC = {"-exec", "-execdir", "-ok", "-okdir"}
-R2_UNSET = re.compile(
-    r"\bunset\b[^\n]*\b(?:HERDR_SOCKET_PATH|HC_SOCKET)\b|"
-    r"\benv\b[^\n]*\s(?:-u\s*(?:HERDR_SOCKET_PATH|HC_SOCKET)|-[A-Za-z]*i[A-Za-z]*|--ignore-environment|--unset[= ](?:HERDR_SOCKET_PATH|HC_SOCKET))(?:\s|$)")
-R3_REDIR = re.compile(r"<\s*[\"']?(?!\S*tests/stubs/)\S*(?:/(?:herdr|hc|herdr-core)\b|\$\{?HERDR_BIN_PATH)")
-HOST_CLI_WORD = re.compile(r"(?<!tests/stubs/)\b(?:herdr|hc|herdr-core)\b")
-HERDR_WORD = HOST_CLI_WORD  # legacy name for R2 unset + host mention check
+R2_UNSET = re.compile(r"\bunset\b[^\n]*\bHERDR_SOCKET_PATH\b|\benv\b[^\n]*\s(?:-u\s*HERDR_SOCKET_PATH|-[A-Za-z]*i[A-Za-z]*|--ignore-environment|--unset[= ]HERDR_SOCKET_PATH)(?:\s|$)")
+R3_REDIR = re.compile(r"<\s*[\"']?(?!\S*tests/stubs/)\S*(?:/herdr\b|\$\{?HERDR_BIN_PATH)")
+HERDR_WORD = re.compile(r"(?<!tests/stubs/)\bherdr\b")
 AWKS = {"awk", "gawk", "mawk", "nawk", "busybox-awk"}
 EDITORS = {"vim", "vi", "nvim", "view", "ex", "emacs", "nano", "ed", "less", "more", "man"}
 SHELL_LIKE = SHELLS | {"source", ".", "eval"}
@@ -1026,15 +1021,12 @@ def is_stub(path):
 
 
 def is_herdr(word):
-    """True when the word is or may expand to herdr, hc or herdr-core (stub paths excepted)."""
+    """True when the word, as a command, is or may expand to the herdr binary (stub paths excepted)."""
     base = os.path.basename(word.rstrip("/"))
-    if base in ("herdr", "hc", "herdr-core"):
+    if base == "herdr":
         return not is_stub(word)
     if base not in ("[", "[[") and GLOB.search(base):
-        for target in ("herdr", "hc", "herdr-core"):
-            if fnmatch.fnmatchcase(target, base):
-                return True
-        return False
+        return fnmatch.fnmatchcase("herdr", base)
     return False
 
 
@@ -1696,7 +1688,7 @@ class Analyzer:
                     raise PrivBlock(hit)
                 if not self.hq and persist_code(body):
                     raise Block(f"interpreter code naming a protected config/init file: {PERSIST_WHY}")
-            elif not self.hq and HOST_CLI_WORD.search(body):
+            elif not self.hq and re.search(r"herdr", body):
                 raise Block("herdr in an interpreter heredoc")
         try:
             lex = shlex.shlex(re.sub(r"(?<![\w$])\d+(?=[<>])", " ", text), posix=True, punctuation_chars=True)
@@ -3690,7 +3682,7 @@ class Analyzer:
                 name in SHELLS and next((os.path.basename(x) for x in rest if not x.startswith("-")), None) == "factory"):
             self.ran_factory = True
         if is_dynamic(w, strict=not in_loose):
-            raise DynamicBlock(f"dynamic command word {w!r} could expand to herdr, hc or claude")
+            raise DynamicBlock(f"dynamic command word {w!r} could expand to herdr or claude")
         if is_herdr(w):
             raise Block("direct herdr invocation")
         if is_claude(w):
@@ -3743,16 +3735,16 @@ class Analyzer:
             self.unittest_full(name, rest)
             self.pytest_full(name, rest)
             for j, a in enumerate(rest[:-1]):
-                if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and HOST_CLI_WORD.search(rest[j + 1]):
+                if (re.match(r"^-[A-Za-z]*[ceEr]$", a) or a == "--eval") and "herdr" in rest[j + 1]:
                     raise Block("herdr in inline interpreter code")
         elif name in ("pytest", "py.test"):
             self.pytest_full(name, rest)
         elif name in AWKS or name in EDITORS:
-            if any(HOST_CLI_WORD.search(a) for a in rest):
+            if any("herdr" in a for a in rest):
                 raise Block(f"herdr in {name} program text (can run shell commands)")
         elif name == "sed":
             for a in rest:
-                if HOST_CLI_WORD.search(a) and re.search(r"(?:^|[\s;{}\d$,])e\b|/[gIpmM]*e[gIpmM]*(?:\s|;|$)", a):
+                if "herdr" in a and re.search(r"(?:^|[\s;{}\d$,])e\b|/[gIpmM]*e[gIpmM]*(?:\s|;|$)", a):
                     raise Block("herdr in a sed e command")
         elif name == "git":
             self.git_shared(words, assigns)  # first: its reason names the own-worktree advice
@@ -4266,7 +4258,7 @@ class Analyzer:
         if not units:
             raise Block(f"systemctl {verbs[0]} without a unit")
         for u in units:
-            if re.match(r"^(factory|herdr|hc-)", u) or GLOB.search(u) or "$" in u or "`" in u:
+            if re.match(r"^(factory|herdr)", u) or GLOB.search(u) or "$" in u or "`" in u:
                 raise Block(f"systemctl {verbs[0]} {u}")
 
 

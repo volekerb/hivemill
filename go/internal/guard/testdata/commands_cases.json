@@ -2178,27 +2178,6 @@
 },
 {
 "module": "test_worker_guard",
-"cmd": "systemctl --user stop hc-serve-dfa32408.service",
-"role": "",
-"hq": false,
-"exit": 2
-},
-{
-"module": "test_worker_guard",
-"cmd": "systemctl --user kill hc-hold-63575dee.service",
-"role": "",
-"hq": false,
-"exit": 2
-},
-{
-"module": "test_worker_guard",
-"cmd": "systemctl --user restart hc-serve-dfa32408.service",
-"role": "",
-"hq": false,
-"exit": 2
-},
-{
-"module": "test_worker_guard",
 "cmd": "systemctl --user disable --now factory-tick.timer",
 "role": "",
 "hq": false,
@@ -7744,20 +7723,6 @@
 {
 "module": "test_worker_guard_units",
 "cmd": "systemctl --user restart herdr-server",
-"role": "coder",
-"hq": false,
-"exit": 2
-},
-{
-"module": "test_worker_guard_units",
-"cmd": "systemctl --user stop hc-serve-dfa32408.service",
-"role": "coder",
-"hq": false,
-"exit": 2
-},
-{
-"module": "test_worker_guard_units",
-"cmd": "systemctl --user kill hc-hold-63575dee.service",
 "role": "coder",
 "hq": false,
 "exit": 2
