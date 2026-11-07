@@ -14236,7 +14236,8 @@ def _pt_emit(con):
         return
     try:
         c = _PT["counters"]
-        for k, v in (("dequeue_spawns", 0), ("dequeue_spawn_s", 0.0), ("ci_wake_ls_remote", 0), ("ci_wake_gh", 0), ("export_git", 0)):
+        for k, v in (("dequeue_spawns", 0), ("dequeue_spawn_s", 0.0), ("ci_wake_ls_remote", 0), ("ci_wake_gh", 0),
+                     ("pr_view_cached", 0), ("pr_probe_cache_hit", 0), ("gh_quota_read", 0), ("export_git", 0)):
             c.setdefault(k, v)
         line = "tick-phases total=%.2f" % (time.perf_counter() - _PT["t0"])
         line += "".join(" %s=%.2f" % (n, d) for n, d in _PT["phases"])
@@ -16386,21 +16387,83 @@ def _ci_remote_head(branch, batch=None):
     return rows[0][0] if len(rows) == 1 else None
 
 
+def _pr_repo_num(pr_url):
+    m = re.match(r"https?://[^/]+/([^/]+/[^/]+)/pull/(\d+)(?:[/?#]|$)", pr_url or "")
+    if not m:
+        raise ValueError(f"not a github pull url: {pr_url!r}")
+    return m.group(1), int(m.group(2))
+
+
+def _pull_merge_state(pull):
+    ms = (pull.get("mergeable_state") or "").lower()
+    return {"clean": "CLEAN", "dirty": "DIRTY", "behind": "BEHIND"}.get(ms, ms.upper() or "UNKNOWN")
+
+
+def _rest_check_status(s):
+    key = (s or "").lower().replace("-", "_")
+    return {"queued": "QUEUED", "in_progress": "IN_PROGRESS", "completed": "COMPLETED", "waiting": "WAITING",
+            "requested": "REQUESTED", "pending": "PENDING"}.get(key, (s or "").upper())
+
+
+def _rest_check_rollup(check_runs, statuses):
+    """Check runs and legacy commit statuses in the shape `ci_verdict` expects from GraphQL statusCheckRollup."""
+    out = []
+    for cr in check_runs or []:
+        if not isinstance(cr, dict):
+            continue
+        out.append({
+            "__typename": "CheckRun",
+            "name": cr.get("name"),
+            "status": _rest_check_status(cr.get("status")),
+            "conclusion": (cr.get("conclusion") or "").upper(),
+            "workflowName": ((cr.get("check_suite") or {}).get("app") or cr.get("app") or {}).get("name") or "",
+            "startedAt": cr.get("started_at") or "",
+            "completedAt": cr.get("completed_at") or "",
+            "detailsUrl": cr.get("html_url") or cr.get("details_url") or "",
+        })
+    for st in statuses or []:
+        if not isinstance(st, dict):
+            continue
+        out.append({"__typename": "StatusContext", "context": st.get("context"), "state": (st.get("state") or "").upper()})
+    return out
+
+
 def _ci_wake_probe(pr_url, timeout):
-    """One `gh pr view` probe, run in a pool thread: no DB, cfg, event or send in here. Returns the PR dict or the error."""
+    """One tick PR probe via REST (no GraphQL): pull metadata + check-runs + legacy commit statuses. Pool threads only;
+    no DB, cfg, event or send in here. Returns the PR dict or the error."""
     try:
-        pr = gh_json("pr", "view", pr_url, "--json", "number,state,headRefOid,mergeStateStatus,statusCheckRollup", timeout=timeout)
-        pr["headRefOid"]  # noqa: B018 — a PR json without a head sha is an error, as before
-        return pr
+        slug, num = _pr_repo_num(pr_url)
+        pull = gh_json("api", f"repos/{slug}/pulls/{num}", timeout=timeout)
+        if not isinstance(pull, dict):
+            raise ValueError("pull response not a dict")
+        head = (pull.get("head") or {}).get("sha")
+        if not head or not re.fullmatch(r"[0-9a-f]{40}", head):
+            raise ValueError("pull head sha missing")
+        page = gh_json("api", f"repos/{slug}/commits/{head}/check-runs", "-f", "per_page=100", timeout=timeout)
+        runs = page.get("check_runs") if isinstance(page, dict) else []
+        statuses = []
+        try:
+            st = gh_json("api", f"repos/{slug}/commits/{head}/status", timeout=timeout)
+            if isinstance(st, dict):
+                statuses = st.get("statuses") or []
+        except SystemExit:
+            pass  # legacy contexts only: check-runs are enough when status is unavailable
+        state = (pull.get("state") or "").upper() or "OPEN"
+        return {
+            "number": pull.get("number") or num,
+            "state": state,
+            "headRefOid": head,
+            "mergeStateStatus": _pull_merge_state(pull),
+            "statusCheckRollup": _rest_check_rollup(runs, statuses),
+        }
     except (SystemExit, subprocess.TimeoutExpired, OSError, ValueError, KeyError, TypeError) as e:
         return e
 
 
 PR_VIEW_TTL_S = 120    # default of config pr_view_ttl_s
 PRVIEW_PREFIX = "prview:"  # config key of one PR's cached probe: {"at", "head", "pr"}
-GH_QUOTA_READ_S = 50   # the GraphQL quota is read at most this often: once per (60 s) tick
+GH_QUOTA_READ_S = 50   # the GraphQL quota is read at most this often: once per (60 s) tick (REST /rate_limit, no GraphQL cost)
 GH_QUOTA_ALERT_S = 3600
-GH_QUOTA_QUERY = "query{rateLimit{remaining limit resetAt}}"
 
 
 def _pr_cache_get(con, pr_url, clock, head=None):
@@ -16415,6 +16478,7 @@ def _pr_cache_get(con, pr_url, clock, head=None):
         c = json.loads(row["value"]) if row else None
         if c and 0 <= clock - float(c["at"]) < ttl and isinstance(c["pr"], dict) and head is not None and c["head"] == head:
             _pt_count("pr_view_cached")
+            _pt_count("pr_probe_cache_hit")
             return c["pr"]
     except (ValueError, KeyError, TypeError):
         pass
@@ -16449,11 +16513,10 @@ def gh_quota_low(con, clock):
     if not fresh:
         _pt_count("gh_quota_read")
         try:
-            p = subprocess.run(["gh", "api", "graphql", "-f", f"query={GH_QUOTA_QUERY}"], capture_output=True, text=True,
-                               timeout=CI_WAKE_GH_TIMEOUT_S)
+            p = subprocess.run(["gh", "api", "rate_limit"], capture_output=True, text=True, timeout=CI_WAKE_GH_TIMEOUT_S)
             if p.returncode == 0:
-                rl = json.loads(p.stdout)["data"]["rateLimit"]
-                left, reset = int(rl["remaining"]), rl.get("resetAt")
+                rl = json.loads(p.stdout)["resources"]["graphql"]
+                left, reset = int(rl["remaining"]), rl.get("reset")
             elif re.search(r"rate limit", p.stderr or "", re.I):
                 left = 0
         except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
@@ -16554,7 +16617,7 @@ def tick_ci_wake(con):
             continue
         lead = goal_alert_to(con, t["goal_id"], lead=t["lead_agent"])
         if isinstance(pr, BaseException):
-            event(con, "task", k["id"], "ci-wake-error", f"gh pr view {k['pr_url']}: {pr}"[:300])
+            event(con, "task", k["id"], "ci-wake-error", f"PR probe {k['pr_url']}: {pr}"[:300])
             continue
         sha = pr["headRefOid"]
         if pr.get("state", "OPEN") != "OPEN":

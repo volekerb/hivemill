@@ -39,7 +39,8 @@ class CiWakeTests(FactoryTestCase):
                             (LEAD, prefix + "%"))
 
     def gh_views(self):
-        return [c for c in self.env.calls("gh") if c["argv"][:2] == ["pr", "view"] and "number,state,headRefOid,mergeStateStatus,statusCheckRollup" in c["argv"]]
+        return [c for c in self.env.calls("gh") if len(c["argv"]) > 1 and c["argv"][0] == "api"
+                and re.search(r"/pulls/\d+$", c["argv"][1])]
 
     def lead(self):
         return self.env.sql("SELECT status FROM agents WHERE name=?", (LEAD,))[0]["status"]
@@ -248,9 +249,13 @@ class CiWakeTests(FactoryTestCase):
 
     def test_n_in_review_tasks_make_one_ls_remote_call(self):
         sha1 = self.setup_origin()
+        zz = "https://github.com/zz-test/repo/pull/"
+        running = [{"name": "slow", "status": "IN_PROGRESS", "conclusion": ""}]
         for i in (2, 3, 4):
             git("push", "-q", "origin", f"HEAD:refs/heads/factory/t-000{i}", cwd=self.wt)
-            self.env.seed_task(f"T-000{i}", status="in_review", team=TEAM, pr_url=f"https://example.invalid/pull/{i}")
+            url = zz + str(i)
+            self.env.seed_task(f"T-000{i}", status="in_review", team=TEAM, pr_url=url)
+            self.env.seed_pr(url=url, sha=sha1, checks=running)
             self.env.sql("UPDATE tasks SET branch=? WHERE id=?", (f"factory/t-000{i}", f"T-000{i}"))
         self.pr([OK], sha=sha1)
         for i in (1, 2, 3, 4):  # a head is only read for a task already mailed once (ci-head row)
@@ -260,7 +265,7 @@ class CiWakeTests(FactoryTestCase):
         calls = [c for c in log.read_text().splitlines() if "refs/heads/factory" in c]  # the state-branch probe is not ours
         self.assertEqual(len(calls), 1, calls)
         self.assertIn("refs/heads/factory/*", calls[0])
-        self.assertEqual(len(self.gh_views()), 4)  # every task still gets its gh view (no green mailed yet)
+        self.assertEqual(len(self.gh_views()), 4)  # every task still gets a REST probe (no green mailed yet)
 
     def test_batched_lookup_decides_like_per_branch_lookup(self):
         sha1 = self.setup_origin()

@@ -1,6 +1,7 @@
 """T-0723 (G-016 P0-3b): tick_ci_wake runs its gh pr view probes in a bounded thread pool; results are applied in order."""
 import json
 import os
+import re
 import threading
 import time
 import unittest
@@ -70,7 +71,10 @@ def tick_ci_wake(env, workers, guard=False):
         mod.tick_ci_wake(con_arg)
         wall = time.monotonic() - t0
         con.commit()
-    views = [c["argv"][2] for c in env.calls("gh") if c["argv"][:2] == ["pr", "view"]]
+    views = []
+    for c in env.calls("gh"):
+        if c["argv"][:1] == ["api"] and len(c["argv"]) > 1 and re.search(r"/pulls/\d+$", c["argv"][1]):
+            views.append(URL % int(re.search(r"/pulls/(\d+)$", c["argv"][1]).group(1)))
     return wall, views
 
 
