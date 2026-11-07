@@ -48306,6 +48306,1492 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Wonce -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"python3",
+"-Wonce",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"python3",
+"-Wonce",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Xpycache_prefix=x -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+63,
+[
+"python3",
+"-Xpycache_prefix=x",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+63,
+[
+"python3",
+"-Xpycache_prefix=x",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs always -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"python3",
+"--check-hash-based-pycs",
+"always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"python3",
+"--check-hash-based-pycs",
+"always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs=always -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+75,
+[
+"python3",
+"--check-hash-based-pycs=always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+75,
+[
+"python3",
+"--check-hash-based-pycs=always",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --some-unknown-opt -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+63,
+[
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+63,
+[
+"python3",
+"--some-unknown-opt",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar @optsfile a.a",
+"mask_quotes_pre": "ar @optsfile a.a",
+"mask_quotes_raw": "ar @optsfile a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar @optsfile a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar @optsfile a.a"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"ar",
+"@optsfile",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+16,
+[
+"ar",
+"@optsfile",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar --target @opts a.a",
+"mask_quotes_pre": "ar --target @opts a.a",
+"mask_quotes_raw": "ar --target @opts a.a",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar --target @opts a.a"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar --target @opts a.a"
+},
+"segments_pre": [
+[
+0,
+21,
+[
+"ar",
+"--target",
+"@opts",
+"a.a"
+]
+]
+],
+"segments_raw": [
+[
+0,
+21,
+[
+"ar",
+"--target",
+"@opts",
+"a.a"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "ar x @optsfile",
+"mask_quotes_pre": "ar x @optsfile",
+"mask_quotes_raw": "ar x @optsfile",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "ar x @optsfile"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "ar x @optsfile"
+},
+"segments_pre": [
+[
+0,
+14,
+[
+"ar",
+"x",
+"@optsfile"
+]
+]
+],
+"segments_raw": [
+[
+0,
+14,
+[
+"ar",
+"x",
+"@optsfile"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\"",
+"mask_quotes_pre": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"mask_quotes_raw": "python3 -c \"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\"",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\""
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c \"import zipfile; zipfile.ZipFile('a.zip').extractall('@SCRATCH@/r/.git')\""
+},
+"segments_pre": [
+[
+0,
+84,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"segments_raw": [
+[
+0,
+84,
+[
+"python3",
+"-c",
+"\"QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\""
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import tarfile; tarfile.open(\"a.tar\").extract(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+63,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+63,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import shutil; shutil.unpack_archive(\"a.zip\", \"r/.git\")'"
+},
+"segments_pre": [
+[
+0,
+68,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+68,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+27,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+],
+[
+28,
+57,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+27,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQ'"
+]
+],
+[
+28,
+57,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 -c'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 -c'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+26,
+[
+"python3",
+"-c'QQQQQQQQQQQQQQ'"
+]
+],
+[
+27,
+56,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+26,
+[
+"python3",
+"-c'QQQQQQQQQQQQQQ'"
+]
+],
+[
+27,
+56,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 -Bc 'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 -Bc 'QQQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -Bc 'open(\"x\", \"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+28,
+[
+"python3",
+"-Bc",
+"'QQQQQQQQQQQQQQ'"
+]
+],
+[
+29,
+58,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+28,
+[
+"python3",
+"-Bc",
+"'QQQQQQQQQQQQQQ'"
+]
+],
+[
+29,
+58,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "echo x | python3; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "echo x | python3; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "echo x | python3; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+16,
+[
+"python3"
+]
+],
+[
+17,
+46,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+7,
+[
+"echo",
+"x"
+]
+],
+[
+8,
+16,
+[
+"python3"
+]
+],
+[
+17,
+46,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 - <<'E'\nopen('x', 'w')\nE\nunzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 - <<'Q' ; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 - <<'Q'\nopen('Q', 'Q')\nE\nunzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [
+[
+"python3 - <<'E'",
+"open('x', 'w')"
+]
+],
+"extras": [
+[
+"code",
+"open('x', 'w')"
+],
+[
+"icode",
+"open('x', 'w')"
+]
+],
+"text": "python3 - <<'E' ; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [
+[
+"python3 - <<'E'",
+"open('x', 'w')"
+]
+],
+"extras": [
+[
+"code",
+"open('x', 'w')"
+],
+[
+"icode",
+"open('x', 'w')"
+]
+],
+"text": "python3 - <<'E' ; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+16,
+[
+"python3",
+"-",
+"<<'Q'"
+]
+],
+[
+17,
+46,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+15,
+[
+"python3",
+"-",
+"<<'Q'"
+]
+],
+[
+16,
+20,
+[
+"open"
+]
+],
+[
+21,
+29,
+[
+"'Q',",
+"'Q'"
+]
+],
+[
+31,
+32,
+[
+"E"
+]
+],
+[
+33,
+61,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "node - <<'E'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "node - <<'Q' ; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "node - <<'Q'\n1\nE\nunzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [
+[
+"node - <<'E'",
+"1"
+]
+],
+"extras": [
+[
+"code",
+"1"
+],
+[
+"icode",
+"1"
+]
+],
+"text": "node - <<'E' ; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [
+[
+"node - <<'E'",
+"1"
+]
+],
+"extras": [
+[
+"code",
+"1"
+],
+[
+"icode",
+"1"
+]
+],
+"text": "node - <<'E' ; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+13,
+[
+"node",
+"-",
+"<<'Q'"
+]
+],
+[
+14,
+43,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+12,
+[
+"node",
+"-",
+"<<'Q'"
+]
+],
+[
+13,
+14,
+[
+"1"
+]
+],
+[
+15,
+16,
+[
+"E"
+]
+],
+[
+17,
+45,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs= -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_pre": "python3 --check-hash-based-pycs= -m zipfile -e a.zip @SCRATCH@/r/.git",
+"mask_quotes_raw": "python3 --check-hash-based-pycs= -m zipfile -e a.zip @SCRATCH@/r/.git",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -m zipfile -e a.zip @SCRATCH@/r/.git"
+},
+"segments_pre": [
+[
+0,
+69,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"segments_raw": [
+[
+0,
+69,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-m",
+"zipfile",
+"-e",
+"a.zip",
+"@SCRATCH@/r/.git"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs= -c 'import zipfile; zipfile.ZipFile(\"a.zip\").extractall(\".\")'",
+"mask_quotes_pre": "python3 --check-hash-based-pycs= -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 --check-hash-based-pycs= -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -c 'import zipfile; zipfile.ZipFile(\"a.zip\").extractall(\".\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -c 'import zipfile; zipfile.ZipFile(\"a.zip\").extractall(\".\")'"
+},
+"segments_pre": [
+[
+0,
+94,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+94,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs= -c 'open(\"x\",\"w\")'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 --check-hash-based-pycs= -c 'QQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 --check-hash-based-pycs= -c 'QQQQQQQQQQQQQ'; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -c 'open(\"x\",\"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -c 'open(\"x\",\"w\")'; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+51,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-c",
+"'QQQQQQQQQQQQQ'"
+]
+],
+[
+52,
+81,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+51,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-c",
+"'QQQQQQQQQQQQQ'"
+]
+],
+[
+52,
+81,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs= -c x; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 --check-hash-based-pycs= -c x; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 --check-hash-based-pycs= -c x; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -c x; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -c x; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+37,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-c",
+"x"
+]
+],
+[
+38,
+67,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+37,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-c",
+"x"
+]
+],
+[
+38,
+67,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 --check-hash-based-pycs= -Bc x; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_pre": "python3 --check-hash-based-pycs= -Bc x; unzip a.zip -d @SCRATCH@/out",
+"mask_quotes_raw": "python3 --check-hash-based-pycs= -Bc x; unzip a.zip -d @SCRATCH@/out",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -Bc x; unzip a.zip -d @SCRATCH@/out"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 --check-hash-based-pycs= -Bc x; unzip a.zip -d @SCRATCH@/out"
+},
+"segments_pre": [
+[
+0,
+38,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-Bc",
+"x"
+]
+],
+[
+39,
+68,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"segments_raw": [
+[
+0,
+38,
+[
+"python3",
+"--check-hash-based-pycs=",
+"-Bc",
+"x"
+]
+],
+[
+39,
+68,
+[
+"unzip",
+"a.zip",
+"-d",
+"@SCRATCH@/out"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u2028(\"x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u2028(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u2028(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u001c(\"x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u001c(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u001c(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u0085(\"x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u0085(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u0085(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u00a0(\"x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u00a0(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u00a0(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
 "mask_quotes_pre": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
 "mask_quotes_raw": "python3 -I -m zipfile -e a.zip @SCRATCH@/r/.git",
@@ -146493,6 +147979,50 @@
 "extract_subs_raw": {
 "subs": []
 },
+"input": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'",
+"mask_quotes_pre": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"mask_quotes_raw": "python3 -c 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'",
+"preprocess": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'"
+},
+"preprocess_fold": {
+"bodies": [],
+"extras": [],
+"text": "python3 -c 'import zipfile as z; z.ZipFile(\"a.zip\").extract\u200b(\"x\")'"
+},
+"segments_pre": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"segments_raw": [
+[
+0,
+66,
+[
+"python3",
+"-c",
+"'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ'"
+]
+]
+],
+"src": "corpus"
+},
+{
+"extract_subs_pre": {
+"subs": []
+},
+"extract_subs_raw": {
+"subs": []
+},
 "input": "",
 "mask_quotes_pre": "",
 "mask_quotes_raw": "",
@@ -153605,7 +155135,7 @@
 ]
 }
 },
-"corpus_commands": 2834,
+"corpus_commands": 2861,
 "edge_inputs": 97,
 "python": "3.13"
 }

@@ -35,6 +35,7 @@
     "guard-unittest",
     "guard-diff",
     "guard-self-compare",
+    "guard-evaluator-home-loosen",
     "guard-equiv",
     "guard-equiv-rest",
     "unittest"
