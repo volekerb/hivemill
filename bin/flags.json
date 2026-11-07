@@ -793,6 +793,14 @@
    "state": "off"
   },
   {
+   "key": "terminal_backend",
+   "kind": "setting",
+   "default": "auto",
+   "summary": "auto | herdr | hc — which CLI factory uses for the agent host; auto prefers the TUI when both are on PATH",
+   "goal": "G-031",
+   "doc": "docs/terminal-backends.md"
+  },
+  {
    "key": "test_cgroup",
    "kind": "flag",
    "default": "0",
