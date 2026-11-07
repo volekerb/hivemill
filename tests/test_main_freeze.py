@@ -143,7 +143,7 @@ class MainFreeze(FactoryTestCase):
         self.push("leak.txt", "fixture commit", "x@example.com")
         self.tick()
         self.env.seed_pr()
-        p = self.env.run("judge", "T-0001", "--reject", "--reason", "r", agent="zz-test-judge")
+        p = self.env.run("judge", "T-0001", "--reject", "--cause", "other", "--reason", "r", agent="zz-test-judge")
         self.assertNotIn("non-PR push on main", p.stderr)
         self.assertIn("REJECTED", p.stdout)
 

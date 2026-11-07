@@ -28,7 +28,10 @@ class JudgeTests(FactoryTestCase):
             self.ok("verdict", "T-0001", "--pass", "--summary", gates_summary(), agent="zz-test-qa")
 
     def judge(self, *extra):
-        return self.env.run("judge", "T-0001", *(extra or ("--merge",)), "--reason", "zz-test", agent="zz-test-judge")
+        args = list(extra or ("--merge",))
+        if "--reject" in args and "--cause" not in args:
+            args += ("--cause", "other")
+        return self.env.run("judge", "T-0001", *args, "--reason", "zz-test", agent="zz-test-judge")
 
     def assert_refused(self, text, p=None):
         p = p or self.judge()
@@ -47,7 +50,7 @@ class JudgeTests(FactoryTestCase):
         row = self.env.sql("SELECT * FROM verdicts")[0]
         self.assertEqual((row["head_sha"], row["role"], row["verdict"], row["pr_url"]), (self.env.head_sha, "reviewer", "pass", PR_URL))
         self.env.seed_pr(sha=SHA_B, checks=GREEN)
-        self.ok("verdict", "T-0001", "--fail", "--summary", "no", agent="zz-test-qa")
+        self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "no", agent="zz-test-qa")
         row = self.env.sql("SELECT * FROM verdicts ORDER BY id DESC")[0]
         self.assertEqual((row["head_sha"], row["role"], row["verdict"]), (SHA_B, "qa", "fail"))
 
@@ -138,11 +141,11 @@ class JudgeTests(FactoryTestCase):
 
     def test_judge_fail_after_pass_refused(self):
         self.verdicts()
-        self.ok("verdict", "T-0001", "--fail", "--summary", "regression", agent="zz-test-reviewer")
+        self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "regression", agent="zz-test-reviewer")
         self.assert_refused("no reviewer PASS")
 
     def test_judge_pass_after_fail_allowed(self):
-        self.ok("verdict", "T-0001", "--fail", "--summary", "bad", agent="zz-test-qa")
+        self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "bad", agent="zz-test-qa")
         self.verdicts()
         self.assertEqual(self.judge().returncode, 0)
 

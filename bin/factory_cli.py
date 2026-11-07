@@ -296,6 +296,29 @@ CREATE TABLE IF NOT EXISTS lesson_links (
 CREATE INDEX IF NOT EXISTS idx_lesson_links ON lesson_links(lesson_id);
 """
 
+REJECTION_CAUSES = (
+    "unclear_spec",
+    "bug",
+    "missing_test",
+    "stale_or_conflicting_branch",
+    "wrong_review",
+    "gate_refusal",
+    "other",
+)
+
+REJECTION_INCIDENTS_DDL = """
+CREATE TABLE IF NOT EXISTS rejection_incidents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cause TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  verdict_id INTEGER,
+  event_id INTEGER,
+  created TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_rejection_incidents_cause ON rejection_incidents(cause);
+CREATE INDEX IF NOT EXISTS idx_rejection_incidents_task ON rejection_incidents(task_id);
+"""
+
 OWNER_ALERT_DDL = """
 CREATE TABLE IF NOT EXISTS owner_alert_feed (
   id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, since TEXT NOT NULL,
@@ -387,7 +410,7 @@ CREATE TABLE IF NOT EXISTS events (
   entity_id TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS idx_msg_rcpt ON messages(recipient, read_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id, status);
-""" + GATE_RUNS_DDL + LESSONS_DDL
+""" + GATE_RUNS_DDL + LESSONS_DDL + REJECTION_INCIDENTS_DDL
 
 
 # ───────────────────────────── basics ─────────────────────────────
@@ -521,6 +544,7 @@ def migrate(con):
     con.executescript(GOAL_TOKEN_DDL)
     con.executescript(AUDIT_DDL)
     con.executescript(LESSONS_DDL)
+    con.executescript(REJECTION_INCIDENTS_DDL)
     have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     if not SCOUT_TABLES <= have:  # scout DDL is idempotent; skip it (and the scout.db import) once every table exists
         con.executescript(scoutdb.SCOUT_DDL)
@@ -3811,6 +3835,57 @@ def cmd_report(a):
 
 # ───────────────────────────── verdicts & merge gate ─────────────────────────────
 
+_CAUSE_HELP = ", ".join(REJECTION_CAUSES)
+
+
+def normalize_rejection_cause(val):
+    """Map a --cause value to a canonical slug, or die."""
+    if val is None or (isinstance(val, str) and not val.strip()):
+        return None
+    key = re.sub(r"[\s\-]+", "_", str(val).strip().lower())
+    if key in REJECTION_CAUSES:
+        return key
+    die(f"unknown rejection cause {val!r}; use one of: {_CAUSE_HELP}", 2)
+
+
+def require_rejection_cause(a):
+    cause = normalize_rejection_cause(getattr(a, "cause", None))
+    if not cause:
+        die(f"rejection refused, nothing recorded: pass --cause ({_CAUSE_HELP})", 2)
+    return cause
+
+
+def classify_gate_refusal_cause(detail):
+    d = (detail or "").lower()
+    if any(k in d for k in ("stale", "behind", "conflict", "carries", "head moved", "stale-only", "stale-loop",
+                            "cannot verify", "refresh")):
+        return "stale_or_conflicting_branch"
+    if "checks not green" in d or "required check" in d:
+        return "missing_test"
+    return "gate_refusal"
+
+
+def record_rejection_incident(con, cause, kind, task_id, *, verdict_id=None, event_id=None, ts=None):
+    con.execute("INSERT INTO rejection_incidents(cause,kind,task_id,verdict_id,event_id,created) VALUES(?,?,?,?,?,?)",
+                (cause, kind, task_id, verdict_id, event_id, ts or now()))
+
+
+def rejection_gate_refusal(con, task, action, detail, *, cause=None):
+    """Record judge-blocked or merge-failed with a cause (inferred when omitted)."""
+    c = cause or classify_gate_refusal_cause(detail)
+    if c not in REJECTION_CAUSES:
+        c = "gate_refusal"
+    event(con, "task", task, action, detail)
+    eid = con.execute("SELECT last_insert_rowid()").fetchone()[0]
+    record_rejection_incident(con, c, "gate", task, event_id=eid)
+
+
+def rejection_cause_counts(con):
+    """{cause: count} from rejection_incidents rows (empty when nothing is stored yet)."""
+    return {r["cause"]: r["n"] for r in con.execute(
+        "SELECT cause, COUNT(*) n FROM rejection_incidents GROUP BY cause ORDER BY n DESC, cause")}
+
+
 def cmd_pr(a):
     """coder: `pr create --title T --body -` / `pr ready` (T-0687). The repo comes from the own task's project in the DB and
     the PR from the own branch, never from args or env: gh's glob-matchable flags (--repo=X, -RX, GH_REPO, a PR URL) cannot
@@ -4169,8 +4244,12 @@ def cmd_verdict(a):
         print(f"WARNING: --sha {checked} is not the current PR head {head}; recording the FAIL at {checked}", file=sys.stderr)
         sha = checked
     v = "pass" if a.passed else "fail"
+    cause = require_rejection_cause(a) if not a.passed else None
     con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                 (a.task, t["pr_url"], sha, role, v, summary, actor(), now()))
+    if not a.passed:
+        record_rejection_incident(con, cause, role, a.task,
+                                  verdict_id=con.execute("SELECT last_insert_rowid()").fetchone()[0])
     event(con, "task", a.task, f"{role}-{v}", f"@{sha[:8]}")
     print(f"{a.task} {role} {v.upper()} @ {sha[:8]}")
 
@@ -4820,15 +4899,15 @@ def train_merge(con, plan, upto, run, owner_repo):
             problems = next(filter(None, (_push_policy(con, x) for x in slugs)), None) or red_main_refusal(con, slugs, tid) \
                 or main_run_refusal(con, slugs, tid) or merge_freeze_refusal(con)
             if problems:
-                event(con, "task", tid, "judge-blocked", problems)
+                rejection_gate_refusal(con, tid, "judge-blocked", problems)
                 return stop(problems)
             refused = judge_public_text_refusal(con, t, owner_repo, repo, plan["main"], s["head"])
             if refused:
-                event(con, "task", tid, "judge-blocked", refused)
+                rejection_gate_refusal(con, tid, "judge-blocked", refused)
                 return stop(refused)
             author_args, msg = judge_author_args(con, t, owner_repo)
             if msg:
-                event(con, "task", tid, "judge-blocked", msg)
+                rejection_gate_refusal(con, tid, "judge-blocked", msg)
                 return stop(msg)
             with contextlib.ExitStack() as stack:
                 lock_and_recheck(stack, con, t, tid)
@@ -4838,7 +4917,7 @@ def train_merge(con, plan, upto, run, owner_repo):
                 except subprocess.TimeoutExpired:
                     p = subprocess.CompletedProcess([], 124, "", "gh pr merge timed out")
                 if p.returncode != 0 and pr_state(t["pr_url"])["state"] != "MERGED":  # gh can fail after the squash landed
-                    event(con, "task", tid, "merge-failed", p.stderr.strip())
+                    rejection_gate_refusal(con, tid, "merge-failed", p.stderr.strip())
                     return stop(f"gh pr merge failed: {p.stderr.strip()[:200]}")
                 ns = types.SimpleNamespace(task=tid)
                 record_merged(con, t, ns, s["head"], s["head"], f"batch train: gate run #{run['id']} passed on T_{upto} "
@@ -4867,7 +4946,7 @@ def judge_train_run(con, plan, proj):
     frozen = merge_freeze_refusal(con) or red_main_refusal(con, _judge_slugs(con, t0, owner_repo)) \
         or main_run_refusal(con, _judge_slugs(con, t0, owner_repo))
     if frozen:  # the MAIN-RED hold and the freeze apply to a train like to any merge
-        event(con, "task", steps[0]["task"], "judge-blocked", frozen)
+        rejection_gate_refusal(con, steps[0]["task"], "judge-blocked", frozen)
         con.commit()
         die(f"train refused: {frozen}; no gate run, nothing merged. The PRs wait for the serial judge", 4)
     for r in dict.fromkeys([plan["repo"], os.getcwd()]):  # the gate and the carry run in the repo, `gh pr merge` in the cwd
@@ -4910,7 +4989,7 @@ def judge_train_run(con, plan, proj):
         except (SystemExit, ValueError, KeyError, OSError, subprocess.TimeoutExpired) as e:
             short = [f"cannot read the PR bodies for the test-count rule: {e if not isinstance(e, SystemExit) else 'see above'}"]
         if short:
-            event(con, "task", steps[0]["task"], "judge-blocked", short[0])
+            rejection_gate_refusal(con, steps[0]["task"], "judge-blocked", short[0])
             con.commit()
             stopped = f"{short[0]}; nothing merged (a `tests-removed:` line in any PR of the train clears it)"
         else:
@@ -5128,7 +5207,7 @@ def cmd_judge(a):
         die(f"{a.task} has no PR")
     frozen = None if a.reject else merge_freeze_refusal(con)
     if frozen:
-        event(con, "task", a.task, "judge-blocked", frozen)
+        rejection_gate_refusal(con, a.task, "judge-blocked", frozen)
         con.commit()
         die(f"merge refused: {frozen}; nothing merged. Only the director or boss clears it (factory main-unfreeze)", 4)
     pr = pr_state(t["pr_url"])
@@ -5147,15 +5226,21 @@ def cmd_judge(a):
         # CI wait (PR not ready now): no hold; judge_hold keeps a judge queued and one spawns once CI is green.
         # PR already ready (e.g. verdict missing on head): hold until a newer reviewer/QA verdict, or it would loop.
         ready, _why = judge_pr_ready(con, t["pr_url"], True)
+        cause = require_rejection_cause(a)
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                     (a.task, t["pr_url"], sha, "judge", "reject",
                      (STATUS_ONLY_HELD if ready else STATUS_ONLY_PREFIX) + reason, actor(), now()))
+        record_rejection_incident(con, cause, "judge", a.task,
+                                  verdict_id=con.execute("SELECT last_insert_rowid()").fetchone()[0])
         event(con, "task", a.task, "judge-reject-status-only", reason)
         print(f"{a.task} REJECTED (status-only, stays in_review) @ {sha[:8]}")
         return
     if a.reject:
+        cause = require_rejection_cause(a)
         con.execute("INSERT INTO verdicts(task_id,pr_url,head_sha,role,verdict,summary,author,created) VALUES(?,?,?,?,?,?,?,?)",
                     (a.task, t["pr_url"], sha, "judge", "reject", reason, actor(), now()))
+        record_rejection_incident(con, cause, "judge", a.task,
+                                  verdict_id=con.execute("SELECT last_insert_rowid()").fetchone()[0])
         con.execute("UPDATE tasks SET status='in_progress', updated=? WHERE id=?", (now(), a.task))
         event(con, "task", a.task, "judge-reject", reason)
         goal_auto_active(con, t["goal_id"], f"task {a.task} in_progress (judge reject)")
@@ -5323,7 +5408,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
                 problems.append(f"PR head branch {pr.get('headRefName')} is not the task branch {t['branch']}")
         elif stale[1] == "STALE" and not others:
             def block(why):
-                event(con, "task", a.task, "judge-blocked", why)
+                rejection_gate_refusal(con, a.task, "judge-blocked", why)
                 die("merge refused: " + why, 4)
             if refreshes >= judge_max_refreshes(con):
                 block(f"STALE-LOOP: main moved {refreshes} times during refresh; origin/main moved again after each "
@@ -5382,23 +5467,23 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             sha = new
             continue
         if problems:
-            event(con, "task", a.task, "judge-blocked", "; ".join(problems))
+            rejection_gate_refusal(con, a.task, "judge-blocked", "; ".join(problems))
             die("merge refused: " + "; ".join(problems), 4)
         frozen = next(filter(None, (_push_policy(con, x) for x in _judge_slugs(con, t, owner_repo))), None)
         if frozen:
-            event(con, "task", a.task, "judge-blocked", frozen)
+            rejection_gate_refusal(con, a.task, "judge-blocked", frozen)
             die(f"merge refused: {frozen}; nothing merged", 4)
         red = red_main_refusal(con, _judge_slugs(con, t, owner_repo), a.task) or main_run_refusal(con, _judge_slugs(con, t, owner_repo), a.task)
         if red:
-            event(con, "task", a.task, "judge-blocked", red)
+            rejection_gate_refusal(con, a.task, "judge-blocked", red)
             die(f"merge refused: {red}; nothing merged", 4)
         refused = judge_public_text_refusal(con, t, owner_repo, git_repo, stale[2], sha)
         if refused:
-            event(con, "task", a.task, "judge-blocked", refused)
+            rejection_gate_refusal(con, a.task, "judge-blocked", refused)
             die(refused, 4)
         author_args, msg = judge_author_args(con, t, owner_repo)
         if msg:
-            event(con, "task", a.task, "judge-blocked", msg)
+            rejection_gate_refusal(con, a.task, "judge-blocked", msg)
             die(msg, 4)
         if dry_run:  # every refusal above ran; nothing is merged, the caller records the would-merge
             return "would-merge"
@@ -5443,7 +5528,7 @@ def _judge_gate_and_merge(con, t, a, reason, pr, sha, waited, proj, stack):
             if merged:
                 break
         if not merged:
-            event(con, "task", a.task, "merge-failed", p.stderr.strip())
+            rejection_gate_refusal(con, a.task, "merge-failed", p.stderr.strip())
             die(f"gh pr merge failed: {p.stderr.strip()}", 5)
         post_err = p.stderr.strip()
         if still_open and landed:  # on main but GitHub still says OPEN: close it with the pointer, never leave it open
@@ -5603,6 +5688,9 @@ def mech_try(con, t, mode, retry_s):
         code, err = 1, io.StringIO(f"gate error {type(e).__name__}: {e}")
     finally:
         if mode == "shadow":  # the gate's own judge-blocked events are not a judge's: keep the judge's counts clean
+            con.execute("DELETE FROM rejection_incidents WHERE event_id IN (SELECT id FROM events WHERE id>? "
+                        "AND entity='task' AND entity_id=? AND action='judge-blocked' AND actor=?)",
+                        (mark, tid, actor()))
             con.execute("DELETE FROM events WHERE id>? AND entity='task' AND entity_id=? AND action='judge-blocked' AND actor=?",
                         (mark, tid, actor()))
     if not code and mode == "on" and pr_state(url)["headRefOid"] != sha and con.execute(
@@ -15363,9 +15451,10 @@ REVIEW_BRIEF = ("Started by the tick when the PR opened (review_autospawn=on); {
                 "Run only `python3 ci/affected.py --base origin/main --quick --run` locally, never the full suite (CI runs it). "
                 "Never call the advisor tool.")
 COMBINED_BRIEF = ("You are the combined reviewer+QA for this low-risk (tier {tier}) PR: do both jobs on one head. First the "
-                  "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -`; then the QA steps "
+                  "reviewer steps, record `factory verdict {task} --pass|--fail --sha <sha> --summary -` "
+                  "(with --fail add --cause: " + _CAUSE_HELP + "); then the QA steps "
                   "(acceptance walk, ## Gates section), record `factory verdict {task} --as qa --pass|--fail --sha <sha> "
-                  "--summary -`. Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
+                  "--summary -` (with --fail add --cause). Unfinished live run: the QA PASS needs a line `live-run: pending AC<n> <what>` (merger holds), a finished one `live-run: done AC<n> exit=<c>`. "
                   "Two verdicts on the same head, then factory done. ")
 
 
@@ -17255,6 +17344,7 @@ def main():
     g.add_argument("--pass", dest="passed", action="store_true"); g.add_argument("--fail", dest="passed", action="store_false")
     x.add_argument("--summary", required=True); x.add_argument("--as", dest="as_role", choices=["qa", "reviewer"])
     x.add_argument("--sha", help="commit you checked (7-40 hex); required for --pass, must match the PR head")
+    x.add_argument("--cause", help=f"with --fail: one of {_CAUSE_HELP}")
     x.set_defaults(fn=cmd_verdict)
     x = sp.add_parser("judge"); x.add_argument("task", nargs="?"); g = x.add_mutually_exclusive_group(required=True)
     g.add_argument("--merge", action="store_true"); g.add_argument("--reject", action="store_true")
@@ -17262,7 +17352,9 @@ def main():
     g.add_argument("--train", nargs="+", metavar="TASK", help=f"plan a batch merge train of 2..{TRAIN_MAX} tasks (with --dry-run: plan only; without: gate the tip once and merge the passing prefix, needs a project gate_cmd)")
     x.add_argument("--dry-run", action="store_true", help="with --train: print the plan only")
     x.add_argument("--no-code-change", action="store_true", help="with --reject: no code change is asked (CI wait, missing verdict on head); the task stays in_review")
-    x.add_argument("--reason"); x.set_defaults(fn=cmd_judge)
+    x.add_argument("--reason")
+    x.add_argument("--cause", help=f"with --reject: one of {_CAUSE_HELP}")
+    x.set_defaults(fn=cmd_judge)
     x = sp.add_parser("refresh"); x.add_argument("task"); x.add_argument("--dry-run", action="store_true")
     x.set_defaults(fn=cmd_refresh)
     x = sp.add_parser("eval"); x.add_argument("team"); x.add_argument("--score", type=int, required=True)

@@ -55,7 +55,7 @@ class VerdictGatesTests(FactoryTestCase):
         self.assert_refused(GOOD + "\n## Gates\n- lint exit=0 cmd=ruff\n", reason="2 '## Gates' sections")
 
     def test_qa_fail_without_section_recorded(self):
-        self.ok("verdict", "T-0001", "--fail", "--summary", "broken", agent="zz-test-qa")
+        self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "broken", agent="zz-test-qa")
         self.assertEqual(self.counts()[0], 1)
 
     def test_reviewer_pass_without_section_recorded(self):

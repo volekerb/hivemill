@@ -231,6 +231,17 @@ class TestQuality(MetricsCase):
                                r'<p class="tile-def">No cause is stored yet \(counts incidents, not events\)\.</p></details></div>'
                                r'<div class="metric">Not measured yet</div>')
 
+    def test_rejections_by_cause_shows_recorded_counts(self):
+        x = self.w.execute
+        x("INSERT INTO rejection_incidents(cause,kind,task_id,created) VALUES('bug','qa','T-71',?)", (ts(9, 9),))
+        x("INSERT INTO rejection_incidents(cause,kind,task_id,created) VALUES('bug','reviewer','T-72',?)", (ts(9, 10),))
+        x("INSERT INTO rejection_incidents(cause,kind,task_id,created) VALUES('gate_refusal','gate','T-73',?)", (ts(9, 11),))
+        _, html = self.page(quality)
+        self.assertIn('Rejections by cause', html)
+        self.assertIn('<div class="metric">3</div>', html.split("Rejections by cause", 1)[1][:800])
+        self.assertIn("bug 2", html)
+        self.assertIn("gate refusal 1", html)
+
     def test_rejections_per_week_chart_with_table_fallback(self):
         _, html = self.page(quality)
         self.assertRegex(html, r'aria-label="3 rejections in 12 weeks, peak 3 on 10-19"')

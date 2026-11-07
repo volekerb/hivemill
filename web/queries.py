@@ -648,8 +648,15 @@ def quality(con, *, goals=None):
             by_goal.setdefault(r["goal_id"], []).append(tid)
     team_ids = sorted({r["id"] for r in con.execute("SELECT id FROM teams")} | {t for t in by_team if t})
     teams = [row(t, by_team.get(t, [])) for t in team_ids]
+    by_cause = {}
+    tgoal = {r["id"]: r["goal_id"] for r in con.execute("SELECT id, goal_id FROM tasks")}
+    for r in con.execute("SELECT cause, task_id FROM rejection_incidents"):
+        if goals is not None and tgoal.get(r["task_id"]) not in goals:
+            continue
+        by_cause[r["cause"]] = by_cause.get(r["cause"], 0) + 1
     return {"teams": teams, "overall": row(None, list(tinfo)),
-            "unassigned": {g: row(None, ids) for g, ids in by_goal.items()}}
+            "unassigned": {g: row(None, ids) for g, ids in by_goal.items()},
+            "rejections_by_cause": by_cause}
 
 
 def changelog(con, *, goals=None):

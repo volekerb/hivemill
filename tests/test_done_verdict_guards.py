@@ -97,17 +97,17 @@ class VerdictShaTests(FactoryTestCase):
         self.assertEqual(self.verdicts(), [])
 
     def test_g_fail_without_sha_accepted(self):
-        self.ok("verdict", "T-0001", "--fail", "--summary", "no", agent="zz-test-qa")
+        self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--summary", "no", agent="zz-test-qa")
         row = self.verdicts()[0]
         self.assertEqual((row["verdict"], row["head_sha"]), ("fail", self.head))
 
     def test_fail_with_head_prefix_stored_as_full_head(self):
-        p = self.ok("verdict", "T-0001", "--fail", "--sha", self.head[:7], "--summary", "no", agent="zz-test-qa")
+        p = self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--sha", self.head[:7], "--summary", "no", agent="zz-test-qa")
         self.assertNotIn("WARNING", p.stderr)
         self.assertEqual(self.verdicts()[0]["head_sha"], self.head)
 
     def test_fail_with_other_sha_warns_and_records(self):
-        p = self.ok("verdict", "T-0001", "--fail", "--sha", SHA_B, "--summary", "no", agent="zz-test-qa")
+        p = self.ok("verdict", "T-0001", "--fail", "--cause", "bug", "--sha", SHA_B, "--summary", "no", agent="zz-test-qa")
         self.assertIn("WARNING", p.stderr)
         self.assertEqual(self.verdicts()[0]["head_sha"], SHA_B)
 
