@@ -503,15 +503,39 @@ class CorpusSanityTests(unittest.TestCase):
     def test_must_allow_all_exit_0(self):
         self.assertGreaterEqual(self.check("must_allow", 0), 30)
 
+    @staticmethod
+    def _corpus_slices(corpus, chunk_size):
+        """Slice the shipped corpus into JSON parts so each guard_diff subprocess stays under the 600s cap."""
+        order = [(k, e) for k in ("must_block", "must_allow") for e in corpus[k]]
+        if len(order) <= chunk_size:
+            return [corpus]
+        out, block, allow = [], [], []
+        for i, (k, e) in enumerate(order):
+            (block if k == "must_block" else allow).append(e)
+            if (i + 1) % chunk_size == 0 or i + 1 == len(order):
+                out.append({"must_block": block, "must_allow": allow})
+                block, allow = [], []
+        return out
+
     @unittest.skipUnless(IN_GIT_WORK_TREE, "ROOT is not a git work tree (archive tree); the corpus check needs git")
     def test_real_corpus_against_origin_main_hook_is_clean(self):
         # the shipped corpus against the hook in this checkout, base = HEAD: the hook is the same file
         # T-0745: an empty FACTORY_HOME, else the live DB's public_text_repos makes the hook block corpus commit text
+        # T-1103: the full corpus no longer fits one 600s guard_diff subprocess (CI cap); slice, never drop lines.
+        chunk_size = 3400
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
-            p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker"],
-                               capture_output=True, text=True, timeout=600, env={**os.environ, "FACTORY_HOME": home})
-        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertIn("0 loosened", p.stdout)
+            env = {**os.environ, "FACTORY_HOME": home}
+            for part in self._corpus_slices(self.corpus, chunk_size):
+                with tempfile.NamedTemporaryFile("w", prefix="zz-test-gd-corpus-", suffix=".json", delete=False) as f:
+                    json.dump(part, f)
+                    path = f.name
+                try:
+                    p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker",
+                                        "--corpus", path], capture_output=True, text=True, timeout=600, env=env)
+                finally:
+                    os.unlink(path)
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertIn("0 loosened", p.stdout)
 
 
 
