@@ -1304,6 +1304,18 @@ def herdr_agents():
     return [_normalize_agent_list_row(a) for a in agents]
 
 
+def _agents_index(agents):
+    """Name and pane maps for tick reconciliation; skip pane lookups when pane_id is missing (hc ls rows)."""
+    by_name = {x.get("name"): x for x in agents if x.get("name")}
+    by_pane = {x["pane_id"]: x for x in agents if x.get("pane_id")}
+    return by_name, by_pane
+
+
+def _hc_tick_skips_lost_on_absent(con):
+    """hc ls only lists hc-spawned terminals; TUI agents must not be marked lost when absent from that list."""
+    return terminal_backend_effective(con)[1] == "hc"
+
+
 def close_named_pane(con, name, pane):
     """T-1007: the one way to close an agent's pane. Ask the host which pane carries the agent's exact name and close
     THAT pane id (host ids can differ from the row's; a stale row id may now belong to another pane). Returns
@@ -9300,8 +9312,7 @@ def start_confirm(con, agents):
     if not rows:
         return set()
     agents = herdr_agents() if agents is None else agents
-    by_name = {x.get("name"): x for x in agents or [] if x.get("name")}
-    by_pane = {x.get("pane_id"): x for x in agents or []}
+    by_name, by_pane = _agents_index(agents or [])
     skip = set()
     for r in rows:
         skip.add(r["name"])
@@ -13929,8 +13940,7 @@ def cmd_tick(a, locked=False):
         return
     scout_tick(con)
     skilleval_tick(con)
-    by_name = {x.get("name"): x for x in agents if x.get("name")}
-    by_pane = {x["pane_id"]: x for x in agents}
+    by_name, by_pane = _agents_index(agents)
     t = time.time()
     finish_pending_nudges(con, by_name, t)
     _pt_lap("pending_nudges")
@@ -13976,6 +13986,8 @@ def cmd_tick(a, locked=False):
         if not h and r["stop_requested_at"]:
             continue  # being stopped: step 1c decides (counted while its process lives), never 'lost'
         if not h:
+            if _hc_tick_skips_lost_on_absent(con):
+                continue  # hc list omits TUI panes; herdr ticks still reconcile them
             con.execute("UPDATE agents SET status='lost', ended=? WHERE name=?", (now(), r["name"]))
             event(con, "agent", r["name"], "lost", r["pane_id"])
             if r["role"] != "director":
@@ -14193,8 +14205,7 @@ def cmd_tick(a, locked=False):
     # 3. nudge idle agents that have unread mail; give the director its cycle
     cooldown = int(cfg(con, "nudge_cooldown_s"))
     agents = herdr_agents() or []
-    by_name = {x.get("name"): x for x in agents if x.get("name")}
-    by_pane = {x["pane_id"]: x for x in agents}
+    by_name, by_pane = _agents_index(agents)
     for r in con.execute("SELECT * FROM agents WHERE status='live'").fetchall():
         if r["role"] == "boss":
             continue  # the owner types in this pane: the tick never prompts it (badge in step 4, hook reads the mail)
@@ -15077,8 +15088,7 @@ def tick_recycle(con):
     agents = herdr_agents()
     if agents is None:
         return
-    by_name = {x.get("name"): x for x in agents if x.get("name")}
-    by_pane = {x["pane_id"]: x for x in agents}
+    by_name, by_pane = _agents_index(agents)
     try:
         clock = digest_clock().timestamp()
     except FactoryNowError:
@@ -16271,8 +16281,7 @@ def tick_relaunches(con):
     agents = herdr_agents()
     if agents is None:
         return
-    by_name = {x.get("name"): x for x in agents if x.get("name")}
-    by_pane = {x["pane_id"]: x for x in agents}
+    by_name, by_pane = _agents_index(agents)
     for r in rows:
         h = by_name.get(r["name"]) or by_pane.get(r["pane_id"])
         if not h or h.get("agent_status") not in ("idle", "done"):

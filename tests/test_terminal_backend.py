@@ -118,6 +118,27 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertIn("terminal backend: herdr (config=auto; effective=auto→herdr)", out)
         self.assertIn("herdr_socket (HERDR_SOCKET_PATH pin):", out)
 
+    def test_hc_tick_survives_ls_row_without_pane_id(self):
+        """hc ls terminals may omit pane_id; the tick must not KeyError and must exit 0."""
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.set_herdr(agents=[{"name": "zz-hc-term", "agent": "claude", "agent_status": "idle"}])
+        p = self.ok("tick", agent="owner")
+        self.assertNotIn("herdr unreachable", p.stdout)
+
+    def test_hc_tick_keeps_live_row_absent_from_hc_ls(self):
+        """terminal_backend=hc: factory agents on the TUI must stay live when hc ls is empty."""
+        self.ok("config", "terminal_backend", "hc", agent="owner")
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.env.seed_agent("zz-pm", "pm", goal="G-001", team="g-001-a", pane_id="p1", status="live")
+        self.env.set_herdr(agents=[])
+        p = self.ok("tick", agent="owner")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        row = self.env.sql("SELECT status FROM agents WHERE name='zz-pm'")[0]
+        self.assertEqual(row["status"], "live")
+        lost = [e for e in self.env.sql("SELECT action FROM events WHERE entity_id='zz-pm' AND action='lost'")]
+        self.assertEqual(lost, [])
+
     def test_missing_agent_status_is_unknown_not_idle_for_nudge(self):
         """Missing host status must not count as idle (nudge step requires idle or done)."""
         self.env.seed_goal()
