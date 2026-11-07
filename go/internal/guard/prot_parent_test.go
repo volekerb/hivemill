@@ -34,6 +34,27 @@ func protCases(t *testing.T, live, wt, other string, blocked []string, allowed [
 	}
 }
 
+func TestProtT0988ClosedWriters(t *testing.T) {
+	live, wt, other := protFixture(t)
+	blocked := []string{
+		"gzip -d ~/.local/bin/x.gz", "cd ~/.local/bin && gzip -d x.gz",
+		"cpio -id -D ~/.local/lib/factory < a.cpio", "cd ~/.local/lib/factory && cpio -id < a.cpio",
+		"GOBIN=~/.local/bin go install ./cmd/x", "env GOBIN=@L/bin go install ./cmd/x",
+		"gcc -MF ~/.local/bin/x.d -c a.c", "cargo build --target-dir ~/.local/go",
+	}
+	allowed := map[string][]string{
+		"gzip -d /tmp/x.gz": {other}, "gzip -dc ~/.local/bin/x.gz > /tmp/y": {other},
+		"GOBIN=/tmp/b go install ./cmd/x": {other}, "gcc -MF /tmp/x.d -c a.c": {other},
+		"cargo build --target-dir /tmp/t": {other}, "cpio -id < a.cpio": {other},
+		"cargo build --target-dir bin/t": {wt},
+	}
+	var keys []string
+	for c := range allowed {
+		keys = append(keys, c)
+	}
+	protCases(t, live, wt, other, blocked, keys, allowed)
+}
+
 func TestProtTildeNameAndCopyIntoParentAndFind(t *testing.T) {
 	live, wt, other := protFixture(t)
 	blocked := []string{

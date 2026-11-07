@@ -2260,10 +2260,11 @@ class Analyzer:
         if self.prot_hit(target):
             raise Block(f"a redirect into a protected tree: {PROT_WHY}")
 
-    def prot_write(self, name, rest):
+    def prot_write(self, name, rest, assigns=()):
         """T-0925 (gaps a, b, c, e, f, g): Bash writes into a protected tree. The writers cfg_write knows (now also with a
         glob target and for the new trees), the writer flags curl/wget/go/cc/tar/unzip/7z/git clone have, and an extractor
-        or downloader whose target is the cwd after a `cd` into a tree. `go env -w|-u` writes ~/.config/go/env."""
+        or downloader whose target is the cwd after a `cd` into a tree. `go env -w|-u` writes ~/.config/go/env.
+        T-0988: gzip -d, cpio -id, GOBIN= go install, gcc -MF, cargo --target-dir."""
         args = [a for a in rest if a != "--"]
 
         def block(w, what=None):
@@ -2344,6 +2345,10 @@ class Analyzer:
             if sub in ("build", "test", "install"):
                 for v in opt_values(args, "", {"-o", "--o"}):
                     hit(v, base=base)
+                if sub == "install":
+                    for a in assigns:
+                        if a.startswith("GOBIN="):
+                            hit(a.split("=", 1)[1], base=base)
         elif name in ("gcc", "g++", "cc", "c++", "clang", "clang++", "ld", "as", "rustc"):
             for k, a in enumerate(args):
                 if (a == "-o" or long_opt(a, "--output")) and k + 1 < len(args):
@@ -2352,6 +2357,54 @@ class Analyzer:
                     hit(a)
                 elif a.startswith("-o") and len(a) > 2:
                     hit(a[2:])
+                elif name == "gcc":
+                    if a == "-MF" and k + 1 < len(args):
+                        hit(args[k + 1])
+                    elif a.startswith("-MF") and len(a) > 3:
+                        hit(a[3:])
+        elif name == "gzip":
+            stdout = any(a in ("-c", "--stdout", "--to-stdout") or (re.match(r"^-[A-Za-z]+$", a) and "c" in a)
+                         for a in args)
+            decompress = any(a in ("-d", "--decompress") or long_opt(a.partition("=")[0], "--decompress") for a in args) or \
+                any(re.match(r"^-[A-Za-z]+$", a) and "d" in a for a in args)
+            if decompress:
+                if stdout:
+                    return
+                pos = [a for a in args if not a.startswith("-")]
+                for f in pos:
+                    hit(f)
+                    if f.endswith(".gz"):
+                        hit(f[:-3])
+                if not pos:
+                    return
+        elif name == "cpio":
+            extract, list_mode, dirs = False, False, []
+            for j, a in enumerate(args):
+                short = re.match(r"^-[A-Za-z]+$", a)
+                if a == "--extract" or (short and "i" in a):
+                    extract = True
+                if a in ("-t", "--list", "--to-stdout", "--only-verify-crc") or (short and "t" in a):
+                    list_mode = True
+                if (a == "-D" or a == "--directory") and j + 1 < len(args):
+                    dirs.append(args[j + 1])
+                elif a.startswith("--directory="):
+                    dirs.append(a.split("=", 1)[1])
+            if extract and not list_mode:
+                for d in dirs:
+                    hit(d, anc=True)
+                if not dirs:
+                    cwd_write(True, anc=True)
+        elif name == "cargo":
+            sub, k = None, 0
+            while k < len(args):
+                if not args[k].startswith("-"):
+                    sub = args[k]
+                    break
+                k += 1
+            if sub in ("build", "install", "run", "doc", "test", "bench"):
+                for v in opt_values(args, "", {"--target-dir"}) + [a.partition("=")[2] for a in args
+                                                                   if long_opt(a.partition("=")[0], "--target-dir") and "=" in a]:
+                    hit(v, anc=True)
         elif name in ("tar", "gtar", "bsdtar"):
             targs = list(args)
             old = bool(targs) and re.fullmatch(r"[A-Za-z]+", targs[0]) is not None
@@ -2397,6 +2450,23 @@ class Analyzer:
         elif name == "env":
             for v in opt_values(args, "C", {"--chdir"}):
                 hit(v)
+            gobin, i = [], 0
+            while i < len(args):
+                if ASSIGN.match(args[i]):
+                    if args[i].startswith("GOBIN="):
+                        gobin.append(args[i].split("=", 1)[1])
+                    i += 1
+                elif args[i] == "--":
+                    i += 1
+                    break
+                elif args[i].startswith("-"):
+                    i += 1
+                else:
+                    break
+            sub = args[i:]
+            if gobin and len(sub) >= 2 and os.path.basename(sub[0]) == "go" and sub[1] == "install":
+                for g in gobin:
+                    hit(g)
         elif name == "find":
             self.prot_find(args, hit, lambda: cwd_write(False, anc=True))
         elif name in ("7z", "7za", "7zr"):
@@ -3883,7 +3953,7 @@ class Analyzer:
         self.claude_launchers(name, rest)
         self.sandbox_route(name, rest)
         self.cfg_write(name, rest)
-        self.prot_write(name, rest)
+        self.prot_write(name, rest, assigns)
         self.persist_write(name, rest)
         if self.role in NO_PUSH_ROLES and not self.hq:
             if self.archive_extract(name, rest) or name in FS_MUTATORS or inline_interpreter(name, rest):

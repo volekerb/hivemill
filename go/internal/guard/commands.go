@@ -743,7 +743,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	if err := a.cfgWrite(name, rest); err != nil {
 		return err
 	}
-	if err := a.protWrite(name, rest); err != nil {
+	if err := a.protWrite(name, rest, assigns); err != nil {
 		return err
 	}
 	if err := a.persistWrite(name, rest); err != nil {
