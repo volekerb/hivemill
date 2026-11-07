@@ -306,6 +306,58 @@ jobs:
           echo "guard_diff evaluator self-compare: rc=$rc"
           exit $rc
 
+  guard-evaluator-home-loosen:
+    name: guard-evaluator-home-loosen
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      GOPROXY: "off"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install zsh
+        run: sudo apt-get install -y zsh
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.mod
+      - name: evaluator home-check loosening probe (real corpus)
+        run: |
+          set -o pipefail
+          lines=$(wc -l < ci/guard_corpus.json)
+          echo "corpus: ci/guard_corpus.json has $lines lines"
+          if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("roles/hooks/worker-guard.py")
+          src = p.read_text()
+          old = '        if not ok:\n            raise Block("the evaluator may run factory'
+          new = '        if False:\n            raise Block("the evaluator may run factory'
+          n = src.count(old)
+          if n != 1:
+              raise SystemExit(f"expected one evaluator home-check if-not-ok block, got {n}")
+          p.write_text(src.replace(old, new, 1))
+          PY
+          out="$RUNNER_TEMP/gd-home-loosen.txt"
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator >"$out" 2>&1
+          rc=$?
+          cat "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "evaluator home-check loosen probe: expected non-zero exit from guard_diff" >&2
+            exit 1
+          fi
+          if ! grep -F 'LOOSENED base=2 pr=0 worker' "$out"; then
+            echo "evaluator home-check loosen probe: expected LOOSENED base=2 pr=0 worker in stdout" >&2
+            exit 1
+          fi
+          echo "guard_diff evaluator home-check loosen probe: rc=$rc (expected non-zero)"
+
   # G-016 T-0355: the Go/Python equivalence gate, strict part: the strict Go-vs-Python guard_diff gate (corpus x every role x both modes).
   # Real steps run on guard-path PRs and pushes to main; otherwise the job succeeds as skipped. The routed unittest modules run in guard-equiv-rest.
   guard-equiv:
@@ -474,7 +526,7 @@ jobs:
   # Required check: the name must stay exactly "unittest".
   unittest:
     name: unittest
-    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-equiv, guard-equiv-rest]
+    needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv, guard-equiv-rest]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -486,6 +538,7 @@ jobs:
           GUARD_UNITTEST_RESULT: ${{ needs.guard-unittest.result }}
           GUARD_DIFF_RESULT: ${{ needs.guard-diff.result }}
           GUARD_SELF_COMPARE_RESULT: ${{ needs.guard-self-compare.result }}
+          GUARD_EVALUATOR_HOME_LOOSEN_RESULT: ${{ needs.guard-evaluator-home-loosen.result }}
           GUARD_EQUIV_RESULT: ${{ needs.guard-equiv.result }}
           GUARD_EQUIV_REST_RESULT: ${{ needs.guard-equiv-rest.result }}
         run: |
@@ -508,6 +561,10 @@ jobs:
           fi
           if [ "$GUARD_SELF_COMPARE_RESULT" != "success" ]; then
             echo "guard-self-compare result: $GUARD_SELF_COMPARE_RESULT (the evaluator self-compare step must succeed)" >&2
+            fail=1
+          fi
+          if [ "$GUARD_EVALUATOR_HOME_LOOSEN_RESULT" != "success" ]; then
+            echo "guard-evaluator-home-loosen result: $GUARD_EVALUATOR_HOME_LOOSEN_RESULT (the evaluator home-check loosening probe must succeed)" >&2
             fail=1
           fi
           if [ "$GUARD_EQUIV_RESULT" != "success" ]; then

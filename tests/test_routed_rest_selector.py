@@ -61,7 +61,7 @@ class RoutedRestSelectorTest(unittest.TestCase):
         self.assertIn("run --routed-rest", rest_job)
         self.assertEqual(text.count("--impl go"), 1)
         self.assertEqual(text.count("--strict"), 1)
-        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-equiv, guard-equiv-rest]", text)
+        self.assertIn("needs: [unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv, guard-equiv-rest]", text)
         self.assertIn("needs.guard-equiv.result", text)
         self.assertIn("needs.guard-equiv-rest.result", text)
         self.assertIn("if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}", rest_job)  # REAL_GO logs after a red step
@@ -74,6 +74,7 @@ class RoutedRestSelectorTest(unittest.TestCase):
         script = "\n".join(l[10:] for l in gate.splitlines())
         base = {"SHARD_RESULT": "success", "GO_RESULT": "success", "GUARD_UNITTEST_RESULT": "success",
                 "GUARD_DIFF_RESULT": "success", "GUARD_SELF_COMPARE_RESULT": "success",
+                "GUARD_EVALUATOR_HOME_LOOSEN_RESULT": "success",
                 "GUARD_EQUIV_RESULT": "success", "GUARD_EQUIV_REST_RESULT": "success"}
 
         def rc(**over):
