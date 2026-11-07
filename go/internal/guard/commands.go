@@ -719,7 +719,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 		a.ranFactory = true
 	}
 	if IsDynamic(w, !inLoose) {
-		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr, hc or claude"}
+		return &DynamicBlock{Msg: "dynamic command word " + pyRepr(w) + " could expand to herdr or claude"}
 	}
 	if IsHerdr(w) {
 		return blockf("direct herdr invocation")
@@ -836,7 +836,7 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 		for j := 0; j+1 < len(rest); j++ {
-			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && HasHerdrWord(rest[j+1]) {
+			if (reDashCeEr.MatchString(rest[j]) || rest[j] == "--eval") && strings.Contains(rest[j+1], "herdr") {
 				return blockf("herdr in inline interpreter code")
 			}
 		}
@@ -845,12 +845,12 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 			return err
 		}
 	case in(Awks, name) || in(Editors, name):
-		if anyOf(rest, func(x string) bool { return HasHerdrWord(x) }) {
+		if anyOf(rest, func(x string) bool { return strings.Contains(x, "herdr") }) {
 			return blockf("herdr in " + name + " program text (can run shell commands)")
 		}
 	case name == "sed":
 		for _, x := range rest {
-			if HasHerdrWord(x) && sedHerdr(x) {
+			if strings.Contains(x, "herdr") && sedHerdr(x) {
 				return blockf("herdr in a sed e command")
 			}
 		}
@@ -1314,8 +1314,7 @@ func (a *Analyzer) systemctl(rest []string) error {
 		return blockf("systemctl " + verbs[0] + " without a unit")
 	}
 	for _, u := range units {
-		if strings.HasPrefix(u, "factory") || strings.HasPrefix(u, "herdr") || strings.HasPrefix(u, "hc-") ||
-			strings.ContainsAny(u, "*?[") ||
+		if strings.HasPrefix(u, "factory") || strings.HasPrefix(u, "herdr") || strings.ContainsAny(u, "*?[") ||
 			strings.Contains(u, "$") || strings.Contains(u, "`") {
 			return blockf("systemctl " + verbs[0] + " " + u)
 		}

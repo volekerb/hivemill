@@ -292,11 +292,6 @@ true,
 },
 {
 "fn": "r2Set",
-"in": "HC_SOCKET=/tmp/x",
-"out": true
-},
-{
-"fn": "r2Set",
 "in": "HERDR_SESSION +=y",
 "out": true
 },
