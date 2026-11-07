@@ -126,7 +126,7 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertNotIn("herdr unreachable", p.stdout)
 
     def test_hc_tick_keeps_live_row_absent_from_hc_ls(self):
-        """terminal_backend=hc: factory agents on the TUI must stay live when hc ls is empty."""
+        """terminal_backend=hc: tick must not change agent rows when hc ls omits TUI panes."""
         self.ok("config", "terminal_backend", "hc", agent="owner")
         self.env.seed_goal()
         self.env.seed_team()
@@ -140,7 +140,7 @@ class TerminalBackendTests(FactoryTestCase):
         self.assertEqual(lost, [])
 
     def test_hc_tick_keeps_done_tui_row_absent_from_hc_ls(self):
-        """hc tick must not reap a done TUI agent missing from hc ls (no exited, no pane close)."""
+        """terminal_backend=hc: done rows stay done; no reap, pane close, or exited."""
         self.ok("config", "terminal_backend", "hc", agent="owner")
         self.env.seed_goal()
         self.env.seed_team()
@@ -161,6 +161,22 @@ class TerminalBackendTests(FactoryTestCase):
         close_calls = [c for c in self.env.calls("hc") if c["argv"][:2] == ["pane", "close"]]
         herdr_close = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
         self.assertEqual(close_calls + herdr_close, [])
+
+    def test_herdr_tick_reaps_done_row_when_host_lists_pane(self):
+        """herdr backend: done row with pane on the host is closed and marked exited."""
+        self.ok("config", "terminal_backend", "herdr", agent="owner")
+        self.env.seed_goal()
+        self.env.seed_team()
+        self.env.seed_agent("zz-done", "coder", goal="G-001", team="g-001-a", pane_id="p-tui", status="done")
+        self.env.set_herdr(agents=[{"name": "zz-done", "agent": "claude", "pane_id": "p-tui", "agent_status": "idle"}])
+        p = self.ok("tick", agent="owner")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        row = self.env.sql("SELECT status FROM agents WHERE name='zz-done'")[0]
+        self.assertEqual(row["status"], "exited")
+        reaped = [e for e in self.env.sql("SELECT action FROM events WHERE entity_id='zz-done' AND action='reaped'")]
+        self.assertEqual(len(reaped), 1)
+        closes = [c for c in self.env.calls("herdr") if c["argv"][:2] == ["pane", "close"]]
+        self.assertEqual(len(closes), 1)
 
     def test_missing_agent_status_is_unknown_not_idle_for_nudge(self):
         """Missing host status must not count as idle (nudge step requires idle or done)."""
